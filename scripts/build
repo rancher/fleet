@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+source $(dirname $0)/version
+
+cd $(dirname $0)/..
+
+mkdir -p bin
+if [ "$(uname)" = "Linux" ]; then
+    OTHER_LINKFLAGS="-extldflags -static -s"
+fi
+LINKFLAGS="-X github.com/rancher/fleet/pkg/version.Version=$VERSION"
+LINKFLAGS="-X github.com/rancher/fleet/pkg/version.GitCommit=$COMMIT $LINKFLAGS"
+CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/flt ./cmd/flt
+CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleetmanager ./cmd/fleetmanager
+CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleetagent ./cmd/fleetagent
+if [ "$CROSS" = "true" ] && [ "$ARCH" = "amd64" ]; then
+    GOOS=darwin go build -ldflags "$LINKFLAGS" -o bin/flt-darwin ./cmd/flt
+    GOOS=windows go build -ldflags "$LINKFLAGS" -o bin/flt-windows ./cmd/flt
+fi

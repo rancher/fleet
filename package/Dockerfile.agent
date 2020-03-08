@@ -1,0 +1,3 @@
+FROM alpine
+COPY bin/fleetagent /usr/bin/
+CMD ["fleetagent"]
