@@ -1,0 +1,30 @@
+builds:
+- env:
+  - CGO_ENABLED=0
+  - GOFLAGS=-mod=vendor
+  main: ./cmd/flt
+  binary: flt
+  goarch:
+  - arm
+  - arm64
+  - amd64
+  - ppc64le
+  goos:
+  - windows
+  - darwin
+  - linux
+archives:
+- name_template: "flt_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  format_overrides:
+  - goos: windows
+    format: zip
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'

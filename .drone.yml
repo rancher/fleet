@@ -297,3 +297,47 @@ depends_on:
 - amd64
 - arm64
 - arm
+
+---
+kind: pipeline
+name: goreleaser
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: fetch
+  image: docker:git
+  commands:
+    - git fetch --tags
+
+- name: test
+  image: golang:1.13.4
+  volumes:
+    - name: deps
+      path: /go
+  commands:
+    - go test -race -v ./... -cover
+
+- name: release
+  image: golang:1.13.4
+  environment:
+    GITHUB_TOKEN:
+      from_secret: github_token
+  volumes:
+    - name: deps
+      path: /go
+  commands:
+    - curl -sL https://git.io/goreleaser | bash
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event: tag
+
+volumes:
+  - name: deps
+    temp: {}
