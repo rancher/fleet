@@ -256,10 +256,3 @@ steps:
       from_secret: github_token
   commands:
     - curl -sL https://git.io/goreleaser | bash
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event: tag
