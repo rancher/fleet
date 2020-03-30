@@ -1,7 +1,9 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -34,6 +36,34 @@ func Open(ctx context.Context, baseDir, file string) (*Bundle, error) {
 }
 
 func Read(ctx context.Context, baseDir string, bundleSpecReader io.Reader) (*Bundle, error) {
+	data, err := ioutil.ReadAll(bundleSpecReader)
+	if err != nil {
+		return nil, err
+	}
+
+	bundle, err := read(ctx, false, baseDir, bytes.NewBuffer(data))
+	if err != nil {
+		return nil, err
+	}
+
+	if size, err := size(bundle.Definition); err != nil {
+		return nil, err
+	} else if size < 1000000 {
+		return bundle, nil
+	}
+
+	return read(ctx, true, baseDir, bytes.NewBuffer(data))
+}
+
+func size(bundle *fleet.Bundle) (int, error) {
+	marshalled, err := json.Marshal(bundle)
+	if err != nil {
+		return 0, err
+	}
+	return len(marshalled), nil
+}
+
+func read(ctx context.Context, compress bool, baseDir string, bundleSpecReader io.Reader) (*Bundle, error) {
 	if baseDir == "" {
 		baseDir = "./"
 	}
@@ -43,8 +73,8 @@ func Read(ctx context.Context, baseDir string, bundleSpecReader io.Reader) (*Bun
 		return nil, err
 	}
 
-	app := &fleet.BundleSpec{}
-	if err := yaml.Unmarshal(bytes, &app); err != nil {
+	bundle := &fleet.BundleSpec{}
+	if err := yaml.Unmarshal(bytes, &bundle); err != nil {
 		return nil, err
 	}
 
@@ -57,25 +87,45 @@ func Read(ctx context.Context, baseDir string, bundleSpecReader io.Reader) (*Bun
 		return nil, fmt.Errorf("name is required in the bundle.yaml")
 	}
 
-	setTargetNames(app)
+	setTargetNames(bundle)
 
-	overlays, err := readOverlays(ctx, meta.Name, baseDir, overlays(app)...)
+	overlays, err := readOverlays(ctx, meta, bundle, compress, baseDir)
 	if err != nil {
 		return nil, err
 	}
 
-	resources, err := readBaseResources(ctx, meta.Name, baseDir, meta.Manifests)
+	resources, err := readResources(ctx, meta, compress, baseDir)
 	if err != nil {
 		return nil, err
 	}
 
-	translate(app, overlays)
-	app.Overlays = sortOverlays(overlays)
-	app.Resources = resources
+	bundle.Resources = resources
+	assignOverlay(bundle, overlays)
 
 	return New(&fleet.Bundle{
 		ObjectMeta: meta.ObjectMeta,
-		Spec:       *app,
+		Spec:       *bundle,
+	})
+}
+
+func assignOverlay(bundle *fleet.BundleSpec, overlays map[string][]fleet.BundleResource) {
+	defined := map[string]bool{}
+	for i := range bundle.Overlays {
+		defined[bundle.Overlays[i].Name] = true
+		bundle.Overlays[i].Resources = overlays[bundle.Overlays[i].Name]
+	}
+	for name, resources := range overlays {
+		if defined[name] {
+			continue
+		}
+		bundle.Overlays = append(bundle.Overlays, fleet.BundleOverlay{
+			Name:      name,
+			Resources: resources,
+		})
+	}
+
+	sort.Slice(bundle.Overlays, func(i, j int) bool {
+		return bundle.Overlays[i].Name < bundle.Overlays[j].Name
 	})
 }
 
@@ -87,41 +137,25 @@ func setTargetNames(spec *fleet.BundleSpec) {
 	}
 }
 
-func sortOverlays(bundleMap map[string]*fleet.BundleOverlay) (result []fleet.BundleOverlay) {
-	var keys []string
-	for k := range bundleMap {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-	for _, k := range keys {
-		result = append(result, *bundleMap[k])
-	}
-
-	return
-}
-
-func overlays(app *fleet.BundleSpec) []string {
+func overlays(bundle *fleet.BundleSpec) []string {
 	overlayNames := sets.String{}
 
-	for _, target := range app.Targets {
+	for _, target := range bundle.Targets {
 		overlayNames.Insert(target.Overlays...)
+	}
+
+	for _, overlay := range bundle.Overlays {
+		overlayNames.Insert(overlay.Overlays...)
 	}
 
 	return overlayNames.List()
 }
 
-func translate(bundle *fleet.BundleSpec, bundleMap map[string]*fleet.BundleOverlay) {
-	for i := range bundle.Targets {
-		for j := range bundle.Targets[i].Overlays {
-			bundle.Targets[i].Overlays[j] = bundleMap[bundle.Targets[i].Overlays[j]].Name
-		}
-	}
-}
-
 type bundleMeta struct {
 	metav1.ObjectMeta `json:",inline,omitempty"`
 	Manifests         string `json:"manifests,omitempty"`
+	Overlays          string `json:"overlays,omitempty"`
+	Chart             string `json:"chart,omitempty"`
 }
 
 func readMetadata(bytes []byte) (*bundleMeta, error) {

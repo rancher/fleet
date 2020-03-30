@@ -22,19 +22,22 @@ const (
 )
 
 type handler struct {
-	apply        apply.Apply
-	clusterGroup fleetcontrollers.ClusterGroupController
-	bundleCache  fleetcontrollers.BundleCache
+	apply           apply.Apply
+	systemNamespace string
+	clusterGroup    fleetcontrollers.ClusterGroupController
+	bundleCache     fleetcontrollers.BundleCache
 }
 
 func Register(ctx context.Context,
+	systemNamespace string,
 	apply apply.Apply,
 	clusterGroup fleetcontrollers.ClusterGroupController,
 	bundle fleetcontrollers.BundleController,
 ) {
 	h := handler{
-		clusterGroup: clusterGroup,
-		bundleCache:  bundle.Cache(),
+		systemNamespace: systemNamespace,
+		clusterGroup:    clusterGroup,
+		bundleCache:     bundle.Cache(),
 		apply: apply.
 			WithSetID("fleet-global-config").
 			WithCacheTypes(bundle),
@@ -65,7 +68,7 @@ func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
 		return nil, nil
 	}
 
-	objs := agent.Manifest(cfg.AgentImage)
+	objs := agent.Manifest(h.systemNamespace, cfg.AgentImage)
 	agentYAML, err := yaml.Export(objs...)
 	if err != nil {
 		return nil, err
@@ -80,7 +83,7 @@ func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
 			},
 			Spec: fleet.BundleSpec{
 				BundleDeploymentOptions: fleet.BundleDeploymentOptions{
-					DefaultNamespace: config.Namespace,
+					DefaultNamespace: h.systemNamespace,
 					TimeoutSeconds:   5,
 				},
 				Resources: []fleet.BundleResource{
@@ -117,10 +120,10 @@ func (h *handler) OnConfig(config *config.Config) error {
 	return nil
 }
 
-func objects(config *config.Config) []runtime.Object {
+func objects(systemNamespace string, config *config.Config) []runtime.Object {
 	if config.ManageAgent != nil && !*config.ManageAgent {
 		return nil
 	}
 
-	return agent.Manifest(config.AgentImage)
+	return agent.Manifest(systemNamespace, config.AgentImage)
 }

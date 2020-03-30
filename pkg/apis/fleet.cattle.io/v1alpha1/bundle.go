@@ -116,6 +116,7 @@ type BundleDeployment struct {
 
 type BundleDeploymentOptions struct {
 	DefaultNamespace string                     `json:"defaultNamespace,omitempty"`
+	KustomizeDir     string                     `json:"kustomizeDir,omitempty"`
 	TimeoutSeconds   int                        `json:"timeoutSeconds,omitempty"`
 	Values           *unstructured.Unstructured `json:"values,omitempty"`
 }

@@ -1,50 +1,50 @@
 package helm
 
 import (
-	"path/filepath"
 	"strings"
-
-	"sigs.k8s.io/yaml"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
 	"helm.sh/helm/v3/pkg/chart"
+	"sigs.k8s.io/yaml"
 )
 
 func Process(name string, m *manifest.Manifest) (*manifest.Manifest, error) {
-	chartYAML := findChartYAML(m)
-	if chartYAML == "" {
-		return addChartYAML(name, m)
+	newManifest, foundChartYAML := toChart(m)
+	if !foundChartYAML {
+		return addChartYAML(name, m, newManifest)
 	}
 	return m, nil
 }
 
-func findChartYAML(m *manifest.Manifest) string {
-	chartYAML := ""
+func toChart(m *manifest.Manifest) (*manifest.Manifest, bool) {
+	found := false
+	newManifest := &manifest.Manifest{}
 	for _, resource := range m.Resources {
-		if strings.HasSuffix(resource.Name, "Chart.yaml") {
-			if chartYAML == "" || len(resource.Name) < len(chartYAML) {
-				chartYAML = resource.Name
-			}
+		if strings.HasPrefix(resource.Name, "manifests/") {
+			resource.Name = strings.Replace(resource.Name, "manifests/", "chart/templates/", 1)
 		}
+		if !strings.HasPrefix(resource.Name, "chart/") {
+			continue
+		}
+		if resource.Name == "chart/Chart.yaml" {
+			found = true
+		}
+		newManifest.Resources = append(newManifest.Resources, resource)
 	}
-	return chartYAML
+	return newManifest, found
 }
 
-func addChartYAML(deploymentID string, m *manifest.Manifest) (*manifest.Manifest, error) {
+func addChartYAML(name string, m, newManifest *manifest.Manifest) (*manifest.Manifest, error) {
 	_, hash, err := m.Content()
 	if err != nil {
 		return nil, err
 	}
 
 	metadata := chart.Metadata{
-		Name:       deploymentID,
+		Name:       name,
 		Version:    "v0.1-" + hash,
 		APIVersion: "v2",
-		Annotations: map[string]string{
-			"deploymentID": deploymentID,
-			"digest":       hash,
-		},
 	}
 
 	chart, err := yaml.Marshal(metadata)
@@ -52,29 +52,10 @@ func addChartYAML(deploymentID string, m *manifest.Manifest) (*manifest.Manifest
 		return nil, err
 	}
 
-	newManifest := &manifest.Manifest{
-		Resources: []fleet.BundleResource{
-			{
-				Name:    "Chart.yaml",
-				Content: string(chart),
-			},
-		},
-	}
-
-	for _, resource := range m.Resources {
-		if strings.HasPrefix(resource.Name, "post/") {
-			continue
-		}
-		if strings.HasPrefix(resource.Name, "templates/") {
-			newManifest.Resources = append(newManifest.Resources, resource)
-		} else {
-			newManifest.Resources = append(newManifest.Resources, fleet.BundleResource{
-				Name:     filepath.Join("templates", resource.Name),
-				Content:  resource.Content,
-				Encoding: resource.Encoding,
-			})
-		}
-	}
+	newManifest.Resources = append(newManifest.Resources, fleet.BundleResource{
+		Name:    "Chart.yaml",
+		Content: string(chart),
+	})
 
 	return newManifest, nil
 }

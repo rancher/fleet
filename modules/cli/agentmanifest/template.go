@@ -4,34 +4,20 @@ import (
 	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
-	"github.com/rancher/fleet/pkg/version"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func configMap(clusterLabels map[string]string) ([]runtime.Object, error) {
-	cm, err := config.ToConfigMap(config.Namespace, config.AgentName, &config.Config{
-		Labels: clusterLabels,
-	})
-	if err != nil {
-		return nil, err
-	}
-	cm.Name = "fleet-agent"
-	return []runtime.Object{
-		cm,
-	}, nil
-}
-
-func objects(kubeconfig, image string) []runtime.Object {
+func objects(namespace, kubeconfig, image string) []runtime.Object {
 	if image == "" {
-		image = "rancher/fleet-agent:" + version.Version
+		image = config.DefaultAgentImage
 	}
 
 	objs := []runtime.Object{
 		&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: config.Namespace,
+				Name: namespace,
 				Annotations: map[string]string{
 					fleet.ManagedAnnotation: "true",
 				},
@@ -40,7 +26,7 @@ func objects(kubeconfig, image string) []runtime.Object {
 		&v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      agent.DefaultName,
-				Namespace: config.Namespace,
+				Namespace: namespace,
 				Annotations: map[string]string{
 					fleet.BootstrapToken: "true",
 				},
@@ -51,6 +37,6 @@ func objects(kubeconfig, image string) []runtime.Object {
 		},
 	}
 
-	objs = append(objs, agent.Manifest(image)...)
+	objs = append(objs, agent.Manifest(namespace, image)...)
 	return objs
 }

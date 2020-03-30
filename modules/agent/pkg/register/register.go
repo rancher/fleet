@@ -87,7 +87,7 @@ func createClusterSecret(ctx context.Context, k8s corev1.Interface, secret *v1.S
 		return nil, err
 	}
 
-	cfg, err := config.Lookup(ctx, secret.Namespace, config.AgentName, k8s.ConfigMap())
+	cfg, err := config.Lookup(ctx, secret.Namespace, config.AgentConfigName, k8s.ConfigMap())
 	if err != nil {
 		return nil, err
 	}

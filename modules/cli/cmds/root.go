@@ -21,7 +21,7 @@ func App() *cobra.Command {
 	root.AddCommand(
 		NewApply(),
 		NewMatch(),
-		NewAgentManifest(),
+		NewInstall(),
 	)
 
 	return root
