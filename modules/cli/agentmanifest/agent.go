@@ -7,15 +7,15 @@ import (
 	"io/ioutil"
 	"time"
 
-	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
 	"github.com/rancher/wrangler/pkg/yaml"
 	coreV1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/clientcmd"
@@ -23,14 +23,12 @@ import (
 )
 
 type Options struct {
-	TTL        time.Duration
-	CA         []byte
-	Host       string
-	Labels     map[string]string
-	ConfigOnly bool
+	TTL  time.Duration
+	CA   []byte
+	Host string
 }
 
-func AgentManifest(ctx context.Context, clusterGroupName string, cg *client.Getter, output io.Writer, opts *Options) error {
+func AgentManifest(ctx context.Context, managerNamespace, clusterGroupName string, cg *client.Getter, output io.Writer, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -40,7 +38,7 @@ func AgentManifest(ctx context.Context, clusterGroupName string, cg *client.Gett
 		return err
 	}
 
-	cfg, err := config.Lookup(ctx, config.Namespace, config.Name, client.Core.ConfigMap())
+	cfg, err := config.Lookup(ctx, managerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return err
 	}
@@ -50,24 +48,17 @@ func AgentManifest(ctx context.Context, clusterGroupName string, cg *client.Gett
 		return err
 	}
 
-	objs, err := configMap(opts.Labels)
+	token, err := getToken(ctx, clusterGroup, opts.TTL, client)
 	if err != nil {
 		return err
 	}
 
-	if !opts.ConfigOnly {
-		token, err := getToken(ctx, clusterGroup, opts.TTL, client)
-		if err != nil {
-			return err
-		}
-
-		kubeConfig, err := getKubeConfig(cg.Kubeconfig, clusterGroup.Status.Namespace, token, opts.Host, opts.CA)
-		if err != nil {
-			return err
-		}
-
-		objs = append(objects(kubeConfig, cfg.AgentImage), objs...)
+	kubeConfig, err := getKubeConfig(cg.Kubeconfig, clusterGroup.Status.Namespace, token, opts.Host, opts.CA)
+	if err != nil {
+		return err
 	}
+
+	objs := objects(managerNamespace, kubeConfig, cfg.AgentImage)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {
@@ -82,8 +73,16 @@ func getClusterGroup(ctx context.Context, clusterGroupName string, client *clien
 	timeout := time.After(5 * time.Second)
 	for {
 		clusterGroup, err := client.Fleet.ClusterGroup().Get(client.Namespace, clusterGroupName, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			clusterGroup, err = client.Fleet.ClusterGroup().Create(&fleet.ClusterGroup{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: client.Namespace,
+					Name:      clusterGroupName,
+				},
+			})
+		}
 		if err != nil {
-			return nil, errors.Wrapf(err, "invalid cluster group, namespace=%s", client.Namespace)
+			return nil, errors.Wrapf(err, "invalid cluster group %s/%s", client.Namespace, clusterGroupName)
 		}
 
 		if clusterGroup.Status.Namespace != "" {

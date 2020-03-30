@@ -14,12 +14,16 @@ import (
 )
 
 const (
-	Name      = "fleet"
-	AgentName = "fleet-agent"
-	Namespace = "fleet-system"
+	ManagerConfigName = "fleet-manager"
+	AgentConfigName   = "fleet-agent"
+	Key               = "config"
+	DefaultNamespace  = "fleet-system"
 )
 
 var (
+	DefaultManagerImage = "rancher/fleet" + ":" + version.Version
+	DefaultAgentImage   = "rancher/fleet-agent" + ":" + version.Version
+
 	config       *Config
 	callbacks    = map[int]func(*Config) error{}
 	callbackID   int
@@ -27,31 +31,9 @@ var (
 )
 
 type Config struct {
-	AgentImage         string            `json:"agentImage,omitempty"`
-	ManageAgent        *bool             `json:"manageAgent,omitempty"`
-	InitialDataVersion int               `json:"initialDataVersion,omitempty"`
-	Labels             map[string]string `json:"labels,omitempty"`
-}
-
-func Store(cfg *Config, namespace string, configMaps corev1.ConfigMapClient) error {
-	newCM, err := ToConfigMap(namespace, Name, cfg)
-	if err != nil {
-		return err
-	}
-
-	cm, err := configMaps.Get(namespace, Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = configMaps.Create(newCM)
-		return err
-	}
-
-	cm.Data = newCM.Data
-	_, err = configMaps.Update(cm)
-	if err != nil {
-		return err
-	}
-
-	return Set(cfg)
+	AgentImage  string            `json:"agentImage,omitempty"`
+	ManageAgent *bool             `json:"manageAgent,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
 }
 
 func OnChange(ctx context.Context, f func(*Config) error) {
@@ -108,18 +90,18 @@ func Lookup(_ context.Context, namespace, name string, configMaps corev1.ConfigM
 		return nil, err
 	}
 
-	return ReadConfig(name, cm)
+	return ReadConfig(cm)
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		AgentImage: "rancher/fleet-agent:" + version.Version,
+		AgentImage: DefaultAgentImage,
 	}
 }
 
-func ReadConfig(name string, cm *v1.ConfigMap) (*Config, error) {
+func ReadConfig(cm *v1.ConfigMap) (*Config, error) {
 	cfg := DefaultConfig()
-	data := cm.Data[name]
+	data := cm.Data[Key]
 	if len(data) == 0 {
 		return cfg, nil
 	}
@@ -140,7 +122,7 @@ func ToConfigMap(namespace, name string, cfg *Config) (*v1.ConfigMap, error) {
 			Namespace: namespace,
 		},
 		Data: map[string]string{
-			name: string(bytes),
+			Key: string(bytes),
 		},
 	}, nil
 }

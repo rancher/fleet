@@ -1,7 +1,13 @@
 package kustomize
 
 import (
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"path/filepath"
+	"strings"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/rancher/fleet/pkg/content"
 	"github.com/rancher/fleet/pkg/manifest"
 	"sigs.k8s.io/kustomize/api/filesys"
@@ -10,60 +16,58 @@ import (
 	"sigs.k8s.io/kustomize/api/types"
 )
 
-func Process(m *manifest.Manifest) (*manifest.Manifest, error) {
-	fs, err := toFilesystem(m)
+func Process(m *manifest.Manifest, content []byte, dir string) ([]runtime.Object, bool, error) {
+	if dir == "" {
+		dir = "."
+	}
+
+	fs, err := toFilesystem(m, content)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	if !fs.Exists("kustomize.yaml") {
-		return m, nil
+	d := filepath.Join(dir, "kustomize.yaml")
+	if !fs.Exists(d) {
+		return nil, false, nil
 	}
 
-	yamlContent, err := kustomize(fs)
-	if err != nil {
-		return nil, err
-	}
-
-	newManifest := &manifest.Manifest{
-		Resources: []fleet.BundleResource{
-			{
-				Name:    "manifests.yaml",
-				Content: string(yamlContent),
-			},
-		},
-	}
-
-	return newManifest, nil
+	objs, err := kustomize(fs, dir)
+	return objs, true, err
 }
 
-func toFilesystem(m *manifest.Manifest) (filesys.FileSystem, error) {
+func toFilesystem(m *manifest.Manifest, manifestContent []byte) (filesys.FileSystem, error) {
 	f := filesys.MakeEmptyDirInMemory()
 	for _, resource := range m.Resources {
+		if !strings.HasPrefix(resource.Name, "kustomize/") {
+			continue
+		}
+		name := strings.TrimPrefix(resource.Name, "kustomize/")
 		data, err := content.Decode(resource.Content, resource.Encoding)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := f.AddFile(resource.Name, data); err != nil {
+		if _, err := f.AddFile(name, data); err != nil {
 			return nil, err
 		}
 	}
-	return f, nil
+	_, err := f.AddFile("manifests.yaml", manifestContent)
+	return f, err
 }
 
-func kustomize(fs filesys.FileSystem) ([]byte, error) {
-	pcfg, err := konfig.EnabledPluginConfig()
-	if err != nil {
-		return nil, err
-	}
+func kustomize(fs filesys.FileSystem, dir string) (result []runtime.Object, err error) {
+	pcfg := konfig.DisabledPluginConfig()
 	kust := krusty.MakeKustomizer(fs, &krusty.Options{
-		DoLegacyResourceSort: true,
-		LoadRestrictions:     types.LoadRestrictionsRootOnly,
-		PluginConfig:         pcfg,
+		LoadRestrictions: types.LoadRestrictionsRootOnly,
+		PluginConfig:     pcfg,
 	})
-	resMap, err := kust.Run(".")
+	resMap, err := kust.Run(dir)
 	if err != nil {
 		return nil, err
 	}
-	return resMap.AsYaml()
+	for _, m := range resMap.Resources() {
+		result = append(result, &unstructured.Unstructured{
+			Object: m.Map(),
+		})
+	}
+	return
 }

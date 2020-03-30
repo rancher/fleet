@@ -59,5 +59,8 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 			Object: data.MergeMaps(base.Values.Object, next.Values.Object),
 		}
 	}
+	if next.KustomizeDir != "" {
+		base.KustomizeDir = next.KustomizeDir
+	}
 	return base
 }

@@ -77,11 +77,13 @@ func Main(cmd *cobra.Command) {
 }
 
 func Command(obj Runnable, cmd cobra.Command) *cobra.Command {
-	slices := map[string]reflect.Value{}
-	maps := map[string]reflect.Value{}
-	envs := []func(){}
-	ptrValue := reflect.ValueOf(obj)
-	objValue := ptrValue.Elem()
+	var (
+		envs     []func()
+		slices   = map[string]reflect.Value{}
+		maps     = map[string]reflect.Value{}
+		ptrValue = reflect.ValueOf(obj)
+		objValue = ptrValue.Elem()
+	)
 
 	c := cmd
 	if c.Use == "" {

@@ -2,7 +2,6 @@ package agent
 
 import (
 	"github.com/rancher/fleet/pkg/config"
-	"github.com/rancher/fleet/pkg/version"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -14,21 +13,21 @@ const (
 	DefaultName = "fleet-agent"
 )
 
-func Manifest(image string) []runtime.Object {
+func Manifest(namespace, image string) []runtime.Object {
 	labels := map[string]string{
 		"app":     DefaultName,
 		"version": "v1",
 	}
 
 	if image == "" {
-		image = "rancher/fleet-agent:" + version.Version
+		image = config.DefaultAgentImage
 	}
 
 	objs := []runtime.Object{
 		&appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      DefaultName,
-				Namespace: config.Namespace,
+				Namespace: namespace,
 			},
 			Spec: appsv1.DeploymentSpec{
 				Selector: &metav1.LabelSelector{
@@ -53,7 +52,7 @@ func Manifest(image string) []runtime.Object {
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      DefaultName,
-				Namespace: config.Namespace,
+				Namespace: namespace,
 			},
 		},
 		&rbacv1.ClusterRole{
@@ -76,7 +75,7 @@ func Manifest(image string) []runtime.Object {
 				{
 					Kind:      "ServiceAccount",
 					Name:      DefaultName,
-					Namespace: config.Namespace,
+					Namespace: namespace,
 				},
 			},
 			RoleRef: rbacv1.RoleRef{

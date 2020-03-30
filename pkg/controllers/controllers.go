@@ -46,7 +46,7 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 5, a.starters...)
 }
 
-func Register(ctx context.Context, client *rest.Config) error {
+func Register(ctx context.Context, systemNamespace string, client *rest.Config) error {
 	appCtx, err := newContext(client)
 	if err != nil {
 		return err
@@ -55,7 +55,7 @@ func Register(ctx context.Context, client *rest.Config) error {
 	// config should be registered first to ensure the global
 	// config is available to all components
 	if err := config.Register(ctx,
-		appCtx.Apply,
+		systemNamespace,
 		appCtx.Core.ConfigMap()); err != nil {
 		return err
 	}
@@ -130,6 +130,7 @@ func Register(ctx context.Context, client *rest.Config) error {
 		appCtx.Core.Namespace())
 
 	manageagent.Register(ctx,
+		systemNamespace,
 		appCtx.Apply,
 		appCtx.ClusterGroup(),
 		appCtx.Bundle())

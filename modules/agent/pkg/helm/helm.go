@@ -7,14 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rancher/wrangler/pkg/kv"
-
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/kustomize"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/render"
 	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/sirupsen/logrus"
@@ -52,12 +51,22 @@ func mergeMaps(base, other map[string]string) map[string]string {
 
 type postRender struct {
 	bundleID string
+	manifest *manifest.Manifest
+	opts     fleet.BundleDeploymentOptions
 }
 
 func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
 	objs, err := yaml.ToObjects(renderedManifests)
 	if err != nil {
 		return nil, err
+	}
+
+	newObjs, processed, err := kustomize.Process(p.manifest, renderedManifests.Bytes(), p.opts.KustomizeDir)
+	if err != nil {
+		return nil, err
+	}
+	if processed {
+		objs = newObjs
 	}
 
 	labels, annotations, err := apply.GetLabelsAndAnnotations(name.SafeConcatName("fleet", p.bundleID), nil)
@@ -88,6 +97,11 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	if err != nil {
 		return nil, err
 	}
+
+	if chart.Metadata.Annotations == nil {
+		chart.Metadata.Annotations = map[string]string{}
+	}
+	chart.Metadata.Annotations["bundleID"] = bundleID
 
 	if _, err := h.install(bundleID, chart, options, true); err != nil {
 		return nil, err
@@ -198,7 +212,7 @@ func (h *helm) ListDeployments() ([]string, error) {
 	)
 
 	for _, release := range releases {
-		d := release.Chart.Metadata.Annotations["deploymentID"]
+		d := release.Chart.Metadata.Annotations["bundleID"]
 		if d != "" && !seen[d] {
 			result = append(result, d)
 			seen[d] = true
@@ -228,18 +242,18 @@ func (h *helm) Resources(deploymentID, resourcesID string) (*deployer.Resources,
 	return &deployer.Resources{}, nil
 }
 
-func (h *helm) Delete(deploymentID string) error {
-	return h.delete(deploymentID, fleet.BundleDeploymentOptions{}, false)
+func (h *helm) Delete(bundleID string) error {
+	return h.delete(bundleID, fleet.BundleDeploymentOptions{}, false)
 }
 
-func (h *helm) delete(deploymentID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
+func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
 	_, timeout, _ := getOpts(options)
 
 	u := action.NewUninstall(&h.cfg)
 	u.DryRun = dryRun
 	u.Timeout = timeout
 
-	_, err := u.Run(deploymentID)
+	_, err := u.Run(bundleID)
 	return err
 }
 
