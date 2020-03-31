@@ -84,7 +84,6 @@ func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
 			Spec: fleet.BundleSpec{
 				BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 					DefaultNamespace: h.systemNamespace,
-					TimeoutSeconds:   5,
 				},
 				Resources: []fleet.BundleResource{
 					{

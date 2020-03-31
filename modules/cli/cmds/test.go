@@ -13,7 +13,7 @@ import (
 func NewTest() *cobra.Command {
 	return command.Command(&Test{}, cobra.Command{
 		Args:  cobra.MaximumNArgs(1),
-		Short: "Match a bundle to a target and optional render the output",
+		Short: "Match a bundle to a target and render the output",
 	})
 }
 
