@@ -1,12 +1,14 @@
 package match
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 
-	"github.com/rancher/fleet/pkg/render"
+	"github.com/rancher/fleet/pkg/helmdeployer"
+	"github.com/rancher/wrangler/pkg/yaml"
 
 	"github.com/rancher/fleet/pkg/bundle"
 )
@@ -26,7 +28,7 @@ func Match(ctx context.Context, opts *Options) error {
 		opts = &Options{}
 	}
 
-	bundle, err := bundle.Open(ctx, opts.BaseDir, opts.BundleFile)
+	bundle, err := bundle.Open(ctx, opts.BaseDir, opts.BundleFile, nil)
 	if err != nil {
 		return err
 	}
@@ -43,7 +45,7 @@ func printMatch(m *bundle.Match, output io.Writer) error {
 	if m == nil {
 		return nil
 	}
-	fmt.Fprintf(os.Stderr, "%s\n", m.Target.Name)
+	fmt.Fprintf(os.Stderr, "# Matched: %s\n", m.Target.Name)
 	if output == nil {
 		return nil
 	}
@@ -53,11 +55,16 @@ func printMatch(m *bundle.Match, output io.Writer) error {
 		return err
 	}
 
-	t, err := render.ToChart(m.Bundle.Definition.Name, manifest)
+	objs, err := helmdeployer.Template(m.Bundle.Definition.Name, manifest, m.Target.BundleDeploymentOptions)
 	if err != nil {
 		return err
 	}
 
-	_, err = io.Copy(output, t)
+	data, err := yaml.Export(objs...)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(output, bytes.NewBuffer(data))
 	return err
 }

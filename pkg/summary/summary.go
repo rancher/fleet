@@ -3,6 +3,7 @@ package summary
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/rancher/wrangler/pkg/genericcondition"
@@ -27,14 +28,12 @@ func IncrementState(summary *fleet.BundleSummary, name string, state fleet.Bundl
 		summary.Ready++
 	}
 	if name != "" {
-		if summary.NonReadyNames == nil {
-			summary.NonReadyNames = map[string]fleet.BundleStateDescription{}
-		}
-		if len(summary.NonReadyNames) < 10 {
-			summary.NonReadyNames[name] = fleet.BundleStateDescription{
+		if len(summary.NonReadyResources) < 10 {
+			summary.NonReadyResources = append(summary.NonReadyResources, fleet.NonReadyResource{
+				Name:    name,
 				State:   state,
 				Message: message,
-			}
+			})
 		}
 	}
 }
@@ -51,11 +50,8 @@ func Increment(left *fleet.BundleSummary, right fleet.BundleSummary) {
 	left.Ready += right.Ready
 	left.Pending += right.Pending
 	left.DesiredReady += right.DesiredReady
-	for k, v := range right.NonReadyNames {
-		if left.NonReadyNames == nil {
-			left.NonReadyNames = map[string]fleet.BundleStateDescription{}
-		}
-		left.NonReadyNames[k] = v
+	if len(left.NonReadyResources) < 10 {
+		left.NonReadyResources = append(left.NonReadyResources, right.NonReadyResources...)
 	}
 }
 
@@ -94,7 +90,7 @@ func ReadyMessageFromCondition(conds []genericcondition.GenericCondition) string
 }
 
 func ReadyMessage(summary fleet.BundleSummary) string {
-	message := &strings.Builder{}
+	var messages []string
 	for msg, count := range map[fleet.BundleState]int{
 		fleet.OutOfSync:  summary.OutOfSync,
 		fleet.NotReady:   summary.NotReady,
@@ -105,19 +101,18 @@ func ReadyMessage(summary fleet.BundleSummary) string {
 		if count <= 0 {
 			continue
 		}
-		if message.Len() > 0 {
-			message.WriteString("; ")
-		}
-		for k, v := range summary.NonReadyNames {
+		for _, v := range summary.NonReadyResources {
+			name := v.Name
 			if v.State == msg {
 				if count > 1 {
-					k += "..."
+					name += "..."
 				}
-				message.WriteString(fmt.Sprintf("%s: %d (%s: %s)", msg, count, k, v.Message))
+				messages = append(messages, fmt.Sprintf("%s: %d (%s %s)", msg, count, name, v.Message))
 				break
 			}
 		}
 	}
 
-	return message.String()
+	sort.Strings(messages)
+	return strings.Join(messages, "; ")
 }

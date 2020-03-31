@@ -3,9 +3,7 @@ package controllers
 import (
 	"context"
 
-	"github.com/rancher/fleet/pkg/manifest"
-
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/pkg/controllers/bundle"
 	"github.com/rancher/fleet/pkg/controllers/cleanup"
@@ -20,20 +18,25 @@ import (
 	"github.com/rancher/fleet/pkg/controllers/sharedindex"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/target"
+	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
 	appscontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/apps/v1"
 	"github.com/rancher/wrangler-api/pkg/generated/controllers/core"
 	corecontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler-api/pkg/generated/controllers/rbac"
 	rbaccontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/start"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
 
 type appContext struct {
 	fleetcontrollers.Interface
 
+	K8s           kubernetes.Interface
 	Core          corecontrollers.Interface
 	Apps          appscontrollers.Interface
 	RBAC          rbaccontrollers.Interface
@@ -138,7 +141,13 @@ func Register(ctx context.Context, systemNamespace string, client *rest.Config) 
 	sharedindex.Register(ctx,
 		appCtx.ClusterGroup().Cache())
 
-	return appCtx.start(ctx)
+	leader.RunOrDie(ctx, systemNamespace, "fleet-manager", appCtx.K8s, func(ctx context.Context) {
+		if err := appCtx.start(ctx); err != nil {
+			logrus.Fatal(err)
+		}
+	})
+
+	return nil
 }
 
 func newContext(client *rest.Config) (*appContext, error) {
@@ -171,6 +180,11 @@ func newContext(client *rest.Config) (*appContext, error) {
 		return nil, err
 	}
 
+	k8s, err := kubernetes.NewForConfig(client)
+	if err != nil {
+		return nil, err
+	}
+
 	targetManager := target.New(
 		fleetv.Cluster().Cache(),
 		fleetv.ClusterGroup().Cache(),
@@ -179,6 +193,7 @@ func newContext(client *rest.Config) (*appContext, error) {
 		fleetv.BundleDeployment().Cache())
 
 	return &appContext{
+		K8s:           k8s,
 		Apps:          appsv,
 		Interface:     fleetv,
 		Core:          corev,

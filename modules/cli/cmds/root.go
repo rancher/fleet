@@ -20,7 +20,7 @@ func App() *cobra.Command {
 	command.AddDebug(root, &Debug)
 	root.AddCommand(
 		NewApply(),
-		NewMatch(),
+		NewTest(),
 		NewInstall(),
 	)
 

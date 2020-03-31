@@ -61,9 +61,9 @@ func objects(namespace, managerImage string, cfg string, crdsOnly bool) ([]runti
 	)
 
 	objs := []runtime.Object{
+		basic.Namespace(namespace),
 		serviceAccount,
 		basic.Deployment(namespace, genericName, managerImage, serviceAccount.Name),
-		basic.Namespace(namespace),
 		basic.ConfigMap(namespace, config.ManagerConfigName, config.Key, cfg),
 	}
 

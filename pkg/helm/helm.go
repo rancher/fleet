@@ -14,7 +14,7 @@ func Process(name string, m *manifest.Manifest) (*manifest.Manifest, error) {
 	if !foundChartYAML {
 		return addChartYAML(name, m, newManifest)
 	}
-	return m, nil
+	return newManifest, nil
 }
 
 func toChart(m *manifest.Manifest) (*manifest.Manifest, bool) {

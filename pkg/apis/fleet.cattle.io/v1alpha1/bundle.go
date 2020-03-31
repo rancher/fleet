@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"github.com/rancher/wrangler/pkg/genericcondition"
 	"github.com/rancher/wrangler/pkg/summary"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,17 +71,18 @@ type BundleTarget struct {
 }
 
 type BundleSummary struct {
-	NotReady      int                               `json:"notReady,omitempty"`
-	NotApplied    int                               `json:"notApplied,omitempty"`
-	OutOfSync     int                               `json:"outOfSync,omitempty"`
-	Modified      int                               `json:"modified,omitempty"`
-	Ready         int                               `json:"ready"`
-	Pending       int                               `json:"pending,omitempty"`
-	DesiredReady  int                               `json:"desiredReady"`
-	NonReadyNames map[string]BundleStateDescription `json:"nonReadyNames,omitempty"`
+	NotReady          int                `json:"notReady,omitempty"`
+	NotApplied        int                `json:"notApplied,omitempty"`
+	OutOfSync         int                `json:"outOfSync,omitempty"`
+	Modified          int                `json:"modified,omitempty"`
+	Ready             int                `json:"ready"`
+	Pending           int                `json:"pending,omitempty"`
+	DesiredReady      int                `json:"desiredReady"`
+	NonReadyResources []NonReadyResource `json:"nonReadyResources,omitempty"`
 }
 
-type BundleStateDescription struct {
+type NonReadyResource struct {
+	Name    string      `json:"name,omitempty"`
 	State   BundleState `json:"bundleState,omitempty"`
 	Message string      `json:"message,omitempty"`
 }
@@ -115,10 +114,10 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
-	DefaultNamespace string                     `json:"defaultNamespace,omitempty"`
-	KustomizeDir     string                     `json:"kustomizeDir,omitempty"`
-	TimeoutSeconds   int                        `json:"timeoutSeconds,omitempty"`
-	Values           *unstructured.Unstructured `json:"values,omitempty"`
+	DefaultNamespace string      `json:"defaultNamespace,omitempty"`
+	KustomizeDir     string      `json:"kustomizeDir,omitempty"`
+	TimeoutSeconds   int         `json:"timeoutSeconds,omitempty"`
+	Values           *GenericMap `json:"values,omitempty"`
 }
 
 type BundleDeploymentSpec struct {

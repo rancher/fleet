@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -22,6 +23,7 @@ import (
 const (
 	ManifestsDir = "manifests"
 	ChartDir     = "chart"
+	KustomizeDir = "kustomize"
 	Overlays     = "overlays"
 )
 
@@ -57,6 +59,11 @@ func readResources(ctx context.Context, meta *bundleMeta, compress bool, base st
 		return nil, err
 	}
 
+	directories, err = addDirectory(directories, base, meta.Kustomize, KustomizeDir)
+	if err != nil {
+		return nil, err
+	}
+
 	resources, err := readDirectories(ctx, compress, directories...)
 	if err != nil {
 		return nil, err
@@ -64,6 +71,7 @@ func readResources(ctx context.Context, meta *bundleMeta, compress bool, base st
 
 	result := stripChartPrefix(resources[ChartDir])
 	result = append(result, resources[ManifestsDir]...)
+	result = append(result, resources[KustomizeDir]...)
 	return result, nil
 }
 
@@ -102,8 +110,10 @@ func stripChartPrefix(resources []fleet.BundleResource) []fleet.BundleResource {
 
 func addDirectory(directories []directory, base, customDir, defaultDir string) ([]directory, error) {
 	if customDir == "" {
-		if _, err := os.Stat(filepath.Join(base, defaultDir)); err != nil {
-			return nil, nil
+		if _, err := os.Stat(filepath.Join(base, defaultDir)); os.IsNotExist(err) {
+			return directories, nil
+		} else if err != nil {
+			return directories, err
 		}
 		customDir = defaultDir
 	}
@@ -112,6 +122,7 @@ func addDirectory(directories []directory, base, customDir, defaultDir string) (
 		prefix: defaultDir,
 		base:   base,
 		path:   customDir,
+		key:    defaultDir,
 	}), nil
 }
 
@@ -216,6 +227,7 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 		return nil, err
 	}
 
+	u, uerr := url.Parse(name)
 	c := getter.Client{
 		Ctx:              ctx,
 		Src:              name,
@@ -226,6 +238,10 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 	}
 
 	if err := c.Get(); err != nil {
+		// ignore file paths that don't exist
+		if uerr == nil && u.Scheme == "" {
+			return nil, nil
+		}
 		return nil, err
 	}
 

@@ -2,6 +2,7 @@ package apply
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -14,8 +15,10 @@ import (
 )
 
 type Options struct {
-	BundleFile string
-	Output     io.Writer
+	BundleFile   string
+	Compress     bool
+	BundleReader io.Reader
+	Output       io.Writer
 }
 
 func Apply(ctx context.Context, client *client.Getter, baseDirs []string, opts *Options) error {
@@ -39,8 +42,26 @@ func Apply(ctx context.Context, client *client.Getter, baseDirs []string, opts *
 	return nil
 }
 
+func readBundle(ctx context.Context, baseDir string, opts *Options) (*bundle.Bundle, error) {
+	if opts.BundleReader != nil {
+		var bundleResource fleet.Bundle
+		if err := json.NewDecoder(opts.BundleReader).Decode(&bundleResource); err != nil {
+			return nil, err
+		}
+		return bundle.New(&bundleResource)
+	}
+
+	return bundle.Open(ctx, baseDir, opts.BundleFile, &bundle.Options{
+		Compress: opts.Compress,
+	})
+}
+
 func Dir(ctx context.Context, client *client.Getter, baseDir string, opts *Options) error {
-	bundle, err := bundle.Open(ctx, baseDir, opts.BundleFile)
+	if opts == nil {
+		opts = &Options{}
+	}
+
+	bundle, err := readBundle(ctx, baseDir, opts)
 	if err != nil {
 		return err
 	}

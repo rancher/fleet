@@ -17,11 +17,19 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func Open(ctx context.Context, baseDir, file string) (*Bundle, error) {
+type Options struct {
+	Compress bool
+}
+
+func Open(ctx context.Context, baseDir, file string, opts *Options) (*Bundle, error) {
+	if baseDir == "" {
+		baseDir = "."
+	}
+
 	if file == "" {
 		file = filepath.Join(baseDir, "bundle.yaml")
 	} else if file == "-" {
-		return Read(ctx, baseDir, os.Stdin)
+		return Read(ctx, baseDir, os.Stdin, opts)
 	} else {
 		file = filepath.Join(baseDir, file)
 	}
@@ -32,16 +40,20 @@ func Open(ctx context.Context, baseDir, file string) (*Bundle, error) {
 	}
 	defer f.Close()
 
-	return Read(ctx, baseDir, f)
+	return Read(ctx, baseDir, f, opts)
 }
 
-func Read(ctx context.Context, baseDir string, bundleSpecReader io.Reader) (*Bundle, error) {
+func Read(ctx context.Context, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+
 	data, err := ioutil.ReadAll(bundleSpecReader)
 	if err != nil {
 		return nil, err
 	}
 
-	bundle, err := read(ctx, false, baseDir, bytes.NewBuffer(data))
+	bundle, err := read(ctx, opts.Compress, baseDir, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
 	}
@@ -153,8 +165,9 @@ func overlays(bundle *fleet.BundleSpec) []string {
 
 type bundleMeta struct {
 	metav1.ObjectMeta `json:",inline,omitempty"`
-	Manifests         string `json:"manifests,omitempty"`
-	Overlays          string `json:"overlays,omitempty"`
+	Manifests         string `json:"manifestsDir,omitempty"`
+	Overlays          string `json:"overlaysDir,omitempty"`
+	Kustomize         string `json:"kustomizeDir,omitempty"`
 	Chart             string `json:"chart,omitempty"`
 }
 
