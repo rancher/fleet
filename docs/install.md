@@ -36,6 +36,15 @@ of one week.  That can be change to sort or to longer to forever.
 The service accounts give to clusters only have privileges to list `BundleDeployment` in the namespace created
 specifically for that cluster.  It can also update the `status` subresource of `BundleDeployment`
 
+### Scalability
+
+Fleet is designed to scale up to 1 million clusters.  The is done using a federated model.  The master Fleet
+manager can designate downstream clusters as federated managers.  New clusters can be registered to the federated
+manager.  This reduced the TCP connection load of the main fleet manager.  Also all the BundleDeployments and Cluster
+resources only exist in the federated managers and only the Bundle and ClusterGroup summaries are reported up to
+the central master.  The fundamental assumption is that while you may have 1 million clusters, you will still have less
+than about 10000 Bundles and Cluster Groups.  This architecture is still being developed.
+
 ## Installation
 
 ### Manager installation
