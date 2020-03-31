@@ -8,7 +8,7 @@ require (
 	github.com/cheggaaa/pb v1.0.27
 	github.com/hashicorp/go-getter v1.4.1
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/wrangler v0.6.0
+	github.com/rancher/wrangler v0.6.1-0.20200331011258-5fd911bbb12d
 	github.com/rancher/wrangler-api v0.6.0
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.7

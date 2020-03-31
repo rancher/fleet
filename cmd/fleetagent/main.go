@@ -9,7 +9,7 @@ import (
 
 type FleetAgent struct {
 	Kubeconfig string `usage:"kubeconfig file"`
-	Namespace  string `usage:"namespace to watch" default:"fleet-system"`
+	Namespace  string `usage:"namespace to watch" default:"fleet-system" env:"NAMESPACE"`
 }
 
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {

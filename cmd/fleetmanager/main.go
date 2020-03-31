@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-
 	"github.com/rancher/fleet/modules/cli/pkg/command"
 	"github.com/rancher/fleet/pkg/fleetmanager"
 	"github.com/rancher/fleet/pkg/version"
@@ -11,15 +9,10 @@ import (
 
 type FleetManager struct {
 	Kubeconfig string `usage:"Kubeconfig file"`
-	Namespace  string `usage:"namespace to watch" default:"fleet-system"`
-	OutputCRDs bool   `usage:"Print CRD definitions to stdout and exit"`
+	Namespace  string `usage:"namespace to watch" default:"fleet-system" env:"NAMESPACE"`
 }
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
-	if f.OutputCRDs {
-		return fleetmanager.OutputCRDs(os.Stdout)
-	}
-
 	if err := fleetmanager.Start(cmd.Context(), f.Namespace, f.Kubeconfig); err != nil {
 		return err
 	}

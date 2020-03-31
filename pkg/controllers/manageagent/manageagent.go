@@ -88,7 +88,6 @@ func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
 				},
 				Resources: []fleet.BundleResource{
 					{
-						Name:    "agent.yaml",
 						Content: string(agentYAML),
 					},
 				},

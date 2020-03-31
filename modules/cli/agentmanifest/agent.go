@@ -26,6 +26,7 @@ type Options struct {
 	TTL  time.Duration
 	CA   []byte
 	Host string
+	NoCA bool
 }
 
 func AgentManifest(ctx context.Context, managerNamespace, clusterGroupName string, cg *client.Getter, output io.Writer, opts *Options) error {
@@ -53,7 +54,7 @@ func AgentManifest(ctx context.Context, managerNamespace, clusterGroupName strin
 		return err
 	}
 
-	kubeConfig, err := getKubeConfig(cg.Kubeconfig, clusterGroup.Status.Namespace, token, opts.Host, opts.CA)
+	kubeConfig, err := getKubeConfig(cg.Kubeconfig, clusterGroup.Status.Namespace, token, opts.Host, opts.CA, opts.NoCA)
 	if err != nil {
 		return err
 	}
@@ -99,7 +100,7 @@ func getClusterGroup(ctx context.Context, clusterGroupName string, client *clien
 	}
 }
 
-func getKubeConfig(kubeConfig string, namespace, token, host string, ca []byte) (string, error) {
+func getKubeConfig(kubeConfig string, namespace, token, host string, ca []byte, noCA bool) (string, error) {
 	cc := kubeconfig.GetNonInteractiveClientConfig(kubeConfig)
 	cfg, err := cc.RawConfig()
 	if err != nil {
@@ -111,9 +112,13 @@ func getKubeConfig(kubeConfig string, namespace, token, host string, ca []byte) 
 		return "", err
 	}
 
-	ca, err = getCA(ca, cfg)
-	if err != nil {
-		return "", err
+	if noCA {
+		ca = nil
+	} else {
+		ca, err = getCA(ca, cfg)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	cfg = clientcmdapi.Config{

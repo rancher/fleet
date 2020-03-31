@@ -16,7 +16,12 @@ func Register(ctx context.Context,
 		return reloadConfig(namespace, configMap)
 	})
 
-	return nil
+	cfg, err := config.Lookup(ctx, namespace, config.ManagerConfigName, cm)
+	if err != nil {
+		return err
+	}
+
+	return config.Set(cfg)
 }
 
 func reloadConfig(namespace string, configMap *v1.ConfigMap) (*v1.ConfigMap, error) {

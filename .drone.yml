@@ -9,6 +9,8 @@ platform:
 steps:
 - name: build
   image: rancher/dapper:v0.4.1
+  environmant:
+    CROSS: "true"
   commands:
   - dapper ci
   volumes:

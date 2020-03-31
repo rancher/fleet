@@ -17,6 +17,10 @@ fi
 docker build -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}
 
+if [ "$PUSH" = "true" ]; then
+    docker push ${IMAGE}
+fi
+
 IMAGE=${REPO}/fleet-agent:${TAG}
 DOCKERFILE=package/Dockerfile.agent
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
@@ -25,3 +29,7 @@ fi
 
 docker build -f ${DOCKERFILE} -t ${IMAGE} .
 echo Built ${IMAGE}
+
+if [ "$PUSH" = "true" ]; then
+    docker push ${IMAGE}
+fi

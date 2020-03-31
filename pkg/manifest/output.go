@@ -5,13 +5,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
-	"path/filepath"
 	"time"
 
 	"github.com/rancher/fleet/pkg/content"
 )
 
-func (m *Manifest) ToTarGZ(prefix string) (io.Reader, error) {
+func (m *Manifest) ToTarGZ() (io.Reader, error) {
 	buf := &bytes.Buffer{}
 	gz := gzip.NewWriter(buf)
 	w := tar.NewWriter(gz)
@@ -22,7 +21,7 @@ func (m *Manifest) ToTarGZ(prefix string) (io.Reader, error) {
 			return nil, err
 		}
 		if err := w.WriteHeader(&tar.Header{
-			Name:     filepath.Join(prefix, resource.Name),
+			Name:     resource.Name,
 			Mode:     0644,
 			Typeflag: tar.TypeReg,
 			ModTime:  time.Unix(0, 0),

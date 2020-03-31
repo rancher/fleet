@@ -28,7 +28,7 @@ func App() *cobra.Command {
 }
 
 type Flt struct {
-	Namespace  string `usage:"namespace" env:"NAMESPACE" default:"fleet" short:"n"`
+	Namespace  string `usage:"namespace" env:"NAMESPACE" default:"default" short:"n" env:"NAMESPACE"`
 	Kubeconfig string `usage:"kubeconfig for authentication" short:"k"`
 }
 
