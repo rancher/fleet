@@ -96,9 +96,13 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 		return bd, err
 	}
 
-	return bd, h.trigger.OnChange(key, resources.DefaultNamespace, func() {
-		h.bdController.Enqueue(bd.Namespace, bd.Name)
-	}, resources.Objects...)
+	if resources != nil {
+		return bd, h.trigger.OnChange(key, resources.DefaultNamespace, func() {
+			h.bdController.Enqueue(bd.Namespace, bd.Name)
+		}, resources.Objects...)
+	}
+
+	return bd, nil
 }
 
 func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {

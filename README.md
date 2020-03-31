@@ -46,12 +46,13 @@ are deployed to clusters. Bundles are defined in the fleet manager and are then 
 
 Combining Fleet with a Git based workflow like Github Actions one can automate massive scale with ease.
 
-## Additional Documentation
+## Documentation
 
-1. [Understanding Bundles](./docs/bundles.md)
+1. [Understanding Bundles](./docs/bundles.md) - Very important read
 1. [Example Bundles](./docs/examples.md)
 1. [CLI](./docs/cli.md)
 1. [Architecture and Installation](./docs/install.md)
+1. [GitOps and CI/CD](./docs/gitops.md)
 
 ## Quick Start
 
