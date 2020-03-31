@@ -93,7 +93,7 @@ func save(client *client.Getter, bundle *fleet.Bundle) error {
 	if apierrors.IsNotFound(err) {
 		_, err = c.Fleet.Bundle().Create(bundle)
 		if err == nil {
-			fmt.Printf("%s/%s\n", obj.Namespace, obj.Name)
+			fmt.Printf("%s/%s\n", bundle.Namespace, bundle.Name)
 		}
 		return err
 	} else if err != nil {
