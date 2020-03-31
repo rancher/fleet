@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"helm.sh/helm/v3/pkg/kube"
+
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/kustomize"
@@ -27,11 +29,14 @@ import (
 
 type helm struct {
 	cfg      action.Configuration
+	getter   genericclioptions.RESTClientGetter
 	template bool
 }
 
 func NewHelm(namespace string, getter genericclioptions.RESTClientGetter) (deployer.Deployer, error) {
-	h := &helm{}
+	h := &helm{
+		getter: getter,
+	}
 	if err := h.cfg.Init(getter, namespace, "secrets", logrus.Infof); err != nil {
 		return nil, err
 	}
@@ -174,13 +179,19 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		}
 	}
 
+	// override global namespace default
+	kc := kube.New(h.getter)
+	kc.Namespace = namespace
+	cfg := h.cfg
+	cfg.KubeClient = kc
+
 	install, err := h.mustInstall(bundleID)
 	if err != nil {
 		return nil, err
 	}
 
 	if install {
-		u := action.NewInstall(&h.cfg)
+		u := action.NewInstall(&cfg)
 		u.ClientOnly = h.template
 		u.Adopt = true
 		u.Replace = true
@@ -198,7 +209,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		return u.Run(chart, vals)
 	}
 
-	u := action.NewUpgrade(&h.cfg)
+	u := action.NewUpgrade(&cfg)
 	u.Adopt = true
 	u.Namespace = namespace
 	u.Timeout = timeout
