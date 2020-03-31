@@ -1,4 +1,4 @@
-Rancher Fleet
+Fleet
 =============
 
 ### Status: ALPHA (actively looking for feedback)
@@ -24,7 +24,7 @@ clustergroup.fleet.cattle.io/bobby        2               [cluster-93d18642-217a
 
 ## Introduction
 
-Rancher Fleet is a Kubernetes cluster fleet manager specifically designed to address the challenges of running
+Fleet is a Kubernetes cluster fleet manager specifically designed to address the challenges of running
 thousands to millions of clusters across the world.  While it's designed for massive scale the concepts still
 apply for even small deployments of less than 10 clusters.  Fleet is lightweight enough to run on the smallest of
 deployments too and even has merit in a single node cluster managing only itself. The primary use case of Fleet is

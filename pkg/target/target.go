@@ -288,8 +288,5 @@ func (t *Target) State() fleet.BundleState {
 }
 
 func (t *Target) Message() string {
-	if t.Deployment == nil {
-		return ""
-	}
-	return summary.ReadyMessageFromCondition(t.Deployment.Status.Conditions)
+	return summary.MessageFromDeployment(t.Deployment)
 }

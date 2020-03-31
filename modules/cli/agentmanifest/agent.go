@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -100,6 +102,17 @@ func getClusterGroup(ctx context.Context, clusterGroupName string, client *clien
 	}
 }
 
+func checkHost(host string) error {
+	u, err := url.Parse(host)
+	if err != nil {
+		return errors.Wrapf(err, "invalid host, override with --server-url")
+	}
+	if u.Hostname() == "localhost" || strings.HasPrefix(u.Hostname(), "127.") {
+		return fmt.Errorf("invalid host %s, use --server-url to set a proper server URL", u.Hostname())
+	}
+	return nil
+}
+
 func getKubeConfig(kubeConfig string, namespace, token, host string, ca []byte, noCA bool) (string, error) {
 	cc := kubeconfig.GetNonInteractiveClientConfig(kubeConfig)
 	cfg, err := cc.RawConfig()
@@ -109,6 +122,10 @@ func getKubeConfig(kubeConfig string, namespace, token, host string, ca []byte, 
 
 	host, err = getHost(host, cfg)
 	if err != nil {
+		return "", err
+	}
+
+	if err := checkHost(host); err != nil {
 		return "", err
 	}
 
