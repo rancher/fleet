@@ -6,7 +6,7 @@ source $(dirname $0)/version
 cd $(dirname $0)/..
 
 mkdir -p dist/artifacts
-cp bin/flt dist/artifacts/flt${SUFFIX}
+cp bin/flt dist/artifacts/flt-linux-${SUFFIX}
 for i in bin/flt-*; do
     if [ -e "$i" ]; then
         cp $i dist/artifacts
