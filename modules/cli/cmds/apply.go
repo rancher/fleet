@@ -11,7 +11,7 @@ import (
 
 func NewApply() *cobra.Command {
 	return command.Command(&Apply{}, cobra.Command{
-		Short: "Render a bundle into a Kubernetes resource",
+		Short: "Render a bundle into a Kubernetes resource and apply it in the Fleet Manager",
 	})
 }
 
