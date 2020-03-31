@@ -1,0 +1,27 @@
+# Refer to other helm examples for general helm features
+name: helm-kustomize
+targets:
+- name: prod
+  clusterSelector:
+    matchLabels:
+      env: prod
+  # note that this directory is relate to ./kustomize
+  kustomizeDir: production
+
+- name: staging
+  clusterSelector:
+    matchLabels:
+      env: staging
+  # note that this directory is relate to ./kustomize
+  kustomizeDir: staging
+
+- name: dev
+  clusterSelector:
+    matchLabels:
+      env: dev
+  # note that this directory is relate to ./kustomize
+  kustomizeDir: dev
+
+- name: default
+  # Match everything
+  clusterSelector: {}

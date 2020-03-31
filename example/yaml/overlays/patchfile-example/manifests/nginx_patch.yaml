@@ -1,0 +1,4 @@
+# For a json patch it can be in json or yaml syntax
+- op: replace 
+  path: /spec/replicas
+  value: 0

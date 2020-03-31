@@ -1,0 +1,27 @@
+name: yaml
+defaultNamespace: nondefault
+
+targets:
+- name: merge
+  overlays:
+  - newfile-example
+  - mergefile-example
+  clusterSelector:
+    matchLabels:
+      region: one
+
+- name: changenamespace
+  defaultNamespace: default
+
+- name: patch
+  overlays:
+  - patchfile-example
+  clusterSelector:
+    matchLabels:
+      patch: "true"
+
+- name: default
+  overlays:
+  - newfile-example
+  # {} will match everything
+  clusterSelector: {}
