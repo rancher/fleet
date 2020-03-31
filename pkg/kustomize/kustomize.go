@@ -49,14 +49,14 @@ func Process(m *manifest.Manifest, content []byte, dir string) ([]runtime.Object
 }
 
 func modifyKustomize(f filesys.FileSystem, dir string) error {
-	kFile := filepath.Join(dir, KustomizeYAML)
-	kFileBytes, err := f.ReadFile(kFile)
+	file := filepath.Join(dir, KustomizeYAML)
+	fileBytes, err := f.ReadFile(file)
 	if err != nil {
 		return err
 	}
 
 	data := map[string]interface{}{}
-	if err := yaml.Unmarshal(kFileBytes, &data); err != nil {
+	if err := yaml.Unmarshal(fileBytes, &data); err != nil {
 		return nil
 	}
 
@@ -66,12 +66,12 @@ func modifyKustomize(f filesys.FileSystem, dir string) error {
 	}
 
 	data["resources"] = append(resources, ManifestsYAML)
-	kFileBytes, err = json.Marshal(data)
+	fileBytes, err = json.Marshal(data)
 	if err != nil {
 		return err
 	}
 
-	return f.WriteFile(kFile, kFileBytes)
+	return f.WriteFile(file, fileBytes)
 }
 
 func toFilesystem(m *manifest.Manifest, dir string, manifestsContent []byte) (filesys.FileSystem, error) {
