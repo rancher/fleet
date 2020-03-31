@@ -7,6 +7,11 @@ cd $(dirname $0)/..
 
 mkdir -p dist/artifacts
 cp bin/flt dist/artifacts/flt${SUFFIX}
+for i in bin/flt-*; do
+    if [ -e "$i" ]; then
+        cp $i dist/artifacts
+    fi
+done
 
 IMAGE=${REPO}/fleet:${TAG}
 DOCKERFILE=package/Dockerfile
