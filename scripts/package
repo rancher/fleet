@@ -9,7 +9,11 @@ mkdir -p dist/artifacts
 cp bin/flt dist/artifacts/flt-linux${SUFFIX}
 for i in bin/flt-*; do
     if [ -e "$i" ]; then
-        cp $i dist/artifacts
+        if [ "$i" = flt-windows-amd64 ]; then
+            cp $i dist/artifacts/flt-windows-amd64.exe
+        else
+            cp $i dist/artifacts
+        fi
     fi
 done
 

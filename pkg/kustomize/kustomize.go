@@ -1,19 +1,26 @@
 package kustomize
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
 	"github.com/rancher/fleet/pkg/content"
 	"github.com/rancher/fleet/pkg/manifest"
+	"github.com/rancher/wrangler/pkg/data/convert"
+	"github.com/rancher/wrangler/pkg/slice"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/kustomize/api/filesys"
 	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
+)
+
+const (
+	KustomizeYAML = "kustomization.yaml"
+	ManifestsYAML = "manifests.yaml"
 )
 
 func Process(m *manifest.Manifest, content []byte, dir string) ([]runtime.Object, bool, error) {
@@ -21,21 +28,53 @@ func Process(m *manifest.Manifest, content []byte, dir string) ([]runtime.Object
 		dir = "."
 	}
 
-	fs, err := toFilesystem(m, content)
+	fs, err := toFilesystem(m, dir, content)
 	if err != nil {
 		return nil, false, err
 	}
 
-	d := filepath.Join(dir, "kustomize.yaml")
+	d := filepath.Join(dir, KustomizeYAML)
 	if !fs.Exists(d) {
 		return nil, false, nil
+	}
+
+	if len(content) > 0 {
+		if err := modifyKustomize(fs, dir); err != nil {
+			return nil, false, err
+		}
 	}
 
 	objs, err := kustomize(fs, dir)
 	return objs, true, err
 }
 
-func toFilesystem(m *manifest.Manifest, manifestContent []byte) (filesys.FileSystem, error) {
+func modifyKustomize(f filesys.FileSystem, dir string) error {
+	kFile := filepath.Join(dir, KustomizeYAML)
+	kFileBytes, err := f.ReadFile(kFile)
+	if err != nil {
+		return err
+	}
+
+	data := map[string]interface{}{}
+	if err := yaml.Unmarshal(kFileBytes, &data); err != nil {
+		return nil
+	}
+
+	resources := convert.ToStringSlice(data["resources"])
+	if slice.ContainsString(resources, ManifestsYAML) {
+		return nil
+	}
+
+	data["resources"] = append(resources, ManifestsYAML)
+	kFileBytes, err = json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	return f.WriteFile(kFile, kFileBytes)
+}
+
+func toFilesystem(m *manifest.Manifest, dir string, manifestsContent []byte) (filesys.FileSystem, error) {
 	f := filesys.MakeEmptyDirInMemory()
 	for _, resource := range m.Resources {
 		if !strings.HasPrefix(resource.Name, "kustomize/") {
@@ -50,7 +89,8 @@ func toFilesystem(m *manifest.Manifest, manifestContent []byte) (filesys.FileSys
 			return nil, err
 		}
 	}
-	_, err := f.AddFile("manifests.yaml", manifestContent)
+
+	_, err := f.AddFile(filepath.Join(dir, ManifestsYAML), manifestsContent)
 	return f, err
 }
 

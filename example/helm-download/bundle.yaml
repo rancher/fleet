@@ -1,0 +1,18 @@
+name: helm-download
+chart: https://charts.fluxcd.io/flux-1.2.0.tgz
+defaultNamespace: fluxcd
+
+overlays:
+- name: commonoptions
+  values:
+    image:
+      pullPolicy: Always
+
+targets:
+- clusterSelector: {}
+  overlays:
+  - commonoptions
+  values:
+    image:
+      repository: somemirror/fluxcd/flux
+      tag: 1.18.0

@@ -1,9 +1,10 @@
 package cmds
 
 import (
+	"os"
+
 	"github.com/rancher/fleet/modules/cli/agentconfig"
 	"github.com/rancher/fleet/modules/cli/pkg/command"
-	"github.com/rancher/fleet/modules/cli/pkg/writer"
 	"github.com/spf13/cobra"
 )
 
@@ -14,8 +15,6 @@ func NewAgentConfig() *cobra.Command {
 }
 
 type AgentConfig struct {
-	OutputArgs
-
 	SystemNamespace string            `usage:"System namespace of the manager" default:"fleet-system"`
 	Labels          map[string]string `usage:"Labels to apply to the new cluster on register" short:"l"`
 }
@@ -25,5 +24,5 @@ func (a *AgentConfig) Run(cmd *cobra.Command, args []string) error {
 		Labels: a.Labels,
 	}
 
-	return agentconfig.AgentConfig(cmd.Context(), a.SystemNamespace, Client, writer.New(a.Output), opts)
+	return agentconfig.AgentConfig(cmd.Context(), a.SystemNamespace, Client, os.Stdout, opts)
 }

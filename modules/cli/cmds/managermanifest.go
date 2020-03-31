@@ -1,9 +1,10 @@
 package cmds
 
 import (
+	"os"
+
 	"github.com/rancher/fleet/modules/cli/managermanifest"
 	"github.com/rancher/fleet/modules/cli/pkg/command"
-	"github.com/rancher/fleet/modules/cli/pkg/writer"
 	"github.com/spf13/cobra"
 )
 
@@ -14,8 +15,6 @@ func NewManager() *cobra.Command {
 }
 
 type Manager struct {
-	OutputArgs
-
 	SystemNamespace string `usage:"Namespace that will be use in manager and agent cluster" default:"fleet-system"`
 	ManagerImage    string `usage:"Image to use for manager"`
 	AgentImage      string `usage:"Image to use for all agents"`
@@ -30,5 +29,5 @@ func (a *Manager) Run(cmd *cobra.Command, args []string) error {
 		CRDsOnly:     a.CRDsOnly,
 	}
 
-	return managermanifest.ManagerManifest(writer.New(a.Output), opts)
+	return managermanifest.ManagerManifest(os.Stdout, opts)
 }

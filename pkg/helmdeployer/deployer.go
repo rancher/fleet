@@ -1,4 +1,4 @@
-package helm
+package helmdeployer
 
 import (
 	"bytes"
@@ -26,7 +26,8 @@ import (
 )
 
 type helm struct {
-	cfg action.Configuration
+	cfg      action.Configuration
+	template bool
 }
 
 func NewHelm(namespace string, getter genericclioptions.RESTClientGetter) (deployer.Deployer, error) {
@@ -56,12 +57,18 @@ type postRender struct {
 }
 
 func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
-	objs, err := yaml.ToObjects(renderedManifests)
+	data := renderedManifests.Bytes()
+
+	objs, err := yaml.ToObjects(bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
 	}
 
-	newObjs, processed, err := kustomize.Process(p.manifest, renderedManifests.Bytes(), p.opts.KustomizeDir)
+	if len(objs) == 0 {
+		data = nil
+	}
+
+	newObjs, processed, err := kustomize.Process(p.manifest, data, p.opts.KustomizeDir)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +90,7 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 		meta.SetAnnotations(mergeMaps(meta.GetAnnotations(), annotations))
 	}
 
-	data, err := yaml.ToBytes(objs)
+	data, err = yaml.ToBytes(objs)
 	return bytes.NewBuffer(data), err
 }
 
@@ -103,8 +110,10 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	}
 	chart.Metadata.Annotations["bundleID"] = bundleID
 
-	if _, err := h.install(bundleID, manifest, chart, options, true); err != nil {
+	if resources, err := h.install(bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
+	} else if h.template {
+		return releaseToResources(resources)
 	}
 
 	release, err := h.install(bundleID, manifest, chart, options, false)
@@ -134,7 +143,7 @@ func (h *helm) mustInstall(bundleID string) (bool, error) {
 func getOpts(options fleet.BundleDeploymentOptions) (map[string]interface{}, time.Duration, string) {
 	vals := map[string]interface{}{}
 	if options.Values != nil {
-		vals = options.Values.Object
+		vals = options.Values.Data
 	}
 
 	timeout := 10 * time.Minute
@@ -172,6 +181,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 
 	if install {
 		u := action.NewInstall(&h.cfg)
+		u.ClientOnly = !h.template
 		u.Adopt = true
 		u.Replace = true
 		u.Wait = true

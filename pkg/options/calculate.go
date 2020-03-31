@@ -9,7 +9,6 @@ import (
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/overlay"
 	"github.com/rancher/wrangler/pkg/data"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func DeploymentID(manifest *manifest.Manifest, opts fleet.BundleDeploymentOptions) (string, error) {
@@ -55,9 +54,7 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 	if base.Values == nil {
 		base.Values = next.Values
 	} else if next.Values != nil {
-		base.Values = &unstructured.Unstructured{
-			Object: data.MergeMaps(base.Values.Object, next.Values.Object),
-		}
+		base.Values.Data = data.MergeMaps(base.Values.Data, next.Values.Data)
 	}
 	if next.KustomizeDir != "" {
 		base.KustomizeDir = next.KustomizeDir

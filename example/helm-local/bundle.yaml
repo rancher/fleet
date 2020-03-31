@@ -1,0 +1,17 @@
+name: helm
+defaultNamespace: fluxcd
+
+overlays:
+- name: commonoptions
+  values:
+    image:
+      pullPolicy: Always
+
+targets:
+- clusterSelector: {}
+  overlays:
+  - commonoptions
+  values:
+    image:
+      repository: somemirror/fluxcd/flux
+      tag: 1.18.0

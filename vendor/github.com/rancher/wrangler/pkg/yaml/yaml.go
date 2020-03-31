@@ -142,11 +142,19 @@ func CleanObjectForExport(obj runtime.Object) (runtime.Object, error) {
 	}
 	if annotations := unstr.GetAnnotations(); len(annotations) > 0 {
 		cleanMap(annotations)
-		metadata["annotations"] = annotations
+		if len(annotations) > 0 {
+			metadata["annotations"] = annotations
+		} else {
+			delete(metadata, "annotations")
+		}
 	}
 	if labels := unstr.GetLabels(); len(labels) > 0 {
 		cleanMap(labels)
-		metadata["labels"] = labels
+		if len(labels) > 0 {
+			metadata["labels"] = labels
+		} else {
+			delete(metadata, "labels")
+		}
 	}
 
 	if spec, ok := data["spec"]; ok {

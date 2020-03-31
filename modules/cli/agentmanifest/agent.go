@@ -71,7 +71,7 @@ func AgentManifest(ctx context.Context, managerNamespace, clusterGroupName strin
 }
 
 func getClusterGroup(ctx context.Context, clusterGroupName string, client *client.Client) (*fleet.ClusterGroup, error) {
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(2 * time.Minute)
 	for {
 		clusterGroup, err := client.Fleet.ClusterGroup().Get(client.Namespace, clusterGroupName, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
