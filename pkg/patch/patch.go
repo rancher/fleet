@@ -40,7 +40,7 @@ func decodeContext(m *manifest.Manifest) (map[string][]byte, error) {
 	for i, resource := range m.Resources {
 		name := resource.Name
 		if name == "" {
-			name = fmt.Sprintf("file%03d", i)
+			name = fmt.Sprintf("manifests/file%03d", i)
 		}
 
 		data, err := content.Decode(resource.Content, resource.Encoding)

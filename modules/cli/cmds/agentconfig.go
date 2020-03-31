@@ -16,7 +16,8 @@ func NewAgentConfig() *cobra.Command {
 type AgentConfig struct {
 	OutputArgs
 
-	Labels map[string]string `usage:"Labels to apply to the new cluster on register" short:"l"`
+	SystemNamespace string            `usage:"System namespace of the manager" default:"fleet-system"`
+	Labels          map[string]string `usage:"Labels to apply to the new cluster on register" short:"l"`
 }
 
 func (a *AgentConfig) Run(cmd *cobra.Command, args []string) error {
@@ -24,5 +25,5 @@ func (a *AgentConfig) Run(cmd *cobra.Command, args []string) error {
 		Labels: a.Labels,
 	}
 
-	return agentconfig.AgentConfig(writer.New(a.Output), Client, opts)
+	return agentconfig.AgentConfig(cmd.Context(), a.SystemNamespace, Client, writer.New(a.Output), opts)
 }

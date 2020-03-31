@@ -27,5 +27,5 @@ func ToChart(name string, m *manifest.Manifest) (io.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return m.ToTarGZ(name)
+	return m.ToTarGZ()
 }

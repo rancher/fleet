@@ -10,7 +10,7 @@ func NewInstall() *cobra.Command {
 		Short: "Generate manifests for installing server and agent",
 	}
 	cmd.AddCommand(
-		NewManagerManifest(),
+		NewManager(),
 		NewAgentToken(),
 		NewAgentConfig(),
 	)

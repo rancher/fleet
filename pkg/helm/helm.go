@@ -53,7 +53,7 @@ func addChartYAML(name string, m, newManifest *manifest.Manifest) (*manifest.Man
 	}
 
 	newManifest.Resources = append(newManifest.Resources, fleet.BundleResource{
-		Name:    "Chart.yaml",
+		Name:    "chart/Chart.yaml",
 		Content: string(chart),
 	})
 

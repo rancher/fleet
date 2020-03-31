@@ -7,25 +7,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewManagerManifest() *cobra.Command {
-	return command.Command(&ManagerManifest{}, cobra.Command{
+func NewManager() *cobra.Command {
+	return command.Command(&Manager{}, cobra.Command{
 		Short: "Generate deployment manifest to run the fleet manager",
 	})
 }
 
-type ManagerManifest struct {
+type Manager struct {
 	OutputArgs
 
-	Namespace    string `usage:"Namespace that will be use in manager and agent cluster" default:"fleet-system"`
-	ManagerImage string `usage:"Image to use for manager"`
-	AgentImage   string `usage:"Image to use for all agents"`
+	SystemNamespace string `usage:"Namespace that will be use in manager and agent cluster" default:"fleet-system"`
+	ManagerImage    string `usage:"Image to use for manager"`
+	AgentImage      string `usage:"Image to use for all agents"`
+	CRDsOnly        bool   `usage:"Output CustomResourceDefinitions only"`
 }
 
-func (a *ManagerManifest) Run(cmd *cobra.Command, args []string) error {
+func (a *Manager) Run(cmd *cobra.Command, args []string) error {
 	opts := &managermanifest.Options{
-		Namespace:    a.Namespace,
+		Namespace:    a.SystemNamespace,
 		ManagerImage: a.ManagerImage,
 		AgentImage:   a.AgentImage,
+		CRDsOnly:     a.CRDsOnly,
 	}
 
 	return managermanifest.ManagerManifest(writer.New(a.Output), opts)

@@ -14,6 +14,7 @@ type Options struct {
 	Namespace    string
 	ManagerImage string
 	AgentImage   string
+	CRDsOnly     bool
 }
 
 func ManagerManifest(output io.Writer, opts *Options) error {
@@ -28,7 +29,7 @@ func ManagerManifest(output io.Writer, opts *Options) error {
 		return err
 	}
 
-	objs, err := objects(opts.Namespace, opts.ManagerImage, cfg)
+	objs, err := objects(opts.Namespace, opts.ManagerImage, cfg, opts.CRDsOnly)
 	if err != nil {
 		return err
 	}

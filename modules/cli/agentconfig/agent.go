@@ -1,27 +1,37 @@
 package agentconfig
 
 import (
+	"context"
 	"io"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
-
+	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
 	"github.com/rancher/wrangler/pkg/yaml"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 type Options struct {
 	Labels map[string]string
 }
 
-func AgentConfig(output io.Writer, cg *client.Getter, opts *Options) error {
+func AgentConfig(ctx context.Context, managerNamespace string, cg *client.Getter, output io.Writer, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
 
-	objs, err := configMap(cg.Namespace, opts.Labels)
+	client, err := cg.Get()
+	if err != nil {
+		return err
+	}
+
+	// sanity test the managerNamespace is correct
+	_, err = config.Lookup(ctx, managerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
+	if err != nil {
+		return err
+	}
+
+	objs, err := configMap(managerNamespace, opts.Labels)
 	if err != nil {
 		return err
 	}
@@ -44,6 +54,7 @@ func configMap(namespace string, clusterLabels map[string]string) ([]runtime.Obj
 	}
 	cm.Name = "fleet-agent"
 	return []runtime.Object{
+		basic.Namespace(namespace),
 		cm,
 	}, nil
 }

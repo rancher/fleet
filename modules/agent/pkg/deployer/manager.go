@@ -7,6 +7,7 @@ import (
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/kv"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type Manager struct {
@@ -57,7 +58,28 @@ func (m *Manager) Delete(bundleDeploymentKey string) error {
 }
 
 func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
-	return m.deployer.Resources(bd.Name, bd.Status.Release)
+	resources, err := m.deployer.Resources(bd.Name, bd.Status.Release)
+	if err != nil {
+		return nil, nil
+	}
+
+	plan, err := m.getApply(bd, resources.DefaultNamespace).
+		DryRun(resources.Objects...)
+	if err != nil {
+		return nil, err
+	}
+
+	for gvk, keys := range plan.Delete {
+		for _, key := range keys {
+			u := &unstructured.Unstructured{}
+			u.SetGroupVersionKind(gvk)
+			u.SetNamespace(key.Namespace)
+			u.SetName(key.Name)
+			resources.Objects = append(resources.Objects, u)
+		}
+	}
+
+	return resources, nil
 }
 
 func (m *Manager) Deploy(bd *fleet.BundleDeployment) (string, error) {

@@ -103,11 +103,11 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	}
 	chart.Metadata.Annotations["bundleID"] = bundleID
 
-	if _, err := h.install(bundleID, chart, options, true); err != nil {
+	if _, err := h.install(bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
 	}
 
-	release, err := h.install(bundleID, chart, options, false)
+	release, err := h.install(bundleID, manifest, chart, options, false)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func getOpts(options fleet.BundleDeploymentOptions) (map[string]interface{}, tim
 	return vals, timeout, options.DefaultNamespace
 }
 
-func (h *helm) install(bundleID string, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
+func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
 	vals, timeout, namespace := getOpts(options)
 
 	uninstall, err := h.mustUninstall(bundleID)
@@ -182,6 +182,8 @@ func (h *helm) install(bundleID string, chart *chart.Chart, options fleet.Bundle
 		u.DryRun = dryRun
 		u.PostRenderer = &postRender{
 			bundleID: bundleID,
+			manifest: manifest,
+			opts:     options,
 		}
 		return u.Run(chart, vals)
 	}
