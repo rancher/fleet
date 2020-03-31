@@ -80,13 +80,24 @@ func SetReadyConditions(obj interface{}, summary fleet.BundleSummary) {
 	c.Message(obj, msg)
 }
 
-func ReadyMessageFromCondition(conds []genericcondition.GenericCondition) string {
+func MessageFromCondition(conditionType string, conds []genericcondition.GenericCondition) string {
 	for _, cond := range conds {
-		if cond.Type == "Ready" {
+		if cond.Type == conditionType {
 			return cond.Message
 		}
 	}
 	return ""
+}
+
+func MessageFromDeployment(deployment *fleet.BundleDeployment) string {
+	if deployment == nil {
+		return ""
+	}
+	message := MessageFromCondition("Deployed", deployment.Status.Conditions)
+	if message == "" {
+		message = MessageFromCondition("Monitored", deployment.Status.Conditions)
+	}
+	return message
 }
 
 func ReadyMessage(summary fleet.BundleSummary) string {
