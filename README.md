@@ -57,6 +57,11 @@ Combining Fleet with a Git based workflow like Github Actions one can automate m
 ## Quick Start
 
 1. Download `flt` CLI from [releases](https://github.com/rancher/fleet/releases/latest).
+   Or run
+   ```bash
+   curl -sfL https://raw.githubusercontent.com/rancher/fleet/master/install.sh | sh -
+   ```
+   
 2. Install Fleet Manager on Kubernetes cluster.  The `flt` CLI will use your current `kubectl` config
    to access the cluster.
     ```shell
