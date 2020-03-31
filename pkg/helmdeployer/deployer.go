@@ -181,7 +181,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 
 	if install {
 		u := action.NewInstall(&h.cfg)
-		u.ClientOnly = !h.template
+		u.ClientOnly = h.template
 		u.Adopt = true
 		u.Replace = true
 		u.Wait = true
