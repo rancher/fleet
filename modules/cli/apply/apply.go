@@ -92,6 +92,9 @@ func save(client *client.Getter, bundle *fleet.Bundle) error {
 	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		_, err = c.Fleet.Bundle().Create(bundle)
+		if err == nil {
+			fmt.Printf("%s/%s\n", obj.Namespace, obj.Name)
+		}
 		return err
 	} else if err != nil {
 		return err

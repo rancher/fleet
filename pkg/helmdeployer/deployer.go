@@ -206,6 +206,8 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u.DryRun = dryRun
 	u.PostRenderer = &postRender{
 		bundleID: bundleID,
+		manifest: manifest,
+		opts:     options,
 	}
 	return u.Run(bundleID, chart, vals)
 }
