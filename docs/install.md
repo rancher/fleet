@@ -38,12 +38,8 @@ specifically for that cluster.  It can also update the `status` subresource of `
 
 ### Scalability
 
-Fleet is designed to scale up to 1 million clusters.  The is done using a federated model.  The master Fleet
-manager can designate downstream clusters as federated managers.  New clusters can be registered to the federated
-manager.  This reduced the TCP connection load of the main fleet manager.  Also all the BundleDeployments and Cluster
-resources only exist in the federated managers and only the Bundle and ClusterGroup summaries are reported up to
-the central master.  The fundamental assumption is that while you may have 1 million clusters, you will still have less
-than about 10000 Bundles and Cluster Groups.  This architecture is still being developed.
+Fleet is designed to scale up to 1 million clusters. There a more details to come here on how we expect to scale
+a Kubernetes controller based architecture to 100's of millions of objects and beyond.
 
 ## Installation
 

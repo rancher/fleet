@@ -1,7 +1,7 @@
 Fleet
 =============
 
-### Status: ALPHA (actively looking for feedback)
+### Status: early-ALPHA (actively looking for feedback)
 
 ![](docs/arch.png)
 
