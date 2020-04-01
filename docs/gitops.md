@@ -25,4 +25,6 @@ through the Fleet manager.
 GitHub Actions Example
 ======================
 
-Coming soon.... (or is it?)
+GitHub Actions combined with Fleet provides a very simple yet very powerful GitOps model.  An example of how to use Fleet
+with Github Actions can be found [here](https://github.com/StrongMonkey/fleet-cd-example).  The pattern used in this
+example can be very easily duplicated in any CI system.
