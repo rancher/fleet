@@ -2,7 +2,10 @@ module github.com/rancher/fleet
 
 go 1.13
 
-replace helm.sh/helm/v3 => github.com/ibuildthecloud/helm/v3 v3.1.0-rc.1.0.20200328230414-e50c70bee3a6
+replace (
+	github.com/Azure/go-autorest => github.com/Azure/go-autorest v14.0.0+incompatible
+	helm.sh/helm/v3 => github.com/ibuildthecloud/helm/v3 v3.1.0-rc.1.0.20200328230414-e50c70bee3a6
+)
 
 require (
 	github.com/cheggaaa/pb v1.0.27
