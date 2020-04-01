@@ -8,9 +8,7 @@ import (
 	_ "github.com/rancher/wrangler-api/pkg/generated/controllers/apiextensions.k8s.io"
 
 	// Add non-default auth providers (excluding azure because of dependencies)
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/openstack"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 func main() {
