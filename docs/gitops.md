@@ -1,7 +1,7 @@
 GitOps and CI/CD
 ================
 
-Fleet is designed to be used in a CD or GitOpts pipeline. Because Fleet is a standard
+Fleet is designed to be used in a CD or GitOps pipeline. Because Fleet is a standard
 Kubernetes API it should integrate well in the existing ecosystem.  One can use a
 tool such as ArgoCD or Flux in the Fleet manager cluster to copy resources from Git to
 the Fleet manager.
