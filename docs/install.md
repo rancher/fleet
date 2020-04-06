@@ -31,7 +31,7 @@ tokens to the clusters. A cluster group can have a series of "Cluster Group Toke
 are used to register clusters in to that group. The "cluster group token" is used only during the
 registration process to generate a credential specific to that cluster. After the cluster credential
 is established the cluster "forgets" the cluster group token.  Cluster group tokens by default have a TTL
-of one week.  That can be change to sort or to longer to forever.
+of one week.  That can be changed to shorter or to longer to forever.
 
 The service accounts given to the clusters only have privileges to list `BundleDeployment` in the namespace created
 specifically for that cluster.  It can also update the `status` subresource of `BundleDeployment`
