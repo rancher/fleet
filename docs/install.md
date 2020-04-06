@@ -17,10 +17,10 @@ One cluster agent runs in each cluster and is responsible for talking to the Fle
 The only communication from cluster to Fleet manager is by this agent and all communication
 goes from the managed cluster to the Fleet manager.  The Fleet manager does not
 reach out to the clusters.  This means managed clusters can run in private networks and behind
-NAT.  The only requirement is the cluster agent needs to be able to communication with the
+NAT.  The only requirement is the cluster agent needs to be able to communicate with the
 Kubernetes API of the cluster running the Fleet manager.
 
-The cluster agents are not assume to have an "always on" connection.  They will resume operation as
+The cluster agents are not assumed to have an "always on" connection.  They will resume operation as
 soon as they can connect.  Future enhancements will probably add the ability to schedule times of when
 the agent checks in.
 
@@ -33,12 +33,12 @@ registration process to generate a credential specific to that cluster. After th
 is established the cluster "forgets" the cluster group token.  Cluster group tokens by default have a TTL
 of one week.  That can be change to sort or to longer to forever.
 
-The service accounts give to clusters only have privileges to list `BundleDeployment` in the namespace created
+The service accounts given to the clusters only have privileges to list `BundleDeployment` in the namespace created
 specifically for that cluster.  It can also update the `status` subresource of `BundleDeployment`
 
 ### Scalability
 
-Fleet is designed to scale up to 1 million clusters. There a more details to come here on how we expect to scale
+Fleet is designed to scale up to 1 million clusters. There are more details to come here on how we expect to scale
 a Kubernetes controller based architecture to 100's of millions of objects and beyond.
 
 ## Installation
@@ -78,7 +78,7 @@ The `flt install agent-token` and `flt install agent-config` commands are used t
 used to register clusters. A cluster group token must be generated to register a cluster to the Fleet manager.
 By default this token will expire in 1 week.  That TTL can be changed.  The cluster group token generated can be
 used over and over again while it's still valid to register new clusters.  The `agent-config` command is used to generate
-configuration specific to a cluster that you may or many not want to share.  The only functionality at the moment is
+configuration specific to a cluster that you may or may not want to share.  The only functionality at the moment is
 to generate the config for a cluster so that on registration it will have specific labels.
 
 The `flt install agent-token` command requires a live connection to the Fleet manager.  Your local `~/.kube/config` is
@@ -135,7 +135,7 @@ kubectl --kubeconfig=cluster-kubeconfig apply -f token
 
 ### Re-Register/Re-Install Agent
 
-If for any reason you cluster can not connect you can always generate a new cluster group token and apply it to the
-cluster.  It will then restart the registration process and generate a new credentials. The identity of the cluster is
+If for any reason your cluster can not connect, you can always generate a new cluster group token and apply it to the
+cluster. It will then restart the registration process and generate a new credentials. The identity of the cluster is
 determined by the UUID of the `kube-system` namespace so it should reassociate to the cluster previously registered regardless
 of the name or labels of the cluster.
