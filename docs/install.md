@@ -46,14 +46,14 @@ a Kubernetes controller based architecture to 100's of millions of objects and b
 ### Manager installation
 
 The manager is just a deployment that runs in a Kubernetes cluster.  It is assumed you already have a Kubernetes
-cluster available.  The `flt install manager` command is used to generate a manifest for installation.
-The `flt install manager` command does not need a live connection to a Kubernetes cluster.
+cluster available.  The `fleet install manager` command is used to generate a manifest for installation.
+The `fleet install manager` command does not need a live connection to a Kubernetes cluster.
 
 ```
 Generate deployment manifest to run the fleet manager
 
 Usage:
-  flt install manager [flags]
+  fleet install manager [flags]
 
 Flags:
       --agent-image string        Image to use for all agents
@@ -67,30 +67,30 @@ Global Flags:
   -n, --namespace string    namespace (default "default")
 ```
 
-Installation is accomplished typically by doing `flt install manager | kubectl apply -f -`. The `agent-image` and
+Installation is accomplished typically by doing `fleet install manager | kubectl apply -f -`. The `agent-image` and
 `manager-image` fields are important if you wish to run Fleet from a private registry.  The `system-namespace` is the
 namespace the Fleet manager runs in and also the namespace the cluster agents will run in all clusters.  This is
 by default `fleet-system` and it is recommended to keep the default value.
 
 ### Cluster Registration
 
-The `flt install agent-token` and `flt install agent-config` commands are used to generate Kubernetes manifests to be
+The `fleet install agent-token` and `fleet install agent-config` commands are used to generate Kubernetes manifests to be
 used to register clusters. A cluster group token must be generated to register a cluster to the Fleet manager.
 By default this token will expire in 1 week.  That TTL can be changed.  The cluster group token generated can be
 used over and over again while it's still valid to register new clusters.  The `agent-config` command is used to generate
 configuration specific to a cluster that you may or may not want to share.  The only functionality at the moment is
 to generate the config for a cluster so that on registration it will have specific labels.
 
-The `flt install agent-token` command requires a live connection to the Fleet manager.  Your local `~/.kube/config` is
+The `fleet install agent-token` command requires a live connection to the Fleet manager.  Your local `~/.kube/config` is
 used by default.
 
-To register a cluster first run `flt install agent-token` to generate a new token.
+To register a cluster first run `fleet install agent-token` to generate a new token.
 
 ```
 Generate cluster group token and render manifest to register clusters into a specific cluster group
 
 Usage:
-  flt install agent-token [flags]
+  fleet install agent-token [flags]
 
 Flags:
   -c, --ca-file string            File containing optional CA cert for fleet management server
@@ -110,11 +110,11 @@ The generated manifest will have information in it that is used to call back to 
 URL and TLS configuration is taken from your kubeconfig.  Use `--server-url` and `--ca-file` to override those parameters
 if they can't be properly derived.
 
-The output of `flt install agent-token` should be saved to a file you can later apply to a cluster.
+The output of `fleet install agent-token` should be saved to a file you can later apply to a cluster.
 
 ```
 # Generate token, requires connect to Fleet manager
-flt --kubeconfig=fleet-manager-config install agent-token > token
+fleet --kubeconfig=fleet-manager-config install agent-token > token
 ```
 
 If you want to have labels assigned to your cluster during registration this must be done before you apply the token to
@@ -124,7 +124,7 @@ The labels can only be changed in the Fleet manager.
 To generate a configuration with labels run a command like below:
 
 ```
-flt install agent-config -l env=prod | kubectl --kubeconfig=cluster-kubeconfig apply -f -
+fleet install agent-config -l env=prod | kubectl --kubeconfig=cluster-kubeconfig apply -f -
 ```
 
 Now that you have the custom config setup you can import the token so that the cluster registers

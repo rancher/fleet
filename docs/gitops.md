@@ -7,7 +7,7 @@ tool such as ArgoCD or Flux in the Fleet manager cluster to copy resources from 
 the Fleet manager.
  
 Often a more traditional CI approach is much easier than running ArgoCD or Flux.  For traditional CI
-one just needs to run `flt test` and `flt apply` as a part of the CI process.  An example doing this with GitHub Actions
+one just needs to run `fleet test` and `fleet apply` as a part of the CI process.  An example doing this with GitHub Actions
 is below.
 
 GitOps Patterns

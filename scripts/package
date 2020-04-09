@@ -5,40 +5,33 @@ source $(dirname $0)/version
 
 cd $(dirname $0)/..
 
+function build-image() {
+  IMAGE=${REPO}/${1}:${TAG}
+  DOCKERFILE=package/Dockerfile
+  if [ -e ${DOCKERFILE}.${ARCH} ]; then
+      DOCKERFILE=${DOCKERFILE}.${ARCH}
+  fi
+
+  docker build -f ${DOCKERFILE} -t ${IMAGE} .
+  echo Built ${IMAGE}
+
+  if [ "$PUSH" = "true" ]; then
+      docker push ${IMAGE}
+  fi
+}
+
 mkdir -p dist/artifacts
-cp bin/flt dist/artifacts/flt-linux${SUFFIX}
-for i in bin/flt-*; do
+cp bin/fleet dist/artifacts/fleet-linux${SUFFIX}
+for i in bin/fleet-*; do
     if [ -e "$i" ]; then
-        if [ "$i" = flt-windows-amd64 ]; then
-            cp $i dist/artifacts/flt-windows-amd64.exe
+        if [ "$i" = fleet-windows-amd64 ]; then
+            cp $i dist/artifacts/fleet-windows-amd64.exe
         else
             cp $i dist/artifacts
         fi
     fi
 done
 
-IMAGE=${REPO}/fleet:${TAG}
-DOCKERFILE=package/Dockerfile
-if [ -e ${DOCKERFILE}.${ARCH} ]; then
-    DOCKERFILE=${DOCKERFILE}.${ARCH}
-fi
-
-docker build -f ${DOCKERFILE} -t ${IMAGE} .
-echo Built ${IMAGE}
-
-if [ "$PUSH" = "true" ]; then
-    docker push ${IMAGE}
-fi
-
-IMAGE=${REPO}/fleet-agent:${TAG}
-DOCKERFILE=package/Dockerfile.agent
-if [ -e ${DOCKERFILE}.${ARCH} ]; then
-    DOCKERFILE=${DOCKERFILE}.${ARCH}
-fi
-
-docker build -f ${DOCKERFILE} -t ${IMAGE} .
-echo Built ${IMAGE}
-
-if [ "$PUSH" = "true" ]; then
-    docker push ${IMAGE}
-fi
+build-image fleet
+build-image fleet-agent
+build-image fleet-agent-simulator

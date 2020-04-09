@@ -2,8 +2,7 @@ builds:
 - env:
   - CGO_ENABLED=0
   - GOFLAGS=-mod=vendor
-  main: ./cmd/flt
-  binary: flt
+  binary: fleet
   goarch:
   - arm
   - arm64
@@ -14,7 +13,7 @@ builds:
   - darwin
   - linux
 archives:
-- name_template: "flt_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+- name_template: "fleet_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
   format_overrides:
   - goos: windows
     format: zip

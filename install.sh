@@ -121,13 +121,13 @@ download_hash() {
     HASH_URL=${GITHUB_URL}/download/${VERSION_FLEET}/sha256sum-${ARCH}.txt
     info "Downloading hash ${HASH_URL}"
     curl -o "${TMP_HASH}" -sfL "${HASH_URL}" || fatal "Hash download failed"
-    HASH_EXPECTED=$(grep " flt${SUFFIX}$" "${TMP_HASH}" | awk '{print $1}')
+    HASH_EXPECTED=$(grep " fleet${SUFFIX}$" "${TMP_HASH}" | awk '{print $1}')
 }
 
 # --- check hash against installed version ---
 installed_hash_matches() {
-    if [ -x ${BIN_DIR}/flt ]; then
-        HASH_INSTALLED=$($SHA ${BIN_DIR}/flt | awk '{print $1}')
+    if [ -x ${BIN_DIR}/fleet ]; then
+        HASH_INSTALLED=$($SHA ${BIN_DIR}/fleet | awk '{print $1}')
         if [ "${HASH_EXPECTED}" = "${HASH_INSTALLED}" ]; then
             return
         fi
@@ -137,7 +137,7 @@ installed_hash_matches() {
 
 # --- download binary from github url ---
 download_binary() {
-    BIN_URL=${GITHUB_URL}/download/${VERSION_FLEET}/flt${SUFFIX}
+    BIN_URL=${GITHUB_URL}/download/${VERSION_FLEET}/fleet${SUFFIX}
     info "Downloading binary ${BIN_URL}"
     curl -o "${TMP_BIN}" -fL "${BIN_URL}" || fatal "Binary download failed"
 }
@@ -154,17 +154,17 @@ verify_binary() {
 # --- setup permissions and move binary to system directory ---
 setup_binary() {
     chmod 755 "${TMP_BIN}"
-    info "Installing fleet to ${BIN_DIR}/flt"
+    info "Installing fleet to ${BIN_DIR}/fleet"
     [ -n "$SUDO" ] && { $SUDO chown 0:0 "${TMP_BIN}"; }
-    $SUDO mv -f "${TMP_BIN}" ${BIN_DIR}/flt
+    $SUDO mv -f "${TMP_BIN}" ${BIN_DIR}/fleet
 
     if command -v getenforce > /dev/null 2>&1; then
         if [ "Disabled" != "$(getenforce)" ]; then
             info "SeLinux is enabled, setting permissions"
-            if ! $SUDO semanage fcontext -l | grep "${BIN_DIR}/flt" > /dev/null 2>&1; then
-                $SUDO semanage fcontext -a -t bin_t "${BIN_DIR}/flt"
+            if ! $SUDO semanage fcontext -l | grep "${BIN_DIR}/fleet" > /dev/null 2>&1; then
+                $SUDO semanage fcontext -a -t bin_t "${BIN_DIR}/fleet"
             fi
-            $SUDO restorecon -v ${BIN_DIR}/flt > /dev/null
+            $SUDO restorecon -v ${BIN_DIR}/fleet > /dev/null
         fi
     fi
 }
@@ -207,7 +207,7 @@ EOF
 
 # --- get hashes of the current fleet bin and service files
 get_installed_hashes() {
-    $SUDO "$SHA" ${BIN_DIR}/flt 2>&1 || true
+    $SUDO "$SHA" ${BIN_DIR}/fleet 2>&1 || true
 }
 
 # --- run the install process --

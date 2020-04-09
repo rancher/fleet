@@ -1,10 +1,10 @@
-flt
+fleet
 ===
 
-Fleet is exposed as a pure Kubernetes API using Custom Resources.  The `flt` is used
+Fleet is exposed as a pure Kubernetes API using Custom Resources.  The `fleet` is used
 only as a way to enhance the experience of interacting with the Bundle custom resources.
 
-## flt apply [BUNDLE_DIR...]
+## fleet apply [BUNDLE_DIR...]
 
 The apply command will render a bundle resource and then apply it to the cluster.  The
 `-o` flag can be used to not apply the resulting YAML but instead save it to a file
@@ -14,7 +14,7 @@ or standard out (`-`).
 Render a bundle into a Kubernetes resource and apply it in the Fleet Manager
 
 Usage:
-  flt apply [flags]
+  fleet apply [flags]
 
 Flags:
   -b, --bundle-file string   Location of the bundle.yaml
@@ -28,7 +28,7 @@ Global Flags:
   -n, --namespace string    namespace (default "default")
 ```
 
-## flt test [BUNDLE_DIR]
+## fleet test [BUNDLE_DIR]
 
 The test command is used to simulate matching clusters and rendering the output.  The
 entire bundle pipeline will be executed. This means helm and kustomize will be evaluated.
@@ -40,7 +40,7 @@ this type of logic should be avoided in most cases.
 Match a bundle to a target and render the output
 
 Usage:
-  flt test [flags]
+  fleet test [flags]
 
 Flags:
   -b, --bundle-file string    Location of the bundle.yaml
@@ -58,7 +58,7 @@ Global Flags:
 
 ```
 
-## flt install ...
+## fleet install ...
 
 The install command is for installing the Fleet manager and registering clusters
 with Fleet.  This command is covered in detail in the [installation documentation](./install.md).
