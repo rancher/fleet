@@ -4,9 +4,9 @@ Understanding Bundles
 Bundles are a collection of resources that include additional deployment specific information and can be deployed
 to multiple clusters. Each bundle is one [custom resource](../pkg/apis/fleet.cattle.io/v1alpha1/bundle.go) that fully
 encapsulates all this information.  Because the type can grow quite large and has various rules and customizations in
-it, the `flt` CLI helps improve the user experience of managing this resources.  Instead of managing one large YAML file
-that has nested YAML files in it, `flt` allows you to represent your bundle on disk as a series of individual files and
-then running `flt apply` will construct the bundle resource and deploy it to the Fleet manager. Bundles go through a
+it, the `fleet` CLI helps improve the user experience of managing this resources.  Instead of managing one large YAML file
+that has nested YAML files in it, `fleet` allows you to represent your bundle on disk as a series of individual files and
+then running `fleet apply` will construct the bundle resource and deploy it to the Fleet manager. Bundles go through a
 powerful process of how they are rendered into Kubernetes resources.  This process allows one to choose a Kubernetes YAML,
 Helm or Kustomize based approach.  All three of these approaches can be combined too. Combining helm with kustomize
 often ends up being a great way to manage third party applications. Using plain Kubernetes YAML is typically a more
@@ -22,7 +22,7 @@ lightweight approach to manage internal applications.
 ./overlays/${OVERLAY_NAME}  # Directory for kustomization resources
 ```
 
-This layout is used for on disk for the `flt` command to read and is also the expected structure of embedded resources
+This layout is used for on disk for the `fleet` command to read and is also the expected structure of embedded resources
 in the bundle custom resource.
 
 ## Bundle Strategies
@@ -92,9 +92,9 @@ rolloutStrategy:
     maxUnavailable: 15%
 
 # Base resources for this bundle. All targets will inherit this content.  The content is typically not manually
-# managed but instead populated by the flt CLI.  The name fields should be paths relative to the bundle root.  For
+# managed but instead populated by the fleet CLI.  The name fields should be paths relative to the bundle root.  For
 # example, name: chart/Chart.yaml should be used if you are embedding a chart.  If it does not have the chart/ prefix
-# it will not be recognized as a chart. The flt CLI will read the directories specified by manifestsDir, kustomizeDir,
+# it will not be recognized as a chart. The fleet CLI will read the directories specified by manifestsDir, kustomizeDir,
 # and chart, strip the custom prefix, and normalize the paths to manifests/, kustomize/, chart/ respectively. The
 # paths of resources must match the bundle layout specified above.
 resources:
@@ -131,7 +131,7 @@ overlays:
   # just a map merge and list are overwritten.
   values:
     custom: value
-  # Resources to overwrite or patch.  The flt command will populate these resources with the contents of ./overlays/${NAME}
+  # Resources to overwrite or patch.  The fleet command will populate these resources with the contents of ./overlays/${NAME}
   # The names here are relative to the ./overlays/${NAME} root, not the bundle root.  The names here should match the
   # name specified in the base of the bundle.
   resources:

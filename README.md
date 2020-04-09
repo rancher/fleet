@@ -56,22 +56,22 @@ Combining Fleet with a Git based workflow like Github Actions one can automate m
 
 ## Quick Start
 
-1. Download `flt` CLI from [releases](https://github.com/rancher/fleet/releases/latest).
+1. Download `fleet` CLI from [releases](https://github.com/rancher/fleet/releases/latest).
    Or run
    ```bash
    curl -sfL https://raw.githubusercontent.com/rancher/fleet/master/install.sh | sh -
    ```
    
-2. Install Fleet Manager on Kubernetes cluster.  The `flt` CLI will use your current `kubectl` config
+2. Install Fleet Manager on Kubernetes cluster.  The `fleet` CLI will use your current `kubectl` config
    to access the cluster.
     ```shell
     # Kubeconfig should point to MANAGER cluster
-    flt install manager | kubectl apply -f -
+    fleet install manager | kubectl apply -f -
     ```
 3. Generate cluster group token to register clusters
     ```shell script
     # Kubeconfig should point to MANAGER cluster
-    flt install agent-token > token
+    fleet install agent-token > token
     ```
 4. Apply token to clusters to register
     ```shell script
@@ -81,7 +81,7 @@ Combining Fleet with a Git based workflow like Github Actions one can automate m
 5. Deploy some bundles
     ```shell script
     # Kubeconfig should point to MANAGER cluster
-    flt apply ./examples/helm-kustomize
+    fleet apply ./examples/helm-kustomize
     ```
 6. Check status
    ```shell script
