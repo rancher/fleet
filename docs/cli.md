@@ -60,5 +60,5 @@ Global Flags:
 
 ## fleet install ...
 
-The install command is for installing the Fleet manager and registering clusters
+The install command is for installing the fleet controller and registering clusters
 with Fleet.  This command is covered in detail in the [installation documentation](./install.md).

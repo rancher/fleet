@@ -1,4 +1,4 @@
-package managermanifest
+package controllermanifest
 
 import (
 	"bytes"

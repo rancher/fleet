@@ -1,4 +1,4 @@
-package managermanifest
+package controllermanifest
 
 import (
 	"github.com/rancher/fleet/pkg/basic"
@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	genericName = "fleet-manager"
+	genericName = "fleet-controller"
 )
 
-func objects(namespace, managerImage string, cfg string, crdsOnly bool) ([]runtime.Object, error) {
+func objects(namespace, controllerImage string, cfg string, crdsOnly bool) ([]runtime.Object, error) {
 	crds, err := crd.Objects()
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func objects(namespace, managerImage string, cfg string, crdsOnly bool) ([]runti
 	objs := []runtime.Object{
 		basic.Namespace(namespace),
 		serviceAccount,
-		basic.Deployment(namespace, genericName, managerImage, serviceAccount.Name),
+		basic.Deployment(namespace, genericName, controllerImage, serviceAccount.Name),
 		basic.ConfigMap(namespace, config.ManagerConfigName, config.Key, cfg),
 	}
 

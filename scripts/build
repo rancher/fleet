@@ -12,7 +12,7 @@ fi
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.Version=$VERSION"
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.GitCommit=$COMMIT $LINKFLAGS"
 CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleet
-CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleetmanager ./cmd/fleetmanager
+CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleetcontroller ./cmd/fleetcontroller
 CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleetagent ./cmd/fleetagent
 if [ "$CROSS" = "true" ] && [ "$ARCH" = "amd64" ]; then
     GOOS=darwin go build -ldflags "$LINKFLAGS" -o bin/fleet-darwin${SUFFIX}

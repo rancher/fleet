@@ -141,7 +141,7 @@ func Register(ctx context.Context, systemNamespace string, client *rest.Config) 
 	sharedindex.Register(ctx,
 		appCtx.ClusterGroup().Cache())
 
-	leader.RunOrDie(ctx, systemNamespace, "fleet-manager", appCtx.K8s, func(ctx context.Context) {
+	leader.RunOrDie(ctx, systemNamespace, "fleet-controller", appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {
 			logrus.Fatal(err)
 		}

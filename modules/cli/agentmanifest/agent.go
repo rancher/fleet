@@ -31,7 +31,7 @@ type Options struct {
 	NoCA bool
 }
 
-func AgentManifest(ctx context.Context, managerNamespace, clusterGroupName string, cg *client.Getter, output io.Writer, opts *Options) error {
+func AgentManifest(ctx context.Context, controllerNamespace, clusterGroupName string, cg *client.Getter, output io.Writer, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -41,7 +41,7 @@ func AgentManifest(ctx context.Context, managerNamespace, clusterGroupName strin
 		return err
 	}
 
-	cfg, err := config.Lookup(ctx, managerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
+	cfg, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func AgentManifest(ctx context.Context, managerNamespace, clusterGroupName strin
 		return err
 	}
 
-	objs := objects(managerNamespace, kubeConfig, cfg.AgentImage)
+	objs := objects(controllerNamespace, kubeConfig, cfg.AgentImage)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {

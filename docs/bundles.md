@@ -6,7 +6,7 @@ to multiple clusters. Each bundle is one [custom resource](../pkg/apis/fleet.cat
 encapsulates all this information.  Because the type can grow quite large and has various rules and customizations in
 it, the `fleet` CLI helps improve the user experience of managing this resources.  Instead of managing one large YAML file
 that has nested YAML files in it, `fleet` allows you to represent your bundle on disk as a series of individual files and
-then running `fleet apply` will construct the bundle resource and deploy it to the Fleet manager. Bundles go through a
+then running `fleet apply` will construct the bundle resource and deploy it to the fleet controller. Bundles go through a
 powerful process of how they are rendered into Kubernetes resources.  This process allows one to choose a Kubernetes YAML,
 Helm or Kustomize based approach.  All three of these approaches can be combined too. Combining helm with kustomize
 often ends up being a great way to manage third party applications. Using plain Kubernetes YAML is typically a more
