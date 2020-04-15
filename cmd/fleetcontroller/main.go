@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/rancher/fleet/modules/cli/pkg/command"
-	"github.com/rancher/fleet/pkg/fleetmanager"
+	"github.com/rancher/fleet/pkg/fleetcontroller"
 	"github.com/rancher/fleet/pkg/version"
 	"github.com/spf13/cobra"
 )
@@ -13,7 +13,7 @@ type FleetManager struct {
 }
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
-	if err := fleetmanager.Start(cmd.Context(), f.Namespace, f.Kubeconfig); err != nil {
+	if err := fleetcontroller.Start(cmd.Context(), f.Namespace, f.Kubeconfig); err != nil {
 		return err
 	}
 

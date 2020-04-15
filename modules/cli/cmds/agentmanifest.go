@@ -17,10 +17,10 @@ func NewAgentToken() *cobra.Command {
 }
 
 type AgentToken struct {
-	SystemNamespace string `usage:"System namespace of the manager" default:"fleet-system"`
+	SystemNamespace string `usage:"System namespace of the controller" default:"fleet-system"`
 	TTL             string `usage:"How long the generated registration token is valid, 0 means forever" default:"1440m" short:"t"`
 	CAFile          string `usage:"File containing optional CA cert for fleet management server" name:"ca-file" short:"c"`
-	NoCA            bool   `json:"Use no custom CA for a fleet manager that is signed by a well known CA with a proper CN."`
+	NoCA            bool   `json:"Use no custom CA for a fleet controller that is signed by a well known CA with a proper CN."`
 	ServerURL       string `usage:"The full URL to the fleet management server"`
 	Group           string `usage:"Cluster group to generate config for" default:"default" short:"g"`
 }

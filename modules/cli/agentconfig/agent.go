@@ -15,7 +15,7 @@ type Options struct {
 	Labels map[string]string
 }
 
-func AgentConfig(ctx context.Context, managerNamespace string, cg *client.Getter, output io.Writer, opts *Options) error {
+func AgentConfig(ctx context.Context, controllerNamespace string, cg *client.Getter, output io.Writer, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -25,13 +25,13 @@ func AgentConfig(ctx context.Context, managerNamespace string, cg *client.Getter
 		return err
 	}
 
-	// sanity test the managerNamespace is correct
-	_, err = config.Lookup(ctx, managerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
+	// sanity test the controllerNamespace is correct
+	_, err = config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return err
 	}
 
-	objs, err := configMap(managerNamespace, opts.Labels)
+	objs, err := configMap(controllerNamespace, opts.Labels)
 	if err != nil {
 		return err
 	}

@@ -19,6 +19,9 @@ archives:
     format: zip
 checksum:
   name_template: 'checksums.txt'
+  filters:
+    exclude:
+    - Merge pull request
 snapshot:
   name_template: "{{ .Tag }}-next"
 changelog:
@@ -27,3 +30,5 @@ changelog:
     exclude:
     - '^docs:'
     - '^test:'
+release:
+  prerelease: auto

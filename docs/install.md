@@ -3,22 +3,22 @@ Architecture and Installation
 
 ## Architectures
 
-Fleet has two primary components.  The Fleet manager and the cluster agents.
+Fleet has two primary components.  The fleet controller and the cluster agents.
 
 ### Fleet Manager
 
-The Fleet manager is a set of Kubernetes controllers running in any standard Kubernetes
+The fleet controller is a set of Kubernetes controllers running in any standard Kubernetes
 cluster.  The only API exposed by the Fleet manages is the Kubernetes API, there is no
-custom API for the Fleet manager.
+custom API for the fleet controller.
 
 ### Cluster Agents
 
-One cluster agent runs in each cluster and is responsible for talking to the Fleet manager.
-The only communication from cluster to Fleet manager is by this agent and all communication
-goes from the managed cluster to the Fleet manager.  The Fleet manager does not
+One cluster agent runs in each cluster and is responsible for talking to the fleet controller.
+The only communication from cluster to fleet controller is by this agent and all communication
+goes from the managed cluster to the fleet controller.  The fleet controller does not
 reach out to the clusters.  This means managed clusters can run in private networks and behind
 NAT.  The only requirement is the cluster agent needs to be able to communicate with the
-Kubernetes API of the cluster running the Fleet manager.
+Kubernetes API of the cluster running the fleet controller.
 
 The cluster agents are not assumed to have an "always on" connection.  They will resume operation as
 soon as they can connect.  Future enhancements will probably add the ability to schedule times of when
@@ -26,7 +26,7 @@ the agent checks in.
 
 ### Security
 
-Fleet manager dynamically creates service account, manages their RBAC and then gives the
+fleet controller dynamically creates service account, manages their RBAC and then gives the
 tokens to the clusters. A cluster group can have a series of "Cluster Group Tokens" that
 are used to register clusters in to that group. The "cluster group token" is used only during the
 registration process to generate a credential specific to that cluster. After the cluster credential
@@ -45,43 +45,43 @@ a Kubernetes controller based architecture to 100's of millions of objects and b
 
 ### Manager installation
 
-The manager is just a deployment that runs in a Kubernetes cluster.  It is assumed you already have a Kubernetes
-cluster available.  The `fleet install manager` command is used to generate a manifest for installation.
-The `fleet install manager` command does not need a live connection to a Kubernetes cluster.
+The controller is just a deployment that runs in a Kubernetes cluster.  It is assumed you already have a Kubernetes
+cluster available.  The `fleet install controller` command is used to generate a manifest for installation.
+The `fleet install controller` command does not need a live connection to a Kubernetes cluster.
 
 ```
-Generate deployment manifest to run the fleet manager
+Generate deployment manifest to run the fleet controller
 
 Usage:
-  fleet install manager [flags]
+  fleet install controller [flags]
 
 Flags:
       --agent-image string        Image to use for all agents
       --crds-only                 Output CustomResourceDefinitions only
-  -h, --help                      help for manager
-      --manager-image string      Image to use for manager
-      --system-namespace string   Namespace that will be use in manager and agent cluster (default "fleet-system")
+  -h, --help                      help for controller
+      --controller-image string      Image to use for controller
+      --system-namespace string   Namespace that will be use in controller and agent cluster (default "fleet-system")
 
 Global Flags:
   -k, --kubeconfig string   kubeconfig for authentication
   -n, --namespace string    namespace (default "default")
 ```
 
-Installation is accomplished typically by doing `fleet install manager | kubectl apply -f -`. The `agent-image` and
-`manager-image` fields are important if you wish to run Fleet from a private registry.  The `system-namespace` is the
-namespace the Fleet manager runs in and also the namespace the cluster agents will run in all clusters.  This is
+Installation is accomplished typically by doing `fleet install controller | kubectl apply -f -`. The `agent-image` and
+`controller-image` fields are important if you wish to run Fleet from a private registry.  The `system-namespace` is the
+namespace the fleet controller runs in and also the namespace the cluster agents will run in all clusters.  This is
 by default `fleet-system` and it is recommended to keep the default value.
 
 ### Cluster Registration
 
 The `fleet install agent-token` and `fleet install agent-config` commands are used to generate Kubernetes manifests to be
-used to register clusters. A cluster group token must be generated to register a cluster to the Fleet manager.
+used to register clusters. A cluster group token must be generated to register a cluster to the fleet controller.
 By default this token will expire in 1 week.  That TTL can be changed.  The cluster group token generated can be
 used over and over again while it's still valid to register new clusters.  The `agent-config` command is used to generate
 configuration specific to a cluster that you may or may not want to share.  The only functionality at the moment is
 to generate the config for a cluster so that on registration it will have specific labels.
 
-The `fleet install agent-token` command requires a live connection to the Fleet manager.  Your local `~/.kube/config` is
+The `fleet install agent-token` command requires a live connection to the fleet controller.  Your local `~/.kube/config` is
 used by default.
 
 To register a cluster first run `fleet install agent-token` to generate a new token.
@@ -98,7 +98,7 @@ Flags:
   -h, --help                      help for agent-token
       --no-ca                     
       --server-url string         The full URL to the fleet management server
-      --system-namespace string   System namespace of the manager (default "fleet-system")
+      --system-namespace string   System namespace of the controller (default "fleet-system")
   -t, --ttl string                How long the generated registration token is valid, 0 means forever (default "1440m")
 
 Global Flags:
@@ -106,20 +106,20 @@ Global Flags:
   -n, --namespace string    namespace (default "default")
 ```
 
-The generated manifest will have information in it that is used to call back to the Fleet manager.  By default the 
+The generated manifest will have information in it that is used to call back to the fleet controller.  By default the 
 URL and TLS configuration is taken from your kubeconfig.  Use `--server-url` and `--ca-file` to override those parameters
 if they can't be properly derived.
 
 The output of `fleet install agent-token` should be saved to a file you can later apply to a cluster.
 
 ```
-# Generate token, requires connect to Fleet manager
-fleet --kubeconfig=fleet-manager-config install agent-token > token
+# Generate token, requires connect to fleet controller
+fleet --kubeconfig=fleet-controller-config install agent-token > token
 ```
 
 If you want to have labels assigned to your cluster during registration this must be done before you apply the token to
 the cluster.  The labels are only specified during registration and then after that the cluster can not change it's labels.
-The labels can only be changed in the Fleet manager.
+The labels can only be changed in the fleet controller.
 
 To generate a configuration with labels run a command like below:
 

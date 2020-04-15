@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	ManagerConfigName = "fleet-manager"
+	ManagerConfigName = "fleet-controller"
 	AgentConfigName   = "fleet-agent"
 	Key               = "config"
 	DefaultNamespace  = "fleet-system"

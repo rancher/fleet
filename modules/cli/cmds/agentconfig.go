@@ -15,7 +15,7 @@ func NewAgentConfig() *cobra.Command {
 }
 
 type AgentConfig struct {
-	SystemNamespace string            `usage:"System namespace of the manager" default:"fleet-system"`
+	SystemNamespace string            `usage:"System namespace of the controller" default:"fleet-system"`
 	Labels          map[string]string `usage:"Labels to apply to the new cluster on register" short:"l"`
 }
 
