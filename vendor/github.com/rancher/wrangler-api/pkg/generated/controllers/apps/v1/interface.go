@@ -19,11 +19,15 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/apps/v1"
-	informers "k8s.io/client-go/informers/apps/v1"
-	clientset "k8s.io/client-go/kubernetes/typed/apps/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+func init() {
+	v1.AddToScheme(schemes.All)
+}
 
 type Interface interface {
 	DaemonSet() DaemonSetController
@@ -31,27 +35,22 @@ type Interface interface {
 	StatefulSet() StatefulSetController
 }
 
-func New(controllerManager *generic.ControllerManager, client clientset.AppsV1Interface,
-	informers informers.Interface) Interface {
+func New(controllerFactory controller.SharedControllerFactory) Interface {
 	return &version{
-		controllerManager: controllerManager,
-		client:            client,
-		informers:         informers,
+		controllerFactory: controllerFactory,
 	}
 }
 
 type version struct {
-	controllerManager *generic.ControllerManager
-	informers         informers.Interface
-	client            clientset.AppsV1Interface
+	controllerFactory controller.SharedControllerFactory
 }
 
 func (c *version) DaemonSet() DaemonSetController {
-	return NewDaemonSetController(v1.SchemeGroupVersion.WithKind("DaemonSet"), c.controllerManager, c.client, c.informers.DaemonSets())
+	return NewDaemonSetController(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "DaemonSet"}, "daemonsets", c.controllerFactory)
 }
 func (c *version) Deployment() DeploymentController {
-	return NewDeploymentController(v1.SchemeGroupVersion.WithKind("Deployment"), c.controllerManager, c.client, c.informers.Deployments())
+	return NewDeploymentController(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, "deployments", c.controllerFactory)
 }
 func (c *version) StatefulSet() StatefulSetController {
-	return NewStatefulSetController(v1.SchemeGroupVersion.WithKind("StatefulSet"), c.controllerManager, c.client, c.informers.StatefulSets())
+	return NewStatefulSetController(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, "statefulsets", c.controllerFactory)
 }

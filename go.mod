@@ -11,8 +11,9 @@ require (
 	github.com/cheggaaa/pb v1.0.27
 	github.com/hashicorp/go-getter v1.4.1
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/wrangler v0.6.1
-	github.com/rancher/wrangler-api v0.6.0
+	github.com/rancher/lasso v0.0.0-20200415091408-6cfd718cfeee
+	github.com/rancher/wrangler v0.6.1-0.20200415091649-4921f2d5a397
+	github.com/rancher/wrangler-api v0.6.1-0.20200415091914-8b0b4666ec02
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.7
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a

@@ -436,6 +436,7 @@ func (f *Factory) createCRD(ctx context.Context, crdDef CRD, ready map[string]*a
 	if ok {
 		if !equality.Semantic.DeepEqual(crd.Spec.Subresources, existing.Spec.Subresources) ||
 			!equality.Semantic.DeepEqual(crd.Spec.Validation, existing.Spec.Validation) ||
+			!equality.Semantic.DeepEqual(crd.Spec.AdditionalPrinterColumns, existing.Spec.AdditionalPrinterColumns) ||
 			!equality.Semantic.DeepEqual(crd.Spec.Versions, existing.Spec.Versions) {
 			existing.Spec = crd.Spec
 			logrus.Infof("Updating CRD %s", crd.Name)
