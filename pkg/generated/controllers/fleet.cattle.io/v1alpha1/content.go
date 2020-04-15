@@ -23,11 +23,11 @@ import (
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	clientset "github.com/rancher/fleet/pkg/generated/clientset/versioned/typed/fleet.cattle.io/v1alpha1"
-	informers "github.com/rancher/fleet/pkg/generated/informers/externalversions/fleet.cattle.io/v1alpha1"
-	listers "github.com/rancher/fleet/pkg/generated/listers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/lasso/pkg/client"
+	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/generic"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -74,18 +74,23 @@ type ContentCache interface {
 type ContentIndexer func(obj *v1alpha1.Content) ([]string, error)
 
 type contentController struct {
-	controllerManager *generic.ControllerManager
-	clientGetter      clientset.ContentsGetter
-	informer          informers.ContentInformer
-	gvk               schema.GroupVersionKind
+	controller    controller.SharedController
+	client        *client.Client
+	gvk           schema.GroupVersionKind
+	groupResource schema.GroupResource
 }
 
-func NewContentController(gvk schema.GroupVersionKind, controllerManager *generic.ControllerManager, clientGetter clientset.ContentsGetter, informer informers.ContentInformer) ContentController {
+func NewContentController(gvk schema.GroupVersionKind, resource string, controller controller.SharedControllerFactory) ContentController {
+	c, err := controller.ForKind(gvk)
+	utilruntime.Must(err)
 	return &contentController{
-		controllerManager: controllerManager,
-		clientGetter:      clientGetter,
-		informer:          informer,
-		gvk:               gvk,
+		controller: c,
+		client:     c.Client(),
+		gvk:        gvk,
+		groupResource: schema.GroupResource{
+			Group:    gvk.Group,
+			Resource: resource,
+		},
 	}
 }
 
@@ -132,12 +137,11 @@ func UpdateContentDeepCopyOnChange(client ContentClient, obj *v1alpha1.Content, 
 }
 
 func (c *contentController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controllerManager.AddHandler(ctx, c.gvk, c.informer.Informer(), name, handler)
+	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
 }
 
 func (c *contentController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	removeHandler := generic.NewRemoveHandler(name, c.Updater(), handler)
-	c.controllerManager.AddHandler(ctx, c.gvk, c.informer.Informer(), name, removeHandler)
+	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
 }
 
 func (c *contentController) OnChange(ctx context.Context, name string, sync ContentHandler) {
@@ -145,20 +149,19 @@ func (c *contentController) OnChange(ctx context.Context, name string, sync Cont
 }
 
 func (c *contentController) OnRemove(ctx context.Context, name string, sync ContentHandler) {
-	removeHandler := generic.NewRemoveHandler(name, c.Updater(), FromContentHandlerToHandler(sync))
-	c.AddGenericHandler(ctx, name, removeHandler)
+	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromContentHandlerToHandler(sync)))
 }
 
 func (c *contentController) Enqueue(name string) {
-	c.controllerManager.Enqueue(c.gvk, c.informer.Informer(), "", name)
+	c.controller.Enqueue("", name)
 }
 
 func (c *contentController) EnqueueAfter(name string, duration time.Duration) {
-	c.controllerManager.EnqueueAfter(c.gvk, c.informer.Informer(), "", name, duration)
+	c.controller.EnqueueAfter("", name, duration)
 }
 
 func (c *contentController) Informer() cache.SharedIndexInformer {
-	return c.informer.Informer()
+	return c.controller.Informer()
 }
 
 func (c *contentController) GroupVersionKind() schema.GroupVersionKind {
@@ -167,53 +170,70 @@ func (c *contentController) GroupVersionKind() schema.GroupVersionKind {
 
 func (c *contentController) Cache() ContentCache {
 	return &contentCache{
-		lister:  c.informer.Lister(),
-		indexer: c.informer.Informer().GetIndexer(),
+		indexer:  c.Informer().GetIndexer(),
+		resource: c.groupResource,
 	}
 }
 
 func (c *contentController) Create(obj *v1alpha1.Content) (*v1alpha1.Content, error) {
-	return c.clientGetter.Contents().Create(context.TODO(), obj, metav1.CreateOptions{})
+	result := &v1alpha1.Content{}
+	return result, c.client.Create(context.TODO(), "", obj, result, metav1.CreateOptions{})
 }
 
 func (c *contentController) Update(obj *v1alpha1.Content) (*v1alpha1.Content, error) {
-	return c.clientGetter.Contents().Update(context.TODO(), obj, metav1.UpdateOptions{})
+	result := &v1alpha1.Content{}
+	return result, c.client.Update(context.TODO(), "", obj, result, metav1.UpdateOptions{})
 }
 
 func (c *contentController) Delete(name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
 	}
-	return c.clientGetter.Contents().Delete(context.TODO(), name, *options)
+	return c.client.Delete(context.TODO(), "", name, *options)
 }
 
 func (c *contentController) Get(name string, options metav1.GetOptions) (*v1alpha1.Content, error) {
-	return c.clientGetter.Contents().Get(context.TODO(), name, options)
+	result := &v1alpha1.Content{}
+	return result, c.client.Get(context.TODO(), "", name, result, options)
 }
 
 func (c *contentController) List(opts metav1.ListOptions) (*v1alpha1.ContentList, error) {
-	return c.clientGetter.Contents().List(context.TODO(), opts)
+	result := &v1alpha1.ContentList{}
+	return result, c.client.List(context.TODO(), "", result, opts)
 }
 
 func (c *contentController) Watch(opts metav1.ListOptions) (watch.Interface, error) {
-	return c.clientGetter.Contents().Watch(context.TODO(), opts)
+	return c.client.Watch(context.TODO(), "", opts)
 }
 
-func (c *contentController) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.Content, err error) {
-	return c.clientGetter.Contents().Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
+func (c *contentController) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (*v1alpha1.Content, error) {
+	result := &v1alpha1.Content{}
+	return result, c.client.Patch(context.TODO(), "", name, pt, data, result, metav1.PatchOptions{}, subresources...)
 }
 
 type contentCache struct {
-	lister  listers.ContentLister
-	indexer cache.Indexer
+	indexer  cache.Indexer
+	resource schema.GroupResource
 }
 
 func (c *contentCache) Get(name string) (*v1alpha1.Content, error) {
-	return c.lister.Get(name)
+	obj, exists, err := c.indexer.GetByKey(name)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewNotFound(c.resource, name)
+	}
+	return obj.(*v1alpha1.Content), nil
 }
 
-func (c *contentCache) List(selector labels.Selector) ([]*v1alpha1.Content, error) {
-	return c.lister.List(selector)
+func (c *contentCache) List(selector labels.Selector) (ret []*v1alpha1.Content, err error) {
+
+	err = cache.ListAll(c.indexer, selector, func(m interface{}) {
+		ret = append(ret, m.(*v1alpha1.Content))
+	})
+
+	return ret, err
 }
 
 func (c *contentCache) AddIndexer(indexName string, indexer ContentIndexer) {

@@ -20,10 +20,14 @@ package v1alpha1
 
 import (
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	clientset "github.com/rancher/fleet/pkg/generated/clientset/versioned/typed/fleet.cattle.io/v1alpha1"
-	informers "github.com/rancher/fleet/pkg/generated/informers/externalversions/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/schemes"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+func init() {
+	v1alpha1.AddToScheme(schemes.All)
+}
 
 type Interface interface {
 	Bundle() BundleController
@@ -35,39 +39,34 @@ type Interface interface {
 	Content() ContentController
 }
 
-func New(controllerManager *generic.ControllerManager, client clientset.FleetV1alpha1Interface,
-	informers informers.Interface) Interface {
+func New(controllerFactory controller.SharedControllerFactory) Interface {
 	return &version{
-		controllerManager: controllerManager,
-		client:            client,
-		informers:         informers,
+		controllerFactory: controllerFactory,
 	}
 }
 
 type version struct {
-	controllerManager *generic.ControllerManager
-	informers         informers.Interface
-	client            clientset.FleetV1alpha1Interface
+	controllerFactory controller.SharedControllerFactory
 }
 
 func (c *version) Bundle() BundleController {
-	return NewBundleController(v1alpha1.SchemeGroupVersion.WithKind("Bundle"), c.controllerManager, c.client, c.informers.Bundles())
+	return NewBundleController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Bundle"}, "bundles", c.controllerFactory)
 }
 func (c *version) BundleDeployment() BundleDeploymentController {
-	return NewBundleDeploymentController(v1alpha1.SchemeGroupVersion.WithKind("BundleDeployment"), c.controllerManager, c.client, c.informers.BundleDeployments())
+	return NewBundleDeploymentController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "BundleDeployment"}, "bundledeployments", c.controllerFactory)
 }
 func (c *version) Cluster() ClusterController {
-	return NewClusterController(v1alpha1.SchemeGroupVersion.WithKind("Cluster"), c.controllerManager, c.client, c.informers.Clusters())
+	return NewClusterController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Cluster"}, "clusters", c.controllerFactory)
 }
 func (c *version) ClusterGroup() ClusterGroupController {
-	return NewClusterGroupController(v1alpha1.SchemeGroupVersion.WithKind("ClusterGroup"), c.controllerManager, c.client, c.informers.ClusterGroups())
+	return NewClusterGroupController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterGroup"}, "clustergroups", c.controllerFactory)
 }
 func (c *version) ClusterGroupToken() ClusterGroupTokenController {
-	return NewClusterGroupTokenController(v1alpha1.SchemeGroupVersion.WithKind("ClusterGroupToken"), c.controllerManager, c.client, c.informers.ClusterGroupTokens())
+	return NewClusterGroupTokenController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterGroupToken"}, "clustergrouptokens", c.controllerFactory)
 }
 func (c *version) ClusterRegistrationRequest() ClusterRegistrationRequestController {
-	return NewClusterRegistrationRequestController(v1alpha1.SchemeGroupVersion.WithKind("ClusterRegistrationRequest"), c.controllerManager, c.client, c.informers.ClusterRegistrationRequests())
+	return NewClusterRegistrationRequestController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterRegistrationRequest"}, "clusterregistrationrequests", c.controllerFactory)
 }
 func (c *version) Content() ContentController {
-	return NewContentController(v1alpha1.SchemeGroupVersion.WithKind("Content"), c.controllerManager, c.client, c.informers.Contents())
+	return NewContentController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Content"}, "contents", c.controllerFactory)
 }
