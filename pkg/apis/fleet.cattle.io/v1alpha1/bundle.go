@@ -15,6 +15,7 @@ var (
 	Ready      BundleState = "Ready"
 	NotReady   BundleState = "NotReady"
 	NotApplied BundleState = "NotApplied"
+	ErrApplied BundleState = "ErrApplied"
 	OutOfSync  BundleState = "OutOfSync"
 	Pending    BundleState = "Pending"
 	Modified   BundleState = "Modified"
@@ -50,7 +51,18 @@ type BundleResource struct {
 }
 
 type RolloutStrategy struct {
-	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
+	MaxUnavailable           *intstr.IntOrString `json:"maxUnavailable,omitempty"`
+	MaxUnavailablePartitions *intstr.IntOrString `json:"maxUnavailablePartitions,omitempty"`
+	AutoPartitionSize        *intstr.IntOrString `json:"autoPartitionSize,omitempty"`
+	Partitions               []Partition         `json:"partitions,omitempty"`
+}
+
+type Partition struct {
+	Name                 string                `json:"name,omitempty"`
+	MaxUnavailable       *intstr.IntOrString   `json:"maxUnavailable,omitempty"`
+	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
+	ClusterGroup         string                `json:"clusterGroup,omitempty"`
+	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 }
 
 type BundleOverlay struct {
@@ -73,6 +85,7 @@ type BundleTarget struct {
 type BundleSummary struct {
 	NotReady          int                `json:"notReady,omitempty"`
 	NotApplied        int                `json:"notApplied,omitempty"`
+	ErrApplied        int                `json:"errApplied,omitempty"`
 	OutOfSync         int                `json:"outOfSync,omitempty"`
 	Modified          int                `json:"modified,omitempty"`
 	Ready             int                `json:"ready"`
@@ -88,18 +101,30 @@ type NonReadyResource struct {
 }
 
 var (
-	BundleConditionReady           = "Ready"
-	BundleDeploymentConditionReady = "Ready"
+	BundleConditionReady              = "Ready"
+	BundleDeploymentConditionReady    = "Ready"
+	BundleDeploymentConditionDeployed = "Deployed"
 )
 
 type BundleStatus struct {
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 
-	Summary        BundleSummary `json:"summary,omitempty"`
-	NewlyCreated   int           `json:"newlyCreated,omitempty"`
-	Unavailable    int           `json:"unavailable,omitempty"`
+	Summary                  BundleSummary     `json:"summary,omitempty"`
+	NewlyCreated             int               `json:"newlyCreated,omitempty"`
+	Unavailable              int               `json:"unavailable,omitempty"`
+	UnavailablePartitions    int               `json:"unavailablePartitions,omitempty"`
+	MaxUnavailable           int               `json:"maxUnavailable,omitempty"`
+	MaxUnavailablePartitions int               `json:"maxUnavailablePartitions,omitempty"`
+	MaxNew                   int               `json:"maxNew,omitempty"`
+	PartitionStatus          []PartitionStatus `json:"partitions,omitempty"`
+}
+
+type PartitionStatus struct {
+	Name           string        `json:"name,omitempty"`
+	Count          int           `json:"count,omitempty"`
 	MaxUnavailable int           `json:"maxUnavailable,omitempty"`
-	MaxNew         int           `json:"maxNew,omitempty"`
+	Unavailable    int           `json:"unavailable,omitempty"`
+	Summary        BundleSummary `json:"summary,omitempty"`
 }
 
 // +genclient

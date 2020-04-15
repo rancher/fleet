@@ -23,9 +23,8 @@ import (
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	clientset "github.com/rancher/fleet/pkg/generated/clientset/versioned/typed/fleet.cattle.io/v1alpha1"
-	informers "github.com/rancher/fleet/pkg/generated/informers/externalversions/fleet.cattle.io/v1alpha1"
-	listers "github.com/rancher/fleet/pkg/generated/listers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/lasso/pkg/client"
+	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
@@ -78,18 +77,23 @@ type ClusterRegistrationRequestCache interface {
 type ClusterRegistrationRequestIndexer func(obj *v1alpha1.ClusterRegistrationRequest) ([]string, error)
 
 type clusterRegistrationRequestController struct {
-	controllerManager *generic.ControllerManager
-	clientGetter      clientset.ClusterRegistrationRequestsGetter
-	informer          informers.ClusterRegistrationRequestInformer
-	gvk               schema.GroupVersionKind
+	controller    controller.SharedController
+	client        *client.Client
+	gvk           schema.GroupVersionKind
+	groupResource schema.GroupResource
 }
 
-func NewClusterRegistrationRequestController(gvk schema.GroupVersionKind, controllerManager *generic.ControllerManager, clientGetter clientset.ClusterRegistrationRequestsGetter, informer informers.ClusterRegistrationRequestInformer) ClusterRegistrationRequestController {
+func NewClusterRegistrationRequestController(gvk schema.GroupVersionKind, resource string, controller controller.SharedControllerFactory) ClusterRegistrationRequestController {
+	c, err := controller.ForKind(gvk)
+	utilruntime.Must(err)
 	return &clusterRegistrationRequestController{
-		controllerManager: controllerManager,
-		clientGetter:      clientGetter,
-		informer:          informer,
-		gvk:               gvk,
+		controller: c,
+		client:     c.Client(),
+		gvk:        gvk,
+		groupResource: schema.GroupResource{
+			Group:    gvk.Group,
+			Resource: resource,
+		},
 	}
 }
 
@@ -136,12 +140,11 @@ func UpdateClusterRegistrationRequestDeepCopyOnChange(client ClusterRegistration
 }
 
 func (c *clusterRegistrationRequestController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controllerManager.AddHandler(ctx, c.gvk, c.informer.Informer(), name, handler)
+	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
 }
 
 func (c *clusterRegistrationRequestController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	removeHandler := generic.NewRemoveHandler(name, c.Updater(), handler)
-	c.controllerManager.AddHandler(ctx, c.gvk, c.informer.Informer(), name, removeHandler)
+	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
 }
 
 func (c *clusterRegistrationRequestController) OnChange(ctx context.Context, name string, sync ClusterRegistrationRequestHandler) {
@@ -149,20 +152,19 @@ func (c *clusterRegistrationRequestController) OnChange(ctx context.Context, nam
 }
 
 func (c *clusterRegistrationRequestController) OnRemove(ctx context.Context, name string, sync ClusterRegistrationRequestHandler) {
-	removeHandler := generic.NewRemoveHandler(name, c.Updater(), FromClusterRegistrationRequestHandlerToHandler(sync))
-	c.AddGenericHandler(ctx, name, removeHandler)
+	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromClusterRegistrationRequestHandlerToHandler(sync)))
 }
 
 func (c *clusterRegistrationRequestController) Enqueue(namespace, name string) {
-	c.controllerManager.Enqueue(c.gvk, c.informer.Informer(), namespace, name)
+	c.controller.Enqueue(namespace, name)
 }
 
 func (c *clusterRegistrationRequestController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controllerManager.EnqueueAfter(c.gvk, c.informer.Informer(), namespace, name, duration)
+	c.controller.EnqueueAfter(namespace, name, duration)
 }
 
 func (c *clusterRegistrationRequestController) Informer() cache.SharedIndexInformer {
-	return c.informer.Informer()
+	return c.controller.Informer()
 }
 
 func (c *clusterRegistrationRequestController) GroupVersionKind() schema.GroupVersionKind {
@@ -171,57 +173,75 @@ func (c *clusterRegistrationRequestController) GroupVersionKind() schema.GroupVe
 
 func (c *clusterRegistrationRequestController) Cache() ClusterRegistrationRequestCache {
 	return &clusterRegistrationRequestCache{
-		lister:  c.informer.Lister(),
-		indexer: c.informer.Informer().GetIndexer(),
+		indexer:  c.Informer().GetIndexer(),
+		resource: c.groupResource,
 	}
 }
 
 func (c *clusterRegistrationRequestController) Create(obj *v1alpha1.ClusterRegistrationRequest) (*v1alpha1.ClusterRegistrationRequest, error) {
-	return c.clientGetter.ClusterRegistrationRequests(obj.Namespace).Create(context.TODO(), obj, metav1.CreateOptions{})
+	result := &v1alpha1.ClusterRegistrationRequest{}
+	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
 }
 
 func (c *clusterRegistrationRequestController) Update(obj *v1alpha1.ClusterRegistrationRequest) (*v1alpha1.ClusterRegistrationRequest, error) {
-	return c.clientGetter.ClusterRegistrationRequests(obj.Namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	result := &v1alpha1.ClusterRegistrationRequest{}
+	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
 func (c *clusterRegistrationRequestController) UpdateStatus(obj *v1alpha1.ClusterRegistrationRequest) (*v1alpha1.ClusterRegistrationRequest, error) {
-	return c.clientGetter.ClusterRegistrationRequests(obj.Namespace).UpdateStatus(context.TODO(), obj, metav1.UpdateOptions{})
+	result := &v1alpha1.ClusterRegistrationRequest{}
+	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
 func (c *clusterRegistrationRequestController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
 	}
-	return c.clientGetter.ClusterRegistrationRequests(namespace).Delete(context.TODO(), name, *options)
+	return c.client.Delete(context.TODO(), namespace, name, *options)
 }
 
 func (c *clusterRegistrationRequestController) Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.ClusterRegistrationRequest, error) {
-	return c.clientGetter.ClusterRegistrationRequests(namespace).Get(context.TODO(), name, options)
+	result := &v1alpha1.ClusterRegistrationRequest{}
+	return result, c.client.Get(context.TODO(), namespace, name, result, options)
 }
 
 func (c *clusterRegistrationRequestController) List(namespace string, opts metav1.ListOptions) (*v1alpha1.ClusterRegistrationRequestList, error) {
-	return c.clientGetter.ClusterRegistrationRequests(namespace).List(context.TODO(), opts)
+	result := &v1alpha1.ClusterRegistrationRequestList{}
+	return result, c.client.List(context.TODO(), namespace, result, opts)
 }
 
 func (c *clusterRegistrationRequestController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.clientGetter.ClusterRegistrationRequests(namespace).Watch(context.TODO(), opts)
+	return c.client.Watch(context.TODO(), namespace, opts)
 }
 
-func (c *clusterRegistrationRequestController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.ClusterRegistrationRequest, err error) {
-	return c.clientGetter.ClusterRegistrationRequests(namespace).Patch(context.TODO(), name, pt, data, metav1.PatchOptions{}, subresources...)
+func (c *clusterRegistrationRequestController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1alpha1.ClusterRegistrationRequest, error) {
+	result := &v1alpha1.ClusterRegistrationRequest{}
+	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
 }
 
 type clusterRegistrationRequestCache struct {
-	lister  listers.ClusterRegistrationRequestLister
-	indexer cache.Indexer
+	indexer  cache.Indexer
+	resource schema.GroupResource
 }
 
 func (c *clusterRegistrationRequestCache) Get(namespace, name string) (*v1alpha1.ClusterRegistrationRequest, error) {
-	return c.lister.ClusterRegistrationRequests(namespace).Get(name)
+	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewNotFound(c.resource, name)
+	}
+	return obj.(*v1alpha1.ClusterRegistrationRequest), nil
 }
 
-func (c *clusterRegistrationRequestCache) List(namespace string, selector labels.Selector) ([]*v1alpha1.ClusterRegistrationRequest, error) {
-	return c.lister.ClusterRegistrationRequests(namespace).List(selector)
+func (c *clusterRegistrationRequestCache) List(namespace string, selector labels.Selector) (ret []*v1alpha1.ClusterRegistrationRequest, err error) {
+
+	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
+		ret = append(ret, m.(*v1alpha1.ClusterRegistrationRequest))
+	})
+
+	return ret, err
 }
 
 func (c *clusterRegistrationRequestCache) AddIndexer(indexName string, indexer ClusterRegistrationRequestIndexer) {

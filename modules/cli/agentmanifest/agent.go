@@ -9,6 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/rancher/fleet/pkg/agent"
+
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -25,10 +29,30 @@ import (
 )
 
 type Options struct {
-	TTL  time.Duration
-	CA   []byte
-	Host string
-	NoCA bool
+	TTL       time.Duration
+	CA        []byte
+	Host      string
+	NoCA      bool
+	TokenOnly bool
+}
+
+func AgentToken(ctx context.Context, controllerNamespace, clusterGroupName, kubeConfigFile string, client *client.Client, opts *Options) ([]runtime.Object, error) {
+	clusterGroup, err := getClusterGroup(ctx, clusterGroupName, client)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := getToken(ctx, clusterGroup, opts.TTL, client)
+	if err != nil {
+		return nil, err
+	}
+
+	kubeConfig, err := getKubeConfig(kubeConfigFile, clusterGroup.Status.Namespace, token, opts.Host, opts.CA, opts.NoCA)
+	if err != nil {
+		return nil, err
+	}
+
+	return objects(controllerNamespace, kubeConfig), nil
 }
 
 func AgentManifest(ctx context.Context, controllerNamespace, clusterGroupName string, cg *client.Getter, output io.Writer, opts *Options) error {
@@ -41,27 +65,19 @@ func AgentManifest(ctx context.Context, controllerNamespace, clusterGroupName st
 		return err
 	}
 
+	objs, err := AgentToken(ctx, controllerNamespace, clusterGroupName, cg.Kubeconfig, client, opts)
+	if err != nil {
+		return err
+	}
+
 	cfg, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return err
 	}
 
-	clusterGroup, err := getClusterGroup(ctx, clusterGroupName, client)
-	if err != nil {
-		return err
+	if !opts.TokenOnly {
+		objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage)...)
 	}
-
-	token, err := getToken(ctx, clusterGroup, opts.TTL, client)
-	if err != nil {
-		return err
-	}
-
-	kubeConfig, err := getKubeConfig(cg.Kubeconfig, clusterGroup.Status.Namespace, token, opts.Host, opts.CA, opts.NoCA)
-	if err != nil {
-		return err
-	}
-
-	objs := objects(controllerNamespace, kubeConfig, cfg.AgentImage)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {

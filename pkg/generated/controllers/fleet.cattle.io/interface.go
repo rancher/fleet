@@ -19,10 +19,8 @@ limitations under the License.
 package fleet
 
 import (
-	clientset "github.com/rancher/fleet/pkg/generated/clientset/versioned"
 	v1alpha1 "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	informers "github.com/rancher/fleet/pkg/generated/informers/externalversions/fleet.cattle.io"
-	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/lasso/pkg/controller"
 )
 
 type Interface interface {
@@ -30,21 +28,16 @@ type Interface interface {
 }
 
 type group struct {
-	controllerManager *generic.ControllerManager
-	informers         informers.Interface
-	client            clientset.Interface
+	controllerFactory controller.SharedControllerFactory
 }
 
 // New returns a new Interface.
-func New(controllerManager *generic.ControllerManager, informers informers.Interface,
-	client clientset.Interface) Interface {
+func New(controllerFactory controller.SharedControllerFactory) Interface {
 	return &group{
-		controllerManager: controllerManager,
-		informers:         informers,
-		client:            client,
+		controllerFactory: controllerFactory,
 	}
 }
 
 func (g *group) V1alpha1() v1alpha1.Interface {
-	return v1alpha1.New(g.controllerManager, g.client.FleetV1alpha1(), g.informers.V1alpha1())
+	return v1alpha1.New(g.controllerFactory)
 }

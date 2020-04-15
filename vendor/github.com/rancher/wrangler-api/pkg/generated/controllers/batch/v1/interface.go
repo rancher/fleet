@@ -19,31 +19,30 @@ limitations under the License.
 package v1
 
 import (
-	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/schemes"
 	v1 "k8s.io/api/batch/v1"
-	informers "k8s.io/client-go/informers/batch/v1"
-	clientset "k8s.io/client-go/kubernetes/typed/batch/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+func init() {
+	v1.AddToScheme(schemes.All)
+}
 
 type Interface interface {
 	Job() JobController
 }
 
-func New(controllerManager *generic.ControllerManager, client clientset.BatchV1Interface,
-	informers informers.Interface) Interface {
+func New(controllerFactory controller.SharedControllerFactory) Interface {
 	return &version{
-		controllerManager: controllerManager,
-		client:            client,
-		informers:         informers,
+		controllerFactory: controllerFactory,
 	}
 }
 
 type version struct {
-	controllerManager *generic.ControllerManager
-	informers         informers.Interface
-	client            clientset.BatchV1Interface
+	controllerFactory controller.SharedControllerFactory
 }
 
 func (c *version) Job() JobController {
-	return NewJobController(v1.SchemeGroupVersion.WithKind("Job"), c.controllerManager, c.client, c.informers.Jobs())
+	return NewJobController(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}, "jobs", c.controllerFactory)
 }

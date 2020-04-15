@@ -1,12 +1,11 @@
 package bundle
 
 import (
+	"github.com/rancher/fleet/pkg/match"
 	"github.com/rancher/fleet/pkg/render"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	manifest "github.com/rancher/fleet/pkg/manifest"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 )
 
 type Match struct {
@@ -51,19 +50,13 @@ func (a *Bundle) Match(clusterGroup string, clusterGroupLabels, clusterLabels ma
 	return a.matcher.Match(clusterGroup, clusterGroupLabels, clusterLabels)
 }
 
-type criteria func(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool
-
 type targetMatch struct {
 	targetBundle *Match
-	criteria     []criteria
+	criteria     *match.ClusterMatcher
 }
 
 type matcher struct {
 	matches []targetMatch
-}
-
-func toSelector(labels *metav1.LabelSelector) (labels.Selector, error) {
-	return metav1.LabelSelectorAsSelector(labels)
 }
 
 func (a *Bundle) initMatcher() error {
@@ -72,37 +65,16 @@ func (a *Bundle) initMatcher() error {
 	)
 
 	for i, target := range a.Definition.Spec.Targets {
+		clusterMatcher, err := match.NewClusterMatcher(target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
+		if err != nil {
+			return err
+		}
 		t := targetMatch{
 			targetBundle: &Match{
 				Target: &a.Definition.Spec.Targets[i],
 				Bundle: a,
 			},
-		}
-
-		if target.ClusterGroup != "" {
-			t.criteria = append(t.criteria, func(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
-				return clusterGroup == target.ClusterGroup
-			})
-		}
-
-		if target.ClusterGroupSelector != nil {
-			selector, err := toSelector(target.ClusterGroupSelector)
-			if err != nil {
-				return err
-			}
-			t.criteria = append(t.criteria, func(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
-				return selector.Matches(labels.Set(clusterGroupLabels))
-			})
-		}
-
-		if target.ClusterSelector != nil {
-			selector, err := toSelector(target.ClusterSelector)
-			if err != nil {
-				return err
-			}
-			t.criteria = append(t.criteria, func(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
-				return selector.Matches(labels.Set(clusterLabels))
-			})
+			criteria: clusterMatcher,
 		}
 
 		m.matches = append(m.matches, t)
@@ -113,17 +85,10 @@ func (a *Bundle) initMatcher() error {
 }
 
 func (m *matcher) Match(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) *Match {
-outer:
 	for _, targetMatch := range m.matches {
-		if len(targetMatch.criteria) == 0 {
-			continue
+		if targetMatch.criteria.Match(clusterGroup, clusterGroupLabels, clusterLabels) {
+			return targetMatch.targetBundle
 		}
-		for _, criteria := range targetMatch.criteria {
-			if !criteria(clusterGroup, clusterGroupLabels, clusterLabels) {
-				continue outer
-			}
-		}
-		return targetMatch.targetBundle
 	}
 
 	return nil

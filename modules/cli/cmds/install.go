@@ -13,6 +13,7 @@ func NewInstall() *cobra.Command {
 		NewManager(),
 		NewAgentToken(),
 		NewAgentConfig(),
+		NewSimulator(),
 	)
 	return cmd
 }

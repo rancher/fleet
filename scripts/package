@@ -7,7 +7,7 @@ cd $(dirname $0)/..
 
 function build-image() {
   IMAGE=${REPO}/${1}:${TAG}
-  DOCKERFILE=package/Dockerfile
+  DOCKERFILE=package/Dockerfile${2}
   if [ -e ${DOCKERFILE}.${ARCH} ]; then
       DOCKERFILE=${DOCKERFILE}.${ARCH}
   fi
@@ -33,5 +33,5 @@ for i in bin/fleet-*; do
 done
 
 build-image fleet
-build-image fleet-agent
-build-image fleet-agent-simulator
+build-image fleet-agent .agent
+build-image fleet-agent-simulator .simulator

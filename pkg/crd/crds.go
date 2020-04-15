@@ -32,13 +32,15 @@ func List() []crd.CRD {
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.BundleDeployment{}, func(c crd.CRD) crd.CRD {
-			return c.WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
+			return c.
+				WithColumn("Deployed", ".status.conditions[?(@.type==\"Deployed\")].message").
+				WithColumn("Monitored", ".status.conditions[?(@.type==\"Monitored\")].message").
+				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.ClusterGroup{}, func(c crd.CRD) crd.CRD {
 			return c.
 				WithCategories("fleet").
 				WithColumn("Cluster-Count", ".status.clusterCount").
-				WithColumn("NonReady-Clusters", ".status.nonReadyClusters").
 				WithColumn("Bundles-Ready", ".status.summary.ready").
 				WithColumn("Bundles-Desired", ".status.summary.desiredReady").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")

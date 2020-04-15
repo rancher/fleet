@@ -20,6 +20,8 @@ func IncrementState(summary *fleet.BundleSummary, name string, state fleet.Bundl
 		summary.Pending++
 	case fleet.NotApplied:
 		summary.NotApplied++
+	case fleet.ErrApplied:
+		summary.ErrApplied++
 	case fleet.NotReady:
 		summary.NotReady++
 	case fleet.OutOfSync:
@@ -27,7 +29,7 @@ func IncrementState(summary *fleet.BundleSummary, name string, state fleet.Bundl
 	case fleet.Ready:
 		summary.Ready++
 	}
-	if name != "" {
+	if name != "" && state != fleet.Ready {
 		if len(summary.NonReadyResources) < 10 {
 			summary.NonReadyResources = append(summary.NonReadyResources, fleet.NonReadyResource{
 				Name:    name,
@@ -45,6 +47,7 @@ func IsReady(summary fleet.BundleSummary) bool {
 func Increment(left *fleet.BundleSummary, right fleet.BundleSummary) {
 	left.NotReady += right.NotReady
 	left.NotApplied += right.NotApplied
+	left.ErrApplied += right.ErrApplied
 	left.OutOfSync += right.OutOfSync
 	left.Modified += right.Modified
 	left.Ready += right.Ready
@@ -58,6 +61,9 @@ func Increment(left *fleet.BundleSummary, right fleet.BundleSummary) {
 func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleState {
 	switch {
 	case bundleDeployment.Status.AppliedDeploymentID != bundleDeployment.Spec.DeploymentID:
+		if condition.Cond(fleet.BundleDeploymentConditionDeployed).IsFalse(bundleDeployment) {
+			return fleet.ErrApplied
+		}
 		return fleet.NotApplied
 	case !bundleDeployment.Status.Ready:
 		return fleet.NotReady
@@ -106,6 +112,7 @@ func ReadyMessage(summary fleet.BundleSummary) string {
 		fleet.OutOfSync:  summary.OutOfSync,
 		fleet.NotReady:   summary.NotReady,
 		fleet.NotApplied: summary.NotApplied,
+		fleet.ErrApplied: summary.ErrApplied,
 		fleet.Pending:    summary.Pending,
 		fleet.Modified:   summary.Modified,
 	} {

@@ -21,7 +21,8 @@ type handler struct {
 	clusterGroup   fleetcontrollers.ClusterGroupCache
 	clusters       fleetcontrollers.ClusterCache
 	requests       fleetcontrollers.ClusterRegistrationRequestCache
-	secrets        corecontrollers.SecretCache
+	secretsCache   corecontrollers.SecretCache
+	secrets        corecontrollers.SecretClient
 }
 
 func Register(ctx context.Context,
@@ -40,7 +41,8 @@ func Register(ctx context.Context,
 		clusterGroup:   clusterGroup,
 		clusters:       clusters,
 		requests:       requests.Cache(),
-		secrets:        secrets.Cache(),
+		secrets:        secrets,
+		secretsCache:   secrets.Cache(),
 	}
 
 	serviceAccount.OnChange(ctx, "serviceaccount-sa-cluster", h.OnChangeForCluster)

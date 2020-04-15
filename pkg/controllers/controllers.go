@@ -3,8 +3,6 @@ package controllers
 import (
 	"context"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/pkg/controllers/bundle"
 	"github.com/rancher/fleet/pkg/controllers/cleanup"
 	"github.com/rancher/fleet/pkg/controllers/cluster"
@@ -13,7 +11,6 @@ import (
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
 	"github.com/rancher/fleet/pkg/controllers/config"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
-	"github.com/rancher/fleet/pkg/controllers/role"
 	"github.com/rancher/fleet/pkg/controllers/serviceaccount"
 	"github.com/rancher/fleet/pkg/controllers/sharedindex"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
@@ -29,6 +26,7 @@ import (
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/start"
+	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -46,7 +44,7 @@ type appContext struct {
 }
 
 func (a *appContext) start(ctx context.Context) error {
-	return start.All(ctx, 5, a.starters...)
+	return start.All(ctx, 50, a.starters...)
 }
 
 func Register(ctx context.Context, systemNamespace string, client *rest.Config) error {
@@ -106,11 +104,6 @@ func Register(ctx context.Context, systemNamespace string, client *rest.Config) 
 		appCtx.Cluster().Cache(),
 		appCtx.ClusterGroup(),
 		appCtx.Cluster())
-
-	role.Register(ctx,
-		appCtx.Core.Secret(),
-		appCtx.RBAC.Role(),
-		appCtx.ClusterGroup())
 
 	clustergrouptoken.Register(ctx,
 		appCtx.Apply,

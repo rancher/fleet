@@ -28,14 +28,18 @@ import (
 )
 
 type helm struct {
-	cfg      action.Configuration
-	getter   genericclioptions.RESTClientGetter
-	template bool
+	cfg              action.Configuration
+	getter           genericclioptions.RESTClientGetter
+	template         bool
+	defaultNamespace string
+	labelPrefix      string
 }
 
-func NewHelm(namespace string, getter genericclioptions.RESTClientGetter) (deployer.Deployer, error) {
+func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclioptions.RESTClientGetter) (deployer.Deployer, error) {
 	h := &helm{
-		getter: getter,
+		getter:           getter,
+		defaultNamespace: defaultNamespace,
+		labelPrefix:      labelPrefix,
 	}
 	if err := h.cfg.Init(getter, namespace, "secrets", logrus.Infof); err != nil {
 		return nil, err
@@ -56,9 +60,10 @@ func mergeMaps(base, other map[string]string) map[string]string {
 }
 
 type postRender struct {
-	bundleID string
-	manifest *manifest.Manifest
-	opts     fleet.BundleDeploymentOptions
+	labelPrefix string
+	bundleID    string
+	manifest    *manifest.Manifest
+	opts        fleet.BundleDeploymentOptions
 }
 
 func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
@@ -81,7 +86,7 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 		objs = newObjs
 	}
 
-	labels, annotations, err := apply.GetLabelsAndAnnotations(name.SafeConcatName("fleet", p.bundleID), nil)
+	labels, annotations, err := apply.GetLabelsAndAnnotations(name.SafeConcatName(p.labelPrefix, p.bundleID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +150,7 @@ func (h *helm) mustInstall(bundleID string) (bool, error) {
 	return false, err
 }
 
-func getOpts(options fleet.BundleDeploymentOptions) (map[string]interface{}, time.Duration, string) {
+func (h *helm) getOpts(options fleet.BundleDeploymentOptions) (map[string]interface{}, time.Duration, string) {
 	vals := map[string]interface{}{}
 	if options.Values != nil {
 		vals = options.Values.Data
@@ -157,14 +162,14 @@ func getOpts(options fleet.BundleDeploymentOptions) (map[string]interface{}, tim
 	}
 
 	if options.DefaultNamespace == "" {
-		options.DefaultNamespace = "default"
+		options.DefaultNamespace = h.defaultNamespace
 	}
 
 	return vals, timeout, options.DefaultNamespace
 }
 
 func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
-	vals, timeout, namespace := getOpts(options)
+	vals, timeout, namespace := h.getOpts(options)
 
 	uninstall, err := h.mustUninstall(bundleID)
 	if err != nil {
@@ -190,6 +195,13 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		return nil, err
 	}
 
+	pr := &postRender{
+		labelPrefix: h.labelPrefix,
+		bundleID:    bundleID,
+		manifest:    manifest,
+		opts:        options,
+	}
+
 	if install {
 		u := action.NewInstall(&cfg)
 		u.ClientOnly = h.template
@@ -201,11 +213,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		u.Namespace = namespace
 		u.Timeout = timeout
 		u.DryRun = dryRun
-		u.PostRenderer = &postRender{
-			bundleID: bundleID,
-			manifest: manifest,
-			opts:     options,
-		}
+		u.PostRenderer = pr
 		return u.Run(chart, vals)
 	}
 
@@ -215,11 +223,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u.Timeout = timeout
 	u.Atomic = true
 	u.DryRun = dryRun
-	u.PostRenderer = &postRender{
-		bundleID: bundleID,
-		manifest: manifest,
-		opts:     options,
-	}
+	u.PostRenderer = pr
 	return u.Run(bundleID, chart, vals)
 }
 
@@ -272,7 +276,7 @@ func (h *helm) Delete(bundleID string) error {
 }
 
 func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
-	_, timeout, _ := getOpts(options)
+	_, timeout, _ := h.getOpts(options)
 
 	u := action.NewUninstall(&h.cfg)
 	u.DryRun = dryRun
