@@ -7,10 +7,11 @@ cd $(dirname $0)/..
 
 mkdir -p bin
 if [ "$(uname)" = "Linux" ]; then
-    OTHER_LINKFLAGS="-extldflags -static -s"
+    OTHER_LINKFLAGS="-extldflags -static"
 fi
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.Version=$VERSION"
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.GitCommit=$COMMIT $LINKFLAGS"
+LINKFLAGS="-s -w $LINKFLAGS"
 CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleet
 CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleetmanager ./cmd/fleetmanager
 CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleetagent ./cmd/fleetagent
