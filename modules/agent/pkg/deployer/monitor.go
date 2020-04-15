@@ -19,8 +19,11 @@ type DeploymentStatus struct {
 }
 
 func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) apply.Apply {
+	if ns == "" {
+		ns = m.defaultNamespace
+	}
 	return m.apply.
-		WithSetID(name.SafeConcatName("fleet", bd.Name)).
+		WithSetID(name.SafeConcatName(m.labelPrefix, bd.Name)).
 		WithDefaultNamespace(ns)
 }
 

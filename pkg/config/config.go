@@ -21,8 +21,9 @@ const (
 )
 
 var (
-	DefaultManagerImage = "rancher/fleet" + ":" + version.Version
-	DefaultAgentImage   = "rancher/fleet-agent" + ":" + version.Version
+	DefaultManagerImage        = "rancher/fleet" + ":" + version.Version
+	DefaultAgentImage          = "rancher/fleet-agent" + ":" + version.Version
+	DefaultAgentSimulatorImage = "rancher/fleet-agent-simulator" + ":" + version.Version
 
 	config       *Config
 	callbacks    = map[int]func(*Config) error{}

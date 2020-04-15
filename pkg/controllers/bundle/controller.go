@@ -114,47 +114,78 @@ func toRuntimeObjects(targets []*target.Target) (result []runtime.Object) {
 	return
 }
 
-func (h *handler) calculateChanges(status *fleet.BundleStatus, targets []*target.Target) (err error) {
+func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
 	// reset
 	status.MaxNew = maxNew
 	status.Summary = fleet.BundleSummary{}
+	status.PartitionStatus = nil
 	status.Unavailable = 0
 	status.NewlyCreated = 0
-	status.MaxUnavailable, err = target.MaxUnavailable(targets)
+	status.Summary = target.Summary(allTargets)
+	status.Unavailable = target.Unavailable(allTargets)
+	status.MaxUnavailable, err = target.MaxUnavailable(allTargets)
 	if err != nil {
 		return err
 	}
 
-	for _, target := range targets {
-		if target.Deployment == nil {
-			newTarget(target, status)
+	partitions, err := target.Partitions(allTargets)
+	if err != nil {
+		return err
+	}
+
+	status.UnavailablePartitions = 0
+	status.MaxUnavailablePartitions, err = target.MaxUnavailablePartitions(partitions, allTargets)
+	if err != nil {
+		return err
+	}
+
+	for _, partition := range partitions {
+		for _, target := range partition.Targets {
+			if target.Deployment == nil {
+				newTarget(target, status)
+			}
+			if target.Deployment != nil {
+				target.Deployment.Spec.StagedOptions = target.Options
+				target.Deployment.Spec.StagedDeploymentID = target.DeploymentID
+			}
 		}
-		if target.Deployment != nil {
-			target.Deployment.Spec.StagedOptions = target.Options
-			target.Deployment.Spec.StagedDeploymentID = target.DeploymentID
+
+		for _, currentTarget := range partition.Targets {
+			updateManifest(currentTarget, status, &partition.Status)
+		}
+
+		if target.IsPartitionUnavailable(&partition.Status, partition.Targets) {
+			status.UnavailablePartitions++
+		}
+
+		if status.UnavailablePartitions > status.MaxUnavailablePartitions {
+			break
 		}
 	}
 
-	status.Unavailable = target.Unavailable(targets)
-
-	for _, currentTarget := range targets {
-		updateManifest(currentTarget, status)
-		cluster := currentTarget.Cluster.Namespace + "/" + currentTarget.Cluster.Name
-		summary.IncrementState(&status.Summary, cluster, currentTarget.State(), currentTarget.Message())
-		status.Summary.DesiredReady++
+	for _, partition := range partitions {
+		status.PartitionStatus = append(status.PartitionStatus, partition.Status)
 	}
 
 	return nil
 }
 
-func updateManifest(t *target.Target, status *fleet.BundleStatus) {
+func updateManifest(t *target.Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
 	if t.Deployment != nil &&
+		// Not Paused
 		!t.IsPaused() &&
+		// Has been staged
 		t.Deployment.Spec.StagedDeploymentID != "" &&
+		// Is out of sync
 		t.Deployment.Spec.DeploymentID != t.Deployment.Spec.StagedDeploymentID &&
-		(status.Unavailable < status.MaxUnavailable || target.IsUnavailable(t.Deployment)) {
+		// Global max unavailable not reached
+		(status.Unavailable < status.MaxUnavailable || target.IsUnavailable(t.Deployment)) &&
+		// Partition max unavailable not reached
+		(partitionStatus.Unavailable < partitionStatus.MaxUnavailable || target.IsUnavailable(t.Deployment)) {
 		if !target.IsUnavailable(t.Deployment) {
+			// If this was previously available, now increment unavailable count. "Upgrading" is treated as unavailable.
 			status.Unavailable++
+			partitionStatus.Unavailable++
 		}
 		t.Deployment.Spec.DeploymentID = t.Deployment.Spec.StagedDeploymentID
 		t.Deployment.Spec.Options = t.Deployment.Spec.StagedOptions

@@ -31,7 +31,7 @@ func AgentConfig(ctx context.Context, controllerNamespace string, cg *client.Get
 		return err
 	}
 
-	objs, err := configMap(controllerNamespace, opts.Labels)
+	objs, err := Objects(controllerNamespace, opts.Labels)
 	if err != nil {
 		return err
 	}
@@ -45,8 +45,8 @@ func AgentConfig(ctx context.Context, controllerNamespace string, cg *client.Get
 	return err
 }
 
-func configMap(namespace string, clusterLabels map[string]string) ([]runtime.Object, error) {
-	cm, err := config.ToConfigMap(namespace, config.AgentConfigName, &config.Config{
+func Objects(controllerNamespace string, clusterLabels map[string]string) ([]runtime.Object, error) {
+	cm, err := config.ToConfigMap(controllerNamespace, config.AgentConfigName, &config.Config{
 		Labels: clusterLabels,
 	})
 	if err != nil {
@@ -54,7 +54,7 @@ func configMap(namespace string, clusterLabels map[string]string) ([]runtime.Obj
 	}
 	cm.Name = "fleet-agent"
 	return []runtime.Object{
-		basic.Namespace(namespace),
+		basic.Namespace(controllerNamespace),
 		cm,
 	}, nil
 }

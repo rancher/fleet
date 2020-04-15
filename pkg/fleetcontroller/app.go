@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/rancher/wrangler/pkg/ratelimit"
+
 	"github.com/rancher/fleet/pkg/controllers"
 	"github.com/rancher/fleet/pkg/crd"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
@@ -30,6 +32,8 @@ func Start(ctx context.Context, systemNamespace string, kubeconfigFile string) e
 	if err != nil {
 		return err
 	}
+
+	clientConfig.RateLimiter = ratelimit.None
 
 	if err := crd.Create(ctx, clientConfig); err != nil {
 		return err

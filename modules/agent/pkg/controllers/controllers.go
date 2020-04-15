@@ -69,13 +69,18 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 5, a.starters...)
 }
 
-func Register(ctx context.Context, fleetNamespace, namespace string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) error {
+func Register(ctx context.Context, leaderElect bool, fleetNamespace, namespace, defaultNamespace string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) error {
 	appCtx, err := newContext(fleetNamespace, namespace, fleetConfig, clientConfig)
 	if err != nil {
 		return err
 	}
 
-	helmDeployer, err := helmdeployer.NewHelm(namespace, appCtx)
+	labelPrefix := "fleet"
+	if defaultNamespace != "" {
+		labelPrefix = defaultNamespace
+	}
+
+	helmDeployer, err := helmdeployer.NewHelm(namespace, defaultNamespace, labelPrefix, appCtx)
 	if err != nil {
 		return err
 	}
@@ -84,6 +89,8 @@ func Register(ctx context.Context, fleetNamespace, namespace string, fleetConfig
 		trigger.New(ctx, appCtx.restMapper, appCtx.Dynamic),
 		deployer.NewManager(
 			fleetNamespace,
+			defaultNamespace,
+			labelPrefix,
 			appCtx.Fleet.BundleDeployment().Cache(),
 			manifest.NewLookup(appCtx.Fleet.Content()),
 			helmDeployer,
@@ -92,11 +99,15 @@ func Register(ctx context.Context, fleetNamespace, namespace string, fleetConfig
 
 	secret.Register(ctx, namespace, appCtx.CoreNS.Secret())
 
-	leader.RunOrDie(ctx, namespace, "fleet-agent", appCtx.K8s, func(ctx context.Context) {
-		if err := appCtx.start(ctx); err != nil {
-			logrus.Fatal(err)
-		}
-	})
+	if leaderElect {
+		leader.RunOrDie(ctx, namespace, "fleet-agent", appCtx.K8s, func(ctx context.Context) {
+			if err := appCtx.start(ctx); err != nil {
+				logrus.Fatal(err)
+			}
+		})
+	} else {
+		return appCtx.start(ctx)
+	}
 
 	return nil
 }

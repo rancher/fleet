@@ -24,7 +24,9 @@ const (
 )
 
 var (
-	defMaxUnavailable = intstr.FromString("25%")
+	defLimit                    = intstr.FromString("10%")
+	defAutoPartitionSize        = intstr.FromString("25%")
+	defMaxUnavailablePartitions = intstr.FromInt(0)
 )
 
 type Manager struct {
@@ -213,25 +215,36 @@ func (t *Target) AssignNewDeployment() {
 	}
 }
 
-func MaxUnavailable(targets []*Target) (int, error) {
-	if len(targets) == 0 {
-		return 1, nil
+func getRollout(targets []*Target) *fleet.RolloutStrategy {
+	var rollout *fleet.RolloutStrategy
+	if len(targets) > 0 {
+		rollout = targets[0].Bundle.Spec.RolloutStrategy
 	}
-
-	rollout := targets[0].Bundle.Spec.RolloutStrategy
 	if rollout == nil {
 		rollout = &fleet.RolloutStrategy{}
 	}
+	return rollout
+}
 
-	maxUnavailable := rollout.MaxUnavailable
+func Limit(count int, val ...*intstr.IntOrString) (int, error) {
+	if count == 0 {
+		return 1, nil
+	}
+
+	var maxUnavailable *intstr.IntOrString
+
+	for _, val := range val {
+		if val != nil {
+			maxUnavailable = val
+			break
+		}
+	}
+
 	if maxUnavailable == nil {
-		maxUnavailable = &defMaxUnavailable
+		maxUnavailable = &defLimit
 	}
 
 	if maxUnavailable.Type == intstr.Int {
-		if maxUnavailable.IntValue() <= 0 {
-			return 1, nil
-		}
 		return maxUnavailable.IntValue(), nil
 	}
 
@@ -244,21 +257,55 @@ func MaxUnavailable(targets []*Target) (int, error) {
 		return 0, fmt.Errorf("invalid maxUnavailable, must be int or percentage (ending with %%): %s", maxUnavailable)
 	}
 
-	i, err := strconv.Atoi(strings.TrimSuffix(maxUnavailable.StrVal, "%"))
+	percent, err := strconv.ParseFloat(strings.TrimSuffix(maxUnavailable.StrVal, "%"), 64)
 	if err != nil {
 		return 0, errors.Wrapf(err, "failed to parse %s", maxUnavailable.StrVal)
 	}
 
-	if i <= 0 {
+	if percent <= 0 {
 		return 1, nil
 	}
 
-	i = (len(targets) * i) / 100
+	i = int(float64(count)*percent) / 100
 	if i <= 0 {
 		return 1, nil
 	}
 
 	return i, nil
+}
+
+func MaxUnavailable(targets []*Target) (int, error) {
+	rollout := getRollout(targets)
+	return Limit(len(targets), rollout.MaxUnavailable)
+}
+
+func MaxUnavailablePartitions(partitions []Partition, targets []*Target) (int, error) {
+	rollout := getRollout(targets)
+	return Limit(len(partitions), rollout.MaxUnavailablePartitions, &defMaxUnavailablePartitions)
+}
+
+func IsPartitionUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
+	// Unavailable for a partition is stricter than unavailable for a target.
+	// For a partition a target must be available and update to date.
+	status.Unavailable = 0
+	for _, target := range targets {
+		if !UpToDate(target) || IsUnavailable(target.Deployment) {
+			status.Unavailable++
+		}
+	}
+
+	return status.Unavailable > status.MaxUnavailable
+}
+
+func UpToDate(target *Target) bool {
+	if target.Deployment == nil ||
+		target.Deployment.Spec.StagedDeploymentID != target.DeploymentID ||
+		target.Deployment.Spec.DeploymentID != target.DeploymentID ||
+		target.Deployment.Status.AppliedDeploymentID != target.DeploymentID {
+		return false
+	}
+
+	return true
 }
 
 func Unavailable(targets []*Target) (count int) {
@@ -274,6 +321,9 @@ func Unavailable(targets []*Target) (count int) {
 }
 
 func IsUnavailable(target *fleet.BundleDeployment) bool {
+	if target == nil {
+		return false
+	}
 	return target.Status.AppliedDeploymentID != target.Spec.DeploymentID ||
 		!target.Status.Ready
 }
@@ -289,4 +339,14 @@ func (t *Target) State() fleet.BundleState {
 
 func (t *Target) Message() string {
 	return summary.MessageFromDeployment(t.Deployment)
+}
+
+func Summary(targets []*Target) fleet.BundleSummary {
+	var bundleSummary fleet.BundleSummary
+	for _, currentTarget := range targets {
+		cluster := currentTarget.Cluster.Namespace + "/" + currentTarget.Cluster.Name
+		summary.IncrementState(&bundleSummary, cluster, currentTarget.State(), currentTarget.Message())
+		bundleSummary.DesiredReady++
+	}
+	return bundleSummary
 }

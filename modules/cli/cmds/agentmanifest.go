@@ -19,16 +19,18 @@ func NewAgentToken() *cobra.Command {
 type AgentToken struct {
 	SystemNamespace string `usage:"System namespace of the controller" default:"fleet-system"`
 	TTL             string `usage:"How long the generated registration token is valid, 0 means forever" default:"1440m" short:"t"`
-	CAFile          string `usage:"File containing optional CA cert for fleet management server" name:"ca-file" short:"c"`
-	NoCA            bool   `json:"Use no custom CA for a fleet controller that is signed by a well known CA with a proper CN."`
-	ServerURL       string `usage:"The full URL to the fleet management server"`
+	CAFile          string `usage:"File containing optional CA cert for fleet controller cluster" name:"ca-file" short:"c"`
+	NoCA            bool   `usage:"Use no custom CA for a fleet controller that is signed by a well known CA with a proper CN."`
+	ServerURL       string `usage:"The full URL to the fleet controller cluster"`
 	Group           string `usage:"Cluster group to generate config for" default:"default" short:"g"`
+	TokenOnly       bool   `usage:"Generate only the token"`
 }
 
 func (a *AgentToken) Run(cmd *cobra.Command, args []string) error {
 	opts := &agentmanifest.Options{
-		Host: a.ServerURL,
-		NoCA: a.NoCA,
+		Host:      a.ServerURL,
+		NoCA:      a.NoCA,
+		TokenOnly: a.TokenOnly,
 	}
 
 	if a.TTL != "" && a.TTL != "0" {

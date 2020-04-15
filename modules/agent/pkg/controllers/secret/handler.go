@@ -7,7 +7,6 @@ import (
 
 	"github.com/rancher/fleet/modules/agent/pkg/register"
 	v1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -34,7 +33,7 @@ func (h *handler) OnChange(key string, secret *corev1.Secret) (*corev1.Secret, e
 	}
 
 	if !bytes.Equal(h.lastValue, secret.Data[register.Kubeconfig]) {
-		logrus.Fatalf("Agent credential has change, quitting controller")
+		//logrus.Fatalf("Agent credential has change, quitting controller")
 	}
 	return secret, nil
 }

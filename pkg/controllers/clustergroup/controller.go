@@ -120,6 +120,13 @@ func (h *handler) OnClusterGroup(clusterGroup *fleet.ClusterGroup, status fleet.
 					fleet.ManagedAnnotation: "true",
 				},
 			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{corev1.GroupName},
+					Resources: []string{"secrets"},
+				},
+			},
 		},
 	}, status, nil
 }

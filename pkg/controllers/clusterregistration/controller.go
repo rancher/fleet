@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/fleet/pkg/controllers/sharedindex"
 
 	rbaccontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac/v1"
@@ -98,11 +100,13 @@ func (h *handler) OnChange(request *fleet.ClusterRegistrationRequest, status fle
 		return nil, status, nil
 	}
 
+	saName := name.SafeConcatName(request.Name, request.Spec.ClientRandom)
+
 	status.Granted = true
 	return []runtime.Object{
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      request.Name,
+				Name:      saName,
 				Namespace: request.Namespace,
 				Annotations: map[string]string{
 					fleet.ManagedAnnotation: "true",
@@ -143,7 +147,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistrationRequest, status fle
 			Subjects: []rbacv1.Subject{
 				{
 					Kind:      "ServiceAccount",
-					Name:      request.Name,
+					Name:      saName,
 					Namespace: request.Namespace,
 				},
 			},
@@ -178,7 +182,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistrationRequest, status fle
 			Subjects: []rbacv1.Subject{
 				{
 					Kind:      "ServiceAccount",
-					Name:      request.Name,
+					Name:      saName,
 					Namespace: request.Namespace,
 				},
 			},
@@ -207,12 +211,20 @@ func (h *handler) ensureClusterExists(request *fleet.ClusterRegistrationRequest)
 		return cluster, err
 	}
 
+	labels := map[string]string{}
+	for k, v := range request.Spec.ClusterLabels {
+		labels[k] = v
+	}
+	labels[fleet.ClusterGroupAnnotation] = clusterGroups[0].Name
+	labels[fleet.ClusterAnnotation] = clusterName
+
 	if request.Status.ClusterName == "" {
+		logrus.Infof("Creating cluster %s/%s", ns, clusterName)
 		return h.clusters.Create(&fleet.Cluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      clusterName,
 				Namespace: ns,
-				Labels:    request.Spec.ClusterLabels,
+				Labels:    labels,
 			},
 		})
 	}

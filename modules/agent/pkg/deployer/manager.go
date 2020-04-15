@@ -12,19 +12,25 @@ import (
 
 type Manager struct {
 	fleetNamespace        string
+	defaultNamespace      string
 	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache
 	lookup                manifest.Lookup
 	deployer              Deployer
 	apply                 apply.Apply
+	labelPrefix           string
 }
 
 func NewManager(fleetNamespace string,
+	defaultNamespace string,
+	labelPrefix string,
 	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache,
 	lookup manifest.Lookup,
 	deployer Deployer,
 	apply apply.Apply) *Manager {
 	return &Manager{
 		fleetNamespace:        fleetNamespace,
+		defaultNamespace:      defaultNamespace,
+		labelPrefix:           labelPrefix,
 		bundleDeploymentCache: bundleDeploymentCache,
 		lookup:                lookup,
 		deployer:              deployer,

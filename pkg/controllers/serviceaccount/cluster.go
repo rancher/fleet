@@ -70,7 +70,11 @@ func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cg *fleet.Cluster, req
 	if len(sa.Secrets) == 0 {
 		return nil
 	}
-	secret, err := h.secrets.Get(sa.Namespace, sa.Secrets[0].Name)
+	secret, err := h.secretsCache.Get(sa.Namespace, sa.Secrets[0].Name)
+	if apierrors.IsNotFound(err) {
+		// secrets can be slow to propagate to the cache
+		secret, err = h.secrets.Get(sa.Namespace, sa.Secrets[0].Name, metav1.GetOptions{})
+	}
 	if err != nil {
 		return err
 	}

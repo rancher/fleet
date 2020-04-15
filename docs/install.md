@@ -93,11 +93,11 @@ Usage:
   fleet install agent-token [flags]
 
 Flags:
-  -c, --ca-file string            File containing optional CA cert for fleet management server
+  -c, --ca-file string            File containing optional CA cert for fleet controller cluster
   -g, --group string              Cluster group to generate config for (default "default")
   -h, --help                      help for agent-token
       --no-ca                     
-      --server-url string         The full URL to the fleet management server
+      --server-url string         The full URL to the fleet controller cluster
       --system-namespace string   System namespace of the controller (default "fleet-system")
   -t, --ttl string                How long the generated registration token is valid, 0 means forever (default "1440m")
 
