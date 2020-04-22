@@ -66,7 +66,7 @@ Combining Fleet with a Git based workflow like Github Actions one can automate m
    to access the cluster.
     ```shell
     # Kubeconfig should point to CONTROLLER cluster
-    fleet install controller | kubectl apply -f -
+    fleet install manager | kubectl apply -f -
     ```
 3. Generate cluster group token to register clusters
     ```shell script
