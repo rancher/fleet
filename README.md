@@ -28,7 +28,7 @@ Fleet is a Kubernetes cluster fleet controller specifically designed to address 
 thousands to millions of clusters across the world.  While it's designed for massive scale the concepts still
 apply for even small deployments of less than 10 clusters.  Fleet is lightweight enough to run on the smallest of
 deployments too and even has merit in a single node cluster managing only itself. The primary use case of Fleet is
-to ensure that deployments are consistents across clusters. One can deploy applications or easily enforce standards
+to ensure that deployments are consistent across clusters. One can deploy applications or easily enforce standards
 such as "every cluster must have X security tool installed."
 
 Fleet has two simple high level concepts: cluster groups and bundles.  Bundles are collections of resources that
