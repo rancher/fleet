@@ -1,0 +1,27 @@
+apiVersion: gitops.cattle.io/v1
+kind: GitJob
+metadata:
+  name: example-private
+spec:
+  git:
+    branch: master
+    repo: git@github.com:StrongMonkey/priv-repo.git
+    provider: polling
+    gitSecretName: ssh-key-secret
+    gitSecretType: ssh
+    gitHostName: github.com
+  jobSpec:
+    template:
+      spec:
+        serviceAccountName: kubectl-apply
+        restartPolicy: "Never"
+        containers:
+          - image: "bitnami/kubectl:latest"
+            name: kubectl-apply
+            command:
+              - kubectl
+            args:
+              - apply
+              - -f
+              - deployment.yaml
+            workingDir: /workspace/source
