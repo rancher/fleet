@@ -46,14 +46,14 @@ a Kubernetes controller based architecture to 100's of millions of objects and b
 ### Manager installation
 
 The controller is just a deployment that runs in a Kubernetes cluster.  It is assumed you already have a Kubernetes
-cluster available.  The `fleet install controller` command is used to generate a manifest for installation.
-The `fleet install controller` command does not need a live connection to a Kubernetes cluster.
+cluster available.  The `fleet install manager` command is used to generate a manifest for installation.
+The `fleet install manager` command does not need a live connection to a Kubernetes cluster.
 
 ```
 Generate deployment manifest to run the fleet controller
 
 Usage:
-  fleet install controller [flags]
+  fleet install manager [flags]
 
 Flags:
       --agent-image string        Image to use for all agents
@@ -67,7 +67,7 @@ Global Flags:
   -n, --namespace string    namespace (default "default")
 ```
 
-Installation is accomplished typically by doing `fleet install controller | kubectl apply -f -`. The `agent-image` and
+Installation is accomplished typically by doing `fleet install manager | kubectl apply -f -`. The `agent-image` and
 `controller-image` fields are important if you wish to run Fleet from a private registry.  The `system-namespace` is the
 namespace the fleet controller runs in and also the namespace the cluster agents will run in all clusters.  This is
 by default `fleet-system` and it is recommended to keep the default value.
