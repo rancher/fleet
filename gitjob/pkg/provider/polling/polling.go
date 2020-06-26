@@ -2,6 +2,7 @@ package polling
 
 import (
 	"context"
+	"net/http"
 
 	gitopsv1 "github.com/rancher/gitjobs/pkg/apis/gitops.cattle.io/v1"
 	"github.com/rancher/gitwatcher/pkg/git"
@@ -29,11 +30,11 @@ func NewPolling(secrets corev1controller.SecretCache) *Polling {
 	}
 }
 
-func (w *Polling) Supports(obj *gitopsv1.GitJob) bool {
+func (p *Polling) Supports(obj *gitopsv1.GitJob) bool {
 	return obj.Spec.Git.Provider == "polling"
 }
 
-func (w *Polling) Handle(ctx context.Context, obj *gitopsv1.GitJob) (gitopsv1.GitJobStatus, error) {
+func (p *Polling) Handle(ctx context.Context, obj *gitopsv1.GitJob) (gitopsv1.GitJobStatus, error) {
 	var (
 		auth git.Auth
 	)
@@ -42,7 +43,7 @@ func (w *Polling) Handle(ctx context.Context, obj *gitopsv1.GitJob) (gitopsv1.Gi
 	if obj.Spec.Git.GitSecretName != "" {
 		secretName = obj.Spec.Git.GitSecretName
 	}
-	secret, err := w.secretCache.Get(obj.Namespace, secretName)
+	secret, err := p.secretCache.Get(obj.Namespace, secretName)
 	if errors.IsNotFound(err) {
 		secret = nil
 	} else if err != nil {
@@ -60,4 +61,8 @@ func (w *Polling) Handle(ctx context.Context, obj *gitopsv1.GitJob) (gitopsv1.Gi
 
 	obj.Status.Commit = commit
 	return obj.Status, nil
+}
+
+func (p *Polling) HandleHook(ctx context.Context, req *http.Request) (int, error) {
+	return 0, nil
 }

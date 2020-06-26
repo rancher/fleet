@@ -7,7 +7,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
+
+	"github.com/rancher/gitjobs/pkg/hooks"
 
 	"github.com/rancher/gitjobs/pkg/controller"
 	"github.com/rancher/gitjobs/pkg/types"
@@ -68,11 +71,19 @@ func run(c *cli.Context) {
 		logrus.Fatal(err)
 	}
 
-	leader.RunOrDie(ctx, "gitops", "gitops", cont.K8s, func(ctx context.Context) {
-		controller.Register(ctx, cont)
-		runtime.Must(cont.Start(ctx))
-		<-ctx.Done()
-	})
+	go func() {
+		leader.RunOrDie(ctx, "gitops", "gitops", cont.K8s, func(ctx context.Context) {
+			controller.Register(ctx, cont)
+			runtime.Must(cont.Start(ctx))
+			<-ctx.Done()
+		})
+	}()
+
+	logrus.Info("Setting up webhook listener")
+	handler := hooks.HandleHooks(cont)
+	if err := http.ListenAndServe(":80", handler); err != nil {
+		logrus.Fatalf("Failed to listen on %s: %v", "80", err)
+	}
 
 	<-ctx.Done()
 }

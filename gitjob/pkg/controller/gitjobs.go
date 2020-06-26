@@ -61,7 +61,9 @@ func Register(ctx context.Context, cont *types.Context) {
 			}
 
 			for _, gitjob := range gitjobs {
-				cont.GitOps.Gitops().V1().GitJob().Enqueue(gitjob.Namespace, gitjob.Name)
+				if gitjob.Spec.Git.Provider == "polling" {
+					cont.GitOps.Gitops().V1().GitJob().Enqueue(gitjob.Namespace, gitjob.Name)
+				}
 			}
 		}
 	}()
