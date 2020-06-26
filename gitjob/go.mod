@@ -5,6 +5,8 @@ go 1.12
 replace github.com/matryer/moq => github.com/rancher/moq v0.0.0-20190404221404-ee5226d43009
 
 require (
+	github.com/google/go-github/v28 v28.0.0
+	github.com/gorilla/mux v1.7.1
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/rancher/gitwatcher v0.4.5

@@ -18,6 +18,12 @@ type GitJob struct {
 
 type GitEvent struct {
 	Commit string `json:"commit,omitempty"`
+
+	*GithubMeta
+}
+
+type GithubMeta struct {
+	Event string `json:"event,omitempty"`
 }
 
 type GitJobSpec struct {
@@ -31,6 +37,13 @@ type GitInfo struct {
 	Repo     string `json:"repo,omitempty"`
 	Revision string `json:"revision,omitempty"`
 	Branch   string `json:"branch,omitempty"`
+
+	Github
+}
+
+type Github struct {
+	// Secret Token is used to validate if payload is coming from github
+	Token string `json:"secret,omitempty"`
 }
 
 type Credential struct {
