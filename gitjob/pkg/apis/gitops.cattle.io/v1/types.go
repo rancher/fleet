@@ -23,7 +23,8 @@ type GitEvent struct {
 }
 
 type GithubMeta struct {
-	Event string `json:"event,omitempty"`
+	Initialized bool   `json:"initialized,omitempty"`
+	Event       string `json:"event,omitempty"`
 }
 
 type GitJobSpec struct {

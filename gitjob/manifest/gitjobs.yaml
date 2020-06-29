@@ -1,4 +1,23 @@
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitops
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitjobs
+  namespace: gitops
+spec:
+  ports:
+  - name: http-80
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    gitjobs: "true"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,6 +52,12 @@ metadata:
   name: gitjobs
 rules:
   - apiGroups:
+    - apiextensions.k8s.io
+    resources:
+    - customresourcedefinitions
+    verbs:
+    - '*'
+  - apiGroups:
     - "batch"
     resources:
     - 'jobs'
@@ -51,6 +76,7 @@ rules:
     resources:
     - 'configmaps'
     verbs:
+    - 'create'
     - 'list'
     - 'get'
     - 'update'
@@ -81,4 +107,5 @@ subjects:
     name: gitjobs
     namespace: gitops
 ---
+
 

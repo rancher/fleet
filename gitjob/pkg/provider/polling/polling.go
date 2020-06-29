@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/rancher/gitjobs/pkg/provider"
+
 	gitopsv1 "github.com/rancher/gitjobs/pkg/apis/gitops.cattle.io/v1"
 	"github.com/rancher/gitwatcher/pkg/git"
 	corev1controller "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
@@ -13,10 +15,6 @@ import (
 
 var (
 	T = true
-)
-
-const (
-	defaultSecretName = "gitcredential"
 )
 
 type Polling struct {
@@ -39,7 +37,7 @@ func (p *Polling) Handle(ctx context.Context, obj *gitopsv1.GitJob) (gitopsv1.Gi
 		auth git.Auth
 	)
 
-	secretName := defaultSecretName
+	secretName := provider.DefaultSecretName
 	if obj.Spec.Git.GitSecretName != "" {
 		secretName = obj.Spec.Git.GitSecretName
 	}

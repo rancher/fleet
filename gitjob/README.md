@@ -135,7 +135,75 @@ spec:
             workingDir: /workspace/source
 ```
 
+### Webhook
 
+Gitjobs can be configured to use webhook to receive git event. This currently supports Github. More providers will be added later.
+
+1. Create a gitjob that is configured with webhook.
+
+```yaml
+apiVersion: gitops.cattle.io/v1
+kind: GitJob
+metadata:
+  name: example-webhook
+  namespace: default
+spec:
+  git:
+    branch: master
+    repo: https://github.com/StrongMonkey/gitjobs-example
+    provider: github
+    github:
+      token: randomtoken
+  jobSpec:
+    template:
+      spec:
+        serviceAccountName: kubectl-apply
+        restartPolicy: "Never"
+        containers:
+          - image: "bitnami/kubectl:latest"
+            name: kubectl-apply
+            command:
+              - kubectl
+            args:
+              - apply
+              - -f
+              - deployment.yaml
+            workingDir: /workspace/source
+```
+
+Note: you can configure a secret token so that webhook server will validate the request and filter requests that are only coming from Github.
+
+2. Create an ingress that allows traffic.
+
+```yaml
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: webhook-ingress
+  namespace: gitops
+spec:
+  rules:
+  - host: your.domain.com
+    http:
+      paths:
+        - path: /hooks
+          pathType: Prefix
+          backend:
+            serviceName: gitjobs
+            servicePort: 80
+```
+
+Note: To configure a HTTPS receiver, make sure you have proper TLS configuration on your ingress
+
+3. Create a Github webhook that sends payload to `http://your.domain.com/hooks?gitjobId=default:example-webhook`.
+
+![webhook](/webhook.png)
+
+You can choose which event to send when creating the webhook. Gitjob currently supports push and pull-request event.
+
+## Contribution 
+
+Part of this project is built upon [Tekton](https://github.com/tektoncd).
 
 ## License
 Copyright (c) 2020 [Rancher Labs, Inc.](http://rancher.com)

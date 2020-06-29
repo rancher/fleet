@@ -85,6 +85,10 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 		}
 	}
 
+	if obj.Status.Commit == "" {
+		return nil, status, nil
+	}
+
 	return []runtime.Object{generateJob(obj)}, status, nil
 }
 
@@ -92,10 +96,17 @@ func generateJob(obj *v1.GitJob) *batchv1.Job {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: obj.Namespace,
-			Name:      name.SafeConcatName(obj.Name, name.Hex(obj.Status.Commit, 5)),
+			Name:      name.SafeConcatName(obj.Name, name.Hex(obj.Spec.Git.Repo+obj.Status.Commit, 5)),
 		},
 		Spec: obj.Spec.JobSpec,
 	}
+
+	if obj.Status.GithubMeta != nil && obj.Status.GithubMeta.Event != "" {
+		job.Annotations = map[string]string{
+			"event": obj.Status.GithubMeta.Event,
+		}
+	}
+
 	cloneContainer := generateCloneContainer(obj)
 	initContainers := generateInitContainer(obj)
 
