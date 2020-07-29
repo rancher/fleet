@@ -13,7 +13,7 @@ var (
 )
 
 func App() *cobra.Command {
-	root := command.Command(&Flt{}, cobra.Command{
+	root := command.Command(&Fleet{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
 
@@ -27,16 +27,16 @@ func App() *cobra.Command {
 	return root
 }
 
-type Flt struct {
+type Fleet struct {
 	Namespace  string `usage:"namespace" env:"NAMESPACE" default:"default" short:"n" env:"NAMESPACE"`
 	Kubeconfig string `usage:"kubeconfig for authentication" short:"k"`
 }
 
-func (r *Flt) Run(cmd *cobra.Command, args []string) error {
+func (r *Fleet) Run(cmd *cobra.Command, args []string) error {
 	return cmd.Help()
 }
 
-func (r *Flt) PersistentPre(cmd *cobra.Command, args []string) error {
+func (r *Fleet) PersistentPre(cmd *cobra.Command, args []string) error {
 	Debug.MustSetupDebug()
 	Client = client.NewGetter(r.Kubeconfig, r.Namespace)
 	return nil
