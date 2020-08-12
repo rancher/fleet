@@ -1,4 +1,4 @@
-# github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d
+# github.com/cpuguy83/go-md2man/v2 v2.0.0
 github.com/cpuguy83/go-md2man/v2/md2man
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
@@ -15,7 +15,7 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/google/go-cmp v0.3.1
+# github.com/google/go-cmp v0.3.0
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
@@ -33,7 +33,7 @@ github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
 # github.com/gorilla/mux v1.7.1
 github.com/gorilla/mux
-# github.com/hashicorp/golang-lru v0.5.3
+# github.com/hashicorp/golang-lru v0.5.1
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
 # github.com/imdario/mergo v0.3.9
@@ -46,13 +46,20 @@ github.com/konsorten/go-windows-terminal-sequences
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
 github.com/modern-go/reflect2
-# github.com/pkg/errors v0.8.1
+# github.com/pkg/errors v0.9.1
 github.com/pkg/errors
 # github.com/rancher/gitwatcher v0.4.5
 github.com/rancher/gitwatcher/pkg/apis/gitwatcher.cattle.io
 github.com/rancher/gitwatcher/pkg/apis/gitwatcher.cattle.io/v1
 github.com/rancher/gitwatcher/pkg/git
-# github.com/rancher/wrangler v0.6.1
+# github.com/rancher/lasso v0.0.0-20200807231317-fff0364fb3f6
+github.com/rancher/lasso/pkg/cache
+github.com/rancher/lasso/pkg/client
+github.com/rancher/lasso/pkg/controller
+github.com/rancher/lasso/pkg/log
+github.com/rancher/lasso/pkg/mapper
+github.com/rancher/lasso/pkg/scheme
+# github.com/rancher/wrangler v0.6.2-0.20200811174245-58da209ac37b
 github.com/rancher/wrangler/pkg/apply
 github.com/rancher/wrangler/pkg/apply/injectors
 github.com/rancher/wrangler/pkg/cleanup
@@ -63,6 +70,10 @@ github.com/rancher/wrangler/pkg/controller-gen/generators
 github.com/rancher/wrangler/pkg/crd
 github.com/rancher/wrangler/pkg/data
 github.com/rancher/wrangler/pkg/data/convert
+github.com/rancher/wrangler/pkg/generated/controllers/batch
+github.com/rancher/wrangler/pkg/generated/controllers/batch/v1
+github.com/rancher/wrangler/pkg/generated/controllers/core
+github.com/rancher/wrangler/pkg/generated/controllers/core/v1
 github.com/rancher/wrangler/pkg/generic
 github.com/rancher/wrangler/pkg/genericcondition
 github.com/rancher/wrangler/pkg/gvk
@@ -80,11 +91,6 @@ github.com/rancher/wrangler/pkg/schemes
 github.com/rancher/wrangler/pkg/signals
 github.com/rancher/wrangler/pkg/slice
 github.com/rancher/wrangler/pkg/start
-# github.com/rancher/wrangler-api v0.6.0
-github.com/rancher/wrangler-api/pkg/generated/controllers/batch
-github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1
-github.com/rancher/wrangler-api/pkg/generated/controllers/core
-github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1
 # github.com/russross/blackfriday/v2 v2.0.1
 github.com/russross/blackfriday/v2
 # github.com/shurcooL/sanitized_anchor_name v1.0.0
@@ -126,7 +132,7 @@ golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 # golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20191017205301-920acffc3e65
+# golang.org/x/tools v0.0.0-20190920225731-5eefd052ad72
 golang.org/x/tools/go/ast/astutil
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/gcimporter
@@ -138,8 +144,7 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/module
 golang.org/x/tools/internal/semver
-golang.org/x/tools/internal/span
-# google.golang.org/appengine v1.6.1
+# google.golang.org/appengine v1.5.0
 google.golang.org/appengine/internal
 google.golang.org/appengine/internal/base
 google.golang.org/appengine/internal/datastore
@@ -149,7 +154,7 @@ google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
-# gopkg.in/yaml.v2 v2.2.8
+# gopkg.in/yaml.v2 v2.3.0
 gopkg.in/yaml.v2
 # k8s.io/api v0.18.0
 k8s.io/api/admissionregistration/v1
@@ -247,65 +252,8 @@ k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/client-go v0.18.0
 k8s.io/client-go/discovery
-k8s.io/client-go/discovery/fake
+k8s.io/client-go/discovery/cached/memory
 k8s.io/client-go/dynamic
-k8s.io/client-go/informers
-k8s.io/client-go/informers/admissionregistration
-k8s.io/client-go/informers/admissionregistration/v1
-k8s.io/client-go/informers/admissionregistration/v1beta1
-k8s.io/client-go/informers/apps
-k8s.io/client-go/informers/apps/v1
-k8s.io/client-go/informers/apps/v1beta1
-k8s.io/client-go/informers/apps/v1beta2
-k8s.io/client-go/informers/auditregistration
-k8s.io/client-go/informers/auditregistration/v1alpha1
-k8s.io/client-go/informers/autoscaling
-k8s.io/client-go/informers/autoscaling/v1
-k8s.io/client-go/informers/autoscaling/v2beta1
-k8s.io/client-go/informers/autoscaling/v2beta2
-k8s.io/client-go/informers/batch
-k8s.io/client-go/informers/batch/v1
-k8s.io/client-go/informers/batch/v1beta1
-k8s.io/client-go/informers/batch/v2alpha1
-k8s.io/client-go/informers/certificates
-k8s.io/client-go/informers/certificates/v1beta1
-k8s.io/client-go/informers/coordination
-k8s.io/client-go/informers/coordination/v1
-k8s.io/client-go/informers/coordination/v1beta1
-k8s.io/client-go/informers/core
-k8s.io/client-go/informers/core/v1
-k8s.io/client-go/informers/discovery
-k8s.io/client-go/informers/discovery/v1alpha1
-k8s.io/client-go/informers/discovery/v1beta1
-k8s.io/client-go/informers/events
-k8s.io/client-go/informers/events/v1beta1
-k8s.io/client-go/informers/extensions
-k8s.io/client-go/informers/extensions/v1beta1
-k8s.io/client-go/informers/flowcontrol
-k8s.io/client-go/informers/flowcontrol/v1alpha1
-k8s.io/client-go/informers/internalinterfaces
-k8s.io/client-go/informers/networking
-k8s.io/client-go/informers/networking/v1
-k8s.io/client-go/informers/networking/v1beta1
-k8s.io/client-go/informers/node
-k8s.io/client-go/informers/node/v1alpha1
-k8s.io/client-go/informers/node/v1beta1
-k8s.io/client-go/informers/policy
-k8s.io/client-go/informers/policy/v1beta1
-k8s.io/client-go/informers/rbac
-k8s.io/client-go/informers/rbac/v1
-k8s.io/client-go/informers/rbac/v1alpha1
-k8s.io/client-go/informers/rbac/v1beta1
-k8s.io/client-go/informers/scheduling
-k8s.io/client-go/informers/scheduling/v1
-k8s.io/client-go/informers/scheduling/v1alpha1
-k8s.io/client-go/informers/scheduling/v1beta1
-k8s.io/client-go/informers/settings
-k8s.io/client-go/informers/settings/v1alpha1
-k8s.io/client-go/informers/storage
-k8s.io/client-go/informers/storage/v1
-k8s.io/client-go/informers/storage/v1alpha1
-k8s.io/client-go/informers/storage/v1beta1
 k8s.io/client-go/kubernetes
 k8s.io/client-go/kubernetes/scheme
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1
@@ -348,42 +296,6 @@ k8s.io/client-go/kubernetes/typed/settings/v1alpha1
 k8s.io/client-go/kubernetes/typed/storage/v1
 k8s.io/client-go/kubernetes/typed/storage/v1alpha1
 k8s.io/client-go/kubernetes/typed/storage/v1beta1
-k8s.io/client-go/listers/admissionregistration/v1
-k8s.io/client-go/listers/admissionregistration/v1beta1
-k8s.io/client-go/listers/apps/v1
-k8s.io/client-go/listers/apps/v1beta1
-k8s.io/client-go/listers/apps/v1beta2
-k8s.io/client-go/listers/auditregistration/v1alpha1
-k8s.io/client-go/listers/autoscaling/v1
-k8s.io/client-go/listers/autoscaling/v2beta1
-k8s.io/client-go/listers/autoscaling/v2beta2
-k8s.io/client-go/listers/batch/v1
-k8s.io/client-go/listers/batch/v1beta1
-k8s.io/client-go/listers/batch/v2alpha1
-k8s.io/client-go/listers/certificates/v1beta1
-k8s.io/client-go/listers/coordination/v1
-k8s.io/client-go/listers/coordination/v1beta1
-k8s.io/client-go/listers/core/v1
-k8s.io/client-go/listers/discovery/v1alpha1
-k8s.io/client-go/listers/discovery/v1beta1
-k8s.io/client-go/listers/events/v1beta1
-k8s.io/client-go/listers/extensions/v1beta1
-k8s.io/client-go/listers/flowcontrol/v1alpha1
-k8s.io/client-go/listers/networking/v1
-k8s.io/client-go/listers/networking/v1beta1
-k8s.io/client-go/listers/node/v1alpha1
-k8s.io/client-go/listers/node/v1beta1
-k8s.io/client-go/listers/policy/v1beta1
-k8s.io/client-go/listers/rbac/v1
-k8s.io/client-go/listers/rbac/v1alpha1
-k8s.io/client-go/listers/rbac/v1beta1
-k8s.io/client-go/listers/scheduling/v1
-k8s.io/client-go/listers/scheduling/v1alpha1
-k8s.io/client-go/listers/scheduling/v1beta1
-k8s.io/client-go/listers/settings/v1alpha1
-k8s.io/client-go/listers/storage/v1
-k8s.io/client-go/listers/storage/v1alpha1
-k8s.io/client-go/listers/storage/v1beta1
 k8s.io/client-go/pkg/apis/clientauthentication
 k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1
 k8s.io/client-go/pkg/apis/clientauthentication/v1beta1
@@ -391,7 +303,7 @@ k8s.io/client-go/pkg/version
 k8s.io/client-go/plugin/pkg/client/auth/exec
 k8s.io/client-go/rest
 k8s.io/client-go/rest/watch
-k8s.io/client-go/testing
+k8s.io/client-go/restmapper
 k8s.io/client-go/tools/auth
 k8s.io/client-go/tools/cache
 k8s.io/client-go/tools/clientcmd

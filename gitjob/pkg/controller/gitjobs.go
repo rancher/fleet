@@ -59,14 +59,18 @@ type Handler struct {
 }
 
 func (h Handler) generate(obj *v1.GitJob, status v1.GitjobStatus) ([]runtime.Object, v1.GitjobStatus, error) {
-	for _, provider := range h.providers {
-		if provider.Supports(obj) {
-			handledStatus, err := provider.Handle(h.ctx, obj)
-			if err != nil {
-				return nil, status, err
+	if obj.Spec.Git.Revision == "" {
+		for _, provider := range h.providers {
+			if provider.Supports(obj) {
+				handledStatus, err := provider.Handle(h.ctx, obj)
+				if err != nil {
+					return nil, status, err
+				}
+				status = handledStatus
 			}
-			status = handledStatus
 		}
+	} else {
+		obj.Status.Commit = obj.Spec.Git.Revision
 	}
 
 	if obj.Status.Commit == "" {
