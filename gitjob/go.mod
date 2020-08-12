@@ -10,6 +10,7 @@ require (
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/rancher/gitwatcher v0.4.5
+	github.com/rancher/lasso v0.0.0-20200807231317-fff0364fb3f6
 	github.com/rancher/wrangler v0.6.2-0.20200811174245-58da209ac37b
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1 // indirect
