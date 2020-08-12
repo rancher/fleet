@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/rancher/gitjobs/pkg/provider"
-	"github.com/rancher/gitjobs/pkg/provider/github"
-	"github.com/rancher/gitjobs/pkg/types"
+	"github.com/rancher/gitjob/pkg/provider"
+	"github.com/rancher/gitjob/pkg/provider/github"
+	"github.com/rancher/gitjob/pkg/types"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/json"
 )
@@ -20,7 +20,7 @@ func newHandler(rContext *types.Context) *WebhookHandler {
 	wh := &WebhookHandler{
 		providers: []provider.Provider{
 			// register all supported webhook handler here
-			github.NewGitHub(rContext.GitOps.Gitops().V1().GitJob()),
+			github.NewGitHub(rContext.Gitjob.Gitjob().V1().GitJob()),
 		},
 	}
 

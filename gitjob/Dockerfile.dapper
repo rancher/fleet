@@ -18,7 +18,7 @@ RUN if [ "${ARCH}" == "amd64" ]; then \
     fi
 
 ENV DAPPER_ENV REPO TAG DRONE_TAG
-ENV DAPPER_SOURCE /go/src/github.com/rancher/gitjobs/
+ENV DAPPER_SOURCE /go/src/github.com/rancher/gitjob/
 ENV DAPPER_OUTPUT ./bin ./dist
 ENV DAPPER_DOCKER_SOCKET true
 ENV HOME ${DAPPER_SOURCE}

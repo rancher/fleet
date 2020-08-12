@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	v1 "github.com/rancher/gitjobs/pkg/apis/gitops.cattle.io/v1"
+	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 )
@@ -11,10 +11,10 @@ import (
 func main() {
 	os.Unsetenv("GOPATH")
 	controllergen.Run(args.Options{
-		OutputPackage: "github.com/rancher/gitjobs/pkg/generated",
+		OutputPackage: "github.com/rancher/gitjob/pkg/generated",
 		Boilerplate:   "scripts/boilerplate.go.txt",
 		Groups: map[string]args.Group{
-			"gitops.cattle.io": {
+			"gitjob.cattle.io": {
 				Types: []interface{}{
 					v1.GitJob{},
 				},

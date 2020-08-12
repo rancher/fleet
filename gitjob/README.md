@@ -1,4 +1,4 @@
-gitjobs
+gitjob
 ========
 
 Job controller to launch kubernetes jobs based on git event
@@ -10,12 +10,12 @@ Job controller to launch kubernetes jobs based on git event
 ## Running
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/StrongMonkey/gitjobs/master/manifest/gitjobs.yaml
+kubectl apply -f https://raw.githubusercontent.com/StrongMonkey/gitjob/master/manifest/gitjob.yaml
 ```
 
 ## Usage
 
-Gitjobs allows you to launch [kubernetes jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/) based on git event. By default it uses polling to receive git event, but also can be configured to use webhook.
+gitjob allows you to launch [kubernetes jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/) based on git event. By default it uses polling to receive git event, but also can be configured to use webhook.
 
 ### Example
 
@@ -57,7 +57,7 @@ subjects:
 2. Create a gitjob CRD that apply manifest when git repo changes.(Using polling)
 
 ```yaml
-apiVersion: gitops.cattle.io/v1
+apiVersion: gitjob.cattle.io/v1
 kind: GitJob
 metadata:
   name: example
@@ -65,7 +65,7 @@ metadata:
 spec:
   git:
     branch: master
-    repo: https://github.com/StrongMonkey/gitjobs-example
+    repo: https://github.com/StrongMonkey/gitjob-example
     provider: polling
   jobSpec:
     template:
@@ -106,7 +106,7 @@ kubectl create secret generic ssh-key-secret --from-file=ssh-privatekey=/path/to
 2. Apply a gitjob CRD with secret specified.
 
 ```yaml
-apiVersion: gitops.cattle.io/v1
+apiVersion: gitjob.cattle.io/v1
 kind: GitJob
 metadata:
   name: example-private
@@ -116,7 +116,6 @@ spec:
     repo: git@github.com:StrongMonkey/priv-repo.git
     provider: polling
     gitSecretName: ssh-key-secret
-    gitSecretType: ssh
     gitHostName: github.com
   jobSpec:
     template:
@@ -137,12 +136,12 @@ spec:
 
 ### Webhook
 
-Gitjobs can be configured to use webhook to receive git event. This currently supports Github. More providers will be added later.
+gitjob can be configured to use webhook to receive git event. This currently supports Github. More providers will be added later.
 
 1. Create a gitjob that is configured with webhook.
 
 ```yaml
-apiVersion: gitops.cattle.io/v1
+apiVersion: gitjob.cattle.io/v1
 kind: GitJob
 metadata:
   name: example-webhook
@@ -150,7 +149,7 @@ metadata:
 spec:
   git:
     branch: master
-    repo: https://github.com/StrongMonkey/gitjobs-example
+    repo: https://github.com/StrongMonkey/gitjob-example
     provider: github
     github:
       token: randomtoken
@@ -180,7 +179,7 @@ apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
   name: webhook-ingress
-  namespace: gitops
+  namespace: gitjob
 spec:
   rules:
   - host: your.domain.com
@@ -189,7 +188,7 @@ spec:
         - path: /hooks
           pathType: Prefix
           backend:
-            serviceName: gitjobs
+            serviceName: gitjob
             servicePort: 80
 ```
 

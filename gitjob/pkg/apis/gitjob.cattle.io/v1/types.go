@@ -12,8 +12,8 @@ import (
 type GitJob struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              GitJobSpec   `json:"spec,omitempty"`
-	Status            GitJobStatus `json:"status,omitempty"`
+	Spec              GitjobSpec   `json:"spec,omitempty"`
+	Status            GitjobStatus `json:"status,omitempty"`
 }
 
 type GitEvent struct {
@@ -27,9 +27,12 @@ type GithubMeta struct {
 	Event       string `json:"event,omitempty"`
 }
 
-type GitJobSpec struct {
+type GitjobSpec struct {
 	Git     GitInfo    `json:"git,omitempty"`
 	JobSpec v1.JobSpec `json:"jobSpec,omitempty"`
+
+	// define interval(in seconds) for controller to sync repo and fetch commits
+	SyncInterval int `json:"syncInterval,omitempty"`
 }
 
 type GitInfo struct {
@@ -48,12 +51,20 @@ type Github struct {
 }
 
 type Credential struct {
-	GitHostname   string `json:"gitHostName,omitempty"`
+	// CABundle is a PEM encoded CA bundle which will be used to validate the repo's certificate.
+	CABundle []byte `json:"caBundle,omitempty"`
+
+	// InsecureSkipTLSverify will use insecure HTTPS to download the repo's index.
+	InsecureSkipTLSverify bool `json:"insecureSkipTLSVerify,omitempty"`
+
+	// Hostname of git server
+	GitHostname string `json:"gitHostName,omitempty"`
+
+	// Secret Name of git credential
 	GitSecretName string `json:"gitSecretName,omitempty"`
-	GitSecretType string `json:"gitSecretType,omitempty"`
 }
 
-type GitJobStatus struct {
+type GitjobStatus struct {
 	GitEvent
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 }

@@ -1,4 +1,4 @@
-apiVersion: gitops.cattle.io/v1
+apiVersion: gitjob.cattle.io/v1
 kind: GitJob
 metadata:
   name: example
@@ -6,7 +6,7 @@ metadata:
 spec:
   git:
     branch: master
-    repo: https://github.com/StrongMonkey/gitjobs-example
+    repo: https://github.com/StrongMonkey/gitjob-example
     provider: polling
   jobSpec:
     template:

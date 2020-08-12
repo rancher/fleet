@@ -4,12 +4,12 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/rancher/gitjobs/pkg/provider"
+	"github.com/rancher/gitjob/pkg/provider"
 
-	gitopsv1 "github.com/rancher/gitjobs/pkg/apis/gitops.cattle.io/v1"
+	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/rancher/gitwatcher/pkg/git"
-	corev1controller "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/apply"
+	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -28,11 +28,11 @@ func NewPolling(secrets corev1controller.SecretCache) *Polling {
 	}
 }
 
-func (p *Polling) Supports(obj *gitopsv1.GitJob) bool {
+func (p *Polling) Supports(obj *gitjobv1.GitJob) bool {
 	return obj.Spec.Git.Provider == "polling"
 }
 
-func (p *Polling) Handle(ctx context.Context, obj *gitopsv1.GitJob) (gitopsv1.GitJobStatus, error) {
+func (p *Polling) Handle(ctx context.Context, obj *gitjobv1.GitJob) (gitjobv1.GitjobStatus, error) {
 	var (
 		auth git.Auth
 	)
@@ -52,7 +52,12 @@ func (p *Polling) Handle(ctx context.Context, obj *gitopsv1.GitJob) (gitopsv1.Gi
 		auth, _ = git.FromSecret(secret.Data)
 	}
 
-	commit, err := git.BranchCommit(ctx, obj.Spec.Git.Repo, obj.Spec.Git.Branch, &auth)
+	branch := obj.Spec.Git.Branch
+	if branch == "" {
+		branch = "master"
+	}
+
+	commit, err := git.BranchCommit(ctx, obj.Spec.Git.Repo, branch, &auth)
 	if err != nil {
 		return obj.Status, err
 	}

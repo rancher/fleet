@@ -10,10 +10,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/rancher/gitjobs/pkg/hooks"
+	"github.com/rancher/gitjob/pkg/hooks"
 
-	"github.com/rancher/gitjobs/pkg/controller"
-	"github.com/rancher/gitjobs/pkg/types"
+	"github.com/rancher/gitjob/pkg/controller"
+	"github.com/rancher/gitjob/pkg/types"
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/resolvehome"
 	"github.com/rancher/wrangler/pkg/signals"
@@ -66,13 +66,13 @@ func run(c *cli.Context) {
 		logrus.Fatalf("Error building kubeconfig: %s", err.Error())
 	}
 
-	ctx, cont := types.BuildContext(ctx, "gitops", cfg)
+	ctx, cont := types.BuildContext(ctx, "gitjob", cfg)
 	if err := cont.Start(ctx); err != nil {
 		logrus.Fatal(err)
 	}
 
 	go func() {
-		leader.RunOrDie(ctx, "gitops", "gitops", cont.K8s, func(ctx context.Context) {
+		leader.RunOrDie(ctx, "gitjob", "gitjob", cont.K8s, func(ctx context.Context) {
 			controller.Register(ctx, cont)
 			runtime.Must(cont.Start(ctx))
 			<-ctx.Done()
