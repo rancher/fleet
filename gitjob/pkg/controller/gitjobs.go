@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/rancher/gitjobs/pkg/apis/gitops.cattle.io/v1"
-	v1controller "github.com/rancher/gitjobs/pkg/generated/controllers/gitops.cattle.io/v1"
-	"github.com/rancher/gitjobs/pkg/provider"
-	"github.com/rancher/gitjobs/pkg/provider/polling"
-	"github.com/rancher/gitjobs/pkg/types"
+	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
+	"github.com/rancher/gitjob/pkg/provider"
+	"github.com/rancher/gitjob/pkg/provider/polling"
+	"github.com/rancher/gitjob/pkg/types"
 	"github.com/rancher/wrangler/pkg/apply"
+	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
-	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	types2 "k8s.io/apimachinery/pkg/types"
 )
@@ -39,7 +38,7 @@ func Register(ctx context.Context, cont *types.Context) {
 
 	v1controller.RegisterGitJobGeneratingHandler(
 		ctx,
-		cont.GitOps.Gitops().V1().GitJob(),
+		cont.Gitjob.Gitjob().V1().GitJob(),
 		cont.Apply.WithNoDelete().WithCacheTypes(cont.Batch.Batch().V1().Job()).WithPatcher(
 			batchv1.SchemeGroupVersion.WithKind("Job"),
 			func(namespace, name string, patchType types2.PatchType, data []byte) (runtime.Object, error) {
@@ -50,31 +49,16 @@ func Register(ctx context.Context, cont *types.Context) {
 		h.generate,
 		nil,
 	)
-
-	go func() {
-		for {
-			time.Sleep(15 * time.Second)
-			gitjobs, err := cont.GitOps.Gitops().V1().GitJob().Cache().List("", labels.Everything())
-			if err != nil {
-				logrus.Error(err)
-				continue
-			}
-
-			for _, gitjob := range gitjobs {
-				if gitjob.Spec.Git.Provider == "polling" {
-					cont.GitOps.Gitops().V1().GitJob().Enqueue(gitjob.Namespace, gitjob.Name)
-				}
-			}
-		}
-	}()
 }
 
 type Handler struct {
 	ctx       context.Context
+	gitjobs   v1controller.GitJobController
 	providers []provider.Provider
+	secrets   corev1controller.SecretCache
 }
 
-func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Object, v1.GitJobStatus, error) {
+func (h Handler) generate(obj *v1.GitJob, status v1.GitjobStatus) ([]runtime.Object, v1.GitjobStatus, error) {
 	for _, provider := range h.providers {
 		if provider.Supports(obj) {
 			handledStatus, err := provider.Handle(h.ctx, obj)
@@ -89,10 +73,44 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 		return nil, status, nil
 	}
 
-	return []runtime.Object{generateJob(obj)}, status, nil
+	var result []runtime.Object
+
+	if obj.Spec.Git.Credential.CABundle != nil {
+		result = append(result, h.generateConfigmap(obj))
+	}
+
+	job, err := h.generateJob(obj)
+	if err != nil {
+		return nil, status, err
+	}
+
+	// re-enqueue after syncInterval(seconds)
+	interval := obj.Spec.SyncInterval
+	if interval == 0 {
+		interval = 15
+	}
+	h.gitjobs.EnqueueAfter(obj.Namespace, obj.Name, time.Duration(interval)*time.Second)
+
+	return append(result, job), status, nil
 }
 
-func generateJob(obj *v1.GitJob) *batchv1.Job {
+func (h Handler) generateConfigmap(obj *v1.GitJob) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: obj.Namespace,
+			Name:      caBundleName(obj),
+		},
+		BinaryData: map[string][]byte{
+			"ca.crt": obj.Spec.Git.Credential.CABundle,
+		},
+	}
+}
+
+func caBundleName(obj *v1.GitJob) string {
+	return fmt.Sprintf("%s-CABundle", obj.Name)
+}
+
+func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: obj.Namespace,
@@ -107,8 +125,11 @@ func generateJob(obj *v1.GitJob) *batchv1.Job {
 		}
 	}
 
-	cloneContainer := generateCloneContainer(obj)
-	initContainers := generateInitContainer(obj)
+	cloneContainer := h.generateCloneContainer(obj)
+	initContainers, err := h.generateInitContainer(obj)
+	if err != nil {
+		return nil, err
+	}
 
 	job.Spec.Template.Spec.InitContainers = initContainers
 	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes,
@@ -143,6 +164,21 @@ func generateJob(obj *v1.GitJob) *batchv1.Job {
 			},
 		},
 	)
+
+	//setup custom ca
+	if obj.Spec.Git.CABundle != nil {
+		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: "custom-ca",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: caBundleName(obj),
+					},
+				},
+			},
+		})
+	}
+
 	if obj.Spec.Git.GitSecretName != "" {
 		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes,
 			corev1.Volume{
@@ -190,11 +226,11 @@ func generateJob(obj *v1.GitJob) *batchv1.Job {
 	}
 
 	job.Spec.Template.Spec.Containers = append([]corev1.Container{cloneContainer}, job.Spec.Template.Spec.Containers...)
-	return job
+	return job, nil
 }
 
-func generateCloneContainer(obj *v1.GitJob) corev1.Container {
-	return corev1.Container{
+func (h Handler) generateCloneContainer(obj *v1.GitJob) corev1.Container {
+	c := corev1.Container{
 		Image: image["git-init"],
 		Name:  "step-git-source",
 		Args: []string{
@@ -239,9 +275,29 @@ func generateCloneContainer(obj *v1.GitJob) corev1.Container {
 		TerminationMessagePath:   "/tekton/termination",
 		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 	}
+
+	// setup ssl verify
+	if obj.Spec.Git.InsecureSkipTLSverify {
+		c.Args = append(c.Args, "-sslVerify", "true")
+	}
+
+	// setup CA bundle
+	if obj.Spec.Git.CABundle != nil {
+		c.Env = append(c.Env, corev1.EnvVar{
+			Name:  "GIT_SSL_CAINFO",
+			Value: "/ssl/ca.crt",
+		})
+
+		c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+			Name:      "custom-ca",
+			MountPath: "/ssl/ca.crt",
+		})
+	}
+
+	return c
 }
 
-func generateInitContainer(obj *v1.GitJob) []corev1.Container {
+func (h Handler) generateInitContainer(obj *v1.GitJob) ([]corev1.Container, error) {
 	initContainers := []corev1.Container{
 		{
 			Command: []string{
@@ -285,10 +341,14 @@ func generateInitContainer(obj *v1.GitJob) []corev1.Container {
 		},
 	}
 	if obj.Spec.Git.GitSecretName != "" {
+		secretType, err := h.inspectSecretType(obj.Spec.Git.GitSecretName, obj.Namespace)
+		if err != nil {
+			return nil, err
+		}
 		initContainers = append([]corev1.Container{
 			{
 				Args: []string{
-					fmt.Sprintf("-%s-git=%s=%s", obj.Spec.Git.GitSecretType, obj.Spec.Git.GitSecretName, obj.Spec.Git.GitHostname),
+					fmt.Sprintf("-%s-git=%s=%s", secretType, obj.Spec.Git.GitSecretName, obj.Spec.Git.GitHostname),
 				},
 				Name: "creds-init",
 				Command: []string{
@@ -322,5 +382,20 @@ func generateInitContainer(obj *v1.GitJob) []corev1.Container {
 			},
 		}, initContainers...)
 	}
-	return initContainers
+	return initContainers, nil
+}
+
+func (h Handler) inspectSecretType(secretName, namespace string) (string, error) {
+	secret, err := h.secrets.Get(namespace, secretName)
+	if err != nil {
+		return "", err
+	}
+
+	if secret.Type == corev1.SecretTypeBasicAuth {
+		return "basic", nil
+	} else if secret.Type == corev1.SecretTypeSSHAuth {
+		return "ssh", nil
+	}
+
+	return "", fmt.Errorf("git secret can only be ssh or basic auth, type is %v", secret.Type)
 }

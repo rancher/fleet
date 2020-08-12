@@ -1,4 +1,4 @@
-apiVersion: gitops.cattle.io/v1
+apiVersion: gitjob.cattle.io/v1
 kind: GitJob
 metadata:
   name: example-private

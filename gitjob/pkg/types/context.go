@@ -3,12 +3,12 @@ package types
 import (
 	"context"
 
-	v1 "github.com/rancher/gitjobs/pkg/apis/gitops.cattle.io/v1"
-	"github.com/rancher/gitjobs/pkg/generated/controllers/gitops.cattle.io"
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/batch"
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/core"
+	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+	"github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/crd"
+	"github.com/rancher/wrangler/pkg/generated/controllers/batch"
+	"github.com/rancher/wrangler/pkg/generated/controllers/core"
 	"github.com/rancher/wrangler/pkg/schemas/openapi"
 	"github.com/rancher/wrangler/pkg/start"
 	"github.com/sirupsen/logrus"
@@ -23,7 +23,7 @@ type Context struct {
 	Namespace string
 
 	Batch  *batch.Factory
-	GitOps *gitops.Factory
+	Gitjob *gitjob.Factory
 	Core   *core.Factory
 	K8s    kubernetes.Interface
 
@@ -43,7 +43,7 @@ func NewContext(namespace string, config *rest.Config) *Context {
 		Namespace: namespace,
 		Batch:     batch.NewFactoryFromConfigOrDie(config),
 		Core:      core.NewFactoryFromConfigOrDie(config),
-		GitOps:    gitops.NewFactoryFromConfigOrDie(config),
+		Gitjob:    gitjob.NewFactoryFromConfigOrDie(config),
 		K8s:       kubernetes.NewForConfigOrDie(config),
 	}
 
@@ -53,7 +53,7 @@ func NewContext(namespace string, config *rest.Config) *Context {
 
 func (c *Context) Start(ctx context.Context) error {
 	return start.All(ctx, 5,
-		c.GitOps,
+		c.Gitjob,
 		c.Core,
 	)
 }
@@ -76,7 +76,7 @@ func BuildContext(ctx context.Context, namespace string, config *rest.Config) (c
 
 func getCRDs() []crd.CRD {
 	return []crd.CRD{
-		crd.NamespacedType("GitJob.gitops.cattle.io/v1").WithStatus().WithSchema(mustSchema(v1.GitJob{})),
+		crd.NamespacedType("GitJob.gitjob.cattle.io/v1").WithStatus().WithSchema(mustSchema(v1.GitJob{})),
 	}
 }
 

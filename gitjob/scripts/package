@@ -6,9 +6,9 @@ source $(dirname $0)/version
 cd $(dirname $0)/..
 
 mkdir -p dist/artifacts
-cp bin/gitjobs dist/artifacts/gitjobs${SUFFIX}
+cp bin/gitjob dist/artifacts/gitjob${SUFFIX}
 
-IMAGE=${REPO}/gitjobs:${TAG}
+IMAGE=${REPO}/gitjob:${TAG}
 DOCKERFILE=package/Dockerfile
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
     DOCKERFILE=${DOCKERFILE}.${ARCH}

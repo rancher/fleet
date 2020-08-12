@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v28/github"
-	v1 "github.com/rancher/gitjobs/pkg/apis/gitops.cattle.io/v1"
-	v1controller "github.com/rancher/gitjobs/pkg/generated/controllers/gitops.cattle.io/v1"
-	"github.com/rancher/gitjobs/pkg/provider"
+	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
+	"github.com/rancher/gitjob/pkg/provider"
 	"github.com/rancher/gitwatcher/pkg/git"
-	corev1controller "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/errors"
 )
@@ -25,13 +25,13 @@ const (
 )
 
 type GitHub struct {
-	Gitjobs     v1controller.GitJobController
+	gitjob      v1controller.GitJobController
 	secretCache corev1controller.SecretCache
 }
 
 func NewGitHub(gitjob v1controller.GitJobController) *GitHub {
 	return &GitHub{
-		Gitjobs: gitjob,
+		gitjob: gitjob,
 	}
 }
 
@@ -43,7 +43,7 @@ func (w *GitHub) Supports(obj *v1.GitJob) bool {
 	return false
 }
 
-func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitJobStatus, error) {
+func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitjobStatus, error) {
 	if obj.Status.GithubMeta != nil && obj.Status.GithubMeta.Initialized {
 		return obj.Status, nil
 	}
@@ -83,7 +83,7 @@ func (w *GitHub) HandleHook(ctx context.Context, req *http.Request) (int, error)
 	}
 
 	ns, name := kv.Split(receiverID, ":")
-	gitjob, err := w.Gitjobs.Cache().Get(ns, name)
+	gitjob, err := w.gitjob.Cache().Get(ns, name)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -120,7 +120,7 @@ func (w *GitHub) handleEvent(ctx context.Context, event interface{}, gitjob *v1.
 			}
 		}
 	}
-	if _, err := w.Gitjobs.UpdateStatus(gitjob); err != nil {
+	if _, err := w.gitjob.UpdateStatus(gitjob); err != nil {
 		return http.StatusConflict, err
 	}
 	return http.StatusOK, nil

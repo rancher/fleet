@@ -9,10 +9,10 @@ mkdir -p bin
 if [ "$(uname)" = "Linux" ]; then
     OTHER_LINKFLAGS="-extldflags -static -s"
 fi
-LINKFLAGS="-X github.com/rancher/gitjobs.Version=$VERSION"
-LINKFLAGS="-X github.com/rancher/gitjobs.GitCommit=$COMMIT $LINKFLAGS"
-CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/gitjobs
+LINKFLAGS="-X github.com/rancher/gitjob.Version=$VERSION"
+LINKFLAGS="-X github.com/rancher/gitjob.GitCommit=$COMMIT $LINKFLAGS"
+CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/gitjob
 if [ "$CROSS" = "true" ] && [ "$ARCH" = "amd64" ]; then
-    GOOS=darwin go build -ldflags "$LINKFLAGS" -o bin/gitjobs-darwin
-    GOOS=windows go build -ldflags "$LINKFLAGS" -o bin/gitjobs-windows
+    GOOS=darwin go build -ldflags "$LINKFLAGS" -o bin/gitjob-darwin
+    GOOS=windows go build -ldflags "$LINKFLAGS" -o bin/gitjob-windows
 fi

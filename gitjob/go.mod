@@ -1,4 +1,4 @@
-module github.com/rancher/gitjobs
+module github.com/rancher/gitjob
 
 go 1.12
 
@@ -10,8 +10,7 @@ require (
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/rancher/gitwatcher v0.4.5
-	github.com/rancher/wrangler v0.6.1
-	github.com/rancher/wrangler-api v0.6.0
+	github.com/rancher/wrangler v0.6.2-0.20200811174245-58da209ac37b
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/urfave/cli v1.22.4
