@@ -13,6 +13,6 @@ const (
 
 type Provider interface {
 	Supports(obj *gitjobv1.GitJob) bool
-	Handle(ctx context.Context, obj *gitjobv1.GitJob) (gitjobv1.GitjobStatus, error)
+	Handle(ctx context.Context, obj *gitjobv1.GitJob) (gitjobv1.GitJobStatus, error)
 	HandleHook(ctx context.Context, req *http.Request) (int, error)
 }

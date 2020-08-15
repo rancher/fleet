@@ -43,7 +43,7 @@ func (w *GitHub) Supports(obj *v1.GitJob) bool {
 	return false
 }
 
-func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitjobStatus, error) {
+func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitJobStatus, error) {
 	if obj.Status.GithubMeta != nil && obj.Status.GithubMeta.Initialized {
 		return obj.Status, nil
 	}

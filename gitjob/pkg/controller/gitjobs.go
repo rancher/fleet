@@ -58,7 +58,7 @@ type Handler struct {
 	secrets   corev1controller.SecretCache
 }
 
-func (h Handler) generate(obj *v1.GitJob, status v1.GitjobStatus) ([]runtime.Object, v1.GitjobStatus, error) {
+func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Object, v1.GitJobStatus, error) {
 	if obj.Spec.Git.Revision == "" {
 		for _, provider := range h.providers {
 			if provider.Supports(obj) {

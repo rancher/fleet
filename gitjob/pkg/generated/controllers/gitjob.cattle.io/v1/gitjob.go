@@ -263,9 +263,9 @@ func (c *gitJobCache) GetByIndex(indexName, key string) (result []*v1.GitJob, er
 	return result, nil
 }
 
-type GitJobStatusHandler func(obj *v1.GitJob, status v1.GitjobStatus) (v1.GitjobStatus, error)
+type GitJobStatusHandler func(obj *v1.GitJob, status v1.GitJobStatus) (v1.GitJobStatus, error)
 
-type GitJobGeneratingHandler func(obj *v1.GitJob, status v1.GitjobStatus) ([]runtime.Object, v1.GitjobStatus, error)
+type GitJobGeneratingHandler func(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Object, v1.GitJobStatus, error)
 
 func RegisterGitJobStatusHandler(ctx context.Context, controller GitJobController, condition condition.Cond, name string, handler GitJobStatusHandler) {
 	statusHandler := &gitJobStatusHandler{
@@ -356,7 +356,7 @@ func (a *gitJobGeneratingHandler) Remove(key string, obj *v1.GitJob) (*v1.GitJob
 		ApplyObjects()
 }
 
-func (a *gitJobGeneratingHandler) Handle(obj *v1.GitJob, status v1.GitjobStatus) (v1.GitjobStatus, error) {
+func (a *gitJobGeneratingHandler) Handle(obj *v1.GitJob, status v1.GitJobStatus) (v1.GitJobStatus, error) {
 	objs, newStatus, err := a.GitJobGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
