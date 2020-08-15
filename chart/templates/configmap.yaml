@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fleet-controller
+data:
+  config: |
+    {
+      "agentImage": "{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}",
+      "apiServerURL": "{{.Values.apiServerURL}}",
+      "apiServerCA": "{{.Values.apiServerCA}}",
+    }

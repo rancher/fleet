@@ -1,0 +1,3 @@
+image:
+  repository: rancher/gitjob
+  tag: v0.0.1-rc3

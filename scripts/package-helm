@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 if ! hash helm 2>/dev/null; then
     exit 0
@@ -13,9 +14,13 @@ cp -rf chart build/
 rm -rf build/chart/crds
 
 sed -i \
-    -e 's/version:.*/version: '${VERSION}00'/' \
-    -e 's/appVersion:.*/appVersion: '${VERSION}'/' \
+    -e 's/version:.*/version: '${HELM_VERSION}'/' \
+    -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
     build/chart/Chart.yaml
 
-go run main.go install manager --crds-only -o ./build/charts/crds/crds.yaml
+sed -i \
+    -e 's/tag:.*/tag: '${HELM_TAG}'/' \
+    build/chart/values.yaml
+
+go run main.go install manager --crds-only -o ./build/chart/crds/crds.yaml
 helm package -d ./dist/artifacts ./build/chart

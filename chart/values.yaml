@@ -1,0 +1,15 @@
+image:
+  repository: rancher/fleet
+  tag: latest
+
+agentImage:
+  repository: rancher/fleet-agent
+  tag: latest
+
+# For cluster auto registration the public URL of the Kubernetes API server must be set here
+# Example: https://example.com:6443
+apiServerURL:
+
+# For cluster auto registration the base64 encoded value CA of the Kubernetes API server must be set here
+# Example: output of `base64 ca.pem`
+apiServerCA:
