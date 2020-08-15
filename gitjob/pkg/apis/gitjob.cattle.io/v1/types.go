@@ -12,8 +12,8 @@ import (
 type GitJob struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              GitjobSpec   `json:"spec,omitempty"`
-	Status            GitjobStatus `json:"status,omitempty"`
+	Spec              GitJobSpec   `json:"spec,omitempty"`
+	Status            GitJobStatus `json:"status,omitempty"`
 }
 
 type GitEvent struct {
@@ -27,7 +27,7 @@ type GithubMeta struct {
 	Event       string `json:"event,omitempty"`
 }
 
-type GitjobSpec struct {
+type GitJobSpec struct {
 	Git     GitInfo    `json:"git,omitempty"`
 	JobSpec v1.JobSpec `json:"jobSpec,omitempty"`
 
@@ -64,7 +64,7 @@ type Credential struct {
 	GitSecretName string `json:"gitSecretName,omitempty"`
 }
 
-type GitjobStatus struct {
+type GitJobStatus struct {
 	GitEvent
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 }

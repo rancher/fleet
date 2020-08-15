@@ -32,7 +32,7 @@ func (p *Polling) Supports(obj *gitjobv1.GitJob) bool {
 	return obj.Spec.Git.Provider == "polling"
 }
 
-func (p *Polling) Handle(ctx context.Context, obj *gitjobv1.GitJob) (gitjobv1.GitjobStatus, error) {
+func (p *Polling) Handle(ctx context.Context, obj *gitjobv1.GitJob) (gitjobv1.GitJobStatus, error) {
 	var (
 		auth git.Auth
 	)
