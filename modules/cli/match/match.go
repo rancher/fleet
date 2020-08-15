@@ -34,7 +34,9 @@ func Match(ctx context.Context, opts *Options) error {
 	}
 
 	if opts.Target == "" {
-		m := bundle.Match(opts.ClusterGroup, opts.ClusterGroupLabels, opts.ClusterLabels)
+		m := bundle.Match(map[string]map[string]string{
+			opts.ClusterGroup: opts.ClusterGroupLabels,
+		}, opts.ClusterLabels)
 		return printMatch(m, opts.Output)
 	}
 

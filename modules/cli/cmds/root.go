@@ -2,14 +2,15 @@ package cmds
 
 import (
 	"github.com/rancher/fleet/modules/cli/pkg/client"
-	"github.com/rancher/fleet/modules/cli/pkg/command"
 	"github.com/rancher/fleet/pkg/version"
+	command "github.com/rancher/wrangler-cli"
 	"github.com/spf13/cobra"
 )
 
 var (
-	Client *client.Getter
-	Debug  command.DebugConfig
+	Client          *client.Getter
+	SystemNamespace string
+	Debug           command.DebugConfig
 )
 
 func App() *cobra.Command {
@@ -21,15 +22,20 @@ func App() *cobra.Command {
 	root.AddCommand(
 		NewApply(),
 		NewTest(),
+		NewToken(),
+		NewGitRepo(),
 		NewInstall(),
+		NewCluster(),
 	)
 
 	return root
 }
 
 type Fleet struct {
-	Namespace  string `usage:"namespace" env:"NAMESPACE" default:"default" short:"n" env:"NAMESPACE"`
-	Kubeconfig string `usage:"kubeconfig for authentication" short:"k"`
+	SystemNamespace string `usage:"System namespace of the controller" default:"fleet-system"`
+	Namespace       string `usage:"namespace" env:"NAMESPACE" default:"default" short:"n" env:"NAMESPACE"`
+	Kubeconfig      string `usage:"kubeconfig for authentication" short:"k"`
+	Context         string `usage:"kubeconfig context for authentication"`
 }
 
 func (r *Fleet) Run(cmd *cobra.Command, args []string) error {
@@ -38,7 +44,8 @@ func (r *Fleet) Run(cmd *cobra.Command, args []string) error {
 
 func (r *Fleet) PersistentPre(cmd *cobra.Command, args []string) error {
 	Debug.MustSetupDebug()
-	Client = client.NewGetter(r.Kubeconfig, r.Namespace)
+	Client = client.NewGetter(r.Kubeconfig, r.Context, r.Namespace)
+	SystemNamespace = r.SystemNamespace
 	return nil
 }
 

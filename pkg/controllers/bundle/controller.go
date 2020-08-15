@@ -51,7 +51,7 @@ func Register(ctx context.Context,
 
 func (h *handler) resolveApp(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if ad, ok := obj.(*fleet.BundleDeployment); ok {
-		ns, name := h.targets.BundleForDeployment(ad)
+		ns, name := h.targets.BundleFromDeployment(ad)
 		if ns != "" && name != "" {
 			return []relatedresource.Key{
 				{

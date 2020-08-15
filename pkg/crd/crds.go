@@ -3,10 +3,9 @@ package crd
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/crd"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 )
@@ -52,12 +51,16 @@ func List() []crd.CRD {
 				WithColumn("Bundles-Desired", ".status.summary.desiredReady").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
-		newCRD(&fleet.ClusterGroupToken{}, func(c crd.CRD) crd.CRD {
+		newCRD(&fleet.ClusterRegistrationToken{}, func(c crd.CRD) crd.CRD {
 			return c.
-				WithColumn("Cluster-Group", ".spec.clusterGroupName").
 				WithColumn("Secret-Name", ".status.secretName")
 		}),
-		newCRD(&fleet.ClusterRegistrationRequest{}, func(c crd.CRD) crd.CRD {
+		newCRD(&fleet.GitRepo{}, func(c crd.CRD) crd.CRD {
+			return c.
+				WithColumn("Repo", ".spec.repo").
+				WithColumn("Commit", ".status.commit")
+		}),
+		newCRD(&fleet.ClusterRegistration{}, func(c crd.CRD) crd.CRD {
 			return c.
 				WithColumn("Cluster-Name", ".status.clusterName").
 				WithColumn("Labels", ".spec.clusterLabels")

@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/rancher/fleet/modules/cli/apply"
-	"github.com/rancher/fleet/modules/cli/pkg/command"
 	"github.com/rancher/fleet/modules/cli/pkg/writer"
+	command "github.com/rancher/wrangler-cli"
 	"github.com/spf13/cobra"
 )
 
@@ -18,15 +18,18 @@ func NewApply() *cobra.Command {
 type Apply struct {
 	BundleInputArgs
 	OutputArgsNoDefault
-	File     string `usage:"Read full bundle contents from file" short:"f"`
-	Compress bool   `usage:"Force all resources to be compress" short:"c"`
+	BundleNamePrefix string `usage:"All bundle names will be prefixed with this string"`
+	File             string `usage:"Read full bundle contents from file" short:"f"`
+	Compress         bool   `usage:"Force all resources to be compress" short:"c"`
+	ServiceAccount   string `usage:"Service account to assign to bundle created" short:"a"`
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	opts := &apply.Options{
-		BundleFile: a.BundleFile,
-		Output:     writer.NewDefaultNone(a.Output),
-		Compress:   a.Compress,
+		BundleFile:     a.BundleFile,
+		Output:         writer.NewDefaultNone(a.Output),
+		Compress:       a.Compress,
+		ServiceAccount: a.ServiceAccount,
 	}
 
 	if a.File == "-" {

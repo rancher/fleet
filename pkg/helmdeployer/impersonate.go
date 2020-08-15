@@ -1,0 +1,80 @@
+package helmdeployer
+
+import (
+	"fmt"
+
+	apierror "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+)
+
+func (h *helm) getServiceAccount(name string) (string, string, error) {
+	currentName := name
+	if currentName == "" {
+		currentName = DefaultServiceAccount
+	}
+	_, err := h.serviceAccountCache.Get(h.serviceAccountNamespace, currentName)
+	if apierror.IsNotFound(err) && name == "" {
+		// if we can't find the service account, but none was asked for, don't use any
+		return "", "", nil
+	} else if err != nil {
+		return "", "", fmt.Errorf("looking up service account %s/%s: %w", h.serviceAccountNamespace, currentName, err)
+	}
+	return h.serviceAccountNamespace, currentName, nil
+}
+
+type impersonatingGetter struct {
+	genericclioptions.RESTClientGetter
+
+	config     clientcmd.ClientConfig
+	restConfig *rest.Config
+}
+
+func newImpersonatingGetter(namespace, name string, getter genericclioptions.RESTClientGetter) (genericclioptions.RESTClientGetter, error) {
+	config := clientcmd.NewDefaultClientConfig(impersonationConfig(namespace, name), &clientcmd.ConfigOverrides{})
+
+	restConfig, err := config.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return &impersonatingGetter{
+		RESTClientGetter: getter,
+		config:           config,
+		restConfig:       restConfig,
+	}, nil
+}
+
+func (i *impersonatingGetter) ToRESTConfig() (*rest.Config, error) {
+	return i.restConfig, nil
+}
+
+func (i *impersonatingGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	return i.config
+}
+
+func impersonationConfig(namespace, name string) clientcmdapi.Config {
+	return clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"cluster": {
+				Server:               "https://kubernetes.default",
+				CertificateAuthority: "/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			"user": {
+				TokenFile:   "/run/secrets/kubernetes.io/serviceaccount/token",
+				Impersonate: fmt.Sprintf("serviceaccount:%s:%s", namespace, name),
+			},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			"default": {
+				Cluster:  "cluster",
+				AuthInfo: "user",
+			},
+		},
+		CurrentContext: "default",
+	}
+}

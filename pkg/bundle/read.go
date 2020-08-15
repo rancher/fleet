@@ -26,10 +26,15 @@ func Open(ctx context.Context, baseDir, file string, opts *Options) (*Bundle, er
 		baseDir = "."
 	}
 
+	if file == "-" {
+		return Read(ctx, baseDir, os.Stdin, opts)
+	}
+
 	if file == "" {
 		file = filepath.Join(baseDir, "bundle.yaml")
-	} else if file == "-" {
-		return Read(ctx, baseDir, os.Stdin, opts)
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			file = filepath.Join(baseDir, "fleet.yaml")
+		}
 	} else {
 		file = filepath.Join(baseDir, file)
 	}

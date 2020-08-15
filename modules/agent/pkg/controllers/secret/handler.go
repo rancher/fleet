@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/fleet/modules/agent/pkg/register"
-	v1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	v1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 

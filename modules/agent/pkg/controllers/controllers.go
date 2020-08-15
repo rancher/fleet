@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/rancher/fleet/modules/agent/pkg/controllers/cluster"
+
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/secret"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
@@ -12,13 +14,13 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
-	batch2 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch"
-	batchcontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1"
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/core"
-	corecontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/rbac"
-	rbaccontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/apply"
+	batch2 "github.com/rancher/wrangler/pkg/generated/controllers/batch"
+	batchcontrollers "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
+	"github.com/rancher/wrangler/pkg/generated/controllers/core"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/generated/controllers/rbac"
+	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/start"
 	"github.com/sirupsen/logrus"
@@ -42,6 +44,10 @@ type appContext struct {
 	K8s      kubernetes.Interface
 	Apply    apply.Apply
 	starters []start.Starter
+
+	ClusterNamespace string
+	ClusterName      string
+	AgentNamespace   string
 
 	clientConfig             clientcmd.ClientConfig
 	restConfig               *rest.Config
@@ -69,8 +75,8 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 5, a.starters...)
 }
 
-func Register(ctx context.Context, leaderElect bool, fleetNamespace, namespace, defaultNamespace string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) error {
-	appCtx, err := newContext(fleetNamespace, namespace, fleetConfig, clientConfig)
+func Register(ctx context.Context, leaderElect bool, fleetNamespace, agentNamespace, defaultNamespace, clusterNamespace, clusterName string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) error {
+	appCtx, err := newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName, fleetConfig, clientConfig)
 	if err != nil {
 		return err
 	}
@@ -80,7 +86,7 @@ func Register(ctx context.Context, leaderElect bool, fleetNamespace, namespace, 
 		labelPrefix = defaultNamespace
 	}
 
-	helmDeployer, err := helmdeployer.NewHelm(namespace, defaultNamespace, labelPrefix, appCtx)
+	helmDeployer, err := helmdeployer.NewHelm(agentNamespace, defaultNamespace, labelPrefix, appCtx)
 	if err != nil {
 		return err
 	}
@@ -97,10 +103,17 @@ func Register(ctx context.Context, leaderElect bool, fleetNamespace, namespace, 
 			appCtx.Apply),
 		appCtx.Fleet.BundleDeployment())
 
-	secret.Register(ctx, namespace, appCtx.CoreNS.Secret())
+	secret.Register(ctx, agentNamespace, appCtx.CoreNS.Secret())
+
+	cluster.Register(ctx,
+		appCtx.AgentNamespace,
+		appCtx.ClusterNamespace,
+		appCtx.ClusterName,
+		appCtx.Core.Node().Cache(),
+		appCtx.Fleet.Cluster())
 
 	if leaderElect {
-		leader.RunOrDie(ctx, namespace, "fleet-agent", appCtx.K8s, func(ctx context.Context) {
+		leader.RunOrDie(ctx, agentNamespace, "fleet-agent", appCtx.K8s, func(ctx context.Context) {
 			if err := appCtx.start(ctx); err != nil {
 				logrus.Fatal(err)
 			}
@@ -112,13 +125,13 @@ func Register(ctx context.Context, leaderElect bool, fleetNamespace, namespace, 
 	return nil
 }
 
-func newContext(fleetNamespace, namespace string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) (*appContext, error) {
+func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) (*appContext, error) {
 	client, err := clientConfig.ClientConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	coreNSed, err := core.NewFactoryFromConfigWithNamespace(client, namespace)
+	coreNSed, err := core.NewFactoryFromConfigWithNamespace(client, agentNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -169,14 +182,17 @@ func newContext(fleetNamespace, namespace string, fleetConfig *rest.Config, clie
 	cache := memory.NewMemCacheClient(k8s.Discovery())
 
 	return &appContext{
-		Dynamic: dynamic,
-		Apply:   apply,
-		Fleet:   fleetv,
-		Core:    corev,
-		CoreNS:  coreNSv,
-		Batch:   batchv,
-		RBAC:    rbacv,
-		K8s:     k8s,
+		Dynamic:          dynamic,
+		Apply:            apply,
+		Fleet:            fleetv,
+		Core:             corev,
+		CoreNS:           coreNSv,
+		Batch:            batchv,
+		RBAC:             rbacv,
+		K8s:              k8s,
+		ClusterNamespace: clusterNamespace,
+		ClusterName:      clusterName,
+		AgentNamespace:   agentNamespace,
 
 		clientConfig:             clientConfig,
 		restConfig:               client,

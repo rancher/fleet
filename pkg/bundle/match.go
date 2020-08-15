@@ -46,8 +46,16 @@ func (a *Bundle) MatchForTarget(name string) *Match {
 	return nil
 }
 
-func (a *Bundle) Match(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) *Match {
-	return a.matcher.Match(clusterGroup, clusterGroupLabels, clusterLabels)
+func (a *Bundle) Match(clusterGroups map[string]map[string]string, clusterLabels map[string]string) *Match {
+	for clusterGroup, clusterGroupLabels := range clusterGroups {
+		if m := a.matcher.Match(clusterGroup, clusterGroupLabels, clusterLabels); m != nil {
+			return m
+		}
+	}
+	if len(clusterGroups) == 0 {
+		return a.matcher.Match("", nil, clusterLabels)
+	}
+	return nil
 }
 
 type targetMatch struct {

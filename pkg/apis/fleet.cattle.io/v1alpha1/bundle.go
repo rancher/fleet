@@ -143,6 +143,7 @@ type BundleDeploymentOptions struct {
 	KustomizeDir     string      `json:"kustomizeDir,omitempty"`
 	TimeoutSeconds   int         `json:"timeoutSeconds,omitempty"`
 	Values           *GenericMap `json:"values,omitempty"`
+	ServiceAccount   string      `json:"serviceAccount,omitempty"`
 }
 
 type BundleDeploymentSpec struct {

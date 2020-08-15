@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -15,10 +17,12 @@ import (
 )
 
 type Options struct {
-	BundleFile   string
-	Compress     bool
-	BundleReader io.Reader
-	Output       io.Writer
+	BundleFile       string
+	Compress         bool
+	BundleReader     io.Reader
+	Output           io.Writer
+	BundleNamePrefix string
+	ServiceAccount   string
 }
 
 func Apply(ctx context.Context, client *client.Getter, baseDirs []string, opts *Options) error {
@@ -30,13 +34,29 @@ func Apply(ctx context.Context, client *client.Getter, baseDirs []string, opts *
 		baseDirs = []string{"."}
 	}
 
+	foundBundle := false
 	for i, baseDir := range baseDirs {
-		if i > 0 && opts.Output != nil {
-			opts.Output.Write([]byte("\n---\n"))
+		matches, err := filepath.Glob(baseDir)
+		if err != nil {
+			return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
 		}
-		if err := Dir(ctx, client, baseDir, opts); err != nil {
-			return err
+		for _, baseDir := range matches {
+			if i > 0 && opts.Output != nil {
+				if _, err := opts.Output.Write([]byte("\n---\n")); err != nil {
+					return err
+				}
+			}
+			if err := Dir(ctx, client, baseDir, opts); os.IsNotExist(err) {
+				continue
+			} else if err != nil {
+				return err
+			}
+			foundBundle = true
 		}
+	}
+
+	if !foundBundle {
+		return fmt.Errorf("no fleet.yaml or bundle.yaml found at the following paths: %v", baseDirs)
 	}
 
 	return nil
@@ -68,6 +88,10 @@ func Dir(ctx context.Context, client *client.Getter, baseDir string, opts *Optio
 
 	def := bundle.Definition.DeepCopy()
 	def.Namespace = client.Namespace
+	def.Name = opts.BundleNamePrefix + def.Name
+	if opts.ServiceAccount != "" {
+		def.Spec.ServiceAccount = opts.ServiceAccount
+	}
 
 	b, err := yaml.Export(def)
 	if err != nil {

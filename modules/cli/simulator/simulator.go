@@ -3,7 +3,6 @@ package simulator
 import (
 	"context"
 	"io"
-	"time"
 
 	"github.com/rancher/fleet/modules/agent/pkg/simulator"
 	"github.com/rancher/fleet/modules/cli/agentconfig"
@@ -15,20 +14,18 @@ import (
 )
 
 type Options struct {
-	TTL    time.Duration
 	CA     []byte
 	Host   string
 	NoCA   bool
 	Labels map[string]string
 }
 
-func Simulator(ctx context.Context, image, controllerNamespace, clusterGroupName string, simulators int, cg *client.Getter, output io.Writer, opts *Options) error {
+func Simulator(ctx context.Context, image, controllerNamespace, tokenName string, simulators int, cg *client.Getter, output io.Writer, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
 
 	agentOpts := &agentmanifest.Options{
-		TTL:  opts.TTL,
 		CA:   opts.CA,
 		Host: opts.Host,
 		NoCA: opts.NoCA,
@@ -39,12 +36,12 @@ func Simulator(ctx context.Context, image, controllerNamespace, clusterGroupName
 		return err
 	}
 
-	objs, err := agentmanifest.AgentToken(ctx, controllerNamespace, clusterGroupName, cg.Kubeconfig, client, agentOpts)
+	objs, err := agentmanifest.AgentToken(ctx, controllerNamespace, cg.Kubeconfig, client, tokenName, agentOpts)
 	if err != nil {
 		return err
 	}
 
-	configObjs, err := agentconfig.Objects(controllerNamespace, opts.Labels)
+	configObjs, err := agentconfig.Objects(controllerNamespace, opts.Labels, "")
 	if err != nil {
 		return err
 	}

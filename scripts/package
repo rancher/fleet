@@ -35,3 +35,5 @@ done
 build-image fleet
 build-image fleet-agent .agent
 build-image fleet-agent-simulator .simulator
+
+./scripts/package-helm

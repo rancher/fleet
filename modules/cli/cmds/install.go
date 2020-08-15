@@ -7,12 +7,11 @@ import (
 func NewInstall() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install",
-		Short: "Generate manifests for installing server and agent",
+		Short: "Generate manifests for installing manager or agent",
 	}
 	cmd.AddCommand(
 		NewManager(),
-		NewAgentToken(),
-		NewAgentConfig(),
+		NewAgent(),
 		NewSimulator(),
 	)
 	return cmd

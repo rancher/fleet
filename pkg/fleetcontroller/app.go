@@ -28,7 +28,8 @@ func OutputCRDs(writer io.Writer) error {
 }
 
 func Start(ctx context.Context, systemNamespace string, kubeconfigFile string) error {
-	clientConfig, err := kubeconfig.GetNonInteractiveClientConfig(kubeconfigFile).ClientConfig()
+	cfg := kubeconfig.GetNonInteractiveClientConfig(kubeconfigFile)
+	clientConfig, err := cfg.ClientConfig()
 	if err != nil {
 		return err
 	}
@@ -39,5 +40,5 @@ func Start(ctx context.Context, systemNamespace string, kubeconfigFile string) e
 		return err
 	}
 
-	return controllers.Register(ctx, systemNamespace, clientConfig)
+	return controllers.Register(ctx, systemNamespace, cfg)
 }

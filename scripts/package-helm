@@ -1,0 +1,21 @@
+#!/bin/bash
+
+if ! hash helm 2>/dev/null; then
+    exit 0
+fi
+
+cd $(dirname $0)/..
+. ./scripts/version
+
+rm -rf build/chart
+mkdir -p build dist/artifacts
+cp -rf chart build/
+rm -rf build/chart/crds
+
+sed -i \
+    -e 's/version:.*/version: '${VERSION}00'/' \
+    -e 's/appVersion:.*/appVersion: '${VERSION}'/' \
+    build/chart/Chart.yaml
+
+go run main.go install manager --crds-only -o ./build/charts/crds/crds.yaml
+helm package -d ./dist/artifacts ./build/chart
