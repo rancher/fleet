@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -30,16 +29,20 @@ var (
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "testy"
+	app.Name = "gitjob"
 	app.Version = fmt.Sprintf("%s (%s)", Version, GitCommit)
-	app.Usage = "testy needs help!"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:   "kubeconfig",
 			EnvVar: "KUBECONFIG",
 		},
 		cli.StringFlag{
-			Name:  "listen-port",
+			Name:   "namespace",
+			EnvVar: "NAMESPACE",
+			Value:  "kube-system",
+		},
+		cli.StringFlag{
+			Name:  "listen",
 			Value: ":80",
 		},
 	}
@@ -51,8 +54,6 @@ func main() {
 }
 
 func run(c *cli.Context) {
-	flag.Parse()
-
 	logrus.Info("Starting controller")
 	ctx := signals.SetupSignalHandler(context.Background())
 
@@ -72,7 +73,7 @@ func run(c *cli.Context) {
 	}
 
 	go func() {
-		leader.RunOrDie(ctx, "gitjob", "gitjob", cont.K8s, func(ctx context.Context) {
+		leader.RunOrDie(ctx, c.String("namespace"), "gitjob", cont.K8s, func(ctx context.Context) {
 			controller.Register(ctx, cont)
 			runtime.Must(cont.Start(ctx))
 			<-ctx.Done()
@@ -81,8 +82,9 @@ func run(c *cli.Context) {
 
 	logrus.Info("Setting up webhook listener")
 	handler := hooks.HandleHooks(cont)
-	if err := http.ListenAndServe(":80", handler); err != nil {
-		logrus.Fatalf("Failed to listen on %s: %v", "80", err)
+	addr := c.String("listen")
+	if err := http.ListenAndServe(addr, handler); err != nil {
+		logrus.Fatalf("Failed to listen on %s: %v", addr, err)
 	}
 
 	<-ctx.Done()
