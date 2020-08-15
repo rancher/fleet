@@ -144,7 +144,7 @@ func NewClusterCreate() *cobra.Command {
 		Short: "Create a new cluster from a kubeconfig secret",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
-				return fmt.Errorf("the secret containing the kubeconfig must be passed as the first arguement")
+				return fmt.Errorf("the secret containing the kubeconfig must be passed as the first argument")
 			}
 			return nil
 		},
@@ -189,9 +189,8 @@ func (l *ClusterCreate) Run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		if l.ValidateSecret {
 			return err
-		} else {
-			logrus.Warn(err)
 		}
+		logrus.Warn(err)
 	}
 
 	t, err := c.Fleet.Cluster().Create(cluster)

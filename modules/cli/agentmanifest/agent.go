@@ -116,6 +116,10 @@ func AgentManifest(ctx context.Context, controllerNamespace string, cg *client.G
 		Labels:   opts.Labels,
 		ClientID: opts.ClientID,
 	})
+	if err != nil {
+		return err
+	}
+
 	objs = append(objs, agentConfig...)
 
 	cfg, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
