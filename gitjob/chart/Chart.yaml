@@ -1,0 +1,5 @@
+apiVersion: v2
+name: gitjob
+description: Controller that run jobs based on git events
+version: ${VERSION}
+appVersion: ${VERSION}

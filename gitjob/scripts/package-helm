@@ -1,0 +1,26 @@
+#!/bin/bash
+set -e
+
+if ! hash helm 2>/dev/null; then
+    exit 0
+fi
+
+cd $(dirname $0)/..
+. ./scripts/version
+
+rm -rf build/chart
+mkdir -p build dist/artifacts
+cp -rf chart build/
+rm -rf build/chart/crds
+
+sed -i \
+    -e 's/${VERSION}/'${VERSION}'/' \
+    build/chart/Chart.yaml
+
+sed -i \
+    -e 's/${VERSION}/'${VERSION}'/' \
+    build/chart/values.yaml
+
+mkdir build/chart/crds
+go run pkg/crdgen/main.go > ./build/chart/crds/crds.yaml
+helm package -d ./dist/artifacts ./build/chart
