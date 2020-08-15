@@ -83,9 +83,8 @@ type bundleController struct {
 	groupResource schema.GroupResource
 }
 
-func NewBundleController(gvk schema.GroupVersionKind, resource string, controller controller.SharedControllerFactory) BundleController {
-	c, err := controller.ForKind(gvk)
-	utilruntime.Must(err)
+func NewBundleController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) BundleController {
+	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
 	return &bundleController{
 		controller: c,
 		client:     c.Client(),
@@ -319,6 +318,11 @@ func (a *bundleStatusHandler) sync(key string, obj *v1alpha1.Bundle) (*v1alpha1.
 		}
 	}
 	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
 		var newErr error
 		obj.Status = newStatus
 		obj, newErr = a.client.UpdateStatus(obj)

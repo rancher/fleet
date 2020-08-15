@@ -26,7 +26,7 @@ import (
 )
 
 func init() {
-	v1alpha1.AddToScheme(schemes.All)
+	schemes.Register(v1alpha1.AddToScheme)
 }
 
 type Interface interface {
@@ -34,9 +34,10 @@ type Interface interface {
 	BundleDeployment() BundleDeploymentController
 	Cluster() ClusterController
 	ClusterGroup() ClusterGroupController
-	ClusterGroupToken() ClusterGroupTokenController
-	ClusterRegistrationRequest() ClusterRegistrationRequestController
+	ClusterRegistration() ClusterRegistrationController
+	ClusterRegistrationToken() ClusterRegistrationTokenController
 	Content() ContentController
+	GitRepo() GitRepoController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -50,23 +51,26 @@ type version struct {
 }
 
 func (c *version) Bundle() BundleController {
-	return NewBundleController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Bundle"}, "bundles", c.controllerFactory)
+	return NewBundleController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Bundle"}, "bundles", true, c.controllerFactory)
 }
 func (c *version) BundleDeployment() BundleDeploymentController {
-	return NewBundleDeploymentController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "BundleDeployment"}, "bundledeployments", c.controllerFactory)
+	return NewBundleDeploymentController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "BundleDeployment"}, "bundledeployments", true, c.controllerFactory)
 }
 func (c *version) Cluster() ClusterController {
-	return NewClusterController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Cluster"}, "clusters", c.controllerFactory)
+	return NewClusterController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Cluster"}, "clusters", true, c.controllerFactory)
 }
 func (c *version) ClusterGroup() ClusterGroupController {
-	return NewClusterGroupController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterGroup"}, "clustergroups", c.controllerFactory)
+	return NewClusterGroupController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterGroup"}, "clustergroups", true, c.controllerFactory)
 }
-func (c *version) ClusterGroupToken() ClusterGroupTokenController {
-	return NewClusterGroupTokenController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterGroupToken"}, "clustergrouptokens", c.controllerFactory)
+func (c *version) ClusterRegistration() ClusterRegistrationController {
+	return NewClusterRegistrationController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterRegistration"}, "clusterregistrations", true, c.controllerFactory)
 }
-func (c *version) ClusterRegistrationRequest() ClusterRegistrationRequestController {
-	return NewClusterRegistrationRequestController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterRegistrationRequest"}, "clusterregistrationrequests", c.controllerFactory)
+func (c *version) ClusterRegistrationToken() ClusterRegistrationTokenController {
+	return NewClusterRegistrationTokenController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterRegistrationToken"}, "clusterregistrationtokens", true, c.controllerFactory)
 }
 func (c *version) Content() ContentController {
-	return NewContentController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Content"}, "contents", c.controllerFactory)
+	return NewContentController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Content"}, "contents", false, c.controllerFactory)
+}
+func (c *version) GitRepo() GitRepoController {
+	return NewGitRepoController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "GitRepo"}, "gitrepos", true, c.controllerFactory)
 }

@@ -66,6 +66,9 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  serviceAccount:
+                    nullable: true
+                    type: string
                   timeoutSeconds:
                     type: integer
                   values:
@@ -175,9 +178,15 @@ spec:
                   nullable: true
                   type: array
               type: object
+            serviceAccount:
+              nullable: true
+              type: string
             targets:
               items:
                 properties:
+                  clusterGroup:
+                    nullable: true
+                    type: string
                   clusterGroupSelector:
                     nullable: true
                     properties:
@@ -206,12 +215,6 @@ spec:
                         nullable: true
                         type: object
                     type: object
-                  clusterGroups:
-                    items:
-                      nullable: true
-                      type: string
-                    nullable: true
-                    type: array
                   clusterSelector:
                     nullable: true
                     properties:
@@ -255,6 +258,9 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  serviceAccount:
+                    nullable: true
+                    type: string
                   timeoutSeconds:
                     type: integer
                   values:
@@ -392,9 +398,9 @@ spec:
               type: integer
           type: object
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true
 
@@ -437,6 +443,9 @@ spec:
                 kustomizeDir:
                   nullable: true
                   type: string
+                serviceAccount:
+                  nullable: true
+                  type: string
                 timeoutSeconds:
                   type: integer
                 values:
@@ -452,6 +461,9 @@ spec:
                   nullable: true
                   type: string
                 kustomizeDir:
+                  nullable: true
+                  type: string
+                serviceAccount:
                   nullable: true
                   type: string
                 timeoutSeconds:
@@ -617,9 +629,9 @@ spec:
               type: string
           type: object
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true
 
@@ -656,8 +668,6 @@ spec:
       properties:
         spec:
           properties:
-            pause:
-              type: boolean
             selector:
               nullable: true
               properties:
@@ -715,9 +725,6 @@ spec:
                 type: object
               nullable: true
               type: array
-            namespace:
-              nullable: true
-              type: string
             nonReadyClusterCount:
               type: integer
             nonReadyClusters:
@@ -762,9 +769,9 @@ spec:
               type: object
           type: object
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true
 
@@ -796,10 +803,10 @@ spec:
       properties:
         spec:
           properties:
-            clientId:
+            clientID:
               nullable: true
               type: string
-            clientRandom:
+            kubeConfigSecret:
               nullable: true
               type: string
             paused:
@@ -807,6 +814,34 @@ spec:
           type: object
         status:
           properties:
+            agent:
+              properties:
+                lastSeen:
+                  nullable: true
+                  type: string
+                namespace:
+                  nullable: true
+                  type: string
+                nonReadyNodeNames:
+                  items:
+                    nullable: true
+                    type: string
+                  nullable: true
+                  type: array
+                nonReadyNodes:
+                  type: integer
+                readyNodeNames:
+                  items:
+                    nullable: true
+                    type: string
+                  nullable: true
+                  type: array
+                readyNodes:
+                  type: integer
+              type: object
+            agentDeployed:
+              nullable: true
+              type: boolean
             conditions:
               items:
                 properties:
@@ -870,9 +905,9 @@ spec:
               type: object
           type: object
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true
 
@@ -911,9 +946,9 @@ spec:
               type: string
           type: object
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true
 
@@ -960,6 +995,9 @@ spec:
             revision:
               nullable: true
               type: string
+            serviceAccount:
+              nullable: true
+              type: string
           type: object
         status:
           properties:
@@ -992,9 +1030,9 @@ spec:
               type: array
           type: object
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true
 
@@ -1045,9 +1083,9 @@ spec:
               type: boolean
           type: object
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true
 
@@ -1069,8 +1107,8 @@ spec:
           nullable: true
           type: string
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true

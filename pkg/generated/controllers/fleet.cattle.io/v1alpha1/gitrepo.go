@@ -41,51 +41,51 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-type ClusterHandler func(string, *v1alpha1.Cluster) (*v1alpha1.Cluster, error)
+type GitRepoHandler func(string, *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error)
 
-type ClusterController interface {
+type GitRepoController interface {
 	generic.ControllerMeta
-	ClusterClient
+	GitRepoClient
 
-	OnChange(ctx context.Context, name string, sync ClusterHandler)
-	OnRemove(ctx context.Context, name string, sync ClusterHandler)
+	OnChange(ctx context.Context, name string, sync GitRepoHandler)
+	OnRemove(ctx context.Context, name string, sync GitRepoHandler)
 	Enqueue(namespace, name string)
 	EnqueueAfter(namespace, name string, duration time.Duration)
 
-	Cache() ClusterCache
+	Cache() GitRepoCache
 }
 
-type ClusterClient interface {
-	Create(*v1alpha1.Cluster) (*v1alpha1.Cluster, error)
-	Update(*v1alpha1.Cluster) (*v1alpha1.Cluster, error)
-	UpdateStatus(*v1alpha1.Cluster) (*v1alpha1.Cluster, error)
+type GitRepoClient interface {
+	Create(*v1alpha1.GitRepo) (*v1alpha1.GitRepo, error)
+	Update(*v1alpha1.GitRepo) (*v1alpha1.GitRepo, error)
+	UpdateStatus(*v1alpha1.GitRepo) (*v1alpha1.GitRepo, error)
 	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.Cluster, error)
-	List(namespace string, opts metav1.ListOptions) (*v1alpha1.ClusterList, error)
+	Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.GitRepo, error)
+	List(namespace string, opts metav1.ListOptions) (*v1alpha1.GitRepoList, error)
 	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.Cluster, err error)
+	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.GitRepo, err error)
 }
 
-type ClusterCache interface {
-	Get(namespace, name string) (*v1alpha1.Cluster, error)
-	List(namespace string, selector labels.Selector) ([]*v1alpha1.Cluster, error)
+type GitRepoCache interface {
+	Get(namespace, name string) (*v1alpha1.GitRepo, error)
+	List(namespace string, selector labels.Selector) ([]*v1alpha1.GitRepo, error)
 
-	AddIndexer(indexName string, indexer ClusterIndexer)
-	GetByIndex(indexName, key string) ([]*v1alpha1.Cluster, error)
+	AddIndexer(indexName string, indexer GitRepoIndexer)
+	GetByIndex(indexName, key string) ([]*v1alpha1.GitRepo, error)
 }
 
-type ClusterIndexer func(obj *v1alpha1.Cluster) ([]string, error)
+type GitRepoIndexer func(obj *v1alpha1.GitRepo) ([]string, error)
 
-type clusterController struct {
+type gitRepoController struct {
 	controller    controller.SharedController
 	client        *client.Client
 	gvk           schema.GroupVersionKind
 	groupResource schema.GroupResource
 }
 
-func NewClusterController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ClusterController {
+func NewGitRepoController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) GitRepoController {
 	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &clusterController{
+	return &gitRepoController{
 		controller: c,
 		client:     c.Client(),
 		gvk:        gvk,
@@ -96,13 +96,13 @@ func NewClusterController(gvk schema.GroupVersionKind, resource string, namespac
 	}
 }
 
-func FromClusterHandlerToHandler(sync ClusterHandler) generic.Handler {
+func FromGitRepoHandlerToHandler(sync GitRepoHandler) generic.Handler {
 	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1alpha1.Cluster
+		var v *v1alpha1.GitRepo
 		if obj == nil {
 			v, err = sync(key, nil)
 		} else {
-			v, err = sync(key, obj.(*v1alpha1.Cluster))
+			v, err = sync(key, obj.(*v1alpha1.GitRepo))
 		}
 		if v == nil {
 			return nil, err
@@ -111,9 +111,9 @@ func FromClusterHandlerToHandler(sync ClusterHandler) generic.Handler {
 	}
 }
 
-func (c *clusterController) Updater() generic.Updater {
+func (c *gitRepoController) Updater() generic.Updater {
 	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1alpha1.Cluster))
+		newObj, err := c.Update(obj.(*v1alpha1.GitRepo))
 		if newObj == nil {
 			return nil, err
 		}
@@ -121,7 +121,7 @@ func (c *clusterController) Updater() generic.Updater {
 	}
 }
 
-func UpdateClusterDeepCopyOnChange(client ClusterClient, obj *v1alpha1.Cluster, handler func(obj *v1alpha1.Cluster) (*v1alpha1.Cluster, error)) (*v1alpha1.Cluster, error) {
+func UpdateGitRepoDeepCopyOnChange(client GitRepoClient, obj *v1alpha1.GitRepo, handler func(obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error)) (*v1alpha1.GitRepo, error) {
 	if obj == nil {
 		return obj, nil
 	}
@@ -138,92 +138,92 @@ func UpdateClusterDeepCopyOnChange(client ClusterClient, obj *v1alpha1.Cluster, 
 	return copyObj, err
 }
 
-func (c *clusterController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
+func (c *gitRepoController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
 	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
 }
 
-func (c *clusterController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
+func (c *gitRepoController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
 	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
 }
 
-func (c *clusterController) OnChange(ctx context.Context, name string, sync ClusterHandler) {
-	c.AddGenericHandler(ctx, name, FromClusterHandlerToHandler(sync))
+func (c *gitRepoController) OnChange(ctx context.Context, name string, sync GitRepoHandler) {
+	c.AddGenericHandler(ctx, name, FromGitRepoHandlerToHandler(sync))
 }
 
-func (c *clusterController) OnRemove(ctx context.Context, name string, sync ClusterHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromClusterHandlerToHandler(sync)))
+func (c *gitRepoController) OnRemove(ctx context.Context, name string, sync GitRepoHandler) {
+	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromGitRepoHandlerToHandler(sync)))
 }
 
-func (c *clusterController) Enqueue(namespace, name string) {
+func (c *gitRepoController) Enqueue(namespace, name string) {
 	c.controller.Enqueue(namespace, name)
 }
 
-func (c *clusterController) EnqueueAfter(namespace, name string, duration time.Duration) {
+func (c *gitRepoController) EnqueueAfter(namespace, name string, duration time.Duration) {
 	c.controller.EnqueueAfter(namespace, name, duration)
 }
 
-func (c *clusterController) Informer() cache.SharedIndexInformer {
+func (c *gitRepoController) Informer() cache.SharedIndexInformer {
 	return c.controller.Informer()
 }
 
-func (c *clusterController) GroupVersionKind() schema.GroupVersionKind {
+func (c *gitRepoController) GroupVersionKind() schema.GroupVersionKind {
 	return c.gvk
 }
 
-func (c *clusterController) Cache() ClusterCache {
-	return &clusterCache{
+func (c *gitRepoController) Cache() GitRepoCache {
+	return &gitRepoCache{
 		indexer:  c.Informer().GetIndexer(),
 		resource: c.groupResource,
 	}
 }
 
-func (c *clusterController) Create(obj *v1alpha1.Cluster) (*v1alpha1.Cluster, error) {
-	result := &v1alpha1.Cluster{}
+func (c *gitRepoController) Create(obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error) {
+	result := &v1alpha1.GitRepo{}
 	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
 }
 
-func (c *clusterController) Update(obj *v1alpha1.Cluster) (*v1alpha1.Cluster, error) {
-	result := &v1alpha1.Cluster{}
+func (c *gitRepoController) Update(obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error) {
+	result := &v1alpha1.GitRepo{}
 	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
-func (c *clusterController) UpdateStatus(obj *v1alpha1.Cluster) (*v1alpha1.Cluster, error) {
-	result := &v1alpha1.Cluster{}
+func (c *gitRepoController) UpdateStatus(obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error) {
+	result := &v1alpha1.GitRepo{}
 	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
 }
 
-func (c *clusterController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
+func (c *gitRepoController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	if options == nil {
 		options = &metav1.DeleteOptions{}
 	}
 	return c.client.Delete(context.TODO(), namespace, name, *options)
 }
 
-func (c *clusterController) Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.Cluster, error) {
-	result := &v1alpha1.Cluster{}
+func (c *gitRepoController) Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.GitRepo, error) {
+	result := &v1alpha1.GitRepo{}
 	return result, c.client.Get(context.TODO(), namespace, name, result, options)
 }
 
-func (c *clusterController) List(namespace string, opts metav1.ListOptions) (*v1alpha1.ClusterList, error) {
-	result := &v1alpha1.ClusterList{}
+func (c *gitRepoController) List(namespace string, opts metav1.ListOptions) (*v1alpha1.GitRepoList, error) {
+	result := &v1alpha1.GitRepoList{}
 	return result, c.client.List(context.TODO(), namespace, result, opts)
 }
 
-func (c *clusterController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (c *gitRepoController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.client.Watch(context.TODO(), namespace, opts)
 }
 
-func (c *clusterController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1alpha1.Cluster, error) {
-	result := &v1alpha1.Cluster{}
+func (c *gitRepoController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1alpha1.GitRepo, error) {
+	result := &v1alpha1.GitRepo{}
 	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
 }
 
-type clusterCache struct {
+type gitRepoCache struct {
 	indexer  cache.Indexer
 	resource schema.GroupResource
 }
 
-func (c *clusterCache) Get(namespace, name string) (*v1alpha1.Cluster, error) {
+func (c *gitRepoCache) Get(namespace, name string) (*v1alpha1.GitRepo, error) {
 	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
 	if err != nil {
 		return nil, err
@@ -231,55 +231,55 @@ func (c *clusterCache) Get(namespace, name string) (*v1alpha1.Cluster, error) {
 	if !exists {
 		return nil, errors.NewNotFound(c.resource, name)
 	}
-	return obj.(*v1alpha1.Cluster), nil
+	return obj.(*v1alpha1.GitRepo), nil
 }
 
-func (c *clusterCache) List(namespace string, selector labels.Selector) (ret []*v1alpha1.Cluster, err error) {
+func (c *gitRepoCache) List(namespace string, selector labels.Selector) (ret []*v1alpha1.GitRepo, err error) {
 
 	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.Cluster))
+		ret = append(ret, m.(*v1alpha1.GitRepo))
 	})
 
 	return ret, err
 }
 
-func (c *clusterCache) AddIndexer(indexName string, indexer ClusterIndexer) {
+func (c *gitRepoCache) AddIndexer(indexName string, indexer GitRepoIndexer) {
 	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
 		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1alpha1.Cluster))
+			return indexer(obj.(*v1alpha1.GitRepo))
 		},
 	}))
 }
 
-func (c *clusterCache) GetByIndex(indexName, key string) (result []*v1alpha1.Cluster, err error) {
+func (c *gitRepoCache) GetByIndex(indexName, key string) (result []*v1alpha1.GitRepo, err error) {
 	objs, err := c.indexer.ByIndex(indexName, key)
 	if err != nil {
 		return nil, err
 	}
-	result = make([]*v1alpha1.Cluster, 0, len(objs))
+	result = make([]*v1alpha1.GitRepo, 0, len(objs))
 	for _, obj := range objs {
-		result = append(result, obj.(*v1alpha1.Cluster))
+		result = append(result, obj.(*v1alpha1.GitRepo))
 	}
 	return result, nil
 }
 
-type ClusterStatusHandler func(obj *v1alpha1.Cluster, status v1alpha1.ClusterStatus) (v1alpha1.ClusterStatus, error)
+type GitRepoStatusHandler func(obj *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) (v1alpha1.GitRepoStatus, error)
 
-type ClusterGeneratingHandler func(obj *v1alpha1.Cluster, status v1alpha1.ClusterStatus) ([]runtime.Object, v1alpha1.ClusterStatus, error)
+type GitRepoGeneratingHandler func(obj *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) ([]runtime.Object, v1alpha1.GitRepoStatus, error)
 
-func RegisterClusterStatusHandler(ctx context.Context, controller ClusterController, condition condition.Cond, name string, handler ClusterStatusHandler) {
-	statusHandler := &clusterStatusHandler{
+func RegisterGitRepoStatusHandler(ctx context.Context, controller GitRepoController, condition condition.Cond, name string, handler GitRepoStatusHandler) {
+	statusHandler := &gitRepoStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromClusterHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, FromGitRepoHandlerToHandler(statusHandler.sync))
 }
 
-func RegisterClusterGeneratingHandler(ctx context.Context, controller ClusterController, apply apply.Apply,
-	condition condition.Cond, name string, handler ClusterGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
-	statusHandler := &clusterGeneratingHandler{
-		ClusterGeneratingHandler: handler,
+func RegisterGitRepoGeneratingHandler(ctx context.Context, controller GitRepoController, apply apply.Apply,
+	condition condition.Cond, name string, handler GitRepoGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &gitRepoGeneratingHandler{
+		GitRepoGeneratingHandler: handler,
 		apply:                    apply,
 		name:                     name,
 		gvk:                      controller.GroupVersionKind(),
@@ -288,16 +288,16 @@ func RegisterClusterGeneratingHandler(ctx context.Context, controller ClusterCon
 		statusHandler.opts = *opts
 	}
 	controller.OnChange(ctx, name, statusHandler.Remove)
-	RegisterClusterStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+	RegisterGitRepoStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
 }
 
-type clusterStatusHandler struct {
-	client    ClusterClient
+type gitRepoStatusHandler struct {
+	client    GitRepoClient
 	condition condition.Cond
-	handler   ClusterStatusHandler
+	handler   GitRepoStatusHandler
 }
 
-func (a *clusterStatusHandler) sync(key string, obj *v1alpha1.Cluster) (*v1alpha1.Cluster, error) {
+func (a *gitRepoStatusHandler) sync(key string, obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error) {
 	if obj == nil {
 		return obj, nil
 	}
@@ -333,20 +333,20 @@ func (a *clusterStatusHandler) sync(key string, obj *v1alpha1.Cluster) (*v1alpha
 	return obj, err
 }
 
-type clusterGeneratingHandler struct {
-	ClusterGeneratingHandler
+type gitRepoGeneratingHandler struct {
+	GitRepoGeneratingHandler
 	apply apply.Apply
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
 }
 
-func (a *clusterGeneratingHandler) Remove(key string, obj *v1alpha1.Cluster) (*v1alpha1.Cluster, error) {
+func (a *gitRepoGeneratingHandler) Remove(key string, obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error) {
 	if obj != nil {
 		return obj, nil
 	}
 
-	obj = &v1alpha1.Cluster{}
+	obj = &v1alpha1.GitRepo{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
@@ -356,8 +356,8 @@ func (a *clusterGeneratingHandler) Remove(key string, obj *v1alpha1.Cluster) (*v
 		ApplyObjects()
 }
 
-func (a *clusterGeneratingHandler) Handle(obj *v1alpha1.Cluster, status v1alpha1.ClusterStatus) (v1alpha1.ClusterStatus, error) {
-	objs, newStatus, err := a.ClusterGeneratingHandler(obj, status)
+func (a *gitRepoGeneratingHandler) Handle(obj *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) (v1alpha1.GitRepoStatus, error) {
+	objs, newStatus, err := a.GitRepoGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
 	}

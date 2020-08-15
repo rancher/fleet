@@ -83,9 +83,8 @@ type bundleDeploymentController struct {
 	groupResource schema.GroupResource
 }
 
-func NewBundleDeploymentController(gvk schema.GroupVersionKind, resource string, controller controller.SharedControllerFactory) BundleDeploymentController {
-	c, err := controller.ForKind(gvk)
-	utilruntime.Must(err)
+func NewBundleDeploymentController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) BundleDeploymentController {
+	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
 	return &bundleDeploymentController{
 		controller: c,
 		client:     c.Client(),
@@ -319,6 +318,11 @@ func (a *bundleDeploymentStatusHandler) sync(key string, obj *v1alpha1.BundleDep
 		}
 	}
 	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
 		var newErr error
 		obj.Status = newStatus
 		obj, newErr = a.client.UpdateStatus(obj)
