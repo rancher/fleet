@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitjob
+spec:
+  selector:
+    matchLabels:
+      app: "gitjob"
+  template:
+    metadata:
+      labels:
+        app: "gitjob"
+    spec:
+      serviceAccountName: gitjob
+      containers:
+        - image: "{{ .Values.image }}:{{ .Values.tag }}"
+          name: gitjob
+          command:
+            - gitjob
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace

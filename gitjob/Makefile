@@ -10,6 +10,6 @@ TARGETS := $(shell ls scripts)
 $(TARGETS): .dapper
 	./.dapper $@
 
-.DEFAULT_GOAL := default
+.DEFAULT_GOAL := ci
 
 .PHONY: $(TARGETS)

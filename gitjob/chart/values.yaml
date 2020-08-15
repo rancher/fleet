@@ -1,0 +1,2 @@
+image: rancher/gitjob
+tag: ${VERSION}

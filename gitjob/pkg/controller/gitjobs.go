@@ -34,6 +34,7 @@ func Register(ctx context.Context, cont *types.Context) {
 		providers: []provider.Provider{
 			polling.NewPolling(cont.Core.Core().V1().Secret().Cache()),
 		},
+		gitjobs: cont.Gitjob.Gitjob().V1().GitJob(),
 	}
 
 	v1controller.RegisterGitJobGeneratingHandler(

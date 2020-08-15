@@ -1,0 +1,35 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gitjob
+rules:
+  - apiGroups:
+      - "batch"
+    resources:
+      - 'jobs'
+    verbs:
+      - '*'
+  - apiGroups:
+      - ""
+    resources:
+      - 'secrets'
+    verbs:
+      - 'list'
+      - 'get'
+      - 'watch'
+  - apiGroups:
+      - ""
+    resources:
+      - 'configmaps'
+    verbs:
+      - 'create'
+      - 'list'
+      - 'get'
+      - 'update'
+  - apiGroups:
+      - "gitjob.cattle.io"
+    resources:
+      - "gitjobs"
+      - "gitjobs/status"
+    verbs:
+      - "*"

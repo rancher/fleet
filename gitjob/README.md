@@ -9,8 +9,13 @@ Job controller to launch kubernetes jobs based on git event
 
 ## Running
 
+1. Download helm chart releases from [releases pages](https://github.com/rancher/gitjob/releases)
+
+2. Install the helm chart.
+
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/StrongMonkey/gitjob/master/manifest/gitjob.yaml
+kubectl create namespace gitjob
+helm install gitjob --namespace gitjob ./path/to/your/helm/tarball
 ```
 
 ## Usage
@@ -63,6 +68,7 @@ metadata:
   name: example
   namespace: default
 spec:
+  syncInterval: 15  // in seconds, default to 15 
   git:
     branch: master
     repo: https://github.com/StrongMonkey/gitjob-example

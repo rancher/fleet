@@ -63,6 +63,6 @@ func HandleHooks(ctx *types.Context) http.Handler {
 	root := mux.NewRouter()
 	hooksHandler := newHandler(ctx)
 	root.UseEncodedPath()
-	root.PathPrefix("/hooks").Handler(hooksHandler)
+	root.Handle("/", hooksHandler)
 	return root
 }
