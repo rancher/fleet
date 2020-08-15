@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/rancher/fleet/modules/cli/pkg/command"
 	"github.com/rancher/fleet/pkg/fleetcontroller"
 	"github.com/rancher/fleet/pkg/version"
+	command "github.com/rancher/wrangler-cli"
 	"github.com/spf13/cobra"
 )
 
