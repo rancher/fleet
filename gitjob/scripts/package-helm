@@ -14,11 +14,12 @@ cp -rf chart build/
 rm -rf build/chart/crds
 
 sed -i \
-    -e 's/${VERSION}/'${VERSION}'/' \
+    -e 's/version:.*/version: '${HELM_VERSION}'/' \
+    -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
     build/chart/Chart.yaml
 
 sed -i \
-    -e 's/${VERSION}/'${VERSION}'/' \
+    -e 's/tag:.*/tag: '${HELM_TAG}'/' \
     build/chart/values.yaml
 
 mkdir build/chart/crds

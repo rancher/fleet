@@ -1,2 +1,3 @@
-image: rancher/gitjob
-tag: ${VERSION}
+image:
+  repository: rancher/gitjob
+  tag: ${VERSION}

@@ -13,7 +13,7 @@ spec:
     spec:
       serviceAccountName: gitjob
       containers:
-        - image: "{{ .Values.image }}:{{ .Values.tag }}"
+        - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           name: gitjob
           command:
             - gitjob
