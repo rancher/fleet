@@ -19,9 +19,13 @@ fi
 
 SUFFIX="-${ARCH}"
 
+HELM_TAG=${TAG:-${VERSION}}
+HELM_VERSION=${HELM_TAG/v/}
 TAG=${TAG:-${VERSION}${SUFFIX}}
 REPO=${REPO:-rancher}
 
 if echo $TAG | grep -q dirty; then
     TAG=dev
+    HELM_TAG=dev
+    HELM_VERSION=v0.0.0
 fi
