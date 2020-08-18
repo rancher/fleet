@@ -60,23 +60,6 @@ func NewBundleDeployment(namespace, name string, obj BundleDeployment) *BundleDe
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterGroupList is a list of ClusterGroup resources
-type ClusterGroupList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
-
-	Items []ClusterGroup `json:"items"`
-}
-
-func NewClusterGroup(namespace, name string, obj ClusterGroup) *ClusterGroup {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterGroup").ToAPIVersionAndKind()
-	obj.Name = name
-	obj.Namespace = namespace
-	return &obj
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // ClusterList is a list of Cluster resources
 type ClusterList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -94,16 +77,16 @@ func NewCluster(namespace, name string, obj Cluster) *Cluster {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterGroupTokenList is a list of ClusterGroupToken resources
-type ClusterGroupTokenList struct {
+// ClusterGroupList is a list of ClusterGroup resources
+type ClusterGroupList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []ClusterGroupToken `json:"items"`
+	Items []ClusterGroup `json:"items"`
 }
 
-func NewClusterGroupToken(namespace, name string, obj ClusterGroupToken) *ClusterGroupToken {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterGroupToken").ToAPIVersionAndKind()
+func NewClusterGroup(namespace, name string, obj ClusterGroup) *ClusterGroup {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterGroup").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj
@@ -111,16 +94,33 @@ func NewClusterGroupToken(namespace, name string, obj ClusterGroupToken) *Cluste
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterRegistrationRequestList is a list of ClusterRegistrationRequest resources
-type ClusterRegistrationRequestList struct {
+// ClusterRegistrationList is a list of ClusterRegistration resources
+type ClusterRegistrationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []ClusterRegistrationRequest `json:"items"`
+	Items []ClusterRegistration `json:"items"`
 }
 
-func NewClusterRegistrationRequest(namespace, name string, obj ClusterRegistrationRequest) *ClusterRegistrationRequest {
-	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterRegistrationRequest").ToAPIVersionAndKind()
+func NewClusterRegistration(namespace, name string, obj ClusterRegistration) *ClusterRegistration {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterRegistration").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ClusterRegistrationTokenList is a list of ClusterRegistrationToken resources
+type ClusterRegistrationTokenList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ClusterRegistrationToken `json:"items"`
+}
+
+func NewClusterRegistrationToken(namespace, name string, obj ClusterRegistrationToken) *ClusterRegistrationToken {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ClusterRegistrationToken").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj
@@ -138,6 +138,23 @@ type ContentList struct {
 
 func NewContent(namespace, name string, obj Content) *Content {
 	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("Content").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// GitRepoList is a list of GitRepo resources
+type GitRepoList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []GitRepo `json:"items"`
+}
+
+func NewGitRepo(namespace, name string, obj GitRepo) *GitRepo {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("GitRepo").ToAPIVersionAndKind()
 	obj.Name = name
 	obj.Namespace = namespace
 	return &obj

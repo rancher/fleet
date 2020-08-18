@@ -4,9 +4,8 @@ import (
 	"os"
 
 	"github.com/rancher/fleet/modules/cli/apply"
-
 	"github.com/rancher/fleet/modules/cli/match"
-	"github.com/rancher/fleet/modules/cli/pkg/command"
+	command "github.com/rancher/wrangler-cli"
 	"github.com/spf13/cobra"
 )
 

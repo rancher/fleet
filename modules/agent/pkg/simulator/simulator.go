@@ -5,21 +5,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
-	"github.com/sirupsen/logrus"
-
-	"github.com/rancher/wrangler/pkg/ratelimit"
-
-	"golang.org/x/sync/semaphore"
-
-	"github.com/rancher/wrangler/pkg/name"
-
 	"github.com/rancher/fleet/modules/agent/pkg/agent"
 	"github.com/rancher/fleet/modules/agent/pkg/register"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
+	"github.com/rancher/wrangler/pkg/name"
+	"github.com/rancher/wrangler/pkg/ratelimit"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -95,8 +90,8 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 		return "", err
 	}
 
-	if secret.Annotations[v1alpha1.BootstrapToken] != "true" {
-		return "", fmt.Errorf("%s/%s does not have the label %s=true", namespace, register.CredName, v1alpha1.BootstrapToken)
+	if secret.Annotations[fleet.BootstrapToken] != "true" {
+		return "", fmt.Errorf("%s/%s does not have the label %s=true", namespace, register.CredName, fleet.BootstrapToken)
 	}
 
 	conf, err := k8s.CoreV1().ConfigMaps(namespace).Get(ctx, config.AgentConfigName, metav1.GetOptions{})
@@ -120,7 +115,7 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 			Name:      secret.Name,
 			Namespace: simNamespace,
 			Annotations: map[string]string{
-				v1alpha1.BootstrapToken: "true",
+				fleet.BootstrapToken: "true",
 			},
 		},
 		Data: secret.Data,

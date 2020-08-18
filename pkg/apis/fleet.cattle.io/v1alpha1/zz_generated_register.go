@@ -28,13 +28,14 @@ import (
 )
 
 var (
-	BundleResourceName                     = "bundles"
-	BundleDeploymentResourceName           = "bundledeployments"
-	ClusterResourceName                    = "clusters"
-	ClusterGroupResourceName               = "clustergroups"
-	ClusterGroupTokenResourceName          = "clustergrouptokens"
-	ClusterRegistrationRequestResourceName = "clusterregistrationrequests"
-	ContentResourceName                    = "contents"
+	BundleResourceName                   = "bundles"
+	BundleDeploymentResourceName         = "bundledeployments"
+	ClusterResourceName                  = "clusters"
+	ClusterGroupResourceName             = "clustergroups"
+	ClusterRegistrationResourceName      = "clusterregistrations"
+	ClusterRegistrationTokenResourceName = "clusterregistrationtokens"
+	ContentResourceName                  = "contents"
+	GitRepoResourceName                  = "gitrepos"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -66,12 +67,14 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ClusterList{},
 		&ClusterGroup{},
 		&ClusterGroupList{},
-		&ClusterGroupToken{},
-		&ClusterGroupTokenList{},
-		&ClusterRegistrationRequest{},
-		&ClusterRegistrationRequestList{},
+		&ClusterRegistration{},
+		&ClusterRegistrationList{},
+		&ClusterRegistrationToken{},
+		&ClusterRegistrationTokenList{},
 		&Content{},
 		&ContentList{},
+		&GitRepo{},
+		&GitRepoList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

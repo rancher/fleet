@@ -5,9 +5,9 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	corecontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
-	rbaccontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/apply"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -25,18 +25,13 @@ func Register(ctx context.Context, apply apply.Apply,
 	roleBinding rbaccontrollers.RoleBindingController,
 	clusterRole rbaccontrollers.ClusterRoleController,
 	clusterRoleBinding rbaccontrollers.ClusterRoleBindingController,
-	clusterGroupToken fleetcontrollers.ClusterGroupTokenController,
-	clusterRegistrationRequest fleetcontrollers.ClusterRegistrationRequestController,
+	clusterRegistrationToken fleetcontrollers.ClusterRegistrationTokenController,
+	clusterRegistration fleetcontrollers.ClusterRegistrationController,
 	clusterGroups fleetcontrollers.ClusterGroupController,
 	clusters fleetcontrollers.ClusterController,
 	namespaces corecontrollers.NamespaceController) {
 	h := &handler{
-		apply: apply.WithCacheTypes(
-			serviceAccount,
-			clusterGroupToken,
-			clusterRegistrationRequest,
-			clusterGroups,
-			clusters),
+		apply: apply,
 	}
 
 	clusterRole.OnChange(ctx, "managed-cleanup", func(_ string, obj *rbacv1.ClusterRole) (*rbacv1.ClusterRole, error) {

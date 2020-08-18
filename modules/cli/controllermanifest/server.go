@@ -15,9 +15,10 @@ type Options struct {
 	ManagerImage string
 	AgentImage   string
 	CRDsOnly     bool
+	Output       string
 }
 
-func ManagerManifest(output io.Writer, opts *Options) error {
+func OperatorManifest(output io.Writer, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -44,10 +45,13 @@ func ManagerManifest(output io.Writer, opts *Options) error {
 }
 
 func marshalConfig(opts *Options) (string, error) {
+	config := config.Config{
+		AgentImage: opts.AgentImage,
+	}
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(opts); err != nil {
+	if err := enc.Encode(config); err != nil {
 		return "", err
 	}
 	return string(buf.Bytes()), nil

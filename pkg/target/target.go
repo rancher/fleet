@@ -19,10 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const (
-	cgByNamespace = "ClusterGroupByNamespace"
-)
-
 var (
 	defLimit                    = intstr.FromString("10%")
 	defAutoPartitionSize        = intstr.FromString("25%")
@@ -44,13 +40,6 @@ func New(
 	contentStore manifest.Store,
 	bundleDeployments fleetcontrollers.BundleDeploymentCache) *Manager {
 
-	clusterGroups.AddIndexer(cgByNamespace, func(obj *fleet.ClusterGroup) ([]string, error) {
-		if obj.Status.Namespace == "" {
-			return nil, nil
-		}
-		return []string{obj.Status.Namespace}, nil
-	})
-
 	return &Manager{
 		clusterGroups:         clusterGroups,
 		clusters:              clusters,
@@ -60,29 +49,44 @@ func New(
 	}
 }
 
-func (m *Manager) ClusterGroup(cluster *fleet.Cluster) (*fleet.ClusterGroup, error) {
-	cgs, err := m.clusterGroups.GetByIndex(cgByNamespace, cluster.Namespace)
+func (m *Manager) BundleFromDeployment(bd *fleet.BundleDeployment) (string, string) {
+	return bd.Labels["fleet.cattle.io/bundle-namespace"],
+		bd.Labels["fleet.cattle.io/bundle-name"]
+}
+
+func ClusterGroupsToLabelMap(cgs []*fleet.ClusterGroup) map[string]map[string]string {
+	result := map[string]map[string]string{}
+	for _, cg := range cgs {
+		result[cg.Name] = cg.Labels
+	}
+	return result
+}
+
+func (m *Manager) ClusterGroupsForCluster(cluster *fleet.Cluster) (result []*fleet.ClusterGroup, _ error) {
+	cgs, err := m.clusterGroups.List(cluster.Namespace, labels.Everything())
 	if err != nil {
 		return nil, err
 	}
-	if len(cgs) > 0 {
-		return cgs[0], nil
+
+	for _, cg := range cgs {
+		if cg.Spec.Selector == nil {
+			continue
+		}
+		sel, err := metav1.LabelSelectorAsSelector(cg.Spec.Selector)
+		if err != nil {
+			logrus.Errorf("invalid selector on clusterGroup %s/%s [%v]: %v", cg.Namespace, cg.Name,
+				cg.Spec.Selector, err)
+			continue
+		}
+		if sel.Matches(labels.Set(cluster.Labels)) {
+			result = append(result, cg)
+		}
 	}
-	return nil, nil
-}
 
-func (m *Manager) BundleForDeployment(bd *fleet.BundleDeployment) (string, string) {
-	return bd.Labels["fleet.cattle.io/bundle-deployment-namespace"],
-		bd.Labels["fleet.cattle.io/bundle-deployment-name"]
+	return result, nil
 }
-
 func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bundle, _ error) {
-	cg, err := m.ClusterGroup(cluster)
-	if err != nil || cg == nil {
-		return nil, err
-	}
-
-	bundles, err := m.bundleCache.List(cg.Namespace, labels.Everything())
+	bundles, err := m.bundleCache.List(cluster.Namespace, labels.Everything())
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +98,11 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bun
 			continue
 		}
 
-		m := bundle.Match(cg.Name, cg.Labels, cluster.Labels)
+		cgs, err := m.ClusterGroupsForCluster(cluster)
+		if err != nil {
+			return nil, err
+		}
+		m := bundle.Match(ClusterGroupsToLabelMap(cgs), cluster.Labels)
 		if m != nil {
 			result = append(result, app)
 		}
@@ -109,21 +117,18 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 		return nil, err
 	}
 
-	clusters, err := m.clusters.List("", labels.Everything())
+	clusters, err := m.clusters.List(fleetBundle.Namespace, labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
 	for _, cluster := range clusters {
-		cg, err := m.ClusterGroup(cluster)
+		clusterGroups, err := m.ClusterGroupsForCluster(cluster)
 		if err != nil {
 			return nil, err
 		}
-		if cg == nil || cg.Namespace != fleetBundle.Namespace {
-			continue
-		}
 
-		match := bundle.Match(cg.Name, cg.Labels, cluster.Labels)
+		match := bundle.Match(ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
 		if match == nil {
 			continue
 		}
@@ -148,12 +153,12 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 		}
 
 		result = append(result, &Target{
-			ClusterGroup: cg,
-			Cluster:      cluster,
-			Target:       match.Target,
-			Bundle:       fleetBundle,
-			Options:      opts,
-			DeploymentID: deploymentID,
+			ClusterGroups: clusterGroups,
+			Cluster:       cluster,
+			Target:        match.Target,
+			Bundle:        fleetBundle,
+			Options:       opts,
+			DeploymentID:  deploymentID,
 		})
 	}
 
@@ -184,24 +189,23 @@ func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error 
 
 func DeploymentLabels(app *fleet.Bundle) map[string]string {
 	return map[string]string{
-		"fleet.cattle.io/bundle-deployment-name":      app.Name,
-		"fleet.cattle.io/bundle-deployment-namespace": app.Namespace,
+		"fleet.cattle.io/bundle-name":      app.Name,
+		"fleet.cattle.io/bundle-namespace": app.Namespace,
 	}
 }
 
 type Target struct {
-	Deployment   *fleet.BundleDeployment
-	ClusterGroup *fleet.ClusterGroup
-	Cluster      *fleet.Cluster
-	Bundle       *fleet.Bundle
-	Target       *fleet.BundleTarget
-	Options      fleet.BundleDeploymentOptions
-	DeploymentID string
+	Deployment    *fleet.BundleDeployment
+	ClusterGroups []*fleet.ClusterGroup
+	Cluster       *fleet.Cluster
+	Bundle        *fleet.Bundle
+	Target        *fleet.BundleTarget
+	Options       fleet.BundleDeploymentOptions
+	DeploymentID  string
 }
 
 func (t *Target) IsPaused() bool {
 	return t.Cluster.Spec.Paused ||
-		t.ClusterGroup.Spec.Pause ||
 		t.Bundle.Spec.Paused
 }
 

@@ -7,14 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"helm.sh/helm/v3/pkg/kube"
-
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/kustomize"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/render"
 	"github.com/rancher/wrangler/pkg/apply"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
@@ -22,24 +21,34 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
+const (
+	BundleIDAnnotation           = "fleet.cattle.io/bundle-id"
+	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
+	DefaultServiceAccount        = "fleetDefault"
+)
+
 type helm struct {
-	cfg              action.Configuration
-	getter           genericclioptions.RESTClientGetter
-	template         bool
-	defaultNamespace string
-	labelPrefix      string
+	serviceAccountNamespace string
+	serviceAccountCache     corecontrollers.ServiceAccountCache
+	cfg                     action.Configuration
+	getter                  genericclioptions.RESTClientGetter
+	template                bool
+	defaultNamespace        string
+	labelPrefix             string
 }
 
 func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclioptions.RESTClientGetter) (deployer.Deployer, error) {
 	h := &helm{
-		getter:           getter,
-		defaultNamespace: defaultNamespace,
-		labelPrefix:      labelPrefix,
+		getter:                  getter,
+		defaultNamespace:        defaultNamespace,
+		serviceAccountNamespace: namespace,
+		labelPrefix:             labelPrefix,
 	}
 	if err := h.cfg.Init(getter, namespace, "secrets", logrus.Infof); err != nil {
 		return nil, err
@@ -118,7 +127,8 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	if chart.Metadata.Annotations == nil {
 		chart.Metadata.Annotations = map[string]string{}
 	}
-	chart.Metadata.Annotations["bundleID"] = bundleID
+	chart.Metadata.Annotations[ServiceAccountNameAnnotation] = options.ServiceAccount
+	chart.Metadata.Annotations[BundleIDAnnotation] = bundleID
 
 	if resources, err := h.install(bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
@@ -168,6 +178,32 @@ func (h *helm) getOpts(options fleet.BundleDeploymentOptions) (map[string]interf
 	return vals, timeout, options.DefaultNamespace
 }
 
+func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
+	var (
+		cfg    = h.cfg
+		getter genericclioptions.RESTClientGetter
+	)
+
+	serviceAccountNamespace, serviceAccountName, err := h.getServiceAccount(serviceAccountName)
+	if err != nil {
+		return cfg, err
+	}
+
+	if serviceAccountName != "" {
+		getter, err = newImpersonatingGetter(serviceAccountNamespace, serviceAccountName, h.getter)
+		if err != nil {
+			return cfg, err
+		}
+	}
+
+	// override global namespace default
+	kc := kube.New(getter)
+	kc.Namespace = namespace
+	cfg.RESTClientGetter = getter
+	cfg.KubeClient = kc
+	return cfg, nil
+}
+
 func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
 	vals, timeout, namespace := h.getOpts(options)
 
@@ -184,11 +220,10 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		}
 	}
 
-	// override global namespace default
-	kc := kube.New(h.getter)
-	kc.Namespace = namespace
-	cfg := h.cfg
-	cfg.KubeClient = kc
+	cfg, err := h.getCfg(namespace, options.ServiceAccount)
+	if err != nil {
+		return nil, err
+	}
 
 	install, err := h.mustInstall(bundleID)
 	if err != nil {
@@ -205,7 +240,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	if install {
 		u := action.NewInstall(&cfg)
 		u.ClientOnly = h.template
-		u.Adopt = true
+		u.ForceAdopt = true
 		u.Replace = true
 		u.Wait = true
 		u.ReleaseName = bundleID
@@ -241,7 +276,7 @@ func (h *helm) ListDeployments() ([]string, error) {
 	)
 
 	for _, release := range releases {
-		d := release.Chart.Metadata.Annotations["bundleID"]
+		d := release.Chart.Metadata.Annotations["fleet.cattle.io/bundle-id"]
 		if d != "" && !seen[d] {
 			result = append(result, d)
 			seen[d] = true
@@ -276,13 +311,25 @@ func (h *helm) Delete(bundleID string) error {
 }
 
 func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
-	_, timeout, _ := h.getOpts(options)
+	_, timeout, namespace := h.getOpts(options)
 
-	u := action.NewUninstall(&h.cfg)
+	r, err := h.cfg.Releases.Last(bundleID)
+	if err != nil {
+		return nil
+	}
+
+	serviceAccountName := r.Chart.Metadata.Annotations[ServiceAccountNameAnnotation]
+
+	cfg, err := h.getCfg(namespace, serviceAccountName)
+	if err != nil {
+		return err
+	}
+
+	u := action.NewUninstall(&cfg)
 	u.DryRun = dryRun
 	u.Timeout = timeout
 
-	_, err := u.Run(bundleID)
+	_, err = u.Run(bundleID)
 	return err
 }
 

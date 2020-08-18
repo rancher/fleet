@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/rancher/fleet/pkg/version"
-	corev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,9 +32,15 @@ var (
 )
 
 type Config struct {
-	AgentImage  string            `json:"agentImage,omitempty"`
-	ManageAgent *bool             `json:"manageAgent,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	AgentImage         string            `json:"agentImage,omitempty"`
+	ManageAgent        *bool             `json:"manageAgent,omitempty"`
+	Labels             map[string]string `json:"labels,omitempty"`
+	ClientID           string            `json:"clientID,omitempty"`
+	APIServerURL       string            `json:"apiServerURL,omitempty"`
+	APIServerCA        []byte            `json:"apiServerCA,omitempty"`
+	BootstrapNamespace string            `json:"bootstrapNamespace,omitempty"`
+	BootstrapRepo      string            `json:"bootstrapRepo,omitempty"`
+	BootstrapBranch    string            `json:"bootstrapBranch,omitempty"`
 }
 
 func OnChange(ctx context.Context, f func(*Config) error) {

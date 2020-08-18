@@ -83,9 +83,8 @@ type clusterController struct {
 	groupResource schema.GroupResource
 }
 
-func NewClusterController(gvk schema.GroupVersionKind, resource string, controller controller.SharedControllerFactory) ClusterController {
-	c, err := controller.ForKind(gvk)
-	utilruntime.Must(err)
+func NewClusterController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ClusterController {
+	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
 	return &clusterController{
 		controller: c,
 		client:     c.Client(),
@@ -319,6 +318,11 @@ func (a *clusterStatusHandler) sync(key string, obj *v1alpha1.Cluster) (*v1alpha
 		}
 	}
 	if !equality.Semantic.DeepEqual(origStatus, &newStatus) {
+		if a.condition != "" {
+			// Since status has changed, update the lastUpdatedTime
+			a.condition.LastUpdated(&newStatus, time.Now().UTC().Format(time.RFC3339))
+		}
+
 		var newErr error
 		obj.Status = newStatus
 		obj, newErr = a.client.UpdateStatus(obj)

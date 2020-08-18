@@ -2,33 +2,40 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+
+	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/rancher/fleet/pkg/controllers/bootstrap"
 
 	"github.com/rancher/fleet/pkg/controllers/bundle"
 	"github.com/rancher/fleet/pkg/controllers/cleanup"
 	"github.com/rancher/fleet/pkg/controllers/cluster"
 	"github.com/rancher/fleet/pkg/controllers/clustergroup"
-	"github.com/rancher/fleet/pkg/controllers/clustergrouptoken"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
+	"github.com/rancher/fleet/pkg/controllers/clusterregistrationtoken"
 	"github.com/rancher/fleet/pkg/controllers/config"
-	"github.com/rancher/fleet/pkg/controllers/manageagent"
-	"github.com/rancher/fleet/pkg/controllers/serviceaccount"
-	"github.com/rancher/fleet/pkg/controllers/sharedindex"
+	"github.com/rancher/fleet/pkg/controllers/git"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/target"
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/apps"
-	appscontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/apps/v1"
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/core"
-	corecontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler-api/pkg/generated/controllers/rbac"
-	rbaccontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac/v1"
+	"github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io"
+	gitcontrollers "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/generated/controllers/apps"
+	appscontrollers "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
+	"github.com/rancher/wrangler/pkg/generated/controllers/core"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/generated/controllers/rbac"
+	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/start"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 type appContext struct {
@@ -38,8 +45,10 @@ type appContext struct {
 	Core          corecontrollers.Interface
 	Apps          appscontrollers.Interface
 	RBAC          rbaccontrollers.Interface
+	GitJob        gitcontrollers.Interface
 	TargetManager *target.Manager
 	Apply         apply.Apply
+	ClientConfig  clientcmd.ClientConfig
 	starters      []start.Starter
 }
 
@@ -47,10 +56,23 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func Register(ctx context.Context, systemNamespace string, client *rest.Config) error {
-	appCtx, err := newContext(client)
+func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig) error {
+	appCtx, err := newContext(cfg)
 	if err != nil {
 		return err
+	}
+
+	if _, err := appCtx.K8s.CoreV1().Namespaces().Get(ctx, systemNamespace, metav1.GetOptions{}); apierrors.IsNotFound(err) {
+		_, err := appCtx.K8s.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: systemNamespace,
+			},
+		}, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to create namespace %s: %w", systemNamespace, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to get namespace %s: %w", systemNamespace, err)
 	}
 
 	// config should be registered first to ensure the global
@@ -62,33 +84,37 @@ func Register(ctx context.Context, systemNamespace string, client *rest.Config) 
 	}
 
 	clusterregistration.Register(ctx,
-		appCtx.Apply,
+		appCtx.Apply.WithCacheTypes(
+			appCtx.Core.ServiceAccount(),
+			appCtx.Core.Secret(),
+			appCtx.RBAC.Role(),
+			appCtx.RBAC.RoleBinding(),
+			appCtx.RBAC.ClusterRole(),
+			appCtx.RBAC.ClusterRoleBinding(),
+			appCtx.ClusterRegistration(),
+			appCtx.Cluster()),
 		appCtx.Core.ServiceAccount(),
+		appCtx.Core.Secret(),
 		appCtx.RBAC.Role(),
 		appCtx.RBAC.RoleBinding(),
 		appCtx.RBAC.ClusterRole(),
 		appCtx.RBAC.ClusterRoleBinding(),
-		appCtx.ClusterRegistrationRequest(),
+		appCtx.ClusterRegistration(),
 		appCtx.Cluster().Cache(),
-		appCtx.ClusterGroup().Cache(),
 		appCtx.Cluster())
-
-	serviceaccount.Register(ctx,
-		appCtx.Apply,
-		appCtx.RBAC.Role(),
-		appCtx.RBAC.RoleBinding(),
-		appCtx.Core.ServiceAccount(),
-		appCtx.ClusterRegistrationRequest(),
-		appCtx.Cluster().Cache(),
-		appCtx.Core.Secret(),
-		appCtx.ClusterGroup().Cache())
 
 	cluster.Register(ctx,
 		appCtx.BundleDeployment(),
 		appCtx.ClusterGroup().Cache(),
 		appCtx.Cluster(),
 		appCtx.Core.Namespace(),
-		appCtx.Apply)
+		appCtx.Apply.WithCacheTypes(
+			appCtx.Core.Namespace()))
+
+	cluster.RegisterImport(ctx,
+		appCtx.Core.Secret().Cache(),
+		appCtx.Cluster(),
+		appCtx.ClusterRegistrationToken())
 
 	bundle.Register(ctx,
 		appCtx.Apply,
@@ -98,41 +124,56 @@ func Register(ctx context.Context, systemNamespace string, client *rest.Config) 
 		appCtx.BundleDeployment())
 
 	clustergroup.Register(ctx,
-		appCtx.Apply,
-		appCtx.Core.Namespace(),
-		appCtx.RBAC.Role(),
-		appCtx.Cluster().Cache(),
-		appCtx.ClusterGroup(),
-		appCtx.Cluster())
+		appCtx.Cluster(),
+		appCtx.ClusterGroup())
 
-	clustergrouptoken.Register(ctx,
-		appCtx.Apply,
-		appCtx.ClusterGroupToken(),
-		appCtx.ClusterGroup().Cache(),
+	clusterregistrationtoken.Register(ctx,
+		appCtx.Apply.WithCacheTypes(
+			appCtx.Core.ServiceAccount(),
+			appCtx.RBAC.Role(),
+			appCtx.RBAC.RoleBinding()),
+		appCtx.ClusterRegistrationToken(),
 		appCtx.Core.ServiceAccount())
 
 	cleanup.Register(ctx,
-		appCtx.Apply,
+		appCtx.Apply.WithCacheTypes(
+			appCtx.Core.Secret(),
+			appCtx.Core.ServiceAccount(),
+			appCtx.RBAC.Role(),
+			appCtx.RBAC.RoleBinding(),
+			appCtx.RBAC.ClusterRole(),
+			appCtx.RBAC.ClusterRoleBinding(),
+			appCtx.ClusterRegistrationToken(),
+			appCtx.ClusterRegistration(),
+			appCtx.ClusterGroup(),
+			appCtx.Cluster(),
+			appCtx.Core.Namespace()),
 		appCtx.Core.Secret(),
 		appCtx.Core.ServiceAccount(),
 		appCtx.RBAC.Role(),
 		appCtx.RBAC.RoleBinding(),
 		appCtx.RBAC.ClusterRole(),
 		appCtx.RBAC.ClusterRoleBinding(),
-		appCtx.ClusterGroupToken(),
-		appCtx.ClusterRegistrationRequest(),
+		appCtx.ClusterRegistrationToken(),
+		appCtx.ClusterRegistration(),
 		appCtx.ClusterGroup(),
 		appCtx.Cluster(),
 		appCtx.Core.Namespace())
 
-	manageagent.Register(ctx,
-		systemNamespace,
-		appCtx.Apply,
-		appCtx.ClusterGroup(),
-		appCtx.Bundle())
+	//manageagent.Register(ctx,
+	//	systemNamespace,
+	//	appCtx.Apply,
+	//	appCtx.ClusterGroup(),
+	//	appCtx.Bundle())
 
-	sharedindex.Register(ctx,
-		appCtx.ClusterGroup().Cache())
+	git.Register(ctx, appCtx.Apply, appCtx.GitJob.GitJob(), appCtx.GitRepo())
+
+	bootstrap.Register(ctx,
+		appCtx.Apply.WithCacheTypes(
+			appCtx.Cluster(),
+			appCtx.Core.Namespace(),
+			appCtx.Core.Secret()),
+		appCtx.ClientConfig)
 
 	leader.RunOrDie(ctx, systemNamespace, "fleet-controller", appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {
@@ -143,7 +184,12 @@ func Register(ctx context.Context, systemNamespace string, client *rest.Config) 
 	return nil
 }
 
-func newContext(client *rest.Config) (*appContext, error) {
+func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
+	client, err := cfg.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	core, err := core.NewFactoryFromConfig(client)
 	if err != nil {
 		return nil, err
@@ -168,10 +214,17 @@ func newContext(client *rest.Config) (*appContext, error) {
 	}
 	appsv := apps.Apps().V1()
 
+	git, err := gitjob.NewFactoryFromConfig(client)
+	if err != nil {
+		return nil, err
+	}
+	gitv := git.Gitjob().V1()
+
 	apply, err := apply.NewForConfig(client)
 	if err != nil {
 		return nil, err
 	}
+	apply = apply.WithSetOwnerReference(false, false)
 
 	k8s, err := kubernetes.NewForConfig(client)
 	if err != nil {
@@ -192,12 +245,15 @@ func newContext(client *rest.Config) (*appContext, error) {
 		Core:          corev,
 		RBAC:          rbacv,
 		Apply:         apply,
+		GitJob:        gitv,
 		TargetManager: targetManager,
+		ClientConfig:  cfg,
 		starters: []start.Starter{
 			core,
 			apps,
 			fleet,
 			rbac,
+			git,
 		},
 	}, nil
 }

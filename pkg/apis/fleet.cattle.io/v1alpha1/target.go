@@ -8,11 +8,9 @@ import (
 var (
 	ClusterConditionReady           = "Ready"
 	ClusterGroupAnnotation          = "fleet.cattle.io/cluster-group"
-	ClusterGroupTokenAnnotation     = "fleet.cattle.io/cluster-group-token"
 	ClusterGroupNamespaceAnnotation = "fleet.cattle.io/cluster-group-namespace"
 	ClusterNamespaceAnnotation      = "fleet.cattle.io/cluster-namespace"
 	ClusterAnnotation               = "fleet.cattle.io/cluster"
-	RequestAnnotation               = "fleet.cattle.io/request"
 	TTLSecondsAnnotation            = "fleet.cattle.io/ttl-seconds"
 	ManagedAnnotation               = "fleet.cattle.io/managed"
 	AnnotationGroup                 = "fleet.cattle.io/"
@@ -32,11 +30,10 @@ type ClusterGroup struct {
 }
 
 type ClusterGroupSpec struct {
-	Pause bool `json:"pause,omitempty"`
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
 type ClusterGroupStatus struct {
-	Namespace            string                              `json:"namespace,omitempty"`
 	ClusterCount         int                                 `json:"clusterCount"`
 	NonReadyClusterCount int                                 `json:"nonReadyClusterCount"`
 	NonReadyClusters     []string                            `json:"nonReadyClusters,omitempty"`
@@ -56,56 +53,69 @@ type Cluster struct {
 }
 
 type ClusterSpec struct {
-	Paused bool `json:"paused,omitempty"`
+	Paused           bool   `json:"paused,omitempty"`
+	ClientID         string `json:"clientID,omitempty"`
+	KubeConfigSecret string `json:"kubeConfigSecret,omitempty"`
 }
 
 type ClusterStatus struct {
-	Conditions            []genericcondition.GenericCondition `json:"conditions,omitempty"`
-	ClusterGroupName      string                              `json:"clusterGroupName,omitempty"`
-	ClusterGroupNamespace string                              `json:"clusterGroupNamespace,omitempty"`
-	Namespace             string                              `json:"namespace,omitempty"`
-	Summary               BundleSummary                       `json:"summary,omitempty"`
+	Conditions    []genericcondition.GenericCondition `json:"conditions,omitempty"`
+	Namespace     string                              `json:"namespace,omitempty"`
+	Summary       BundleSummary                       `json:"summary,omitempty"`
+	AgentDeployed *bool                               `json:"agentDeployed,omitempty"`
+
+	Agent AgentStatus `json:"agent,omitempty"`
+}
+
+type AgentStatus struct {
+	LastSeen      metav1.Time `json:"lastSeen,omitempty"`
+	Namespace     string      `json:"namespace,omitempty"`
+	NonReadyNodes int         `json:"nonReadyNodes,omitempty"`
+	ReadyNodes    int         `json:"readyNodes,omitempty"`
+	// At most 3 nodes
+	NonReadyNodeNames []string `json:"nonReadyNodeNames,omitempty"`
+	// At most 3 nodes
+	ReadyNodeNames []string `json:"readyNodeNames,omitempty"`
 }
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-type ClusterRegistrationRequest struct {
+type ClusterRegistration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ClusterRegistrationRequestSpec   `json:"spec,omitempty"`
-	Status ClusterRegistrationRequestStatus `json:"status,omitempty"`
+	Spec   ClusterRegistrationSpec   `json:"spec,omitempty"`
+	Status ClusterRegistrationStatus `json:"status,omitempty"`
 }
 
-type ClusterRegistrationRequestSpec struct {
+type ClusterRegistrationSpec struct {
 	ClientID      string            `json:"clientID,omitempty"`
 	ClientRandom  string            `json:"clientRandom,omitempty"`
 	ClusterLabels map[string]string `json:"clusterLabels,omitempty"`
 }
 
-type ClusterRegistrationRequestStatus struct {
-	ClusterName      string `json:"clusterName,omitempty"`
-	ClusterNamespace string `json:"clusterNamespace,omitempty"`
-	Granted          bool   `json:"granted,omitempty"`
+type ClusterRegistrationStatus struct {
+	ClusterName string `json:"clusterName,omitempty"`
+	Granted     bool   `json:"granted,omitempty"`
 }
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-type ClusterGroupToken struct {
+type ClusterRegistrationToken struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ClusterGroupTokenSpec   `json:"spec,omitempty"`
-	Status ClusterGroupTokenStatus `json:"status,omitempty"`
+	Spec   ClusterRegistrationTokenSpec   `json:"spec,omitempty"`
+	Status ClusterRegistrationTokenStatus `json:"status,omitempty"`
 }
 
-type ClusterGroupTokenSpec struct {
-	TTLSeconds       int    `json:"ttlSeconds,omitempty"`
-	ClusterGroupName string `json:"clusterGroupName,omitempty"`
+type ClusterRegistrationTokenSpec struct {
+	TTLSeconds int `json:"ttlSeconds,omitempty"`
 }
 
-type ClusterGroupTokenStatus struct {
-	SecretName string `json:"secretName,omitempty"`
+type ClusterRegistrationTokenStatus struct {
+	Expires    metav1.Time `json:"expires,omitempty"`
+	SecretName string      `json:"secretName,omitempty"`
 }

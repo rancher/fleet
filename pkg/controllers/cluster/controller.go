@@ -2,16 +2,13 @@ package cluster
 
 import (
 	"context"
-	"fmt"
 	"sort"
-
-	"github.com/rancher/fleet/pkg/controllers/sharedindex"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
-	corecontrollers "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/apply"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
@@ -21,13 +18,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-var (
-	clusterByNamespace = "clusterByNamespace"
-)
-
 type handler struct {
 	apply            apply.Apply
-	managedClusters  fleetcontrollers.ClusterCache
+	clusters         fleetcontrollers.ClusterCache
 	clusterGroups    fleetcontrollers.ClusterGroupCache
 	bundleDeployment fleetcontrollers.BundleDeploymentCache
 }
@@ -35,19 +28,19 @@ type handler struct {
 func Register(ctx context.Context,
 	bundleDeployment fleetcontrollers.BundleDeploymentController,
 	clusterGroups fleetcontrollers.ClusterGroupCache,
-	managedClusters fleetcontrollers.ClusterController,
+	clusters fleetcontrollers.ClusterController,
 	namespaces corecontrollers.NamespaceController, apply apply.Apply) {
 
 	h := &handler{
-		apply:            apply.WithCacheTypes(managedClusters),
+		apply:            apply,
 		clusterGroups:    clusterGroups,
-		managedClusters:  managedClusters.Cache(),
+		clusters:         clusters.Cache(),
 		bundleDeployment: bundleDeployment.Cache(),
 	}
 
 	fleetcontrollers.RegisterClusterGeneratingHandler(ctx,
-		managedClusters,
-		apply.WithCacheTypes(namespaces),
+		clusters,
+		apply,
 		"Processed",
 		"managed-cluster",
 		h.OnClusterChanged,
@@ -55,44 +48,37 @@ func Register(ctx context.Context,
 			AllowClusterScoped: true,
 		})
 
-	managedClusters.Cache().AddIndexer(clusterByNamespace, func(obj *fleet.Cluster) (strings []string, err error) {
-		if obj.Status.Namespace == "" {
-			return nil, nil
-		}
-		return []string{obj.Status.Namespace}, nil
-	})
-
-	relatedresource.Watch(ctx, "managed-cluster", h.findClusters, managedClusters, bundleDeployment)
+	relatedresource.Watch(ctx, "managed-cluster", h.findClusters(namespaces.Cache()), clusters, bundleDeployment)
 }
 
-func (h *handler) findClusters(_, _ string, obj runtime.Object) (result []relatedresource.Key, _ error) {
-	if ad, ok := obj.(*fleet.BundleDeployment); ok {
-		clusters, err := h.managedClusters.GetByIndex(clusterByNamespace, ad.Namespace)
-		if err != nil {
-			return nil, err
+func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relatedresource.Resolver {
+	return func(namespace, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
+		if _, ok := obj.(*fleet.BundleDeployment); !ok {
+			return nil, nil
 		}
-		for _, cluster := range clusters {
-			result = append(result, relatedresource.Key{
-				Namespace: cluster.Namespace,
-				Name:      cluster.Name,
-			})
-		}
-	}
 
-	return result, nil
+		ns, err := namespaces.Get(namespace)
+		if err != nil {
+			return nil, nil
+		}
+
+		clusterNS := ns.Annotations[fleet.ClusterNamespaceAnnotation]
+		clusterName := ns.Annotations[fleet.ClusterAnnotation]
+		if clusterNS == "" || clusterName == "" {
+			return nil, nil
+		}
+		return []relatedresource.Key{
+			{
+				Namespace: clusterNS,
+				Name:      clusterName,
+			},
+		}, nil
+	}
 }
 
 func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterStatus) ([]runtime.Object, fleet.ClusterStatus, error) {
 	if cluster.DeletionTimestamp != nil {
 		return nil, status, nil
-	}
-
-	cgs, err := h.clusterGroups.GetByIndex(sharedindex.ClusterGroupByNamespace, cluster.Namespace)
-	if err != nil {
-		return nil, status, err
-	}
-	if len(cgs) == 0 {
-		return nil, status, fmt.Errorf("failed to find cluster group for namespace %s", cluster.Namespace)
 	}
 
 	bundleDeployments, err := h.bundleDeployment.List(status.Namespace, labels.Everything())
@@ -101,8 +87,6 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 	}
 
 	status.Namespace = name.SafeConcatName(cluster.Namespace, cluster.Name)
-	status.ClusterGroupName = cgs[0].Name
-	status.ClusterGroupNamespace = cgs[0].Namespace
 	status.Summary = fleet.BundleSummary{}
 
 	sort.Slice(bundleDeployments, func(i, j int) bool {

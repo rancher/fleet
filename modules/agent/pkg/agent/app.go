@@ -3,11 +3,10 @@ package agent
 import (
 	"context"
 
-	"github.com/rancher/wrangler/pkg/ratelimit"
-
 	"github.com/rancher/fleet/modules/agent/pkg/controllers"
 	"github.com/rancher/fleet/modules/agent/pkg/register"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
+	"github.com/rancher/wrangler/pkg/ratelimit"
 )
 
 type Options struct {
@@ -42,20 +41,28 @@ func Start(ctx context.Context, kubeConfig, namespace string, opts *Options) err
 		return err
 	}
 
-	fleetClientConfig, err := register.Register(ctx, namespace, opts.ClusterID, kc)
+	agentInfo, err := register.Register(ctx, namespace, opts.ClusterID, kc)
 	if err != nil {
 		return err
 	}
 
-	fleetNamespace, _, err := fleetClientConfig.Namespace()
+	fleetNamespace, _, err := agentInfo.ClientConfig.Namespace()
 	if err != nil {
 		return err
 	}
 
-	fleetRestConfig, err := fleetClientConfig.ClientConfig()
+	fleetRestConfig, err := agentInfo.ClientConfig.ClientConfig()
 	if err != nil {
 		return err
 	}
 
-	return controllers.Register(ctx, !opts.NoLeaderElect, fleetNamespace, namespace, opts.DefaultNamespace, fleetRestConfig, clientConfig)
+	return controllers.Register(ctx,
+		!opts.NoLeaderElect,
+		fleetNamespace,
+		namespace,
+		opts.DefaultNamespace,
+		agentInfo.ClusterNamespace,
+		agentInfo.ClusterName,
+		fleetRestConfig,
+		clientConfig)
 }
