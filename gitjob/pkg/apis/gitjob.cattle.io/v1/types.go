@@ -17,18 +17,31 @@ type GitJob struct {
 }
 
 type GitEvent struct {
+	// The latest commit SHA received from git repo
 	Commit string `json:"commit,omitempty"`
 
-	*GithubMeta
+	// Last executed commit SHA by gitjob controller
+	LastExecutedCommit string `json:"lastExecutedCommit,omitempty"`
+
+	GithubMeta
 }
 
 type GithubMeta struct {
-	Initialized bool   `json:"initialized,omitempty"`
-	Event       string `json:"event,omitempty"`
+	// Github webhook ID. Internal use only. If not empty, means a webhook is created along with this CR
+	HookID string `json:"hookId,omitempty"`
+
+	// Github webhook validation token to validate requests that are only coming from github
+	ValidationToken string `json:"secretToken,omitempty"`
+
+	// Last received github webhook event
+	Event string `json:"event,omitempty"`
 }
 
 type GitJobSpec struct {
-	Git     GitInfo    `json:"git,omitempty"`
+	// Git metadata information
+	Git GitInfo `json:"git,omitempty"`
+
+	// Job template applied to git commit
 	JobSpec v1.JobSpec `json:"jobSpec,omitempty"`
 
 	// define interval(in seconds) for controller to sync repo and fetch commits
@@ -36,17 +49,26 @@ type GitJobSpec struct {
 }
 
 type GitInfo struct {
+	// Git credential metadata
 	Credential
+
+	// Git provider model to fetch commit. Can be polling(regular git fetch)/webhook(github webhook)
 	Provider string `json:"provider,omitempty"`
-	Repo     string `json:"repo,omitempty"`
+
+	// Git repo URL
+	Repo string `json:"repo,omitempty"`
+
+	// Git commit SHA. If specified, controller will use this SHA instead of auto-fetching commit
 	Revision string `json:"revision,omitempty"`
-	Branch   string `json:"branch,omitempty"`
+
+	// Git branch to watch. Default to master
+	Branch string `json:"branch,omitempty"`
 
 	Github
 }
 
 type Github struct {
-	// Secret Token is used to validate if payload is coming from github
+	// Secret Token used to validate requests to ensure only github requests is coming through
 	Token string `json:"secret,omitempty"`
 }
 
@@ -66,5 +88,13 @@ type Credential struct {
 
 type GitJobStatus struct {
 	GitEvent
+
+	// Status of job launched by controller
+	JobStatus string `json:"jobStatus,omitempty"`
+
+	// Generation of status to indicate if resource is out-of-sync
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Condition of the resource
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 }

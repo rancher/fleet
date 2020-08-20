@@ -52,6 +52,7 @@ func (c *Context) Start(ctx context.Context) error {
 	return start.All(ctx, 5,
 		c.Gitjob,
 		c.Core,
+		c.Batch,
 	)
 }
 

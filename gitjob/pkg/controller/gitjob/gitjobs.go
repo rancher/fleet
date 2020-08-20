@@ -1,9 +1,12 @@
-package controller
+package gitjob
 
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
+
+	"github.com/rancher/gitjob/pkg/provider/github"
 
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
@@ -32,6 +35,7 @@ func Register(ctx context.Context, cont *types.Context) {
 	h := Handler{
 		ctx: ctx,
 		providers: []provider.Provider{
+			github.NewGitHub(cont),
 			polling.NewPolling(cont.Core.Core().V1().Secret().Cache()),
 		},
 		gitjobs: cont.Gitjob.Gitjob().V1().GitJob(),
@@ -40,7 +44,7 @@ func Register(ctx context.Context, cont *types.Context) {
 	v1controller.RegisterGitJobGeneratingHandler(
 		ctx,
 		cont.Gitjob.Gitjob().V1().GitJob(),
-		cont.Apply.WithNoDelete().WithCacheTypes(cont.Batch.Batch().V1().Job()).WithPatcher(
+		cont.Apply.WithSetOwnerReference(true, false).WithNoDelete().WithCacheTypes(cont.Batch.Batch().V1().Job()).WithPatcher(
 			batchv1.SchemeGroupVersion.WithKind("Job"),
 			func(namespace, name string, patchType types2.PatchType, data []byte) (runtime.Object, error) {
 				return nil, apply.ErrReplace
@@ -60,6 +64,12 @@ type Handler struct {
 }
 
 func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Object, v1.GitJobStatus, error) {
+	// re-enqueue after syncInterval(seconds)
+	interval := obj.Spec.SyncInterval
+	if interval == 0 {
+		interval = 15
+	}
+
 	if obj.Spec.Git.Revision == "" {
 		for _, provider := range h.providers {
 			if provider.Supports(obj) {
@@ -75,6 +85,7 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 	}
 
 	if obj.Status.Commit == "" {
+		h.gitjobs.EnqueueAfter(obj.Namespace, obj.Name, time.Duration(interval)*time.Second)
 		return nil, status, nil
 	}
 
@@ -89,13 +100,8 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 		return nil, status, err
 	}
 
-	// re-enqueue after syncInterval(seconds)
-	interval := obj.Spec.SyncInterval
-	if interval == 0 {
-		interval = 15
-	}
 	h.gitjobs.EnqueueAfter(obj.Namespace, obj.Name, time.Duration(interval)*time.Second)
-
+	status.ObservedGeneration = obj.Generation
 	return append(result, job), status, nil
 }
 
@@ -118,16 +124,14 @@ func caBundleName(obj *v1.GitJob) string {
 func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				"generation": strconv.Itoa(int(obj.Generation)),
+				"commit":     obj.Status.Commit,
+			},
 			Namespace: obj.Namespace,
 			Name:      name.SafeConcatName(obj.Name, name.Hex(obj.Spec.Git.Repo+obj.Status.Commit, 5)),
 		},
 		Spec: obj.Spec.JobSpec,
-	}
-
-	if obj.Status.GithubMeta != nil && obj.Status.GithubMeta.Event != "" {
-		job.Annotations = map[string]string{
-			"event": obj.Status.GithubMeta.Event,
-		}
 	}
 
 	cloneContainer := h.generateCloneContainer(obj)
@@ -198,6 +202,16 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 	}
 
 	for i := range job.Spec.Template.Spec.Containers {
+		job.Spec.Template.Spec.Containers[i].Env = append(job.Spec.Template.Spec.Containers[i].Env,
+			corev1.EnvVar{
+				Name:  "COMMIT",
+				Value: obj.Status.Commit,
+			},
+			corev1.EnvVar{
+				Name:  "EVENT_TYPE",
+				Value: obj.Status.Event,
+			},
+		)
 		job.Spec.Template.Spec.Containers[i].Args = append([]string{
 			"-wait_file",
 			"/tekton/tools/0",

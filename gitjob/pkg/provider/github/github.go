@@ -2,17 +2,27 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
+
+	"golang.org/x/oauth2"
 
 	"github.com/google/go-github/v28/github"
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
-	"github.com/rancher/gitjob/pkg/provider"
-	"github.com/rancher/gitwatcher/pkg/git"
+	"github.com/rancher/gitjob/pkg/types"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kv"
-	"k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
+)
+
+var (
+	client = http.DefaultClient
 )
 
 const (
@@ -22,16 +32,25 @@ const (
 const (
 	statusOpened = "opened"
 	statusSynced = "synchronize"
+
+	kubeSystem          = "kube-system"
+	githubConfigmapName = "github-setting"
+	githubSecretName    = "SecretName"
+	githubWebhookURL    = "WebhookURL"
 )
 
 type GitHub struct {
 	gitjob      v1controller.GitJobController
+	configmaps  corev1controller.ConfigMapCache
 	secretCache corev1controller.SecretCache
+	client      *github.Client
 }
 
-func NewGitHub(gitjob v1controller.GitJobController) *GitHub {
+func NewGitHub(rContext *types.Context) *GitHub {
 	return &GitHub{
-		gitjob: gitjob,
+		gitjob:      rContext.Gitjob.Gitjob().V1().GitJob(),
+		configmaps:  rContext.Core.Core().V1().ConfigMap().Cache(),
+		secretCache: rContext.Core.Core().V1().Secret().Cache(),
 	}
 }
 
@@ -43,36 +62,59 @@ func (w *GitHub) Supports(obj *v1.GitJob) bool {
 	return false
 }
 
+func (w *GitHub) getGithubSettingAndSecret() (*corev1.ConfigMap, *corev1.Secret, error) {
+	configmap, err := w.configmaps.Get(kubeSystem, githubConfigmapName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	secret, err := w.secretCache.Get(kubeSystem, configmap.Data[githubSecretName])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return configmap, secret, nil
+}
+
 func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitJobStatus, error) {
-	if obj.Status.GithubMeta != nil && obj.Status.GithubMeta.Initialized {
+	cm, secret, err := w.getGithubSettingAndSecret()
+	if err != nil {
+		// if no github setting and token is found, skip creating webhook
 		return obj.Status, nil
 	}
 
-	var (
-		auth git.Auth
-	)
-
-	secretName := provider.DefaultSecretName
-	if obj.Spec.Git.GitSecretName != "" {
-		secretName = obj.Spec.Git.GitSecretName
-	}
-	secret, err := w.secretCache.Get(obj.Namespace, secretName)
-	if errors.IsNotFound(err) {
-		secret = nil
-	} else if err != nil {
-		return obj.Status, err
+	if obj.Status.HookID != "" {
+		return obj.Status, nil
 	}
 
-	if secret != nil {
-		auth, _ = git.FromSecret(secret.Data)
+	if w.client == nil {
+		token := secret.Data["token"]
+		ts := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: string(token)},
+		)
+		subCtx := context.WithValue(ctx, oauth2.HTTPClient, client)
+		tc := oauth2.NewClient(subCtx, ts)
+		w.client = github.NewClient(tc)
 	}
 
-	commit, err := git.BranchCommit(ctx, obj.Spec.Git.Repo, obj.Spec.Git.Branch, &auth)
+	owner, repo, err := getOwnerAndRepo(obj.Spec.Git.Repo)
 	if err != nil {
 		return obj.Status, err
 	}
 
-	obj.Status.Commit = commit
+	obj.Status.ValidationToken = uuid.New().String()
+	hook, _, err := w.client.Repositories.CreateHook(ctx, owner, repo, &github.Hook{
+		Events: []string{"push"},
+		Config: map[string]interface{}{
+			"url":    hookURL(obj, cm),
+			"secret": obj.Status.ValidationToken,
+		},
+	})
+	if err != nil {
+		return obj.Status, fmt.Errorf("failed to create hook for %s/%s, error: %v", owner, repo, err)
+	}
+
+	obj.Status.HookID = strconv.Itoa(int(*hook.ID))
 	return obj.Status, nil
 }
 
@@ -88,7 +130,11 @@ func (w *GitHub) HandleHook(ctx context.Context, req *http.Request) (int, error)
 		return http.StatusInternalServerError, err
 	}
 
-	payload, err := github.ValidatePayload(req, []byte(gitjob.Spec.Git.Github.Token))
+	token := gitjob.Spec.Git.Github.Token
+	if token == "" {
+		token = gitjob.Status.ValidationToken
+	}
+	payload, err := github.ValidatePayload(req, []byte(token))
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -107,7 +153,7 @@ func (w *GitHub) handleEvent(ctx context.Context, event interface{}, gitjob *v1.
 		parsed := event.(*github.PushEvent)
 
 		gitjob.Status.Commit = safeString(parsed.GetHeadCommit().ID)
-		gitjob.Status.GithubMeta = &v1.GithubMeta{
+		gitjob.Status.GithubMeta = v1.GithubMeta{
 			Event: "push",
 		}
 	case *github.PullRequestEvent:
@@ -115,7 +161,7 @@ func (w *GitHub) handleEvent(ctx context.Context, event interface{}, gitjob *v1.
 
 		if parsed.Action != nil && (*parsed.Action == statusOpened || *parsed.Action == statusSynced) {
 			gitjob.Status.Commit = safeString(parsed.PullRequest.Head.SHA)
-			gitjob.Status.GithubMeta = &v1.GithubMeta{
+			gitjob.Status.GithubMeta = v1.GithubMeta{
 				Event: "pull-request",
 			}
 		}
@@ -131,4 +177,19 @@ func safeString(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func getOwnerAndRepo(repoURL string) (string, string, error) {
+	u, err := url.Parse(repoURL)
+	if err != nil {
+		return "", "", err
+	}
+	repo := strings.TrimPrefix(u.Path, "/")
+	repo = strings.TrimSuffix(repo, ".git")
+	owner, repo := kv.Split(repo, "/")
+	return owner, repo, nil
+}
+
+func hookURL(obj *v1.GitJob, cm *corev1.ConfigMap) string {
+	return fmt.Sprintf("%s?%s=%s:%s", cm.Data[githubWebhookURL], GitWebHookParam, obj.Namespace, obj.Name)
 }

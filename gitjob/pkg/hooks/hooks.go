@@ -20,7 +20,7 @@ func newHandler(rContext *types.Context) *WebhookHandler {
 	wh := &WebhookHandler{
 		providers: []provider.Provider{
 			// register all supported webhook handler here
-			github.NewGitHub(rContext.Gitjob.Gitjob().V1().GitJob()),
+			github.NewGitHub(rContext),
 		},
 	}
 
