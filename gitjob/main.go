@@ -9,9 +9,10 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/rancher/gitjob/pkg/controller"
+
 	"github.com/rancher/gitjob/pkg/hooks"
 
-	"github.com/rancher/gitjob/pkg/controller"
 	"github.com/rancher/gitjob/pkg/types"
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/resolvehome"

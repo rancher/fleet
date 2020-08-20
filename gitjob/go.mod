@@ -6,6 +6,7 @@ replace github.com/matryer/moq => github.com/rancher/moq v0.0.0-20190404221404-e
 
 require (
 	github.com/google/go-github/v28 v28.0.0
+	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.1
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
@@ -17,11 +18,13 @@ require (
 	github.com/urfave/cli v1.22.4
 	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9 // indirect
 	golang.org/x/net v0.0.0-20200602114024-627f9648deb9 // indirect
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	k8s.io/api v0.18.0
 	k8s.io/apiextensions-apiserver v0.18.0
 	k8s.io/apimachinery v0.18.0
 	k8s.io/client-go v0.18.0
 	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451 // indirect
+	sigs.k8s.io/cli-utils v0.16.0
+	sigs.k8s.io/kustomize/kstatus v0.0.2
 )

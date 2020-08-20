@@ -1,4 +1,3 @@
----
 apiVersion: gitjob.cattle.io/v1
 kind: GitJob
 metadata:
@@ -6,11 +5,8 @@ metadata:
   namespace: default
 spec:
   git:
-    branch: master
     repo: https://github.com/StrongMonkey/gitjobs-example
     provider: github
-    github:
-      token: randomtoken
   jobSpec:
     template:
       spec:
@@ -27,18 +23,11 @@ spec:
               - deployment.yaml
             workingDir: /workspace/source
 ---
-apiVersion: networking.k8s.io/v1beta1
-kind: Ingress
+apiVersion: v1
+kind: ConfigMap
 metadata:
-  name: webhook-ingress
-  namespace: gitjob
-spec:
-  rules:
-  - host: daishan.do.rancher.space
-    http:
-      paths:
-        - path: /hooks
-          pathType: Prefix
-          backend:
-            serviceName: gitjob
-            servicePort: 80
+  name: github-setting
+  namespace: kube-system
+data:
+  WebhookURL: https://webhook.example.com
+  SecretName: githubtoken
