@@ -32,15 +32,24 @@ var (
 )
 
 type Config struct {
-	AgentImage         string            `json:"agentImage,omitempty"`
-	ManageAgent        *bool             `json:"manageAgent,omitempty"`
-	Labels             map[string]string `json:"labels,omitempty"`
-	ClientID           string            `json:"clientID,omitempty"`
-	APIServerURL       string            `json:"apiServerURL,omitempty"`
-	APIServerCA        []byte            `json:"apiServerCA,omitempty"`
-	BootstrapNamespace string            `json:"bootstrapNamespace,omitempty"`
-	BootstrapRepo      string            `json:"bootstrapRepo,omitempty"`
-	BootstrapBranch    string            `json:"bootstrapBranch,omitempty"`
+	AgentImage           string            `json:"agentImage,omitempty"`
+	AgentImagePullPolicy string            `json:"agentImagePullPolicy,omitempty"`
+	ManageAgent          *bool             `json:"manageAgent,omitempty"`
+	Labels               map[string]string `json:"labels,omitempty"`
+	ClientID             string            `json:"clientID,omitempty"`
+	APIServerURL         string            `json:"apiServerURL,omitempty"`
+	APIServerCA          []byte            `json:"apiServerCA,omitempty"`
+	Bootstrap            Bootstrap         `json:"bootstrap,omitempty"`
+	GithubURLPrefix      string            `json:"githubURLPrefix,omitempty"`
+	WebhookReceiverURL   string            `json:"webhookReceiverURL,omitempty"`
+}
+
+type Bootstrap struct {
+	Namespace string `json:"namespace,omitempty"`
+	Repo      string `json:"repo,omitempty"`
+	Secret    string `json:"secret,omitempty"`
+	Dirs      string `json:"dirs,omitempty"`
+	Branch    string `json:"branch,omitempty"`
 }
 
 func OnChange(ctx context.Context, f func(*Config) error) {

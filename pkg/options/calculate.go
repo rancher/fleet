@@ -51,6 +51,11 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 	} else if next.ServiceAccount == "-" {
 		base.ServiceAccount = ""
 	}
+	if next.ServiceAccount != "" {
+		base.ServiceAccount = next.ServiceAccount
+	} else if next.ServiceAccount == "-" {
+		base.ServiceAccount = ""
+	}
 	if next.TimeoutSeconds > 0 {
 		base.TimeoutSeconds = next.TimeoutSeconds
 	} else if next.TimeoutSeconds < 0 {
@@ -64,5 +69,6 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 	if next.KustomizeDir != "" {
 		base.KustomizeDir = next.KustomizeDir
 	}
+	base.Force = base.Force || next.Force
 	return base
 }

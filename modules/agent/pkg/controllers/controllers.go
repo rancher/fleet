@@ -86,7 +86,8 @@ func Register(ctx context.Context, leaderElect bool, fleetNamespace, agentNamesp
 		labelPrefix = defaultNamespace
 	}
 
-	helmDeployer, err := helmdeployer.NewHelm(agentNamespace, defaultNamespace, labelPrefix, appCtx)
+	helmDeployer, err := helmdeployer.NewHelm(agentNamespace, defaultNamespace, labelPrefix, appCtx,
+		appCtx.Core.ServiceAccount().Cache())
 	if err != nil {
 		return err
 	}

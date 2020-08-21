@@ -40,7 +40,7 @@ func Namespace(name string) *corev1.Namespace {
 	}
 
 }
-func Deployment(namespace, name, image, serviceAccount string) *appsv1.Deployment {
+func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -62,8 +62,9 @@ func Deployment(namespace, name, image, serviceAccount string) *appsv1.Deploymen
 					ServiceAccountName: serviceAccount,
 					Containers: []corev1.Container{
 						{
-							Name:  name,
-							Image: image,
+							Name:            name,
+							Image:           image,
+							ImagePullPolicy: corev1.PullPolicy(imagePullPolicy),
 							Env: []corev1.EnvVar{
 								{
 									Name: "NAMESPACE",

@@ -47,8 +47,10 @@ func List() []crd.CRD {
 		}),
 		newCRD(&fleet.Cluster{}, func(c crd.CRD) crd.CRD {
 			return c.
-				WithColumn("Bundles-Ready", ".status.summary.ready").
-				WithColumn("Bundles-Desired", ".status.summary.desiredReady").
+				WithColumn("Bundles-Ready", ".status.display.readyBundles").
+				WithColumn("Nodes-Ready", ".status.display.readyNodes").
+				WithColumn("Sample-Node", ".status.display.sampleNode").
+				WithColumn("Last-Seen", ".status.agent.lastSeen").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.ClusterRegistrationToken{}, func(c crd.CRD) crd.CRD {

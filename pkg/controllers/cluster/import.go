@@ -28,25 +28,28 @@ var (
 )
 
 type importHandler struct {
-	ctx         context.Context
-	secrets     corecontrollers.SecretCache
-	clusters    fleetcontrollers.ClusterClient
-	tokens      fleetcontrollers.ClusterRegistrationTokenCache
-	tokenClient fleetcontrollers.ClusterRegistrationTokenClient
+	ctx             context.Context
+	systemNamespace string
+	secrets         corecontrollers.SecretCache
+	clusters        fleetcontrollers.ClusterClient
+	tokens          fleetcontrollers.ClusterRegistrationTokenCache
+	tokenClient     fleetcontrollers.ClusterRegistrationTokenClient
 }
 
 func RegisterImport(
 	ctx context.Context,
+	systemNamespace string,
 	secrets corecontrollers.SecretCache,
 	clusters fleetcontrollers.ClusterController,
 	tokens fleetcontrollers.ClusterRegistrationTokenController,
 ) {
 	h := importHandler{
-		ctx:         ctx,
-		secrets:     secrets,
-		clusters:    clusters,
-		tokens:      tokens.Cache(),
-		tokenClient: tokens,
+		ctx:             ctx,
+		systemNamespace: systemNamespace,
+		secrets:         secrets,
+		clusters:        clusters,
+		tokens:          tokens.Cache(),
+		tokenClient:     tokens,
 	}
 
 	clusters.OnChange(ctx, "import-cluster", h.OnChange)
@@ -130,7 +133,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 	}
 
 	output := &bytes.Buffer{}
-	err = agentmanifest.AgentManifest(i.ctx, ControllerNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
+	err = agentmanifest.AgentManifest(i.ctx, i.systemNamespace, ControllerNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
 		CA:       apiServerCA,
 		Host:     apiServerURL,
 		ClientID: cluster.Spec.ClientID,
@@ -151,5 +154,5 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 
 	cluster = cluster.DeepCopy()
 	cluster.Status.AgentDeployed = &t
-	return i.clusters.Update(cluster)
+	return i.clusters.UpdateStatus(cluster)
 }

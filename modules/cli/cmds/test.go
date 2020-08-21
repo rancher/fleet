@@ -28,7 +28,7 @@ type Test struct {
 
 func (m *Test) Run(cmd *cobra.Command, args []string) error {
 	if m.PrintBundle {
-		return apply.Apply(cmd.Context(), Client, args, &apply.Options{
+		return apply.Apply(cmd.Context(), Client, "test", args, &apply.Options{
 			BundleFile: m.BundleFile,
 			Output:     os.Stdout,
 		})

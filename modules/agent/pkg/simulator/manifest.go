@@ -30,7 +30,7 @@ func Manifest(namespace, systemNamespace, image string, simulators int, tokenCon
 
 	cm := basic.ConfigMap(namespace, DefaultName, "config", string(data))
 
-	deployment := basic.Deployment(namespace, DefaultName, image, "")
+	deployment := basic.Deployment(namespace, DefaultName, image, "", "")
 	deployment.Spec.Template.Spec.Containers[0].Env = []v1.EnvVar{
 		{
 			Name:  "NAMESPACE",

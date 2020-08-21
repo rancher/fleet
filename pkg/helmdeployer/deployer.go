@@ -43,11 +43,13 @@ type helm struct {
 	labelPrefix             string
 }
 
-func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclioptions.RESTClientGetter) (deployer.Deployer, error) {
+func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclioptions.RESTClientGetter,
+	serviceAccountCache corecontrollers.ServiceAccountCache) (deployer.Deployer, error) {
 	h := &helm{
 		getter:                  getter,
 		defaultNamespace:        defaultNamespace,
 		serviceAccountNamespace: namespace,
+		serviceAccountCache:     serviceAccountCache,
 		labelPrefix:             labelPrefix,
 	}
 	if err := h.cfg.Init(getter, namespace, "secrets", logrus.Infof); err != nil {
@@ -189,11 +191,13 @@ func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 		return cfg, err
 	}
 
-	if serviceAccountName != "" {
-		getter, err = newImpersonatingGetter(serviceAccountNamespace, serviceAccountName, h.getter)
-		if err != nil {
-			return cfg, err
-		}
+	if serviceAccountName == "" {
+		return cfg, nil
+	}
+
+	getter, err = newImpersonatingGetter(serviceAccountNamespace, serviceAccountName, h.getter)
+	if err != nil {
+		return cfg, err
 	}
 
 	// override global namespace default
@@ -254,6 +258,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 
 	u := action.NewUpgrade(&cfg)
 	u.Adopt = true
+	u.Force = options.Force
 	u.Namespace = namespace
 	u.Timeout = timeout
 	u.Atomic = true
