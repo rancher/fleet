@@ -19,4 +19,5 @@ spec:
               fieldPath: metadata.namespace
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         name: fleet-controller
+        imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
       serviceAccountName: fleet-controller

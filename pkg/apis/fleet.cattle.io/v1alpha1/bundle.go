@@ -139,11 +139,12 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
-	DefaultNamespace string      `json:"defaultNamespace,omitempty"`
+	DefaultNamespace string      `json:"namespace,omitempty"`
 	KustomizeDir     string      `json:"kustomizeDir,omitempty"`
 	TimeoutSeconds   int         `json:"timeoutSeconds,omitempty"`
 	Values           *GenericMap `json:"values,omitempty"`
 	ServiceAccount   string      `json:"serviceAccount,omitempty"`
+	Force            bool        `json:"force,omitempty"`
 }
 
 type BundleDeploymentSpec struct {

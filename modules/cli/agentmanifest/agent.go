@@ -97,7 +97,7 @@ func testKubeConfig(kubeConfig, host string) error {
 	return nil
 }
 
-func AgentManifest(ctx context.Context, controllerNamespace string, cg *client.Getter, output io.Writer, tokenName string, opts *Options) error {
+func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace string, cg *client.Getter, output io.Writer, tokenName string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -122,12 +122,12 @@ func AgentManifest(ctx context.Context, controllerNamespace string, cg *client.G
 
 	objs = append(objs, agentConfig...)
 
-	cfg, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
+	cfg, err := config.Lookup(ctx, systemNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return err
 	}
 
-	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage)...)
+	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy)...)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {
@@ -156,13 +156,15 @@ func getKubeConfig(kubeConfig string, namespace, token, host string, ca []byte, 
 		return "", err
 	}
 
-	host, err = getHost(host, cfg)
+	host, doCheckHost, err := getHost(host, cfg)
 	if err != nil {
 		return "", err
 	}
 
-	if err := checkHost(host); err != nil {
-		return "", err
+	if doCheckHost {
+		if err := checkHost(host); err != nil {
+			return "", err
+		}
 	}
 
 	if noCA {
@@ -214,17 +216,17 @@ func getCluster(cfg clientcmdapi.Config) (*clientcmdapi.Cluster, error) {
 	return cluster, nil
 }
 
-func getHost(host string, cfg clientcmdapi.Config) (string, error) {
+func getHost(host string, cfg clientcmdapi.Config) (string, bool, error) {
 	if host != "" {
-		return host, nil
+		return host, false, nil
 	}
 
 	cluster, err := getCluster(cfg)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
-	return cluster.Server, nil
+	return cluster.Server, true, nil
 }
 
 func getCA(ca []byte, cfg clientcmdapi.Config) ([]byte, error) {

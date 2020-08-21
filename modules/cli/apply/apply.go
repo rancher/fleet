@@ -3,10 +3,13 @@ package apply
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
+	"regexp"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -16,16 +19,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var (
+	disallowedChars = regexp.MustCompile("[^a-zA-Z0-9]+")
+	multiDash       = regexp.MustCompile("-+")
+	ErrNoResources  = errors.New("no resources found to deploy")
+)
+
 type Options struct {
-	BundleFile       string
-	Compress         bool
-	BundleReader     io.Reader
-	Output           io.Writer
-	BundleNamePrefix string
-	ServiceAccount   string
+	BundleFile     string
+	Compress       bool
+	BundleReader   io.Reader
+	Output         io.Writer
+	ServiceAccount string
+	Labels         map[string]string
 }
 
-func Apply(ctx context.Context, client *client.Getter, baseDirs []string, opts *Options) error {
+func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -46,7 +55,8 @@ func Apply(ctx context.Context, client *client.Getter, baseDirs []string, opts *
 					return err
 				}
 			}
-			if err := Dir(ctx, client, baseDir, opts); os.IsNotExist(err) {
+			if err := Dir(ctx, client, name, baseDir, opts); err == ErrNoResources {
+				logrus.Warnf("%s: %v", baseDir, err)
 				continue
 			} else if err != nil {
 				return err
@@ -76,7 +86,13 @@ func readBundle(ctx context.Context, baseDir string, opts *Options) (*bundle.Bun
 	})
 }
 
-func Dir(ctx context.Context, client *client.Getter, baseDir string, opts *Options) error {
+func createName(name, baseDir string) string {
+	path := filepath.Join(name, baseDir)
+	path = disallowedChars.ReplaceAllString(path, "-")
+	return multiDash.ReplaceAllString(path, "-")
+}
+
+func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -88,9 +104,29 @@ func Dir(ctx context.Context, client *client.Getter, baseDir string, opts *Optio
 
 	def := bundle.Definition.DeepCopy()
 	def.Namespace = client.Namespace
-	def.Name = opts.BundleNamePrefix + def.Name
+	def.Name = createName(name, baseDir)
+	for k, v := range opts.Labels {
+		if def.Labels == nil {
+			def.Labels = map[string]string{}
+		}
+		def.Labels[k] = v
+	}
+
 	if opts.ServiceAccount != "" {
 		def.Spec.ServiceAccount = opts.ServiceAccount
+	}
+
+	if len(def.Spec.Targets) == 0 {
+		def.Spec.Targets = []fleet.BundleTarget{
+			{
+				Name:         "default",
+				ClusterGroup: "default",
+			},
+		}
+	}
+
+	if len(def.Spec.Resources) == 0 {
+		return ErrNoResources
 	}
 
 	b, err := yaml.Export(def)

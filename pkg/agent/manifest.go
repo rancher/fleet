@@ -11,7 +11,7 @@ const (
 	DefaultName = "fleet-agent"
 )
 
-func Manifest(namespace, image string) []runtime.Object {
+func Manifest(namespace, image, pullPolicy string) []runtime.Object {
 	if image == "" {
 		image = config.DefaultAgentImage
 	}
@@ -27,7 +27,7 @@ func Manifest(namespace, image string) []runtime.Object {
 	)
 
 	objs := []runtime.Object{
-		basic.Deployment(namespace, DefaultName, image, DefaultName),
+		basic.Deployment(namespace, DefaultName, image, pullPolicy, DefaultName),
 		sa,
 	}
 	objs = append(objs, clusterRole...)

@@ -30,22 +30,33 @@ func Open(ctx context.Context, baseDir, file string, opts *Options) (*Bundle, er
 		return Read(ctx, baseDir, os.Stdin, opts)
 	}
 
+	var (
+		in io.Reader
+	)
+
 	if file == "" {
-		file = filepath.Join(baseDir, "bundle.yaml")
+		file = filepath.Join(baseDir, "fleet.yaml")
 		if _, err := os.Stat(file); os.IsNotExist(err) {
-			file = filepath.Join(baseDir, "fleet.yaml")
+			file = filepath.Join(baseDir, "bundle.yaml")
+		}
+		if f, err := os.Open(file); os.IsNotExist(err) {
+			in = bytes.NewBufferString("{}")
+		} else if err != nil {
+			return nil, err
+		} else {
+			in = f
+			defer f.Close()
 		}
 	} else {
-		file = filepath.Join(baseDir, file)
+		f, err := os.Open(filepath.Join(baseDir, file))
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		in = f
 	}
 
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	return Read(ctx, baseDir, f, opts)
+	return Read(ctx, baseDir, in, opts)
 }
 
 func Read(ctx context.Context, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
@@ -98,10 +109,6 @@ func read(ctx context.Context, compress bool, baseDir string, bundleSpecReader i
 	meta, err := readMetadata(bytes)
 	if err != nil {
 		return nil, err
-	}
-
-	if meta.Name == "" {
-		return nil, fmt.Errorf("name is required in the bundle.yaml")
 	}
 
 	setTargetNames(bundle)

@@ -4,10 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/client-go/tools/clientcmd"
-
 	"github.com/rancher/fleet/pkg/controllers/bootstrap"
-
 	"github.com/rancher/fleet/pkg/controllers/bundle"
 	"github.com/rancher/fleet/pkg/controllers/cleanup"
 	"github.com/rancher/fleet/pkg/controllers/cluster"
@@ -15,7 +12,9 @@ import (
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistrationtoken"
 	"github.com/rancher/fleet/pkg/controllers/config"
+	"github.com/rancher/fleet/pkg/controllers/display"
 	"github.com/rancher/fleet/pkg/controllers/git"
+	"github.com/rancher/fleet/pkg/controllers/manageagent"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
@@ -36,6 +35,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type appContext struct {
@@ -112,6 +112,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.Core.Namespace()))
 
 	cluster.RegisterImport(ctx,
+		systemNamespace,
 		appCtx.Core.Secret().Cache(),
 		appCtx.Cluster(),
 		appCtx.ClusterRegistrationToken())
@@ -160,20 +161,33 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Cluster(),
 		appCtx.Core.Namespace())
 
-	//manageagent.Register(ctx,
-	//	systemNamespace,
-	//	appCtx.Apply,
-	//	appCtx.ClusterGroup(),
-	//	appCtx.Bundle())
+	manageagent.Register(ctx,
+		systemNamespace,
+		appCtx.Apply,
+		appCtx.Core.Namespace(),
+		appCtx.Cluster(),
+		appCtx.Bundle())
 
-	git.Register(ctx, appCtx.Apply, appCtx.GitJob.GitJob(), appCtx.GitRepo())
+	git.Register(ctx,
+		appCtx.Apply.WithCacheTypes(
+			appCtx.RBAC.Role(),
+			appCtx.RBAC.RoleBinding(),
+			appCtx.GitJob.GitJob(),
+			appCtx.Core.ServiceAccount()),
+		appCtx.GitJob.GitJob(),
+		appCtx.GitRepo())
 
 	bootstrap.Register(ctx,
 		appCtx.Apply.WithCacheTypes(
+			appCtx.GitRepo(),
 			appCtx.Cluster(),
+			appCtx.ClusterGroup(),
 			appCtx.Core.Namespace(),
 			appCtx.Core.Secret()),
 		appCtx.ClientConfig)
+
+	display.Register(ctx,
+		appCtx.Cluster())
 
 	leader.RunOrDie(ctx, systemNamespace, "fleet-controller", appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {

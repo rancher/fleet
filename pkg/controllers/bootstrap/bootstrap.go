@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"io/ioutil"
+	"regexp"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
@@ -11,6 +12,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
+)
+
+var (
+	splitter = regexp.MustCompile("\\s*,\\s*")
 )
 
 type handler struct {
@@ -29,23 +34,23 @@ func Register(ctx context.Context, apply apply.Apply, cfg clientcmd.ClientConfig
 func (h *handler) OnConfig(config *config.Config) error {
 	var objs []runtime.Object
 
-	if config.BootstrapNamespace == "" {
+	if config.Bootstrap.Namespace == "" || config.Bootstrap.Namespace == "-" {
 		return nil
 	}
 
-	secret, err := getSecret(config.BootstrapNamespace, h.cfg)
+	secret, err := getSecret(config.Bootstrap.Namespace, h.cfg)
 	if err != nil {
 		return err
 	}
 
 	objs = append(objs, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: config.BootstrapNamespace,
+			Name: config.Bootstrap.Namespace,
 		},
 	}, secret, &fleet.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "local",
-			Namespace: config.BootstrapNamespace,
+			Namespace: config.Bootstrap.Namespace,
 			Labels: map[string]string{
 				"name": "local",
 			},
@@ -53,17 +58,31 @@ func (h *handler) OnConfig(config *config.Config) error {
 		Spec: fleet.ClusterSpec{
 			KubeConfigSecret: secret.Name,
 		},
+	}, &fleet.ClusterGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: config.Bootstrap.Namespace,
+		},
+		Spec: fleet.ClusterGroupSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"name": "local",
+				},
+			},
+		},
 	})
 
-	if config.BootstrapRepo != "" {
+	if config.Bootstrap.Repo != "" {
 		objs = append(objs, &fleet.GitRepo{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "bootstrap",
-				Namespace: config.BootstrapNamespace,
+				Namespace: config.Bootstrap.Namespace,
 			},
 			Spec: fleet.GitRepoSpec{
-				Repo:   config.BootstrapRepo,
-				Branch: config.BootstrapBranch,
+				Repo:             config.Bootstrap.Repo,
+				Branch:           config.Bootstrap.Branch,
+				ClientSecretName: config.Bootstrap.Secret,
+				BundleDirs:       splitter.Split(config.Bootstrap.Dirs, -1),
 			},
 		})
 	}

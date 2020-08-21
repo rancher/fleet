@@ -47,5 +47,5 @@ func (a *Agent) Run(cmd *cobra.Command, args []string) error {
 		opts.CA = ca
 	}
 
-	return agentmanifest.AgentManifest(cmd.Context(), a.AgentNamespace, Client, os.Stdout, args[0], opts)
+	return agentmanifest.AgentManifest(cmd.Context(), SystemNamespace, a.AgentNamespace, Client, os.Stdout, args[0], opts)
 }

@@ -33,7 +33,7 @@ func App() *cobra.Command {
 
 type Fleet struct {
 	SystemNamespace string `usage:"System namespace of the controller" default:"fleet-system"`
-	Namespace       string `usage:"namespace" env:"NAMESPACE" default:"default" short:"n" env:"NAMESPACE"`
+	Namespace       string `usage:"namespace" env:"NAMESPACE" default:"fleet-local" short:"n" env:"NAMESPACE"`
 	Kubeconfig      string `usage:"kubeconfig for authentication" short:"k"`
 	Context         string `usage:"kubeconfig context for authentication"`
 }

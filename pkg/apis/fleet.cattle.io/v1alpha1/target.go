@@ -64,7 +64,14 @@ type ClusterStatus struct {
 	Summary       BundleSummary                       `json:"summary,omitempty"`
 	AgentDeployed *bool                               `json:"agentDeployed,omitempty"`
 
-	Agent AgentStatus `json:"agent,omitempty"`
+	Display ClusterDisplay `json:"display,omitempty"`
+	Agent   AgentStatus    `json:"agent,omitempty"`
+}
+
+type ClusterDisplay struct {
+	ReadyBundles string `json:"readyBundles,omitempty"`
+	ReadyNodes   string `json:"readyNodes,omitempty"`
+	SampleNode   string `json:"sampleNode,omitempty"`
 }
 
 type AgentStatus struct {

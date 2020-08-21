@@ -104,6 +104,10 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 			},
 			Spec: gitjob.GitJobSpec{
 				Git: gitjob.GitInfo{
+					Credential: gitjob.Credential{
+						GitSecretName: gitrepo.Spec.ClientSecretName,
+						GitHostname:   "github.com",
+					},
 					Provider: "polling",
 					Repo:     gitrepo.Spec.Repo,
 					Revision: rev,
@@ -115,15 +119,20 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 							CreationTimestamp: metav1.Time{Time: time.Unix(0, 0)},
 						},
 						Spec: corev1.PodSpec{
-							RestartPolicy: corev1.RestartPolicyNever,
+							ServiceAccountName: saName,
+							RestartPolicy:      corev1.RestartPolicyNever,
 							Containers: []corev1.Container{
 								{
-									Name:  "fleet",
-									Image: config.Get().AgentImage,
+									Name:            "fleet",
+									Image:           config.Get().AgentImage,
+									ImagePullPolicy: corev1.PullPolicy(config.Get().AgentImagePullPolicy),
 									Command: append([]string{
-										"fleet", "apply",
-										"--bundle-name-prefix", gitrepo.Name + "-",
+										"fleet",
+										"apply",
+										"--label=fleet.cattle.io/repo-name=" + gitrepo.Name,
+										"--namespace", gitrepo.Namespace,
 										"--service-account", gitrepo.Spec.ServiceAccount,
+										gitrepo.Name,
 									}, dirs...),
 									WorkingDir: "/workspace/source",
 								},

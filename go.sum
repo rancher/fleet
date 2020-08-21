@@ -797,8 +797,8 @@ github.com/prometheus/procfs v0.0.8/go.mod h1:7Qr8sr6344vo1JqZ6HhLceV9o3AJ1Ff+Gx
 github.com/prometheus/tsdb v0.7.1/go.mod h1:qhTCs0VvXwvX/y3TZrWD7rabWM+ijKTux40TwIPHuXU=
 github.com/qri-io/starlib v0.4.2-0.20200213133954-ff2e8cd5ef8d/go.mod h1:7DPO4domFU579Ga6E61sB9VFNaniPVwJP5C4bBCu3wA=
 github.com/quasilyte/go-consistent v0.0.0-20190521200055-c6f3937de18c/go.mod h1:5STLWrekHfjyYwxBRVRXNOSewLJ3PWfDJd1VyTS21fI=
-github.com/rancher/gitjob v0.0.1-rc1.0.20200815040658-043c73e928e1 h1:7jY3u9Qy8QmontE5G071QT7PGIAN6pY8pQcwfEpJdF8=
-github.com/rancher/gitjob v0.0.1-rc1.0.20200815040658-043c73e928e1/go.mod h1:0do3P0IRMXjiNFfnwA0Lqaq20tvjmMkdGU3Uvig1xLE=
+github.com/rancher/gitjob v0.0.1-rc3.0.20200820235336-38f81e7b4b99 h1:hQSS6qz1geXoJ6cet3XcNn8NaWlT7fX/enbiSGRcmyg=
+github.com/rancher/gitjob v0.0.1-rc3.0.20200820235336-38f81e7b4b99/go.mod h1:MRzGaWvVgTRH0WGCHeY6KsVT4l/Lqrjn7VuyCZnjSeM=
 github.com/rancher/gitwatcher v0.4.5 h1:2DtKT1AZFhy6T3qCy64PQLFgXW5JIadGTIMvtGoV0GU=
 github.com/rancher/gitwatcher v0.4.5/go.mod h1:8dIsBtlsH0PrnBb9IoLbZaOEus/FnIGXm2QUAVpl2W8=
 github.com/rancher/lasso v0.0.0-20200807231317-fff0364fb3f6 h1:lP1E7Ufd6hFpzDemZ0IMOPPRlY9DStuOe5jPIlEP6s4=
@@ -1388,8 +1388,8 @@ sigs.k8s.io/kustomize v2.0.3+incompatible h1:JUufWFNlI44MdtnjUqVnvh29rR37PQFzPbL
 sigs.k8s.io/kustomize v2.0.3+incompatible/go.mod h1:MkjgH3RdOWrievjo6c9T245dYlB5QeXV4WCbnt/PEpU=
 sigs.k8s.io/kustomize/api v0.3.3-0.20200328155553-20184e9835c7 h1:2xKoYcF8vUAY7QwVGAoDccTNPRtaMNLL0aCf4Op3Ofs=
 sigs.k8s.io/kustomize/api v0.3.3-0.20200328155553-20184e9835c7/go.mod h1:4crE391uVAOFgkmaSgQ9w3CprZ6kwCNoL+Ft8II+C70=
-sigs.k8s.io/kustomize/kstatus v0.0.2-0.20200328155553-20184e9835c7 h1:tn0HQeIWnTrA82IEpynd1OPQk8xLIi3Da4UQN8dyhj4=
-sigs.k8s.io/kustomize/kstatus v0.0.2-0.20200328155553-20184e9835c7/go.mod h1:bOsdduDrrGscx4Ij30+TPdBH699eXvAywACCH2zsgeM=
+sigs.k8s.io/kustomize/kstatus v0.0.2 h1:7GoHi/Vq7rIAS8AQONlfcdaCpVXY0HqzNhU5us7dToA=
+sigs.k8s.io/kustomize/kstatus v0.0.2/go.mod h1:6qUKWLy4+yGExtjbs+fibz2tOBZG7413yx2NHyAzIU0=
 sigs.k8s.io/kustomize/kyaml v0.1.1 h1:nGUNYINljZNmlAS8uoobUv/wx/s3Pg8dNxYo+W7uYh0=
 sigs.k8s.io/kustomize/kyaml v0.1.1/go.mod h1:/NdPPfrperSCGjm55cwEro1loBVtbtVIXSb7FguK6uk=
 sigs.k8s.io/kustomize/kyaml v0.4.0 h1:jMQrJOJmiUz5Y018ki0mXWpEreEXjvad1NRfXTdi9vU=

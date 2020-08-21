@@ -6,6 +6,16 @@ data:
   config: |
     {
       "agentImage": "{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}",
+      "agentImagePullPolicy": "{{ .Values.agentImage.imagePullPolicy }}",
       "apiServerURL": "{{.Values.apiServerURL}}",
       "apiServerCA": "{{.Values.apiServerCA}}",
+      "bootstrap": {
+        "dirs": "{{.Values.bootstrap.dirs}}",
+        "repo": "{{.Values.bootstrap.repo}}",
+        "secret": "{{.Values.bootstrap.secret}}",
+        "branch":  "{{.Values.bootstrap.branch}}",
+        "namespace": "{{.Values.bootstrap.namespace}}",
+      },
+      "webhookReceiverURL": "{{.Values.webhookReceiverURL}}",
+      "githubURLPrefix": "{{.Values.githubURLPrefix}}"
     }

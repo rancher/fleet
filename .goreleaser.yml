@@ -1,13 +1,11 @@
 builds:
 - env:
   - CGO_ENABLED=0
-  - GOFLAGS=-mod=vendor
   binary: fleet
   goarch:
   - arm
   - arm64
   - amd64
-  - ppc64le
   goos:
   - windows
   - darwin
