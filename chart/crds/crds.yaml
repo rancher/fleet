@@ -27,22 +27,26 @@ spec:
       properties:
         spec:
           properties:
-            defaultNamespace:
+            force:
+              type: boolean
+            kustomizeDir:
               nullable: true
               type: string
-            kustomizeDir:
+            namespace:
               nullable: true
               type: string
             overlays:
               items:
                 properties:
-                  defaultNamespace:
-                    nullable: true
-                    type: string
+                  force:
+                    type: boolean
                   kustomizeDir:
                     nullable: true
                     type: string
                   name:
+                    nullable: true
+                    type: string
+                  namespace:
                     nullable: true
                     type: string
                   overlays:
@@ -243,13 +247,15 @@ spec:
                         nullable: true
                         type: object
                     type: object
-                  defaultNamespace:
-                    nullable: true
-                    type: string
+                  force:
+                    type: boolean
                   kustomizeDir:
                     nullable: true
                     type: string
                   name:
+                    nullable: true
+                    type: string
+                  namespace:
                     nullable: true
                     type: string
                   overlays:
@@ -437,10 +443,12 @@ spec:
               type: string
             options:
               properties:
-                defaultNamespace:
+                force:
+                  type: boolean
+                kustomizeDir:
                   nullable: true
                   type: string
-                kustomizeDir:
+                namespace:
                   nullable: true
                   type: string
                 serviceAccount:
@@ -457,10 +465,12 @@ spec:
               type: string
             stagedOptions:
               properties:
-                defaultNamespace:
+                force:
+                  type: boolean
+                kustomizeDir:
                   nullable: true
                   type: string
-                kustomizeDir:
+                namespace:
                   nullable: true
                   type: string
                 serviceAccount:
@@ -782,11 +792,17 @@ metadata:
   name: clusters.fleet.cattle.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .status.summary.ready
+  - JSONPath: .status.display.readyBundles
     name: Bundles-Ready
     type: string
-  - JSONPath: .status.summary.desiredReady
-    name: Bundles-Desired
+  - JSONPath: .status.display.readyNodes
+    name: Nodes-Ready
+    type: string
+  - JSONPath: .status.display.sampleNode
+    name: Sample-Node
+    type: string
+  - JSONPath: .status.agent.lastSeen
+    name: Last-Seen
     type: string
   - JSONPath: .status.conditions[?(@.type=="Ready")].message
     name: Status
@@ -866,6 +882,18 @@ spec:
                 type: object
               nullable: true
               type: array
+            display:
+              properties:
+                readyBundles:
+                  nullable: true
+                  type: string
+                readyNodes:
+                  nullable: true
+                  type: string
+                sampleNode:
+                  nullable: true
+                  type: string
+              type: object
             namespace:
               nullable: true
               type: string
