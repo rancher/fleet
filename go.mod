@@ -11,7 +11,7 @@ require (
 	github.com/cheggaaa/pb v1.0.27
 	github.com/hashicorp/go-getter v1.4.1
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/gitjob v0.0.1-rc1.0.20200815040658-043c73e928e1
+	github.com/rancher/gitjob v0.0.1-rc3.0.20200820235336-38f81e7b4b99
 	github.com/rancher/lasso v0.0.0-20200807231317-fff0364fb3f6
 	github.com/rancher/wrangler v0.6.2-0.20200815035759-cd3dc18ad392
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
@@ -25,7 +25,7 @@ require (
 	k8s.io/client-go v0.18.4
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/kustomize/api v0.3.3-0.20200328155553-20184e9835c7
-	sigs.k8s.io/kustomize/kstatus v0.0.2-0.20200328155553-20184e9835c7
+	sigs.k8s.io/kustomize/kstatus v0.0.2
 	sigs.k8s.io/kustomize/kyaml v0.4.0
 	sigs.k8s.io/yaml v1.2.0
 )
