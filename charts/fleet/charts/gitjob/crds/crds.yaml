@@ -3167,8 +3167,20 @@ spec:
             event:
               nullable: true
               type: string
-            initialized:
-              type: boolean
+            hookId:
+              nullable: true
+              type: string
+            jobStatus:
+              nullable: true
+              type: string
+            lastExecutedCommit:
+              nullable: true
+              type: string
+            observedGeneration:
+              type: integer
+            secretToken:
+              nullable: true
+              type: string
           type: object
       type: object
   version: v1

@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: fleet-system-fleet-controller-role
+  name: fleet-controller
 rules:
 - apiGroups:
   - gitjob.cattle.io
@@ -50,11 +50,11 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: fleet-system-fleet-controller-role-binding
+  name: fleet-controller
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: fleet-system-fleet-controller-role
+  name: fleet-controller
 subjects:
 - kind: ServiceAccount
   name: fleet-controller
@@ -64,7 +64,7 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: fleet-system-fleet-controller-role
+  name: fleet-controller
 rules:
 - apiGroups:
   - ""
@@ -77,12 +77,37 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: fleet-system-fleet-controller-role-binding
+  name: fleet-controller
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: fleet-system-fleet-controller-role
+  name: fleet-controller
 subjects:
 - kind: ServiceAccount
   name: fleet-controller
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fleet-controller-bootstrap
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fleet-controller-bootstrap
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fleet-controller-bootstrap
+subjects:
+- kind: ServiceAccount
+  name: fleet-controller-bootstrap
   namespace: {{.Release.Namespace}}
