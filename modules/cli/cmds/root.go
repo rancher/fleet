@@ -22,10 +22,6 @@ func App() *cobra.Command {
 	root.AddCommand(
 		NewApply(),
 		NewTest(),
-		NewToken(),
-		NewGitRepo(),
-		NewInstall(),
-		NewCluster(),
 	)
 
 	return root

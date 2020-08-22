@@ -5,29 +5,32 @@ import (
 	"fmt"
 	"time"
 
-	fleet2 "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
-
-	"github.com/rancher/wrangler/pkg/ratelimit"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	"github.com/rancher/fleet/pkg/registration"
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
-	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/randomtoken"
+	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 const (
 	CredName            = "fleet-agent"
+	BootstrapCredName   = "fleet-agent-bootstrap"
 	Kubeconfig          = "kubeconfig"
 	Token               = "token"
+	APIServerURL        = "apiServerURL"
+	APIServerCA         = "apiServerCA"
+	SystemNamespace     = "systemNamespace"
 	DeploymentNamespace = "deploymentNamespace"
 	ClusterNamespace    = "clusterNamespace"
 	ClusterName         = "clusterName"
@@ -64,16 +67,16 @@ func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.
 
 	secret, err := k8s.Core().V1().Secret().Get(namespace, CredName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		return nil, fmt.Errorf("no credential found")
-	} else if err != nil {
-		return nil, err
-	}
-
-	if secret.Annotations[fleet.BootstrapToken] == "true" {
+		secret, err = k8s.Core().V1().Secret().Get(namespace, BootstrapCredName, metav1.GetOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, BootstrapCredName, err)
+		}
 		secret, err = createClusterSecret(ctx, clusterID, k8s.Core().V1(), secret)
 		if err != nil {
 			return nil, err
 		}
+	} else if err != nil {
+		return nil, err
 	}
 
 	clientConfig, err := clientcmd.NewClientConfigFromBytes(secret.Data[Kubeconfig])
@@ -88,11 +91,8 @@ func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.
 	}, nil
 }
 
-func createClusterSecret(ctx context.Context, clusterID string, k8s corev1.Interface, secret *v1.Secret) (*v1.Secret, error) {
-	clientConfig, err := clientcmd.NewClientConfigFromBytes(secret.Data[Kubeconfig])
-	if err != nil {
-		return nil, err
-	}
+func createClusterSecret(ctx context.Context, clusterID string, k8s corecontrollers.Interface, secret *corev1.Secret) (*corev1.Secret, error) {
+	clientConfig := createClientConfigFromSecret(secret)
 
 	ns, _, err := clientConfig.Namespace()
 	if err != nil {
@@ -114,7 +114,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corev1.Inter
 		return nil, err
 	}
 
-	fc, err := fleet2.NewFactoryFromConfig(kc)
+	fc, err := fleetcontrollers.NewFactoryFromConfig(kc)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,13 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corev1.Inter
 		newToken := newSecret.Data[Token]
 		clusterNamespace := newSecret.Data[ClusterNamespace]
 		clusterName := newSecret.Data[ClusterName]
+		systemNamespace := string(newSecret.Data[SystemNamespace])
 		deploymentNamespace := newSecret.Data[DeploymentNamespace]
+
+		if systemNamespace != secret.Namespace {
+			return nil, fmt.Errorf("fleet-agent must be installed in the namespace %s", systemNamespace)
+		}
+
 		newKubeconfig, err := updateClientConfig(clientConfig, string(newToken), string(deploymentNamespace))
 		if err != nil {
 			return nil, err
@@ -181,15 +187,52 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corev1.Inter
 			return nil, err
 		}
 
-		updatedSecret := secret.DeepCopy()
-		updatedSecret.Data[Kubeconfig] = newKubeconfig
-		updatedSecret.Data[DeploymentNamespace] = deploymentNamespace
-		updatedSecret.Data[ClusterNamespace] = clusterNamespace
-		updatedSecret.Data[ClusterName] = clusterName
-		delete(updatedSecret.Annotations, fleet.BootstrapToken)
+		updatedSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      CredName,
+				Namespace: secret.Namespace,
+			},
+			Data: map[string][]byte{
+				Kubeconfig:          newKubeconfig,
+				DeploymentNamespace: deploymentNamespace,
+				ClusterNamespace:    clusterNamespace,
+				ClusterName:         clusterName,
+			},
+		}
 
-		return k8s.Secret().Update(updatedSecret)
+		return k8s.Secret().Create(updatedSecret)
 	}
+}
+
+func createClientConfigFromSecret(secret *corev1.Secret) clientcmd.ClientConfig {
+	apiServerURL := string(secret.Data[APIServerURL])
+	apiServerCA := secret.Data[APIServerCA]
+	namespace := string(secret.Data[ClusterNamespace])
+	token := string(secret.Data[Token])
+
+	cfg := clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"cluster": {
+				Server:                   apiServerURL,
+				CertificateAuthorityData: apiServerCA,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			"user": {
+				Token: token,
+			},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			"default": {
+				Cluster:   "cluster",
+				AuthInfo:  "user",
+				Namespace: namespace,
+			},
+		},
+		CurrentContext: "default",
+	}
+
+	return clientcmd.NewDefaultClientConfig(cfg, &clientcmd.ConfigOverrides{})
 }
 
 func testClientConfig(ctx context.Context, cfg []byte) error {
@@ -208,7 +251,7 @@ func testClientConfig(ctx context.Context, cfg []byte) error {
 		return err
 	}
 
-	fc, err := fleet2.NewFactoryFromConfig(rest)
+	fc, err := fleetcontrollers.NewFactoryFromConfig(rest)
 	if err != nil {
 		return err
 	}

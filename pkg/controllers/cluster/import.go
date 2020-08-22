@@ -21,10 +21,9 @@ import (
 )
 
 var (
-	ImportTokenPrefix   = "import-token-"
-	ImportTokenTTL      = int((12 * time.Hour) / time.Second)
-	ControllerNamespace = "fleet-system"
-	t                   = true
+	ImportTokenPrefix = "import-token-"
+	ImportTokenTTL    = int((12 * time.Hour) / time.Second)
+	t                 = true
 )
 
 type importHandler struct {
@@ -133,7 +132,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 	}
 
 	output := &bytes.Buffer{}
-	err = agentmanifest.AgentManifest(i.ctx, i.systemNamespace, ControllerNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
+	err = agentmanifest.AgentManifest(i.ctx, i.systemNamespace, i.systemNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
 		CA:       apiServerCA,
 		Host:     apiServerURL,
 		ClientID: cluster.Spec.ClientID,

@@ -8,7 +8,7 @@ data:
       "agentImage": "{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}",
       "agentImagePullPolicy": "{{ .Values.agentImage.imagePullPolicy }}",
       "apiServerURL": "{{.Values.apiServerURL}}",
-      "apiServerCA": "{{.Values.apiServerCA}}",
+      "apiServerCA": "{{b64enc .Values.apiServerCA}}",
       "bootstrap": {
         "dirs": "{{.Values.bootstrap.dirs}}",
         "repo": "{{.Values.bootstrap.repo}}",

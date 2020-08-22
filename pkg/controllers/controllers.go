@@ -93,6 +93,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.RBAC.ClusterRoleBinding(),
 			appCtx.ClusterRegistration(),
 			appCtx.Cluster()),
+		systemNamespace,
 		appCtx.Core.ServiceAccount(),
 		appCtx.Core.Secret(),
 		appCtx.RBAC.Role(),
@@ -129,12 +130,15 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.ClusterGroup())
 
 	clusterregistrationtoken.Register(ctx,
+		systemNamespace,
 		appCtx.Apply.WithCacheTypes(
+			appCtx.Core.Secret(),
 			appCtx.Core.ServiceAccount(),
 			appCtx.RBAC.Role(),
 			appCtx.RBAC.RoleBinding()),
 		appCtx.ClusterRegistrationToken(),
-		appCtx.Core.ServiceAccount())
+		appCtx.Core.ServiceAccount(),
+		appCtx.Core.Secret().Cache())
 
 	cleanup.Register(ctx,
 		appCtx.Apply.WithCacheTypes(
@@ -178,18 +182,21 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.GitRepo())
 
 	bootstrap.Register(ctx,
+		systemNamespace,
 		appCtx.Apply.WithCacheTypes(
 			appCtx.GitRepo(),
 			appCtx.Cluster(),
 			appCtx.ClusterGroup(),
 			appCtx.Core.Namespace(),
 			appCtx.Core.Secret()),
-		appCtx.ClientConfig)
+		appCtx.ClientConfig,
+		appCtx.Core.ServiceAccount().Cache(),
+		appCtx.Core.Secret().Cache())
 
 	display.Register(ctx,
 		appCtx.Cluster())
 
-	leader.RunOrDie(ctx, systemNamespace, "fleet-controller", appCtx.K8s, func(ctx context.Context) {
+	leader.RunOrDie(ctx, systemNamespace, "fleet-controller-lock", appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {
 			logrus.Fatal(err)
 		}

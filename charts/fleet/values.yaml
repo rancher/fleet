@@ -1,0 +1,26 @@
+image:
+  repository: ibuildthecloud/fleet
+  tag: dev
+  imagePullPolicy: Always
+
+agentImage:
+  repository: ibuildthecloud/fleet-agent
+  tag: dev
+  imagePullPolicy: Always
+
+# For cluster registration the public URL of the Kubernetes API server must be set here
+# Example: https://example.com:6443
+apiServerURL: ""
+
+# For cluster auto registration the pem encoded value of the CA of the Kubernetes API server must be set here
+# If left empty it is assumed this Kubernetes API TLS is signed by a well known CA.
+apiServerCA: ""
+
+githubURLPrefix: https://github.com
+webhookReceiverURL: ""
+bootstrap:
+  repo: ""
+  secret: ""
+  branch: master
+  dirs: ""
+  namespace: fleet-local

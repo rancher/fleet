@@ -1,0 +1,7 @@
+{{if ne .Release.Namespace .Values.internal.systemNamespace }}
+{{ fail "This chart must be installed in the namespace fleet-system as the release name fleet-agent" }}
+{{end}}
+
+{{if ne .Release.Name .Values.internal.managedReleaseName }}
+{{ fail "This chart must be installed in the namespace fleet-system as the release name fleet-agent" }}
+{{end}}

@@ -21,7 +21,6 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -36,8 +35,9 @@ const (
 type helm struct {
 	serviceAccountNamespace string
 	serviceAccountCache     corecontrollers.ServiceAccountCache
-	cfg                     action.Configuration
 	getter                  genericclioptions.RESTClientGetter
+	globalCfg               action.Configuration
+	useGlobalCfg            bool
 	template                bool
 	defaultNamespace        string
 	labelPrefix             string
@@ -52,10 +52,10 @@ func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclio
 		serviceAccountCache:     serviceAccountCache,
 		labelPrefix:             labelPrefix,
 	}
-	if err := h.cfg.Init(getter, namespace, "secrets", logrus.Infof); err != nil {
+	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
 		return nil, err
 	}
-	h.cfg.Releases.MaxHistory = 5
+	h.globalCfg.Releases.MaxHistory = 5
 	return h, nil
 }
 
@@ -146,16 +146,16 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	return releaseToResources(release)
 }
 
-func (h *helm) mustUninstall(bundleID string) (bool, error) {
-	r, err := h.cfg.Releases.Last(bundleID)
+func (h *helm) mustUninstall(cfg *action.Configuration, bundleID string) (bool, error) {
+	r, err := cfg.Releases.Last(bundleID)
 	if err != nil {
 		return false, nil
 	}
 	return r.Info.Status == release.StatusUninstalling, err
 }
 
-func (h *helm) mustInstall(bundleID string) (bool, error) {
-	_, err := h.cfg.Releases.Deployed(bundleID)
+func (h *helm) mustInstall(cfg *action.Configuration, bundleID string) (bool, error) {
+	_, err := cfg.Releases.Deployed(bundleID)
 	if err != nil && strings.Contains(err.Error(), "has no deployed releases") {
 		return true, nil
 	}
@@ -182,39 +182,45 @@ func (h *helm) getOpts(options fleet.BundleDeploymentOptions) (map[string]interf
 
 func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
 	var (
-		cfg    = h.cfg
-		getter genericclioptions.RESTClientGetter
+		cfg    action.Configuration
+		getter = h.getter
 	)
+
+	if h.useGlobalCfg {
+		return h.globalCfg, nil
+	}
 
 	serviceAccountNamespace, serviceAccountName, err := h.getServiceAccount(serviceAccountName)
 	if err != nil {
 		return cfg, err
 	}
 
-	if serviceAccountName == "" {
-		return cfg, nil
+	if serviceAccountName != "" {
+		getter, err = newImpersonatingGetter(serviceAccountNamespace, serviceAccountName, h.getter)
+		if err != nil {
+			return cfg, err
+		}
 	}
 
-	getter, err = newImpersonatingGetter(serviceAccountNamespace, serviceAccountName, h.getter)
-	if err != nil {
-		return cfg, err
-	}
+	err = cfg.Init(getter, namespace, "secrets", logrus.Infof)
+	cfg.Releases.MaxHistory = 5
 
-	// override global namespace default
-	kc := kube.New(getter)
-	kc.Namespace = namespace
-	cfg.RESTClientGetter = getter
-	cfg.KubeClient = kc
-	return cfg, nil
+	return cfg, err
 }
 
 func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
 	vals, timeout, namespace := h.getOpts(options)
 
-	uninstall, err := h.mustUninstall(bundleID)
+	cfg, err := h.getCfg(namespace, options.ServiceAccount)
 	if err != nil {
 		return nil, err
 	}
+
+	uninstall, err := h.mustUninstall(&cfg, bundleID)
+	if err != nil {
+		return nil, err
+	}
+
 	if uninstall {
 		if err := h.delete(bundleID, options, dryRun); err != nil {
 			return nil, err
@@ -224,12 +230,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		}
 	}
 
-	cfg, err := h.getCfg(namespace, options.ServiceAccount)
-	if err != nil {
-		return nil, err
-	}
-
-	install, err := h.mustInstall(bundleID)
+	install, err := h.mustInstall(&cfg, bundleID)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +269,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 }
 
 func (h *helm) ListDeployments() ([]string, error) {
-	list := action.NewList(&h.cfg)
+	list := action.NewList(&h.globalCfg)
 	list.All = true
 	releases, err := list.Run()
 	if err != nil {
@@ -292,18 +293,19 @@ func (h *helm) ListDeployments() ([]string, error) {
 }
 
 func (h *helm) Resources(deploymentID, resourcesID string) (*deployer.Resources, error) {
-	hist := action.NewHistory(&h.cfg)
+	hist := action.NewHistory(&h.globalCfg)
 
 	releases, err := hist.Run(deploymentID)
 	if err != nil {
 		return nil, err
 	}
 
-	releaseName, versionStr := kv.Split(resourcesID, ":")
+	namespace, name := kv.Split(resourcesID, "/")
+	releaseName, versionStr := kv.Split(name, ":")
 	version, _ := strconv.Atoi(versionStr)
 
 	for _, release := range releases {
-		if release.Name == releaseName && release.Version == version {
+		if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
 			return releaseToResources(release)
 		}
 	}
@@ -316,16 +318,32 @@ func (h *helm) Delete(bundleID string) error {
 }
 
 func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
-	_, timeout, namespace := h.getOpts(options)
+	_, timeout, _ := h.getOpts(options)
 
-	r, err := h.cfg.Releases.Last(bundleID)
+	r, err := h.globalCfg.Releases.Last(bundleID)
 	if err != nil {
 		return nil
 	}
 
-	serviceAccountName := r.Chart.Metadata.Annotations[ServiceAccountNameAnnotation]
+	if r.Chart.Metadata.Annotations[BundleIDAnnotation] != bundleID {
+		rels, err := h.globalCfg.Releases.History(bundleID)
+		if err != nil {
+			return nil
+		}
+		r = nil
+		for _, rel := range rels {
+			if rel.Chart.Metadata.Annotations[BundleIDAnnotation] == bundleID {
+				r = rel
+				break
+			}
+		}
+		if r == nil {
+			return fmt.Errorf("failed to find helm release to delete for %s", bundleID)
+		}
+	}
 
-	cfg, err := h.getCfg(namespace, serviceAccountName)
+	serviceAccountName := r.Chart.Metadata.Annotations[ServiceAccountNameAnnotation]
+	cfg, err := h.getCfg(r.Namespace, serviceAccountName)
 	if err != nil {
 		return err
 	}
@@ -344,7 +362,7 @@ func releaseToResources(release *release.Release) (*deployer.Resources, error) {
 	)
 	resources := &deployer.Resources{
 		DefaultNamespace: release.Namespace,
-		ID:               fmt.Sprintf("%s:%d", release.Name, release.Version),
+		ID:               fmt.Sprintf("%s/%s:%d", release.Namespace, release.Name, release.Version),
 	}
 
 	resources.Objects, err = yaml.ToObjects(bytes.NewBufferString(release.Manifest))

@@ -1,0 +1,11 @@
+{{if .Values.labels }}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: fleet-agent
+data:
+  config: |-
+    {
+      "labels":{{toJson .Values.labels}}
+    }
+{{end}}

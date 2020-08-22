@@ -16,17 +16,18 @@ import (
 
 func Template(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) ([]runtime.Object, error) {
 	h := &helm{
-		cfg:      action.Configuration{},
-		template: true,
+		globalCfg:    action.Configuration{},
+		useGlobalCfg: true,
+		template:     true,
 	}
 
 	mem := driver.NewMemory()
 	mem.SetNamespace("default")
 
-	h.cfg.Capabilities = chartutil.DefaultCapabilities
-	h.cfg.KubeClient = &kubefake.PrintingKubeClient{Out: ioutil.Discard}
-	h.cfg.Log = logrus.Infof
-	h.cfg.Releases = storage.Init(mem)
+	h.globalCfg.Capabilities = chartutil.DefaultCapabilities
+	h.globalCfg.KubeClient = &kubefake.PrintingKubeClient{Out: ioutil.Discard}
+	h.globalCfg.Log = logrus.Infof
+	h.globalCfg.Releases = storage.Init(mem)
 
 	resources, err := h.Deploy(bundleID, manifest, options)
 	if err != nil {

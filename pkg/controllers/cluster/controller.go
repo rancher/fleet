@@ -86,7 +86,7 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 		return nil, status, err
 	}
 
-	status.Namespace = name.SafeConcatName(cluster.Namespace, cluster.Name)
+	status.Namespace = name.SafeConcatName("cluster", cluster.Namespace, cluster.Name)
 	status.Summary = fleet.BundleSummary{}
 
 	sort.Slice(bundleDeployments, func(i, j int) bool {
