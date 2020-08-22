@@ -2,16 +2,27 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"regexp"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
+	"github.com/rancher/fleet/modules/cli/agentmanifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/wrangler/pkg/apply"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+)
+
+const (
+	FleetBootstrap = "fleet-controller-bootstrap"
 )
 
 var (
@@ -19,14 +30,26 @@ var (
 )
 
 type handler struct {
-	apply apply.Apply
-	cfg   clientcmd.ClientConfig
+	apply               apply.Apply
+	systemNamespace     string
+	serviceAccountCache corecontrollers.ServiceAccountCache
+	secretsCache        corecontrollers.SecretCache
+	cfg                 clientcmd.ClientConfig
 }
 
-func Register(ctx context.Context, apply apply.Apply, cfg clientcmd.ClientConfig) {
+func Register(ctx context.Context,
+	systemNamespace string,
+	apply apply.Apply,
+	cfg clientcmd.ClientConfig,
+	serviceAccountCache corecontrollers.ServiceAccountCache,
+	secretsCache corecontrollers.SecretCache,
+) {
 	h := handler{
-		apply: apply.WithSetID("fleet-bootstrap"),
-		cfg:   cfg,
+		systemNamespace:     systemNamespace,
+		serviceAccountCache: serviceAccountCache,
+		secretsCache:        secretsCache,
+		apply:               apply.WithSetID("fleet-bootstrap"),
+		cfg:                 cfg,
 	}
 	config.OnChange(ctx, h.OnConfig)
 }
@@ -38,7 +61,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 		return nil
 	}
 
-	secret, err := getSecret(config.Bootstrap.Namespace, h.cfg)
+	secret, err := h.getSecret(config.Bootstrap.Namespace, h.cfg)
 	if err != nil {
 		return err
 	}
@@ -90,58 +113,68 @@ func (h *handler) OnConfig(config *config.Config) error {
 	return h.apply.ApplyObjects(objs...)
 }
 
-func getHost(cfg clientcmd.ClientConfig) (string, error) {
-	rawConfig, err := cfg.RawConfig()
+func getHost(rawConfig clientcmdapi.Config) (string, error) {
+	icc, err := rest.InClusterConfig()
+	if err != nil {
+		return agentmanifest.GetHostFromConfig(rawConfig)
+	}
+	return icc.Host, nil
+}
+
+func getCA(rawConfig clientcmdapi.Config) ([]byte, error) {
+	icc, err := rest.InClusterConfig()
+	if err != nil {
+		return agentmanifest.GetCAFromConfig(rawConfig)
+	}
+	return ioutil.ReadFile(icc.TLSClientConfig.CAFile)
+}
+
+func (h *handler) getToken() (string, error) {
+	sa, err := h.serviceAccountCache.Get(h.systemNamespace, FleetBootstrap)
+	if apierrors.IsNotFound(err) {
+		icc, err := rest.InClusterConfig()
+		if err == nil {
+			return icc.BearerToken, nil
+		}
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+
+	if len(sa.Secrets) == 0 {
+		return "", fmt.Errorf("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
+	}
+
+	secret, err := h.secretsCache.Get(h.systemNamespace, sa.Secrets[0].Name)
 	if err != nil {
 		return "", err
 	}
 
-	cluster, ok := rawConfig.Clusters[rawConfig.CurrentContext]
-	if !ok {
-		for _, v := range rawConfig.Clusters {
-			return v.Server, nil
-		}
-	}
-	return cluster.Server, nil
+	return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
 }
 
-func getCA(cfg clientcmd.ClientConfig) ([]byte, error) {
+func (h *handler) getSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.Secret, error) {
 	rawConfig, err := cfg.RawConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	cluster, ok := rawConfig.Clusters[rawConfig.CurrentContext]
-	if !ok {
-		for _, v := range rawConfig.Clusters {
-			cluster = v
-			break
-		}
-	}
-
-	if len(cluster.CertificateAuthorityData) > 0 {
-		return cluster.CertificateAuthorityData, nil
-	}
-	return ioutil.ReadFile(cluster.CertificateAuthority)
-}
-
-func getSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.Secret, error) {
-	rawConfig, err := cfg.RawConfig()
+	host, err := getHost(rawConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	value, err := clientcmd.Write(rawConfig)
+	ca, err := getCA(rawConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	host, err := getHost(cfg)
+	token, err := h.getToken()
 	if err != nil {
 		return nil, err
 	}
 
-	ca, err := getCA(cfg)
+	value, err := buildKubeConfig(host, ca, token, rawConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -157,5 +190,31 @@ func getSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.S
 			"apiServerCA":  ca,
 		},
 	}, nil
+}
+
+func buildKubeConfig(host string, ca []byte, token string, rawConfig clientcmdapi.Config) ([]byte, error) {
+	if token == "" {
+		return clientcmd.Write(rawConfig)
+	}
+	return clientcmd.Write(clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			"cluster": {
+				Server:                   host,
+				CertificateAuthorityData: ca,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			"user": {
+				Token: token,
+			},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			"default": {
+				Cluster:  "cluster",
+				AuthInfo: "user",
+			},
+		},
+		CurrentContext: "default",
+	})
 
 }

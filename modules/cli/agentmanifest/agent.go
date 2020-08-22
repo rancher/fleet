@@ -3,7 +3,7 @@ package agentmanifest
 import (
 	"context"
 	"crypto/tls"
-	fmt "fmt"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -11,26 +11,25 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/client-go/kubernetes"
-
-	"github.com/rancher/fleet/modules/cli/agentconfig"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/rancher/fleet/pkg/agent"
-
 	"github.com/pkg/errors"
+	"github.com/rancher/fleet/modules/cli/agentconfig"
 	"github.com/rancher/fleet/modules/cli/pkg/client"
+	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
 	"github.com/rancher/wrangler/pkg/yaml"
-	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+)
+
+var (
+	ErrNoHostInConfig = errors.New("failed to find cluster server parameter")
 )
 
 type Options struct {
@@ -48,7 +47,7 @@ func AgentToken(ctx context.Context, controllerNamespace, kubeConfigFile string,
 		return nil, err
 	}
 
-	kubeConfig, err := getKubeConfig(kubeConfigFile, client.Namespace, token, opts.Host, opts.CA, opts.NoCA)
+	kubeConfig, err := getKubeConfig(kubeConfigFile, client.Namespace, token["token"], opts.Host, opts.CA, opts.NoCA)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +58,7 @@ func AgentToken(ctx context.Context, controllerNamespace, kubeConfigFile string,
 		}
 	}
 
-	return objects(controllerNamespace, kubeConfig), nil
+	return objects(controllerNamespace, token), nil
 }
 
 func insecurePing(host string) {
@@ -149,7 +148,7 @@ func checkHost(host string) error {
 	return nil
 }
 
-func getKubeConfig(kubeConfig string, namespace, token, host string, ca []byte, noCA bool) (string, error) {
+func getKubeConfig(kubeConfig string, namespace string, token []byte, host string, ca []byte, noCA bool) (string, error) {
 	cc := kubeconfig.GetNonInteractiveClientConfig(kubeConfig)
 	cfg, err := cc.RawConfig()
 	if err != nil {
@@ -185,7 +184,7 @@ func getKubeConfig(kubeConfig string, namespace, token, host string, ca []byte, 
 		},
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
 			"user": {
-				Token: token,
+				Token: string(token),
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
@@ -221,12 +220,12 @@ func getHost(host string, cfg clientcmdapi.Config) (string, bool, error) {
 		return host, false, nil
 	}
 
-	cluster, err := getCluster(cfg)
+	host, err := GetHostFromConfig(cfg)
 	if err != nil {
 		return "", false, err
 	}
 
-	return cluster.Server, true, nil
+	return host, true, nil
 }
 
 func getCA(ca []byte, cfg clientcmdapi.Config) ([]byte, error) {
@@ -234,39 +233,42 @@ func getCA(ca []byte, cfg clientcmdapi.Config) ([]byte, error) {
 		return ca, nil
 	}
 
-	cluster, err := getCluster(cfg)
+	return GetCAFromConfig(cfg)
+}
+
+func getToken(ctx context.Context, tokenName string, client *client.Client) (map[string][]byte, error) {
+	secretName, err := waitForSecretName(ctx, tokenName, client)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(cluster.CertificateAuthorityData) > 0 {
-		return cluster.CertificateAuthorityData, nil
-	}
-
-	if cluster.CertificateAuthority != "" {
-		return ioutil.ReadFile(cluster.CertificateAuthority)
-	}
-
-	return nil, nil
-}
-
-func getToken(ctx context.Context, tokenName string, client *client.Client) (string, error) {
-	secretName, err := waitForSecretName(ctx, tokenName, client)
-	if err != nil {
-		return "", err
-	}
-
 	secret, err := client.Core.Secret().Get(client.Namespace, secretName, metav1.GetOptions{})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	token := secret.Data[coreV1.ServiceAccountTokenKey]
-	if len(token) == 0 {
-		return "", fmt.Errorf("failed to find token on secret %s/%s", client.Namespace, secretName)
+	values := secret.Data["values"]
+	if len(values) == 0 {
+		return nil, fmt.Errorf("failed to find \"values\" on secret %s/%s", client.Namespace, secretName)
 	}
 
-	return string(token), nil
+	data := map[string]interface{}{}
+	if err := yaml.Unmarshal(values, &data); err != nil {
+		return nil, err
+	}
+
+	if _, ok := data["token"]; !ok {
+		return nil, fmt.Errorf("failed to find token in values")
+	}
+
+	byteData := map[string][]byte{}
+	for k, v := range data {
+		if s, ok := v.(string); ok {
+			byteData[k] = []byte(s)
+		}
+	}
+
+	return byteData, nil
 }
 
 func waitForSecretName(ctx context.Context, tokenName string, client *client.Client) (string, error) {
@@ -317,4 +319,36 @@ func startWatch(namespace string, sa fleetcontrollers.ClusterRegistrationTokenCl
 		return nil, err
 	}
 	return sa.Watch(namespace, metav1.ListOptions{ResourceVersion: secrets.ResourceVersion})
+}
+
+func GetCAFromConfig(rawConfig clientcmdapi.Config) ([]byte, error) {
+	cluster, ok := rawConfig.Clusters[rawConfig.CurrentContext]
+	if !ok {
+		for _, v := range rawConfig.Clusters {
+			cluster = v
+			break
+		}
+	}
+
+	if cluster != nil {
+		if len(cluster.CertificateAuthorityData) > 0 {
+			return cluster.CertificateAuthorityData, nil
+		}
+		return ioutil.ReadFile(cluster.CertificateAuthority)
+	}
+
+	return nil, nil
+}
+
+func GetHostFromConfig(rawConfig clientcmdapi.Config) (string, error) {
+	cluster, ok := rawConfig.Clusters[rawConfig.CurrentContext]
+	if ok {
+		return cluster.Server, nil
+	}
+
+	for _, v := range rawConfig.Clusters {
+		return v.Server, nil
+	}
+
+	return "", ErrNoHostInConfig
 }

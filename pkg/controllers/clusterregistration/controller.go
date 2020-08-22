@@ -31,6 +31,7 @@ const (
 )
 
 type handler struct {
+	systemNamespace     string
 	clusterRegistration fleetcontrollers.ClusterRegistrationController
 	clusterCache        fleetcontrollers.ClusterCache
 	clusters            fleetcontrollers.ClusterClient
@@ -41,6 +42,7 @@ type handler struct {
 
 func Register(ctx context.Context,
 	apply apply.Apply,
+	systemNamespace string,
 	serviceAccount corecontrollers.ServiceAccountController,
 	secret corecontrollers.SecretController,
 	role rbaccontrollers.RoleController,
@@ -51,6 +53,7 @@ func Register(ctx context.Context,
 	clusterCache fleetcontrollers.ClusterCache,
 	clusters fleetcontrollers.ClusterClient) {
 	h := &handler{
+		systemNamespace:     systemNamespace,
 		clusterRegistration: clusterRegistration,
 		clusterCache:        clusterCache,
 		clusters:            clusters,
@@ -120,6 +123,7 @@ func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster
 			"deploymentNamespace": []byte(cluster.Status.Namespace),
 			"clusterNamespace":    []byte(cluster.Namespace),
 			"clusterName":         []byte(cluster.Name),
+			"systemNamespace":     []byte(h.systemNamespace),
 		},
 	}, nil
 }

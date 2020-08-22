@@ -3,6 +3,8 @@ package helm
 import (
 	"strings"
 
+	"github.com/rancher/wrangler/pkg/kv"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
 	"helm.sh/helm/v3/pkg/chart"
@@ -41,8 +43,9 @@ func addChartYAML(name string, m, newManifest *manifest.Manifest) (*manifest.Man
 		return nil, err
 	}
 
+	_, chartName := kv.RSplit(name, "/")
 	metadata := chart.Metadata{
-		Name:       name,
+		Name:       chartName,
 		Version:    "v0.1-" + hash,
 		APIVersion: "v2",
 	}

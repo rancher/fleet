@@ -4,6 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/rancher/fleet/pkg/config"
+
+	yaml "sigs.k8s.io/yaml"
+
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -19,18 +23,24 @@ import (
 )
 
 type handler struct {
+	systemNamespace           string
 	clusterRegistrationTokens fleetcontrollers.ClusterRegistrationTokenClient
 	serviceAccountCache       corecontrollers.ServiceAccountCache
+	secretsCache              corecontrollers.SecretCache
 }
 
 func Register(ctx context.Context,
+	systemNamespace string,
 	apply apply.Apply,
 	clusterGroupToken fleetcontrollers.ClusterRegistrationTokenController,
 	serviceAccounts corecontrollers.ServiceAccountController,
+	secretsCache corecontrollers.SecretCache,
 ) {
 	h := &handler{
+		systemNamespace:           systemNamespace,
 		clusterRegistrationTokens: clusterGroupToken,
 		serviceAccountCache:       serviceAccounts.Cache(),
+		secretsCache:              secretsCache,
 	}
 
 	fleetcontrollers.RegisterClusterRegistrationTokenGeneratingHandler(ctx,
@@ -51,8 +61,11 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		return nil, status, nil
 	}
 
+	var (
+		saName  = name.SafeConcatName(token.Name, string(token.UID))
+		secrets []runtime.Object
+	)
 	status.SecretName = ""
-	saName := name.SafeConcatName(token.Name, string(token.UID))
 
 	sa, err := h.serviceAccountCache.Get(token.Namespace, saName)
 	if apierror.IsNotFound(err) {
@@ -60,12 +73,16 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 	} else if err != nil {
 		return nil, status, err
 	} else if len(sa.Secrets) > 0 {
-		status.SecretName = sa.Secrets[0].Name
+		status.SecretName = token.Name
+		secrets, err = h.getValuesYAMLSecret(token, sa.Secrets[0].Name)
+		if err != nil {
+			return nil, status, err
+		}
 	}
 
 	expireTime := token.CreationTimestamp.Add(time.Second * time.Duration(token.Spec.TTLSeconds))
 	status.Expires = metav1.Time{Time: expireTime}
-	return []runtime.Object{
+	return append([]runtime.Object{
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      saName,
@@ -117,7 +134,51 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 				Name:     name.SafeConcatName(saName, "role"),
 			},
 		},
-	}, status, nil
+	}, secrets...), status, nil
+}
+
+func (h *handler) getValuesYAMLSecret(token *fleet.ClusterRegistrationToken, secretName string) ([]runtime.Object, error) {
+	if secretName == "" {
+		return nil, nil
+	}
+
+	secret, err := h.secretsCache.Get(token.Namespace, secretName)
+	if err != nil {
+		return nil, err
+	}
+
+	values := map[string]interface{}{
+		"clusterNamespace": token.Namespace,
+		"apiServerURL":     config.Get().APIServerURL,
+		"apiServerCA":      string(config.Get().APIServerCA),
+		"token":            string(secret.Data["token"]),
+	}
+
+	if h.systemNamespace != config.DefaultNamespace {
+		values["internal"] = map[string]interface{}{
+			"systemNamespace": h.systemNamespace,
+		}
+	}
+
+	data, err := yaml.Marshal(values)
+	if err != nil {
+		return nil, err
+	}
+
+	return []runtime.Object{
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      token.Name,
+				Namespace: token.Namespace,
+			},
+			Immutable: nil,
+			Data: map[string][]byte{
+				"values": data,
+			},
+			Type: "fleet.cattle.io/cluster-registration-values",
+		},
+	}, nil
+
 }
 
 func (h *handler) deleteExpired(token *fleet.ClusterRegistrationToken) (bool, error) {

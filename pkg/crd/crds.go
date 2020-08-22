@@ -2,13 +2,45 @@ package crd
 
 import (
 	"context"
+	"io"
+	"os"
+	"path/filepath"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/crd"
+	"github.com/rancher/wrangler/pkg/yaml"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 )
+
+func WriteFile(filename string) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return Print(f)
+}
+
+func Print(out io.Writer) error {
+	obj, err := Objects()
+	if err != nil {
+		return err
+	}
+
+	data, err := yaml.Export(obj...)
+	if err != nil {
+		return err
+	}
+
+	_, err = out.Write(data)
+	return err
+}
 
 func Objects() (result []runtime.Object, err error) {
 	for _, crdDef := range List() {

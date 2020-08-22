@@ -55,7 +55,7 @@ func Register(ctx context.Context,
 func (h *handler) garbageCollect() {
 	for {
 		if err := h.deployManager.Cleanup(); err != nil {
-			logrus.Errorf("failed to cleanup orphaned releases")
+			logrus.Errorf("failed to cleanup orphaned releases: %v", err)
 		}
 		select {
 		case <-h.ctx.Done():
