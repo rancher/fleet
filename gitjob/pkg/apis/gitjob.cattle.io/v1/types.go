@@ -79,11 +79,8 @@ type Credential struct {
 	// InsecureSkipTLSverify will use insecure HTTPS to download the repo's index.
 	InsecureSkipTLSverify bool `json:"insecureSkipTLSVerify,omitempty"`
 
-	// Hostname of git server
-	GitHostname string `json:"gitHostName,omitempty"`
-
 	// Secret Name of git credential
-	GitSecretName string `json:"gitSecretName,omitempty"`
+	ClientSecretName string `json:"clientSecretName,omitempty"`
 }
 
 type GitJobStatus struct {

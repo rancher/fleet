@@ -8,16 +8,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-
-	"golang.org/x/oauth2"
-
 	"github.com/google/go-github/v28/github"
+	"github.com/google/uuid"
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/gitjob/pkg/types"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/kstatus"
 	"github.com/rancher/wrangler/pkg/kv"
+	"golang.org/x/oauth2"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -40,17 +39,19 @@ const (
 )
 
 type GitHub struct {
-	gitjob      v1controller.GitJobController
+	gitjobs     v1controller.GitJobController
 	configmaps  corev1controller.ConfigMapCache
 	secretCache corev1controller.SecretCache
 	client      *github.Client
+	namespace   string
 }
 
 func NewGitHub(rContext *types.Context) *GitHub {
 	return &GitHub{
-		gitjob:      rContext.Gitjob.Gitjob().V1().GitJob(),
+		namespace:   rContext.Namespace,
 		configmaps:  rContext.Core.Core().V1().ConfigMap().Cache(),
 		secretCache: rContext.Core.Core().V1().Secret().Cache(),
+		gitjobs:     rContext.Gitjob.Gitjob().V1().GitJob(),
 	}
 }
 
@@ -62,29 +63,23 @@ func (w *GitHub) Supports(obj *v1.GitJob) bool {
 	return false
 }
 
-func (w *GitHub) getGithubSettingAndSecret() (*corev1.ConfigMap, *corev1.Secret, error) {
-	configmap, err := w.configmaps.Get(kubeSystem, githubConfigmapName)
+func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitJobStatus, error) {
+	newObj, err := w.innerHandle(ctx, obj)
 	if err != nil {
-		return nil, nil, err
+		kstatus.SetError(newObj, err.Error())
 	}
-
-	secret, err := w.secretCache.Get(kubeSystem, configmap.Data[githubSecretName])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return configmap, secret, nil
+	return newObj.Status, err
 }
 
-func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitJobStatus, error) {
+func (w *GitHub) innerHandle(ctx context.Context, obj *v1.GitJob) (*v1.GitJob, error) {
 	cm, secret, err := w.getGithubSettingAndSecret()
 	if err != nil {
 		// if no github setting and token is found, skip creating webhook
-		return obj.Status, nil
+		return obj, nil
 	}
 
 	if obj.Status.HookID != "" {
-		return obj.Status, nil
+		return obj, nil
 	}
 
 	if w.client == nil {
@@ -99,7 +94,7 @@ func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitJobStatus, e
 
 	owner, repo, err := getOwnerAndRepo(obj.Spec.Git.Repo)
 	if err != nil {
-		return obj.Status, err
+		return obj, err
 	}
 
 	obj.Status.ValidationToken = uuid.New().String()
@@ -111,11 +106,11 @@ func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitJobStatus, e
 		},
 	})
 	if err != nil {
-		return obj.Status, fmt.Errorf("failed to create hook for %s/%s, error: %v", owner, repo, err)
+		return obj, fmt.Errorf("failed to create hook for %s/%s, error: %v", owner, repo, err)
 	}
 
 	obj.Status.HookID = strconv.Itoa(int(*hook.ID))
-	return obj.Status, nil
+	return obj, nil
 }
 
 func (w *GitHub) HandleHook(ctx context.Context, req *http.Request) (int, error) {
@@ -125,7 +120,7 @@ func (w *GitHub) HandleHook(ctx context.Context, req *http.Request) (int, error)
 	}
 
 	ns, name := kv.Split(receiverID, ":")
-	gitjob, err := w.gitjob.Cache().Get(ns, name)
+	gitjob, err := w.gitjobs.Cache().Get(ns, name)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -147,6 +142,20 @@ func (w *GitHub) HandleHook(ctx context.Context, req *http.Request) (int, error)
 	return w.handleEvent(ctx, event, gitjob)
 }
 
+func (w *GitHub) getGithubSettingAndSecret() (*corev1.ConfigMap, *corev1.Secret, error) {
+	configmap, err := w.configmaps.Get(kubeSystem, githubConfigmapName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	secret, err := w.secretCache.Get(kubeSystem, configmap.Data[githubSecretName])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return configmap, secret, nil
+}
+
 func (w *GitHub) handleEvent(ctx context.Context, event interface{}, gitjob *v1.GitJob) (int, error) {
 	switch event.(type) {
 	case *github.PushEvent:
@@ -166,7 +175,7 @@ func (w *GitHub) handleEvent(ctx context.Context, event interface{}, gitjob *v1.
 			}
 		}
 	}
-	if _, err := w.gitjob.UpdateStatus(gitjob); err != nil {
+	if _, err := w.gitjobs.UpdateStatus(gitjob); err != nil {
 		return http.StatusConflict, err
 	}
 	return http.StatusOK, nil

@@ -6,16 +6,16 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rancher/gitjob/pkg/provider/github"
-
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/gitjob/pkg/provider"
+	"github.com/rancher/gitjob/pkg/provider/github"
 	"github.com/rancher/gitjob/pkg/provider/polling"
 	"github.com/rancher/gitjob/pkg/types"
 	"github.com/rancher/wrangler/pkg/apply"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
+	giturls "github.com/whilp/git-urls"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +36,7 @@ func Register(ctx context.Context, cont *types.Context) {
 		ctx: ctx,
 		providers: []provider.Provider{
 			github.NewGitHub(cont),
-			polling.NewPolling(cont.Core.Core().V1().Secret().Cache()),
+			polling.NewPolling(cont),
 		},
 		gitjobs: cont.Gitjob.Gitjob().V1().GitJob(),
 		secrets: cont.Core.Core().V1().Secret().Cache(),
@@ -76,7 +76,8 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 			if provider.Supports(obj) {
 				handledStatus, err := provider.Handle(h.ctx, obj)
 				if err != nil {
-					return nil, status, err
+					// don't return error in here. The stall error needs to be written into status
+					return nil, handledStatus, nil
 				}
 				status = handledStatus
 			}
@@ -189,13 +190,13 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 		})
 	}
 
-	if obj.Spec.Git.GitSecretName != "" {
+	if obj.Spec.Git.ClientSecretName != "" {
 		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes,
 			corev1.Volume{
 				Name: "git-credential",
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName: obj.Spec.Git.GitSecretName,
+						SecretName: obj.Spec.Git.ClientSecretName,
 					},
 				},
 			},
@@ -360,15 +361,20 @@ func (h Handler) generateInitContainer(obj *v1.GitJob) ([]corev1.Container, erro
 			},
 		},
 	}
-	if obj.Spec.Git.GitSecretName != "" {
-		secretType, err := h.inspectSecretType(obj.Spec.Git.GitSecretName, obj.Namespace)
+
+	hostname, err := parseHostname(obj.Spec.Git.Repo)
+	if err != nil {
+		return nil, err
+	}
+	if obj.Spec.Git.ClientSecretName != "" {
+		secretType, err := h.inspectSecretType(obj.Spec.Git.ClientSecretName, obj.Namespace)
 		if err != nil {
 			return nil, err
 		}
 		initContainers = append([]corev1.Container{
 			{
 				Args: []string{
-					fmt.Sprintf("-%s-git=%s=%s", secretType, obj.Spec.Git.GitSecretName, obj.Spec.Git.GitHostname),
+					fmt.Sprintf("-%s-git=%s=%s", secretType, obj.Spec.Git.ClientSecretName, hostname),
 				},
 				Name: "creds-init",
 				Command: []string{
@@ -395,7 +401,7 @@ func (h Handler) generateInitContainer(obj *v1.GitJob) ([]corev1.Container, erro
 						Name:      "tekton-internal-results",
 					},
 					{
-						MountPath: fmt.Sprintf("/tekton/creds-secrets/%s", obj.Spec.Git.GitSecretName),
+						MountPath: fmt.Sprintf("/tekton/creds-secrets/%s", obj.Spec.Git.ClientSecretName),
 						Name:      "git-credential",
 					},
 				},
@@ -418,4 +424,13 @@ func (h Handler) inspectSecretType(secretName, namespace string) (string, error)
 	}
 
 	return "", fmt.Errorf("git secret can only be ssh or basic auth, type is %v", secret.Type)
+}
+
+func parseHostname(repo string) (string, error) {
+	u, err := giturls.Parse(repo)
+	if err != nil {
+		return "", err
+	}
+
+	return u.Hostname(), nil
 }

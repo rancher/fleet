@@ -10,9 +10,7 @@ import (
 	"os"
 
 	"github.com/rancher/gitjob/pkg/controller"
-
 	"github.com/rancher/gitjob/pkg/hooks"
-
 	"github.com/rancher/gitjob/pkg/types"
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/resolvehome"
@@ -68,7 +66,7 @@ func run(c *cli.Context) {
 		logrus.Fatalf("Error building kubeconfig: %s", err.Error())
 	}
 
-	ctx, cont := types.BuildContext(ctx, "gitjob", cfg)
+	ctx, cont := types.BuildContext(ctx, c.String("namespace"), cfg)
 	if err := cont.Start(ctx); err != nil {
 		logrus.Fatal(err)
 	}

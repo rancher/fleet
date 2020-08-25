@@ -7,9 +7,7 @@ spec:
     branch: master
     repo: git@github.com:StrongMonkey/priv-repo.git
     provider: polling
-    gitSecretName: ssh-key-secret
-    gitSecretType: ssh
-    gitHostName: github.com
+    clientSecretName: ssh-key-secret
   jobSpec:
     template:
       spec:

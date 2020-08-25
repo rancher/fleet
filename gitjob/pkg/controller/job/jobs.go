@@ -5,11 +5,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rancher/wrangler/pkg/condition"
-
 	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	gitjobv1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/gitjob/pkg/types"
+	"github.com/rancher/wrangler/pkg/condition"
 	v1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
