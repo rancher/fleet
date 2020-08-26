@@ -30,6 +30,7 @@ import (
 var (
 	BundleResourceName                   = "bundles"
 	BundleDeploymentResourceName         = "bundledeployments"
+	BundleNamespaceMappingResourceName   = "bundlenamespacemappings"
 	ClusterResourceName                  = "clusters"
 	ClusterGroupResourceName             = "clustergroups"
 	ClusterRegistrationResourceName      = "clusterregistrations"
@@ -63,6 +64,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&BundleList{},
 		&BundleDeployment{},
 		&BundleDeploymentList{},
+		&BundleNamespaceMapping{},
+		&BundleNamespaceMappingList{},
 		&Cluster{},
 		&ClusterList{},
 		&ClusterGroup{},

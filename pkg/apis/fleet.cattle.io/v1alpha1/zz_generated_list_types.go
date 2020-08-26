@@ -60,6 +60,23 @@ func NewBundleDeployment(namespace, name string, obj BundleDeployment) *BundleDe
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// BundleNamespaceMappingList is a list of BundleNamespaceMapping resources
+type BundleNamespaceMappingList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []BundleNamespaceMapping `json:"items"`
+}
+
+func NewBundleNamespaceMapping(namespace, name string, obj BundleNamespaceMapping) *BundleNamespaceMapping {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("BundleNamespaceMapping").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // ClusterList is a list of Cluster resources
 type ClusterList struct {
 	metav1.TypeMeta `json:",inline"`
