@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -33,6 +34,38 @@ type handler struct {
 	gitjobCache v1.GitJobCache
 }
 
+func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
+	spec := &fleet.BundleSpec{}
+	for _, target := range repo.Spec.Targets {
+		spec.Targets = append(spec.Targets, fleet.BundleTarget{
+			Name:                 target.Name,
+			ClusterSelector:      target.ClusterSelector,
+			ClusterGroup:         target.ClusterGroup,
+			ClusterGroupSelector: target.ClusterGroupSelector,
+		})
+		spec.TargetRestrictions = append(spec.TargetRestrictions, fleet.BundleTargetRestriction{
+			Name:                 target.Name,
+			ClusterSelector:      target.ClusterSelector,
+			ClusterGroup:         target.ClusterGroup,
+			ClusterGroupSelector: target.ClusterGroupSelector,
+		})
+	}
+	data, err := json.Marshal(spec)
+	if err != nil {
+		return nil, err
+	}
+
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name.SafeConcatName(repo.Name, "config"),
+			Namespace: repo.Namespace,
+		},
+		BinaryData: map[string][]byte{
+			"targets.yaml": data,
+		},
+	}, nil
+}
+
 func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
 	dirs := gitrepo.Spec.BundleDirs
 	if len(dirs) == 0 {
@@ -53,8 +86,14 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 		branch = "master"
 	}
 
+	configMap, err := h.getConfig(gitrepo)
+	if err != nil {
+		return nil, status, err
+	}
+
 	saName := name.SafeConcatName("git", gitrepo.Name)
 	return []runtime.Object{
+		configMap,
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      saName,
@@ -119,6 +158,18 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 							CreationTimestamp: metav1.Time{Time: time.Unix(0, 0)},
 						},
 						Spec: corev1.PodSpec{
+							Volumes: []corev1.Volume{
+								{
+									Name: "config",
+									VolumeSource: corev1.VolumeSource{
+										ConfigMap: &corev1.ConfigMapVolumeSource{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: configMap.Name,
+											},
+										},
+									},
+								},
+							},
 							ServiceAccountName: saName,
 							RestartPolicy:      corev1.RestartPolicyNever,
 							Containers: []corev1.Container{
@@ -129,12 +180,19 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 									Command: append([]string{
 										"fleet",
 										"apply",
+										"--targets-file=/run/config/targets.yaml",
 										"--label=fleet.cattle.io/repo-name=" + gitrepo.Name,
 										"--namespace", gitrepo.Namespace,
 										"--service-account", gitrepo.Spec.ServiceAccount,
 										gitrepo.Name,
 									}, dirs...),
 									WorkingDir: "/workspace/source",
+									VolumeMounts: []corev1.VolumeMount{
+										{
+											Name:      "config",
+											MountPath: "/run/config",
+										},
+									},
 								},
 							},
 						},

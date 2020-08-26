@@ -64,7 +64,8 @@ type targetMatch struct {
 }
 
 type matcher struct {
-	matches []targetMatch
+	matches      []targetMatch
+	restrictions []*match.ClusterMatcher
 }
 
 func (a *Bundle) initMatcher() error {
@@ -88,11 +89,37 @@ func (a *Bundle) initMatcher() error {
 		m.matches = append(m.matches, t)
 	}
 
+	for _, target := range a.Definition.Spec.TargetRestrictions {
+		clusterMatcher, err := match.NewClusterMatcher(target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
+		if err != nil {
+			return err
+		}
+		m.restrictions = append(m.restrictions, clusterMatcher)
+	}
+
 	a.matcher = m
 	return nil
 }
 
+func (m *matcher) isRestricted(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
+	if len(m.restrictions) == 0 {
+		return false
+	}
+
+	for _, restriction := range m.restrictions {
+		if restriction.Match(clusterGroup, clusterGroupLabels, clusterLabels) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (m *matcher) Match(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) *Match {
+	if m.isRestricted(clusterGroup, clusterGroupLabels, clusterLabels) {
+		return nil
+	}
+
 	for _, targetMatch := range m.matches {
 		if targetMatch.criteria.Match(clusterGroup, clusterGroupLabels, clusterLabels) {
 			return targetMatch.targetBundle

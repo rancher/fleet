@@ -13,10 +13,12 @@ import (
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
 	"github.com/rancher/fleet/pkg/summary"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 var (
@@ -26,26 +28,32 @@ var (
 )
 
 type Manager struct {
-	clusters              fleetcontrollers.ClusterCache
-	clusterGroups         fleetcontrollers.ClusterGroupCache
-	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache
-	bundleCache           fleetcontrollers.BundleCache
-	contentStore          manifest.Store
+	clusters                    fleetcontrollers.ClusterCache
+	clusterGroups               fleetcontrollers.ClusterGroupCache
+	bundleDeploymentCache       fleetcontrollers.BundleDeploymentCache
+	bundleCache                 fleetcontrollers.BundleCache
+	bundleNamespaceMappingCache fleetcontrollers.BundleNamespaceMappingCache
+	namespaceCache              corecontrollers.NamespaceCache
+	contentStore                manifest.Store
 }
 
 func New(
 	clusters fleetcontrollers.ClusterCache,
 	clusterGroups fleetcontrollers.ClusterGroupCache,
 	bundles fleetcontrollers.BundleCache,
+	bundleNamespaceMappingCache fleetcontrollers.BundleNamespaceMappingCache,
+	namespaceCache corecontrollers.NamespaceCache,
 	contentStore manifest.Store,
 	bundleDeployments fleetcontrollers.BundleDeploymentCache) *Manager {
 
 	return &Manager{
-		clusterGroups:         clusterGroups,
-		clusters:              clusters,
-		bundleDeploymentCache: bundleDeployments,
-		bundleCache:           bundles,
-		contentStore:          contentStore,
+		clusterGroups:               clusterGroups,
+		clusters:                    clusters,
+		bundleDeploymentCache:       bundleDeployments,
+		bundleNamespaceMappingCache: bundleNamespaceMappingCache,
+		bundleCache:                 bundles,
+		contentStore:                contentStore,
+		namespaceCache:              namespaceCache,
 	}
 }
 
@@ -62,7 +70,7 @@ func ClusterGroupsToLabelMap(cgs []*fleet.ClusterGroup) map[string]map[string]st
 	return result
 }
 
-func (m *Manager) ClusterGroupsForCluster(cluster *fleet.Cluster) (result []*fleet.ClusterGroup, _ error) {
+func (m *Manager) clusterGroupsForCluster(cluster *fleet.Cluster) (result []*fleet.ClusterGroup, _ error) {
 	cgs, err := m.clusterGroups.List(cluster.Namespace, labels.Everything())
 	if err != nil {
 		return nil, err
@@ -85,8 +93,38 @@ func (m *Manager) ClusterGroupsForCluster(cluster *fleet.Cluster) (result []*fle
 
 	return result, nil
 }
+
+func (m *Manager) getBundlesInScopeForCluster(cluster *fleet.Cluster) ([]*fleet.Bundle, error) {
+	bundleSet := newBundleSet()
+
+	if err := bundleSet.insert(m.bundleCache.List(cluster.Namespace, labels.Everything())); err != nil {
+		return nil, err
+	}
+
+	mappings, err := m.bundleNamespaceMappingCache.List("", labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, mapping := range mappings {
+		matcher, err := NewBundleMapping(mapping, m.namespaceCache, m.bundleCache)
+		if err != nil {
+			logrus.Errorf("invalid BundleNamespaceMapping %s/%s skipping: %v", mapping.Namespace, mapping.Name, err)
+			continue
+		}
+		if !matcher.MatchesNamespace(cluster.Namespace) {
+			continue
+		}
+		if err := bundleSet.insert(matcher.Bundles()); err != nil {
+			return nil, err
+		}
+	}
+
+	return bundleSet.bundles(), nil
+}
+
 func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bundle, _ error) {
-	bundles, err := m.bundleCache.List(cluster.Namespace, labels.Everything())
+	bundles, err := m.getBundlesInScopeForCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
@@ -98,10 +136,11 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bun
 			continue
 		}
 
-		cgs, err := m.ClusterGroupsForCluster(cluster)
+		cgs, err := m.clusterGroupsForCluster(cluster)
 		if err != nil {
 			return nil, err
 		}
+
 		m := bundle.Match(ClusterGroupsToLabelMap(cgs), cluster.Labels)
 		if m != nil {
 			result = append(result, app)
@@ -111,55 +150,88 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bun
 	return
 }
 
+func (m *Manager) getNamespacesForBundle(fleetBundle *fleet.Bundle) ([]string, error) {
+	mappings, err := m.bundleNamespaceMappingCache.List(fleetBundle.Namespace, labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	nses := sets.NewString(fleetBundle.Namespace)
+	for _, mapping := range mappings {
+		matcher, err := NewBundleMapping(mapping, m.namespaceCache, m.bundleCache)
+		if err != nil {
+			logrus.Errorf("invalid BundleNamespaceMapping %s/%s skipping: %v", mapping.Namespace, mapping.Name, err)
+			continue
+		}
+		namespaces, err := matcher.Namespaces()
+		if err != nil {
+			return nil, err
+		}
+		for _, namespace := range namespaces {
+			nses.Insert(namespace.Name)
+		}
+	}
+
+	// this is a sorted list
+	return nses.List(), nil
+}
+
 func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error) {
 	bundle, err := bundle.New(fleetBundle)
 	if err != nil {
 		return nil, err
 	}
 
-	clusters, err := m.clusters.List(fleetBundle.Namespace, labels.Everything())
+	namespaces, err := m.getNamespacesForBundle(fleetBundle)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, cluster := range clusters {
-		clusterGroups, err := m.ClusterGroupsForCluster(cluster)
+	for _, namespace := range namespaces {
+		clusters, err := m.clusters.List(namespace, labels.Everything())
 		if err != nil {
 			return nil, err
 		}
 
-		match := bundle.Match(ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
-		if match == nil {
-			continue
-		}
+		for _, cluster := range clusters {
+			clusterGroups, err := m.clusterGroupsForCluster(cluster)
+			if err != nil {
+				return nil, err
+			}
 
-		manifest, err := match.Manifest()
-		if err != nil {
-			return nil, err
-		}
+			match := bundle.Match(ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			if match == nil {
+				continue
+			}
 
-		opts, err := options.Calculate(&fleetBundle.Spec, match.Target)
-		if err != nil {
-			return nil, err
-		}
+			manifest, err := match.Manifest()
+			if err != nil {
+				return nil, err
+			}
 
-		deploymentID, err := options.DeploymentID(manifest, opts)
-		if err != nil {
-			return nil, err
-		}
+			opts, err := options.Calculate(&fleetBundle.Spec, match.Target)
+			if err != nil {
+				return nil, err
+			}
 
-		if _, err := m.contentStore.Store(manifest); err != nil {
-			return nil, err
-		}
+			deploymentID, err := options.DeploymentID(manifest, opts)
+			if err != nil {
+				return nil, err
+			}
 
-		result = append(result, &Target{
-			ClusterGroups: clusterGroups,
-			Cluster:       cluster,
-			Target:        match.Target,
-			Bundle:        fleetBundle,
-			Options:       opts,
-			DeploymentID:  deploymentID,
-		})
+			if _, err := m.contentStore.Store(manifest); err != nil {
+				return nil, err
+			}
+
+			result = append(result, &Target{
+				ClusterGroups: clusterGroups,
+				Cluster:       cluster,
+				Target:        match.Target,
+				Bundle:        fleetBundle,
+				Options:       opts,
+				DeploymentID:  deploymentID,
+			})
+		}
 	}
 
 	sort.Slice(result, func(i, j int) bool {

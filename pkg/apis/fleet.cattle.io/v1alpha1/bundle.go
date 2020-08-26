@@ -34,14 +34,26 @@ type Bundle struct {
 	Status BundleStatus `json:"status"`
 }
 
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type BundleNamespaceMapping struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	BundleSelector    *metav1.LabelSelector `json:"bundleSelector,omitempty"`
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+}
+
 type BundleSpec struct {
 	BundleDeploymentOptions
 
-	Paused          bool             `json:"paused,omitempty"`
-	RolloutStrategy *RolloutStrategy `json:"rolloutStrategy,omitempty"`
-	Resources       []BundleResource `json:"resources,omitempty"`
-	Overlays        []BundleOverlay  `json:"overlays,omitempty"`
-	Targets         []BundleTarget   `json:"targets,omitempty"`
+	Paused             bool                      `json:"paused,omitempty"`
+	RolloutStrategy    *RolloutStrategy          `json:"rolloutStrategy,omitempty"`
+	Resources          []BundleResource          `json:"resources,omitempty"`
+	Overlays           []BundleOverlay           `json:"overlays,omitempty"`
+	Targets            []BundleTarget            `json:"targets,omitempty"`
+	TargetRestrictions []BundleTargetRestriction `json:"targetRestrictions,omitempty"`
 }
 
 type BundleResource struct {
@@ -71,6 +83,13 @@ type BundleOverlay struct {
 	Name      string           `json:"name,omitempty"`
 	Overlays  []string         `json:"overlays,omitempty"`
 	Resources []BundleResource `json:"resources,omitempty"`
+}
+
+type BundleTargetRestriction struct {
+	Name                 string                `json:"name,omitempty"`
+	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
+	ClusterGroup         string                `json:"clusterGroup,omitempty"`
+	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 }
 
 type BundleTarget struct {
