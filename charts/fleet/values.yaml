@@ -12,15 +12,25 @@ agentImage:
 # Example: https://example.com:6443
 apiServerURL: ""
 
-# For cluster auto registration the pem encoded value of the CA of the Kubernetes API server must be set here
+# For cluster registration the pem encoded value of the CA of the Kubernetes API server must be set here
 # If left empty it is assumed this Kubernetes API TLS is signed by a well known CA.
 apiServerCA: ""
 
-githubURLPrefix: https://github.com
+# The URL of the webhook reciever that will receive webhooks events from GitHub
+# Refer to documentation on how to setup Ingress or a Service LoadBalancer.
 webhookReceiverURL: ""
+
+# All repo URLs that match the below prefixes will be assumed to be github and a
+# webhook will be setup if webhookReceiverURL is also set
+githubURLPrefix: https://github.com
+
 bootstrap:
+  # The namespace that will be autocreated and the local cluster will be registered in
+  namespace: fleet-local
+  # A repo to add at install time that will deploy to the local cluster. This allows
+  # one to fully bootstrap fleet, it's configuration and all it's downstream clusters
+  # in one shot.
   repo: ""
   secret: ""
   branch: master
   dirs: ""
-  namespace: fleet-local

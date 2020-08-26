@@ -37,6 +37,16 @@ type GitRepoSpec struct {
 
 	// ServiceAccount used in the downstream cluster for deployment
 	ServiceAccount string `json:"serviceAccount,omitempty"`
+
+	// Targets is a list of target this repo will deploy to
+	Targets []GitTarget `json:"targets,omitempty"`
+}
+
+type GitTarget struct {
+	Name                 string                `json:"name,omitempty"`
+	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
+	ClusterGroup         string                `json:"clusterGroup,omitempty"`
+	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 }
 
 type GitRepoStatus struct {

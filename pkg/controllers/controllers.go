@@ -256,6 +256,8 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 		fleetv.Cluster().Cache(),
 		fleetv.ClusterGroup().Cache(),
 		fleetv.Bundle().Cache(),
+		fleetv.BundleNamespaceMapping().Cache(),
+		corev.Namespace().Cache(),
 		manifest.NewStore(fleetv.Content()),
 		fleetv.BundleDeployment().Cache())
 

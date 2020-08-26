@@ -27,5 +27,5 @@ REPO=${REPO:-rancher}
 if echo $TAG | grep -q dirty; then
     TAG=dev
     HELM_TAG=dev
-    HELM_VERSION=v0.0.0
+    HELM_VERSION=0.0.0-dev
 fi
