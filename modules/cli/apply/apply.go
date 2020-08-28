@@ -73,7 +73,7 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 	return nil
 }
 
-func readBundle(ctx context.Context, baseDir string, opts *Options) (*bundle.Bundle, error) {
+func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bundle.Bundle, error) {
 	if opts.BundleReader != nil {
 		var bundleResource fleet.Bundle
 		if err := json.NewDecoder(opts.BundleReader).Decode(&bundleResource); err != nil {
@@ -82,8 +82,10 @@ func readBundle(ctx context.Context, baseDir string, opts *Options) (*bundle.Bun
 		return bundle.New(&bundleResource)
 	}
 
-	b, err := bundle.Open(ctx, baseDir, opts.BundleFile, &bundle.Options{
-		Compress: opts.Compress,
+	b, err := bundle.Open(ctx, name, baseDir, opts.BundleFile, &bundle.Options{
+		Compress:       opts.Compress,
+		Labels:         opts.Labels,
+		ServiceAccount: opts.ServiceAccount,
 	})
 	if err != nil {
 		return nil, err
@@ -129,33 +131,13 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 		opts = &Options{}
 	}
 
-	bundle, err := readBundle(ctx, baseDir, opts)
+	bundle, err := readBundle(ctx, createName(name, baseDir), baseDir, opts)
 	if err != nil {
 		return err
 	}
 
 	def := bundle.Definition.DeepCopy()
 	def.Namespace = client.Namespace
-	def.Name = createName(name, baseDir)
-	for k, v := range opts.Labels {
-		if def.Labels == nil {
-			def.Labels = map[string]string{}
-		}
-		def.Labels[k] = v
-	}
-
-	if opts.ServiceAccount != "" {
-		def.Spec.ServiceAccount = opts.ServiceAccount
-	}
-
-	if len(def.Spec.Targets) == 0 {
-		def.Spec.Targets = []fleet.BundleTarget{
-			{
-				Name:         "default",
-				ClusterGroup: "default",
-			},
-		}
-	}
 
 	if len(def.Spec.Resources) == 0 {
 		return ErrNoResources
