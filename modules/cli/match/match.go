@@ -3,6 +3,7 @@ package match
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,7 +29,7 @@ func Match(ctx context.Context, opts *Options) error {
 		opts = &Options{}
 	}
 
-	bundle, err := bundle.Open(ctx, opts.BaseDir, opts.BundleFile, nil)
+	bundle, err := bundle.Open(ctx, "test", opts.BaseDir, opts.BundleFile, nil)
 	if err != nil {
 		return err
 	}
@@ -45,7 +46,7 @@ func Match(ctx context.Context, opts *Options) error {
 
 func printMatch(m *bundle.Match, output io.Writer) error {
 	if m == nil {
-		return nil
+		return errors.New("no match found")
 	}
 	fmt.Fprintf(os.Stderr, "# Matched: %s\n", m.Target.Name)
 	if output == nil {
