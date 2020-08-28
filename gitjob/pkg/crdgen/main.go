@@ -14,7 +14,16 @@ import (
 
 func main() {
 	var crds []crd.CRD
-	crds = append(crds, crd.NamespacedType("GitJob.gitjob.cattle.io/v1").WithStatus().WithSchema(mustSchema(v1.GitJob{})))
+	crds = append(crds,
+		crd.NamespacedType("GitJob.gitjob.cattle.io/v1").
+			WithStatus().
+			WithSchema(mustSchema(v1.GitJob{})).
+			WithColumnsFromStruct(v1.GitJob{}).
+			WithCustomColumn(v1beta1.CustomResourceColumnDefinition{
+				Name:     "Age",
+				Type:     "date",
+				JSONPath: ".metadata.creationTimestamp",
+			}))
 
 	var result []runtime.Object
 	for _, crd := range crds {

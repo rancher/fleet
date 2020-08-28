@@ -13,11 +13,14 @@ import (
 	"github.com/rancher/gitjob/pkg/provider/polling"
 	"github.com/rancher/gitjob/pkg/types"
 	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/condition"
+	batchv1controller "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	giturls "github.com/whilp/git-urls"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	types2 "k8s.io/apimachinery/pkg/types"
@@ -40,6 +43,7 @@ func Register(ctx context.Context, cont *types.Context) {
 		},
 		gitjobs: cont.Gitjob.Gitjob().V1().GitJob(),
 		secrets: cont.Core.Core().V1().Secret().Cache(),
+		batch:   cont.Batch.Batch().V1().Job(),
 	}
 
 	v1controller.RegisterGitJobGeneratingHandler(
@@ -60,6 +64,7 @@ func Register(ctx context.Context, cont *types.Context) {
 type Handler struct {
 	ctx       context.Context
 	gitjobs   v1controller.GitJobController
+	batch     batchv1controller.JobClient
 	providers []provider.Provider
 	secrets   corev1controller.SecretCache
 }
@@ -97,6 +102,16 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 		result = append(result, h.generateConfigmap(obj))
 	}
 
+	// if force delete is set, delete the job to make sure a new job is created
+	if obj.Spec.ForceUpdate != nil {
+		lastUpdated, err := time.Parse(time.RFC3339, condition.Cond("sync").GetLastUpdated(obj))
+		if err == nil && obj.Spec.ForceUpdate.Time.After(lastUpdated) && obj.Spec.ForceUpdate.Time.Before(time.Now()) {
+			if err := h.gitjobs.Delete(obj.Namespace, jobName(obj), &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+				return nil, status, err
+			}
+		}
+	}
+
 	job, err := h.generateJob(obj)
 	if err != nil {
 		return nil, status, err
@@ -119,6 +134,10 @@ func (h Handler) generateConfigmap(obj *v1.GitJob) *corev1.ConfigMap {
 	}
 }
 
+func jobName(obj *v1.GitJob) string {
+	return name.SafeConcatName(obj.Name, name.Hex(obj.Spec.Git.Repo+obj.Status.Commit, 5))
+}
+
 func caBundleName(obj *v1.GitJob) string {
 	return fmt.Sprintf("%s-CABundle", obj.Name)
 }
@@ -131,7 +150,7 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 				"commit":     obj.Status.Commit,
 			},
 			Namespace: obj.Namespace,
-			Name:      name.SafeConcatName(obj.Name, name.Hex(obj.Spec.Git.Repo+obj.Status.Commit, 5)),
+			Name:      jobName(obj),
 		},
 		Spec: obj.Spec.JobSpec,
 	}
