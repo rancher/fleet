@@ -57,25 +57,24 @@ func List() []crd.CRD {
 	return []crd.CRD{
 		newCRD(&fleet.Bundle{}, func(c crd.CRD) crd.CRD {
 			return c.
-				WithCategories("fleet").
-				WithColumn("Clusters-Ready", ".status.summary.ready").
-				WithColumn("Clusters-Desired", ".status.summary.desiredReady").
+				WithColumn("BundleDeployments-Ready", ".status.display.readyClusters").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.BundleDeployment{}, func(c crd.CRD) crd.CRD {
 			return c.
-				WithColumn("Deployed", ".status.conditions[?(@.type==\"Deployed\")].message").
-				WithColumn("Monitored", ".status.conditions[?(@.type==\"Monitored\")].message").
+				WithColumn("Deployed", ".status.display.deployed").
+				WithColumn("Monitored", ".status.display.monitored").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
+		}),
+		newCRD(&fleet.BundleNamespaceMapping{}, func(c crd.CRD) crd.CRD {
+			return c
 		}),
 		newCRD(&fleet.ClusterGroup{}, func(c crd.CRD) crd.CRD {
 			return c.
 				WithCategories("fleet").
-				WithColumn("Cluster-Count", ".status.clusterCount").
-				WithColumn("Bundles-Ready", ".status.summary.ready").
-				WithColumn("Bundles-Desired", ".status.summary.desiredReady").
+				WithColumn("Clusters-Ready", ".status.display.readyClusters").
+				WithColumn("Bundles-Ready", ".status.display.readyBundles").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
-
 		}),
 		newCRD(&fleet.Cluster{}, func(c crd.CRD) crd.CRD {
 			return c.
@@ -91,8 +90,11 @@ func List() []crd.CRD {
 		}),
 		newCRD(&fleet.GitRepo{}, func(c crd.CRD) crd.CRD {
 			return c.
+				WithCategories("fleet").
 				WithColumn("Repo", ".spec.repo").
-				WithColumn("Commit", ".status.commit")
+				WithColumn("Commit", ".status.commit").
+				WithColumn("Bundles-Ready", ".status.display.readyBundles").
+				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.ClusterRegistration{}, func(c crd.CRD) crd.CRD {
 			return c.

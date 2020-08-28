@@ -69,6 +69,6 @@ func (h *handler) OnClusterGroup(clusterGroup *fleet.ClusterGroup, status fleet.
 		}
 	}
 
-	summary.SetReadyConditions(&status, status.Summary)
+	summary.SetReadyConditions(&status, "Bundle", status.Summary)
 	return status, nil
 }

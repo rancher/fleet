@@ -136,6 +136,11 @@ type BundleStatus struct {
 	MaxUnavailablePartitions int               `json:"maxUnavailablePartitions,omitempty"`
 	MaxNew                   int               `json:"maxNew,omitempty"`
 	PartitionStatus          []PartitionStatus `json:"partitions,omitempty"`
+	Display                  BundleDisplay     `json:"display,omitempty"`
+}
+
+type BundleDisplay struct {
+	ReadyClusters string `json:"readyClusters,omitempty"`
 }
 
 type PartitionStatus struct {
@@ -181,6 +186,12 @@ type BundleDeploymentStatus struct {
 	NonModified         bool                                `json:"nonModified,omitempty"`
 	NonReadyStatus      []NonReadyStatus                    `json:"nonReadyStatus,omitempty"`
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
+	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
+}
+
+type BundleDeploymentDisplay struct {
+	Deployed  string `json:"deployed,omitempty"`
+	Monitored string `json:"monitored,omitempty"`
 }
 
 type NonReadyStatus struct {

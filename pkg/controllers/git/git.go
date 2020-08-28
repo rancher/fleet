@@ -67,6 +67,13 @@ func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 }
 
 func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
+	status.Conditions = nil
+
+	status, err := h.setBundleDeploymentStatus(gitrepo, status)
+	if err != nil {
+		return nil, status, err
+	}
+
 	dirs := gitrepo.Spec.BundleDirs
 	if len(dirs) == 0 {
 		dirs = []string{"."}
@@ -75,7 +82,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	gitJob, err := h.gitjobCache.Get(gitrepo.Namespace, gitrepo.Name)
 	if err == nil {
 		status.Commit = gitJob.Status.Commit
-		status.Conditions = gitJob.Status.Conditions
+		status.Conditions = append(status.Conditions, gitJob.Status.Conditions...)
 	} else {
 		status.Commit = ""
 		status.Conditions = nil
@@ -201,4 +208,33 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 			},
 		},
 	}, status, nil
+}
+
+func (h *handler) setBundleDeploymentStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (fleet.GitRepoStatus, error) {
+	if gitrepo.DeletionTimestamp != nil {
+		return status, nil
+	}
+
+	bundleDeployments, err := h.bundleDeployments.List("", labels.SelectorFromSet(labels.Set{
+		RepoLabel:                          gitrepo.Name,
+		"fleet.cattle.io/bundle-namespace": gitrepo.Namespace,
+	}))
+	if err != nil {
+		return status, err
+	}
+
+	status.Summary = fleet.BundleSummary{}
+
+	sort.Slice(bundleDeployments, func(i, j int) bool {
+		return bundleDeployments[i].Name < bundleDeployments[j].Name
+	})
+
+	for _, app := range bundleDeployments {
+		state := summary.GetDeploymentState(app)
+		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app))
+		status.Summary.DesiredReady++
+	}
+
+	summary.SetReadyConditions(&status, "Bundle", status.Summary)
+	return status, nil
 }

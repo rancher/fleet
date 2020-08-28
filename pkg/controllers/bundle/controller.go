@@ -91,7 +91,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 		return nil, status, err
 	}
 
-	summary.SetReadyConditions(&status, status.Summary)
+	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	return toRuntimeObjects(targets), status, nil
 }
 
