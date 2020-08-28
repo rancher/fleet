@@ -4,19 +4,14 @@ metadata:
   name: bundles.fleet.cattle.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .status.summary.ready
-    name: Clusters-Ready
-    type: string
-  - JSONPath: .status.summary.desiredReady
-    name: Clusters-Desired
+  - JSONPath: .status.display.readyClusters
+    name: BundleDeployments-Ready
     type: string
   - JSONPath: .status.conditions[?(@.type=="Ready")].message
     name: Status
     type: string
   group: fleet.cattle.io
   names:
-    categories:
-    - fleet
     kind: Bundle
     plural: bundles
   scope: Namespaced
@@ -185,6 +180,74 @@ spec:
             serviceAccount:
               nullable: true
               type: string
+            targetRestrictions:
+              items:
+                properties:
+                  clusterGroup:
+                    nullable: true
+                    type: string
+                  clusterGroupSelector:
+                    nullable: true
+                    properties:
+                      matchExpressions:
+                        items:
+                          properties:
+                            key:
+                              nullable: true
+                              type: string
+                            operator:
+                              nullable: true
+                              type: string
+                            values:
+                              items:
+                                nullable: true
+                                type: string
+                              nullable: true
+                              type: array
+                          type: object
+                        nullable: true
+                        type: array
+                      matchLabels:
+                        additionalProperties:
+                          nullable: true
+                          type: string
+                        nullable: true
+                        type: object
+                    type: object
+                  clusterSelector:
+                    nullable: true
+                    properties:
+                      matchExpressions:
+                        items:
+                          properties:
+                            key:
+                              nullable: true
+                              type: string
+                            operator:
+                              nullable: true
+                              type: string
+                            values:
+                              items:
+                                nullable: true
+                                type: string
+                              nullable: true
+                              type: array
+                          type: object
+                        nullable: true
+                        type: array
+                      matchLabels:
+                        additionalProperties:
+                          nullable: true
+                          type: string
+                        nullable: true
+                        type: object
+                    type: object
+                  name:
+                    nullable: true
+                    type: string
+                type: object
+              nullable: true
+              type: array
             targets:
               items:
                 properties:
@@ -307,6 +370,12 @@ spec:
                 type: object
               nullable: true
               type: array
+            display:
+              properties:
+                readyClusters:
+                  nullable: true
+                  type: string
+              type: object
             maxNew:
               type: integer
             maxUnavailable:
@@ -417,10 +486,10 @@ metadata:
   name: bundledeployments.fleet.cattle.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .status.conditions[?(@.type=="Deployed")].message
+  - JSONPath: .status.display.deployed
     name: Deployed
     type: string
-  - JSONPath: .status.conditions[?(@.type=="Monitored")].message
+  - JSONPath: .status.display.monitored
     name: Monitored
     type: string
   - JSONPath: .status.conditions[?(@.type=="Ready")].message
@@ -512,6 +581,15 @@ spec:
                 type: object
               nullable: true
               type: array
+            display:
+              properties:
+                deployed:
+                  nullable: true
+                  type: string
+                monitored:
+                  nullable: true
+                  type: string
+              type: object
             modifiedStatus:
               items:
                 properties:
@@ -649,17 +727,93 @@ spec:
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
+  name: bundlenamespacemappings.fleet.cattle.io
+spec:
+  group: fleet.cattle.io
+  names:
+    kind: BundleNamespaceMapping
+    plural: bundlenamespacemappings
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        bundleSelector:
+          nullable: true
+          properties:
+            matchExpressions:
+              items:
+                properties:
+                  key:
+                    nullable: true
+                    type: string
+                  operator:
+                    nullable: true
+                    type: string
+                  values:
+                    items:
+                      nullable: true
+                      type: string
+                    nullable: true
+                    type: array
+                type: object
+              nullable: true
+              type: array
+            matchLabels:
+              additionalProperties:
+                nullable: true
+                type: string
+              nullable: true
+              type: object
+          type: object
+        namespaceSelector:
+          nullable: true
+          properties:
+            matchExpressions:
+              items:
+                properties:
+                  key:
+                    nullable: true
+                    type: string
+                  operator:
+                    nullable: true
+                    type: string
+                  values:
+                    items:
+                      nullable: true
+                      type: string
+                    nullable: true
+                    type: array
+                type: object
+              nullable: true
+              type: array
+            matchLabels:
+              additionalProperties:
+                nullable: true
+                type: string
+              nullable: true
+              type: object
+          type: object
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
   name: clustergroups.fleet.cattle.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .status.clusterCount
-    name: Cluster-Count
+  - JSONPath: .status.display.readyClusters
+    name: Clusters-Ready
     type: string
-  - JSONPath: .status.summary.ready
+  - JSONPath: .status.display.readyBundles
     name: Bundles-Ready
-    type: string
-  - JSONPath: .status.summary.desiredReady
-    name: Bundles-Desired
     type: string
   - JSONPath: .status.conditions[?(@.type=="Ready")].message
     name: Status
@@ -735,6 +889,15 @@ spec:
                 type: object
               nullable: true
               type: array
+            display:
+              properties:
+                readyBundles:
+                  nullable: true
+                  type: string
+                readyClusters:
+                  nullable: true
+                  type: string
+              type: object
             nonReadyClusterCount:
               type: integer
             nonReadyClusters:
@@ -993,8 +1156,16 @@ spec:
   - JSONPath: .status.commit
     name: Commit
     type: string
+  - JSONPath: .status.display.readyBundles
+    name: Bundles-Ready
+    type: string
+  - JSONPath: .status.conditions[?(@.type=="Ready")].message
+    name: Status
+    type: string
   group: fleet.cattle.io
   names:
+    categories:
+    - fleet
     kind: GitRepo
     plural: gitrepos
   scope: Namespaced
@@ -1026,6 +1197,74 @@ spec:
             serviceAccount:
               nullable: true
               type: string
+            targets:
+              items:
+                properties:
+                  clusterGroup:
+                    nullable: true
+                    type: string
+                  clusterGroupSelector:
+                    nullable: true
+                    properties:
+                      matchExpressions:
+                        items:
+                          properties:
+                            key:
+                              nullable: true
+                              type: string
+                            operator:
+                              nullable: true
+                              type: string
+                            values:
+                              items:
+                                nullable: true
+                                type: string
+                              nullable: true
+                              type: array
+                          type: object
+                        nullable: true
+                        type: array
+                      matchLabels:
+                        additionalProperties:
+                          nullable: true
+                          type: string
+                        nullable: true
+                        type: object
+                    type: object
+                  clusterSelector:
+                    nullable: true
+                    properties:
+                      matchExpressions:
+                        items:
+                          properties:
+                            key:
+                              nullable: true
+                              type: string
+                            operator:
+                              nullable: true
+                              type: string
+                            values:
+                              items:
+                                nullable: true
+                                type: string
+                              nullable: true
+                              type: array
+                          type: object
+                        nullable: true
+                        type: array
+                      matchLabels:
+                        additionalProperties:
+                          nullable: true
+                          type: string
+                        nullable: true
+                        type: object
+                    type: object
+                  name:
+                    nullable: true
+                    type: string
+                type: object
+              nullable: true
+              type: array
           type: object
         status:
           properties:
@@ -1056,6 +1295,46 @@ spec:
                 type: object
               nullable: true
               type: array
+            display:
+              properties:
+                readyBundles:
+                  nullable: true
+                  type: string
+              type: object
+            summary:
+              properties:
+                desiredReady:
+                  type: integer
+                errApplied:
+                  type: integer
+                modified:
+                  type: integer
+                nonReadyResources:
+                  items:
+                    properties:
+                      bundleState:
+                        nullable: true
+                        type: string
+                      message:
+                        nullable: true
+                        type: string
+                      name:
+                        nullable: true
+                        type: string
+                    type: object
+                  nullable: true
+                  type: array
+                notApplied:
+                  type: integer
+                notReady:
+                  type: integer
+                outOfSync:
+                  type: integer
+                pending:
+                  type: integer
+                ready:
+                  type: integer
+              type: object
           type: object
       type: object
   version: v1alpha1
