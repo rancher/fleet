@@ -18,7 +18,7 @@ type GitJob struct {
 
 type GitEvent struct {
 	// The latest commit SHA received from git repo
-	Commit string `json:"commit,omitempty"`
+	Commit string `json:"commit,omitempty" column:"name=COMMIT,type=string,jsonpath=.status.commit"`
 
 	// Last executed commit SHA by gitjob controller
 	LastExecutedCommit string `json:"lastExecutedCommit,omitempty"`
@@ -46,6 +46,9 @@ type GitJobSpec struct {
 
 	// define interval(in seconds) for controller to sync repo and fetch commits
 	SyncInterval int `json:"syncInterval,omitempty"`
+
+	// ForceUpdate is a timestamp where can be set to do a force re-sync. If it is after the last synced timestamp and before the current timestamp it will be re-synced
+	ForceUpdate *metav1.Time `json:"forceUpdate,omitempty"`
 }
 
 type GitInfo struct {
@@ -56,13 +59,13 @@ type GitInfo struct {
 	Provider string `json:"provider,omitempty"`
 
 	// Git repo URL
-	Repo string `json:"repo,omitempty"`
+	Repo string `json:"repo,omitempty" column:"name=REPO,type=string,jsonpath=.spec.git.repo"`
 
 	// Git commit SHA. If specified, controller will use this SHA instead of auto-fetching commit
 	Revision string `json:"revision,omitempty"`
 
 	// Git branch to watch. Default to master
-	Branch string `json:"branch,omitempty"`
+	Branch string `json:"branch,omitempty" column:"name=BRANCH,type=string,jsonpath=.spec.git.branch"`
 
 	Github
 }
@@ -87,7 +90,7 @@ type GitJobStatus struct {
 	GitEvent
 
 	// Status of job launched by controller
-	JobStatus string `json:"jobStatus,omitempty"`
+	JobStatus string `json:"jobStatus,omitempty" column:"name=JOBSTATUS,type=string,jsonpath=.status.jobStatus"`
 
 	// Generation of status to indicate if resource is out-of-sync
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
