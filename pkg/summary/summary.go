@@ -76,12 +76,12 @@ func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleSt
 	}
 }
 
-func SetReadyConditions(obj interface{}, summary fleet.BundleSummary) {
+func SetReadyConditions(obj interface{}, referencedKind string, summary fleet.BundleSummary) {
 	if reflect.ValueOf(obj).Kind() != reflect.Ptr {
 		panic("obj passed must be a pointer")
 	}
 	c := condition.Cond("Ready")
-	msg := ReadyMessage(summary)
+	msg := ReadyMessage(summary, referencedKind)
 	c.SetStatusBool(obj, len(msg) == 0)
 	c.Message(obj, msg)
 }
@@ -106,7 +106,7 @@ func MessageFromDeployment(deployment *fleet.BundleDeployment) string {
 	return message
 }
 
-func ReadyMessage(summary fleet.BundleSummary) string {
+func ReadyMessage(summary fleet.BundleSummary, referencedKind string) string {
 	var messages []string
 	for msg, count := range map[fleet.BundleState]int{
 		fleet.OutOfSync:  summary.OutOfSync,
@@ -122,10 +122,7 @@ func ReadyMessage(summary fleet.BundleSummary) string {
 		for _, v := range summary.NonReadyResources {
 			name := v.Name
 			if v.State == msg {
-				if count > 1 {
-					name += "..."
-				}
-				messages = append(messages, fmt.Sprintf("%s: %d (%s %s)", msg, count, name, v.Message))
+				messages = append(messages, fmt.Sprintf("%s(%d) [%s %s: %s]", msg, count, referencedKind, name, v.Message))
 				break
 			}
 		}

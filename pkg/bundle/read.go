@@ -18,16 +18,18 @@ import (
 )
 
 type Options struct {
-	Compress bool
+	Compress       bool
+	Labels         map[string]string
+	ServiceAccount string
 }
 
-func Open(ctx context.Context, baseDir, file string, opts *Options) (*Bundle, error) {
+func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
 	if baseDir == "" {
 		baseDir = "."
 	}
 
 	if file == "-" {
-		return Read(ctx, baseDir, os.Stdin, opts)
+		return Read(ctx, name, baseDir, os.Stdin, opts)
 	}
 
 	var (
@@ -56,10 +58,10 @@ func Open(ctx context.Context, baseDir, file string, opts *Options) (*Bundle, er
 		in = f
 	}
 
-	return Read(ctx, baseDir, in, opts)
+	return Read(ctx, name, baseDir, in, opts)
 }
 
-func Read(ctx context.Context, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
+func Read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -69,7 +71,7 @@ func Read(ctx context.Context, baseDir string, bundleSpecReader io.Reader, opts 
 		return nil, err
 	}
 
-	bundle, err := read(ctx, opts.Compress, baseDir, bytes.NewBuffer(data))
+	bundle, err := read(ctx, name, baseDir, bytes.NewBuffer(data), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +82,9 @@ func Read(ctx context.Context, baseDir string, bundleSpecReader io.Reader, opts 
 		return bundle, nil
 	}
 
-	return read(ctx, true, baseDir, bytes.NewBuffer(data))
+	newOpts := *opts
+	newOpts.Compress = true
+	return read(ctx, name, baseDir, bytes.NewBuffer(data), &newOpts)
 }
 
 func size(bundle *fleet.Bundle) (int, error) {
@@ -91,7 +95,11 @@ func size(bundle *fleet.Bundle) (int, error) {
 	return len(marshalled), nil
 }
 
-func read(ctx context.Context, compress bool, baseDir string, bundleSpecReader io.Reader) (*Bundle, error) {
+func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+
 	if baseDir == "" {
 		baseDir = "./"
 	}
@@ -111,14 +119,15 @@ func read(ctx context.Context, compress bool, baseDir string, bundleSpecReader i
 		return nil, err
 	}
 
+	meta.Name = name
 	setTargetNames(bundle)
 
-	overlays, err := readOverlays(ctx, meta, bundle, compress, baseDir)
+	overlays, err := readOverlays(ctx, meta, bundle, opts.Compress, baseDir)
 	if err != nil {
 		return nil, err
 	}
 
-	resources, err := readResources(ctx, meta, compress, baseDir)
+	resources, err := readResources(ctx, meta, opts.Compress, baseDir)
 	if err != nil {
 		return nil, err
 	}
@@ -126,10 +135,32 @@ func read(ctx context.Context, compress bool, baseDir string, bundleSpecReader i
 	bundle.Resources = resources
 	assignOverlay(bundle, overlays)
 
-	return New(&fleet.Bundle{
+	def := &fleet.Bundle{
 		ObjectMeta: meta.ObjectMeta,
 		Spec:       *bundle,
-	})
+	}
+
+	for k, v := range opts.Labels {
+		if def.Labels == nil {
+			def.Labels = map[string]string{}
+		}
+		def.Labels[k] = v
+	}
+
+	if opts.ServiceAccount != "" {
+		def.Spec.ServiceAccount = opts.ServiceAccount
+	}
+
+	if len(def.Spec.Targets) == 0 {
+		def.Spec.Targets = []fleet.BundleTarget{
+			{
+				Name:         "default",
+				ClusterGroup: "default",
+			},
+		}
+	}
+
+	return New(def)
 }
 
 func assignOverlay(bundle *fleet.BundleSpec, overlays map[string][]fleet.BundleResource) {

@@ -155,6 +155,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.Core.Namespace()),
 		appCtx.Core.Secret(),
 		appCtx.Core.ServiceAccount(),
+		appCtx.BundleDeployment(),
 		appCtx.RBAC.Role(),
 		appCtx.RBAC.RoleBinding(),
 		appCtx.RBAC.ClusterRole(),
@@ -177,8 +178,10 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.RBAC.Role(),
 			appCtx.RBAC.RoleBinding(),
 			appCtx.GitJob.GitJob(),
+			appCtx.Core.ConfigMap(),
 			appCtx.Core.ServiceAccount()),
 		appCtx.GitJob.GitJob(),
+		appCtx.BundleDeployment().Cache(),
 		appCtx.GitRepo())
 
 	bootstrap.Register(ctx,
@@ -194,7 +197,11 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Core.Secret().Cache())
 
 	display.Register(ctx,
-		appCtx.Cluster())
+		appCtx.Cluster(),
+		appCtx.ClusterGroup(),
+		appCtx.GitRepo(),
+		appCtx.BundleDeployment(),
+		appCtx.Bundle())
 
 	leader.RunOrDie(ctx, systemNamespace, "fleet-controller-lock", appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {

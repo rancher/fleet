@@ -39,6 +39,12 @@ type ClusterGroupStatus struct {
 	NonReadyClusters     []string                            `json:"nonReadyClusters,omitempty"`
 	Conditions           []genericcondition.GenericCondition `json:"conditions,omitempty"`
 	Summary              BundleSummary                       `json:"summary,omitempty"`
+	Display              ClusterGroupDisplay                 `json:"display,omitempty"`
+}
+
+type ClusterGroupDisplay struct {
+	ReadyClusters string `json:"readyClusters,omitempty"`
+	ReadyBundles  string `json:"readyBundles,omitempty"`
 }
 
 // +genclient

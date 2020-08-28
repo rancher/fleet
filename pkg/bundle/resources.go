@@ -1,7 +1,6 @@
 package bundle
 
 import (
-	"bytes"
 	"context"
 	"io/ioutil"
 	"net/url"
@@ -10,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/hashicorp/go-getter"
 	"github.com/pkg/errors"
@@ -187,7 +187,7 @@ func readDirectory(ctx context.Context, progress *progress.Progress, compress bo
 
 	for i, resource := range resources {
 		data := files[resource.Name]
-		if compress || hasZero(data) {
+		if compress || !utf8.Valid(data) {
 			content, err := content.Base64GZ(files[resource.Name])
 			if err != nil {
 				return nil, err
@@ -207,10 +207,6 @@ func readDirectory(ctx context.Context, progress *progress.Progress, compress bo
 	})
 
 	return resources, nil
-}
-
-func hasZero(data []byte) bool {
-	return bytes.ContainsRune(data, 0x0)
 }
 
 func readContent(ctx context.Context, progress *progress.Progress, base, name string) (map[string][]byte, error) {
@@ -254,12 +250,19 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 
 	err = filepath.Walk(temp, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
+			if strings.HasPrefix(filepath.Base(path), ".") {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
 		name, err := filepath.Rel(temp, path)
 		if err != nil {
 			return err
+		}
+
+		if strings.HasPrefix(filepath.Base(name), ".") {
+			return nil
 		}
 
 		content, err := ioutil.ReadFile(path)

@@ -99,7 +99,7 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 		status.Summary.DesiredReady++
 	}
 
-	summary.SetReadyConditions(&status, status.Summary)
+	summary.SetReadyConditions(&status, "Bundle", status.Summary)
 	return []runtime.Object{
 		&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{

@@ -35,6 +35,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		Compress:       a.Compress,
 		ServiceAccount: a.ServiceAccount,
 		Labels:         a.Label,
+		TargetsFile:    a.TargetsFile,
 	}
 
 	if a.File == "-" {

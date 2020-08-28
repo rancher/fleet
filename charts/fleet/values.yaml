@@ -1,12 +1,12 @@
 image:
-  repository: ibuildthecloud/fleet
+  repository: rancher/fleet
   tag: dev
-  imagePullPolicy: Always
+  imagePullPolicy: IfNotPresent
 
 agentImage:
-  repository: ibuildthecloud/fleet-agent
+  repository: rancher/fleet-agent
   tag: dev
-  imagePullPolicy: Always
+  imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
 # Example: https://example.com:6443

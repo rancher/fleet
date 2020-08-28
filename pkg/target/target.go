@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rancher/wrangler/pkg/yaml"
+
 	"github.com/pkg/errors"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
@@ -242,7 +244,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 }
 
 func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(DeploymentLabels(app)))
+	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(DeploymentLabelsForSelector(app)))
 	if err != nil {
 		return err
 	}
@@ -259,7 +261,15 @@ func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error 
 	return nil
 }
 
-func DeploymentLabels(app *fleet.Bundle) map[string]string {
+func DeploymentLabelsForNewBundle(app *fleet.Bundle) map[string]string {
+	labels := yaml.CleanAnnotationsForExport(app.Labels)
+	for k, v := range DeploymentLabelsForSelector(app) {
+		labels[k] = v
+	}
+	return labels
+}
+
+func DeploymentLabelsForSelector(app *fleet.Bundle) map[string]string {
 	return map[string]string{
 		"fleet.cattle.io/bundle-name":      app.Name,
 		"fleet.cattle.io/bundle-namespace": app.Namespace,
@@ -286,7 +296,10 @@ func (t *Target) AssignNewDeployment() {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.Bundle.Name,
 			Namespace: t.Cluster.Status.Namespace,
-			Labels:    DeploymentLabels(t.Bundle),
+			Labels:    DeploymentLabelsForNewBundle(t.Bundle),
+			Annotations: map[string]string{
+				fleet.ManagedAnnotation: "true",
+			},
 		},
 	}
 }

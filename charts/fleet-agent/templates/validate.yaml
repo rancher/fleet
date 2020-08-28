@@ -5,3 +5,7 @@
 {{if ne .Release.Name .Values.internal.managedReleaseName }}
 {{ fail "This chart must be installed in the namespace fleet-system as the release name fleet-agent" }}
 {{end}}
+
+{{if not .apiServerURL }}
+{{ fail "apiServerURL is required to be set, and most likely also apiServerCA" }}
+{{end}}

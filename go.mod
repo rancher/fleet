@@ -9,11 +9,12 @@ replace (
 
 require (
 	github.com/cheggaaa/pb v1.0.27
+	github.com/gregjones/httpcache v0.0.0-20190212212710-3befbb6ad0cc // indirect
 	github.com/hashicorp/go-getter v1.4.1
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/gitjob v0.0.1-rc4
+	github.com/rancher/gitjob v0.1.0
 	github.com/rancher/lasso v0.0.0-20200820172840-0e4cc0ef5cb0
-	github.com/rancher/wrangler v0.6.2-0.20200822010948-6d667521af49
+	github.com/rancher/wrangler v0.6.2-0.20200828043115-6943c5e1c9c7
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0

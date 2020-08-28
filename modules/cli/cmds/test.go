@@ -52,5 +52,13 @@ func (m *Test) Run(cmd *cobra.Command, args []string) error {
 	if m.Quiet {
 		opts.Output = nil
 	}
+
+	if opts.ClusterGroup == "" &&
+		len(opts.ClusterLabels) == 0 &&
+		len(opts.ClusterGroupLabels) == 0 &&
+		opts.Target == "" {
+		opts.ClusterGroup = "default"
+	}
+
 	return match.Match(cmd.Context(), opts)
 }
