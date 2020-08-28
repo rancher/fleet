@@ -21,6 +21,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -202,8 +203,12 @@ func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 		}
 	}
 
+	kClient := kube.New(getter)
+	kClient.Namespace = namespace
+
 	err = cfg.Init(getter, namespace, "secrets", logrus.Infof)
 	cfg.Releases.MaxHistory = 5
+	cfg.KubeClient = kClient
 
 	return cfg, err
 }
