@@ -21,6 +21,7 @@ type handler struct {
 func Register(ctx context.Context, apply apply.Apply,
 	secrets corecontrollers.SecretController,
 	serviceAccount corecontrollers.ServiceAccountController,
+	bundledeployment fleetcontrollers.BundleDeploymentController,
 	role rbaccontrollers.RoleController,
 	roleBinding rbaccontrollers.RoleBindingController,
 	clusterRole rbaccontrollers.ClusterRoleController,
@@ -33,6 +34,13 @@ func Register(ctx context.Context, apply apply.Apply,
 	h := &handler{
 		apply: apply,
 	}
+
+	bundledeployment.OnChange(ctx, "managed-cleanup", func(_ string, obj *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
+		if obj == nil {
+			return nil, nil
+		}
+		return obj, h.cleanup(obj)
+	})
 
 	clusterRole.OnChange(ctx, "managed-cleanup", func(_ string, obj *rbacv1.ClusterRole) (*rbacv1.ClusterRole, error) {
 		if obj == nil {
