@@ -3,26 +3,39 @@ package git
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/summary"
 	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
+	"github.com/rancher/wrangler/pkg/yaml"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func Register(ctx context.Context, apply apply.Apply, gitJobs v1.GitJobController, gitRepos fleetcontrollers.GitRepoController) {
+var (
+	RepoLabel = "fleet.cattle.io/repo-name"
+)
+
+func Register(ctx context.Context,
+	apply apply.Apply,
+	gitJobs v1.GitJobController,
+	bundleDeployments fleetcontrollers.BundleDeploymentCache,
+	gitRepos fleetcontrollers.GitRepoController) {
 	h := &handler{
-		gitjobCache: gitJobs.Cache(),
+		gitjobCache:       gitJobs.Cache(),
+		bundleDeployments: bundleDeployments,
 	}
 
 	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "", "gitjobs", h.OnChange, nil)
@@ -31,12 +44,25 @@ func Register(ctx context.Context, apply apply.Apply, gitJobs v1.GitJobControlle
 }
 
 type handler struct {
-	gitjobCache v1.GitJobCache
+	gitjobCache       v1.GitJobCache
+	bundleDeployments fleetcontrollers.BundleDeploymentCache
+}
+
+func targetsOrDefault(targets []fleet.GitTarget) []fleet.GitTarget {
+	if len(targets) == 0 {
+		return []fleet.GitTarget{
+			{
+				Name:         "default",
+				ClusterGroup: "default",
+			},
+		}
+	}
+	return targets
 }
 
 func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 	spec := &fleet.BundleSpec{}
-	for _, target := range repo.Spec.Targets {
+	for _, target := range targetsOrDefault(repo.Spec.Targets) {
 		spec.Targets = append(spec.Targets, fleet.BundleTarget{
 			Name:                 target.Name,
 			ClusterSelector:      target.ClusterSelector,
@@ -145,14 +171,15 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 		},
 		&gitjob.GitJob{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      gitrepo.Name,
-				Namespace: gitrepo.Namespace,
+				Labels:      yaml.CleanAnnotationsForExport(gitrepo.Labels),
+				Annotations: yaml.CleanAnnotationsForExport(gitrepo.Annotations),
+				Name:        gitrepo.Name,
+				Namespace:   gitrepo.Namespace,
 			},
 			Spec: gitjob.GitJobSpec{
 				Git: gitjob.GitInfo{
 					Credential: gitjob.Credential{
-						GitSecretName: gitrepo.Spec.ClientSecretName,
-						GitHostname:   "github.com",
+						ClientSecretName: gitrepo.Spec.ClientSecretName,
 					},
 					Provider: "polling",
 					Repo:     gitrepo.Spec.Repo,
@@ -188,7 +215,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 										"fleet",
 										"apply",
 										"--targets-file=/run/config/targets.yaml",
-										"--label=fleet.cattle.io/repo-name=" + gitrepo.Name,
+										"--label=" + RepoLabel + "=" + gitrepo.Name,
 										"--namespace", gitrepo.Namespace,
 										"--service-account", gitrepo.Spec.ServiceAccount,
 										gitrepo.Name,
