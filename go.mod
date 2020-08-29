@@ -4,7 +4,7 @@ go 1.14
 
 replace (
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v14.0.0+incompatible
-	helm.sh/helm/v3 => github.com/ibuildthecloud/helm/v3 v3.1.0-rc.1.0.20200811161532-4cb1fb31bcea
+	helm.sh/helm/v3 => github.com/ibuildthecloud/helm/v3 v3.1.0-rc.1.0.20200829031744-19e92760f498
 )
 
 require (
@@ -14,7 +14,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/gitjob v0.1.0
 	github.com/rancher/lasso v0.0.0-20200820172840-0e4cc0ef5cb0
-	github.com/rancher/wrangler v0.6.2-0.20200828043115-6943c5e1c9c7
+	github.com/rancher/wrangler v0.6.2-0.20200829053106-7e1dd4260224
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
@@ -25,8 +25,8 @@ require (
 	k8s.io/cli-runtime v0.18.4
 	k8s.io/client-go v0.18.8
 	rsc.io/letsencrypt v0.0.3 // indirect
-	sigs.k8s.io/kustomize/api v0.3.3-0.20200328155553-20184e9835c7
-	sigs.k8s.io/kustomize/kstatus v0.0.2
-	sigs.k8s.io/kustomize/kyaml v0.4.0
+	sigs.k8s.io/cli-utils v0.16.0
+	sigs.k8s.io/kustomize/api v0.6.0
+	sigs.k8s.io/kustomize/kyaml v0.7.1
 	sigs.k8s.io/yaml v1.2.0
 )
