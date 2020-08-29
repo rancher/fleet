@@ -19,8 +19,8 @@ func NewClusterMatcher(clusterGroup string, clusterGroupSelector *metav1.LabelSe
 	t := &ClusterMatcher{}
 
 	if clusterGroup != "" {
-		t.criteria = append(t.criteria, func(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
-			return clusterGroup == clusterGroup
+		t.criteria = append(t.criteria, func(clusterGroupTest string, _, _ map[string]string) bool {
+			return clusterGroup == clusterGroupTest
 		})
 	}
 
@@ -29,7 +29,7 @@ func NewClusterMatcher(clusterGroup string, clusterGroupSelector *metav1.LabelSe
 		if err != nil {
 			return nil, err
 		}
-		t.criteria = append(t.criteria, func(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
+		t.criteria = append(t.criteria, func(_ string, clusterGroupLabels, _ map[string]string) bool {
 			return selector.Matches(labels.Set(clusterGroupLabels))
 		})
 	}
@@ -39,7 +39,7 @@ func NewClusterMatcher(clusterGroup string, clusterGroupSelector *metav1.LabelSe
 		if err != nil {
 			return nil, err
 		}
-		t.criteria = append(t.criteria, func(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
+		t.criteria = append(t.criteria, func(_ string, _, clusterLabels map[string]string) bool {
 			return selector.Matches(labels.Set(clusterLabels))
 		})
 	}

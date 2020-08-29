@@ -21,6 +21,7 @@ type Options struct {
 	Compress       bool
 	Labels         map[string]string
 	ServiceAccount string
+	TargetsFile    string
 }
 
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
@@ -151,6 +152,11 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		def.Spec.ServiceAccount = opts.ServiceAccount
 	}
 
+	def, err = appendTargets(def, opts.TargetsFile)
+	if err != nil {
+		return nil, err
+	}
+
 	if len(def.Spec.Targets) == 0 {
 		def.Spec.Targets = []fleet.BundleTarget{
 			{
@@ -161,6 +167,31 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	return New(def)
+}
+
+func appendTargets(def *fleet.Bundle, targetsFile string) (*fleet.Bundle, error) {
+	if targetsFile == "" {
+		return def, nil
+	}
+
+	data, err := ioutil.ReadFile(targetsFile)
+	if err != nil {
+		return nil, err
+	}
+
+	spec := &fleet.BundleSpec{}
+	if err := yaml.Unmarshal(data, spec); err != nil {
+		return nil, err
+	}
+
+	for _, target := range spec.Targets {
+		def.Spec.Targets = append(def.Spec.Targets, target)
+	}
+	for _, targetRestriction := range spec.TargetRestrictions {
+		def.Spec.TargetRestrictions = append(def.Spec.TargetRestrictions, targetRestriction)
+	}
+
+	return def, nil
 }
 
 func assignOverlay(bundle *fleet.BundleSpec, overlays map[string][]fleet.BundleResource) {

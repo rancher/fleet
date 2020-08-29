@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"path/filepath"
 	"regexp"
 
@@ -82,42 +81,12 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 		return bundle.New(&bundleResource)
 	}
 
-	b, err := bundle.Open(ctx, name, baseDir, opts.BundleFile, &bundle.Options{
+	return bundle.Open(ctx, name, baseDir, opts.BundleFile, &bundle.Options{
 		Compress:       opts.Compress,
 		Labels:         opts.Labels,
 		ServiceAccount: opts.ServiceAccount,
+		TargetsFile:    opts.TargetsFile,
 	})
-	if err != nil {
-		return nil, err
-	}
-
-	return appendTargets(b, opts.TargetsFile)
-}
-
-func appendTargets(b *bundle.Bundle, targetsFile string) (*bundle.Bundle, error) {
-	if targetsFile == "" {
-		return b, nil
-	}
-
-	def := b.Definition.DeepCopy()
-	data, err := ioutil.ReadFile(targetsFile)
-	if err != nil {
-		return nil, err
-	}
-
-	spec := &fleet.BundleSpec{}
-	if err := yaml.Unmarshal(data, spec); err != nil {
-		return nil, err
-	}
-
-	for _, target := range spec.Targets {
-		def.Spec.Targets = append(def.Spec.Targets, target)
-	}
-	for _, targetRestriction := range spec.TargetRestrictions {
-		def.Spec.TargetRestrictions = append(def.Spec.TargetRestrictions, targetRestriction)
-	}
-
-	return bundle.New(def)
 }
 
 func createName(name, baseDir string) string {
