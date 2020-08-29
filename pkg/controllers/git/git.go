@@ -31,16 +31,31 @@ var (
 func Register(ctx context.Context,
 	apply apply.Apply,
 	gitJobs v1.GitJobController,
-	bundleDeployments fleetcontrollers.BundleDeploymentCache,
+	bundleDeployments fleetcontrollers.BundleDeploymentController,
 	gitRepos fleetcontrollers.GitRepoController) {
 	h := &handler{
 		gitjobCache:       gitJobs.Cache(),
-		bundleDeployments: bundleDeployments,
+		bundleDeployments: bundleDeployments.Cache(),
 	}
 
 	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "", "gitjobs", h.OnChange, nil)
 	relatedresource.Watch(ctx, "gitjobs",
 		relatedresource.OwnerResolver(true, fleet.SchemeGroupVersion.String(), "GitRepo"), gitRepos, gitJobs)
+	relatedresource.Watch(ctx, "gitjobs", resolveGitRepo, gitRepos, bundleDeployments)
+}
+
+func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
+	if bundleDeployment, ok := obj.(*fleet.BundleDeployment); ok {
+		repo := bundleDeployment.Labels[RepoLabel]
+		ns := bundleDeployment.Labels["fleet.cattle.io/bundle-namespace"]
+		if repo != "" && ns != "" {
+			return []relatedresource.Key{{
+				Namespace: ns,
+				Name:      repo,
+			}}, nil
+		}
+	}
+	return nil, nil
 }
 
 type handler struct {
@@ -94,6 +109,7 @@ func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 
 func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
 	status.Conditions = nil
+	status.ObservedGeneration = gitrepo.Generation
 
 	status, err := h.setBundleDeploymentStatus(gitrepo, status)
 	if err != nil {
@@ -256,12 +272,21 @@ func (h *handler) setBundleDeploymentStatus(gitrepo *fleet.GitRepo, status fleet
 		return bundleDeployments[i].Name < bundleDeployments[j].Name
 	})
 
+	var maxState fleet.BundleState
 	for _, app := range bundleDeployments {
 		state := summary.GetDeploymentState(app)
 		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app))
 		status.Summary.DesiredReady++
+		if fleet.StateRank[state] > fleet.StateRank[maxState] {
+			maxState = state
+		}
 	}
 
+	if maxState == fleet.Ready {
+		maxState = ""
+	}
+
+	status.Display.State = string(maxState)
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)
 	return status, nil
 }

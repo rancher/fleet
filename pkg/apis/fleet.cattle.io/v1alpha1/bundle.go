@@ -19,6 +19,16 @@ var (
 	OutOfSync  BundleState = "OutOfSync"
 	Pending    BundleState = "Pending"
 	Modified   BundleState = "Modified"
+
+	StateRank = map[BundleState]int{
+		ErrApplied: 7,
+		NotApplied: 6,
+		Modified:   5,
+		OutOfSync:  4,
+		Pending:    3,
+		NotReady:   2,
+		Ready:      1,
+	}
 )
 
 type BundleState string
@@ -141,6 +151,7 @@ type BundleStatus struct {
 
 type BundleDisplay struct {
 	ReadyClusters string `json:"readyClusters,omitempty"`
+	State         string `json:"state,omitempty"`
 }
 
 type PartitionStatus struct {
@@ -192,6 +203,7 @@ type BundleDeploymentStatus struct {
 type BundleDeploymentDisplay struct {
 	Deployed  string `json:"deployed,omitempty"`
 	Monitored string `json:"monitored,omitempty"`
+	State     string `json:"state,omitempty"`
 }
 
 type NonReadyStatus struct {

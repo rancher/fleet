@@ -93,7 +93,7 @@ func List() []crd.CRD {
 				WithCategories("fleet").
 				WithColumn("Repo", ".spec.repo").
 				WithColumn("Commit", ".status.commit").
-				WithColumn("Bundles-Ready", ".status.display.readyBundles").
+				WithColumn("BundleDeployments-Ready", ".status.display.readyBundleDeployments").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.ClusterRegistration{}, func(c crd.CRD) crd.CRD {

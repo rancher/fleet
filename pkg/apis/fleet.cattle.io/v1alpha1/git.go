@@ -50,12 +50,14 @@ type GitTarget struct {
 }
 
 type GitRepoStatus struct {
-	Commit     string                              `json:"commit,omitempty"`
-	Summary    BundleSummary                       `json:"summary,omitempty"`
-	Display    GitRepoDisplay                      `json:"display,omitempty"`
-	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
+	ObservedGeneration int64                               `json:"observedGeneration"`
+	Commit             string                              `json:"commit,omitempty"`
+	Summary            BundleSummary                       `json:"summary,omitempty"`
+	Display            GitRepoDisplay                      `json:"display,omitempty"`
+	Conditions         []genericcondition.GenericCondition `json:"conditions,omitempty"`
 }
 
 type GitRepoDisplay struct {
-	ReadyBundles string `json:"readyBundles,omitempty"`
+	ReadyBundleDeployments string `json:"readyBundleDeployments,omitempty"`
+	State                  string `json:"state,omitempty"`
 }

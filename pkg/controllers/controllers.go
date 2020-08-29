@@ -182,7 +182,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.Core.ConfigMap(),
 			appCtx.Core.ServiceAccount()),
 		appCtx.GitJob.GitJob(),
-		appCtx.BundleDeployment().Cache(),
+		appCtx.BundleDeployment(),
 		appCtx.GitRepo())
 
 	bootstrap.Register(ctx,

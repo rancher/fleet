@@ -7,6 +7,7 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/wrangler/pkg/genericcondition"
 )
 
@@ -32,6 +33,15 @@ func (h *handler) OnBundleChange(_ *fleet.Bundle, status fleet.BundleStatus) (fl
 	status.Display.ReadyClusters = fmt.Sprintf("%d/%d",
 		status.Summary.Ready,
 		status.Summary.DesiredReady)
+
+	var state fleet.BundleState
+	for _, nonReady := range status.Summary.NonReadyResources {
+		if fleet.StateRank[nonReady.State] > fleet.StateRank[state] {
+			state = nonReady.State
+		}
+	}
+	status.Display.State = string(state)
+
 	return status, nil
 }
 
@@ -43,6 +53,18 @@ func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterSt
 		cluster.Status.Agent.ReadyNodes,
 		cluster.Status.Agent.NonReadyNodes+cluster.Status.Agent.ReadyNodes)
 	status.Display.SampleNode = sampleNode(status)
+
+	var state fleet.BundleState
+	for _, nonReady := range status.Summary.NonReadyResources {
+		if fleet.StateRank[nonReady.State] > fleet.StateRank[state] {
+			state = nonReady.State
+		}
+	}
+
+	status.Display.State = string(state)
+	if status.AgentDeployed == nil || !*status.AgentDeployed {
+		status.Display.State = "ErrNoAgent"
+	}
 	return status, nil
 }
 
@@ -56,17 +78,26 @@ func (h *handler) OnClusterGroupChange(cluster *fleet.ClusterGroup, status fleet
 	if len(cluster.Status.NonReadyClusters) > 0 {
 		status.Display.ReadyClusters += " (" + strings.Join(cluster.Status.NonReadyClusters, ",") + ")"
 	}
+
+	var state fleet.BundleState
+	for _, nonReady := range status.Summary.NonReadyResources {
+		if fleet.StateRank[nonReady.State] > fleet.StateRank[state] {
+			state = nonReady.State
+		}
+	}
+
+	status.Display.State = string(state)
 	return status, nil
 }
 
 func (h *handler) OnRepoChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (fleet.GitRepoStatus, error) {
-	status.Display.ReadyBundles = fmt.Sprintf("%d/%d",
+	status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)
 	return status, nil
 }
 
-func (h *handler) OnBundleDeploymentChange(_ *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
+func (h *handler) OnBundleDeploymentChange(bundleDeployment *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
 	var (
 		deployed, monitored string
 	)
@@ -83,6 +114,7 @@ func (h *handler) OnBundleDeploymentChange(_ *fleet.BundleDeployment, status fle
 	status.Display = fleet.BundleDeploymentDisplay{
 		Deployed:  deployed,
 		Monitored: monitored,
+		State:     string(summary.GetDeploymentState(bundleDeployment)),
 	}
 
 	return status, nil
