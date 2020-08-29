@@ -57,6 +57,14 @@ func Register(ctx context.Context, namespace, clusterID string, config *rest.Con
 	}
 }
 
+func runRegistration(ctx context.Context, k8s corecontrollers.Interface, namespace, clusterID string) (*corev1.Secret, error) {
+	secret, err := k8s.Secret().Get(namespace, BootstrapCredName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, BootstrapCredName, err)
+	}
+	return createClusterSecret(ctx, clusterID, k8s, secret)
+}
+
 func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.Config) (*AgentInfo, error) {
 	config = rest.CopyConfig(config)
 	config.RateLimiter = ratelimit.None
@@ -67,16 +75,17 @@ func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.
 
 	secret, err := k8s.Core().V1().Secret().Get(namespace, CredName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		secret, err = k8s.Core().V1().Secret().Get(namespace, BootstrapCredName, metav1.GetOptions{})
+		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace, clusterID)
 		if err != nil {
 			return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, BootstrapCredName, err)
 		}
-		secret, err = createClusterSecret(ctx, clusterID, k8s.Core().V1(), secret)
-		if err != nil {
-			return nil, err
-		}
 	} else if err != nil {
 		return nil, err
+	} else if err := testClientConfig(ctx, secret.Data[Kubeconfig]); err != nil {
+		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace, clusterID)
+		if err != nil {
+			return nil, fmt.Errorf("looking up secret %s/%s or %s/%s: %w", namespace, BootstrapCredName, namespace, CredName, err)
+		}
 	}
 
 	clientConfig, err := clientcmd.NewClientConfigFromBytes(secret.Data[Kubeconfig])
