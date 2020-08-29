@@ -375,6 +375,9 @@ spec:
                 readyClusters:
                   nullable: true
                   type: string
+                state:
+                  nullable: true
+                  type: string
               type: object
             maxNew:
               type: integer
@@ -587,6 +590,9 @@ spec:
                   nullable: true
                   type: string
                 monitored:
+                  nullable: true
+                  type: string
+                state:
                   nullable: true
                   type: string
               type: object
@@ -897,6 +903,9 @@ spec:
                 readyClusters:
                   nullable: true
                   type: string
+                state:
+                  nullable: true
+                  type: string
               type: object
             nonReadyClusterCount:
               type: integer
@@ -1056,6 +1065,9 @@ spec:
                 sampleNode:
                   nullable: true
                   type: string
+                state:
+                  nullable: true
+                  type: string
               type: object
             namespace:
               nullable: true
@@ -1156,8 +1168,8 @@ spec:
   - JSONPath: .status.commit
     name: Commit
     type: string
-  - JSONPath: .status.display.readyBundles
-    name: Bundles-Ready
+  - JSONPath: .status.display.readyBundleDeployments
+    name: BundleDeployments-Ready
     type: string
   - JSONPath: .status.conditions[?(@.type=="Ready")].message
     name: Status
@@ -1297,10 +1309,15 @@ spec:
               type: array
             display:
               properties:
-                readyBundles:
+                readyBundleDeployments:
+                  nullable: true
+                  type: string
+                state:
                   nullable: true
                   type: string
               type: object
+            observedGeneration:
+              type: integer
             summary:
               properties:
                 desiredReady:
