@@ -37,6 +37,7 @@ var (
 	ClusterRegistrationTokenResourceName = "clusterregistrationtokens"
 	ContentResourceName                  = "contents"
 	GitRepoResourceName                  = "gitrepos"
+	GitRepoRestrictionResourceName       = "gitreporestrictions"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -78,6 +79,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ContentList{},
 		&GitRepo{},
 		&GitRepoList{},
+		&GitRepoRestriction{},
+		&GitRepoRestrictionList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
