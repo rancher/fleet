@@ -3,6 +3,7 @@ package helmdeployer
 import (
 	"fmt"
 
+	"github.com/rancher/wrangler/pkg/ratelimit"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
@@ -39,6 +40,7 @@ func newImpersonatingGetter(namespace, name string, getter genericclioptions.RES
 	if err != nil {
 		return nil, err
 	}
+	restConfig.RateLimiter = ratelimit.None
 
 	return &impersonatingGetter{
 		RESTClientGetter: getter,

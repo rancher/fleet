@@ -4,7 +4,7 @@ import (
 	"github.com/rancher/wrangler/pkg/data"
 	"github.com/rancher/wrangler/pkg/summary"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/kustomize/kstatus/status"
+	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 )
 
 func init() {

@@ -4,9 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/rancher/fleet/modules/agent/pkg/controllers/cluster"
-
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
+	"github.com/rancher/fleet/modules/agent/pkg/controllers/cluster"
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/secret"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
@@ -22,6 +21,7 @@ import (
 	"github.com/rancher/wrangler/pkg/generated/controllers/rbac"
 	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/leader"
+	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/start"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -174,6 +174,9 @@ func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName st
 	if err != nil {
 		return nil, err
 	}
+
+	client = rest.CopyConfig(client)
+	client.RateLimiter = ratelimit.None
 
 	k8s, err := kubernetes.NewForConfig(client)
 	if err != nil {

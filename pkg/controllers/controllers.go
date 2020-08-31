@@ -29,6 +29,7 @@ import (
 	"github.com/rancher/wrangler/pkg/generated/controllers/rbac"
 	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/leader"
+	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/start"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -181,7 +182,8 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.Core.ConfigMap(),
 			appCtx.Core.ServiceAccount()),
 		appCtx.GitJob.GitJob(),
-		appCtx.BundleDeployment().Cache(),
+		appCtx.BundleDeployment(),
+		appCtx.GitRepoRestriction().Cache(),
 		appCtx.GitRepo())
 
 	bootstrap.Register(ctx,
@@ -217,6 +219,7 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 	if err != nil {
 		return nil, err
 	}
+	client.RateLimiter = ratelimit.None
 
 	core, err := core.NewFactoryFromConfig(client)
 	if err != nil {

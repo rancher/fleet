@@ -26,6 +26,7 @@ rules:
       - 'list'
       - 'get'
       - 'update'
+      - 'watch'
   - apiGroups:
       - "gitjob.cattle.io"
     resources:

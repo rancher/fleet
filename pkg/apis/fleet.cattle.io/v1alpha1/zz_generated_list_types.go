@@ -176,3 +176,20 @@ func NewGitRepo(namespace, name string, obj GitRepo) *GitRepo {
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// GitRepoRestrictionList is a list of GitRepoRestriction resources
+type GitRepoRestrictionList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []GitRepoRestriction `json:"items"`
+}
+
+func NewGitRepoRestriction(namespace, name string, obj GitRepoRestriction) *GitRepoRestriction {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("GitRepoRestriction").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}

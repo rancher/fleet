@@ -3,6 +3,22 @@ kind: CustomResourceDefinition
 metadata:
   name: gitjobs.gitjob.cattle.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.git.repo
+    name: REPO
+    type: string
+  - JSONPath: .spec.git.branch
+    name: BRANCH
+    type: string
+  - JSONPath: .status.commit
+    name: COMMIT
+    type: string
+  - JSONPath: .status.jobStatus
+    name: JOBSTATUS
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    name: Age
+    type: date
   group: gitjob.cattle.io
   names:
     kind: GitJob
@@ -15,6 +31,9 @@ spec:
       properties:
         spec:
           properties:
+            forceUpdate:
+              nullable: true
+              type: string
             git:
               properties:
                 branch:

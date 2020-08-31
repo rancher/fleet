@@ -45,6 +45,7 @@ type ClusterGroupStatus struct {
 type ClusterGroupDisplay struct {
 	ReadyClusters string `json:"readyClusters,omitempty"`
 	ReadyBundles  string `json:"readyBundles,omitempty"`
+	State         string `json:"state,omitempty"`
 }
 
 // +genclient
@@ -78,6 +79,7 @@ type ClusterDisplay struct {
 	ReadyBundles string `json:"readyBundles,omitempty"`
 	ReadyNodes   string `json:"readyNodes,omitempty"`
 	SampleNode   string `json:"sampleNode,omitempty"`
+	State        string `json:"state,omitempty"`
 }
 
 type AgentStatus struct {

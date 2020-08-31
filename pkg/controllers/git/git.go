@@ -3,6 +3,8 @@ package git
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"sort"
 	"time"
 
@@ -31,21 +33,39 @@ var (
 func Register(ctx context.Context,
 	apply apply.Apply,
 	gitJobs v1.GitJobController,
-	bundleDeployments fleetcontrollers.BundleDeploymentCache,
+	bundleDeployments fleetcontrollers.BundleDeploymentController,
+	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache,
 	gitRepos fleetcontrollers.GitRepoController) {
 	h := &handler{
-		gitjobCache:       gitJobs.Cache(),
-		bundleDeployments: bundleDeployments,
+		gitjobCache:         gitJobs.Cache(),
+		bundleDeployments:   bundleDeployments.Cache(),
+		gitRepoRestrictions: gitRepoRestrictions,
 	}
 
-	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "", "gitjobs", h.OnChange, nil)
+	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "Accepted", "gitjobs", h.OnChange, nil)
 	relatedresource.Watch(ctx, "gitjobs",
 		relatedresource.OwnerResolver(true, fleet.SchemeGroupVersion.String(), "GitRepo"), gitRepos, gitJobs)
+	relatedresource.Watch(ctx, "gitjobs", resolveGitRepo, gitRepos, bundleDeployments)
+}
+
+func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
+	if bundleDeployment, ok := obj.(*fleet.BundleDeployment); ok {
+		repo := bundleDeployment.Labels[RepoLabel]
+		ns := bundleDeployment.Labels["fleet.cattle.io/bundle-namespace"]
+		if repo != "" && ns != "" {
+			return []relatedresource.Key{{
+				Namespace: ns,
+				Name:      repo,
+			}}, nil
+		}
+	}
+	return nil, nil
 }
 
 type handler struct {
-	gitjobCache       v1.GitJobCache
-	bundleDeployments fleetcontrollers.BundleDeploymentCache
+	gitjobCache         v1.GitJobCache
+	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache
+	bundleDeployments   fleetcontrollers.BundleDeploymentCache
 }
 
 func targetsOrDefault(targets []fleet.GitTarget) []fleet.GitTarget {
@@ -92,10 +112,99 @@ func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 	}, nil
 }
 
-func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
-	status.Conditions = nil
+func (h *handler) authorizeAndAssignDefaults(gitrepo *fleet.GitRepo) (*fleet.GitRepo, error) {
+	restrictions, err := h.gitRepoRestrictions.List(gitrepo.Namespace, labels.Everything())
+	if err != nil {
+		return nil, err
+	}
 
-	status, err := h.setBundleDeploymentStatus(gitrepo, status)
+	if len(restrictions) == 0 {
+		return gitrepo, nil
+	}
+
+	restriction := aggregate(restrictions)
+	gitrepo = gitrepo.DeepCopy()
+
+	gitrepo.Spec.ServiceAccount, err = isAllowed(gitrepo.Spec.ServiceAccount,
+		restriction.DefaultServiceAccount,
+		restriction.AllowedServiceAccounts,
+		false)
+	if err != nil {
+		return nil, fmt.Errorf("disallowed serviceAcount %s: %w", gitrepo.Spec.ServiceAccount, err)
+	}
+
+	gitrepo.Spec.Repo, err = isAllowed(gitrepo.Spec.Repo,
+		"",
+		restriction.AllowedRepoPatterns,
+		true)
+	if err != nil {
+		return nil, fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.ServiceAccount, err)
+	}
+
+	gitrepo.Spec.ClientSecretName, err = isAllowed(gitrepo.Spec.ClientSecretName,
+		restriction.DefaultClientSecretName,
+		restriction.AllowedClientSecretNames, false)
+	if err != nil {
+		return nil, fmt.Errorf("disallowed clientSecretName %s: %w", gitrepo.Spec.ServiceAccount, err)
+	}
+
+	return gitrepo, nil
+}
+
+func isAllowed(currentValue, defaultValue string, allowedValues []string, pattern bool) (string, error) {
+	if currentValue == "" {
+		return defaultValue, nil
+	}
+	if len(allowedValues) == 0 {
+		return currentValue, nil
+	}
+	for _, allowedValue := range allowedValues {
+		if allowedValue == currentValue {
+			return currentValue, nil
+		}
+		if !pattern {
+			continue
+		}
+		p, err := regexp.Compile(allowedValue)
+		if err != nil {
+			return currentValue, err
+		}
+		if p.MatchString(allowedValue) {
+			return currentValue, nil
+		}
+	}
+
+	return currentValue, fmt.Errorf("%s not in allowed set %v", currentValue, allowedValues)
+}
+
+func aggregate(restrictions []*fleet.GitRepoRestriction) (result fleet.GitRepoRestriction) {
+	sort.Slice(restrictions, func(i, j int) bool {
+		return restrictions[i].Name < restrictions[j].Name
+	})
+	for _, restriction := range restrictions {
+		if result.DefaultServiceAccount == "" {
+			result.DefaultServiceAccount = restriction.DefaultServiceAccount
+		}
+		if result.DefaultClientSecretName == "" {
+			result.DefaultClientSecretName = restriction.DefaultClientSecretName
+		}
+		result.AllowedServiceAccounts = append(result.AllowedServiceAccounts, restriction.AllowedServiceAccounts...)
+		result.AllowedClientSecretNames = append(result.AllowedClientSecretNames, restriction.AllowedClientSecretNames...)
+		result.AllowedRepoPatterns = append(result.AllowedRepoPatterns, restriction.AllowedRepoPatterns...)
+	}
+	return
+}
+
+func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
+	gitrepo, err := h.authorizeAndAssignDefaults(gitrepo)
+	if err != nil {
+		return nil, status, err
+	}
+
+	status.Conditions = nil
+	status.ObservedGeneration = gitrepo.Generation
+
+	status, err = h.setBundleDeploymentStatus(gitrepo, status)
 	if err != nil {
 		return nil, status, err
 	}
@@ -256,12 +365,21 @@ func (h *handler) setBundleDeploymentStatus(gitrepo *fleet.GitRepo, status fleet
 		return bundleDeployments[i].Name < bundleDeployments[j].Name
 	})
 
+	var maxState fleet.BundleState
 	for _, app := range bundleDeployments {
 		state := summary.GetDeploymentState(app)
 		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app))
 		status.Summary.DesiredReady++
+		if fleet.StateRank[state] > fleet.StateRank[maxState] {
+			maxState = state
+		}
 	}
 
+	if maxState == fleet.Ready {
+		maxState = ""
+	}
+
+	status.Display.State = string(maxState)
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)
 	return status, nil
 }

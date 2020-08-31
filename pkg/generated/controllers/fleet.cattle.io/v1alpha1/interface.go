@@ -39,6 +39,7 @@ type Interface interface {
 	ClusterRegistrationToken() ClusterRegistrationTokenController
 	Content() ContentController
 	GitRepo() GitRepoController
+	GitRepoRestriction() GitRepoRestrictionController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -77,4 +78,7 @@ func (c *version) Content() ContentController {
 }
 func (c *version) GitRepo() GitRepoController {
 	return NewGitRepoController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "GitRepo"}, "gitrepos", true, c.controllerFactory)
+}
+func (c *version) GitRepoRestriction() GitRepoRestrictionController {
+	return NewGitRepoRestrictionController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "GitRepoRestriction"}, "gitreporestrictions", true, c.controllerFactory)
 }

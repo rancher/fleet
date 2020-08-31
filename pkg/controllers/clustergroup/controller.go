@@ -7,13 +7,16 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 type handler struct {
-	clusterGroups fleetcontrollers.ClusterGroupCache
-	clusterCache  fleetcontrollers.ClusterCache
-	clusters      fleetcontrollers.ClusterController
+	clusterGroupsCache fleetcontrollers.ClusterGroupCache
+	clusterGroups      fleetcontrollers.ClusterGroupController
+	clusterCache       fleetcontrollers.ClusterCache
+	clusters           fleetcontrollers.ClusterController
 }
 
 func Register(ctx context.Context,
@@ -21,9 +24,10 @@ func Register(ctx context.Context,
 	clusterGroups fleetcontrollers.ClusterGroupController) {
 
 	h := &handler{
-		clusterGroups: clusterGroups.Cache(),
-		clusterCache:  clusters.Cache(),
-		clusters:      clusters,
+		clusterGroupsCache: clusterGroups.Cache(),
+		clusterGroups:      clusterGroups,
+		clusterCache:       clusters.Cache(),
+		clusters:           clusters,
 	}
 
 	fleetcontrollers.RegisterClusterGroupStatusHandler(ctx,
@@ -31,6 +35,34 @@ func Register(ctx context.Context,
 		"Processed",
 		"cluster-group",
 		h.OnClusterGroup)
+	clusters.OnChange(ctx, "cluster-group-trigger", h.OnClusterChange)
+}
+
+func (h *handler) OnClusterChange(key string, cluster *fleet.Cluster) (*fleet.Cluster, error) {
+	if cluster == nil || len(cluster.Labels) == 0 {
+		return cluster, nil
+	}
+
+	cgs, err := h.clusterGroupsCache.List(cluster.Namespace, labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cg := range cgs {
+		if cg.Spec.Selector == nil {
+			continue
+		}
+		sel, err := metav1.LabelSelectorAsSelector(cg.Spec.Selector)
+		if err != nil {
+			logrus.Errorf("invalid selector on clustergroup %s/%s: %v", cg.Namespace, cg.Name, err)
+			continue
+		}
+		if sel.Matches(labels.Set(cluster.Labels)) {
+			h.clusterGroups.Enqueue(cg.Namespace, cg.Name)
+		}
+	}
+
+	return cluster, nil
 }
 
 func (h *handler) OnClusterGroup(clusterGroup *fleet.ClusterGroup, status fleet.ClusterGroupStatus) (fleet.ClusterGroupStatus, error) {
@@ -57,8 +89,6 @@ func (h *handler) OnClusterGroup(clusterGroup *fleet.ClusterGroup, status fleet.
 	})
 
 	for _, cluster := range clusters {
-		h.clusters.Enqueue(cluster.Namespace, cluster.Name)
-
 		summary.Increment(&status.Summary, cluster.Status.Summary)
 		status.ClusterCount++
 		if !summary.IsReady(cluster.Status.Summary) {

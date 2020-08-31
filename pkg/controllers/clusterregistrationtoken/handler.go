@@ -183,6 +183,9 @@ func (h *handler) getValuesYAMLSecret(token *fleet.ClusterRegistrationToken, sec
 
 func (h *handler) deleteExpired(token *fleet.ClusterRegistrationToken) (bool, error) {
 	ttl := token.Spec.TTLSeconds
+	if ttl <= 0 {
+		return false, nil
+	}
 	expire := token.CreationTimestamp.Add(time.Second * time.Duration(ttl))
 	if time.Now().After(expire) {
 		return true, h.clusterRegistrationTokens.Delete(token.Namespace, token.Name, nil)
