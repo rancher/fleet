@@ -101,6 +101,11 @@ func List() []crd.CRD {
 				WithColumn("Cluster-Name", ".status.clusterName").
 				WithColumn("Labels", ".spec.clusterLabels")
 		}),
+		newCRD(&fleet.GitRepoRestriction{}, func(c crd.CRD) crd.CRD {
+			return c.
+				WithColumn("Default-ServiceAccount", ".defaultServiceAccount").
+				WithColumn("Allowed-ServiceAccounts", ".allowedServiceAccounts")
+		}),
 		newCRD(&fleet.Content{}, func(c crd.CRD) crd.CRD {
 			c.NonNamespace = true
 			c.Status = false

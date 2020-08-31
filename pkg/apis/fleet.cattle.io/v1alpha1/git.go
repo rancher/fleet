@@ -61,3 +61,18 @@ type GitRepoDisplay struct {
 	ReadyBundleDeployments string `json:"readyBundleDeployments,omitempty"`
 	State                  string `json:"state,omitempty"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type GitRepoRestriction struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	DefaultServiceAccount  string   `json:"defaultServiceAccount,omitempty"`
+	AllowedServiceAccounts []string `json:"allowedServiceAccounts,omitempty"`
+	AllowedRepoPatterns    []string `json:"allowedRepoPatterns,omitempty"`
+
+	DefaultClientSecretName  string   `json:"defaultClientSecretName,omitempty"`
+	AllowedClientSecretNames []string `json:"allowedClientSecretNames,omitempty"`
+}
