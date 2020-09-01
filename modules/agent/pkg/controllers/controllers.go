@@ -114,7 +114,7 @@ func Register(ctx context.Context, leaderElect bool, fleetNamespace, agentNamesp
 		appCtx.Fleet.Cluster())
 
 	if leaderElect {
-		leader.RunOrDie(ctx, agentNamespace, "fleet-agent", appCtx.K8s, func(ctx context.Context) {
+		leader.RunOrDie(ctx, agentNamespace, "fleet-agent-lock", appCtx.K8s, func(ctx context.Context) {
 			if err := appCtx.start(ctx); err != nil {
 				logrus.Fatal(err)
 			}
