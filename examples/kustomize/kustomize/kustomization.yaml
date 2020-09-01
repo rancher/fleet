@@ -1,5 +1,0 @@
-resources:
-- dev
-- staging
-- production
-namePrefix: cluster-a-

@@ -26,16 +26,9 @@ rules:
   - ""
   resources:
   - secrets
-  verbs:
-  - '*'
-- apiGroups:
-  - ""
-  resources:
   - configmaps
   verbs:
-  - list
-  - watch
-  - get
+  - '*'
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
