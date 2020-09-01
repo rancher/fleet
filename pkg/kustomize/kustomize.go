@@ -1,7 +1,6 @@
 package kustomize
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"strings"
 
@@ -15,7 +14,7 @@ import (
 	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/types"
-	"sigs.k8s.io/kustomize/kyaml/yaml"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -66,7 +65,7 @@ func modifyKustomize(f filesys.FileSystem, dir string) error {
 	}
 
 	data["resources"] = append(resources, ManifestsYAML)
-	fileBytes, err = json.Marshal(data)
+	fileBytes, err = yaml.Marshal(data)
 	if err != nil {
 		return err
 	}
