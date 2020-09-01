@@ -7,6 +7,15 @@ TARGETS := $(shell ls scripts)
 	@./.dapper.tmp -v
 	@mv .dapper.tmp .dapper
 
+serve-docs: mkdocs
+	docker run --net=host --rm -it -v $${PWD}:/docs mkdocs serve
+
+deploy-docs: mkdocs
+	docker run -v $${HOME}/.ssh:/root/.ssh --rm -it -v $${PWD}:/docs mkdocs gh-deploy -r rancher
+
+mkdocs:
+	docker build -t mkdocs -f Dockerfile.docs .
+
 $(TARGETS): .dapper
 	./.dapper $@
 
