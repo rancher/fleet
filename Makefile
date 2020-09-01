@@ -11,6 +11,8 @@ serve-docs: mkdocs
 	docker run --net=host --rm -it -v $${PWD}:/docs mkdocs serve
 
 deploy-docs: mkdocs
+	sudo chown -R "${USER}" .
+	git fetch rancher gh-pages
 	docker run -v $${HOME}/.ssh:/root/.ssh --rm -it -v $${PWD}:/docs mkdocs gh-deploy -r rancher
 
 mkdocs:

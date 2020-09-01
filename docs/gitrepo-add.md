@@ -46,11 +46,14 @@ spec:
 
   # A git repo can produce multiple bundles or maybe your bundle
   # is not at the root of the git repo. The below field is expected
-  # to be comma separated and supports path globbing (ex: some/*/path)
+  # to be an array of paths and supports path globbing (ex: some/*/path)
   #
   # Example:
-  # bundleDirs: single-path,multiple-paths/*
-  bundleDirs: simple
+  # bundleDirs:
+  # - single-path
+  # - multiple-paths/*
+  bundleDirs:
+  - simple
 
   # The service account that will be used to perform this deployment.
   # This is the name of the service account that exists in the

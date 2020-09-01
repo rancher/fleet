@@ -18,7 +18,8 @@ metadata:
   namespace: clusters
 spec:
   repo: http://github.com/rancher/fleet-examples
-  bundleDirs: simple
+  bundleDirs:
+  - simple
 
   # Targets are evaluated in order and the first one to match is used. If
   # no targets match then the evaluated cluster will not be deployed to.
