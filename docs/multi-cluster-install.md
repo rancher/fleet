@@ -87,7 +87,7 @@ If you do not get either of these results than please ensure you have the correc
 6443 for Kubernetes.
 
 Next validate that the CA certificate is proper by running the below command.  If your API server is signed by a
-well known CA then omit the `--cacert ${API_SERVER_CA}` port of the command.
+well known CA then omit the `--cacert ${API_SERVER_CA}` part of the command.
 
 ```shell
 curl -fL --cacert ${API_SERVER_CA} ${API_SERVER_URL}/version

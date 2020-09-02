@@ -20,7 +20,7 @@ The **fleet-local** namespace is a special namespace used for the single cluster
 the configuration of the Fleet manager.
 
 When fleet is installed the `fleet-local` namespace is create along with one `Cluster` called `local` and one
-`ClusterGroup` called default.  If no targets are specified on a `GitRepo`, they by default deploy to the
+`ClusterGroup` called `default`.  If no targets are specified on a `GitRepo`, it by default is deployed to the
 `ClusterGroup` named `default`, if it exists.  This means that all `GitRepos` created in `fleet-local` will
 automatically target the `local` `Cluster`.  The `local` `Cluster` refers to the cluster the Fleet manager is running
 on.
@@ -41,7 +41,7 @@ then the downstream cluster is given access to watch and update `BundleDeploymen
 
 It is possible to create a GitRepo that will deploy across namespaces. The primary purpose of this is so that a
 central privileged team can manage common configuration for many clusters that are managed by different teams. The way
-this is accomplished is by creating a `BundleNamespaceMapping` resource in a clusters.
+this is accomplished is by creating a `BundleNamespaceMapping` resource in a cluster.
 
 If you are creating a `BundleNamespaceMapping` resource it is best to do it in a namespace that only contains `GitRepos`
 and no `Clusters`.  It seems to get confusing if you have Clusters in the same repo as the cross namespace `GitRepos` will still
