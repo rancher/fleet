@@ -1391,12 +1391,6 @@ spec:
             clientRandom:
               nullable: true
               type: string
-            clusterLabels:
-              additionalProperties:
-                nullable: true
-                type: string
-              nullable: true
-              type: object
           type: object
         status:
           properties:
