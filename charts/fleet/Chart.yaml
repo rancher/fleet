@@ -5,8 +5,9 @@ version: 0.0.0
 appVersion: 0.0.0
 icon: https://charts.rancher.io/assets/logos/fleet.svg
 annotations:
-  catalog.cattle.io/auto-install-gvr: clusters.fleet.cattle.io/v1alpha1
+  catalog.cattle.io/auto-install: fleet-crd=match
   catalog.cattle.io/certified: rancher
   catalog.cattle.io/experimental: "true"
   catalog.cattle.io/namespace: fleet-system
   catalog.cattle.io/release-name: fleet
+  catalog.cattle.io/provides-gvr: clusters.fleet.cattle.io/v1alpha1
