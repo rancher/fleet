@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"regexp"
 
@@ -34,6 +35,19 @@ type Options struct {
 	Labels         map[string]string
 }
 
+func globDirs(baseDir string) (result []string, err error) {
+	paths, err := filepath.Glob(baseDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, path := range paths {
+		if s, err := os.Stat(path); err == nil && s.IsDir() {
+			result = append(result, path)
+		}
+	}
+	return
+}
+
 func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
@@ -45,7 +59,7 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 
 	foundBundle := false
 	for i, baseDir := range baseDirs {
-		matches, err := filepath.Glob(baseDir)
+		matches, err := globDirs(baseDir)
 		if err != nil {
 			return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
 		}
