@@ -9,7 +9,7 @@ please ensure you use the correct repo that will map to the right target cluster
 ## Create GitRepo instance
 
 Git repositories are register by creating a `GitRepo` following the below YAML sample.  Refer
-to the inline comments as the to means of each field
+to the inline comments as the means of each field
 
 ```yaml
 kind: GitRepo

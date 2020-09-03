@@ -13,7 +13,7 @@ to manage GitOps for a single Kubernetes cluster or a large scale deployments of
     same cluster.  This is a very simple pattern to quickly get up and running with GitOps.
 * **Multi Cluster Style**: This is a style of running Fleet in which you have a central manager that manages a large
     number of downstream clusters.
-* **Fleet agent**: Ever managed downstream cluster will run an agent that communicates back to the Fleet manager.
+* **Fleet agent**: Every managed downstream cluster will run an agent that communicates back to the Fleet manager.
     This agent is just another set of Kubernetes controllers running in the downstream cluster.
 * **GitRepo**: Git repositories that are watched by Fleet are represented by the type `GitRepo`.
 * **Bundle**: When a `GitRepo` is scanned it will produce one or more bundles. Bundles are a collection of
