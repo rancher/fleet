@@ -24,6 +24,9 @@ webhookReceiverURL: ""
 # webhook will be setup if webhookReceiverURL is also set
 githubURLPrefix: https://github.com
 
+# Whether you want to allow cluster upon registration to specify their labels.
+ignoreClusterRegistrationLabels: false
+
 bootstrap:
   # The namespace that will be autocreated and the local cluster will be registered in
   namespace: fleet-local

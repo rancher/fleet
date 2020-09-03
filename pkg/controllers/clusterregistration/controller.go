@@ -11,6 +11,7 @@ import (
 
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -312,8 +313,10 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 	}
 
 	labels := map[string]string{}
-	for k, v := range request.Spec.ClusterLabels {
-		labels[k] = v
+	if !config.Get().IgnoreClusterRegistrationLabels {
+		for k, v := range request.Spec.ClusterLabels {
+			labels[k] = v
+		}
 	}
 	labels[fleet.ClusterAnnotation] = clusterName
 
