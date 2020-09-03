@@ -10,6 +10,7 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
@@ -101,9 +102,10 @@ func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 		return nil, err
 	}
 
+	hash := clusterregistration.KeyHash(string(data))
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name.SafeConcatName(repo.Name, "config"),
+			Name:      name.SafeConcatName(repo.Name, "config", hash),
 			Namespace: repo.Namespace,
 		},
 		BinaryData: map[string][]byte{
