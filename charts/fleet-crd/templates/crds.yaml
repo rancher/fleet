@@ -420,7 +420,7 @@ spec:
                           type: object
                         nullable: true
                         type: array
-                      notApplied:
+                      waitApplied:
                         type: integer
                       notReady:
                         type: integer
@@ -459,7 +459,7 @@ spec:
                     type: object
                   nullable: true
                   type: array
-                notApplied:
+                waitApplied:
                   type: integer
                 notReady:
                   type: integer
@@ -938,7 +938,7 @@ spec:
                     type: object
                   nullable: true
                   type: array
-                notApplied:
+                waitApplied:
                   type: integer
                 notReady:
                   type: integer
@@ -1095,7 +1095,7 @@ spec:
                     type: object
                   nullable: true
                   type: array
-                notApplied:
+                waitApplied:
                   type: integer
                 notReady:
                   type: integer
@@ -1341,7 +1341,7 @@ spec:
                     type: object
                   nullable: true
                   type: array
-                notApplied:
+                waitApplied:
                   type: integer
                 notReady:
                   type: integer

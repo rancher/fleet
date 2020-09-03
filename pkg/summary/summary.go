@@ -18,8 +18,8 @@ func IncrementState(summary *fleet.BundleSummary, name string, state fleet.Bundl
 		summary.Modified++
 	case fleet.Pending:
 		summary.Pending++
-	case fleet.NotApplied:
-		summary.NotApplied++
+	case fleet.WaitApplied:
+		summary.WaitApplied++
 	case fleet.ErrApplied:
 		summary.ErrApplied++
 	case fleet.NotReady:
@@ -46,7 +46,7 @@ func IsReady(summary fleet.BundleSummary) bool {
 
 func Increment(left *fleet.BundleSummary, right fleet.BundleSummary) {
 	left.NotReady += right.NotReady
-	left.NotApplied += right.NotApplied
+	left.WaitApplied += right.WaitApplied
 	left.ErrApplied += right.ErrApplied
 	left.OutOfSync += right.OutOfSync
 	left.Modified += right.Modified
@@ -64,7 +64,7 @@ func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleSt
 		if condition.Cond(fleet.BundleDeploymentConditionDeployed).IsFalse(bundleDeployment) {
 			return fleet.ErrApplied
 		}
-		return fleet.NotApplied
+		return fleet.WaitApplied
 	case !bundleDeployment.Status.Ready:
 		return fleet.NotReady
 	case bundleDeployment.Spec.DeploymentID != bundleDeployment.Spec.StagedDeploymentID:
@@ -109,12 +109,12 @@ func MessageFromDeployment(deployment *fleet.BundleDeployment) string {
 func ReadyMessage(summary fleet.BundleSummary, referencedKind string) string {
 	var messages []string
 	for msg, count := range map[fleet.BundleState]int{
-		fleet.OutOfSync:  summary.OutOfSync,
-		fleet.NotReady:   summary.NotReady,
-		fleet.NotApplied: summary.NotApplied,
-		fleet.ErrApplied: summary.ErrApplied,
-		fleet.Pending:    summary.Pending,
-		fleet.Modified:   summary.Modified,
+		fleet.OutOfSync:   summary.OutOfSync,
+		fleet.NotReady:    summary.NotReady,
+		fleet.WaitApplied: summary.WaitApplied,
+		fleet.ErrApplied:  summary.ErrApplied,
+		fleet.Pending:     summary.Pending,
+		fleet.Modified:    summary.Modified,
 	} {
 		if count <= 0 {
 			continue
@@ -122,7 +122,11 @@ func ReadyMessage(summary fleet.BundleSummary, referencedKind string) string {
 		for _, v := range summary.NonReadyResources {
 			name := v.Name
 			if v.State == msg {
-				messages = append(messages, fmt.Sprintf("%s(%d) [%s %s: %s]", msg, count, referencedKind, name, v.Message))
+				if len(v.Message) == 0 {
+					messages = append(messages, fmt.Sprintf("%s(%d) [%s %s]", msg, count, referencedKind, name))
+				} else {
+					messages = append(messages, fmt.Sprintf("%s(%d) [%s %s: %s]", msg, count, referencedKind, name, v.Message))
+				}
 				break
 			}
 		}
