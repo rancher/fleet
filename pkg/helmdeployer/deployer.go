@@ -250,7 +250,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	if install {
 		u := action.NewInstall(&cfg)
 		u.ClientOnly = h.template
-		u.ForceAdopt = true
+		u.ForceAdopt = options.TakeOwnership
 		u.Replace = true
 		u.Wait = true
 		u.ReleaseName = bundleID

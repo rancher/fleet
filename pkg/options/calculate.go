@@ -70,5 +70,6 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 		base.KustomizeDir = next.KustomizeDir
 	}
 	base.Force = base.Force || next.Force
+	base.TakeOwnership = base.TakeOwnership || next.TakeOwnership
 	return base
 }

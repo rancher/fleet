@@ -99,6 +99,7 @@ func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
 			Spec: fleet.BundleSpec{
 				BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 					DefaultNamespace: h.systemNamespace,
+					TakeOwnership:    true,
 				},
 				Resources: []fleet.BundleResource{
 					{
@@ -110,7 +111,7 @@ func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
 						ClusterSelector: &metav1.LabelSelector{
 							MatchExpressions: []metav1.LabelSelectorRequirement{
 								{
-									Key:      "fleet.cattle.io/manage-agent",
+									Key:      "fleet.cattle.io/non-managed-agent",
 									Operator: metav1.LabelSelectorOpDoesNotExist,
 								},
 							},
