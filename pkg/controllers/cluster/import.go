@@ -52,6 +52,7 @@ func RegisterImport(
 	}
 
 	clusters.OnChange(ctx, "import-cluster", h.OnChange)
+	fleetcontrollers.RegisterClusterStatusHandler(ctx, clusters, "Imported", "import-cluster", h.importCluster)
 }
 
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
@@ -73,9 +74,19 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 		return i.clusters.Update(cluster)
 	}
 
+	return cluster, nil
+}
+
+func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
+	if cluster.Spec.KubeConfigSecret == "" ||
+		(cluster.Status.AgentDeployed != nil && *cluster.Status.AgentDeployed) ||
+		cluster.Spec.ClientID == "" {
+		return status, nil
+	}
+
 	secret, err := i.secrets.Get(cluster.Namespace, cluster.Spec.KubeConfigSecret)
 	if err != nil {
-		return nil, err
+		return status, err
 	}
 
 	var (
@@ -87,7 +98,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 
 	if apiServerURL == "" {
 		if len(cfg.APIServerURL) == 0 {
-			return nil, fmt.Errorf("missing apiServerURL in fleet config for cluster auto registration")
+			return status, fmt.Errorf("missing apiServerURL in fleet config for cluster auto registration")
 		}
 		apiServerURL = cfg.APIServerURL
 	}
@@ -98,21 +109,21 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 
 	restConfig, err := clientcmd.RESTConfigFromKubeConfig(secret.Data["value"])
 	if err != nil {
-		return nil, err
+		return status, err
 	}
 
 	kc, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		return nil, err
+		return status, err
 	}
 
 	if _, err = kc.Discovery().ServerVersion(); err != nil {
-		return nil, err
+		return status, err
 	}
 
 	apply, err := apply.NewForConfig(restConfig)
 	if err != nil {
-		return nil, err
+		return status, err
 	}
 	apply = apply.WithDynamicLookup().WithSetID("fleet-agent-bootstrap")
 
@@ -128,7 +139,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 				TTLSeconds: ImportTokenTTL,
 			},
 		})
-		return nil, err
+		return status, err
 	}
 
 	output := &bytes.Buffer{}
@@ -139,19 +150,18 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 		NoCheck:  noCheck,
 	})
 	if err != nil {
-		return nil, err
+		return status, err
 	}
 
 	obj, err := yaml.ToObjects(output)
 	if err != nil {
-		return nil, err
+		return status, err
 	}
 
 	if err := apply.ApplyObjects(obj...); err != nil {
-		return nil, err
+		return status, err
 	}
 
-	cluster = cluster.DeepCopy()
-	cluster.Status.AgentDeployed = &t
-	return i.clusters.UpdateStatus(cluster)
+	status.AgentDeployed = &t
+	return status, nil
 }

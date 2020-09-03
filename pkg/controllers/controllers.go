@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"context"
-	"fmt"
+	"strings"
 
 	"github.com/rancher/fleet/pkg/controllers/bootstrap"
 	"github.com/rancher/fleet/pkg/controllers/bundle"
@@ -32,9 +32,6 @@ import (
 	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/start"
 	"github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -57,23 +54,24 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
+func registrationNamespace(systemNamespace string) string {
+	systemRegistrationNamespace := strings.ReplaceAll(systemNamespace, "-system", "-clusters-system")
+	if systemRegistrationNamespace == systemNamespace {
+		return systemNamespace + "-clusters-system"
+	}
+	return systemRegistrationNamespace
+}
+
 func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig) error {
 	appCtx, err := newContext(cfg)
 	if err != nil {
 		return err
 	}
 
-	if _, err := appCtx.K8s.CoreV1().Namespaces().Get(ctx, systemNamespace, metav1.GetOptions{}); apierrors.IsNotFound(err) {
-		_, err := appCtx.K8s.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: systemNamespace,
-			},
-		}, metav1.CreateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to create namespace %s: %w", systemNamespace, err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("failed to get namespace %s: %w", systemNamespace, err)
+	systemRegistrationNamespace := registrationNamespace(systemNamespace)
+
+	if err := addData(systemNamespace, systemRegistrationNamespace, appCtx); err != nil {
+		return err
 	}
 
 	// config should be registered first to ensure the global
@@ -95,6 +93,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.ClusterRegistration(),
 			appCtx.Cluster()),
 		systemNamespace,
+		systemRegistrationNamespace,
 		appCtx.Core.ServiceAccount(),
 		appCtx.Core.Secret(),
 		appCtx.RBAC.Role(),
@@ -132,6 +131,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 
 	clusterregistrationtoken.Register(ctx,
 		systemNamespace,
+		systemRegistrationNamespace,
 		appCtx.Apply.WithCacheTypes(
 			appCtx.Core.Secret(),
 			appCtx.Core.ServiceAccount(),

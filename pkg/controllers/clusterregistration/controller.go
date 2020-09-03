@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rancher/fleet/pkg/registration"
-
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/registration"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
@@ -32,18 +31,20 @@ const (
 )
 
 type handler struct {
-	systemNamespace     string
-	clusterRegistration fleetcontrollers.ClusterRegistrationController
-	clusterCache        fleetcontrollers.ClusterCache
-	clusters            fleetcontrollers.ClusterClient
-	serviceAccountCache corecontrollers.ServiceAccountCache
-	secretsCache        corecontrollers.SecretCache
-	secrets             corecontrollers.SecretClient
+	systemNamespace             string
+	systemRegistrationNamespace string
+	clusterRegistration         fleetcontrollers.ClusterRegistrationController
+	clusterCache                fleetcontrollers.ClusterCache
+	clusters                    fleetcontrollers.ClusterClient
+	serviceAccountCache         corecontrollers.ServiceAccountCache
+	secretsCache                corecontrollers.SecretCache
+	secrets                     corecontrollers.SecretClient
 }
 
 func Register(ctx context.Context,
 	apply apply.Apply,
 	systemNamespace string,
+	systemRegistrationNamespace string,
 	serviceAccount corecontrollers.ServiceAccountController,
 	secret corecontrollers.SecretController,
 	role rbaccontrollers.RoleController,
@@ -54,13 +55,14 @@ func Register(ctx context.Context,
 	clusterCache fleetcontrollers.ClusterCache,
 	clusters fleetcontrollers.ClusterClient) {
 	h := &handler{
-		systemNamespace:     systemNamespace,
-		clusterRegistration: clusterRegistration,
-		clusterCache:        clusterCache,
-		clusters:            clusters,
-		serviceAccountCache: serviceAccount.Cache(),
-		secrets:             secret,
-		secretsCache:        secret.Cache(),
+		systemNamespace:             systemNamespace,
+		systemRegistrationNamespace: systemRegistrationNamespace,
+		clusterRegistration:         clusterRegistration,
+		clusterCache:                clusterCache,
+		clusters:                    clusters,
+		serviceAccountCache:         serviceAccount.Cache(),
+		secrets:                     secret,
+		secretsCache:                secret.Cache(),
 	}
 
 	fleetcontrollers.RegisterClusterRegistrationGeneratingHandler(ctx,
@@ -102,7 +104,7 @@ func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster
 	return &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      registration.SecretName(req.Spec.ClientID, req.Spec.ClientRandom),
-			Namespace: cluster.Namespace,
+			Namespace: h.systemRegistrationNamespace,
 			Labels: map[string]string{
 				fleet.ClusterAnnotation: cluster.Name,
 			},
@@ -133,6 +135,11 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 	var (
 		objects []runtime.Object
 	)
+
+	if status.Granted {
+		// only create the cluster for the request once
+		return nil, status, generic.ErrSkip
+	}
 
 	cluster, err := h.createOrGetCluster(request)
 	if err != nil || cluster == nil {
