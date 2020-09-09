@@ -52,6 +52,13 @@ func AgentToken(ctx context.Context, controllerNamespace, kubeConfigFile string,
 		return nil, err
 	}
 
+	if opts.Host != "" {
+		token["apiServerURL"] = []byte(opts.Host)
+	}
+	if len(opts.CA) > 0 {
+		token["apiServerCA"] = opts.CA
+	}
+
 	if !opts.NoCheck {
 		if err := testKubeConfig(kubeConfig, opts.Host); err != nil {
 			return nil, fmt.Errorf("failed to testing kubeconfig: %w", err)

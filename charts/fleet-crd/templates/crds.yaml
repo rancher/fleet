@@ -68,6 +68,8 @@ spec:
                   serviceAccount:
                     nullable: true
                     type: string
+                  takeOwnership:
+                    type: boolean
                   timeoutSeconds:
                     type: integer
                   values:
@@ -180,6 +182,8 @@ spec:
             serviceAccount:
               nullable: true
               type: string
+            takeOwnership:
+              type: boolean
             targetRestrictions:
               items:
                 properties:
@@ -330,6 +334,8 @@ spec:
                   serviceAccount:
                     nullable: true
                     type: string
+                  takeOwnership:
+                    type: boolean
                   timeoutSeconds:
                     type: integer
                   values:
@@ -420,8 +426,6 @@ spec:
                           type: object
                         nullable: true
                         type: array
-                      notApplied:
-                        type: integer
                       notReady:
                         type: integer
                       outOfSync:
@@ -429,6 +433,8 @@ spec:
                       pending:
                         type: integer
                       ready:
+                        type: integer
+                      waitApplied:
                         type: integer
                     type: object
                   unavailable:
@@ -459,8 +465,6 @@ spec:
                     type: object
                   nullable: true
                   type: array
-                notApplied:
-                  type: integer
                 notReady:
                   type: integer
                 outOfSync:
@@ -468,6 +472,8 @@ spec:
                 pending:
                   type: integer
                 ready:
+                  type: integer
+                waitApplied:
                   type: integer
               type: object
             unavailable:
@@ -526,6 +532,8 @@ spec:
                 serviceAccount:
                   nullable: true
                   type: string
+                takeOwnership:
+                  type: boolean
                 timeoutSeconds:
                   type: integer
                 values:
@@ -548,6 +556,8 @@ spec:
                 serviceAccount:
                   nullable: true
                   type: string
+                takeOwnership:
+                  type: boolean
                 timeoutSeconds:
                   type: integer
                 values:
@@ -938,8 +948,6 @@ spec:
                     type: object
                   nullable: true
                   type: array
-                notApplied:
-                  type: integer
                 notReady:
                   type: integer
                 outOfSync:
@@ -947,6 +955,8 @@ spec:
                 pending:
                   type: integer
                 ready:
+                  type: integer
+                waitApplied:
                   type: integer
               type: object
           type: object
@@ -1095,8 +1105,6 @@ spec:
                     type: object
                   nullable: true
                   type: array
-                notApplied:
-                  type: integer
                 notReady:
                   type: integer
                 outOfSync:
@@ -1104,6 +1112,8 @@ spec:
                 pending:
                   type: integer
                 ready:
+                  type: integer
+                waitApplied:
                   type: integer
               type: object
           type: object
@@ -1341,8 +1351,6 @@ spec:
                     type: object
                   nullable: true
                   type: array
-                notApplied:
-                  type: integer
                 notReady:
                   type: integer
                 outOfSync:
@@ -1350,6 +1358,8 @@ spec:
                 pending:
                   type: integer
                 ready:
+                  type: integer
+                waitApplied:
                   type: integer
               type: object
           type: object

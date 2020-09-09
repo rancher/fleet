@@ -12,22 +12,22 @@ import (
 )
 
 var (
-	Ready      BundleState = "Ready"
-	NotReady   BundleState = "NotReady"
-	NotApplied BundleState = "NotApplied"
-	ErrApplied BundleState = "ErrApplied"
-	OutOfSync  BundleState = "OutOfSync"
-	Pending    BundleState = "Pending"
-	Modified   BundleState = "Modified"
+	Ready       BundleState = "Ready"
+	NotReady    BundleState = "NotReady"
+	WaitApplied BundleState = "WaitApplied"
+	ErrApplied  BundleState = "ErrApplied"
+	OutOfSync   BundleState = "OutOfSync"
+	Pending     BundleState = "Pending"
+	Modified    BundleState = "Modified"
 
 	StateRank = map[BundleState]int{
-		ErrApplied: 7,
-		NotApplied: 6,
-		Modified:   5,
-		OutOfSync:  4,
-		Pending:    3,
-		NotReady:   2,
-		Ready:      1,
+		ErrApplied:  7,
+		WaitApplied: 6,
+		Modified:    5,
+		OutOfSync:   4,
+		Pending:     3,
+		NotReady:    2,
+		Ready:       1,
 	}
 )
 
@@ -113,7 +113,7 @@ type BundleTarget struct {
 
 type BundleSummary struct {
 	NotReady          int                `json:"notReady,omitempty"`
-	NotApplied        int                `json:"notApplied,omitempty"`
+	WaitApplied       int                `json:"waitApplied,omitempty"`
 	ErrApplied        int                `json:"errApplied,omitempty"`
 	OutOfSync         int                `json:"outOfSync,omitempty"`
 	Modified          int                `json:"modified,omitempty"`
@@ -180,6 +180,7 @@ type BundleDeploymentOptions struct {
 	Values           *GenericMap `json:"values,omitempty"`
 	ServiceAccount   string      `json:"serviceAccount,omitempty"`
 	Force            bool        `json:"force,omitempty"`
+	TakeOwnership    bool        `json:"takeOwnership,omitempty"`
 }
 
 type BundleDeploymentSpec struct {

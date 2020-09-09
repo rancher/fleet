@@ -23,24 +23,27 @@ import (
 )
 
 type handler struct {
-	systemNamespace           string
-	clusterRegistrationTokens fleetcontrollers.ClusterRegistrationTokenClient
-	serviceAccountCache       corecontrollers.ServiceAccountCache
-	secretsCache              corecontrollers.SecretCache
+	systemNamespace             string
+	systemRegistrationNamespace string
+	clusterRegistrationTokens   fleetcontrollers.ClusterRegistrationTokenClient
+	serviceAccountCache         corecontrollers.ServiceAccountCache
+	secretsCache                corecontrollers.SecretCache
 }
 
 func Register(ctx context.Context,
 	systemNamespace string,
+	systemRegistrationNamespace string,
 	apply apply.Apply,
 	clusterGroupToken fleetcontrollers.ClusterRegistrationTokenController,
 	serviceAccounts corecontrollers.ServiceAccountController,
 	secretsCache corecontrollers.SecretCache,
 ) {
 	h := &handler{
-		systemNamespace:           systemNamespace,
-		clusterRegistrationTokens: clusterGroupToken,
-		serviceAccountCache:       serviceAccounts.Cache(),
-		secretsCache:              secretsCache,
+		systemNamespace:             systemNamespace,
+		systemRegistrationNamespace: systemRegistrationNamespace,
+		clusterRegistrationTokens:   clusterGroupToken,
+		serviceAccountCache:         serviceAccounts.Cache(),
+		secretsCache:                secretsCache,
 	}
 
 	fleetcontrollers.RegisterClusterRegistrationTokenGeneratingHandler(ctx,
@@ -106,11 +109,6 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 					APIGroups: []string{fleetgroup.GroupName},
 					Resources: []string{fleet.ClusterRegistrationResourceName},
 				},
-				{
-					Verbs:     []string{"get"},
-					APIGroups: []string{""},
-					Resources: []string{"secrets"},
-				},
 			},
 		},
 		&rbacv1.RoleBinding{
@@ -148,10 +146,11 @@ func (h *handler) getValuesYAMLSecret(token *fleet.ClusterRegistrationToken, sec
 	}
 
 	values := map[string]interface{}{
-		"clusterNamespace": token.Namespace,
-		"apiServerURL":     config.Get().APIServerURL,
-		"apiServerCA":      string(config.Get().APIServerCA),
-		"token":            string(secret.Data["token"]),
+		"clusterNamespace":            token.Namespace,
+		"apiServerURL":                config.Get().APIServerURL,
+		"apiServerCA":                 string(config.Get().APIServerCA),
+		"token":                       string(secret.Data["token"]),
+		"systemRegistrationNamespace": h.systemRegistrationNamespace,
 	}
 
 	if h.systemNamespace != config.DefaultNamespace {

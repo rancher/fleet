@@ -9,6 +9,7 @@ data:
       "agentImagePullPolicy": "{{ .Values.agentImage.imagePullPolicy }}",
       "apiServerURL": "{{.Values.apiServerURL}}",
       "apiServerCA": "{{b64enc .Values.apiServerCA}}",
+      "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
       "bootstrap": {
         "dirs": "{{.Values.bootstrap.dirs}}",
         "repo": "{{.Values.bootstrap.repo}}",

@@ -17,7 +17,17 @@ token: ""
 #labels:
 #  foo: bar
 
+# The client ID of the cluster to associate with
+clientID: ""
+
+# The namespace of the cluster we are register with
+clusterNamespace: ""
+
+# The namespace containing the clusters registration secrets
+systemRegistrationNamespace: fleet-clusters-system
+
 # Please do not change the below setting unless you really know what you are doing
 internal:
   systemNamespace: fleet-system
   managedReleaseName: fleet-agent
+

@@ -104,7 +104,7 @@ namespace: default
 
 # When resources are applied the system will wait for the resources to initially
 # become Ready. If the resources are not ready in this time frame the
-# application of resources fails and the bundle will stay in a NotApplied state.
+# application of resources fails and the bundle will stay in a WaitApplied state.
 # Default: 600 (10 minutes)
 timeoutSeconds: 600
 

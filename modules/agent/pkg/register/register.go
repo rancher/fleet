@@ -160,20 +160,21 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 	}
 
 	secretName := registration.SecretName(request.Spec.ClientID, request.Spec.ClientRandom)
+	secretNamespace := string(secret.Data["systemRegistrationNamespace"])
 	timeout := time.After(30 * time.Minute)
 
 	for {
 		select {
 		case <-timeout:
-			return nil, fmt.Errorf("timeout waiting for secret %s/%s", ns, secretName)
+			return nil, fmt.Errorf("timeout waiting for secret %s/%s", secretNamespace, secretName)
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-time.After(2 * time.Second):
 		}
 
-		newSecret, err := fleetK8s.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+		newSecret, err := fleetK8s.CoreV1().Secrets(secretNamespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
-			logrus.Infof("Waiting for secret %s/%s for %s: %v", ns, secretName, request.Name, err)
+			logrus.Infof("Waiting for secret %s/%s for %s: %v", secretNamespace, secretName, request.Name, err)
 			continue
 		}
 

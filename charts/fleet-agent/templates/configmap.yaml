@@ -1,4 +1,3 @@
-{{if .Values.labels }}
 kind: ConfigMap
 apiVersion: v1
 metadata:
@@ -6,6 +5,8 @@ metadata:
 data:
   config: |-
     {
-      "labels":{{toJson .Values.labels}}
+      {{ if .Values.labels }}
+      "labels":{{toJson .Values.labels}},
+      {{ end }}
+      "clientID":"{{.Values.clientID}}"
     }
-{{end}}
