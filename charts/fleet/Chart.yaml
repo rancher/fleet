@@ -7,6 +7,7 @@ icon: https://charts.rancher.io/assets/logos/fleet.svg
 annotations:
   catalog.cattle.io/auto-install: fleet-crd=match
   catalog.cattle.io/certified: rancher
+  catalog.cattle.io/hidden: "true"
   catalog.cattle.io/experimental: "true"
   catalog.cattle.io/namespace: fleet-system
   catalog.cattle.io/release-name: fleet
