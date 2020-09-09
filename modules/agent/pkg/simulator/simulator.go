@@ -7,7 +7,6 @@ import (
 
 	"github.com/rancher/fleet/modules/agent/pkg/agent"
 	"github.com/rancher/fleet/modules/agent/pkg/register"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
 	"github.com/rancher/wrangler/pkg/name"
@@ -19,6 +18,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+)
+
+var (
+	sem = semaphore.NewWeighted(50)
 )
 
 func Simulate(ctx context.Context, count int, kubeConfig, namespace, defaultNamespace string) error {
@@ -45,10 +48,6 @@ func Simulate(ctx context.Context, count int, kubeConfig, namespace, defaultName
 
 	return eg.Wait()
 }
-
-var (
-	sem = semaphore.NewWeighted(50)
-)
 
 func simulateAgent(ctx context.Context, i int, kubeConfig, namespace, defaultNamespace string) error {
 	simNamespace := fmt.Sprintf("%s%05d", namespace, i)
@@ -85,13 +84,9 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 
 	clusterID := name.SafeConcatName(simNamespace, strings.SplitN(string(kubeSystem.UID), "-", 2)[0])
 
-	secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, register.CredName, metav1.GetOptions{})
+	secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, register.BootstrapCredName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
-	}
-
-	if secret.Annotations[fleet.BootstrapToken] != "true" {
-		return "", fmt.Errorf("%s/%s does not have the label %s=true", namespace, register.CredName, fleet.BootstrapToken)
 	}
 
 	conf, err := k8s.CoreV1().ConfigMaps(namespace).Get(ctx, config.AgentConfigName, metav1.GetOptions{})
@@ -114,9 +109,6 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secret.Name,
 			Namespace: simNamespace,
-			Annotations: map[string]string{
-				fleet.BootstrapToken: "true",
-			},
 		},
 		Data: secret.Data,
 	}, metav1.CreateOptions{})
