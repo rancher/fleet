@@ -3,10 +3,9 @@ package deployer
 import (
 	"sort"
 
-	"github.com/rancher/wrangler/pkg/name"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/summary"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -23,6 +22,7 @@ func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) apply.Apply {
 		ns = m.defaultNamespace
 	}
 	return m.apply.
+		WithIgnorePreviousApplied().
 		WithSetID(name.SafeConcatName(m.labelPrefix, bd.Name)).
 		WithDefaultNamespace(ns)
 }

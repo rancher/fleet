@@ -3,6 +3,7 @@ package agent
 import (
 	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -11,7 +12,7 @@ const (
 	DefaultName = "fleet-agent"
 )
 
-func Manifest(namespace, image, pullPolicy string) []runtime.Object {
+func Manifest(namespace, image, pullPolicy, generation string) []runtime.Object {
 	if image == "" {
 		image = config.DefaultAgentImage
 	}
@@ -26,8 +27,15 @@ func Manifest(namespace, image, pullPolicy string) []runtime.Object {
 		},
 	)
 
+	dep := basic.Deployment(namespace, DefaultName, image, pullPolicy, DefaultName)
+	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
+		corev1.EnvVar{
+			Name:  "GENERATION",
+			Value: generation,
+		})
+
 	objs := []runtime.Object{
-		basic.Deployment(namespace, DefaultName, image, pullPolicy, DefaultName),
+		dep,
 		sa,
 	}
 	objs = append(objs, clusterRole...)

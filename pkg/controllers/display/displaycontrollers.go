@@ -62,7 +62,7 @@ func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterSt
 	}
 
 	status.Display.State = string(state)
-	if status.Agent.LastSeen.IsZero() && (status.AgentDeployed == nil || !*status.AgentDeployed) {
+	if status.Agent.LastSeen.IsZero() && status.AgentLastDeployed == nil {
 		status.Display.State = "ErrNoAgent"
 	}
 	return status, nil
