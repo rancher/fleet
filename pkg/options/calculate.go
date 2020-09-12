@@ -69,6 +69,9 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 	if next.KustomizeDir != "" {
 		base.KustomizeDir = next.KustomizeDir
 	}
+	if next.ForceSyncBefore != nil {
+		base.ForceSyncBefore = next.ForceSyncBefore
+	}
 	base.Force = base.Force || next.Force
 	base.TakeOwnership = base.TakeOwnership || next.TakeOwnership
 	return base

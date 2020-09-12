@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -33,6 +34,7 @@ type Options struct {
 	Output         io.Writer
 	ServiceAccount string
 	Labels         map[string]string
+	SyncBefore     *time.Time
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -100,6 +102,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 		Labels:         opts.Labels,
 		ServiceAccount: opts.ServiceAccount,
 		TargetsFile:    opts.TargetsFile,
+		SyncBefore:     opts.SyncBefore,
 	})
 }
 

@@ -174,13 +174,14 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
-	DefaultNamespace string      `json:"namespace,omitempty"`
-	KustomizeDir     string      `json:"kustomizeDir,omitempty"`
-	TimeoutSeconds   int         `json:"timeoutSeconds,omitempty"`
-	Values           *GenericMap `json:"values,omitempty"`
-	ServiceAccount   string      `json:"serviceAccount,omitempty"`
-	Force            bool        `json:"force,omitempty"`
-	TakeOwnership    bool        `json:"takeOwnership,omitempty"`
+	DefaultNamespace string       `json:"namespace,omitempty"`
+	KustomizeDir     string       `json:"kustomizeDir,omitempty"`
+	TimeoutSeconds   int          `json:"timeoutSeconds,omitempty"`
+	Values           *GenericMap  `json:"values,omitempty"`
+	ServiceAccount   string       `json:"serviceAccount,omitempty"`
+	Force            bool         `json:"force,omitempty"`
+	TakeOwnership    bool         `json:"takeOwnership,omitempty"`
+	ForceSyncBefore  *metav1.Time `json:"forceSyncBefore,omitempty"`
 }
 
 type BundleDeploymentSpec struct {
@@ -199,6 +200,7 @@ type BundleDeploymentStatus struct {
 	NonReadyStatus      []NonReadyStatus                    `json:"nonReadyStatus,omitempty"`
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
+	ForceSync           *metav1.Time                        `json:"forceSync,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {

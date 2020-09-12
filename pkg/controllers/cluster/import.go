@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/rancher/fleet/modules/cli/agentmanifest"
@@ -55,13 +56,21 @@ func RegisterImport(
 	fleetcontrollers.RegisterClusterStatusHandler(ctx, clusters, "Imported", "import-cluster", h.importCluster)
 }
 
+func agentDeployed(cluster *fleet.Cluster) bool {
+	if cluster.Status.AgentLastDeployed == nil {
+		return false
+	}
+	return cluster.Spec.ForceUpdateAgent == nil ||
+		cluster.Spec.ForceUpdateAgent.Time.After(time.Now().Add(-15*time.Minute)) ||
+		cluster.Spec.ForceUpdateAgent.Before(cluster.Status.AgentLastDeployed)
+}
+
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
 	if cluster == nil {
 		return cluster, nil
 	}
 
-	if cluster.Spec.KubeConfigSecret == "" ||
-		(cluster.Status.AgentDeployed != nil && *cluster.Status.AgentDeployed) {
+	if cluster.Spec.KubeConfigSecret == "" || agentDeployed(cluster) {
 		return cluster, nil
 	}
 
@@ -79,7 +88,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
 	if cluster.Spec.KubeConfigSecret == "" ||
-		(cluster.Status.AgentDeployed != nil && *cluster.Status.AgentDeployed) ||
+		agentDeployed(cluster) ||
 		cluster.Spec.ClientID == "" {
 		return status, nil
 	}
@@ -144,10 +153,11 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 
 	output := &bytes.Buffer{}
 	err = agentmanifest.AgentManifest(i.ctx, i.systemNamespace, i.systemNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
-		CA:       apiServerCA,
-		Host:     apiServerURL,
-		ClientID: cluster.Spec.ClientID,
-		NoCheck:  noCheck,
+		CA:         apiServerCA,
+		Host:       apiServerURL,
+		ClientID:   cluster.Spec.ClientID,
+		NoCheck:    noCheck,
+		Generation: strconv.FormatInt(cluster.Generation, 10),
 	})
 	if err != nil {
 		return status, err
@@ -162,6 +172,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
-	status.AgentDeployed = &t
+	now := metav1.Now()
+	status.AgentLastDeployed = &now
 	return status, nil
 }

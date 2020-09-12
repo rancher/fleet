@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +23,7 @@ type Options struct {
 	Labels         map[string]string
 	ServiceAccount string
 	TargetsFile    string
+	SyncBefore     *time.Time
 }
 
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
@@ -150,6 +152,10 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	if opts.ServiceAccount != "" {
 		def.Spec.ServiceAccount = opts.ServiceAccount
+	}
+
+	if opts.SyncBefore != nil {
+		def.Spec.ForceSyncBefore = &metav1.Time{Time: *opts.SyncBefore}
 	}
 
 	def, err = appendTargets(def, opts.TargetsFile)
