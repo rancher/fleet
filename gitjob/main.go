@@ -44,6 +44,10 @@ func main() {
 			Name:  "listen",
 			Value: ":80",
 		},
+		cli.StringFlag{
+			Name:  "tekton-image",
+			Value: "rancher/tekton-utils:dev",
+		},
 	}
 	app.Action = run
 
@@ -70,6 +74,8 @@ func run(c *cli.Context) {
 	if err := cont.Start(ctx); err != nil {
 		logrus.Fatal(err)
 	}
+
+	cont.Image = c.String("tekton-image")
 
 	go func() {
 		leader.RunOrDie(ctx, c.String("namespace"), "gitjob", cont.K8s, func(ctx context.Context) {

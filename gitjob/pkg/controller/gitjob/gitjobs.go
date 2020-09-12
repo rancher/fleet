@@ -26,14 +26,6 @@ import (
 	types2 "k8s.io/apimachinery/pkg/types"
 )
 
-var (
-	image = map[string]string{
-		"creds-init": "gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/creds-init:v0.12.1",
-		"git-init":   "gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:v0.12.1",
-		"entrypoint": "gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/entrypoint:v0.12.1",
-	}
-)
-
 func Register(ctx context.Context, cont *types.Context) {
 	h := Handler{
 		ctx: ctx,
@@ -44,6 +36,7 @@ func Register(ctx context.Context, cont *types.Context) {
 		gitjobs: cont.Gitjob.Gitjob().V1().GitJob(),
 		secrets: cont.Core.Core().V1().Secret().Cache(),
 		batch:   cont.Batch.Batch().V1().Job(),
+		Image:   cont.Image,
 	}
 
 	v1controller.RegisterGitJobGeneratingHandler(
@@ -67,6 +60,7 @@ type Handler struct {
 	batch     batchv1controller.JobClient
 	providers []provider.Provider
 	secrets   corev1controller.SecretCache
+	Image     string
 }
 
 func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Object, v1.GitJobStatus, error) {
@@ -155,7 +149,10 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 		Spec: obj.Spec.JobSpec,
 	}
 
-	cloneContainer := h.generateCloneContainer(obj)
+	cloneContainer, err := h.generateCloneContainer(obj)
+	if err != nil {
+		return nil, err
+	}
 	initContainers, err := h.generateInitContainer(obj)
 	if err != nil {
 		return nil, err
@@ -269,9 +266,9 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 	return job, nil
 }
 
-func (h Handler) generateCloneContainer(obj *v1.GitJob) corev1.Container {
+func (h Handler) generateCloneContainer(obj *v1.GitJob) (corev1.Container, error) {
 	c := corev1.Container{
-		Image: image["git-init"],
+		Image: h.Image,
 		Name:  "step-git-source",
 		Args: []string{
 			"-post_file",
@@ -279,7 +276,7 @@ func (h Handler) generateCloneContainer(obj *v1.GitJob) corev1.Container {
 			"-termination_path",
 			"/tekton/termination",
 			"-entrypoint",
-			"/ko-app/git-init",
+			"/usr/bin/git-init",
 			"--",
 			"-url",
 			obj.Spec.Git.Repo,
@@ -316,6 +313,24 @@ func (h Handler) generateCloneContainer(obj *v1.GitJob) corev1.Container {
 		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 	}
 
+	if obj.Spec.Git.ClientSecretName != "" {
+		hostname, err := parseHostname(obj.Spec.Git.Repo)
+		if err != nil {
+			return corev1.Container{}, err
+		}
+
+		secretType, err := h.inspectSecretType(obj.Spec.Git.ClientSecretName, obj.Namespace)
+		if err != nil {
+			return corev1.Container{}, err
+		}
+
+		c.Args = append([]string{fmt.Sprintf("-%s-git=%s=%s", secretType, obj.Spec.Git.ClientSecretName, hostname)}, c.Args...)
+		c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+			MountPath: fmt.Sprintf("/tekton/creds-secrets/%s", obj.Spec.Git.ClientSecretName),
+			Name:      "git-credential",
+		})
+	}
+
 	// setup ssl verify
 	if obj.Spec.Git.InsecureSkipTLSverify {
 		c.Args = append(c.Args, "-sslVerify", "true")
@@ -334,7 +349,7 @@ func (h Handler) generateCloneContainer(obj *v1.GitJob) corev1.Container {
 		})
 	}
 
-	return c
+	return c, nil
 }
 
 func (h Handler) generateInitContainer(obj *v1.GitJob) ([]corev1.Container, error) {
@@ -347,7 +362,7 @@ func (h Handler) generateInitContainer(obj *v1.GitJob) ([]corev1.Container, erro
 				"-c",
 				"mkdir -p /workspace/source",
 			},
-			Image: "busybox",
+			Image: h.Image,
 			Name:  "working-dir-initializer",
 			VolumeMounts: []corev1.VolumeMount{
 				{
@@ -367,10 +382,10 @@ func (h Handler) generateInitContainer(obj *v1.GitJob) ([]corev1.Container, erro
 		{
 			Command: []string{
 				"cp",
-				"/ko-app/entrypoint",
+				"/usr/bin/entrypoint",
 				"/tekton/tools/entrypoint",
 			},
-			Image: image["entrypoint"],
+			Image: h.Image,
 			Name:  "place-tools",
 			VolumeMounts: []corev1.VolumeMount{
 				{
@@ -381,52 +396,6 @@ func (h Handler) generateInitContainer(obj *v1.GitJob) ([]corev1.Container, erro
 		},
 	}
 
-	hostname, err := parseHostname(obj.Spec.Git.Repo)
-	if err != nil {
-		return nil, err
-	}
-	if obj.Spec.Git.ClientSecretName != "" {
-		secretType, err := h.inspectSecretType(obj.Spec.Git.ClientSecretName, obj.Namespace)
-		if err != nil {
-			return nil, err
-		}
-		initContainers = append([]corev1.Container{
-			{
-				Args: []string{
-					fmt.Sprintf("-%s-git=%s=%s", secretType, obj.Spec.Git.ClientSecretName, hostname),
-				},
-				Name: "creds-init",
-				Command: []string{
-					"/ko-app/creds-init",
-				},
-				Env: []corev1.EnvVar{
-					{
-						Name:  "HOME",
-						Value: "/tekton/home",
-					},
-				},
-				Image: image["creds-init"],
-				VolumeMounts: []corev1.VolumeMount{
-					{
-						MountPath: "/workspace",
-						Name:      "tekton-internal-workspace",
-					},
-					{
-						MountPath: "/tekton/home",
-						Name:      "tekton-internal-home",
-					},
-					{
-						MountPath: "/tekton/results",
-						Name:      "tekton-internal-results",
-					},
-					{
-						MountPath: fmt.Sprintf("/tekton/creds-secrets/%s", obj.Spec.Git.ClientSecretName),
-						Name:      "git-credential",
-					},
-				},
-			},
-		}, initContainers...)
-	}
 	return initContainers, nil
 }
 
