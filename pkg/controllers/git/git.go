@@ -382,7 +382,7 @@ func (h *handler) setBundleDeploymentStatus(gitrepo *fleet.GitRepo, status fleet
 	var maxState fleet.BundleState
 	for _, app := range bundleDeployments {
 		state := summary.GetDeploymentState(app)
-		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app))
+		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus)
 		status.Summary.DesiredReady++
 		if fleet.StateRank[state] > fleet.StateRank[maxState] {
 			maxState = state

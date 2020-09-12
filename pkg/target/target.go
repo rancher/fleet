@@ -417,6 +417,13 @@ func IsUnavailable(target *fleet.BundleDeployment) bool {
 		!target.Status.Ready
 }
 
+func (t *Target) Modified() []fleet.ModifiedStatus {
+	if t.Deployment == nil {
+		return nil
+	}
+	return t.Deployment.Status.ModifiedStatus
+}
+
 func (t *Target) State() fleet.BundleState {
 	switch {
 	case t.Deployment == nil:
@@ -434,7 +441,7 @@ func Summary(targets []*Target) fleet.BundleSummary {
 	var bundleSummary fleet.BundleSummary
 	for _, currentTarget := range targets {
 		cluster := currentTarget.Cluster.Namespace + "/" + currentTarget.Cluster.Name
-		summary.IncrementState(&bundleSummary, cluster, currentTarget.State(), currentTarget.Message())
+		summary.IncrementState(&bundleSummary, cluster, currentTarget.State(), currentTarget.Message(), currentTarget.Modified())
 		bundleSummary.DesiredReady++
 	}
 	return bundleSummary

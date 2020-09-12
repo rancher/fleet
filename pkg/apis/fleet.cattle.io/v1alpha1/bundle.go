@@ -124,9 +124,10 @@ type BundleSummary struct {
 }
 
 type NonReadyResource struct {
-	Name    string      `json:"name,omitempty"`
-	State   BundleState `json:"bundleState,omitempty"`
-	Message string      `json:"message,omitempty"`
+	Name           string           `json:"name,omitempty"`
+	State          BundleState      `json:"bundleState,omitempty"`
+	Message        string           `json:"message,omitempty"`
+	ModifiedStatus []ModifiedStatus `json:"modifiedStatus,omitempty"`
 }
 
 var (
@@ -252,7 +253,7 @@ func (in ModifiedStatus) String() string {
 	} else if in.Delete {
 		return msg + " extra"
 	}
-	return msg + " modified"
+	return msg + " modified " + in.Patch
 }
 
 // +genclient
