@@ -17,6 +17,7 @@ import (
 type contextKey struct{}
 
 type Context struct {
+	Image     string
 	Namespace string
 
 	Batch  *batch.Factory
