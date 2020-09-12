@@ -235,6 +235,16 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 		return nil, status, err
 	}
 
+	syncSeconds := 0
+	if gitrepo.Spec.PollingInterval != nil {
+		syncSeconds = int(gitrepo.Spec.PollingInterval.Duration / time.Second)
+	}
+
+	syncBefore := ""
+	if gitrepo.Spec.ForceSyncBefore != nil {
+		syncBefore = gitrepo.Spec.ForceSyncBefore.UTC().Format(time.RFC3339)
+	}
+
 	saName := name.SafeConcatName("git", gitrepo.Name)
 	return []runtime.Object{
 		configMap,
@@ -288,6 +298,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 				Namespace:   gitrepo.Namespace,
 			},
 			Spec: gitjob.GitJobSpec{
+				SyncInterval: syncSeconds,
 				Git: gitjob.GitInfo{
 					Credential: gitjob.Credential{
 						ClientSecretName: gitrepo.Spec.ClientSecretName,
@@ -329,6 +340,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 										"--label=" + RepoLabel + "=" + gitrepo.Name,
 										"--namespace", gitrepo.Namespace,
 										"--service-account", gitrepo.Spec.ServiceAccount,
+										"--sync-before", syncBefore,
 										gitrepo.Name,
 									}, dirs...),
 									WorkingDir: "/workspace/source",
@@ -370,7 +382,7 @@ func (h *handler) setBundleDeploymentStatus(gitrepo *fleet.GitRepo, status fleet
 	var maxState fleet.BundleState
 	for _, app := range bundleDeployments {
 		state := summary.GetDeploymentState(app)
-		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app))
+		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus)
 		status.Summary.DesiredReady++
 		if fleet.StateRank[state] > fleet.StateRank[maxState] {
 			maxState = state

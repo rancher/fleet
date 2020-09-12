@@ -60,16 +60,17 @@ type Cluster struct {
 }
 
 type ClusterSpec struct {
-	Paused           bool   `json:"paused,omitempty"`
-	ClientID         string `json:"clientID,omitempty"`
-	KubeConfigSecret string `json:"kubeConfigSecret,omitempty"`
+	Paused           bool         `json:"paused,omitempty"`
+	ClientID         string       `json:"clientID,omitempty"`
+	KubeConfigSecret string       `json:"kubeConfigSecret,omitempty"`
+	ForceUpdateAgent *metav1.Time `json:"forceUpdateAgent,omitempty"`
 }
 
 type ClusterStatus struct {
-	Conditions    []genericcondition.GenericCondition `json:"conditions,omitempty"`
-	Namespace     string                              `json:"namespace,omitempty"`
-	Summary       BundleSummary                       `json:"summary,omitempty"`
-	AgentDeployed *bool                               `json:"agentDeployed,omitempty"`
+	Conditions        []genericcondition.GenericCondition `json:"conditions,omitempty"`
+	Namespace         string                              `json:"namespace,omitempty"`
+	Summary           BundleSummary                       `json:"summary,omitempty"`
+	AgentLastDeployed *metav1.Time                        `json:"agentLastDeployed,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`

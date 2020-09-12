@@ -259,6 +259,9 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		u.Timeout = timeout
 		u.DryRun = dryRun
 		u.PostRenderer = pr
+		if !dryRun {
+			logrus.Infof("Helm: Installing %s", bundleID)
+		}
 		return u.Run(chart, vals)
 	}
 
@@ -270,6 +273,9 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u.Atomic = true
 	u.DryRun = dryRun
 	u.PostRenderer = pr
+	if !dryRun {
+		logrus.Infof("Helm: Upgrading %s", bundleID)
+	}
 	return u.Run(bundleID, chart, vals)
 }
 
@@ -353,12 +359,36 @@ func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dr
 		return err
 	}
 
+	if bundleID == "fleet-agent" {
+		// Never uninstall the fleet-agent, just "forget" it
+		return deleteHistory(cfg, bundleID)
+	}
+
 	u := action.NewUninstall(&cfg)
 	u.DryRun = dryRun
 	u.Timeout = timeout
 
+	if !dryRun {
+		logrus.Infof("Helm: Uninstalling %s", bundleID)
+	}
 	_, err = u.Run(bundleID)
 	return err
+}
+
+func deleteHistory(cfg action.Configuration, bundleID string) error {
+	releases, err := cfg.Releases.List(func(r *release.Release) bool {
+		return r.Name == bundleID && r.Chart.Metadata.Annotations[BundleIDAnnotation] == bundleID
+	})
+	if err != nil {
+		return err
+	}
+	for _, release := range releases {
+		logrus.Infof("Helm: Deleting release %s %d", release.Name, release.Version)
+		if _, err := cfg.Releases.Delete(release.Name, release.Version); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func releaseToResources(release *release.Release) (*deployer.Resources, error) {

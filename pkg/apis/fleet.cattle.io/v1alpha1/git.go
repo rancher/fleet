@@ -40,6 +40,12 @@ type GitRepoSpec struct {
 
 	// Targets is a list of target this repo will deploy to
 	Targets []GitTarget `json:"targets,omitempty"`
+
+	// PollingInterval is how often to check git for new updates
+	PollingInterval *metav1.Duration `json:"pollingInterval,omitempty"`
+
+	// All non-ready deployments before this time will be resynced
+	ForceSyncBefore *metav1.Time `json:"forceSyncBefore,omitempty"`
 }
 
 type GitTarget struct {

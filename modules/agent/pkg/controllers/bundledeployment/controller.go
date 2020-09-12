@@ -105,6 +105,20 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 	return bd, nil
 }
 
+func shouldRedeploy(bd *fleet.BundleDeployment) bool {
+	if bd.Spec.Options.ForceSyncBefore == nil {
+		return false
+	}
+	if bd.Status.ForceSync == nil {
+		return true
+	}
+	if bd.Spec.Options.ForceSyncBefore.Time.After(time.Now().Add(-15 * time.Minute)) {
+		return false
+	}
+
+	return bd.Status.ForceSync.Before(bd.Spec.Options.ForceSyncBefore)
+}
+
 func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
 	if bd.Spec.DeploymentID != status.AppliedDeploymentID {
 		return status, nil
@@ -120,7 +134,20 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	status.Ready = deploymentStatus.Ready
 	status.NonModified = deploymentStatus.NonModified
 
-	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError(status))
+	readyError := readyError(status)
+	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
+	if len(status.ModifiedStatus) > 0 {
+		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, 5*time.Minute)
+		if shouldRedeploy(bd) {
+			logrus.Infof("Redeploying %s", bd.Name)
+			status.AppliedDeploymentID = ""
+		}
+	}
+
+	status.ForceSync = bd.Spec.Options.ForceSyncBefore
+	if readyError != nil {
+		logrus.Errorf("bundle %s: %v", bd.Name, readyError)
+	}
 	return status, nil
 }
 

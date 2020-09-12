@@ -210,7 +210,14 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 			},
 		}
 
-		return k8s.Secret().Create(updatedSecret)
+		secret, err := k8s.Secret().Create(updatedSecret)
+		if apierrors.IsAlreadyExists(err) {
+			if err = k8s.Secret().Delete(updatedSecret.Namespace, updatedSecret.Name, &metav1.DeleteOptions{}); err != nil {
+				return nil, err
+			}
+			secret, err = k8s.Secret().Create(updatedSecret)
+		}
+		return secret, err
 	}
 }
 

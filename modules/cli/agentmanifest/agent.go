@@ -33,12 +33,13 @@ var (
 )
 
 type Options struct {
-	CA       []byte
-	Host     string
-	NoCA     bool
-	NoCheck  bool
-	Labels   map[string]string
-	ClientID string
+	CA         []byte
+	Host       string
+	NoCA       bool
+	NoCheck    bool
+	Labels     map[string]string
+	ClientID   string
+	Generation string
 }
 
 func AgentToken(ctx context.Context, controllerNamespace, kubeConfigFile string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
@@ -133,7 +134,7 @@ func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace str
 		return err
 	}
 
-	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy)...)
+	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation)...)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {
@@ -162,6 +163,8 @@ func getKubeConfig(kubeConfig string, namespace string, token []byte, host strin
 		return "", err
 	}
 
+	customHost := len(host) > 0
+
 	host, doCheckHost, err := getHost(host, cfg)
 	if err != nil {
 		return "", err
@@ -175,7 +178,7 @@ func getKubeConfig(kubeConfig string, namespace string, token []byte, host strin
 
 	if noCA {
 		ca = nil
-	} else {
+	} else if !customHost {
 		ca, err = getCA(ca, cfg)
 		if err != nil {
 			return "", err
@@ -206,20 +209,6 @@ func getKubeConfig(kubeConfig string, namespace string, token []byte, host strin
 
 	data, err := clientcmd.Write(cfg)
 	return string(data), err
-}
-
-func getCluster(cfg clientcmdapi.Config) (*clientcmdapi.Cluster, error) {
-	ctx := cfg.Contexts[cfg.CurrentContext]
-	if ctx == nil {
-		return nil, fmt.Errorf("failed to find host for agent access, context not found")
-	}
-
-	cluster := cfg.Clusters[ctx.Cluster]
-	if cluster == nil {
-		return nil, fmt.Errorf("failed to find host for agent access, cluster not found")
-	}
-
-	return cluster, nil
 }
 
 func getHost(host string, cfg clientcmdapi.Config) (string, bool, error) {

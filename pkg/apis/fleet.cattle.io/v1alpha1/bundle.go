@@ -124,9 +124,10 @@ type BundleSummary struct {
 }
 
 type NonReadyResource struct {
-	Name    string      `json:"name,omitempty"`
-	State   BundleState `json:"bundleState,omitempty"`
-	Message string      `json:"message,omitempty"`
+	Name           string           `json:"name,omitempty"`
+	State          BundleState      `json:"bundleState,omitempty"`
+	Message        string           `json:"message,omitempty"`
+	ModifiedStatus []ModifiedStatus `json:"modifiedStatus,omitempty"`
 }
 
 var (
@@ -174,13 +175,14 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
-	DefaultNamespace string      `json:"namespace,omitempty"`
-	KustomizeDir     string      `json:"kustomizeDir,omitempty"`
-	TimeoutSeconds   int         `json:"timeoutSeconds,omitempty"`
-	Values           *GenericMap `json:"values,omitempty"`
-	ServiceAccount   string      `json:"serviceAccount,omitempty"`
-	Force            bool        `json:"force,omitempty"`
-	TakeOwnership    bool        `json:"takeOwnership,omitempty"`
+	DefaultNamespace string       `json:"namespace,omitempty"`
+	KustomizeDir     string       `json:"kustomizeDir,omitempty"`
+	TimeoutSeconds   int          `json:"timeoutSeconds,omitempty"`
+	Values           *GenericMap  `json:"values,omitempty"`
+	ServiceAccount   string       `json:"serviceAccount,omitempty"`
+	Force            bool         `json:"force,omitempty"`
+	TakeOwnership    bool         `json:"takeOwnership,omitempty"`
+	ForceSyncBefore  *metav1.Time `json:"forceSyncBefore,omitempty"`
 }
 
 type BundleDeploymentSpec struct {
@@ -199,6 +201,7 @@ type BundleDeploymentStatus struct {
 	NonReadyStatus      []NonReadyStatus                    `json:"nonReadyStatus,omitempty"`
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
+	ForceSync           *metav1.Time                        `json:"forceSync,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {
@@ -250,7 +253,7 @@ func (in ModifiedStatus) String() string {
 	} else if in.Delete {
 		return msg + " extra"
 	}
-	return msg + " modified"
+	return msg + " modified " + in.Patch
 }
 
 // +genclient

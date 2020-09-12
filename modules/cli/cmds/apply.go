@@ -3,6 +3,7 @@ package cmds
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/rancher/fleet/modules/cli/apply"
 	"github.com/rancher/fleet/modules/cli/pkg/writer"
@@ -25,9 +26,26 @@ type Apply struct {
 	TargetsFile    string            `usage:"Addition source of targets and restrictions to be append"`
 	Compress       bool              `usage:"Force all resources to be compress" short:"c"`
 	ServiceAccount string            `usage:"Service account to assign to bundle created" short:"a"`
+	SyncBefore     string            `usage:"Force sync all deployments before this RFC3339 time"`
+}
+
+func toTime(syncBefore string) (*time.Time, error) {
+	if syncBefore == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, syncBefore)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
+	syncBefore, err := toTime(a.SyncBefore)
+	if err != nil {
+		return err
+	}
+
 	name := ""
 	opts := &apply.Options{
 		BundleFile:     a.BundleFile,
@@ -36,6 +54,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		ServiceAccount: a.ServiceAccount,
 		Labels:         a.Label,
 		TargetsFile:    a.TargetsFile,
+		SyncBefore:     syncBefore,
 	}
 
 	if a.File == "-" {
