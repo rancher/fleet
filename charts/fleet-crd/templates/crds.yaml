@@ -24,6 +24,9 @@ spec:
           properties:
             force:
               type: boolean
+            forceSyncBefore:
+              nullable: true
+              type: string
             kustomizeDir:
               nullable: true
               type: string
@@ -35,6 +38,9 @@ spec:
                 properties:
                   force:
                     type: boolean
+                  forceSyncBefore:
+                    nullable: true
+                    type: string
                   kustomizeDir:
                     nullable: true
                     type: string
@@ -316,6 +322,9 @@ spec:
                     type: object
                   force:
                     type: boolean
+                  forceSyncBefore:
+                    nullable: true
+                    type: string
                   kustomizeDir:
                     nullable: true
                     type: string
@@ -420,6 +429,31 @@ spec:
                             message:
                               nullable: true
                               type: string
+                            modifiedStatus:
+                              items:
+                                properties:
+                                  apiVersion:
+                                    nullable: true
+                                    type: string
+                                  delete:
+                                    type: boolean
+                                  kind:
+                                    nullable: true
+                                    type: string
+                                  missing:
+                                    type: boolean
+                                  name:
+                                    nullable: true
+                                    type: string
+                                  namespace:
+                                    nullable: true
+                                    type: string
+                                  patch:
+                                    nullable: true
+                                    type: string
+                                type: object
+                              nullable: true
+                              type: array
                             name:
                               nullable: true
                               type: string
@@ -459,6 +493,31 @@ spec:
                       message:
                         nullable: true
                         type: string
+                      modifiedStatus:
+                        items:
+                          properties:
+                            apiVersion:
+                              nullable: true
+                              type: string
+                            delete:
+                              type: boolean
+                            kind:
+                              nullable: true
+                              type: string
+                            missing:
+                              type: boolean
+                            name:
+                              nullable: true
+                              type: string
+                            namespace:
+                              nullable: true
+                              type: string
+                            patch:
+                              nullable: true
+                              type: string
+                          type: object
+                        nullable: true
+                        type: array
                       name:
                         nullable: true
                         type: string
@@ -523,6 +582,9 @@ spec:
               properties:
                 force:
                   type: boolean
+                forceSyncBefore:
+                  nullable: true
+                  type: string
                 kustomizeDir:
                   nullable: true
                   type: string
@@ -547,6 +609,9 @@ spec:
               properties:
                 force:
                   type: boolean
+                forceSyncBefore:
+                  nullable: true
+                  type: string
                 kustomizeDir:
                   nullable: true
                   type: string
@@ -606,6 +671,9 @@ spec:
                   nullable: true
                   type: string
               type: object
+            forceSync:
+              nullable: true
+              type: string
             modifiedStatus:
               items:
                 properties:
@@ -942,6 +1010,31 @@ spec:
                       message:
                         nullable: true
                         type: string
+                      modifiedStatus:
+                        items:
+                          properties:
+                            apiVersion:
+                              nullable: true
+                              type: string
+                            delete:
+                              type: boolean
+                            kind:
+                              nullable: true
+                              type: string
+                            missing:
+                              type: boolean
+                            name:
+                              nullable: true
+                              type: string
+                            namespace:
+                              nullable: true
+                              type: string
+                            patch:
+                              nullable: true
+                              type: string
+                          type: object
+                        nullable: true
+                        type: array
                       name:
                         nullable: true
                         type: string
@@ -1004,6 +1097,9 @@ spec:
             clientID:
               nullable: true
               type: string
+            forceUpdateAgent:
+              nullable: true
+              type: string
             kubeConfigSecret:
               nullable: true
               type: string
@@ -1037,9 +1133,9 @@ spec:
                 readyNodes:
                   type: integer
               type: object
-            agentDeployed:
+            agentLastDeployed:
               nullable: true
-              type: boolean
+              type: string
             conditions:
               items:
                 properties:
@@ -1099,6 +1195,31 @@ spec:
                       message:
                         nullable: true
                         type: string
+                      modifiedStatus:
+                        items:
+                          properties:
+                            apiVersion:
+                              nullable: true
+                              type: string
+                            delete:
+                              type: boolean
+                            kind:
+                              nullable: true
+                              type: string
+                            missing:
+                              type: boolean
+                            name:
+                              nullable: true
+                              type: string
+                            namespace:
+                              nullable: true
+                              type: string
+                            patch:
+                              nullable: true
+                              type: string
+                          type: object
+                        nullable: true
+                        type: array
                       name:
                         nullable: true
                         type: string
@@ -1208,6 +1329,12 @@ spec:
               nullable: true
               type: array
             clientSecretName:
+              nullable: true
+              type: string
+            forceSyncBefore:
+              nullable: true
+              type: string
+            pollingInterval:
               nullable: true
               type: string
             repo:
@@ -1345,6 +1472,31 @@ spec:
                       message:
                         nullable: true
                         type: string
+                      modifiedStatus:
+                        items:
+                          properties:
+                            apiVersion:
+                              nullable: true
+                              type: string
+                            delete:
+                              type: boolean
+                            kind:
+                              nullable: true
+                              type: string
+                            missing:
+                              type: boolean
+                            name:
+                              nullable: true
+                              type: string
+                            namespace:
+                              nullable: true
+                              type: string
+                            patch:
+                              nullable: true
+                              type: string
+                          type: object
+                        nullable: true
+                        type: array
                       name:
                         nullable: true
                         type: string
