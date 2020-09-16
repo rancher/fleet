@@ -12,7 +12,7 @@ import (
 	"github.com/rancher/wrangler/pkg/condition"
 )
 
-func IncrementState(summary *fleet.BundleSummary, name string, state fleet.BundleState, message string, modified []fleet.ModifiedStatus) {
+func IncrementState(summary *fleet.BundleSummary, name string, state fleet.BundleState, message string, modified []fleet.ModifiedStatus, nonReady []fleet.NonReadyStatus) {
 	switch state {
 	case fleet.Modified:
 		summary.Modified++
@@ -36,6 +36,7 @@ func IncrementState(summary *fleet.BundleSummary, name string, state fleet.Bundl
 				State:          state,
 				Message:        message,
 				ModifiedStatus: modified,
+				NonReadyStatus: nonReady,
 			})
 		}
 	}
@@ -129,6 +130,12 @@ func ReadyMessage(summary fleet.BundleSummary, referencedKind string) string {
 					messages = append(messages, fmt.Sprintf("%s(%d) [%s %s: %s]", msg, count, referencedKind, name, v.Message))
 				}
 				for i, m := range v.ModifiedStatus {
+					if i > 3 {
+						break
+					}
+					messages = append(messages, m.String())
+				}
+				for i, m := range v.NonReadyStatus {
 					if i > 3 {
 						break
 					}

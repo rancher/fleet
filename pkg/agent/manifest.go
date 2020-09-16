@@ -33,12 +33,28 @@ func Manifest(namespace, image, pullPolicy, generation string) []runtime.Object 
 			Name:  "GENERATION",
 			Value: generation,
 		})
-
-	objs := []runtime.Object{
-		dep,
-		sa,
+	dep.Spec.Template.Spec.Affinity = &corev1.Affinity{
+		NodeAffinity: &corev1.NodeAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{
+				{
+					Weight: 1,
+					Preference: corev1.NodeSelectorTerm{
+						MatchExpressions: []corev1.NodeSelectorRequirement{
+							{
+								Key:      "fleet.cattle.io/agent",
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{"true"},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
+
+	var objs []runtime.Object
 	objs = append(objs, clusterRole...)
+	objs = append(objs, sa, dep)
 
 	return objs
 }

@@ -1,6 +1,7 @@
 package deployer
 
 import (
+	"encoding/json"
 	"sort"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -8,6 +9,8 @@ import (
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/summary"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type DeploymentStatus struct {
@@ -17,14 +20,38 @@ type DeploymentStatus struct {
 	ModifiedStatus []fleet.ModifiedStatus `json:"modifiedStatus,omitempty"`
 }
 
-func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) apply.Apply {
+func (m *Manager) plan(bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (apply.Plan, error) {
+	a, err := m.getApply(bd, ns)
+	if err != nil {
+		return apply.Plan{}, err
+	}
+	return a.DryRun(objs...)
+}
+
+func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) (apply.Apply, error) {
+	apply := m.apply
 	if ns == "" {
 		ns = m.defaultNamespace
 	}
-	return m.apply.
+
+	if bd.Spec.Options.Diff != nil {
+		for _, compare := range bd.Spec.Options.Diff.ComparePatches {
+			for _, op := range compare.Operations {
+				// compile each operation by itself so that one failing operation doesn't block the others
+				patch, err := json.Marshal([]interface{}{op})
+				if err != nil {
+					return nil, err
+				}
+				gvk := schema.FromAPIVersionAndKind(compare.APIVersion, compare.Kind)
+				apply = apply.WithDiffPatch(gvk, compare.Namespace, compare.Name, patch)
+			}
+		}
+	}
+
+	return apply.
 		WithIgnorePreviousApplied().
 		WithSetID(name.SafeConcatName(m.labelPrefix, bd.Name)).
-		WithDefaultNamespace(ns)
+		WithDefaultNamespace(ns), nil
 }
 
 func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, error) {
@@ -32,11 +59,10 @@ func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, e
 
 	resources, err := m.deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
-		return status, nil
+		return status, err
 	}
 
-	plan, err := m.getApply(bd, resources.DefaultNamespace).
-		DryRun(resources.Objects...)
+	plan, err := m.plan(bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
 		return status, err
 	}

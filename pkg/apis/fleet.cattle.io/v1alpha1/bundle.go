@@ -61,7 +61,6 @@ type BundleSpec struct {
 	Paused             bool                      `json:"paused,omitempty"`
 	RolloutStrategy    *RolloutStrategy          `json:"rolloutStrategy,omitempty"`
 	Resources          []BundleResource          `json:"resources,omitempty"`
-	Overlays           []BundleOverlay           `json:"overlays,omitempty"`
 	Targets            []BundleTarget            `json:"targets,omitempty"`
 	TargetRestrictions []BundleTargetRestriction `json:"targetRestrictions,omitempty"`
 }
@@ -87,14 +86,6 @@ type Partition struct {
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 }
 
-type BundleOverlay struct {
-	BundleDeploymentOptions
-
-	Name      string           `json:"name,omitempty"`
-	Overlays  []string         `json:"overlays,omitempty"`
-	Resources []BundleResource `json:"resources,omitempty"`
-}
-
 type BundleTargetRestriction struct {
 	Name                 string                `json:"name,omitempty"`
 	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
@@ -108,7 +99,6 @@ type BundleTarget struct {
 	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
 	ClusterGroup         string                `json:"clusterGroup,omitempty"`
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
-	Overlays             []string              `json:"overlays,omitempty"`
 }
 
 type BundleSummary struct {
@@ -128,6 +118,7 @@ type NonReadyResource struct {
 	State          BundleState      `json:"bundleState,omitempty"`
 	Message        string           `json:"message,omitempty"`
 	ModifiedStatus []ModifiedStatus `json:"modifiedStatus,omitempty"`
+	NonReadyStatus []NonReadyStatus `json:"nonReadyStatus,omitempty"`
 }
 
 var (
@@ -175,14 +166,50 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
-	DefaultNamespace string       `json:"namespace,omitempty"`
-	KustomizeDir     string       `json:"kustomizeDir,omitempty"`
-	TimeoutSeconds   int          `json:"timeoutSeconds,omitempty"`
-	Values           *GenericMap  `json:"values,omitempty"`
-	ServiceAccount   string       `json:"serviceAccount,omitempty"`
-	Force            bool         `json:"force,omitempty"`
-	TakeOwnership    bool         `json:"takeOwnership,omitempty"`
-	ForceSyncBefore  *metav1.Time `json:"forceSyncBefore,omitempty"`
+	DefaultNamespace string            `json:"namespace,omitempty"`
+	Kustomize        *KustomizeOptions `json:"kustomize,omitempty"`
+	Helm             *HelmOptions      `json:"helm,omitempty"`
+	ServiceAccount   string            `json:"serviceAccount,omitempty"`
+	ForceSyncBefore  *metav1.Time      `json:"forceSyncBefore,omitempty"`
+	YAML             *YAMLOptions      `json:"yaml,omitempty"`
+	Diff             *DiffOptions      `json:"diff,omitempty"`
+}
+
+type DiffOptions struct {
+	ComparePatches []ComparePatch `json:"comparePatches,omitempty"`
+}
+
+type ComparePatch struct {
+	Kind       string      `json:"kind,omitempty"`
+	APIVersion string      `json:"apiVersion,omitempty"`
+	Namespace  string      `json:"namespace,omitempty"`
+	Name       string      `json:"name,omitempty"`
+	Operations []Operation `json:"operations,omitempty"`
+}
+
+type Operation struct {
+	Op    string `json:"op,omitempty"`
+	Path  string `json:"path,omitempty"`
+	Value string `json:"value,omitempty"`
+}
+
+type YAMLOptions struct {
+	Overlays []string `json:"overlays,omitempty"`
+}
+
+type KustomizeOptions struct {
+	Dir string `json:"dir,omitempty"`
+}
+
+type HelmOptions struct {
+	Chart          string      `json:"chart,omitempty"`
+	Repo           string      `json:"repo,omitempty"`
+	ReleaseName    string      `json:"releaseName,omitempty"`
+	Version        string      `json:"version,omitempty"`
+	TimeoutSeconds int         `json:"timeoutSeconds,omitempty"`
+	Values         *GenericMap `json:"values,omitempty"`
+	Force          bool        `json:"force,omitempty"`
+	TakeOwnership  bool        `json:"takeOwnership,omitempty"`
 }
 
 type BundleDeploymentSpec struct {

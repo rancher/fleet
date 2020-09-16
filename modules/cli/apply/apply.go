@@ -71,13 +71,28 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 					return err
 				}
 			}
-			if err := Dir(ctx, client, name, baseDir, opts); err == ErrNoResources {
-				logrus.Warnf("%s: %v", baseDir, err)
-				continue
-			} else if err != nil {
+			err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+				// always consider the root valid
+				if baseDir != path {
+					if !info.IsDir() {
+						return nil
+					}
+					if _, err := os.Stat(filepath.Join(path, "fleet.yaml")); err != nil {
+						return nil
+					}
+				}
+				if err := Dir(ctx, client, name, path, opts); err == ErrNoResources {
+					logrus.Warnf("%s: %v", path, err)
+					return nil
+				} else if err != nil {
+					return err
+				}
+				foundBundle = true
+				return nil
+			})
+			if err != nil {
 				return err
 			}
-			foundBundle = true
 		}
 	}
 

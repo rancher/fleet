@@ -99,10 +99,13 @@ func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
 			Spec: fleet.BundleSpec{
 				BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 					DefaultNamespace: h.systemNamespace,
-					TakeOwnership:    true,
+					Helm: &fleet.HelmOptions{
+						TakeOwnership: true,
+					},
 				},
 				Resources: []fleet.BundleResource{
 					{
+						Name:    "agent.yaml",
 						Content: string(agentYAML),
 					},
 				},

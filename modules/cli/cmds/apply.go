@@ -22,7 +22,6 @@ type Apply struct {
 	BundleInputArgs
 	OutputArgsNoDefault
 	Label          map[string]string `usage:"Labels to apply to created bundles" short:"l"`
-	File           string            `usage:"Read full bundle contents from file" short:"f"`
 	TargetsFile    string            `usage:"Addition source of targets and restrictions to be append"`
 	Compress       bool              `usage:"Force all resources to be compress" short:"c"`
 	ServiceAccount string            `usage:"Service account to assign to bundle created" short:"a"`

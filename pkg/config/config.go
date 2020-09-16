@@ -49,7 +49,7 @@ type Bootstrap struct {
 	Namespace string `json:"namespace,omitempty"`
 	Repo      string `json:"repo,omitempty"`
 	Secret    string `json:"secret,omitempty"`
-	Dirs      string `json:"dirs,omitempty"`
+	Paths     string `json:"paths,omitempty"`
 	Branch    string `json:"branch,omitempty"`
 }
 

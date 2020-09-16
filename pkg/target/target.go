@@ -263,6 +263,11 @@ func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error 
 
 func DeploymentLabelsForNewBundle(app *fleet.Bundle) map[string]string {
 	labels := yaml.CleanAnnotationsForExport(app.Labels)
+	for k, v := range app.Labels {
+		if strings.HasPrefix(k, "fleet.cattle.io/") {
+			labels[k] = v
+		}
+	}
 	for k, v := range DeploymentLabelsForSelector(app) {
 		labels[k] = v
 	}
@@ -424,6 +429,13 @@ func (t *Target) Modified() []fleet.ModifiedStatus {
 	return t.Deployment.Status.ModifiedStatus
 }
 
+func (t *Target) NonReady() []fleet.NonReadyStatus {
+	if t.Deployment == nil {
+		return nil
+	}
+	return t.Deployment.Status.NonReadyStatus
+}
+
 func (t *Target) State() fleet.BundleState {
 	switch {
 	case t.Deployment == nil:
@@ -441,7 +453,7 @@ func Summary(targets []*Target) fleet.BundleSummary {
 	var bundleSummary fleet.BundleSummary
 	for _, currentTarget := range targets {
 		cluster := currentTarget.Cluster.Namespace + "/" + currentTarget.Cluster.Name
-		summary.IncrementState(&bundleSummary, cluster, currentTarget.State(), currentTarget.Message(), currentTarget.Modified())
+		summary.IncrementState(&bundleSummary, cluster, currentTarget.State(), currentTarget.Message(), currentTarget.Modified(), currentTarget.NonReady())
 		bundleSummary.DesiredReady++
 	}
 	return bundleSummary

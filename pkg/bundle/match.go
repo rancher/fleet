@@ -1,11 +1,9 @@
 package bundle
 
 import (
-	"github.com/rancher/fleet/pkg/match"
-	"github.com/rancher/fleet/pkg/render"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	manifest "github.com/rancher/fleet/pkg/manifest"
+	"github.com/rancher/fleet/pkg/match"
 )
 
 type Match struct {
@@ -19,13 +17,8 @@ func (t *Match) Manifest() (*manifest.Manifest, error) {
 		return t.manifest, nil
 	}
 
-	manifest, err := manifest.New(&t.Bundle.Definition.Spec, t.Target.Overlays...)
+	manifest, err := manifest.New(&t.Bundle.Definition.Spec)
 	if err != nil {
-		return nil, err
-	}
-
-	// sanity test that patches are same
-	if err := render.IsValid(t.Bundle.Definition.Name, manifest); err != nil {
 		return nil, err
 	}
 

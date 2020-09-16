@@ -7,27 +7,39 @@ import (
 	"sort"
 	"strings"
 
-	"sigs.k8s.io/kustomize/kyaml/yaml"
-
 	"github.com/pkg/errors"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/content"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/wrangler/pkg/patch"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
-func Process(m *manifest.Manifest) (*manifest.Manifest, error) {
-	newContent, err := decodeContext(m)
+var (
+	overlayPrefix = "overlays/"
+)
+
+func Process(m *manifest.Manifest, overlays []string) (*manifest.Manifest, error) {
+	newManifest := &manifest.Manifest{}
+	for i, resource := range m.Resources {
+		if resource.Name == "" {
+			resource.Name = fmt.Sprintf("manifests/file%03d.yaml", i)
+		}
+		newManifest.Resources = append(newManifest.Resources, resource)
+	}
+	m = newManifest
+
+	m, err := patchContext(m, overlays)
 	if err != nil {
 		return nil, err
 	}
 
-	newManifest := &manifest.Manifest{}
-	for name, content := range newContent {
-		newManifest.Resources = append(newManifest.Resources, fleet.BundleResource{
-			Name:    name,
-			Content: string(content),
-		})
+	newManifest = &manifest.Manifest{}
+	for _, resource := range m.Resources {
+		if strings.HasPrefix(resource.Name, overlayPrefix) {
+			continue
+		}
+		newManifest.Resources = append(newManifest.Resources, resource)
 	}
 
 	sort.Slice(newManifest.Resources, func(i, j int) bool {
@@ -37,28 +49,35 @@ func Process(m *manifest.Manifest) (*manifest.Manifest, error) {
 	return newManifest, nil
 }
 
-func decodeContext(m *manifest.Manifest) (map[string][]byte, error) {
+func patchContext(m *manifest.Manifest, overlays []string) (*manifest.Manifest, error) {
 	result := map[string][]byte{}
 
-	for i, resource := range m.Resources {
-		name := resource.Name
-		if name == "" {
-			name = fmt.Sprintf("manifests/file%03d", i)
-		}
+	if len(overlays) == 0 {
+		return m, nil
+	}
 
+	for _, resource := range m.Resources {
 		data, err := content.Decode(resource.Content, resource.Encoding)
 		if err != nil {
 			return nil, err
 		}
 
-		result[name] = data
+		result[resource.Name] = data
 	}
 
-	if err := patchContent(result); err != nil {
+	if err := patchContent(result, overlays); err != nil {
 		return nil, err
 	}
 
-	return result, nil
+	resultManifest := &manifest.Manifest{}
+	for name, bytes := range result {
+		resultManifest.Resources = append(resultManifest.Resources, fleet.BundleResource{
+			Name:    name,
+			Content: string(bytes),
+		})
+	}
+
+	return resultManifest, nil
 }
 
 func isPatchFile(name string) (string, bool) {
@@ -70,34 +89,42 @@ func isPatchFile(name string) (string, bool) {
 	return "", false
 }
 
-func patchContent(content map[string][]byte) error {
-	for name, bytes := range content {
-		target, ok := isPatchFile(name)
-		if !ok {
-			continue
-		}
-		delete(content, name)
+func patchContent(content map[string][]byte, overlays []string) error {
+	for _, overlay := range overlays {
+		prefix := overlayPrefix + overlay + "/"
+		for name, bytes := range content {
+			if !strings.HasPrefix(name, prefix) {
+				continue
+			}
 
-		targetContent, ok := content[target]
-		if !ok {
-			return fmt.Errorf("failed to find base file %s to patch", target)
-		}
+			name := strings.TrimPrefix(name, prefix)
+			target, ok := isPatchFile(name)
+			if !ok {
+				content[name] = bytes
+				continue
+			}
 
-		targetContent, err := convertToJSON(targetContent)
-		if err != nil {
-			return errors.Wrapf(err, "failed to convert %s to json", target)
-		}
+			targetContent, ok := content[target]
+			if !ok {
+				return fmt.Errorf("failed to find base file %s to patch", target)
+			}
 
-		bytes, err = convertToJSON(bytes)
-		if err != nil {
-			return errors.Wrapf(err, "failed to convert %s to json", name)
-		}
+			targetContent, err := convertToJSON(targetContent)
+			if err != nil {
+				return errors.Wrapf(err, "failed to convert %s to json", target)
+			}
 
-		newBytes, err := patch.Apply(targetContent, bytes)
-		if err != nil {
-			return errors.Wrapf(err, "failed to patch %s", target)
+			bytes, err = convertToJSON(bytes)
+			if err != nil {
+				return errors.Wrapf(err, "failed to convert %s to json", name)
+			}
+
+			newBytes, err := patch.Apply(targetContent, bytes)
+			if err != nil {
+				return errors.Wrapf(err, "failed to patch %s", target)
+			}
+			content[target] = newBytes
 		}
-		content[target] = newBytes
 	}
 
 	return nil

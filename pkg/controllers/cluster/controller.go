@@ -95,7 +95,7 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 
 	for _, app := range bundleDeployments {
 		state := summary.GetDeploymentState(app)
-		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus)
+		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus, app.Status.NonReadyStatus)
 		status.Summary.DesiredReady++
 	}
 

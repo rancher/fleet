@@ -38,20 +38,38 @@ func NewManager(fleetNamespace string,
 	}
 }
 
+func releaseName(bd *fleet.BundleDeployment) string {
+	ns := "default"
+	if bd.Spec.Options.DefaultNamespace != "" {
+		ns = bd.Spec.Options.DefaultNamespace
+	}
+	if bd.Spec.Options.Helm == nil || bd.Spec.Options.Helm.ReleaseName == "" {
+		return ns + "/" + bd.Name
+	}
+	return ns + "/" + bd.Spec.Options.Helm.ReleaseName
+}
+
 func (m *Manager) Cleanup() error {
-	ids, err := m.deployer.ListDeployments()
+	deployed, err := m.deployer.ListDeployments()
 	if err != nil {
 		return err
 	}
 
-	for _, id := range ids {
-		_, err := m.bundleDeploymentCache.Get(m.fleetNamespace, id)
+	for _, deployed := range deployed {
+		bundleDeployment, err := m.bundleDeploymentCache.Get(m.fleetNamespace, deployed.BundleID)
 		if apierror.IsNotFound(err) {
-			if err := m.deployer.Delete(id); err != nil {
+			if err := m.deployer.Delete(deployed.BundleID, ""); err != nil {
 				return err
 			}
 		} else if err != nil {
 			return err
+		} else {
+			releaseName := releaseName(bundleDeployment)
+			if releaseName != deployed.ReleaseName {
+				if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -60,7 +78,7 @@ func (m *Manager) Cleanup() error {
 
 func (m *Manager) Delete(bundleDeploymentKey string) error {
 	_, name := kv.RSplit(bundleDeploymentKey, "/")
-	return m.deployer.Delete(name)
+	return m.deployer.Delete(name, "")
 }
 
 func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
@@ -69,8 +87,7 @@ func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
 		return nil, nil
 	}
 
-	plan, err := m.getApply(bd, resources.DefaultNamespace).
-		DryRun(resources.Objects...)
+	plan, err := m.plan(bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
 		return nil, err
 	}

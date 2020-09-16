@@ -42,6 +42,7 @@ func (m *Test) Run(cmd *cobra.Command, args []string) error {
 	opts := &match.Options{
 		Output:             os.Stdout,
 		BaseDir:            baseDir,
+		BundleSpec:         m.File,
 		BundleFile:         m.BundleFile,
 		ClusterGroup:       m.Group,
 		ClusterLabels:      m.Label,

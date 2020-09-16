@@ -7,10 +7,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/rancher/fleet/pkg/overlay"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/pkg/seen"
 )
 
 type Manifest struct {
@@ -19,13 +16,9 @@ type Manifest struct {
 	digest    string
 }
 
-func New(spec *fleet.BundleSpec, overlays ...string) (*Manifest, error) {
-	resources, err := collectResources(spec, overlays...)
-	if err != nil {
-		return nil, err
-	}
+func New(spec *fleet.BundleSpec) (*Manifest, error) {
 	m := &Manifest{
-		Resources: resources,
+		Resources: spec.Resources,
 	}
 	return m, nil
 }
@@ -66,33 +59,4 @@ func (m *Manifest) Encode(writer io.Writer) error {
 
 func toSHA256ID(digest []byte) string {
 	return ("s-" + hex.EncodeToString(digest))[:63]
-}
-
-func addResource(result []fleet.BundleResource, seen seen.Seen, resources ...fleet.BundleResource) []fleet.BundleResource {
-	for _, resource := range resources {
-		if resource.Name != "" && seen.String(resource.Name) {
-			continue
-		}
-		result = append(result, resource)
-	}
-	return result
-}
-
-func collectResources(spec *fleet.BundleSpec, overlays ...string) ([]fleet.BundleResource, error) {
-	var (
-		seenResources = seen.New()
-		result        []fleet.BundleResource
-	)
-
-	allOverlays, overlaySet, err := overlay.Resolve(spec, overlays...)
-	if err != nil {
-		return nil, err
-	}
-
-	for i := len(overlaySet) - 1; i >= 0; i-- {
-		overlay := allOverlays[overlaySet[i]]
-		result = addResource(result, seenResources, overlay.Resources...)
-	}
-
-	return addResource(result, seenResources, spec.Resources...), nil
 }

@@ -12,9 +12,14 @@ type Resources struct {
 	Objects          []runtime.Object `json:"objects,omitempty"`
 }
 
+type DeployedBundle struct {
+	BundleID    string
+	ReleaseName string
+}
+
 type Deployer interface {
 	Deploy(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*Resources, error)
-	ListDeployments() ([]string, error)
+	ListDeployments() ([]DeployedBundle, error)
 	Resources(bundleID, resourcesID string) (*Resources, error)
-	Delete(bundleID string) error
+	Delete(bundleID, releaseName string) error
 }
