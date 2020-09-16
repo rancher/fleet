@@ -36,7 +36,7 @@ metadata:
 spec:
   # Everything from this repo will be ran in this cluster. You trust me right?
   repo: "https://github.com/rancher/fleet-examples"
-  bundleDirs:
+  paths:
   - simple
 EOF
 

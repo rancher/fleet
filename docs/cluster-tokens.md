@@ -1,13 +1,13 @@
 # Cluster Registration Tokens
 
-!!! hint "Unneeded for Manager initiated registration"
+!!! hint "Not needed for Manager initiated registration"
     For manager initiated registrations the token is managed by the Fleet manager and does
-    not need to be manually created an obtained.
+    not need to be manually created and obtained.
 
 For an agent initiated registration the downstream cluster must have a cluster registration token.
 Cluster registration tokens are used to establish a new identity for a cluster. Internally
 cluster registration tokens are managed by creating Kubernetes service accounts that have the
-permissions to create `ClusterRegistrationRequest`s within a specific namespace.  Once the
+permissions to create `ClusterRegistrationRequests` within a specific namespace.  Once the
 cluster is registered a new `ServiceAccount` is created for that cluster that is used as
 the unique identity of the cluster. The agent is designed to forget the cluster registration
 token after registration. While the agent will not maintain a reference to the cluster registration
@@ -23,9 +23,9 @@ such that it will expire after a specific time.
 
 ## Create a new Token
 
-First you must understand how [namespaces](./namespaces.md) are used in the Fleet manager as the
-`ClusterRegistationToken` is a namespaced type.
-The cluster registration tokens are managed with the `ClusterRegistrationToken` type.  Create a new
+The `ClusterRegistationToken` is a namespaced type and should be created in the same namespace
+in which you will create `GitRepo` and `ClusterGroup` resources. For in depth details on how namespaces
+are used in Fleet refer to the documentation on [namespaces](./namespaces.md).  Create a new
 token with the below YAML.
 
 ```yaml
