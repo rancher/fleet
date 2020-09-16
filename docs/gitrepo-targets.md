@@ -24,8 +24,8 @@ spec:
   # Targets are evaluated in order and the first one to match is used. If
   # no targets match then the evaluated cluster will not be deployed to.
   targets:
-  # The name of target. If not specified a default name of the format "target000"
-  # will be used
+  # The name of target. This value is largely for display and logging.
+  # If not specified a default name of the format "target000" will be used
   - name: prod
     # A selector used to match clusters.  The structure is the standard
     # metav1.LabelSelector format. If clusterGroupSelector or clusterGroup is specified,

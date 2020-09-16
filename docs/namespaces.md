@@ -19,9 +19,9 @@ not be able to target each others clusters, they should be in different namespac
 The **fleet-local** namespace is a special namespace used for the single cluster use case or to bootstrap
 the configuration of the Fleet manager.
 
-When fleet is installed the `fleet-local` namespace is create along with one `Cluster` called `local` and one
-`ClusterGroup` called `default`.  If no targets are specified on a `GitRepo`, it by default is deployed to the
-`ClusterGroup` named `default`, if it exists.  This means that all `GitRepos` created in `fleet-local` will
+When fleet is installed the `fleet-local` namespace is created along with one `Cluster` called `local` and one
+`ClusterGroup` called `default`.  If no targets are specified on a `GitRepo`, it is by default targeted to the
+`ClusterGroup` named `default`.  This means that all `GitRepos` created in `fleet-local` will
 automatically target the `local` `Cluster`.  The `local` `Cluster` refers to the cluster the Fleet manager is running
 on.
 
@@ -30,10 +30,15 @@ on.
 The Fleet controller and Fleet agent run in this namespace. All service accounts referenced by `GitRepos` are expected
 to live in this namespace in the downstream cluster.
 
+### fleet-clusters-system
+
+This namespace holds secrets for the cluster registration process. It should contain no other resources in it,
+especially secrets.
+
 ### Cluster namespaces
 
 For every cluster that is registered a namespace is created by the Fleet manager for that cluster.
-These namespaces have are named in the form `cluster-${namespace}-${cluster}`.  The purpose of this
+These namespaces have are named in the form `cluster-${namespace}-${cluster}-${random}`.  The purpose of this
 namespace is that all `BundleDeployments` for that cluster are put into this namespace and
 then the downstream cluster is given access to watch and update `BundleDeployments` in that namespace only.
 

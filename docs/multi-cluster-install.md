@@ -1,7 +1,7 @@
 # Multi-cluster Install
 ![](./arch.png)
 
-In this use case you will setup a centralized Fleet manager.  The centralize Fleet manage is a
+In this use case you will setup a centralized Fleet manager.  The centralized Fleet manager is a
 Kubernetes cluster running the Fleet controllers. After installing the Fleet manager you will then
 need to register remote downstream clusters with the Fleet manager.
 
@@ -9,8 +9,8 @@ need to register remote downstream clusters with the Fleet manager.
 
 ### Helm 3
 
-Fleet is distributed as a Helm chart. Helm 3 is just a CLI and has no server side component so it's
-pretty straight forward. To install the Helm 3 CLI follow the
+Fleet is distributed as a Helm chart. Helm 3 is a CLI, has no server side component, and is
+fairly straight forward. To install the Helm 3 CLI follow the
 [official install instructions](https://helm.sh/docs/intro/install/). The TL;DR is
 
 macOS
@@ -26,7 +26,7 @@ choco install kubernetes-helm
 
 The Fleet manager is a controller running on a Kubernetes cluster so an existing cluster is required. All
 downstream cluster that will be managed will need to communicate to this central Kubernetes cluster. This
-means the Kubernetes API server URL must be accesible to the downstream clusters. Any Kubernetes community
+means the Kubernetes API server URL must be accessible to the downstream clusters. Any Kubernetes community
 supported version of Kubernetes will work, in practice this means 1.15 or greater.
 
 ## API Server URL and CA certificate
@@ -36,8 +36,8 @@ the correct API server URL and CA certificates are configured properly.  The Fle
 will communicate to the Kubernetes API server URL. This means the Kubernetes
 API server must be accessible to the downstream clusters.  You will also need
 to obtain the CA certificate of the API server. The easiest way to obtain this information
-is typically from your kubeconfig file (`${HOME}/.kube/config`). The `server` and
-`certificate-authority` fields will have these values.
+is typically from your kubeconfig file (`${HOME}/.kube/config`). The `server`,
+`certificate-authority-data`, or `certificate-authority` fields will have these values.
 
 ```yaml
 apiVersion: v1
@@ -49,7 +49,7 @@ clusters:
 
 Please note that the `certificate-authority-data` field is base64 encoded and will need to be
 decoded before you save it into a file. This can be done by saving the base64 encoded contents to
-a file and then run
+a file and then running
 ```shell
 base64 -d encoded-file > ca.pem
 ```
@@ -63,7 +63,7 @@ kubectl config view -o json --raw  | jq -r '.clusters[].cluster["certificate-aut
 ## Install
 
 In the following example it will be assumed the API server URL is `https://example.com:6443`
-and the CA certificate is in the file `ca.pem`. If your API server URL is signed by a well known CA you can
+and the CA certificate is in the file `ca.pem`. If your API server URL is signed by a well-known CA you can
 omit the `apiServerCA` parameter below or just create an empty `ca.pem` file (ie `touch ca.pem`).
 
 Run the following commands

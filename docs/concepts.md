@@ -16,12 +16,16 @@ to manage GitOps for a single Kubernetes cluster or a large scale deployments of
 * **Fleet agent**: Every managed downstream cluster will run an agent that communicates back to the Fleet manager.
     This agent is just another set of Kubernetes controllers running in the downstream cluster.
 * **GitRepo**: Git repositories that are watched by Fleet are represented by the type `GitRepo`.
-* **Bundle**: When a `GitRepo` is scanned it will produce one or more bundles. Bundles are a collection of
+* **Bundle**: An internal unit used for the orchestration of resources from git.
+    When a `GitRepo` is scanned it will produce one or more bundles. Bundles are a collection of
     resources that get deployed to a cluster. `Bundle` is the fundamental deployment unit used in Fleet. The
     contents of a `Bundle` may be Kubernetes manifests, Kustomize configuration, or Helm charts.
+    Regardless of the source the contents are dynamically rendered into a Helm chart by the agent
+    and installed into the downstream cluster as a helm release.
 * **BundleDeployment**: When a `Bundle` is deployed to a cluster an instance of a `Bundle` is called a `BundleDeployment`.
     A `BundleDeployment` represents the state of that `Bundle` on a specific cluster with it's cluster specific
-    customizations.
+    customizations. The Fleet agent is only aware of `BundleDeployment` resources that are created for 
+    the cluster the agent is managing.
 * **Downstream Cluster**: Clusters to which Fleet deploys manifests are referred to as downstream clusters. In the single
     cluster use case the Fleet manager Kubernetes cluster is both the manager and downstream cluster at the same time.
 * **Cluster Registration Token**: Tokens used by agents to register a new cluster.

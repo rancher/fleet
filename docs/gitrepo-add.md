@@ -15,7 +15,7 @@ to the inline comments as the means of each field
 kind: GitRepo
 apiVersion: {{fleet.apiVersion}}
 metadata:
-  # Any name can be used here, the created bundles will start with this name
+  # Any name can be used here
   name: my-repo
   # For single cluster use fleet-local, otherwise use the namespace of
   # your choosing
@@ -44,15 +44,15 @@ spec:
   #
   # clientSecretName: my-ssh-key
 
-  # A git repo can produce multiple bundles or maybe your bundle
-  # is not at the root of the git repo. The below field is expected
-  # to be an array of paths and supports path globbing (ex: some/*/path)
+  # A git repo can read multiple paths in a repo at once.
+  # The below field is expected to be an array of paths and
+  # supports path globbing (ex: some/*/path)
   #
   # Example:
-  # bundleDirs:
+  # paths:
   # - single-path
   # - multiple-paths/*
-  bundleDirs:
+  paths:
   - simple
 
   # The service account that will be used to perform this deployment.
