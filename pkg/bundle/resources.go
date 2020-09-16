@@ -2,7 +2,10 @@ package bundle
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -10,6 +13,9 @@ import (
 	"strings"
 	"sync"
 	"unicode/utf8"
+
+	"helm.sh/helm/v3/pkg/repo"
+	"sigs.k8s.io/yaml"
 
 	"github.com/hashicorp/go-getter"
 	"github.com/pkg/errors"
@@ -20,46 +26,27 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-const (
-	ManifestsDir = "manifests"
-	ChartDir     = "chart"
-	KustomizeDir = "kustomize"
-	Overlays     = "overlays"
-)
-
-func readOverlays(ctx context.Context, meta *bundleMeta, bundle *fleet.BundleSpec, compress bool, base string) (map[string][]fleet.BundleResource, error) {
+func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string) ([]fleet.BundleResource, error) {
 	var directories []directory
 
-	overlayDir := meta.Overlays
-	if overlayDir == "" {
-		overlayDir = Overlays
-	}
-
-	for _, overlay := range overlays(bundle) {
-		directories = append(directories, directory{
-			base: base,
-			path: filepath.Join(overlayDir, overlay),
-			key:  overlay,
-		})
-	}
-
-	return readDirectories(ctx, compress, directories...)
-}
-
-func readResources(ctx context.Context, meta *bundleMeta, compress bool, base string) ([]fleet.BundleResource, error) {
-	var directories []directory
-
-	directories, err := addDirectory(directories, base, meta.Manifests, ManifestsDir)
+	directories, err := addDirectory(directories, base, ".", ".")
 	if err != nil {
 		return nil, err
 	}
 
-	directories, err = addDirectory(directories, base, meta.Chart, ChartDir)
-	if err != nil {
-		return nil, err
+	var chartDirs []*fleet.HelmOptions
+
+	if spec.Helm != nil && spec.Helm.Chart != "" {
+		chartDirs = append(chartDirs, spec.Helm)
 	}
 
-	directories, err = addDirectory(directories, base, meta.Kustomize, KustomizeDir)
+	for _, target := range spec.Targets {
+		if target.Helm != nil && target.Helm.Chart != "" {
+			chartDirs = append(chartDirs, spec.Helm)
+		}
+	}
+
+	directories, err = addCharts(directories, base, chartDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -69,43 +56,91 @@ func readResources(ctx context.Context, meta *bundleMeta, compress bool, base st
 		return nil, err
 	}
 
-	result := stripChartPrefix(resources[ChartDir])
-	result = append(result, resources[ManifestsDir]...)
-	result = append(result, resources[KustomizeDir]...)
+	var result []fleet.BundleResource
+	for _, resources := range resources {
+		result = append(result, resources...)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+
 	return result, nil
 }
 
-func stripChartPrefix(resources []fleet.BundleResource) []fleet.BundleResource {
-	chart := ""
-	for _, resource := range resources {
-		if strings.HasSuffix(resource.Name, "Chart.yaml") {
-			if chart == "" || len(resource.Name) < len(chart) {
-				chart = resource.Name
+func ChartPath(helm *fleet.HelmOptions) string {
+	if helm == nil {
+		return "none"
+	}
+	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
+}
+
+func chartURL(location *fleet.HelmOptions) (string, error) {
+	if location.Repo == "" {
+		return location.Chart, nil
+	}
+
+	resp, err := http.Get(location.Repo + "/index.yaml")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	bytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	repo := &repo.IndexFile{}
+	if err := yaml.Unmarshal(bytes, repo); err != nil {
+		return "", err
+	}
+
+	repo.SortEntries()
+
+	chart, err := repo.Get(location.Chart, location.Version)
+	if err != nil {
+		return "", err
+	}
+
+	if len(chart.URLs) == 0 {
+		return "", fmt.Errorf("no URLs found for chart %s %s at %s", chart.Name, chart.Version, location.Repo)
+	}
+
+	chartURL, err := url.Parse(chart.URLs[0])
+	if err != nil {
+		return "", err
+	}
+
+	if chartURL.IsAbs() {
+		return chart.URLs[0], nil
+	}
+
+	repoURL, err := url.Parse(location.Repo)
+	if err != nil {
+		return "", err
+	}
+
+	return repoURL.ResolveReference(chartURL).String(), nil
+}
+
+func addCharts(directories []directory, base string, charts []*fleet.HelmOptions) ([]directory, error) {
+	for _, chart := range charts {
+		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
+			chartURL, err := chartURL(chart)
+			if err != nil {
+				return nil, err
 			}
+
+			directories = append(directories, directory{
+				prefix: ChartPath(chart),
+				base:   base,
+				path:   chartURL,
+				key:    ChartPath(chart),
+			})
 		}
 	}
-
-	if chart == "" || chart == filepath.Join(ChartDir, "Chart.yaml") {
-		return resources
-	}
-
-	var (
-		newResources []fleet.BundleResource
-		prefix       = strings.TrimSuffix(chart, "Chart.yaml")
-	)
-
-	for _, resource := range resources {
-		if !strings.HasPrefix(resource.Name, prefix) {
-			return resources
-		}
-		newResources = append(newResources, fleet.BundleResource{
-			Name:     filepath.Join(ChartDir, strings.TrimPrefix(resource.Name, prefix)),
-			Content:  resource.Content,
-			Encoding: resource.Encoding,
-		})
-	}
-
-	return newResources
+	return directories, nil
 }
 
 func addDirectory(directories []directory, base, customDir, defaultDir string) ([]directory, error) {
@@ -202,10 +237,6 @@ func readDirectory(ctx context.Context, progress *progress.Progress, compress bo
 		}
 	}
 
-	sort.Slice(resources, func(i, j int) bool {
-		return resources[i].Name < resources[j].Name
-	})
-
 	return resources, nil
 }
 
@@ -223,21 +254,17 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 		return nil, err
 	}
 
-	u, uerr := url.Parse(name)
 	c := getter.Client{
-		Ctx:              ctx,
-		Src:              name,
-		Dst:              temp,
-		Pwd:              base,
-		Mode:             getter.ClientModeDir,
-		ProgressListener: progress,
+		Ctx:  ctx,
+		Src:  name,
+		Dst:  temp,
+		Pwd:  base,
+		Mode: getter.ClientModeDir,
+		// TODO: why doesn't this work anymore
+		//ProgressListener: progress,
 	}
 
 	if err := c.Get(); err != nil {
-		// ignore file paths that don't exist
-		if uerr == nil && u.Scheme == "" {
-			return nil, nil
-		}
 		return nil, err
 	}
 

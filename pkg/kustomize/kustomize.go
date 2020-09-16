@@ -2,7 +2,6 @@ package kustomize
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/rancher/fleet/pkg/content"
 	"github.com/rancher/fleet/pkg/manifest"
@@ -19,7 +18,7 @@ import (
 
 const (
 	KustomizeYAML = "kustomization.yaml"
-	ManifestsYAML = "manifests.yaml"
+	ManifestsYAML = "fleet-manifests.yaml"
 )
 
 func Process(m *manifest.Manifest, content []byte, dir string) ([]runtime.Object, bool, error) {
@@ -64,7 +63,7 @@ func modifyKustomize(f filesys.FileSystem, dir string) error {
 		return nil
 	}
 
-	data["resources"] = append(resources, ManifestsYAML)
+	data["resources"] = append([]string{ManifestsYAML}, resources...)
 	fileBytes, err = yaml.Marshal(data)
 	if err != nil {
 		return err
@@ -76,15 +75,14 @@ func modifyKustomize(f filesys.FileSystem, dir string) error {
 func toFilesystem(m *manifest.Manifest, dir string, manifestsContent []byte) (filesys.FileSystem, error) {
 	f := filesys.MakeEmptyDirInMemory()
 	for _, resource := range m.Resources {
-		if !strings.HasPrefix(resource.Name, "kustomize/") {
+		if resource.Name == "" {
 			continue
 		}
-		name := strings.TrimPrefix(resource.Name, "kustomize/")
 		data, err := content.Decode(resource.Content, resource.Encoding)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := f.AddFile(name, data); err != nil {
+		if _, err := f.AddFile(resource.Name, data); err != nil {
 			return nil, err
 		}
 	}

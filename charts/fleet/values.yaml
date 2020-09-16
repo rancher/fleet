@@ -36,4 +36,4 @@ bootstrap:
   repo: ""
   secret: ""
   branch: master
-  dirs: ""
+  paths: ""

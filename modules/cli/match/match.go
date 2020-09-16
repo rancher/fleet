@@ -6,17 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
-	"github.com/rancher/fleet/pkg/helmdeployer"
-	"github.com/rancher/wrangler/pkg/yaml"
-
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
+	"github.com/rancher/fleet/pkg/helmdeployer"
+	"github.com/rancher/fleet/pkg/options"
+	"github.com/rancher/wrangler/pkg/yaml"
 )
 
 type Options struct {
 	Output             io.Writer
 	BaseDir            string
+	BundleSpec         string
 	BundleFile         string
 	ClusterGroup       string
 	ClusterLabels      map[string]string
@@ -29,22 +32,44 @@ func Match(ctx context.Context, opts *Options) error {
 		opts = &Options{}
 	}
 
-	bundle, err := bundle.Open(ctx, "test", opts.BaseDir, opts.BundleFile, nil)
-	if err != nil {
-		return err
+	var (
+		b   *bundle.Bundle
+		err error
+	)
+
+	if opts.BundleFile == "" {
+		b, err = bundle.Open(ctx, "test", opts.BaseDir, opts.BundleSpec, nil)
+		if err != nil {
+			return err
+		}
+	} else {
+		data, err := ioutil.ReadFile(opts.BundleFile)
+		if err != nil {
+			return err
+		}
+
+		bundleConfig := &fleet.Bundle{}
+		if err := yaml.Unmarshal(data, bundleConfig); err != nil {
+			return err
+		}
+
+		b, err = bundle.New(bundleConfig)
+		if err != nil {
+			return err
+		}
 	}
 
 	if opts.Target == "" {
-		m := bundle.Match(map[string]map[string]string{
+		m := b.Match(map[string]map[string]string{
 			opts.ClusterGroup: opts.ClusterGroupLabels,
 		}, opts.ClusterLabels)
-		return printMatch(m, opts.Output)
+		return printMatch(b, m, opts.Output)
 	}
 
-	return printMatch(bundle.MatchForTarget(opts.Target), opts.Output)
+	return printMatch(b, b.MatchForTarget(opts.Target), opts.Output)
 }
 
-func printMatch(m *bundle.Match, output io.Writer) error {
+func printMatch(bundle *bundle.Bundle, m *bundle.Match, output io.Writer) error {
 	if m == nil {
 		return errors.New("no match found")
 	}
@@ -53,12 +78,17 @@ func printMatch(m *bundle.Match, output io.Writer) error {
 		return nil
 	}
 
+	opts, err := options.Calculate(&bundle.Definition.Spec, m.Target)
+	if err != nil {
+		return err
+	}
+
 	manifest, err := m.Manifest()
 	if err != nil {
 		return err
 	}
 
-	objs, err := helmdeployer.Template(m.Bundle.Definition.Name, manifest, m.Target.BundleDeploymentOptions)
+	objs, err := helmdeployer.Template(m.Bundle.Definition.Name, manifest, opts)
 	if err != nil {
 		return err
 	}

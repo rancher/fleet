@@ -96,6 +96,10 @@ func (h *handler) OnConfig(config *config.Config) error {
 	})
 
 	if config.Bootstrap.Repo != "" {
+		var paths []string
+		if len(config.Bootstrap.Paths) > 0 {
+			paths = splitter.Split(config.Bootstrap.Paths, -1)
+		}
 		objs = append(objs, &fleet.GitRepo{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "bootstrap",
@@ -105,7 +109,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 				Repo:             config.Bootstrap.Repo,
 				Branch:           config.Bootstrap.Branch,
 				ClientSecretName: config.Bootstrap.Secret,
-				BundleDirs:       splitter.Split(config.Bootstrap.Dirs, -1),
+				Paths:            paths,
 			},
 		})
 	}

@@ -48,7 +48,8 @@ func (r *Fleet) PersistentPre(cmd *cobra.Command, args []string) error {
 }
 
 type BundleInputArgs struct {
-	BundleFile string `usage:"Location of the bundle.yaml" short:"b"`
+	File       string `usage:"Location of the fleet.yaml" short:"f"`
+	BundleFile string `usage:"Location of the raw Bundle resource yaml" short:"b"`
 }
 
 type OutputArgs struct {

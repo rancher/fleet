@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/rancher/wrangler/pkg/ticker"
+
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/cluster"
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/secret"
@@ -76,7 +78,7 @@ func (a *appContext) start(ctx context.Context) error {
 }
 
 func Register(ctx context.Context, leaderElect bool, fleetNamespace, agentNamespace, defaultNamespace, clusterNamespace, clusterName string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) error {
-	appCtx, err := newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName, fleetConfig, clientConfig)
+	appCtx, err := newContext(ctx, fleetNamespace, agentNamespace, clusterNamespace, clusterName, fleetConfig, clientConfig)
 	if err != nil {
 		return err
 	}
@@ -126,7 +128,7 @@ func Register(ctx context.Context, leaderElect bool, fleetNamespace, agentNamesp
 	return nil
 }
 
-func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) (*appContext, error) {
+func newContext(ctx context.Context, fleetNamespace, agentNamespace, clusterNamespace, clusterName string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) (*appContext, error) {
 	client, err := clientConfig.ClientConfig()
 	if err != nil {
 		return nil, err
@@ -184,6 +186,13 @@ func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName st
 	}
 
 	cache := memory.NewMemCacheClient(k8s.Discovery())
+	restMapper := restmapper.NewDeferredDiscoveryRESTMapper(cache)
+	go func() {
+		for range ticker.Context(ctx, 30*time.Second) {
+			cache.Invalidate()
+			restMapper.Reset()
+		}
+	}()
 
 	return &appContext{
 		Dynamic:          dynamic,
@@ -201,7 +210,7 @@ func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName st
 		clientConfig:             clientConfig,
 		restConfig:               client,
 		cachedDiscoveryInterface: cache,
-		restMapper:               restmapper.NewDeferredDiscoveryRESTMapper(cache),
+		restMapper:               restMapper,
 		starters: []start.Starter{
 			core,
 			coreNSed,

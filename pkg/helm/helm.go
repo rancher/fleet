@@ -1,40 +1,85 @@
 package helm
 
 import (
+	"path/filepath"
 	"strings"
 
-	"github.com/rancher/wrangler/pkg/kv"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/bundle"
 	"github.com/rancher/fleet/pkg/manifest"
+	"github.com/rancher/wrangler/pkg/kv"
 	"helm.sh/helm/v3/pkg/chart"
 	"sigs.k8s.io/yaml"
 )
 
-func Process(name string, m *manifest.Manifest) (*manifest.Manifest, error) {
-	newManifest, foundChartYAML := toChart(m)
-	if !foundChartYAML {
+func Process(name string, m *manifest.Manifest, style bundle.Style) (*manifest.Manifest, error) {
+	newManifest := toChart(m, style)
+	if !style.HasChartYAML {
 		return addChartYAML(name, m, newManifest)
 	}
 	return newManifest, nil
 }
 
-func toChart(m *manifest.Manifest) (*manifest.Manifest, bool) {
-	found := false
-	newManifest := &manifest.Manifest{}
+func move(m *manifest.Manifest, from, to string) (result []fleet.BundleResource) {
+	if from == "." {
+		from = ""
+	} else if from != "" {
+		from += "/"
+	}
 	for _, resource := range m.Resources {
-		if strings.HasPrefix(resource.Name, "manifests/") {
-			resource.Name = strings.Replace(resource.Name, "manifests/", "chart/templates/", 1)
+		if strings.HasPrefix(resource.Name, from) {
+			resource.Name = to + strings.TrimPrefix(resource.Name, from)
+			result = append(result, resource)
 		}
-		if !strings.HasPrefix(resource.Name, "chart/") {
+	}
+	return result
+}
+
+func manifests(m *manifest.Manifest) (result []fleet.BundleResource) {
+	var ignorePrefix []string
+	for _, resource := range m.Resources {
+		if strings.HasSuffix(resource.Name, "/fleet.yaml") ||
+			strings.HasSuffix(resource.Name, "/Chart.yaml") {
+			ignorePrefix = append(ignorePrefix, filepath.Dir(resource.Name)+"/")
+		}
+	}
+
+outer:
+	for _, resource := range m.Resources {
+		if resource.Name == "fleet.yaml" {
 			continue
 		}
-		if resource.Name == "chart/Chart.yaml" {
-			found = true
+		if !strings.HasSuffix(resource.Name, ".yaml") &&
+			!strings.HasSuffix(resource.Name, ".json") &&
+			!strings.HasSuffix(resource.Name, ".yml") {
+			continue
 		}
-		newManifest.Resources = append(newManifest.Resources, resource)
+		for _, prefix := range ignorePrefix {
+			if strings.HasPrefix(resource.Name, prefix) {
+				continue outer
+			}
+		}
+		resource.Name = "chart/templates/" + resource.Name
+		result = append(result, resource)
 	}
-	return newManifest, found
+
+	return result
+}
+
+func toChart(m *manifest.Manifest, style bundle.Style) *manifest.Manifest {
+	var (
+		resources []fleet.BundleResource
+	)
+
+	if style.ChartPath != "" {
+		resources = move(m, filepath.Dir(style.ChartPath), "chart/")
+	} else if style.IsRawYAML() {
+		resources = manifests(m)
+	}
+
+	return &manifest.Manifest{
+		Resources: resources,
+	}
 }
 
 func addChartYAML(name string, m, newManifest *manifest.Manifest) (*manifest.Manifest, error) {

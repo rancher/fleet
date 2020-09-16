@@ -30,10 +30,10 @@ type GitRepoSpec struct {
 	// It is expected the secret be of type "kubernetes.io/basic-auth" or "kubernetes.io/ssh-auth".
 	ClientSecretName string `json:"clientSecretName,omitempty"`
 
-	// BundleDirs is the directories relative to the git repo root that contain bundles to be applied.
-	// Path globbing is support, for example ["bundles/*"] will match all folders as a subdirectory of bundles/
+	// Paths is the directories relative to the git repo root that contain resources to be applied.
+	// Path globbing is support, for example ["charts/*"] will match all folders as a subdirectory of charts/
 	// If empty, "/" is the default
-	BundleDirs []string `json:"bundleDirs,omitempty"`
+	Paths []string `json:"paths,omitempty"`
 
 	// ServiceAccount used in the downstream cluster for deployment
 	ServiceAccount string `json:"serviceAccount,omitempty"`
@@ -46,6 +46,9 @@ type GitRepoSpec struct {
 
 	// All non-ready deployments before this time will be resynced
 	ForceSyncBefore *metav1.Time `json:"forceSyncBefore,omitempty"`
+
+	// ForceUpdate is a timestamp if set to Now() will cause the git repo to be checked again
+	ForceUpdate *metav1.Time `json:"forceUpdate,omitempty"`
 }
 
 type GitTarget struct {

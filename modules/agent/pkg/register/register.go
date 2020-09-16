@@ -93,6 +93,8 @@ func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.
 		return nil, err
 	}
 
+	// delete the bootstrap cred
+	_ = k8s.Core().V1().Secret().Delete(namespace, BootstrapCredName, nil)
 	return &AgentInfo{
 		ClusterNamespace: string(secret.Data[ClusterNamespace]),
 		ClusterName:      string(secret.Data[ClusterName]),

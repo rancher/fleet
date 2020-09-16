@@ -22,68 +22,81 @@ spec:
       properties:
         spec:
           properties:
-            force:
-              type: boolean
+            diff:
+              nullable: true
+              properties:
+                comparePatches:
+                  items:
+                    properties:
+                      apiVersion:
+                        nullable: true
+                        type: string
+                      kind:
+                        nullable: true
+                        type: string
+                      name:
+                        nullable: true
+                        type: string
+                      namespace:
+                        nullable: true
+                        type: string
+                      operations:
+                        items:
+                          properties:
+                            op:
+                              nullable: true
+                              type: string
+                            path:
+                              nullable: true
+                              type: string
+                            value:
+                              nullable: true
+                              type: string
+                          type: object
+                        nullable: true
+                        type: array
+                    type: object
+                  nullable: true
+                  type: array
+              type: object
             forceSyncBefore:
               nullable: true
               type: string
-            kustomizeDir:
+            helm:
               nullable: true
-              type: string
+              properties:
+                chart:
+                  nullable: true
+                  type: string
+                force:
+                  type: boolean
+                releaseName:
+                  nullable: true
+                  type: string
+                repo:
+                  nullable: true
+                  type: string
+                takeOwnership:
+                  type: boolean
+                timeoutSeconds:
+                  type: integer
+                values:
+                  nullable: true
+                  type: object
+                version:
+                  nullable: true
+                  type: string
+              type: object
+            kustomize:
+              nullable: true
+              properties:
+                dir:
+                  nullable: true
+                  type: string
+              type: object
             namespace:
               nullable: true
               type: string
-            overlays:
-              items:
-                properties:
-                  force:
-                    type: boolean
-                  forceSyncBefore:
-                    nullable: true
-                    type: string
-                  kustomizeDir:
-                    nullable: true
-                    type: string
-                  name:
-                    nullable: true
-                    type: string
-                  namespace:
-                    nullable: true
-                    type: string
-                  overlays:
-                    items:
-                      nullable: true
-                      type: string
-                    nullable: true
-                    type: array
-                  resources:
-                    items:
-                      properties:
-                        content:
-                          nullable: true
-                          type: string
-                        encoding:
-                          nullable: true
-                          type: string
-                        name:
-                          nullable: true
-                          type: string
-                      type: object
-                    nullable: true
-                    type: array
-                  serviceAccount:
-                    nullable: true
-                    type: string
-                  takeOwnership:
-                    type: boolean
-                  timeoutSeconds:
-                    type: integer
-                  values:
-                    nullable: true
-                    type: object
-                type: object
-              nullable: true
-              type: array
             paused:
               type: boolean
             resources:
@@ -188,8 +201,6 @@ spec:
             serviceAccount:
               nullable: true
               type: string
-            takeOwnership:
-              type: boolean
             targetRestrictions:
               items:
                 properties:
@@ -320,43 +331,109 @@ spec:
                         nullable: true
                         type: object
                     type: object
-                  force:
-                    type: boolean
+                  diff:
+                    nullable: true
+                    properties:
+                      comparePatches:
+                        items:
+                          properties:
+                            apiVersion:
+                              nullable: true
+                              type: string
+                            kind:
+                              nullable: true
+                              type: string
+                            name:
+                              nullable: true
+                              type: string
+                            namespace:
+                              nullable: true
+                              type: string
+                            operations:
+                              items:
+                                properties:
+                                  op:
+                                    nullable: true
+                                    type: string
+                                  path:
+                                    nullable: true
+                                    type: string
+                                  value:
+                                    nullable: true
+                                    type: string
+                                type: object
+                              nullable: true
+                              type: array
+                          type: object
+                        nullable: true
+                        type: array
+                    type: object
                   forceSyncBefore:
                     nullable: true
                     type: string
-                  kustomizeDir:
+                  helm:
                     nullable: true
-                    type: string
+                    properties:
+                      chart:
+                        nullable: true
+                        type: string
+                      force:
+                        type: boolean
+                      releaseName:
+                        nullable: true
+                        type: string
+                      repo:
+                        nullable: true
+                        type: string
+                      takeOwnership:
+                        type: boolean
+                      timeoutSeconds:
+                        type: integer
+                      values:
+                        nullable: true
+                        type: object
+                      version:
+                        nullable: true
+                        type: string
+                    type: object
+                  kustomize:
+                    nullable: true
+                    properties:
+                      dir:
+                        nullable: true
+                        type: string
+                    type: object
                   name:
                     nullable: true
                     type: string
                   namespace:
                     nullable: true
                     type: string
-                  overlays:
-                    items:
-                      nullable: true
-                      type: string
-                    nullable: true
-                    type: array
                   serviceAccount:
                     nullable: true
                     type: string
-                  takeOwnership:
-                    type: boolean
-                  timeoutSeconds:
-                    type: integer
-                  values:
+                  yaml:
                     nullable: true
+                    properties:
+                      overlays:
+                        items:
+                          nullable: true
+                          type: string
+                        nullable: true
+                        type: array
                     type: object
                 type: object
               nullable: true
               type: array
-            timeoutSeconds:
-              type: integer
-            values:
+            yaml:
               nullable: true
+              properties:
+                overlays:
+                  items:
+                    nullable: true
+                    type: string
+                  nullable: true
+                  type: array
               type: object
           type: object
         status:
@@ -457,6 +534,99 @@ spec:
                             name:
                               nullable: true
                               type: string
+                            nonReadyStatus:
+                              items:
+                                properties:
+                                  apiVersion:
+                                    nullable: true
+                                    type: string
+                                  kind:
+                                    nullable: true
+                                    type: string
+                                  name:
+                                    nullable: true
+                                    type: string
+                                  namespace:
+                                    nullable: true
+                                    type: string
+                                  summary:
+                                    properties:
+                                      attributes:
+                                        nullable: true
+                                        type: object
+                                      error:
+                                        type: boolean
+                                      message:
+                                        items:
+                                          nullable: true
+                                          type: string
+                                        nullable: true
+                                        type: array
+                                      relationships:
+                                        items:
+                                          properties:
+                                            apiVersion:
+                                              nullable: true
+                                              type: string
+                                            controlledBy:
+                                              type: boolean
+                                            inbound:
+                                              type: boolean
+                                            kind:
+                                              nullable: true
+                                              type: string
+                                            name:
+                                              nullable: true
+                                              type: string
+                                            namespace:
+                                              nullable: true
+                                              type: string
+                                            selector:
+                                              nullable: true
+                                              properties:
+                                                matchExpressions:
+                                                  items:
+                                                    properties:
+                                                      key:
+                                                        nullable: true
+                                                        type: string
+                                                      operator:
+                                                        nullable: true
+                                                        type: string
+                                                      values:
+                                                        items:
+                                                          nullable: true
+                                                          type: string
+                                                        nullable: true
+                                                        type: array
+                                                    type: object
+                                                  nullable: true
+                                                  type: array
+                                                matchLabels:
+                                                  additionalProperties:
+                                                    nullable: true
+                                                    type: string
+                                                  nullable: true
+                                                  type: object
+                                              type: object
+                                            type:
+                                              nullable: true
+                                              type: string
+                                          type: object
+                                        nullable: true
+                                        type: array
+                                      state:
+                                        nullable: true
+                                        type: string
+                                      transitioning:
+                                        type: boolean
+                                    type: object
+                                  uid:
+                                    nullable: true
+                                    type: string
+                                type: object
+                              nullable: true
+                              type: array
                           type: object
                         nullable: true
                         type: array
@@ -521,6 +691,99 @@ spec:
                       name:
                         nullable: true
                         type: string
+                      nonReadyStatus:
+                        items:
+                          properties:
+                            apiVersion:
+                              nullable: true
+                              type: string
+                            kind:
+                              nullable: true
+                              type: string
+                            name:
+                              nullable: true
+                              type: string
+                            namespace:
+                              nullable: true
+                              type: string
+                            summary:
+                              properties:
+                                attributes:
+                                  nullable: true
+                                  type: object
+                                error:
+                                  type: boolean
+                                message:
+                                  items:
+                                    nullable: true
+                                    type: string
+                                  nullable: true
+                                  type: array
+                                relationships:
+                                  items:
+                                    properties:
+                                      apiVersion:
+                                        nullable: true
+                                        type: string
+                                      controlledBy:
+                                        type: boolean
+                                      inbound:
+                                        type: boolean
+                                      kind:
+                                        nullable: true
+                                        type: string
+                                      name:
+                                        nullable: true
+                                        type: string
+                                      namespace:
+                                        nullable: true
+                                        type: string
+                                      selector:
+                                        nullable: true
+                                        properties:
+                                          matchExpressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  nullable: true
+                                                  type: string
+                                                operator:
+                                                  nullable: true
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    nullable: true
+                                                    type: string
+                                                  nullable: true
+                                                  type: array
+                                              type: object
+                                            nullable: true
+                                            type: array
+                                          matchLabels:
+                                            additionalProperties:
+                                              nullable: true
+                                              type: string
+                                            nullable: true
+                                            type: object
+                                        type: object
+                                      type:
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  nullable: true
+                                  type: array
+                                state:
+                                  nullable: true
+                                  type: string
+                                transitioning:
+                                  type: boolean
+                              type: object
+                            uid:
+                              nullable: true
+                              type: string
+                          type: object
+                        nullable: true
+                        type: array
                     type: object
                   nullable: true
                   type: array
@@ -580,26 +843,93 @@ spec:
               type: string
             options:
               properties:
-                force:
-                  type: boolean
+                diff:
+                  nullable: true
+                  properties:
+                    comparePatches:
+                      items:
+                        properties:
+                          apiVersion:
+                            nullable: true
+                            type: string
+                          kind:
+                            nullable: true
+                            type: string
+                          name:
+                            nullable: true
+                            type: string
+                          namespace:
+                            nullable: true
+                            type: string
+                          operations:
+                            items:
+                              properties:
+                                op:
+                                  nullable: true
+                                  type: string
+                                path:
+                                  nullable: true
+                                  type: string
+                                value:
+                                  nullable: true
+                                  type: string
+                              type: object
+                            nullable: true
+                            type: array
+                        type: object
+                      nullable: true
+                      type: array
+                  type: object
                 forceSyncBefore:
                   nullable: true
                   type: string
-                kustomizeDir:
+                helm:
                   nullable: true
-                  type: string
+                  properties:
+                    chart:
+                      nullable: true
+                      type: string
+                    force:
+                      type: boolean
+                    releaseName:
+                      nullable: true
+                      type: string
+                    repo:
+                      nullable: true
+                      type: string
+                    takeOwnership:
+                      type: boolean
+                    timeoutSeconds:
+                      type: integer
+                    values:
+                      nullable: true
+                      type: object
+                    version:
+                      nullable: true
+                      type: string
+                  type: object
+                kustomize:
+                  nullable: true
+                  properties:
+                    dir:
+                      nullable: true
+                      type: string
+                  type: object
                 namespace:
                   nullable: true
                   type: string
                 serviceAccount:
                   nullable: true
                   type: string
-                takeOwnership:
-                  type: boolean
-                timeoutSeconds:
-                  type: integer
-                values:
+                yaml:
                   nullable: true
+                  properties:
+                    overlays:
+                      items:
+                        nullable: true
+                        type: string
+                      nullable: true
+                      type: array
                   type: object
               type: object
             stagedDeploymentID:
@@ -607,26 +937,93 @@ spec:
               type: string
             stagedOptions:
               properties:
-                force:
-                  type: boolean
+                diff:
+                  nullable: true
+                  properties:
+                    comparePatches:
+                      items:
+                        properties:
+                          apiVersion:
+                            nullable: true
+                            type: string
+                          kind:
+                            nullable: true
+                            type: string
+                          name:
+                            nullable: true
+                            type: string
+                          namespace:
+                            nullable: true
+                            type: string
+                          operations:
+                            items:
+                              properties:
+                                op:
+                                  nullable: true
+                                  type: string
+                                path:
+                                  nullable: true
+                                  type: string
+                                value:
+                                  nullable: true
+                                  type: string
+                              type: object
+                            nullable: true
+                            type: array
+                        type: object
+                      nullable: true
+                      type: array
+                  type: object
                 forceSyncBefore:
                   nullable: true
                   type: string
-                kustomizeDir:
+                helm:
                   nullable: true
-                  type: string
+                  properties:
+                    chart:
+                      nullable: true
+                      type: string
+                    force:
+                      type: boolean
+                    releaseName:
+                      nullable: true
+                      type: string
+                    repo:
+                      nullable: true
+                      type: string
+                    takeOwnership:
+                      type: boolean
+                    timeoutSeconds:
+                      type: integer
+                    values:
+                      nullable: true
+                      type: object
+                    version:
+                      nullable: true
+                      type: string
+                  type: object
+                kustomize:
+                  nullable: true
+                  properties:
+                    dir:
+                      nullable: true
+                      type: string
+                  type: object
                 namespace:
                   nullable: true
                   type: string
                 serviceAccount:
                   nullable: true
                   type: string
-                takeOwnership:
-                  type: boolean
-                timeoutSeconds:
-                  type: integer
-                values:
+                yaml:
                   nullable: true
+                  properties:
+                    overlays:
+                      items:
+                        nullable: true
+                        type: string
+                      nullable: true
+                      type: array
                   type: object
               type: object
           type: object
@@ -1038,6 +1435,99 @@ spec:
                       name:
                         nullable: true
                         type: string
+                      nonReadyStatus:
+                        items:
+                          properties:
+                            apiVersion:
+                              nullable: true
+                              type: string
+                            kind:
+                              nullable: true
+                              type: string
+                            name:
+                              nullable: true
+                              type: string
+                            namespace:
+                              nullable: true
+                              type: string
+                            summary:
+                              properties:
+                                attributes:
+                                  nullable: true
+                                  type: object
+                                error:
+                                  type: boolean
+                                message:
+                                  items:
+                                    nullable: true
+                                    type: string
+                                  nullable: true
+                                  type: array
+                                relationships:
+                                  items:
+                                    properties:
+                                      apiVersion:
+                                        nullable: true
+                                        type: string
+                                      controlledBy:
+                                        type: boolean
+                                      inbound:
+                                        type: boolean
+                                      kind:
+                                        nullable: true
+                                        type: string
+                                      name:
+                                        nullable: true
+                                        type: string
+                                      namespace:
+                                        nullable: true
+                                        type: string
+                                      selector:
+                                        nullable: true
+                                        properties:
+                                          matchExpressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  nullable: true
+                                                  type: string
+                                                operator:
+                                                  nullable: true
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    nullable: true
+                                                    type: string
+                                                  nullable: true
+                                                  type: array
+                                              type: object
+                                            nullable: true
+                                            type: array
+                                          matchLabels:
+                                            additionalProperties:
+                                              nullable: true
+                                              type: string
+                                            nullable: true
+                                            type: object
+                                        type: object
+                                      type:
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  nullable: true
+                                  type: array
+                                state:
+                                  nullable: true
+                                  type: string
+                                transitioning:
+                                  type: boolean
+                              type: object
+                            uid:
+                              nullable: true
+                              type: string
+                          type: object
+                        nullable: true
+                        type: array
                     type: object
                   nullable: true
                   type: array
@@ -1223,6 +1713,99 @@ spec:
                       name:
                         nullable: true
                         type: string
+                      nonReadyStatus:
+                        items:
+                          properties:
+                            apiVersion:
+                              nullable: true
+                              type: string
+                            kind:
+                              nullable: true
+                              type: string
+                            name:
+                              nullable: true
+                              type: string
+                            namespace:
+                              nullable: true
+                              type: string
+                            summary:
+                              properties:
+                                attributes:
+                                  nullable: true
+                                  type: object
+                                error:
+                                  type: boolean
+                                message:
+                                  items:
+                                    nullable: true
+                                    type: string
+                                  nullable: true
+                                  type: array
+                                relationships:
+                                  items:
+                                    properties:
+                                      apiVersion:
+                                        nullable: true
+                                        type: string
+                                      controlledBy:
+                                        type: boolean
+                                      inbound:
+                                        type: boolean
+                                      kind:
+                                        nullable: true
+                                        type: string
+                                      name:
+                                        nullable: true
+                                        type: string
+                                      namespace:
+                                        nullable: true
+                                        type: string
+                                      selector:
+                                        nullable: true
+                                        properties:
+                                          matchExpressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  nullable: true
+                                                  type: string
+                                                operator:
+                                                  nullable: true
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    nullable: true
+                                                    type: string
+                                                  nullable: true
+                                                  type: array
+                                              type: object
+                                            nullable: true
+                                            type: array
+                                          matchLabels:
+                                            additionalProperties:
+                                              nullable: true
+                                              type: string
+                                            nullable: true
+                                            type: object
+                                        type: object
+                                      type:
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  nullable: true
+                                  type: array
+                                state:
+                                  nullable: true
+                                  type: string
+                                transitioning:
+                                  type: boolean
+                              type: object
+                            uid:
+                              nullable: true
+                              type: string
+                          type: object
+                        nullable: true
+                        type: array
                     type: object
                   nullable: true
                   type: array
@@ -1322,18 +1905,21 @@ spec:
             branch:
               nullable: true
               type: string
-            bundleDirs:
-              items:
-                nullable: true
-                type: string
-              nullable: true
-              type: array
             clientSecretName:
               nullable: true
               type: string
             forceSyncBefore:
               nullable: true
               type: string
+            forceUpdate:
+              nullable: true
+              type: string
+            paths:
+              items:
+                nullable: true
+                type: string
+              nullable: true
+              type: array
             pollingInterval:
               nullable: true
               type: string
@@ -1500,6 +2086,99 @@ spec:
                       name:
                         nullable: true
                         type: string
+                      nonReadyStatus:
+                        items:
+                          properties:
+                            apiVersion:
+                              nullable: true
+                              type: string
+                            kind:
+                              nullable: true
+                              type: string
+                            name:
+                              nullable: true
+                              type: string
+                            namespace:
+                              nullable: true
+                              type: string
+                            summary:
+                              properties:
+                                attributes:
+                                  nullable: true
+                                  type: object
+                                error:
+                                  type: boolean
+                                message:
+                                  items:
+                                    nullable: true
+                                    type: string
+                                  nullable: true
+                                  type: array
+                                relationships:
+                                  items:
+                                    properties:
+                                      apiVersion:
+                                        nullable: true
+                                        type: string
+                                      controlledBy:
+                                        type: boolean
+                                      inbound:
+                                        type: boolean
+                                      kind:
+                                        nullable: true
+                                        type: string
+                                      name:
+                                        nullable: true
+                                        type: string
+                                      namespace:
+                                        nullable: true
+                                        type: string
+                                      selector:
+                                        nullable: true
+                                        properties:
+                                          matchExpressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  nullable: true
+                                                  type: string
+                                                operator:
+                                                  nullable: true
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    nullable: true
+                                                    type: string
+                                                  nullable: true
+                                                  type: array
+                                              type: object
+                                            nullable: true
+                                            type: array
+                                          matchLabels:
+                                            additionalProperties:
+                                              nullable: true
+                                              type: string
+                                            nullable: true
+                                            type: object
+                                        type: object
+                                      type:
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  nullable: true
+                                  type: array
+                                state:
+                                  nullable: true
+                                  type: string
+                                transitioning:
+                                  type: boolean
+                              type: object
+                            uid:
+                              nullable: true
+                              type: string
+                          type: object
+                        nullable: true
+                        type: array
                     type: object
                   nullable: true
                   type: array

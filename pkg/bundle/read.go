@@ -9,12 +9,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/yaml"
 )
 
@@ -41,9 +39,6 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 
 	if file == "" {
 		file = filepath.Join(baseDir, "fleet.yaml")
-		if _, err := os.Stat(file); os.IsNotExist(err) {
-			file = filepath.Join(baseDir, "bundle.yaml")
-		}
 		if f, err := os.Open(file); os.IsNotExist(err) {
 			in = bytes.NewBufferString("{}")
 		} else if err != nil {
@@ -98,6 +93,11 @@ func size(bundle *fleet.Bundle) (int, error) {
 	return len(marshalled), nil
 }
 
+type localSpec struct {
+	fleet.BundleSpec
+	TargetCustomizations []fleet.BundleTarget `json:"targetCustomizations,omitempty"`
+}
+
 func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
 	if opts == nil {
 		opts = &Options{}
@@ -112,10 +112,11 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		return nil, err
 	}
 
-	bundle := &fleet.BundleSpec{}
+	bundle := &localSpec{}
 	if err := yaml.Unmarshal(bytes, &bundle); err != nil {
 		return nil, err
 	}
+	bundle.BundleSpec.Targets = append(bundle.BundleSpec.Targets, bundle.TargetCustomizations...)
 
 	meta, err := readMetadata(bytes)
 	if err != nil {
@@ -123,24 +124,18 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	meta.Name = name
-	setTargetNames(bundle)
+	setTargetNames(&bundle.BundleSpec)
 
-	overlays, err := readOverlays(ctx, meta, bundle, opts.Compress, baseDir)
-	if err != nil {
-		return nil, err
-	}
-
-	resources, err := readResources(ctx, meta, opts.Compress, baseDir)
+	resources, err := readResources(ctx, &bundle.BundleSpec, opts.Compress, baseDir)
 	if err != nil {
 		return nil, err
 	}
 
 	bundle.Resources = resources
-	assignOverlay(bundle, overlays)
 
 	def := &fleet.Bundle{
 		ObjectMeta: meta.ObjectMeta,
-		Spec:       *bundle,
+		Spec:       bundle.BundleSpec,
 	}
 
 	for k, v := range opts.Labels {
@@ -200,27 +195,6 @@ func appendTargets(def *fleet.Bundle, targetsFile string) (*fleet.Bundle, error)
 	return def, nil
 }
 
-func assignOverlay(bundle *fleet.BundleSpec, overlays map[string][]fleet.BundleResource) {
-	defined := map[string]bool{}
-	for i := range bundle.Overlays {
-		defined[bundle.Overlays[i].Name] = true
-		bundle.Overlays[i].Resources = overlays[bundle.Overlays[i].Name]
-	}
-	for name, resources := range overlays {
-		if defined[name] {
-			continue
-		}
-		bundle.Overlays = append(bundle.Overlays, fleet.BundleOverlay{
-			Name:      name,
-			Resources: resources,
-		})
-	}
-
-	sort.Slice(bundle.Overlays, func(i, j int) bool {
-		return bundle.Overlays[i].Name < bundle.Overlays[j].Name
-	})
-}
-
 func setTargetNames(spec *fleet.BundleSpec) {
 	for i, target := range spec.Targets {
 		if target.Name == "" {
@@ -229,26 +203,8 @@ func setTargetNames(spec *fleet.BundleSpec) {
 	}
 }
 
-func overlays(bundle *fleet.BundleSpec) []string {
-	overlayNames := sets.String{}
-
-	for _, target := range bundle.Targets {
-		overlayNames.Insert(target.Overlays...)
-	}
-
-	for _, overlay := range bundle.Overlays {
-		overlayNames.Insert(overlay.Overlays...)
-	}
-
-	return overlayNames.List()
-}
-
 type bundleMeta struct {
 	metav1.ObjectMeta `json:",inline,omitempty"`
-	Manifests         string `json:"manifestsDir,omitempty"`
-	Overlays          string `json:"overlaysDir,omitempty"`
-	Kustomize         string `json:"kustomizeDir,omitempty"`
-	Chart             string `json:"chart,omitempty"`
 }
 
 func readMetadata(bytes []byte) (*bundleMeta, error) {
