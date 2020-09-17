@@ -82,6 +82,7 @@ func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.
 	} else if err != nil {
 		return nil, err
 	} else if err := testClientConfig(ctx, secret.Data[Kubeconfig]); err != nil {
+		logrus.Errorf("Current credential failed, failing back to reregistering: %v", err)
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace, clusterID)
 		if err != nil {
 			return nil, fmt.Errorf("looking up secret %s/%s or %s/%s: %w", namespace, BootstrapCredName, namespace, CredName, err)

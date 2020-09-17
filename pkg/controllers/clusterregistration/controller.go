@@ -159,9 +159,12 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		} else if secret != nil {
 			status.Granted = true
 			objects = append(objects, secret)
-		} else {
-			h.clusterRegistration.EnqueueAfter(request.Namespace, request.Name, 2*time.Second)
 		}
+	}
+
+	if !status.Granted {
+		// try again 2 seconds later
+		h.clusterRegistration.EnqueueAfter(request.Namespace, request.Name, 2*time.Second)
 	}
 
 	status.ClusterName = cluster.Name

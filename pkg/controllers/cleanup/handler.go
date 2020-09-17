@@ -26,10 +26,6 @@ func Register(ctx context.Context, apply apply.Apply,
 	roleBinding rbaccontrollers.RoleBindingController,
 	clusterRole rbaccontrollers.ClusterRoleController,
 	clusterRoleBinding rbaccontrollers.ClusterRoleBindingController,
-	clusterRegistrationToken fleetcontrollers.ClusterRegistrationTokenController,
-	clusterRegistration fleetcontrollers.ClusterRegistrationController,
-	clusterGroups fleetcontrollers.ClusterGroupController,
-	clusters fleetcontrollers.ClusterController,
 	namespaces corecontrollers.NamespaceController) {
 	h := &handler{
 		apply: apply,
