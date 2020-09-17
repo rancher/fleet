@@ -13,10 +13,12 @@ spec:
     spec:
       serviceAccountName: gitjob
       containers:
-        - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        - image: "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag }}"
           name: gitjob
           command:
-            - gitjob
+          - gitjob
+          - --tekton-image
+          - "{{ template "system_default_registry" . }}{{ .Values.tekton.repository }}:{{ .Values.tekton.tag }}"
           env:
             - name: NAMESPACE
               valueFrom:

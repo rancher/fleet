@@ -5,7 +5,7 @@ metadata:
 data:
   config: |
     {
-      "agentImage": "{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}",
+      "agentImage": "{{ template "system_default_registry" . }}{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}",
       "agentImagePullPolicy": "{{ .Values.agentImage.imagePullPolicy }}",
       "apiServerURL": "{{.Values.apiServerURL}}",
       "apiServerCA": "{{b64enc .Values.apiServerCA}}",
