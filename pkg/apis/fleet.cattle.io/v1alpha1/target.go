@@ -125,10 +125,10 @@ type ClusterRegistrationToken struct {
 }
 
 type ClusterRegistrationTokenSpec struct {
-	TTLSeconds int `json:"ttlSeconds,omitempty"`
+	TTL *metav1.Duration `json:"ttl,omitempty"`
 }
 
 type ClusterRegistrationTokenStatus struct {
-	Expires    metav1.Time `json:"expires,omitempty"`
-	SecretName string      `json:"secretName,omitempty"`
+	Expires    *metav1.Time `json:"expires,omitempty"`
+	SecretName string       `json:"secretName,omitempty"`
 }

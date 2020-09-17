@@ -23,7 +23,7 @@ import (
 
 var (
 	ImportTokenPrefix = "import-token-"
-	ImportTokenTTL    = int((12 * time.Hour) / time.Second)
+	ImportTokenTTL    = 12 * time.Hour
 	t                 = true
 )
 
@@ -31,7 +31,7 @@ type importHandler struct {
 	ctx             context.Context
 	systemNamespace string
 	secrets         corecontrollers.SecretCache
-	clusters        fleetcontrollers.ClusterClient
+	clusters        fleetcontrollers.ClusterController
 	tokens          fleetcontrollers.ClusterRegistrationTokenCache
 	tokenClient     fleetcontrollers.ClusterRegistrationTokenClient
 }
@@ -145,10 +145,11 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				Name:      ImportTokenPrefix + cluster.Name,
 			},
 			Spec: fleet.ClusterRegistrationTokenSpec{
-				TTLSeconds: ImportTokenTTL,
+				TTL: &metav1.Duration{Duration: ImportTokenTTL},
 			},
 		})
-		return status, err
+		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, 2*time.Second)
+		return status, nil
 	}
 
 	output := &bytes.Buffer{}
