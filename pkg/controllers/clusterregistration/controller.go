@@ -109,7 +109,7 @@ func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster
 				fleet.ClusterAnnotation: cluster.Name,
 			},
 			Annotations: map[string]string{
-				fleet.ManagedAnnotation: "true",
+				fleet.ManagedLabel: "true",
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -174,7 +174,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				Name:      saName,
 				Namespace: cluster.Status.Namespace,
 				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+					fleet.ManagedLabel:      "true",
 					fleet.ClusterAnnotation: cluster.Name,
 				},
 			},
@@ -183,8 +183,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
 				Namespace: request.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -200,8 +200,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
 				Namespace: cluster.Status.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -221,8 +221,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
 				Namespace: cluster.Status.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Subjects: []rbacv1.Subject{
@@ -242,8 +242,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
 				Namespace: request.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Subjects: []rbacv1.Subject{
@@ -262,8 +262,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name.SafeConcatName(request.Namespace, request.Name),
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -278,7 +278,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name.SafeConcatName(request.Namespace, request.Name),
 				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Subjects: []rbacv1.Subject{

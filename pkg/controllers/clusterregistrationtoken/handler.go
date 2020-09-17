@@ -90,8 +90,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      saName,
 				Namespace: token.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 		},
@@ -99,8 +99,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name.SafeConcatName(saName, "role"),
 				Namespace: token.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -115,8 +115,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name.SafeConcatName(saName, "to", "role"),
 				Namespace: token.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Subjects: []rbacv1.Subject{
@@ -169,6 +169,9 @@ func (h *handler) getValuesYAMLSecret(token *fleet.ClusterRegistrationToken, sec
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      token.Name,
 				Namespace: token.Namespace,
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
 			},
 			Immutable: nil,
 			Data: map[string][]byte{

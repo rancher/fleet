@@ -104,10 +104,12 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 		&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: status.Namespace,
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
 				Annotations: map[string]string{
 					fleet.ClusterNamespaceAnnotation: cluster.Namespace,
 					fleet.ClusterAnnotation:          cluster.Name,
-					fleet.ManagedAnnotation:          "true",
 				},
 			},
 		},

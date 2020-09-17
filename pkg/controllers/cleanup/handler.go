@@ -93,7 +93,7 @@ func (h *handler) cleanup(ns runtime.Object) error {
 	if err != nil {
 		return err
 	}
-	if meta.GetAnnotations()[fleet.ManagedAnnotation] != "true" {
+	if meta.GetLabels()[fleet.ManagedLabel] != "true" {
 		return nil
 	}
 	return h.apply.PurgeOrphan(ns)

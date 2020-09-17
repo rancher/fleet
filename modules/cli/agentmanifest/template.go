@@ -14,7 +14,7 @@ func objects(namespace string, data map[string][]byte) []runtime.Object {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespace,
 				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+					fleet.ManagedLabel: "true",
 				},
 			},
 		},

@@ -297,14 +297,16 @@ func (t *Target) IsPaused() bool {
 }
 
 func (t *Target) AssignNewDeployment() {
+	labels := map[string]string{}
+	for k, v := range DeploymentLabelsForNewBundle(t.Bundle) {
+		labels[k] = v
+	}
+	labels[fleet.ManagedLabel] = "true"
 	t.Deployment = &fleet.BundleDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.Bundle.Name,
 			Namespace: t.Cluster.Status.Namespace,
-			Labels:    DeploymentLabelsForNewBundle(t.Bundle),
-			Annotations: map[string]string{
-				fleet.ManagedAnnotation: "true",
-			},
+			Labels:    labels,
 		},
 	}
 }
