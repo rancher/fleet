@@ -113,7 +113,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	bundle := &localSpec{}
-	if err := yaml.Unmarshal(bytes, &bundle); err != nil {
+	if err := yaml.Unmarshal(bytes, bundle); err != nil {
 		return nil, err
 	}
 	bundle.BundleSpec.Targets = append(bundle.BundleSpec.Targets, bundle.TargetCustomizations...)
