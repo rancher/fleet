@@ -16,6 +16,7 @@ import (
 	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	"github.com/rancher/wrangler/pkg/yaml"
@@ -36,13 +37,17 @@ func Register(ctx context.Context,
 	gitJobs v1.GitJobController,
 	bundleDeployments fleetcontrollers.BundleDeploymentController,
 	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache,
+	bundles fleetcontrollers.BundleController,
 	gitRepos fleetcontrollers.GitRepoController) {
 	h := &handler{
 		gitjobCache:         gitJobs.Cache(),
+		bundleCache:         bundles.Cache(),
+		bundles:             bundles,
 		bundleDeployments:   bundleDeployments.Cache(),
 		gitRepoRestrictions: gitRepoRestrictions,
 	}
 
+	gitRepos.OnChange(ctx, "gitjob-purge", h.DeleteOnChange)
 	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "Accepted", "gitjobs", h.OnChange, nil)
 	relatedresource.Watch(ctx, "gitjobs",
 		relatedresource.OwnerResolver(true, fleet.SchemeGroupVersion.String(), "GitRepo"), gitRepos, gitJobs)
@@ -65,6 +70,8 @@ func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresour
 
 type handler struct {
 	gitjobCache         v1.GitJobCache
+	bundleCache         fleetcontrollers.BundleCache
+	bundles             fleetcontrollers.BundleClient
 	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache
 	bundleDeployments   fleetcontrollers.BundleDeploymentCache
 }
@@ -195,6 +202,29 @@ func aggregate(restrictions []*fleet.GitRepoRestriction) (result fleet.GitRepoRe
 		result.AllowedRepoPatterns = append(result.AllowedRepoPatterns, restriction.AllowedRepoPatterns...)
 	}
 	return
+}
+
+func (h *handler) DeleteOnChange(key string, gitrepo *fleet.GitRepo) (*fleet.GitRepo, error) {
+	if gitrepo != nil {
+		return gitrepo, nil
+	}
+
+	ns, name := kv.Split(key, "/")
+	bundles, err := h.bundleCache.List(ns, labels.SelectorFromSet(labels.Set{
+		RepoLabel: name,
+	}))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, bundle := range bundles {
+		err := h.bundles.Delete(bundle.Namespace, bundle.Name, nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return nil, nil
 }
 
 func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {

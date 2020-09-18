@@ -4,12 +4,14 @@ import (
 	"context"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/controllers/git"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/fleet/pkg/target"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/relatedresource"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -20,6 +22,7 @@ const (
 
 type handler struct {
 	targets *target.Manager
+	gitRepo fleetcontrollers.GitRepoCache
 	bundles fleetcontrollers.BundleController
 }
 
@@ -28,11 +31,13 @@ func Register(ctx context.Context,
 	targets *target.Manager,
 	bundles fleetcontrollers.BundleController,
 	clusters fleetcontrollers.ClusterController,
+	gitRepo fleetcontrollers.GitRepoCache,
 	bundleDeployments fleetcontrollers.BundleDeploymentController,
 ) {
 	h := &handler{
 		targets: targets,
 		bundles: bundles,
+		gitRepo: gitRepo,
 	}
 
 	fleetcontrollers.RegisterBundleGeneratingHandler(ctx,
@@ -47,6 +52,7 @@ func Register(ctx context.Context,
 
 	relatedresource.Watch(ctx, "app", h.resolveApp, bundles, bundleDeployments)
 	clusters.OnChange(ctx, "app", h.OnClusterChange)
+	bundles.OnChange(ctx, "bundle-orphan", h.OnPurgeOrphaned)
 }
 
 func (h *handler) resolveApp(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
@@ -79,6 +85,26 @@ func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Clus
 	}
 
 	return cluster, nil
+}
+
+func (h *handler) OnPurgeOrphaned(key string, bundle *fleet.Bundle) (*fleet.Bundle, error) {
+	if bundle == nil {
+		return bundle, nil
+	}
+
+	repo := bundle.Labels[git.RepoLabel]
+	if repo == "" {
+		return nil, nil
+	}
+
+	_, err := h.gitRepo.Get(bundle.Namespace, repo)
+	if apierrors.IsNotFound(err) {
+		return nil, h.bundles.Delete(bundle.Namespace, bundle.Name, nil)
+	} else if err != nil {
+		return nil, err
+	}
+
+	return bundle, nil
 }
 
 func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus) ([]runtime.Object, fleet.BundleStatus, error) {
