@@ -123,6 +123,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.TargetManager,
 		appCtx.Bundle(),
 		appCtx.Cluster(),
+		appCtx.GitRepo().Cache(),
 		appCtx.BundleDeployment())
 
 	clustergroup.Register(ctx,
@@ -149,6 +150,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.RBAC.RoleBinding(),
 			appCtx.RBAC.ClusterRole(),
 			appCtx.RBAC.ClusterRoleBinding(),
+			appCtx.Bundle(),
 			appCtx.ClusterRegistrationToken(),
 			appCtx.ClusterRegistration(),
 			appCtx.ClusterGroup(),
@@ -180,6 +182,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.GitJob.GitJob(),
 		appCtx.BundleDeployment(),
 		appCtx.GitRepoRestriction().Cache(),
+		appCtx.Bundle(),
 		appCtx.GitRepo())
 
 	bootstrap.Register(ctx,

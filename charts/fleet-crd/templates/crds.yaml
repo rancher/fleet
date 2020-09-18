@@ -1850,8 +1850,9 @@ spec:
       properties:
         spec:
           properties:
-            ttlSeconds:
-              type: integer
+            ttl:
+              nullable: true
+              type: string
           type: object
         status:
           properties:

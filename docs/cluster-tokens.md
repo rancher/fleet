@@ -35,8 +35,8 @@ metadata:
     name: new-token
     namespace: clusters
 spec:
-    # The number of seconds this token is valid after creation. A value <= 0 means infinite time.
-    ttlSeconds: 604800
+    # A duration string for how long this token is valid for. A value <= 0 or null means infinite time.
+    ttl: 240h
 ```
 
 ## Obtaining Token Value (Agent values.yaml)

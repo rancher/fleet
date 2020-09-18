@@ -25,7 +25,7 @@ import (
 type handler struct {
 	systemNamespace             string
 	systemRegistrationNamespace string
-	clusterRegistrationTokens   fleetcontrollers.ClusterRegistrationTokenClient
+	clusterRegistrationTokens   fleetcontrollers.ClusterRegistrationTokenController
 	serviceAccountCache         corecontrollers.ServiceAccountCache
 	secretsCache                corecontrollers.SecretCache
 }
@@ -83,15 +83,17 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		}
 	}
 
-	expireTime := token.CreationTimestamp.Add(time.Second * time.Duration(token.Spec.TTLSeconds))
-	status.Expires = metav1.Time{Time: expireTime}
+	status.Expires = nil
+	if token.Spec.TTL != nil {
+		status.Expires = &metav1.Time{Time: token.CreationTimestamp.Add(token.Spec.TTL.Duration)}
+	}
 	return append([]runtime.Object{
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      saName,
 				Namespace: token.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 		},
@@ -99,8 +101,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name.SafeConcatName(saName, "role"),
 				Namespace: token.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -115,8 +117,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name.SafeConcatName(saName, "to", "role"),
 				Namespace: token.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Subjects: []rbacv1.Subject{
@@ -169,6 +171,9 @@ func (h *handler) getValuesYAMLSecret(token *fleet.ClusterRegistrationToken, sec
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      token.Name,
 				Namespace: token.Namespace,
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
 			},
 			Immutable: nil,
 			Data: map[string][]byte{
@@ -181,14 +186,15 @@ func (h *handler) getValuesYAMLSecret(token *fleet.ClusterRegistrationToken, sec
 }
 
 func (h *handler) deleteExpired(token *fleet.ClusterRegistrationToken) (bool, error) {
-	ttl := token.Spec.TTLSeconds
-	if ttl <= 0 {
+	ttl := token.Spec.TTL
+	if ttl == nil || ttl.Duration <= 0 {
 		return false, nil
 	}
-	expire := token.CreationTimestamp.Add(time.Second * time.Duration(ttl))
+	expire := token.CreationTimestamp.Add(ttl.Duration)
 	if time.Now().After(expire) {
 		return true, h.clusterRegistrationTokens.Delete(token.Namespace, token.Name, nil)
 	}
 
+	h.clusterRegistrationTokens.EnqueueAfter(token.Namespace, token.Name, expire.Sub(time.Now()))
 	return false, nil
 }

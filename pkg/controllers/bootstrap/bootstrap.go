@@ -187,6 +187,9 @@ func (h *handler) getSecret(bootstrapNamespace string, cfg clientcmd.ClientConfi
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "local-cluster",
 			Namespace: bootstrapNamespace,
+			Labels: map[string]string{
+				fleet.ManagedLabel: "true",
+			},
 		},
 		Data: map[string][]byte{
 			"value":        value,

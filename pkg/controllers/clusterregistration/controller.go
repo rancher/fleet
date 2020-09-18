@@ -109,15 +109,7 @@ func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster
 				fleet.ClusterAnnotation: cluster.Name,
 			},
 			Annotations: map[string]string{
-				fleet.ManagedAnnotation: "true",
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: fleet.SchemeGroupVersion.String(),
-					Kind:       "Cluster",
-					Name:       cluster.Name,
-					UID:        cluster.UID,
-				},
+				fleet.ManagedLabel: "true",
 			},
 		},
 		Type: AgentCredentialSecretType,
@@ -162,6 +154,9 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		}
 	}
 
+	logrus.Infof("Cluster registration %s/%s, secret created [%v], granted [%v]",
+		request.Namespace, request.Name, len(objects) > 0, status.Granted)
+
 	if !status.Granted {
 		// try again 2 seconds later
 		h.clusterRegistration.EnqueueAfter(request.Namespace, request.Name, 2*time.Second)
@@ -174,7 +169,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				Name:      saName,
 				Namespace: cluster.Status.Namespace,
 				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+					fleet.ManagedLabel:      "true",
 					fleet.ClusterAnnotation: cluster.Name,
 				},
 			},
@@ -183,8 +178,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
 				Namespace: request.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -200,8 +195,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
 				Namespace: cluster.Status.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -221,8 +216,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
 				Namespace: cluster.Status.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Subjects: []rbacv1.Subject{
@@ -242,8 +237,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
 				Namespace: request.Namespace,
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Subjects: []rbacv1.Subject{
@@ -262,8 +257,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name.SafeConcatName(request.Namespace, request.Name),
-				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -278,7 +273,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name.SafeConcatName(request.Namespace, request.Name),
 				Annotations: map[string]string{
-					fleet.ManagedAnnotation: "true",
+					fleet.ManagedLabel: "true",
 				},
 			},
 			Subjects: []rbacv1.Subject{
