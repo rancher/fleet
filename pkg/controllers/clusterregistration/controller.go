@@ -111,14 +111,6 @@ func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster
 			Annotations: map[string]string{
 				fleet.ManagedLabel: "true",
 			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: fleet.SchemeGroupVersion.String(),
-					Kind:       "Cluster",
-					Name:       cluster.Name,
-					UID:        cluster.UID,
-				},
-			},
 		},
 		Type: AgentCredentialSecretType,
 		Data: map[string][]byte{
