@@ -5,7 +5,7 @@
 ![](./docs/arch.png)
 
 Fleet is GitOps at scale. Fleet is designed to manage up to a million clusters. It's also lightweight
-enought that is works great for a [single cluster](./single-cluster-install.md) too, but it really shines
+enough that is works great for a [single cluster](./single-cluster-install.md) too, but it really shines
 when you get to a large scale. By large scale we mean either a lot of clusters, a lot of deployments, or a lot of
 teams in a single organization.
 
@@ -15,7 +15,7 @@ deploy everything in the cluster. This give a high degree of control, consistenc
 the ability to scale, but to give one a high degree of control and visibility to exactly what is installed on the cluster.# Quick Start
 
 # Quick Start
-Who needs documentation, lets just run this thing!
+Who needs documentation, let's just run this thing!
 
 ## Install
 
