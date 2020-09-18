@@ -154,6 +154,9 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		}
 	}
 
+	logrus.Infof("Cluster registration %s/%s, secret created [%v], granted [%v]",
+		request.Namespace, request.Name, len(objects) > 0, status.Granted)
+
 	if !status.Granted {
 		// try again 2 seconds later
 		h.clusterRegistration.EnqueueAfter(request.Namespace, request.Name, 2*time.Second)
