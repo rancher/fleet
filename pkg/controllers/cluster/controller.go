@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/wrangler/pkg/apply"
@@ -86,7 +87,13 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 		return nil, status, err
 	}
 
-	status.Namespace = name.SafeConcatName("cluster", cluster.Namespace, cluster.Name)
+	if status.Namespace == "" {
+		ns := name.SafeConcatName("cluster",
+			cluster.Namespace,
+			cluster.Name,
+			clusterregistration.KeyHash(cluster.Namespace+"::"+cluster.Name))
+		status.Namespace = ns
+	}
 	status.Summary = fleet.BundleSummary{}
 
 	sort.Slice(bundleDeployments, func(i, j int) bool {
