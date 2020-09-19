@@ -17,7 +17,7 @@ metadata:
   name: myrepo
   namespace: clusters
 spec:
-  repo: http://github.com/rancher/fleet-examples
+  repo: https://github.com/rancher/fleet-examples
   bundleDirs:
   - simple
 

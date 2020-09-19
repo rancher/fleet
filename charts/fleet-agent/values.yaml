@@ -31,3 +31,7 @@ internal:
   systemNamespace: fleet-system
   managedReleaseName: fleet-agent
 
+global:
+  cattle:
+    systemDefaultRegistry: ""
+

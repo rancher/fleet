@@ -37,3 +37,7 @@ bootstrap:
   secret: ""
   branch: master
   paths: ""
+
+global:
+  cattle:
+    systemDefaultRegistry: ""
