@@ -34,4 +34,6 @@ internal:
 global:
   cattle:
     systemDefaultRegistry: ""
-
+  kubectl:
+    repository: rancher/kubectl
+    tag: v1.18.6
