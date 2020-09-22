@@ -24,9 +24,9 @@ func DeploymentID(manifest *manifest.Manifest, opts fleet.BundleDeploymentOption
 	return digest + ":" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func Calculate(spec *fleet.BundleSpec, target *fleet.BundleTarget) (fleet.BundleDeploymentOptions, error) {
+func Calculate(spec *fleet.BundleSpec, target *fleet.BundleTarget) fleet.BundleDeploymentOptions {
 	result := spec.BundleDeploymentOptions
-	return merge(result, target.BundleDeploymentOptions), nil
+	return merge(result, target.BundleDeploymentOptions)
 }
 
 func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptions {

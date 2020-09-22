@@ -2042,6 +2042,70 @@ spec:
               type: object
             observedGeneration:
               type: integer
+            resourceErrors:
+              items:
+                nullable: true
+                type: string
+              nullable: true
+              type: array
+            resources:
+              items:
+                properties:
+                  apiVersion:
+                    nullable: true
+                    type: string
+                  error:
+                    type: boolean
+                  id:
+                    nullable: true
+                    type: string
+                  incompleteState:
+                    type: boolean
+                  kind:
+                    nullable: true
+                    type: string
+                  message:
+                    nullable: true
+                    type: string
+                  name:
+                    nullable: true
+                    type: string
+                  namespace:
+                    nullable: true
+                    type: string
+                  perClusterState:
+                    items:
+                      properties:
+                        clusterId:
+                          nullable: true
+                          type: string
+                        error:
+                          type: boolean
+                        message:
+                          nullable: true
+                          type: string
+                        patch:
+                          nullable: true
+                          type: object
+                        state:
+                          nullable: true
+                          type: string
+                        transitioning:
+                          type: boolean
+                      type: object
+                    nullable: true
+                    type: array
+                  state:
+                    nullable: true
+                    type: string
+                  transitioning:
+                    type: boolean
+                  type:
+                    nullable: true
+                    type: string
+                type: object
+              nullable: true
+              type: array
             summary:
               properties:
                 desiredReady:

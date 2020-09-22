@@ -184,6 +184,15 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 		return nil, err
 	}
 
+	manifest, err := manifest.New(&bundle.Definition.Spec)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := m.contentStore.Store(manifest); err != nil {
+		return nil, err
+	}
+
 	namespaces, err := m.getNamespacesForBundle(fleetBundle)
 	if err != nil {
 		return nil, err
@@ -206,22 +215,9 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 				continue
 			}
 
-			manifest, err := match.Manifest()
-			if err != nil {
-				return nil, err
-			}
-
-			opts, err := options.Calculate(&fleetBundle.Spec, match.Target)
-			if err != nil {
-				return nil, err
-			}
-
+			opts := options.Calculate(&fleetBundle.Spec, match.Target)
 			deploymentID, err := options.DeploymentID(manifest, opts)
 			if err != nil {
-				return nil, err
-			}
-
-			if _, err := m.contentStore.Store(manifest); err != nil {
 				return nil, err
 			}
 

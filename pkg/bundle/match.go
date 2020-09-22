@@ -2,28 +2,12 @@ package bundle
 
 import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	manifest "github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/match"
 )
 
 type Match struct {
-	Target   *fleet.BundleTarget
-	Bundle   *Bundle
-	manifest *manifest.Manifest
-}
-
-func (t *Match) Manifest() (*manifest.Manifest, error) {
-	if t.manifest != nil {
-		return t.manifest, nil
-	}
-
-	manifest, err := manifest.New(&t.Bundle.Definition.Spec)
-	if err != nil {
-		return nil, err
-	}
-
-	t.manifest = manifest
-	return manifest, nil
+	Target *fleet.BundleTarget
+	Bundle *Bundle
 }
 
 func (a *Bundle) MatchForTarget(name string) *Match {
