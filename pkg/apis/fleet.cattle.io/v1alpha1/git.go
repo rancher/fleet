@@ -5,6 +5,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var (
+	RepoLabel = "fleet.cattle.io/repo-name"
+)
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -64,6 +68,8 @@ type GitRepoStatus struct {
 	Summary            BundleSummary                       `json:"summary,omitempty"`
 	Display            GitRepoDisplay                      `json:"display,omitempty"`
 	Conditions         []genericcondition.GenericCondition `json:"conditions,omitempty"`
+	Resources          []GitRepoResource                   `json:"resources,omitempty"`
+	ResourceErrors     []string                            `json:"resourceErrors,omitempty"`
 }
 
 type GitRepoDisplay struct {
@@ -84,4 +90,28 @@ type GitRepoRestriction struct {
 
 	DefaultClientSecretName  string   `json:"defaultClientSecretName,omitempty"`
 	AllowedClientSecretNames []string `json:"allowedClientSecretNames,omitempty"`
+}
+
+type GitRepoResource struct {
+	APIVersion      string                    `json:"apiVersion,omitempty"`
+	Kind            string                    `json:"kind,omitempty"`
+	Type            string                    `json:"type,omitempty"`
+	ID              string                    `json:"id,omitempty"`
+	Namespace       string                    `json:"namespace,omitempty"`
+	Name            string                    `json:"name,omitempty"`
+	IncompleteState bool                      `json:"incompleteState,omitempty"`
+	State           string                    `json:"state,omitempty"`
+	Error           bool                      `json:"error,omitempty"`
+	Transitioning   bool                      `json:"transitioning,omitempty"`
+	Message         string                    `json:"message,omitempty"`
+	PerClusterState []ResourcePerClusterState `json:"perClusterState,omitempty"`
+}
+
+type ResourcePerClusterState struct {
+	State         string      `json:"state,omitempty"`
+	Error         bool        `json:"error,omitempty"`
+	Transitioning bool        `json:"transitioning,omitempty"`
+	Message       string      `json:"message,omitempty"`
+	Patch         *GenericMap `json:"patch,omitempty"`
+	ClusterID     string      `json:"clusterId,omitempty"`
 }

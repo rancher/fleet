@@ -32,7 +32,10 @@ import (
 	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/start"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/api/meta"
+	memory "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -45,6 +48,7 @@ type appContext struct {
 	RBAC          rbaccontrollers.Interface
 	GitJob        gitcontrollers.Interface
 	TargetManager *target.Manager
+	RESTMapper    meta.RESTMapper
 	Apply         apply.Apply
 	ClientConfig  clientcmd.ClientConfig
 	starters      []start.Starter
@@ -173,6 +177,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Bundle())
 
 	git.Register(ctx,
+		appCtx.RESTMapper,
 		appCtx.Apply.WithCacheTypes(
 			appCtx.RBAC.Role(),
 			appCtx.RBAC.RoleBinding(),
@@ -261,6 +266,9 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 		return nil, err
 	}
 
+	mem := memory.NewMemCacheClient(k8s.Discovery())
+	restMapper := restmapper.NewDeferredDiscoveryRESTMapper(mem)
+
 	targetManager := target.New(
 		fleetv.Cluster().Cache(),
 		fleetv.ClusterGroup().Cache(),
@@ -271,6 +279,7 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 		fleetv.BundleDeployment().Cache())
 
 	return &appContext{
+		RESTMapper:    restMapper,
 		K8s:           k8s,
 		Apps:          appsv,
 		Interface:     fleetv,

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/controllers/git"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/fleet/pkg/target"
@@ -92,7 +91,7 @@ func (h *handler) OnPurgeOrphaned(key string, bundle *fleet.Bundle) (*fleet.Bund
 		return bundle, nil
 	}
 
-	repo := bundle.Labels[git.RepoLabel]
+	repo := bundle.Labels[fleet.RepoLabel]
 	if repo == "" {
 		return nil, nil
 	}

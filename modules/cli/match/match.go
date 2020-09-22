@@ -12,6 +12,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
 	"github.com/rancher/fleet/pkg/helmdeployer"
+	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
 	"github.com/rancher/wrangler/pkg/yaml"
 )
@@ -78,12 +79,9 @@ func printMatch(bundle *bundle.Bundle, m *bundle.Match, output io.Writer) error 
 		return nil
 	}
 
-	opts, err := options.Calculate(&bundle.Definition.Spec, m.Target)
-	if err != nil {
-		return err
-	}
+	opts := options.Calculate(&bundle.Definition.Spec, m.Target)
 
-	manifest, err := m.Manifest()
+	manifest, err := manifest.New(&bundle.Definition.Spec)
 	if err != nil {
 		return err
 	}

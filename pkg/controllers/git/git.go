@@ -11,11 +11,14 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
+	"github.com/rancher/fleet/pkg/display"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
+	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/genericcondition"
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
@@ -23,16 +26,15 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-)
-
-var (
-	RepoLabel = "fleet.cattle.io/repo-name"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func Register(ctx context.Context,
+	mapper meta.RESTMapper,
 	apply apply.Apply,
 	gitJobs v1.GitJobController,
 	bundleDeployments fleetcontrollers.BundleDeploymentController,
@@ -40,11 +42,13 @@ func Register(ctx context.Context,
 	bundles fleetcontrollers.BundleController,
 	gitRepos fleetcontrollers.GitRepoController) {
 	h := &handler{
+		mapper:              mapper,
 		gitjobCache:         gitJobs.Cache(),
 		bundleCache:         bundles.Cache(),
 		bundles:             bundles,
 		bundleDeployments:   bundleDeployments.Cache(),
 		gitRepoRestrictions: gitRepoRestrictions,
+		display:             display.NewFactory(bundles.Cache()),
 	}
 
 	gitRepos.OnChange(ctx, "gitjob-purge", h.DeleteOnChange)
@@ -56,7 +60,7 @@ func Register(ctx context.Context,
 
 func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if bundleDeployment, ok := obj.(*fleet.BundleDeployment); ok {
-		repo := bundleDeployment.Labels[RepoLabel]
+		repo := bundleDeployment.Labels[fleet.RepoLabel]
 		ns := bundleDeployment.Labels["fleet.cattle.io/bundle-namespace"]
 		if repo != "" && ns != "" {
 			return []relatedresource.Key{{
@@ -69,11 +73,14 @@ func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresour
 }
 
 type handler struct {
+	mapper              meta.RESTMapper
+	shareClientFactory  client.SharedClientFactory
 	gitjobCache         v1.GitJobCache
 	bundleCache         fleetcontrollers.BundleCache
 	bundles             fleetcontrollers.BundleClient
 	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache
 	bundleDeployments   fleetcontrollers.BundleDeploymentCache
+	display             *display.Factory
 }
 
 func targetsOrDefault(targets []fleet.GitTarget) []fleet.GitTarget {
@@ -211,7 +218,7 @@ func (h *handler) DeleteOnChange(key string, gitrepo *fleet.GitRepo) (*fleet.Git
 
 	ns, name := kv.Split(key, "/")
 	bundles, err := h.bundleCache.List(ns, labels.SelectorFromSet(labels.Set{
-		RepoLabel: name,
+		fleet.RepoLabel: name,
 	}))
 	if err != nil {
 		return nil, err
@@ -227,13 +234,37 @@ func (h *handler) DeleteOnChange(key string, gitrepo *fleet.GitRepo) (*fleet.Git
 	return nil, nil
 }
 
+func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
+	mapping, err := h.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return true
+	}
+	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
+}
+
+func mergeConditions(existing, next []genericcondition.GenericCondition) []genericcondition.GenericCondition {
+	result := make([]genericcondition.GenericCondition, 0, len(existing)+len(next))
+	names := map[string]int{}
+	for i, existing := range existing {
+		result = append(result, existing)
+		names[existing.Type] = i
+	}
+	for _, next := range next {
+		if i, ok := names[next.Type]; ok {
+			result[i] = next
+		} else {
+			result = append(result, next)
+		}
+	}
+	return result
+}
+
 func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
 	gitrepo, err := h.authorizeAndAssignDefaults(gitrepo)
 	if err != nil {
 		return nil, status, err
 	}
 
-	status.Conditions = nil
 	status.ObservedGeneration = gitrepo.Generation
 
 	status, err = h.setBundleDeploymentStatus(gitrepo, status)
@@ -249,10 +280,9 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	gitJob, err := h.gitjobCache.Get(gitrepo.Namespace, gitrepo.Name)
 	if err == nil {
 		status.Commit = gitJob.Status.Commit
-		status.Conditions = append(status.Conditions, gitJob.Status.Conditions...)
+		status.Conditions = mergeConditions(status.Conditions, gitJob.Status.Conditions)
 	} else {
 		status.Commit = ""
-		status.Conditions = nil
 	}
 
 	branch, rev := gitrepo.Spec.Branch, gitrepo.Spec.Revision
@@ -276,6 +306,8 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	}
 
 	saName := name.SafeConcatName("git", gitrepo.Name)
+
+	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, h.isNamespaced)
 	return []runtime.Object{
 		configMap,
 		&corev1.ServiceAccount{
@@ -368,7 +400,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 										"fleet",
 										"apply",
 										"--targets-file=/run/config/targets.yaml",
-										"--label=" + RepoLabel + "=" + gitrepo.Name,
+										"--label=" + fleet.RepoLabel + "=" + gitrepo.Name,
 										"--namespace", gitrepo.Namespace,
 										"--service-account", gitrepo.Spec.ServiceAccount,
 										"--sync-before", syncBefore,
@@ -397,7 +429,7 @@ func (h *handler) setBundleDeploymentStatus(gitrepo *fleet.GitRepo, status fleet
 	}
 
 	bundleDeployments, err := h.bundleDeployments.List("", labels.SelectorFromSet(labels.Set{
-		RepoLabel:                          gitrepo.Name,
+		fleet.RepoLabel:                    gitrepo.Name,
 		"fleet.cattle.io/bundle-namespace": gitrepo.Namespace,
 	}))
 	if err != nil {
