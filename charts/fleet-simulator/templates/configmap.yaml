@@ -5,6 +5,8 @@ metadata:
 data:
   config: |-
     {
-      "labels":{{toJson .Values.labels}}
+      {{ if .Values.labels }}
+      "labels":{{toJson .Values.labels}},
+      {{ end }}
       "clientID":"{{.Values.clientID}}"
     }
