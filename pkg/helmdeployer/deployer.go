@@ -293,7 +293,6 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u.Force = options.Helm.Force
 	u.Namespace = namespace
 	u.Timeout = timeout
-	u.Atomic = true
 	u.DryRun = dryRun
 	u.PostRenderer = pr
 	if u.Timeout > 0 {
