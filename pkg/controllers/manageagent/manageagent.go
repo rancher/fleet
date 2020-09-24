@@ -25,6 +25,7 @@ type handler struct {
 	apply           apply.Apply
 	systemNamespace string
 	clusterCache    fleetcontrollers.ClusterCache
+	bundleCache     fleetcontrollers.BundleCache
 }
 
 func Register(ctx context.Context,
@@ -37,6 +38,7 @@ func Register(ctx context.Context,
 	h := handler{
 		systemNamespace: systemNamespace,
 		clusterCache:    clusters.Cache(),
+		bundleCache:     bundle.Cache(),
 		apply: apply.
 			WithSetID("fleet-manage-agent").
 			WithCacheTypes(bundle),
@@ -48,7 +50,9 @@ func Register(ctx context.Context,
 
 func (h *handler) resolveNS(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if _, ok := obj.(*fleet.Cluster); ok {
-		return []relatedresource.Key{{Name: namespace}}, nil
+		if _, err := h.bundleCache.Get(namespace, agentBundleName); err != nil {
+			return []relatedresource.Key{{Name: namespace}}, nil
+		}
 	}
 	return nil, nil
 }
