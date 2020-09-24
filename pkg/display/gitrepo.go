@@ -32,7 +32,7 @@ type key struct {
 	Name       string
 }
 
-func (b *Factory) Render(namespace, name string, isNSed func(schema.GroupVersionKind) bool) ([]fleet.GitRepoResource, []string) {
+func (b *Factory) Render(namespace, name string, waitApplied bool, isNSed func(schema.GroupVersionKind) bool) ([]fleet.GitRepoResource, []string) {
 	var (
 		resources []fleet.GitRepoResource
 		errors    []string
@@ -64,7 +64,7 @@ func (b *Factory) Render(namespace, name string, isNSed func(schema.GroupVersion
 		}
 
 		for k, state := range bundleResources {
-			resource := toResourceState(k, state, incomplete)
+			resource := toResourceState(k, state, incomplete, waitApplied)
 			resources = append(resources, resource)
 		}
 	}
@@ -77,7 +77,7 @@ func (b *Factory) Render(namespace, name string, isNSed func(schema.GroupVersion
 	return resources, errors
 }
 
-func toResourceState(k key, state []fleet.ResourcePerClusterState, incomplete bool) fleet.GitRepoResource {
+func toResourceState(k key, state []fleet.ResourcePerClusterState, incomplete, waitApplied bool) fleet.GitRepoResource {
 	resource := fleet.GitRepoResource{
 		APIVersion:      k.APIVersion,
 		Kind:            k.Kind,
@@ -98,7 +98,13 @@ func toResourceState(k key, state []fleet.ResourcePerClusterState, incomplete bo
 
 	if resource.State == "" {
 		if resource.IncompleteState {
-			resource.State = "Unknown"
+			if waitApplied {
+				resource.State = "WaitApplied"
+			} else {
+				resource.State = "Unknown"
+			}
+		} else if waitApplied {
+			resource.State = "WaitApplied"
 		} else {
 			resource.State = "Ready"
 		}

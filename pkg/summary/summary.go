@@ -60,6 +60,27 @@ func Increment(left *fleet.BundleSummary, right fleet.BundleSummary) {
 	}
 }
 
+func IncrementResourceCounts(left *fleet.GitRepoResourceCounts, right fleet.GitRepoResourceCounts) {
+	left.Ready += right.Ready
+	left.DesiredReady += right.DesiredReady
+	left.WaitApplied += right.WaitApplied
+	left.Modified += right.Modified
+	left.Orphaned += right.Orphaned
+	left.Missing += right.Missing
+	left.Unknown += right.Unknown
+	left.NotReady += right.NotReady
+}
+
+func GetSummaryState(summary fleet.BundleSummary) fleet.BundleState {
+	var state fleet.BundleState
+	for _, nonReady := range summary.NonReadyResources {
+		if fleet.StateRank[nonReady.State] > fleet.StateRank[state] {
+			state = nonReady.State
+		}
+	}
+	return state
+}
+
 func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleState {
 	switch {
 	case bundleDeployment.Status.AppliedDeploymentID != bundleDeployment.Spec.DeploymentID:

@@ -65,7 +65,7 @@ func Register(ctx context.Context,
 func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if bundleDeployment, ok := obj.(*fleet.BundleDeployment); ok {
 		repo := bundleDeployment.Labels[fleet.RepoLabel]
-		ns := bundleDeployment.Labels["fleet.cattle.io/bundle-namespace"]
+		ns := bundleDeployment.Labels[fleet.BundleNamespaceLabel]
 		if repo != "" && ns != "" {
 			return []relatedresource.Key{{
 				Namespace: ns,
@@ -271,7 +271,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 
 	status.ObservedGeneration = gitrepo.Generation
 
-	status, err = h.setBundleDeploymentStatus(gitrepo, status)
+	status, err = h.setBundleStatus(gitrepo, status)
 	if err != nil {
 		return nil, status, err
 	}
@@ -311,7 +311,8 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 
 	saName := name.SafeConcatName("git", gitrepo.Name)
 
-	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, h.isNamespaced)
+	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, status.Summary.WaitApplied > 0, h.isNamespaced)
+	status = countResources(status)
 	return []runtime.Object{
 		configMap,
 		&corev1.ServiceAccount{
@@ -428,7 +429,33 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	}, status, nil
 }
 
-func (h *handler) setBundleDeploymentStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (fleet.GitRepoStatus, error) {
+func countResources(status fleet.GitRepoStatus) fleet.GitRepoStatus {
+	status.ResourceCounts = fleet.GitRepoResourceCounts{}
+
+	for _, resource := range status.Resources {
+		status.ResourceCounts.DesiredReady++
+		switch resource.State {
+		case "Ready":
+			status.ResourceCounts.Ready++
+		case "WaitApplied":
+			status.ResourceCounts.WaitApplied++
+		case "Modified":
+			status.ResourceCounts.Modified++
+		case "Orphan":
+			status.ResourceCounts.Orphaned++
+		case "Missing":
+			status.ResourceCounts.Missing++
+		case "Unknown":
+			status.ResourceCounts.Unknown++
+		default:
+			status.ResourceCounts.NotReady++
+		}
+	}
+
+	return status
+}
+
+func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (fleet.GitRepoStatus, error) {
 	if gitrepo.DeletionTimestamp != nil {
 		return status, nil
 	}
@@ -461,7 +488,38 @@ func (h *handler) setBundleDeploymentStatus(gitrepo *fleet.GitRepo, status fleet
 		maxState = ""
 	}
 
+	bundles, err := h.bundleCache.List(gitrepo.Namespace, labels.SelectorFromSet(labels.Set{
+		fleet.RepoLabel: gitrepo.Name,
+	}))
+	if err != nil {
+		return status, err
+	}
+
+	sort.Slice(bundles, func(i, j int) bool {
+		return bundles[i].Name < bundles[j].Name
+	})
+
+	var (
+		clustersDesiredReady int
+		clustersReady        = -1
+	)
+
+	for _, bundle := range bundles {
+		if bundle.Status.Summary.DesiredReady > 0 {
+			clustersDesiredReady = bundle.Status.Summary.DesiredReady
+			if clustersReady < 0 || bundle.Status.Summary.Ready < clustersReady {
+				clustersReady = bundle.Status.Summary.Ready
+			}
+		}
+	}
+
+	if clustersReady < 0 {
+		clustersReady = 0
+	}
+
 	status.Display.State = string(maxState)
+	status.DesiredReadyClusters = clustersDesiredReady
+	status.ReadyClusters = clustersReady
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)
 	return status, nil
 }

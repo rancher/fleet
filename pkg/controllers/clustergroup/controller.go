@@ -80,6 +80,7 @@ func (h *handler) OnClusterGroup(clusterGroup *fleet.ClusterGroup, status fleet.
 	}
 
 	status.Summary = fleet.BundleSummary{}
+	status.ResourceCounts = fleet.GitRepoResourceCounts{}
 	status.ClusterCount = 0
 	status.NonReadyClusterCount = 0
 	status.NonReadyClusters = nil
@@ -89,6 +90,7 @@ func (h *handler) OnClusterGroup(clusterGroup *fleet.ClusterGroup, status fleet.
 	})
 
 	for _, cluster := range clusters {
+		summary.IncrementResourceCounts(&status.ResourceCounts, cluster.Status.ResourceCounts)
 		summary.Increment(&status.Summary, cluster.Status.Summary)
 		status.ClusterCount++
 		if !summary.IsReady(cluster.Status.Summary) {

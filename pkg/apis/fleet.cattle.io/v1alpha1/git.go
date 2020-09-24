@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	RepoLabel = "fleet.cattle.io/repo-name"
+	RepoLabel            = "fleet.cattle.io/repo-name"
+	BundleNamespaceLabel = "fleet.cattle.io/bundle-namespace"
 )
 
 // +genclient
@@ -63,13 +64,27 @@ type GitTarget struct {
 }
 
 type GitRepoStatus struct {
-	ObservedGeneration int64                               `json:"observedGeneration"`
-	Commit             string                              `json:"commit,omitempty"`
-	Summary            BundleSummary                       `json:"summary,omitempty"`
-	Display            GitRepoDisplay                      `json:"display,omitempty"`
-	Conditions         []genericcondition.GenericCondition `json:"conditions,omitempty"`
-	Resources          []GitRepoResource                   `json:"resources,omitempty"`
-	ResourceErrors     []string                            `json:"resourceErrors,omitempty"`
+	ObservedGeneration   int64                               `json:"observedGeneration"`
+	Commit               string                              `json:"commit,omitempty"`
+	ReadyClusters        int                                 `json:"readyClusters"`
+	DesiredReadyClusters int                                 `json:"desiredReadyClusters"`
+	Summary              BundleSummary                       `json:"summary,omitempty"`
+	Display              GitRepoDisplay                      `json:"display,omitempty"`
+	Conditions           []genericcondition.GenericCondition `json:"conditions,omitempty"`
+	Resources            []GitRepoResource                   `json:"resources,omitempty"`
+	ResourceCounts       GitRepoResourceCounts               `json:"resourceCounts,omitempty"`
+	ResourceErrors       []string                            `json:"resourceErrors,omitempty"`
+}
+
+type GitRepoResourceCounts struct {
+	Ready        int `json:"ready"`
+	DesiredReady int `json:"desiredReady"`
+	WaitApplied  int `json:"waitApplied"`
+	Modified     int `json:"modified"`
+	Orphaned     int `json:"orphaned"`
+	Missing      int `json:"missing"`
+	Unknown      int `json:"unknown"`
+	NotReady     int `json:"notReady"`
 }
 
 type GitRepoDisplay struct {
