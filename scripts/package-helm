@@ -33,7 +33,7 @@ sed -i \
     build/charts/fleet-agent/Chart.yaml
 
 sed -i \
-    -e 's/tag:.*/tag: '${HELM_TAG}'/' \
+    -e 's/tag: dev/tag: '${HELM_TAG}'/' \
     build/charts/fleet-agent/values.yaml
 
 go run ./pkg/codegen crds ./build/charts/fleet-crd/templates/crds.yaml
