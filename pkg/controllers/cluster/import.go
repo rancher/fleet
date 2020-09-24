@@ -60,9 +60,10 @@ func agentDeployed(cluster *fleet.Cluster) bool {
 	if cluster.Status.AgentLastDeployed == nil {
 		return false
 	}
-	return cluster.Spec.ForceUpdateAgent == nil ||
-		cluster.Spec.ForceUpdateAgent.Time.After(time.Now().Add(-15*time.Minute)) ||
-		cluster.Spec.ForceUpdateAgent.Before(cluster.Status.AgentLastDeployed)
+	if cluster.Spec.ForceUpdateAgent == nil {
+		return true
+	}
+	return !cluster.Status.AgentLastDeployed.Before(cluster.Spec.ForceUpdateAgent)
 }
 
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
@@ -173,7 +174,11 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
-	now := metav1.Now()
-	status.AgentLastDeployed = &now
+	if cluster.Spec.ForceUpdateAgent != nil {
+		status.AgentLastDeployed = cluster.Spec.ForceUpdateAgent
+	} else {
+		now := metav1.Now()
+		status.AgentLastDeployed = &now
+	}
 	return status, nil
 }
