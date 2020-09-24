@@ -33,14 +33,7 @@ func (h *handler) OnBundleChange(_ *fleet.Bundle, status fleet.BundleStatus) (fl
 	status.Display.ReadyClusters = fmt.Sprintf("%d/%d",
 		status.Summary.Ready,
 		status.Summary.DesiredReady)
-
-	var state fleet.BundleState
-	for _, nonReady := range status.Summary.NonReadyResources {
-		if fleet.StateRank[nonReady.State] > fleet.StateRank[state] {
-			state = nonReady.State
-		}
-	}
-	status.Display.State = string(state)
+	status.Display.State = string(summary.GetSummaryState(status.Summary))
 
 	return status, nil
 }

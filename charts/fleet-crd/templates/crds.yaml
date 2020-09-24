@@ -1390,6 +1390,25 @@ spec:
                 type: string
               nullable: true
               type: array
+            resourceCounts:
+              properties:
+                desiredReady:
+                  type: integer
+                missing:
+                  type: integer
+                modified:
+                  type: integer
+                notReady:
+                  type: integer
+                orphaned:
+                  type: integer
+                ready:
+                  type: integer
+                unknown:
+                  type: integer
+                waitApplied:
+                  type: integer
+              type: object
             summary:
               properties:
                 desiredReady:
@@ -1650,6 +1669,8 @@ spec:
                 type: object
               nullable: true
               type: array
+            desiredReadyGitRepos:
+              type: integer
             display:
               properties:
                 readyBundles:
@@ -1668,6 +1689,27 @@ spec:
             namespace:
               nullable: true
               type: string
+            readyGitRepos:
+              type: integer
+            resourceCounts:
+              properties:
+                desiredReady:
+                  type: integer
+                missing:
+                  type: integer
+                modified:
+                  type: integer
+                notReady:
+                  type: integer
+                orphaned:
+                  type: integer
+                ready:
+                  type: integer
+                unknown:
+                  type: integer
+                waitApplied:
+                  type: integer
+              type: object
             summary:
               properties:
                 desiredReady:
@@ -2031,6 +2073,8 @@ spec:
                 type: object
               nullable: true
               type: array
+            desiredReadyClusters:
+              type: integer
             display:
               properties:
                 readyBundleDeployments:
@@ -2042,6 +2086,27 @@ spec:
               type: object
             observedGeneration:
               type: integer
+            readyClusters:
+              type: integer
+            resourceCounts:
+              properties:
+                desiredReady:
+                  type: integer
+                missing:
+                  type: integer
+                modified:
+                  type: integer
+                notReady:
+                  type: integer
+                orphaned:
+                  type: integer
+                ready:
+                  type: integer
+                unknown:
+                  type: integer
+                waitApplied:
+                  type: integer
+              type: object
             resourceErrors:
               items:
                 nullable: true

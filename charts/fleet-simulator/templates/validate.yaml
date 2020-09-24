@@ -1,3 +1,0 @@
-{{if not .Values.apiServerURL }}
-{{ fail "apiServerURL is required to be set, and most likely also apiServerCA" }}
-{{end}}

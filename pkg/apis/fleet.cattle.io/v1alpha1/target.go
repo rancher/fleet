@@ -37,6 +37,7 @@ type ClusterGroupStatus struct {
 	Conditions           []genericcondition.GenericCondition `json:"conditions,omitempty"`
 	Summary              BundleSummary                       `json:"summary,omitempty"`
 	Display              ClusterGroupDisplay                 `json:"display,omitempty"`
+	ResourceCounts       GitRepoResourceCounts               `json:"resourceCounts,omitempty"`
 }
 
 type ClusterGroupDisplay struct {
@@ -64,10 +65,14 @@ type ClusterSpec struct {
 }
 
 type ClusterStatus struct {
-	Conditions        []genericcondition.GenericCondition `json:"conditions,omitempty"`
-	Namespace         string                              `json:"namespace,omitempty"`
-	Summary           BundleSummary                       `json:"summary,omitempty"`
-	AgentLastDeployed *metav1.Time                        `json:"agentLastDeployed,omitempty"`
+	Conditions           []genericcondition.GenericCondition `json:"conditions,omitempty"`
+	Namespace            string                              `json:"namespace,omitempty"`
+	Summary              BundleSummary                       `json:"summary,omitempty"`
+	ResourceCounts       GitRepoResourceCounts               `json:"resourceCounts,omitempty"`
+	ReadyGitRepos        int                                 `json:"readyGitRepos,omitempty"`
+	DesiredReadyGitRepos int                                 `json:"desiredReadyGitRepos,omitempty"`
+
+	AgentLastDeployed *metav1.Time `json:"agentLastDeployed,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`

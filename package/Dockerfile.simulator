@@ -1,3 +1,0 @@
-FROM rancher/k3s:v1.17.4-k3s1
-COPY package/simulator bin/fleetagent /usr/bin/
-ENTRYPOINT ["simulator"]

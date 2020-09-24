@@ -1,0 +1,4 @@
+uninstalling
+store does not differentiate between notfound and error
+maxhistory is a global field
+install needs max-history because of replace

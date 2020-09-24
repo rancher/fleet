@@ -9,6 +9,7 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/condition"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/name"
@@ -24,12 +25,19 @@ type handler struct {
 	clusters         fleetcontrollers.ClusterCache
 	clusterGroups    fleetcontrollers.ClusterGroupCache
 	bundleDeployment fleetcontrollers.BundleDeploymentCache
+	gitRepos         fleetcontrollers.GitRepoCache
+}
+
+type repoKey struct {
+	repo string
+	ns   string
 }
 
 func Register(ctx context.Context,
 	bundleDeployment fleetcontrollers.BundleDeploymentController,
 	clusterGroups fleetcontrollers.ClusterGroupCache,
 	clusters fleetcontrollers.ClusterController,
+	gitRepos fleetcontrollers.GitRepoCache,
 	namespaces corecontrollers.NamespaceController, apply apply.Apply) {
 
 	h := &handler{
@@ -37,6 +45,7 @@ func Register(ctx context.Context,
 		clusterGroups:    clusterGroups,
 		clusters:         clusters.Cache(),
 		bundleDeployment: bundleDeployment.Cache(),
+		gitRepos:         gitRepos,
 	}
 
 	fleetcontrollers.RegisterClusterGeneratingHandler(ctx,
@@ -94,16 +103,38 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 			clusterregistration.KeyHash(cluster.Namespace+"::"+cluster.Name))
 		status.Namespace = ns
 	}
+
+	status.DesiredReadyGitRepos = 0
+	status.ReadyGitRepos = 0
+	status.ResourceCounts = fleet.GitRepoResourceCounts{}
 	status.Summary = fleet.BundleSummary{}
 
 	sort.Slice(bundleDeployments, func(i, j int) bool {
 		return bundleDeployments[i].Name < bundleDeployments[j].Name
 	})
 
+	repos := map[repoKey]struct{}{}
 	for _, app := range bundleDeployments {
 		state := summary.GetDeploymentState(app)
 		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus, app.Status.NonReadyStatus)
 		status.Summary.DesiredReady++
+
+		repo := app.Labels[fleet.RepoLabel]
+		ns := app.Labels[fleet.BundleNamespaceLabel]
+		if repo != "" && ns != "" {
+			repos[repoKey{repo: repo, ns: ns}] = struct{}{}
+		}
+	}
+
+	for repo := range repos {
+		gitrepo, err := h.gitRepos.Get(repo.ns, repo.repo)
+		if err == nil {
+			summary.IncrementResourceCounts(&status.ResourceCounts, gitrepo.Status.ResourceCounts)
+		}
+		status.DesiredReadyGitRepos++
+		if condition.Cond("Ready").IsTrue(gitrepo) {
+			status.ReadyGitRepos++
+		}
 	}
 
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)

@@ -20,6 +20,7 @@ type DeployedBundle struct {
 type Deployer interface {
 	Deploy(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*Resources, error)
 	ListDeployments() ([]DeployedBundle, error)
+	EnsureInstalled(bundleID, resourcesID string) (bool, error)
 	Resources(bundleID, resourcesID string) (*Resources, error)
 	Delete(bundleID, releaseName string) error
 }

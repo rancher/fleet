@@ -2,10 +2,13 @@ package helmdeployer
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -29,29 +32,32 @@ import (
 
 const (
 	BundleIDAnnotation           = "fleet.cattle.io/bundle-id"
+	AgentNamespaceAnnotation     = "fleet.cattle.io/agent-namespace"
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleetDefault"
 )
 
+var ErrNoRelease = errors.New("failed to find release")
+
 type helm struct {
-	serviceAccountNamespace string
-	serviceAccountCache     corecontrollers.ServiceAccountCache
-	getter                  genericclioptions.RESTClientGetter
-	globalCfg               action.Configuration
-	useGlobalCfg            bool
-	template                bool
-	defaultNamespace        string
-	labelPrefix             string
+	agentNamespace      string
+	serviceAccountCache corecontrollers.ServiceAccountCache
+	getter              genericclioptions.RESTClientGetter
+	globalCfg           action.Configuration
+	useGlobalCfg        bool
+	template            bool
+	defaultNamespace    string
+	labelPrefix         string
 }
 
 func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclioptions.RESTClientGetter,
 	serviceAccountCache corecontrollers.ServiceAccountCache) (deployer.Deployer, error) {
 	h := &helm{
-		getter:                  getter,
-		defaultNamespace:        defaultNamespace,
-		serviceAccountNamespace: namespace,
-		serviceAccountCache:     serviceAccountCache,
-		labelPrefix:             labelPrefix,
+		getter:              getter,
+		defaultNamespace:    defaultNamespace,
+		agentNamespace:      namespace,
+		serviceAccountCache: serviceAccountCache,
+		labelPrefix:         labelPrefix,
 	}
 	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
 		return nil, err
@@ -139,6 +145,7 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	}
 	chart.Metadata.Annotations[ServiceAccountNameAnnotation] = options.ServiceAccount
 	chart.Metadata.Annotations[BundleIDAnnotation] = bundleID
+	chart.Metadata.Annotations[AgentNamespaceAnnotation] = h.agentNamespace
 
 	if resources, err := h.install(bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
@@ -288,7 +295,6 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u.Force = options.Helm.Force
 	u.Namespace = namespace
 	u.Timeout = timeout
-	u.Atomic = true
 	u.DryRun = dryRun
 	u.PostRenderer = pr
 	if u.Timeout > 0 {
@@ -313,8 +319,12 @@ func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
 	)
 
 	for _, release := range releases {
-		d := release.Chart.Metadata.Annotations["fleet.cattle.io/bundle-id"]
+		d := release.Chart.Metadata.Annotations[BundleIDAnnotation]
 		if d == "" {
+			continue
+		}
+		ns := release.Chart.Metadata.Annotations[AgentNamespaceAnnotation]
+		if ns != "" && ns != h.agentNamespace {
 			continue
 		}
 		result = append(result, deployer.DeployedBundle{
@@ -326,7 +336,7 @@ func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
 	return result, nil
 }
 
-func (h *helm) Resources(bundleID, resourcesID string) (*deployer.Resources, error) {
+func (h *helm) getRelease(bundleID, resourcesID string) (*release.Release, error) {
 	hist := action.NewHistory(&h.globalCfg)
 
 	namespace, name := kv.Split(resourcesID, "/")
@@ -338,17 +348,38 @@ func (h *helm) Resources(bundleID, resourcesID string) (*deployer.Resources, err
 	}
 
 	releases, err := hist.Run(releaseName)
-	if err != nil {
+	if err == driver.ErrReleaseNotFound {
+		return nil, ErrNoRelease
+	} else if err != nil {
 		return nil, err
 	}
 
 	for _, release := range releases {
 		if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
-			return releaseToResources(release)
+			return release, nil
 		}
 	}
 
-	return &deployer.Resources{}, nil
+	return nil, ErrNoRelease
+}
+
+func (h *helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
+	if _, err := h.getRelease(bundleID, resourcesID); err == ErrNoRelease {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (h *helm) Resources(bundleID, resourcesID string) (*deployer.Resources, error) {
+	release, err := h.getRelease(bundleID, resourcesID)
+	if err == ErrNoRelease {
+		return &deployer.Resources{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return releaseToResources(release)
 }
 
 func (h *helm) Delete(bundleID, releaseName string) error {
@@ -363,7 +394,8 @@ func (h *helm) deleteByRelease(bundleID, releaseName string) error {
 	rels, err := h.globalCfg.Releases.List(func(r *release.Release) bool {
 		return r.Namespace == releaseNamespace &&
 			r.Name == releaseName &&
-			r.Chart.Metadata.Annotations[BundleIDAnnotation] == bundleID
+			r.Chart.Metadata.Annotations[BundleIDAnnotation] == bundleID &&
+			r.Chart.Metadata.Annotations[AgentNamespaceAnnotation] == h.agentNamespace
 	})
 	if err != nil {
 		return nil

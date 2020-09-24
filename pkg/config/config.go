@@ -43,6 +43,7 @@ type Config struct {
 	GithubURLPrefix                 string            `json:"githubURLPrefix,omitempty"`
 	WebhookReceiverURL              string            `json:"webhookReceiverURL,omitempty"`
 	IgnoreClusterRegistrationLabels bool              `json:"ignoreClusterRegistrationLabels,omitempty"`
+	IgnoreAgentNamespaceCheck       bool              `json:"ignoreAgentNamespaceCheck,omitempty"`
 }
 
 type Bootstrap struct {

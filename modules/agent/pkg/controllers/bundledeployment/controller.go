@@ -112,10 +112,6 @@ func shouldRedeploy(bd *fleet.BundleDeployment) bool {
 	if bd.Status.ForceSync == nil {
 		return true
 	}
-	if bd.Spec.Options.ForceSyncBefore.Time.After(time.Now().Add(-15 * time.Minute)) {
-		return false
-	}
-
 	return bd.Status.ForceSync.Before(bd.Spec.Options.ForceSyncBefore)
 }
 

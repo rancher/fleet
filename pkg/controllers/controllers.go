@@ -112,6 +112,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.BundleDeployment(),
 		appCtx.ClusterGroup().Cache(),
 		appCtx.Cluster(),
+		appCtx.GitRepo().Cache(),
 		appCtx.Core.Namespace(),
 		appCtx.Apply.WithCacheTypes(
 			appCtx.Core.Namespace()))
