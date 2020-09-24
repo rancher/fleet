@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -28,6 +29,7 @@ const (
 	BootstrapCredName   = "fleet-agent-bootstrap"
 	Kubeconfig          = "kubeconfig"
 	Token               = "token"
+	Values              = "values"
 	APIServerURL        = "apiServerURL"
 	APIServerCA         = "apiServerCA"
 	SystemNamespace     = "systemNamespace"
@@ -163,7 +165,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 	}
 
 	secretName := registration.SecretName(request.Spec.ClientID, request.Spec.ClientRandom)
-	secretNamespace := string(secret.Data["systemRegistrationNamespace"])
+	secretNamespace := string(values(secret.Data)["systemRegistrationNamespace"])
 	timeout := time.After(30 * time.Minute)
 
 	for {
@@ -224,11 +226,32 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 	}
 }
 
+func values(data map[string][]byte) map[string][]byte {
+	values := data[Values]
+	if len(values) == 0 {
+		return data
+	}
+
+	newData := map[string]interface{}{}
+	if err := yaml.Unmarshal(values, &newData); err != nil {
+		return data
+	}
+
+	data = map[string][]byte{}
+	for k, v := range newData {
+		if s, ok := v.(string); ok {
+			data[k] = []byte(s)
+		}
+	}
+	return data
+}
+
 func createClientConfigFromSecret(secret *corev1.Secret) clientcmd.ClientConfig {
-	apiServerURL := string(secret.Data[APIServerURL])
-	apiServerCA := secret.Data[APIServerCA]
-	namespace := string(secret.Data[ClusterNamespace])
-	token := string(secret.Data[Token])
+	data := values(secret.Data)
+	apiServerURL := string(data[APIServerURL])
+	apiServerCA := data[APIServerCA]
+	namespace := string(data[ClusterNamespace])
+	token := string(data[Token])
 
 	cfg := clientcmdapi.Config{
 		Clusters: map[string]*clientcmdapi.Cluster{
