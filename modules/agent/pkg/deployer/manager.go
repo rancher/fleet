@@ -107,7 +107,11 @@ func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
 
 func (m *Manager) Deploy(bd *fleet.BundleDeployment) (string, error) {
 	if bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
-		return bd.Status.Release, nil
+		if ok, err := m.deployer.EnsureInstalled(bd.Name, bd.Status.Release); err != nil {
+			return "", err
+		} else if ok {
+			return bd.Status.Release, nil
+		}
 	}
 
 	manifestID, _ := kv.Split(bd.Spec.DeploymentID, ":")

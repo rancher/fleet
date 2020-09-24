@@ -2,10 +2,13 @@ package helmdeployer
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -32,6 +35,8 @@ const (
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleetDefault"
 )
+
+var ErrNoRelease = errors.New("failed to find release")
 
 type helm struct {
 	serviceAccountNamespace string
@@ -326,7 +331,7 @@ func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
 	return result, nil
 }
 
-func (h *helm) Resources(bundleID, resourcesID string) (*deployer.Resources, error) {
+func (h *helm) getRelease(bundleID, resourcesID string) (*release.Release, error) {
 	hist := action.NewHistory(&h.globalCfg)
 
 	namespace, name := kv.Split(resourcesID, "/")
@@ -338,17 +343,38 @@ func (h *helm) Resources(bundleID, resourcesID string) (*deployer.Resources, err
 	}
 
 	releases, err := hist.Run(releaseName)
-	if err != nil {
+	if err == driver.ErrReleaseNotFound {
+		return nil, ErrNoRelease
+	} else if err != nil {
 		return nil, err
 	}
 
 	for _, release := range releases {
 		if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
-			return releaseToResources(release)
+			return release, nil
 		}
 	}
 
-	return &deployer.Resources{}, nil
+	return nil, ErrNoRelease
+}
+
+func (h *helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
+	if _, err := h.getRelease(bundleID, resourcesID); err == ErrNoRelease {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (h *helm) Resources(bundleID, resourcesID string) (*deployer.Resources, error) {
+	release, err := h.getRelease(bundleID, resourcesID)
+	if err == ErrNoRelease {
+		return &deployer.Resources{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return releaseToResources(release)
 }
 
 func (h *helm) Delete(bundleID, releaseName string) error {
