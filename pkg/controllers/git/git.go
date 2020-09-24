@@ -33,6 +33,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+var (
+	two = int32(2)
+)
+
 func Register(ctx context.Context,
 	mapper meta.RESTMapper,
 	apply apply.Apply,
@@ -372,6 +376,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 					Branch:   branch,
 				},
 				JobSpec: batchv1.JobSpec{
+					BackoffLimit: &two,
 					Template: corev1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							CreationTimestamp: metav1.Time{Time: time.Unix(0, 0)},
