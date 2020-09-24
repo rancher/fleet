@@ -189,7 +189,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 		systemNamespace := string(newSecret.Data[SystemNamespace])
 		deploymentNamespace := newSecret.Data[DeploymentNamespace]
 
-		if systemNamespace != secret.Namespace {
+		if !cfg.IgnoreAgentNamespaceCheck && systemNamespace != secret.Namespace {
 			return nil, fmt.Errorf("fleet-agent must be installed in the namespace %s", systemNamespace)
 		}
 
