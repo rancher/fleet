@@ -1,6 +1,6 @@
 site_name: Fleet - GitOps at Scale
 repo_url: https://github.com/rancher/fleet
-strict: true
+strict: false
 theme:
   name: material
   palette:
