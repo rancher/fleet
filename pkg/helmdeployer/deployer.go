@@ -32,6 +32,7 @@ import (
 
 const (
 	BundleIDAnnotation           = "fleet.cattle.io/bundle-id"
+	AgentNamespaceAnnotation     = "fleet.cattle.io/agent-namespace"
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleetDefault"
 )
@@ -39,24 +40,24 @@ const (
 var ErrNoRelease = errors.New("failed to find release")
 
 type helm struct {
-	serviceAccountNamespace string
-	serviceAccountCache     corecontrollers.ServiceAccountCache
-	getter                  genericclioptions.RESTClientGetter
-	globalCfg               action.Configuration
-	useGlobalCfg            bool
-	template                bool
-	defaultNamespace        string
-	labelPrefix             string
+	agentNamespace      string
+	serviceAccountCache corecontrollers.ServiceAccountCache
+	getter              genericclioptions.RESTClientGetter
+	globalCfg           action.Configuration
+	useGlobalCfg        bool
+	template            bool
+	defaultNamespace    string
+	labelPrefix         string
 }
 
 func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclioptions.RESTClientGetter,
 	serviceAccountCache corecontrollers.ServiceAccountCache) (deployer.Deployer, error) {
 	h := &helm{
-		getter:                  getter,
-		defaultNamespace:        defaultNamespace,
-		serviceAccountNamespace: namespace,
-		serviceAccountCache:     serviceAccountCache,
-		labelPrefix:             labelPrefix,
+		getter:              getter,
+		defaultNamespace:    defaultNamespace,
+		agentNamespace:      namespace,
+		serviceAccountCache: serviceAccountCache,
+		labelPrefix:         labelPrefix,
 	}
 	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
 		return nil, err
@@ -144,6 +145,7 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	}
 	chart.Metadata.Annotations[ServiceAccountNameAnnotation] = options.ServiceAccount
 	chart.Metadata.Annotations[BundleIDAnnotation] = bundleID
+	chart.Metadata.Annotations[AgentNamespaceAnnotation] = h.agentNamespace
 
 	if resources, err := h.install(bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
@@ -317,8 +319,12 @@ func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
 	)
 
 	for _, release := range releases {
-		d := release.Chart.Metadata.Annotations["fleet.cattle.io/bundle-id"]
+		d := release.Chart.Metadata.Annotations[BundleIDAnnotation]
 		if d == "" {
+			continue
+		}
+		ns := release.Chart.Metadata.Annotations[AgentNamespaceAnnotation]
+		if ns != "" && ns != h.agentNamespace {
 			continue
 		}
 		result = append(result, deployer.DeployedBundle{
@@ -388,7 +394,8 @@ func (h *helm) deleteByRelease(bundleID, releaseName string) error {
 	rels, err := h.globalCfg.Releases.List(func(r *release.Release) bool {
 		return r.Namespace == releaseNamespace &&
 			r.Name == releaseName &&
-			r.Chart.Metadata.Annotations[BundleIDAnnotation] == bundleID
+			r.Chart.Metadata.Annotations[BundleIDAnnotation] == bundleID &&
+			r.Chart.Metadata.Annotations[AgentNamespaceAnnotation] == h.agentNamespace
 	})
 	if err != nil {
 		return nil

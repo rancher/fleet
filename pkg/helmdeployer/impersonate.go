@@ -16,14 +16,14 @@ func (h *helm) getServiceAccount(name string) (string, string, error) {
 	if currentName == "" {
 		currentName = DefaultServiceAccount
 	}
-	_, err := h.serviceAccountCache.Get(h.serviceAccountNamespace, currentName)
+	_, err := h.serviceAccountCache.Get(h.agentNamespace, currentName)
 	if apierror.IsNotFound(err) && name == "" {
 		// if we can't find the service account, but none was asked for, don't use any
 		return "", "", nil
 	} else if err != nil {
-		return "", "", fmt.Errorf("looking up service account %s/%s: %w", h.serviceAccountNamespace, currentName, err)
+		return "", "", fmt.Errorf("looking up service account %s/%s: %w", h.agentNamespace, currentName, err)
 	}
-	return h.serviceAccountNamespace, currentName, nil
+	return h.agentNamespace, currentName, nil
 }
 
 type impersonatingGetter struct {
