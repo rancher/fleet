@@ -837,6 +837,8 @@ github.com/rancher/wrangler v0.6.2-0.20200829053106-7e1dd4260224 h1:NWYSyS1YiWJO
 github.com/rancher/wrangler v0.6.2-0.20200829053106-7e1dd4260224/go.mod h1:I7qe4DZNMOLKVa9ax7DJdBZ0XtKOppLF/dalhPX3vaE=
 github.com/rancher/wrangler v0.6.2-0.20200916052259-24781350894c h1:DwmYRHyZR8w1Uqpn39hLujfsa1tn43jFfT6i0bf8eQw=
 github.com/rancher/wrangler v0.6.2-0.20200916052259-24781350894c/go.mod h1:I7qe4DZNMOLKVa9ax7DJdBZ0XtKOppLF/dalhPX3vaE=
+github.com/rancher/wrangler v0.6.2-0.20200925234108-36dac45bb3fd h1:vPNewJezRFrKpvg5RJdk2KOOTn6M8x3nT4c7VphEhvw=
+github.com/rancher/wrangler v0.6.2-0.20200925234108-36dac45bb3fd/go.mod h1:I7qe4DZNMOLKVa9ax7DJdBZ0XtKOppLF/dalhPX3vaE=
 github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43 h1:+Bc9QnL9GuZiYxc3Mvm4n6EEjgI5TFQLDGjpRhQbkVk=
 github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43/go.mod h1:KxpGNhk/oVL6LCfyxESTD1sb8eXRlUxtkbNm06+7dZU=
 github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=
