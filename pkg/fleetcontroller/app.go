@@ -4,11 +4,10 @@ import (
 	"context"
 	"io"
 
-	"github.com/rancher/wrangler/pkg/ratelimit"
-
 	"github.com/rancher/fleet/pkg/controllers"
 	"github.com/rancher/fleet/pkg/crd"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
+	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/yaml"
 )
 

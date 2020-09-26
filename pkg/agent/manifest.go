@@ -4,7 +4,9 @@ import (
 	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
 	corev1 "k8s.io/api/core/v1"
+	networkv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -18,6 +20,9 @@ func Manifest(namespace, image, pullPolicy, generation string) []runtime.Object 
 	}
 
 	sa := basic.ServiceAccount(namespace, DefaultName)
+
+	defaultSa := basic.ServiceAccount(namespace, "default")
+	defaultSa.AutomountServiceAccountToken = new(bool)
 
 	clusterRole := basic.ClusterRole(sa,
 		rbacv1.PolicyRule{
@@ -52,9 +57,29 @@ func Manifest(namespace, image, pullPolicy, generation string) []runtime.Object 
 		},
 	}
 
+	networkPolicy := &networkv1.NetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "default-allow-all",
+			Namespace: namespace,
+		},
+		Spec: networkv1.NetworkPolicySpec{
+			PolicyTypes: []networkv1.PolicyType{
+				networkv1.PolicyTypeIngress,
+				networkv1.PolicyTypeEgress,
+			},
+			Ingress: []networkv1.NetworkPolicyIngressRule{
+				{},
+			},
+			Egress: []networkv1.NetworkPolicyEgressRule{
+				{},
+			},
+			PodSelector: v1.LabelSelector{},
+		},
+	}
+
 	var objs []runtime.Object
 	objs = append(objs, clusterRole...)
-	objs = append(objs, sa, dep)
+	objs = append(objs, sa, defaultSa, dep, networkPolicy)
 
 	return objs
 }
