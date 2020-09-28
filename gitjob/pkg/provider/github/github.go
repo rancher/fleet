@@ -67,7 +67,7 @@ func (w *GitHub) Handle(ctx context.Context, obj *v1.GitJob) (v1.GitJobStatus, e
 	newObj, err := w.innerHandle(ctx, obj)
 	if err != nil {
 		kstatus.SetError(newObj, err.Error())
-	} else {
+	} else if !kstatus.Stalled.IsTrue(newObj) {
 		kstatus.SetActive(newObj)
 	}
 	return newObj.Status, err

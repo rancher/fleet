@@ -40,7 +40,7 @@ func (p *Polling) Handle(ctx context.Context, obj *gitjobv1.GitJob) (gitjobv1.Gi
 	newObj, err := p.innerHandle(ctx, obj)
 	if err != nil {
 		kstatus.SetError(newObj, err.Error())
-	} else {
+	} else if !kstatus.Stalled.IsTrue(newObj) {
 		kstatus.SetActive(newObj)
 	}
 	return newObj.Status, err

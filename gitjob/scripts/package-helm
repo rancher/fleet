@@ -19,7 +19,7 @@ sed -i \
     build/chart/Chart.yaml
 
 sed -i \
-    -e 's/tag:.*/tag: '${HELM_TAG}'/' \
+    -e 's/tag: ${VERSION}/tag: '${HELM_TAG}'/' \
     build/chart/values.yaml
 
 mkdir build/chart/crds
