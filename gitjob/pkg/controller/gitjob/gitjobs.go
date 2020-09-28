@@ -236,7 +236,7 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 			"-post_file",
 			"/tekton/tools/1",
 			"-termination_path",
-			"/tekton/termination",
+			"/tekton/fake_termination",
 			"-entrypoint",
 		}, append(job.Spec.Template.Spec.Containers[i].Command, job.Spec.Template.Spec.Containers[i].Args...)...)
 		job.Spec.Template.Spec.Containers[i].Command = []string{"/tekton/tools/entrypoint"}
@@ -258,8 +258,6 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 				Name:      "tekton-internal-results",
 			},
 		}...)
-		job.Spec.Template.Spec.Containers[i].TerminationMessagePath = "/tekton/termination"
-		job.Spec.Template.Spec.Containers[i].TerminationMessagePolicy = corev1.TerminationMessageReadFile
 	}
 
 	job.Spec.Template.Spec.Containers = append([]corev1.Container{cloneContainer}, job.Spec.Template.Spec.Containers...)

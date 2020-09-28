@@ -1,0 +1,21 @@
+apiVersion: gitjob.cattle.io/v1
+kind: GitJob
+metadata:
+  name: example
+  namespace: default
+spec:
+  git:
+    branch: master
+    repo: https://github.com/StrongMonkey/gitjobs-example
+    provider: polling
+  jobSpec:
+    backoffLimit: 1
+    template:
+      spec:
+        restartPolicy: "Never"
+        containers:
+        - name: termination-demo-container
+          imagePullPolicy: "Always"
+          image: "strongmonkey1992/test:termination"
+          command:
+          - /usr/bin/test.sh
