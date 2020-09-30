@@ -85,8 +85,11 @@ func (j jobHandler) sync(key string, obj *v1.Job) (*v1.Job, error) {
 				kstatus.SetError(gitjob, terminationMessage)
 			}
 
-			if result.Status == status.CurrentStatus && strings.Contains(result.Message, "Job Completed") {
-				gitjob.Status.LastExecutedCommit = obj.Annotations["commit"]
+			if result.Status == status.CurrentStatus {
+				if strings.Contains(result.Message, "Job Completed") {
+					gitjob.Status.LastExecutedCommit = obj.Annotations["commit"]
+				}
+				kstatus.SetActive(gitjob)
 			}
 
 			if _, err := j.gitjobs.UpdateStatus(gitjob); err != nil {
