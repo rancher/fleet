@@ -403,6 +403,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 									Image:           config.Get().AgentImage,
 									ImagePullPolicy: corev1.PullPolicy(config.Get().AgentImagePullPolicy),
 									Command: append([]string{
+										"log.sh",
 										"fleet",
 										"apply",
 										"--targets-file=/run/config/targets.yaml",
@@ -471,7 +472,7 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	status.Summary = fleet.BundleSummary{}
 
 	sort.Slice(bundleDeployments, func(i, j int) bool {
-		return bundleDeployments[i].Name < bundleDeployments[j].Name
+		return bundleDeployments[i].UID < bundleDeployments[j].UID
 	})
 
 	var maxState fleet.BundleState
