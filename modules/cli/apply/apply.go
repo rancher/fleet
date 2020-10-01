@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
@@ -40,6 +41,9 @@ type Options struct {
 }
 
 func globDirs(baseDir string) (result []string, err error) {
+	for strings.HasPrefix(baseDir, "/") {
+		baseDir = baseDir[1:]
+	}
 	paths, err := filepath.Glob(baseDir)
 	if err != nil {
 		return nil, err
