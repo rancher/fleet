@@ -99,7 +99,7 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 	}
 
 	if !foundBundle {
-		return fmt.Errorf("no fleet.yaml or bundle.yaml found at the following paths: %v", baseDirs)
+		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
 	return nil

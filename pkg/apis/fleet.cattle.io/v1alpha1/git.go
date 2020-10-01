@@ -99,6 +99,8 @@ type GitRepoResourceCounts struct {
 type GitRepoDisplay struct {
 	ReadyBundleDeployments string `json:"readyBundleDeployments,omitempty"`
 	State                  string `json:"state,omitempty"`
+	Message                string `json:"message,omitempty"`
+	Error                  bool   `json:"error,omitempty"`
 }
 
 // +genclient
