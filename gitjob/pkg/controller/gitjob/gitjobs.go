@@ -42,7 +42,7 @@ func Register(ctx context.Context, cont *types.Context) {
 	v1controller.RegisterGitJobGeneratingHandler(
 		ctx,
 		cont.Gitjob.Gitjob().V1().GitJob(),
-		cont.Apply.WithSetOwnerReference(true, false).WithNoDelete().WithCacheTypes(cont.Batch.Batch().V1().Job()).WithPatcher(
+		cont.Apply.WithSetOwnerReference(true, false).WithCacheTypes(cont.Batch.Batch().V1().Job()).WithPatcher(
 			batchv1.SchemeGroupVersion.WithKind("Job"),
 			func(namespace, name string, patchType types2.PatchType, data []byte) (runtime.Object, error) {
 				return nil, apply.ErrReplace
