@@ -22,6 +22,9 @@ spec:
       properties:
         spec:
           properties:
+            defaultNamespace:
+              nullable: true
+              type: string
             diff:
               nullable: true
               properties:
@@ -331,6 +334,9 @@ spec:
                         nullable: true
                         type: object
                     type: object
+                  defaultNamespace:
+                    nullable: true
+                    type: string
                   diff:
                     nullable: true
                     properties:
@@ -731,6 +737,9 @@ spec:
               type: string
             options:
               properties:
+                defaultNamespace:
+                  nullable: true
+                  type: string
                 diff:
                   nullable: true
                   properties:
@@ -825,6 +834,9 @@ spec:
               type: string
             stagedOptions:
               properties:
+                defaultNamespace:
+                  nullable: true
+                  type: string
                 diff:
                   nullable: true
                   properties:
@@ -1683,6 +1695,8 @@ spec:
                 type: string
               nullable: true
               type: array
+            paused:
+              type: boolean
             pollingInterval:
               nullable: true
               type: string
@@ -1693,6 +1707,9 @@ spec:
               nullable: true
               type: string
             serviceAccount:
+              nullable: true
+              type: string
+            targetNamespace:
               nullable: true
               type: string
             targets:
@@ -1797,6 +1814,11 @@ spec:
               type: integer
             display:
               properties:
+                error:
+                  type: boolean
+                message:
+                  nullable: true
+                  type: string
                 readyBundleDeployments:
                   nullable: true
                   type: string
