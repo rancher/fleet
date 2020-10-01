@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/rancher/fleet/modules/agent/pkg/agent"
 	"github.com/rancher/fleet/modules/agent/pkg/simulator"
@@ -11,19 +12,31 @@ import (
 )
 
 type FleetAgent struct {
-	Kubeconfig string `usage:"kubeconfig file"`
-	Namespace  string `usage:"namespace to watch" env:"NAMESPACE"`
-	Simulators int    `usage:"Numbers of simulators to run"`
+	Kubeconfig      string `usage:"kubeconfig file"`
+	Namespace       string `usage:"namespace to watch" env:"NAMESPACE"`
+	Simulators      int    `usage:"Numbers of simulators to run"`
+	CheckinInterval string `usage:"How often to post cluster status" env:"CHECKIN_INTERVAL"`
 }
 
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
+	var (
+		opts agent.Options
+		err  error
+	)
+
+	if a.CheckinInterval != "" {
+		opts.CheckinInterval, err = time.ParseDuration(a.CheckinInterval)
+		if err != nil {
+			return err
+		}
+	}
 	if a.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
 	}
 	if a.Simulators > 0 {
-		return simulator.Simulate(cmd.Context(), a.Simulators, a.Kubeconfig, a.Namespace, "default")
+		return simulator.Simulate(cmd.Context(), a.Simulators, a.Kubeconfig, a.Namespace, "default", opts)
 	}
-	if err := agent.Start(cmd.Context(), a.Kubeconfig, a.Namespace, nil); err != nil {
+	if err := agent.Start(cmd.Context(), a.Kubeconfig, a.Namespace, &opts); err != nil {
 		return err
 	}
 	<-cmd.Context().Done()

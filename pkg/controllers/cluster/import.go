@@ -155,11 +155,12 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 
 	output := &bytes.Buffer{}
 	err = agentmanifest.AgentManifest(i.ctx, i.systemNamespace, i.systemNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
-		CA:         apiServerCA,
-		Host:       apiServerURL,
-		ClientID:   cluster.Spec.ClientID,
-		NoCheck:    noCheck,
-		Generation: strconv.FormatInt(cluster.Generation, 10),
+		CA:              apiServerCA,
+		Host:            apiServerURL,
+		ClientID:        cluster.Spec.ClientID,
+		NoCheck:         noCheck,
+		CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
+		Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
 	})
 	if err != nil {
 		return status, err

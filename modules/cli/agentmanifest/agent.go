@@ -33,13 +33,14 @@ var (
 )
 
 type Options struct {
-	CA         []byte
-	Host       string
-	NoCA       bool
-	NoCheck    bool
-	Labels     map[string]string
-	ClientID   string
-	Generation string
+	CA              []byte
+	Host            string
+	NoCA            bool
+	NoCheck         bool
+	Labels          map[string]string
+	ClientID        string
+	Generation      string
+	CheckinInterval string
 }
 
 func AgentToken(ctx context.Context, controllerNamespace, kubeConfigFile string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
@@ -134,7 +135,7 @@ func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace str
 		return err
 	}
 
-	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation)...)
+	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval)...)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {

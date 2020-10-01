@@ -112,6 +112,7 @@ func Register(ctx context.Context, leaderElect bool, fleetNamespace, agentNamesp
 		appCtx.AgentNamespace,
 		appCtx.ClusterNamespace,
 		appCtx.ClusterName,
+		checkinInterval,
 		appCtx.Core.Node().Cache(),
 		appCtx.Fleet.Cluster())
 

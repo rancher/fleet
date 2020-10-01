@@ -37,6 +37,7 @@ func Register(ctx context.Context,
 	agentNamespace string,
 	clusterNamespace string,
 	clusterName string,
+	checkinInterval time.Duration,
 	nodes corecontrollers.NodeCache,
 	clusters fleetcontrollers.ClusterClient) {
 
@@ -53,9 +54,12 @@ func Register(ctx context.Context,
 		_ = h.Update()
 	}()
 	go func() {
-		for range ticker.Context(ctx, 5*time.Minute) {
+		if checkinInterval == 0 {
+			checkinInterval = 15 * time.Minute
+		}
+		for range ticker.Context(ctx, checkinInterval) {
 			if err := h.Update(); err != nil {
-				logrus.Errorf("failed to repo cluster node status")
+				logrus.Errorf("failed to report cluster node status: %v", err)
 			}
 		}
 	}()

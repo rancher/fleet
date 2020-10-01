@@ -13,6 +13,7 @@ type Options struct {
 	DefaultNamespace string
 	ClusterID        string
 	NoLeaderElect    bool
+	CheckinInterval  time.Duration
 }
 
 func Register(ctx context.Context, kubeConfig, namespace, clusterID string) error {
@@ -63,6 +64,7 @@ func Start(ctx context.Context, kubeConfig, namespace string, opts *Options) err
 		opts.DefaultNamespace,
 		agentInfo.ClusterNamespace,
 		agentInfo.ClusterName,
+		opts.CheckinInterval,
 		fleetRestConfig,
 		clientConfig)
 }

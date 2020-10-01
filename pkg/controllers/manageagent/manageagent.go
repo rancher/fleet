@@ -88,7 +88,7 @@ func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
 		return nil, nil
 	}
 
-	objs := agent.Manifest(h.systemNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, "")
+	objs := agent.Manifest(h.systemNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, "bundle", cfg.AgentCheckinInternal.Duration.String())
 	agentYAML, err := yaml.Export(objs...)
 	if err != nil {
 		return nil, err
