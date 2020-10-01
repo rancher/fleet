@@ -88,10 +88,14 @@ func addChartYAML(name string, m, newManifest *manifest.Manifest) (*manifest.Man
 		return nil, err
 	}
 
+	if newManifest.Commit != "" {
+		hash = "git-" + newManifest.Commit
+	}
+
 	_, chartName := kv.RSplit(name, "/")
 	metadata := chart.Metadata{
 		Name:       chartName,
-		Version:    "v0.1-" + hash,
+		Version:    "v0.0.0+" + hash,
 		APIVersion: "v2",
 	}
 

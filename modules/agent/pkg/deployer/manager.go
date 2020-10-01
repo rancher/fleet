@@ -120,6 +120,7 @@ func (m *Manager) Deploy(bd *fleet.BundleDeployment) (string, error) {
 		return "", err
 	}
 
+	manifest.Commit = bd.Labels["fleet.cattle.io/commit"]
 	resource, err := m.deployer.Deploy(bd.Name, manifest, bd.Spec.Options)
 	if err != nil {
 		return "", err

@@ -32,6 +32,7 @@ import (
 
 const (
 	BundleIDAnnotation           = "fleet.cattle.io/bundle-id"
+	CommitAnnotation             = "fleet.cattle.io/commit"
 	AgentNamespaceAnnotation     = "fleet.cattle.io/agent-namespace"
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleetDefault"
@@ -146,6 +147,9 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	chart.Metadata.Annotations[ServiceAccountNameAnnotation] = options.ServiceAccount
 	chart.Metadata.Annotations[BundleIDAnnotation] = bundleID
 	chart.Metadata.Annotations[AgentNamespaceAnnotation] = h.agentNamespace
+	if manifest.Commit != "" {
+		chart.Metadata.Annotations[CommitAnnotation] = manifest.Commit
+	}
 
 	if resources, err := h.install(bundleID, manifest, chart, options, true); err != nil {
 		return nil, err

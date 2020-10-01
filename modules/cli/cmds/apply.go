@@ -45,6 +45,14 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	labels := a.Label
+	if commit := os.Getenv("COMMIT"); commit != "" {
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels["fleet.cattle.io/commit"] = commit
+	}
+
 	name := ""
 	opts := &apply.Options{
 		BundleFile:     a.BundleFile,

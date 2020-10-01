@@ -11,6 +11,7 @@ import (
 )
 
 type Manifest struct {
+	Commit    string                 `json:"-"`
 	Resources []fleet.BundleResource `json:"resources,omitempty"`
 	raw       []byte
 	digest    string
