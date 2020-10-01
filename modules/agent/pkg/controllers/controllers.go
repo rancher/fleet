@@ -110,8 +110,6 @@ func Register(ctx context.Context, leaderElect bool,
 			appCtx.Apply),
 		appCtx.Fleet.BundleDeployment())
 
-	secret.Register(ctx, agentNamespace, appCtx.CoreNS.Secret())
-
 	cluster.Register(ctx,
 		appCtx.AgentNamespace,
 		appCtx.ClusterNamespace,
