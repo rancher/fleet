@@ -121,6 +121,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
+	restConfig.Timeout = 15 * time.Second
 
 	kc, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
@@ -144,6 +145,14 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: cluster.Namespace,
 				Name:      ImportTokenPrefix + cluster.Name,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: fleet.SchemeGroupVersion.String(),
+						Kind:       "Cluster",
+						Name:       cluster.Name,
+						UID:        cluster.UID,
+					},
+				},
 			},
 			Spec: fleet.ClusterRegistrationTokenSpec{
 				TTL: &metav1.Duration{Duration: ImportTokenTTL},
@@ -155,11 +164,12 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 
 	output := &bytes.Buffer{}
 	err = agentmanifest.AgentManifest(i.ctx, i.systemNamespace, i.systemNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
-		CA:         apiServerCA,
-		Host:       apiServerURL,
-		ClientID:   cluster.Spec.ClientID,
-		NoCheck:    noCheck,
-		Generation: strconv.FormatInt(cluster.Generation, 10),
+		CA:              apiServerCA,
+		Host:            apiServerURL,
+		ClientID:        cluster.Spec.ClientID,
+		NoCheck:         noCheck,
+		CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
+		Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
 	})
 	if err != nil {
 		return status, err

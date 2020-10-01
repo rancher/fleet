@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/rancher/fleet/pkg/controllers/bootstrap"
 	"github.com/rancher/fleet/pkg/controllers/bundle"
@@ -21,6 +22,9 @@ import (
 	"github.com/rancher/fleet/pkg/target"
 	"github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io"
 	gitcontrollers "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
+	"github.com/rancher/lasso/pkg/cache"
+	"github.com/rancher/lasso/pkg/client"
+	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/generated/controllers/apps"
 	appscontrollers "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
@@ -35,8 +39,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	memory "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/workqueue"
 )
 
 type appContext struct {
@@ -219,6 +225,20 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 	return nil
 }
 
+func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
+	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond, 15*time.Second)
+	clientFactory, err := client.NewSharedClientFactory(rest, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheFactory := cache.NewSharedCachedFactory(clientFactory, nil)
+	return controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{
+		DefaultRateLimiter: rateLimit,
+		DefaultWorkers:     50,
+	}), nil
+}
+
 func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 	client, err := cfg.ClientConfig()
 	if err != nil {
@@ -226,31 +246,46 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 	}
 	client.RateLimiter = ratelimit.None
 
-	core, err := core.NewFactoryFromConfig(client)
+	scf, err := controllerFactory(client)
+	if err != nil {
+		return nil, err
+	}
+
+	core, err := core.NewFactoryFromConfigWithOptions(client, &core.FactoryOptions{
+		SharedControllerFactory: scf,
+	})
 	if err != nil {
 		return nil, err
 	}
 	corev := core.Core().V1()
 
-	fleet, err := fleet.NewFactoryFromConfig(client)
+	fleet, err := fleet.NewFactoryFromConfigWithOptions(client, &fleet.FactoryOptions{
+		SharedControllerFactory: scf,
+	})
 	if err != nil {
 		return nil, err
 	}
 	fleetv := fleet.Fleet().V1alpha1()
 
-	rbac, err := rbac.NewFactoryFromConfig(client)
+	rbac, err := rbac.NewFactoryFromConfigWithOptions(client, &rbac.FactoryOptions{
+		SharedControllerFactory: scf,
+	})
 	if err != nil {
 		return nil, err
 	}
 	rbacv := rbac.Rbac().V1()
 
-	apps, err := apps.NewFactoryFromConfig(client)
+	apps, err := apps.NewFactoryFromConfigWithOptions(client, &apps.FactoryOptions{
+		SharedControllerFactory: scf,
+	})
 	if err != nil {
 		return nil, err
 	}
 	appsv := apps.Apps().V1()
 
-	git, err := gitjob.NewFactoryFromConfig(client)
+	git, err := gitjob.NewFactoryFromConfigWithOptions(client, &gitjob.FactoryOptions{
+		SharedControllerFactory: scf,
+	})
 	if err != nil {
 		return nil, err
 	}

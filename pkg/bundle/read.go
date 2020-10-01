@@ -17,11 +17,13 @@ import (
 )
 
 type Options struct {
-	Compress       bool
-	Labels         map[string]string
-	ServiceAccount string
-	TargetsFile    string
-	SyncBefore     *time.Time
+	Compress        bool
+	Labels          map[string]string
+	ServiceAccount  string
+	TargetsFile     string
+	TargetNamespace string
+	Paused          bool
+	SyncBefore      *time.Time
 }
 
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
@@ -165,6 +167,17 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 				ClusterGroup: "default",
 			},
 		}
+	}
+
+	if opts.TargetNamespace != "" {
+		def.Spec.TargetNamespace = opts.TargetNamespace
+		for i := range def.Spec.Targets {
+			def.Spec.Targets[i].TargetNamespace = opts.TargetNamespace
+		}
+	}
+
+	if opts.Paused {
+		def.Spec.Paused = true
 	}
 
 	return New(def)

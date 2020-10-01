@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
@@ -27,17 +28,22 @@ var (
 )
 
 type Options struct {
-	BundleFile     string
-	TargetsFile    string
-	Compress       bool
-	BundleReader   io.Reader
-	Output         io.Writer
-	ServiceAccount string
-	Labels         map[string]string
-	SyncBefore     *time.Time
+	BundleFile      string
+	TargetsFile     string
+	Compress        bool
+	BundleReader    io.Reader
+	Output          io.Writer
+	ServiceAccount  string
+	TargetNamespace string
+	Paused          bool
+	Labels          map[string]string
+	SyncBefore      *time.Time
 }
 
 func globDirs(baseDir string) (result []string, err error) {
+	for strings.HasPrefix(baseDir, "/") {
+		baseDir = baseDir[1:]
+	}
 	paths, err := filepath.Glob(baseDir)
 	if err != nil {
 		return nil, err
@@ -97,7 +103,7 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 	}
 
 	if !foundBundle {
-		return fmt.Errorf("no fleet.yaml or bundle.yaml found at the following paths: %v", baseDirs)
+		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
 	return nil
@@ -113,11 +119,13 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 	}
 
 	return bundle.Open(ctx, name, baseDir, opts.BundleFile, &bundle.Options{
-		Compress:       opts.Compress,
-		Labels:         opts.Labels,
-		ServiceAccount: opts.ServiceAccount,
-		TargetsFile:    opts.TargetsFile,
-		SyncBefore:     opts.SyncBefore,
+		Compress:        opts.Compress,
+		Labels:          opts.Labels,
+		ServiceAccount:  opts.ServiceAccount,
+		TargetsFile:     opts.TargetsFile,
+		TargetNamespace: opts.TargetNamespace,
+		Paused:          opts.Paused,
+		SyncBefore:      opts.SyncBefore,
 	})
 }
 

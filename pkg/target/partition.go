@@ -77,6 +77,11 @@ func autoPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Partiti
 		return appendPartition(nil, "All", targets, rollout.MaxUnavailable)
 	}
 
+	// Also disable if less than 200
+	if len(targets) < 200 {
+		return appendPartition(nil, "All", targets, rollout.MaxUnavailable)
+	}
+
 	maxSize, err := Limit(len(targets), rollout.AutoPartitionSize, &defAutoPartitionSize)
 	if err != nil {
 		return nil, err

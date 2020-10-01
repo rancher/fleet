@@ -16,13 +16,8 @@ apiServerURL: ""
 # If left empty it is assumed this Kubernetes API TLS is signed by a well known CA.
 apiServerCA: ""
 
-# The URL of the webhook reciever that will receive webhooks events from GitHub
-# Refer to documentation on how to setup Ingress or a Service LoadBalancer.
-webhookReceiverURL: ""
-
-# All repo URLs that match the below prefixes will be assumed to be github and a
-# webhook will be setup if webhookReceiverURL is also set
-githubURLPrefix: https://github.com
+# A duration string for how often agents should report a heartbeat
+agentCheckinInterval: "15m"
 
 # Whether you want to allow cluster upon registration to specify their labels.
 ignoreClusterRegistrationLabels: false

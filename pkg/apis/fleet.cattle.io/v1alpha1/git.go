@@ -31,6 +31,11 @@ type GitRepoSpec struct {
 	// Revision A specific commit or tag to operate on
 	Revision string `json:"revision,omitempty"`
 
+	// Ensure that all resources are created in this namespace
+	// Any cluster scoped resource will be rejected if this is set
+	// Additionally this namespace will be created on demand
+	TargetNamespace string `json:"targetNamespace,omitempty"`
+
 	// ClientSecretName is the client secret to be used to connect to the repo
 	// It is expected the secret be of type "kubernetes.io/basic-auth" or "kubernetes.io/ssh-auth".
 	ClientSecretName string `json:"clientSecretName,omitempty"`
@@ -39,6 +44,10 @@ type GitRepoSpec struct {
 	// Path globbing is support, for example ["charts/*"] will match all folders as a subdirectory of charts/
 	// If empty, "/" is the default
 	Paths []string `json:"paths,omitempty"`
+
+	// Paused this cause changes in Git to not be propagated down to the clusters but instead mark
+	// resources as OutOfSync
+	Paused bool `json:"paused,omitempty"`
 
 	// ServiceAccount used in the downstream cluster for deployment
 	ServiceAccount string `json:"serviceAccount,omitempty"`
@@ -90,6 +99,8 @@ type GitRepoResourceCounts struct {
 type GitRepoDisplay struct {
 	ReadyBundleDeployments string `json:"readyBundleDeployments,omitempty"`
 	State                  string `json:"state,omitempty"`
+	Message                string `json:"message,omitempty"`
+	Error                  bool   `json:"error,omitempty"`
 }
 
 // +genclient

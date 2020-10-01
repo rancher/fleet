@@ -5,6 +5,9 @@ metadata:
 data:
   config: |-
     {
+      {{ if .Values.global.fleet.clusterLabels }}
+      "labels":{{toJson .Values.global.fleet.clusterLabels}},
+      {{ end }}
       {{ if .Values.labels }}
       "labels":{{toJson .Values.labels}},
       {{ end }}

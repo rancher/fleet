@@ -69,8 +69,8 @@ type ClusterStatus struct {
 	Namespace            string                              `json:"namespace,omitempty"`
 	Summary              BundleSummary                       `json:"summary,omitempty"`
 	ResourceCounts       GitRepoResourceCounts               `json:"resourceCounts,omitempty"`
-	ReadyGitRepos        int                                 `json:"readyGitRepos,omitempty"`
-	DesiredReadyGitRepos int                                 `json:"desiredReadyGitRepos,omitempty"`
+	ReadyGitRepos        int                                 `json:"readyGitRepos"`
+	DesiredReadyGitRepos int                                 `json:"desiredReadyGitRepos"`
 
 	AgentLastDeployed *metav1.Time `json:"agentLastDeployed,omitempty"`
 
@@ -86,14 +86,14 @@ type ClusterDisplay struct {
 }
 
 type AgentStatus struct {
-	LastSeen      metav1.Time `json:"lastSeen,omitempty"`
-	Namespace     string      `json:"namespace,omitempty"`
-	NonReadyNodes int         `json:"nonReadyNodes,omitempty"`
-	ReadyNodes    int         `json:"readyNodes,omitempty"`
+	LastSeen      metav1.Time `json:"lastSeen"`
+	Namespace     string      `json:"namespace"`
+	NonReadyNodes int         `json:"nonReadyNodes"`
+	ReadyNodes    int         `json:"readyNodes"`
 	// At most 3 nodes
-	NonReadyNodeNames []string `json:"nonReadyNodeNames,omitempty"`
+	NonReadyNodeNames []string `json:"nonReadyNodeNames"`
 	// At most 3 nodes
-	ReadyNodeNames []string `json:"readyNodeNames,omitempty"`
+	ReadyNodeNames []string `json:"readyNodeNames"`
 }
 
 // +genclient

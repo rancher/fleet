@@ -9,6 +9,7 @@ data:
       "agentImagePullPolicy": "{{ .Values.agentImage.imagePullPolicy }}",
       "apiServerURL": "{{.Values.apiServerURL}}",
       "apiServerCA": "{{b64enc .Values.apiServerCA}}",
+      "agentCheckinInterval": "{{.Values.agentCheckinInterval}}",
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",

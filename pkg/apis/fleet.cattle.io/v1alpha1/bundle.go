@@ -132,10 +132,10 @@ type BundleStatus struct {
 
 	Summary                  BundleSummary     `json:"summary,omitempty"`
 	NewlyCreated             int               `json:"newlyCreated,omitempty"`
-	Unavailable              int               `json:"unavailable,omitempty"`
-	UnavailablePartitions    int               `json:"unavailablePartitions,omitempty"`
-	MaxUnavailable           int               `json:"maxUnavailable,omitempty"`
-	MaxUnavailablePartitions int               `json:"maxUnavailablePartitions,omitempty"`
+	Unavailable              int               `json:"unavailable"`
+	UnavailablePartitions    int               `json:"unavailablePartitions"`
+	MaxUnavailable           int               `json:"maxUnavailable"`
+	MaxUnavailablePartitions int               `json:"maxUnavailablePartitions"`
 	MaxNew                   int               `json:"maxNew,omitempty"`
 	PartitionStatus          []PartitionStatus `json:"partitions,omitempty"`
 	Display                  BundleDisplay     `json:"display,omitempty"`
@@ -166,7 +166,8 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
-	DefaultNamespace string            `json:"namespace,omitempty"`
+	DefaultNamespace string            `json:"defaultNamespace,omitempty"`
+	TargetNamespace  string            `json:"namespace,omitempty"`
 	Kustomize        *KustomizeOptions `json:"kustomize,omitempty"`
 	Helm             *HelmOptions      `json:"helm,omitempty"`
 	ServiceAccount   string            `json:"serviceAccount,omitempty"`

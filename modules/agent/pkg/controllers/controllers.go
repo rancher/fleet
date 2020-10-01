@@ -4,17 +4,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/rancher/wrangler/pkg/ticker"
-
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/cluster"
-	"github.com/rancher/fleet/modules/agent/pkg/controllers/secret"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
+	cache2 "github.com/rancher/lasso/pkg/cache"
+	"github.com/rancher/lasso/pkg/client"
+	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	batch2 "github.com/rancher/wrangler/pkg/generated/controllers/batch"
 	batchcontrollers "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
@@ -28,11 +28,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -77,8 +75,14 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 5, a.starters...)
 }
 
-func Register(ctx context.Context, leaderElect bool, fleetNamespace, agentNamespace, defaultNamespace, clusterNamespace, clusterName string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) error {
-	appCtx, err := newContext(ctx, fleetNamespace, agentNamespace, clusterNamespace, clusterName, fleetConfig, clientConfig)
+func Register(ctx context.Context, leaderElect bool,
+	fleetNamespace, agentNamespace, defaultNamespace, clusterNamespace, clusterName string,
+	checkinInterval time.Duration,
+	fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig,
+	fleetMapper, mapper meta.RESTMapper,
+	discovery discovery.CachedDiscoveryInterface) error {
+	appCtx, err := newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName,
+		fleetConfig, clientConfig, fleetMapper, mapper, discovery)
 	if err != nil {
 		return err
 	}
@@ -106,12 +110,11 @@ func Register(ctx context.Context, leaderElect bool, fleetNamespace, agentNamesp
 			appCtx.Apply),
 		appCtx.Fleet.BundleDeployment())
 
-	secret.Register(ctx, agentNamespace, appCtx.CoreNS.Secret())
-
 	cluster.Register(ctx,
 		appCtx.AgentNamespace,
 		appCtx.ClusterNamespace,
 		appCtx.ClusterName,
+		checkinInterval,
 		appCtx.Core.Node().Cache(),
 		appCtx.Fleet.Cluster())
 
@@ -128,40 +131,78 @@ func Register(ctx context.Context, leaderElect bool, fleetNamespace, agentNamesp
 	return nil
 }
 
-func newContext(ctx context.Context, fleetNamespace, agentNamespace, clusterNamespace, clusterName string, fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig) (*appContext, error) {
+func newSharedControllerFactory(config *rest.Config, mapper meta.RESTMapper, namespace string) (controller.SharedControllerFactory, error) {
+	cf, err := client.NewSharedClientFactory(config, &client.SharedClientFactoryOptions{
+		Mapper: mapper,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return controller.NewSharedControllerFactory(cache2.NewSharedCachedFactory(cf, &cache2.SharedCacheFactoryOptions{
+		DefaultNamespace: namespace,
+		DefaultResync:    30 * time.Minute,
+	}), nil), nil
+}
+
+func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName string,
+	fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig,
+	fleetMapper, mapper meta.RESTMapper, discovery discovery.CachedDiscoveryInterface) (*appContext, error) {
 	client, err := clientConfig.ClientConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	coreNSed, err := core.NewFactoryFromConfigWithNamespace(client, agentNamespace)
+	fleetFactory, err := newSharedControllerFactory(fleetConfig, fleetMapper, fleetNamespace)
+	if err != nil {
+		return nil, err
+	}
+
+	localNSFactory, err := newSharedControllerFactory(client, mapper, agentNamespace)
+	if err != nil {
+		return nil, err
+	}
+
+	localFactory, err := newSharedControllerFactory(client, mapper, "")
+	if err != nil {
+		return nil, err
+	}
+
+	coreNSed, err := core.NewFactoryFromConfigWithOptions(client, &core.FactoryOptions{
+		Namespace:               agentNamespace,
+		SharedControllerFactory: localNSFactory,
+	})
 	if err != nil {
 		return nil, err
 	}
 	coreNSv := coreNSed.Core().V1()
 
-	core, err := core.NewFactoryFromConfig(client)
+	core, err := core.NewFactoryFromConfigWithOptions(client, &core.FactoryOptions{
+		SharedControllerFactory: localFactory,
+	})
 	if err != nil {
 		return nil, err
 	}
 	corev := core.Core().V1()
 
 	fleet, err := fleet.NewFactoryFromConfigWithOptions(fleetConfig, &fleet.FactoryOptions{
-		Namespace: fleetNamespace,
-		Resync:    30 * time.Minute,
+		SharedControllerFactory: fleetFactory,
 	})
 	if err != nil {
 		return nil, err
 	}
 	fleetv := fleet.Fleet().V1alpha1()
 
-	rbac, err := rbac.NewFactoryFromConfig(client)
+	rbac, err := rbac.NewFactoryFromConfigWithOptions(client, &rbac.FactoryOptions{
+		SharedControllerFactory: localFactory,
+	})
 	if err != nil {
 		return nil, err
 	}
 	rbacv := rbac.Rbac().V1()
 
-	batch, err := batch2.NewFactoryFromConfig(client)
+	batch, err := batch2.NewFactoryFromConfigWithOptions(client, &batch2.FactoryOptions{
+		SharedControllerFactory: localFactory,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -185,15 +226,6 @@ func newContext(ctx context.Context, fleetNamespace, agentNamespace, clusterName
 		return nil, err
 	}
 
-	cache := memory.NewMemCacheClient(k8s.Discovery())
-	restMapper := restmapper.NewDeferredDiscoveryRESTMapper(cache)
-	go func() {
-		for range ticker.Context(ctx, 30*time.Second) {
-			cache.Invalidate()
-			restMapper.Reset()
-		}
-	}()
-
 	return &appContext{
 		Dynamic:          dynamic,
 		Apply:            apply,
@@ -209,8 +241,8 @@ func newContext(ctx context.Context, fleetNamespace, agentNamespace, clusterName
 
 		clientConfig:             clientConfig,
 		restConfig:               client,
-		cachedDiscoveryInterface: cache,
-		restMapper:               restMapper,
+		cachedDiscoveryInterface: discovery,
+		restMapper:               mapper,
 		starters: []start.Starter{
 			core,
 			coreNSed,

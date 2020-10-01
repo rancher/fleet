@@ -35,6 +35,11 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 	} else if next.DefaultNamespace == "-" {
 		base.DefaultNamespace = ""
 	}
+	if next.TargetNamespace != "" {
+		base.TargetNamespace = next.TargetNamespace
+	} else if next.TargetNamespace == "-" {
+		base.TargetNamespace = ""
+	}
 	if next.ServiceAccount != "" {
 		base.ServiceAccount = next.ServiceAccount
 	} else if next.ServiceAccount == "-" {

@@ -130,10 +130,10 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 		gitrepo, err := h.gitRepos.Get(repo.ns, repo.repo)
 		if err == nil {
 			summary.IncrementResourceCounts(&status.ResourceCounts, gitrepo.Status.ResourceCounts)
-		}
-		status.DesiredReadyGitRepos++
-		if condition.Cond("Ready").IsTrue(gitrepo) {
-			status.ReadyGitRepos++
+			status.DesiredReadyGitRepos++
+			if condition.Cond("Ready").IsTrue(gitrepo) {
+				status.ReadyGitRepos++
+			}
 		}
 	}
 

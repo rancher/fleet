@@ -24,7 +24,7 @@ var (
 	sem = semaphore.NewWeighted(50)
 )
 
-func Simulate(ctx context.Context, count int, kubeConfig, namespace, defaultNamespace string) error {
+func Simulate(ctx context.Context, count int, kubeConfig, namespace, defaultNamespace string, opts agent.Options) error {
 	logrus.Infof("Starting %d simulators", count)
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -36,7 +36,7 @@ func Simulate(ctx context.Context, count int, kubeConfig, namespace, defaultName
 		logrus.Infof("STARING %s%05d", namespace, i)
 		eg.Go(func() error {
 			defer sem.Release(1)
-			return simulateAgent(ctx, i, kubeConfig, namespace, defaultNamespace)
+			return simulateAgent(ctx, i, kubeConfig, namespace, defaultNamespace, opts)
 		})
 	}
 
@@ -49,7 +49,7 @@ func Simulate(ctx context.Context, count int, kubeConfig, namespace, defaultName
 	return eg.Wait()
 }
 
-func simulateAgent(ctx context.Context, i int, kubeConfig, namespace, defaultNamespace string) error {
+func simulateAgent(ctx context.Context, i int, kubeConfig, namespace, defaultNamespace string, opts agent.Options) error {
 	simNamespace := fmt.Sprintf("%s%05d", namespace, i)
 	simDefaultNamespace := fmt.Sprintf("%s%05d", defaultNamespace, i)
 
@@ -58,11 +58,10 @@ func simulateAgent(ctx context.Context, i int, kubeConfig, namespace, defaultNam
 		return err
 	}
 
-	return agent.Start(ctx, kubeConfig, simNamespace, &agent.Options{
-		DefaultNamespace: simDefaultNamespace,
-		ClusterID:        clusterID,
-		NoLeaderElect:    true,
-	})
+	opts.DefaultNamespace = simDefaultNamespace
+	opts.ClusterID = clusterID
+	opts.NoLeaderElect = true
+	return agent.Start(ctx, kubeConfig, simNamespace, &opts)
 }
 
 func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace string) (string, error) {
@@ -84,61 +83,63 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 
 	clusterID := name.SafeConcatName(simNamespace, strings.SplitN(string(kubeSystem.UID), "-", 2)[0])
 
-	secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, register.BootstrapCredName, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	conf, err := k8s.CoreV1().ConfigMaps(namespace).Get(ctx, config.AgentConfigName, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		conf = nil
-	} else if err != nil {
-		return "", err
-	}
-
-	_, err = k8s.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: simNamespace,
-		},
-	}, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return "", err
-	}
-
-	_, err = k8s.CoreV1().Secrets(simNamespace).Create(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secret.Name,
-			Namespace: simNamespace,
-		},
-		Data: secret.Data,
-	}, metav1.CreateOptions{})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return "", err
-	}
-
-	if conf != nil {
-		conf, err := injectConfig(conf)
+	if _, err = k8s.CoreV1().Secrets(simNamespace).Get(ctx, register.CredName, metav1.GetOptions{}); err != nil {
+		secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, register.BootstrapCredName, metav1.GetOptions{})
 		if err != nil {
 			return "", err
 		}
-		_, err = k8s.CoreV1().ConfigMaps(simNamespace).Create(ctx, &corev1.ConfigMap{
+
+		conf, err := k8s.CoreV1().ConfigMaps(namespace).Get(ctx, config.AgentConfigName, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			conf = nil
+		} else if err != nil {
+			return "", err
+		}
+
+		_, err = k8s.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        conf.Name,
-				Namespace:   simNamespace,
-				Labels:      conf.Labels,
-				Annotations: conf.Annotations,
+				Name: simNamespace,
 			},
-			Data: conf.Data,
 		}, metav1.CreateOptions{})
 		if err != nil && !apierrors.IsAlreadyExists(err) {
 			return "", err
+		}
+
+		_, err = k8s.CoreV1().Secrets(simNamespace).Create(ctx, &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      secret.Name,
+				Namespace: simNamespace,
+			},
+			Data: secret.Data,
+		}, metav1.CreateOptions{})
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			return "", err
+		}
+
+		if conf != nil {
+			conf, err := injectConfig(conf, simNamespace)
+			if err != nil {
+				return "", err
+			}
+			_, err = k8s.CoreV1().ConfigMaps(simNamespace).Create(ctx, &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        conf.Name,
+					Namespace:   simNamespace,
+					Labels:      conf.Labels,
+					Annotations: conf.Annotations,
+				},
+				Data: conf.Data,
+			}, metav1.CreateOptions{})
+			if err != nil && !apierrors.IsAlreadyExists(err) {
+				return "", err
+			}
 		}
 	}
 
 	return clusterID, agent.Register(ctx, kubeConfig, simNamespace, clusterID)
 }
 
-func injectConfig(cm *corev1.ConfigMap) (*corev1.ConfigMap, error) {
+func injectConfig(cm *corev1.ConfigMap, simNamespace string) (*corev1.ConfigMap, error) {
 	cfg, err := config.ReadConfig(cm)
 	if err != nil {
 		return nil, err
@@ -148,5 +149,6 @@ func injectConfig(cm *corev1.ConfigMap) (*corev1.ConfigMap, error) {
 		cfg.Labels = map[string]string{}
 	}
 	cfg.Labels["fleet.cattle.io/non-managed-agent"] = "true"
+	cfg.Labels["simulator-namespace"] = simNamespace
 	return config.ToConfigMap(cm.Namespace, cm.Name, cfg)
 }

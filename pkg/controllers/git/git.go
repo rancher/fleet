@@ -311,7 +311,15 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 
 	saName := name.SafeConcatName("git", gitrepo.Name)
 
-	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, status.Summary.WaitApplied > 0, h.isNamespaced)
+	bundleErrorState := ""
+	if status.Summary.WaitApplied > 0 {
+		bundleErrorState = "WaitApplied"
+	}
+	if status.Summary.ErrApplied > 0 {
+		bundleErrorState = "ErrApplied"
+	}
+
+	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, bundleErrorState, h.isNamespaced)
 	status = countResources(status)
 	return []runtime.Object{
 		configMap,
@@ -403,6 +411,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 									Image:           config.Get().AgentImage,
 									ImagePullPolicy: corev1.PullPolicy(config.Get().AgentImagePullPolicy),
 									Command: append([]string{
+										"log.sh",
 										"fleet",
 										"apply",
 										"--targets-file=/run/config/targets.yaml",
@@ -410,6 +419,8 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 										"--namespace", gitrepo.Namespace,
 										"--service-account", gitrepo.Spec.ServiceAccount,
 										"--sync-before", syncBefore,
+										fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
+										"--target-namespace", gitrepo.Spec.TargetNamespace,
 										gitrepo.Name,
 									}, paths...),
 									WorkingDir: "/workspace/source",
@@ -471,21 +482,27 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	status.Summary = fleet.BundleSummary{}
 
 	sort.Slice(bundleDeployments, func(i, j int) bool {
-		return bundleDeployments[i].Name < bundleDeployments[j].Name
+		return bundleDeployments[i].UID < bundleDeployments[j].UID
 	})
 
-	var maxState fleet.BundleState
+	var (
+		maxState fleet.BundleState
+		message  string
+	)
+
 	for _, app := range bundleDeployments {
 		state := summary.GetDeploymentState(app)
 		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus, app.Status.NonReadyStatus)
 		status.Summary.DesiredReady++
 		if fleet.StateRank[state] > fleet.StateRank[maxState] {
 			maxState = state
+			message = summary.MessageFromDeployment(app)
 		}
 	}
 
 	if maxState == fleet.Ready {
 		maxState = ""
+		message = ""
 	}
 
 	bundles, err := h.bundleCache.List(gitrepo.Namespace, labels.SelectorFromSet(labels.Set{
@@ -518,6 +535,8 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	}
 
 	status.Display.State = string(maxState)
+	status.Display.Message = message
+	status.Display.Error = len(message) > 0
 	status.DesiredReadyClusters = clustersDesiredReady
 	status.ReadyClusters = clustersReady
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)
