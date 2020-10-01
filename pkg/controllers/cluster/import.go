@@ -145,6 +145,14 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: cluster.Namespace,
 				Name:      ImportTokenPrefix + cluster.Name,
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						APIVersion: fleet.SchemeGroupVersion.String(),
+						Kind:       "Cluster",
+						Name:       cluster.Name,
+						UID:        cluster.UID,
+					},
+				},
 			},
 			Spec: fleet.ClusterRegistrationTokenSpec{
 				TTL: &metav1.Duration{Duration: ImportTokenTTL},
