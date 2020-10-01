@@ -69,8 +69,8 @@ type ClusterStatus struct {
 	Namespace            string                              `json:"namespace,omitempty"`
 	Summary              BundleSummary                       `json:"summary,omitempty"`
 	ResourceCounts       GitRepoResourceCounts               `json:"resourceCounts,omitempty"`
-	ReadyGitRepos        int                                 `json:"readyGitRepos,omitempty"`
-	DesiredReadyGitRepos int                                 `json:"desiredReadyGitRepos,omitempty"`
+	ReadyGitRepos        int                                 `json:"readyGitRepos"`
+	DesiredReadyGitRepos int                                 `json:"desiredReadyGitRepos"`
 
 	AgentLastDeployed *metav1.Time `json:"agentLastDeployed,omitempty"`
 
