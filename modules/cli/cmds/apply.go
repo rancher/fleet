@@ -21,11 +21,12 @@ func NewApply() *cobra.Command {
 type Apply struct {
 	BundleInputArgs
 	OutputArgsNoDefault
-	Label          map[string]string `usage:"Labels to apply to created bundles" short:"l"`
-	TargetsFile    string            `usage:"Addition source of targets and restrictions to be append"`
-	Compress       bool              `usage:"Force all resources to be compress" short:"c"`
-	ServiceAccount string            `usage:"Service account to assign to bundle created" short:"a"`
-	SyncBefore     string            `usage:"Force sync all deployments before this RFC3339 time"`
+	Label           map[string]string `usage:"Labels to apply to created bundles" short:"l"`
+	TargetsFile     string            `usage:"Addition source of targets and restrictions to be append"`
+	Compress        bool              `usage:"Force all resources to be compress" short:"c"`
+	ServiceAccount  string            `usage:"Service account to assign to bundle created" short:"a"`
+	SyncBefore      string            `usage:"Force sync all deployments before this RFC3339 time"`
+	TargetNamespace string            `usage:"Ensure this bundle goes to this target namespace"`
 }
 
 func toTime(syncBefore string) (*time.Time, error) {
@@ -55,13 +56,14 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 
 	name := ""
 	opts := &apply.Options{
-		BundleFile:     a.BundleFile,
-		Output:         writer.NewDefaultNone(a.Output),
-		Compress:       a.Compress,
-		ServiceAccount: a.ServiceAccount,
-		Labels:         a.Label,
-		TargetsFile:    a.TargetsFile,
-		SyncBefore:     syncBefore,
+		BundleFile:      a.BundleFile,
+		Output:          writer.NewDefaultNone(a.Output),
+		Compress:        a.Compress,
+		ServiceAccount:  a.ServiceAccount,
+		Labels:          a.Label,
+		TargetsFile:     a.TargetsFile,
+		TargetNamespace: a.TargetNamespace,
+		SyncBefore:      syncBefore,
 	}
 
 	if a.File == "-" {

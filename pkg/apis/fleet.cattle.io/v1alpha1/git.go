@@ -31,6 +31,11 @@ type GitRepoSpec struct {
 	// Revision A specific commit or tag to operate on
 	Revision string `json:"revision,omitempty"`
 
+	// Ensure that all resources are created in this namespace
+	// Any cluster scoped resource will be rejected if this is set
+	// Additionally this namespace will be created on demand
+	TargetNamespace string `json:"targetNamespace,omitempty"`
+
 	// ClientSecretName is the client secret to be used to connect to the repo
 	// It is expected the secret be of type "kubernetes.io/basic-auth" or "kubernetes.io/ssh-auth".
 	ClientSecretName string `json:"clientSecretName,omitempty"`

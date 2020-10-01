@@ -411,6 +411,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 										"--namespace", gitrepo.Namespace,
 										"--service-account", gitrepo.Spec.ServiceAccount,
 										"--sync-before", syncBefore,
+										"--target-namespace", gitrepo.Spec.TargetNamespace,
 										gitrepo.Name,
 									}, paths...),
 									WorkingDir: "/workspace/source",

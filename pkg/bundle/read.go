@@ -17,11 +17,12 @@ import (
 )
 
 type Options struct {
-	Compress       bool
-	Labels         map[string]string
-	ServiceAccount string
-	TargetsFile    string
-	SyncBefore     *time.Time
+	Compress        bool
+	Labels          map[string]string
+	ServiceAccount  string
+	TargetsFile     string
+	TargetNamespace string
+	SyncBefore      *time.Time
 }
 
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
@@ -167,6 +168,12 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		}
 	}
 
+	if opts.TargetNamespace != "" {
+		def.Spec.TargetNamespace = opts.TargetNamespace
+		for i := range def.Spec.Targets {
+			def.Spec.Targets[i].TargetNamespace = opts.TargetNamespace
+		}
+	}
 	return New(def)
 }
 

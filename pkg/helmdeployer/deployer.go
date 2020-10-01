@@ -82,6 +82,7 @@ type postRender struct {
 	labelPrefix string
 	bundleID    string
 	manifest    *manifest.Manifest
+	mapper      meta.RESTMapper
 	opts        fleet.BundleDeploymentOptions
 }
 
@@ -111,12 +112,28 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 	}
 
 	for _, obj := range objs {
-		meta, err := meta.Accessor(obj)
+		m, err := meta.Accessor(obj)
 		if err != nil {
 			return nil, err
 		}
-		meta.SetLabels(mergeMaps(meta.GetLabels(), labels))
-		meta.SetAnnotations(mergeMaps(meta.GetAnnotations(), annotations))
+		m.SetLabels(mergeMaps(m.GetLabels(), labels))
+		m.SetAnnotations(mergeMaps(m.GetAnnotations(), annotations))
+
+		if p.opts.TargetNamespace != "" {
+			if p.mapper != nil {
+				gvk := obj.GetObjectKind().GroupVersionKind()
+				mapping, err := p.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+				if err != nil {
+					return nil, err
+				}
+				if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+					apiVersion, kind := gvk.ToAPIVersionAndKind()
+					return nil, fmt.Errorf("invalid cluster scoped object [name=%s kind=%v apiVersion=%s] found, consider using defaultNamespace, not namespace", m.GetName(),
+						kind, apiVersion)
+				}
+			}
+			m.SetNamespace(p.opts.TargetNamespace)
+		}
 	}
 
 	data, err = yaml.ToBytes(objs)
@@ -196,6 +213,10 @@ func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 		timeout = time.Second * time.Duration(options.Helm.TimeoutSeconds)
 	}
 
+	if options.TargetNamespace != "" {
+		options.DefaultNamespace = options.TargetNamespace
+	}
+
 	if options.DefaultNamespace == "" {
 		options.DefaultNamespace = h.defaultNamespace
 	}
@@ -272,6 +293,14 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		bundleID:    bundleID,
 		manifest:    manifest,
 		opts:        options,
+	}
+
+	if !h.useGlobalCfg {
+		mapper, err := cfg.RESTClientGetter.ToRESTMapper()
+		if err != nil {
+			return nil, err
+		}
+		pr.mapper = mapper
 	}
 
 	if install {

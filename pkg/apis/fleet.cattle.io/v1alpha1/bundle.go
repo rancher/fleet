@@ -166,7 +166,8 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
-	DefaultNamespace string            `json:"namespace,omitempty"`
+	DefaultNamespace string            `json:"defaultNamespace,omitempty"`
+	TargetNamespace  string            `json:"namespace,omitempty"`
 	Kustomize        *KustomizeOptions `json:"kustomize,omitempty"`
 	Helm             *HelmOptions      `json:"helm,omitempty"`
 	ServiceAccount   string            `json:"serviceAccount,omitempty"`

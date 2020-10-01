@@ -41,7 +41,9 @@ func NewManager(fleetNamespace string,
 
 func (m *Manager) releaseName(bd *fleet.BundleDeployment) string {
 	ns := m.defaultNamespace
-	if bd.Spec.Options.DefaultNamespace != "" {
+	if bd.Spec.Options.TargetNamespace != "" {
+		ns = bd.Spec.Options.TargetNamespace
+	} else if bd.Spec.Options.DefaultNamespace != "" {
 		ns = bd.Spec.Options.DefaultNamespace
 	}
 	if bd.Spec.Options.Helm == nil || bd.Spec.Options.Helm.ReleaseName == "" {

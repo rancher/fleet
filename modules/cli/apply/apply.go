@@ -27,14 +27,15 @@ var (
 )
 
 type Options struct {
-	BundleFile     string
-	TargetsFile    string
-	Compress       bool
-	BundleReader   io.Reader
-	Output         io.Writer
-	ServiceAccount string
-	Labels         map[string]string
-	SyncBefore     *time.Time
+	BundleFile      string
+	TargetsFile     string
+	Compress        bool
+	BundleReader    io.Reader
+	Output          io.Writer
+	ServiceAccount  string
+	TargetNamespace string
+	Labels          map[string]string
+	SyncBefore      *time.Time
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -113,11 +114,12 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 	}
 
 	return bundle.Open(ctx, name, baseDir, opts.BundleFile, &bundle.Options{
-		Compress:       opts.Compress,
-		Labels:         opts.Labels,
-		ServiceAccount: opts.ServiceAccount,
-		TargetsFile:    opts.TargetsFile,
-		SyncBefore:     opts.SyncBefore,
+		Compress:        opts.Compress,
+		Labels:          opts.Labels,
+		ServiceAccount:  opts.ServiceAccount,
+		TargetsFile:     opts.TargetsFile,
+		TargetNamespace: opts.TargetNamespace,
+		SyncBefore:      opts.SyncBefore,
 	})
 }
 
