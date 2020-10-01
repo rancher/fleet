@@ -27,6 +27,7 @@ type Apply struct {
 	ServiceAccount  string            `usage:"Service account to assign to bundle created" short:"a"`
 	SyncBefore      string            `usage:"Force sync all deployments before this RFC3339 time"`
 	TargetNamespace string            `usage:"Ensure this bundle goes to this target namespace"`
+	Paused          bool              `usage:"Create bundles in a paused state"`
 }
 
 func toTime(syncBefore string) (*time.Time, error) {
@@ -63,6 +64,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		Labels:          a.Label,
 		TargetsFile:     a.TargetsFile,
 		TargetNamespace: a.TargetNamespace,
+		Paused:          a.Paused,
 		SyncBefore:      syncBefore,
 	}
 

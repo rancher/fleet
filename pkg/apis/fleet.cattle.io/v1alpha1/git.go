@@ -45,6 +45,10 @@ type GitRepoSpec struct {
 	// If empty, "/" is the default
 	Paths []string `json:"paths,omitempty"`
 
+	// Paused this cause changes in Git to not be propagated down to the clusters but instead mark
+	// resources as OutOfSync
+	Paused bool `json:"paused,omitempty"`
+
 	// ServiceAccount used in the downstream cluster for deployment
 	ServiceAccount string `json:"serviceAccount,omitempty"`
 

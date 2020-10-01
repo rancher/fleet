@@ -34,6 +34,7 @@ type Options struct {
 	Output          io.Writer
 	ServiceAccount  string
 	TargetNamespace string
+	Paused          bool
 	Labels          map[string]string
 	SyncBefore      *time.Time
 }
@@ -119,6 +120,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 		ServiceAccount:  opts.ServiceAccount,
 		TargetsFile:     opts.TargetsFile,
 		TargetNamespace: opts.TargetNamespace,
+		Paused:          opts.Paused,
 		SyncBefore:      opts.SyncBefore,
 	})
 }

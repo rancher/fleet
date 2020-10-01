@@ -22,6 +22,7 @@ type Options struct {
 	ServiceAccount  string
 	TargetsFile     string
 	TargetNamespace string
+	Paused          bool
 	SyncBefore      *time.Time
 }
 
@@ -174,6 +175,11 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 			def.Spec.Targets[i].TargetNamespace = opts.TargetNamespace
 		}
 	}
+
+	if opts.Paused {
+		def.Spec.Paused = true
+	}
+
 	return New(def)
 }
 
