@@ -121,6 +121,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
+	restConfig.Timeout = 15 * time.Second
 
 	kc, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
