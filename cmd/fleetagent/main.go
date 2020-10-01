@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"time"
 
 	"github.com/rancher/fleet/modules/agent/pkg/agent"
@@ -19,6 +22,10 @@ type FleetAgent struct {
 }
 
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	var (
 		opts agent.Options
 		err  error
