@@ -191,27 +191,6 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				},
 			},
 		},
-		&rbacv1.Role{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      request.Name,
-				Namespace: cluster.Status.Namespace,
-				Labels: map[string]string{
-					fleet.ManagedLabel: "true",
-				},
-			},
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"get", "list", "watch"},
-					APIGroups: []string{fleetgroup.GroupName},
-					Resources: []string{fleet.BundleDeploymentResourceName},
-				},
-				{
-					Verbs:     []string{"update"},
-					APIGroups: []string{fleetgroup.GroupName},
-					Resources: []string{fleet.BundleDeploymentResourceName + "/status"},
-				},
-			},
-		},
 		&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
@@ -229,8 +208,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
-				Kind:     "Role",
-				Name:     request.Name,
+				Kind:     "ClusterRole",
+				Name:     "fleet-bundle-deployment",
 			},
 		},
 		&rbacv1.RoleBinding{
@@ -254,21 +233,6 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				Name:     request.Name,
 			},
 		},
-		&rbacv1.ClusterRole{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name.SafeConcatName(request.Namespace, request.Name),
-				Labels: map[string]string{
-					fleet.ManagedLabel: "true",
-				},
-			},
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"get"},
-					APIGroups: []string{fleetgroup.GroupName},
-					Resources: []string{fleet.ContentResourceName},
-				},
-			},
-		},
 		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name.SafeConcatName(request.Namespace, request.Name),
@@ -286,7 +250,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
 				Kind:     "ClusterRole",
-				Name:     name.SafeConcatName(request.Namespace, request.Name),
+				Name:     "fleet-content",
 			},
 		}), status, nil
 }
