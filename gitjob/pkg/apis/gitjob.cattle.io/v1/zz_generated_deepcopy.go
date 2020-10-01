@@ -147,10 +147,6 @@ func (in *GitJobSpec) DeepCopyInto(out *GitJobSpec) {
 	*out = *in
 	in.Git.DeepCopyInto(&out.Git)
 	in.JobSpec.DeepCopyInto(&out.JobSpec)
-	if in.ForceUpdate != nil {
-		in, out := &in.ForceUpdate, &out.ForceUpdate
-		*out = (*in).DeepCopy()
-	}
 	return
 }
 

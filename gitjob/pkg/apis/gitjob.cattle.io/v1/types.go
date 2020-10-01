@@ -48,7 +48,7 @@ type GitJobSpec struct {
 	SyncInterval int `json:"syncInterval,omitempty"`
 
 	// ForceUpdate is a timestamp where can be set to do a force re-sync. If it is after the last synced timestamp and before the current timestamp it will be re-synced
-	ForceUpdate *metav1.Time `json:"forceUpdate,omitempty"`
+	ForceUpdateGeneration int64 `json:"forceUpdateGeneration,omitempty"`
 }
 
 type GitInfo struct {
@@ -94,6 +94,9 @@ type GitJobStatus struct {
 
 	// Generation of status to indicate if resource is out-of-sync
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Update generation is the force update generation if spec.forceUpdateGeneration is set
+	UpdateGeneration int64 `json:"updateGeneration,omitempty"`
 
 	// Condition of the resource
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
