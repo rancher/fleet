@@ -117,7 +117,7 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 		}
 
 		if conf != nil {
-			conf, err := injectConfig(conf)
+			conf, err := injectConfig(conf, simNamespace)
 			if err != nil {
 				return "", err
 			}
@@ -139,7 +139,7 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 	return clusterID, agent.Register(ctx, kubeConfig, simNamespace, clusterID)
 }
 
-func injectConfig(cm *corev1.ConfigMap) (*corev1.ConfigMap, error) {
+func injectConfig(cm *corev1.ConfigMap, simNamespace string) (*corev1.ConfigMap, error) {
 	cfg, err := config.ReadConfig(cm)
 	if err != nil {
 		return nil, err
@@ -149,5 +149,6 @@ func injectConfig(cm *corev1.ConfigMap) (*corev1.ConfigMap, error) {
 		cfg.Labels = map[string]string{}
 	}
 	cfg.Labels["fleet.cattle.io/non-managed-agent"] = "true"
+	cfg.Labels["simulator-namespace"] = simNamespace
 	return config.ToConfigMap(cm.Namespace, cm.Name, cfg)
 }
