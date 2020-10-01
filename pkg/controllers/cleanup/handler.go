@@ -10,6 +10,7 @@ import (
 	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -96,5 +97,9 @@ func (h *handler) cleanup(ns runtime.Object) error {
 	if meta.GetLabels()[fleet.ManagedLabel] != "true" {
 		return nil
 	}
-	return h.apply.PurgeOrphan(ns)
+	err = h.apply.PurgeOrphan(ns)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
 }
