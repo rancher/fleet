@@ -35,7 +35,7 @@ const (
 	CommitAnnotation             = "fleet.cattle.io/commit"
 	AgentNamespaceAnnotation     = "fleet.cattle.io/agent-namespace"
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
-	DefaultServiceAccount        = "fleetDefault"
+	DefaultServiceAccount        = "fleet-default"
 )
 
 var ErrNoRelease = errors.New("failed to find release")
