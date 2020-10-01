@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/gitjob/pkg/hooks"
 	"github.com/rancher/gitjob/pkg/types"
 	"github.com/rancher/wrangler/pkg/leader"
+	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/resolvehome"
 	"github.com/rancher/wrangler/pkg/signals"
 	"github.com/sirupsen/logrus"
@@ -69,6 +70,7 @@ func run(c *cli.Context) {
 	if err != nil {
 		logrus.Fatalf("Error building kubeconfig: %s", err.Error())
 	}
+	cfg.RateLimiter = ratelimit.None
 
 	ctx, cont := types.BuildContext(ctx, c.String("namespace"), cfg)
 	if err := cont.Start(ctx); err != nil {
