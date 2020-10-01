@@ -6,6 +6,7 @@ import (
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/sirupsen/logrus"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -38,8 +39,8 @@ func NewManager(fleetNamespace string,
 	}
 }
 
-func releaseName(bd *fleet.BundleDeployment) string {
-	ns := "default"
+func (m *Manager) releaseName(bd *fleet.BundleDeployment) string {
+	ns := m.defaultNamespace
 	if bd.Spec.Options.DefaultNamespace != "" {
 		ns = bd.Spec.Options.DefaultNamespace
 	}
@@ -58,14 +59,16 @@ func (m *Manager) Cleanup() error {
 	for _, deployed := range deployed {
 		bundleDeployment, err := m.bundleDeploymentCache.Get(m.fleetNamespace, deployed.BundleID)
 		if apierror.IsNotFound(err) {
+			logrus.Infof("Deleting orphan bundle ID %s, release %s", deployed.BundleID, deployed.ReleaseName)
 			if err := m.deployer.Delete(deployed.BundleID, ""); err != nil {
 				return err
 			}
 		} else if err != nil {
 			return err
 		} else {
-			releaseName := releaseName(bundleDeployment)
+			releaseName := m.releaseName(bundleDeployment)
 			if releaseName != deployed.ReleaseName {
+				logrus.Infof("Deleting unknown bundle ID %s, release %s, expecting release %s", deployed.BundleID, deployed.ReleaseName, releaseName)
 				if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
 					return err
 				}
