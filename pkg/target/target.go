@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rancher/wrangler/pkg/yaml"
-
 	"github.com/pkg/errors"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
@@ -15,7 +13,9 @@ import (
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
 	"github.com/rancher/fleet/pkg/summary"
+	"github.com/rancher/wrangler/pkg/data"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -216,6 +216,8 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 			}
 
 			opts := options.Calculate(&fleetBundle.Spec, match.Target)
+			addClusterLabels(&opts, cluster.Labels)
+
 			deploymentID, err := options.DeploymentID(manifest, opts)
 			if err != nil {
 				return nil, err
@@ -237,6 +239,41 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 	})
 
 	return result, m.foldInDeployments(fleetBundle, result)
+}
+
+func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]string) {
+	clusterLabels := yaml.CleanAnnotationsForExport(labels)
+	for k, v := range labels {
+		if strings.HasPrefix(k, "fleet.cattle.io/") || strings.HasPrefix(k, "management.cattle.io/") {
+			clusterLabels[k] = v
+		}
+	}
+	if len(clusterLabels) == 0 {
+		return
+	}
+
+	if opts.Helm == nil {
+		opts.Helm = &fleet.HelmOptions{
+			Values: &fleet.GenericMap{
+				Data: map[string]interface{}{},
+			},
+		}
+	}
+	if opts.Helm.Values == nil {
+		opts.Helm.Values = &fleet.GenericMap{
+			Data: map[string]interface{}{},
+		}
+	}
+	if opts.Helm.Values.Data == nil {
+		opts.Helm.Values.Data = map[string]interface{}{}
+	}
+	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, map[string]interface{}{
+		"global": map[string]interface{}{
+			"fleet": map[string]interface{}{
+				"clusterLabels": clusterLabels,
+			},
+		},
+	})
 }
 
 func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error {
