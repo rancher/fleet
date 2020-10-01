@@ -7,6 +7,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
+	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -39,7 +40,15 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) OnClusterChange(key string, cluster *fleet.Cluster) (*fleet.Cluster, error) {
-	if cluster == nil || len(cluster.Labels) == 0 {
+	if cluster == nil {
+		ns, _ := kv.Split(key, "/")
+		cgs, err := h.clusterGroupsCache.List(ns, labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		for _, cg := range cgs {
+			h.clusterGroups.Enqueue(cg.Namespace, cg.Name)
+		}
 		return cluster, nil
 	}
 
