@@ -12,8 +12,8 @@ require (
 	github.com/gorilla/mux v1.7.1
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
-	github.com/rancher/lasso v0.0.0-20200820172840-0e4cc0ef5cb0
-	github.com/rancher/wrangler v0.6.2-0.20200828062337-113afceceb91
+	github.com/rancher/lasso v0.0.0-20200905045615-7fcb07d6a20b
+	github.com/rancher/wrangler v0.7.2
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/urfave/cli v1.22.4
