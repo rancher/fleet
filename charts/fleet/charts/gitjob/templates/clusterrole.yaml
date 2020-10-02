@@ -12,6 +12,14 @@ rules:
   - apiGroups:
       - ""
     resources:
+      - 'pods'
+    verbs:
+      - 'list'
+      - 'get'
+      - 'watch'
+  - apiGroups:
+      - ""
+    resources:
       - 'secrets'
     verbs:
       - 'list'
