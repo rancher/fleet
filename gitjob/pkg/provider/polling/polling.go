@@ -72,7 +72,7 @@ func (p *Polling) innerHandle(ctx context.Context, obj *gitjobv1.GitJob) (*gitjo
 		return obj, err
 	}
 
-	commit, err := git.LsRemote(branch)
+	commit, err := git.LsRemote(branch, obj.Status.Commit)
 	if err != nil {
 		return obj, err
 	}
