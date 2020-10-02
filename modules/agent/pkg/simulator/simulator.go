@@ -36,7 +36,11 @@ func Simulate(ctx context.Context, count int, kubeConfig, namespace, defaultName
 		logrus.Infof("STARING %s%05d", namespace, i)
 		eg.Go(func() error {
 			defer sem.Release(1)
-			return simulateAgent(ctx, i, kubeConfig, namespace, defaultNamespace, opts)
+			if err := simulateAgent(ctx, i, kubeConfig, namespace, defaultNamespace, opts); err != nil {
+				logrus.Errorf("Failed to start simulator %s: %v", namespace, err)
+				return err
+			}
+			return nil
 		})
 	}
 
