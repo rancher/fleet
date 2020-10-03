@@ -27,6 +27,11 @@ spec:
   #
   repo: https://github.com/rancher/fleet-examples
 
+  # Enforce all resources go to this target namespace. If a cluster scoped
+  # resource is found the deployment will fail.
+  #
+  # targetNamespace: app1
+
   # Any branch can be watched, this field is optional. If not specified the
   # branch is assumed to be master
   #

@@ -18,7 +18,7 @@ metadata:
   namespace: clusters
 spec:
   repo: https://github.com/rancher/fleet-examples
-  bundleDirs:
+  paths:
   - simple
 
   # Targets are evaluated in order and the first one to match is used. If
