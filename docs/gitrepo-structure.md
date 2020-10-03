@@ -35,10 +35,13 @@ configured differently from the parent bundle.
 # The default namespace to be applied to resources. This field is not used to
 # enforce or lock down the deployment to a specific namespace, but instead
 # provide the default value of the namespace field if one is not specified
-# in the manifests. If you wish to actually restrict the namespace use then
-# that should be done using the RBAC of the service account assigned to the
-# GitRepo
+# in the manifests.
 # Default: default
+defaultNamespace: default
+
+# All resources will be assigned to this namespace and if any cluster scoped
+# resource exists the deployment will fail.
+# Default: ""
 namespace: default
 
 kustomize:
