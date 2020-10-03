@@ -21,16 +21,21 @@ import (
 )
 
 var (
-	sem = semaphore.NewWeighted(50)
+	semMax = int64(50)
+	sem    = semaphore.NewWeighted(semMax)
 )
 
 func Simulate(ctx context.Context, count int, kubeConfig, namespace, defaultNamespace string, opts agent.Options) error {
 	logrus.Infof("Starting %d simulators", count)
 
+	startAfter := make(chan struct{})
+	opts.StartAfter = startAfter
+
 	eg, ctx := errgroup.WithContext(ctx)
 	for i := 0; i < count; i++ {
 		i := i
 		if err := sem.Acquire(ctx, 1); err != nil {
+			close(startAfter)
 			return err
 		}
 		logrus.Infof("STARING %s%05d", namespace, i)
@@ -43,6 +48,12 @@ func Simulate(ctx context.Context, count int, kubeConfig, namespace, defaultName
 			return nil
 		})
 	}
+
+	if err := sem.Acquire(ctx, semMax); err != nil {
+		close(startAfter)
+		return err
+	}
+	close(startAfter)
 
 	eg.Go(func() error {
 		// wait forever unless one of the simulators dies
