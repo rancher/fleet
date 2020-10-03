@@ -6,11 +6,13 @@ import (
 )
 
 var (
-	ClusterConditionReady      = "Ready"
-	ClusterGroupAnnotation     = "fleet.cattle.io/cluster-group"
-	ClusterNamespaceAnnotation = "fleet.cattle.io/cluster-namespace"
-	ClusterAnnotation          = "fleet.cattle.io/cluster"
-	ManagedLabel               = "fleet.cattle.io/managed"
+	ClusterConditionReady                  = "Ready"
+	ClusterGroupAnnotation                 = "fleet.cattle.io/cluster-group"
+	ClusterNamespaceAnnotation             = "fleet.cattle.io/cluster-namespace"
+	ClusterAnnotation                      = "fleet.cattle.io/cluster"
+	ClusterRegistrationAnnotation          = "fleet.cattle.io/cluster-registration"
+	ClusterRegistrationNamespaceAnnotation = "fleet.cattle.io/cluster-registration-namespace"
+	ManagedLabel                           = "fleet.cattle.io/managed"
 
 	BootstrapToken = "fleet.cattle.io/bootstrap-token"
 )

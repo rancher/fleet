@@ -252,28 +252,32 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 		return
 	}
 
-	if opts.Helm == nil {
-		opts.Helm = &fleet.HelmOptions{
-			Values: &fleet.GenericMap{
-				Data: map[string]interface{}{},
-			},
-		}
-	}
-	if opts.Helm.Values == nil {
-		opts.Helm.Values = &fleet.GenericMap{
-			Data: map[string]interface{}{},
-		}
-	}
-	if opts.Helm.Values.Data == nil {
-		opts.Helm.Values.Data = map[string]interface{}{}
-	}
-	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, map[string]interface{}{
+	newValues := map[string]interface{}{
 		"global": map[string]interface{}{
 			"fleet": map[string]interface{}{
 				"clusterLabels": clusterLabels,
 			},
 		},
-	})
+	}
+
+	if opts.Helm == nil {
+		opts.Helm = &fleet.HelmOptions{
+			Values: &fleet.GenericMap{
+				Data: newValues,
+			},
+		}
+		return
+	}
+
+	opts.Helm = opts.Helm.DeepCopy()
+	if opts.Helm.Values == nil || opts.Helm.Values.Data == nil {
+		opts.Helm.Values = &fleet.GenericMap{
+			Data: newValues,
+		}
+		return
+	}
+
+	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, newValues)
 }
 
 func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error {

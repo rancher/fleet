@@ -77,6 +77,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 	}
 
 	return namespace, h.apply.
+		WithOwner(namespace).
 		WithDefaultNamespace(namespace.Name).
 		WithListerNamespace(namespace.Name).
 		ApplyObjects(objs...)
