@@ -60,7 +60,7 @@ func agentDeployed(cluster *fleet.Cluster) bool {
 	if cluster.Status.AgentDeployedGeneration == nil {
 		return false
 	}
-	return *cluster.Status.AgentDeployedGeneration != cluster.Spec.RedeployAgentGeneration
+	return *cluster.Status.AgentDeployedGeneration == cluster.Spec.RedeployAgentGeneration
 }
 
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {

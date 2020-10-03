@@ -55,6 +55,9 @@ func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterSt
 	}
 
 	status.Display.State = string(state)
+	if status.Agent.LastSeen.IsZero() {
+		status.Display.State = "WaitCheckIn"
+	}
 	return status, nil
 }
 
