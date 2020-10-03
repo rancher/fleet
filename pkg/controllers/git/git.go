@@ -304,11 +304,6 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 		syncSeconds = int(gitrepo.Spec.PollingInterval.Duration / time.Second)
 	}
 
-	syncBefore := ""
-	if gitrepo.Spec.ForceSyncBefore != nil {
-		syncBefore = gitrepo.Spec.ForceSyncBefore.UTC().Format(time.RFC3339)
-	}
-
 	saName := name.SafeConcatName("git", gitrepo.Name)
 
 	bundleErrorState := ""
@@ -373,8 +368,8 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 				Namespace:   gitrepo.Namespace,
 			},
 			Spec: gitjob.GitJobSpec{
-				SyncInterval: syncSeconds,
-				ForceUpdate:  gitrepo.Spec.ForceUpdate,
+				SyncInterval:          syncSeconds,
+				ForceUpdateGeneration: gitrepo.Spec.ForceSyncGeneration,
 				Git: gitjob.GitInfo{
 					Credential: gitjob.Credential{
 						ClientSecretName: gitrepo.Spec.ClientSecretName,
@@ -418,7 +413,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 										"--label=" + fleet.RepoLabel + "=" + gitrepo.Name,
 										"--namespace", gitrepo.Namespace,
 										"--service-account", gitrepo.Spec.ServiceAccount,
-										"--sync-before", syncBefore,
+										fmt.Sprintf("--sync-generation=%d", gitrepo.Spec.ForceSyncGeneration),
 										fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
 										"--target-namespace", gitrepo.Spec.TargetNamespace,
 										gitrepo.Name,

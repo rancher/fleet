@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -37,7 +36,7 @@ type Options struct {
 	TargetNamespace string
 	Paused          bool
 	Labels          map[string]string
-	SyncBefore      *time.Time
+	SyncGeneration  int64
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -125,7 +124,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 		TargetsFile:     opts.TargetsFile,
 		TargetNamespace: opts.TargetNamespace,
 		Paused:          opts.Paused,
-		SyncBefore:      opts.SyncBefore,
+		SyncGeneration:  opts.SyncGeneration,
 	})
 }
 

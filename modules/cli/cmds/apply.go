@@ -25,7 +25,7 @@ type Apply struct {
 	TargetsFile     string            `usage:"Addition source of targets and restrictions to be append"`
 	Compress        bool              `usage:"Force all resources to be compress" short:"c"`
 	ServiceAccount  string            `usage:"Service account to assign to bundle created" short:"a"`
-	SyncBefore      string            `usage:"Force sync all deployments before this RFC3339 time"`
+	SyncGeneration  int               `usage:"Generation number used to force sync the deployment"`
 	TargetNamespace string            `usage:"Ensure this bundle goes to this target namespace"`
 	Paused          bool              `usage:"Create bundles in a paused state"`
 }
@@ -42,11 +42,6 @@ func toTime(syncBefore string) (*time.Time, error) {
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
-	syncBefore, err := toTime(a.SyncBefore)
-	if err != nil {
-		return err
-	}
-
 	labels := a.Label
 	if commit := os.Getenv("COMMIT"); commit != "" {
 		if labels == nil {
@@ -65,7 +60,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		TargetsFile:     a.TargetsFile,
 		TargetNamespace: a.TargetNamespace,
 		Paused:          a.Paused,
-		SyncBefore:      syncBefore,
+		SyncGeneration:  int64(a.SyncGeneration),
 	}
 
 	if a.File == "-" {

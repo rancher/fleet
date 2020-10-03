@@ -60,10 +60,10 @@ type Cluster struct {
 }
 
 type ClusterSpec struct {
-	Paused           bool         `json:"paused,omitempty"`
-	ClientID         string       `json:"clientID,omitempty"`
-	KubeConfigSecret string       `json:"kubeConfigSecret,omitempty"`
-	ForceUpdateAgent *metav1.Time `json:"forceUpdateAgent,omitempty"`
+	Paused                  bool   `json:"paused,omitempty"`
+	ClientID                string `json:"clientID,omitempty"`
+	KubeConfigSecret        string `json:"kubeConfigSecret,omitempty"`
+	RedeployAgentGeneration int64  `json:"redeployAgentGeneration,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -74,7 +74,7 @@ type ClusterStatus struct {
 	ReadyGitRepos        int                                 `json:"readyGitRepos"`
 	DesiredReadyGitRepos int                                 `json:"desiredReadyGitRepos"`
 
-	AgentLastDeployed *metav1.Time `json:"agentLastDeployed,omitempty"`
+	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`

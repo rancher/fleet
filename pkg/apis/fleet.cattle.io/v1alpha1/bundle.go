@@ -166,14 +166,14 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
-	DefaultNamespace string            `json:"defaultNamespace,omitempty"`
-	TargetNamespace  string            `json:"namespace,omitempty"`
-	Kustomize        *KustomizeOptions `json:"kustomize,omitempty"`
-	Helm             *HelmOptions      `json:"helm,omitempty"`
-	ServiceAccount   string            `json:"serviceAccount,omitempty"`
-	ForceSyncBefore  *metav1.Time      `json:"forceSyncBefore,omitempty"`
-	YAML             *YAMLOptions      `json:"yaml,omitempty"`
-	Diff             *DiffOptions      `json:"diff,omitempty"`
+	DefaultNamespace    string            `json:"defaultNamespace,omitempty"`
+	TargetNamespace     string            `json:"namespace,omitempty"`
+	Kustomize           *KustomizeOptions `json:"kustomize,omitempty"`
+	Helm                *HelmOptions      `json:"helm,omitempty"`
+	ServiceAccount      string            `json:"serviceAccount,omitempty"`
+	ForceSyncGeneration int64             `json:"forceSyncGeneration,omitempty"`
+	YAML                *YAMLOptions      `json:"yaml,omitempty"`
+	Diff                *DiffOptions      `json:"diff,omitempty"`
 }
 
 type DiffOptions struct {
@@ -229,7 +229,7 @@ type BundleDeploymentStatus struct {
 	NonReadyStatus      []NonReadyStatus                    `json:"nonReadyStatus,omitempty"`
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
-	ForceSync           *metav1.Time                        `json:"forceSync,omitempty"`
+	SyncGeneration      *int64                              `json:"syncGeneration,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {

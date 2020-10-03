@@ -106,13 +106,10 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func shouldRedeploy(bd *fleet.BundleDeployment) bool {
-	if bd.Spec.Options.ForceSyncBefore == nil {
-		return false
-	}
-	if bd.Status.ForceSync == nil {
+	if bd.Status.SyncGeneration == nil {
 		return true
 	}
-	return bd.Status.ForceSync.Before(bd.Spec.Options.ForceSyncBefore)
+	return *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration
 }
 
 func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
@@ -140,7 +137,7 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 		}
 	}
 
-	status.ForceSync = bd.Spec.Options.ForceSyncBefore
+	status.SyncGeneration = &bd.Spec.Options.ForceSyncGeneration
 	if readyError != nil {
 		logrus.Errorf("bundle %s: %v", bd.Name, readyError)
 	}
