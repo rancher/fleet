@@ -31,9 +31,8 @@ spec:
       properties:
         spec:
           properties:
-            forceUpdate:
-              nullable: true
-              type: string
+            forceUpdateGeneration:
+              type: integer
             git:
               properties:
                 branch:
@@ -3197,6 +3196,8 @@ spec:
             secretToken:
               nullable: true
               type: string
+            updateGeneration:
+              type: integer
           type: object
       type: object
   version: v1
