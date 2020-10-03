@@ -179,7 +179,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 
 		newSecret, err := fleetK8s.CoreV1().Secrets(secretNamespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
-			logrus.Infof("Waiting for secret %s/%s for %s: %v", secretNamespace, secretName, request.Name, err)
+			logrus.Infof("Waiting for secret %s/%s for %s/%s: %v", secretNamespace, secretName, request.Namespace, request.Name, err)
 			continue
 		}
 
