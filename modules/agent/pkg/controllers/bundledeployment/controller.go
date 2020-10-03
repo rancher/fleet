@@ -106,6 +106,12 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func shouldRedeploy(bd *fleet.BundleDeployment) bool {
+	if bd.Name == "fleet-agent" {
+		return true
+	}
+	if bd.Spec.Options.ForceSyncGeneration <= 0 {
+		return false
+	}
 	if bd.Status.SyncGeneration == nil {
 		return true
 	}
