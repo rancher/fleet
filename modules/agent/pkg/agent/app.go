@@ -24,6 +24,7 @@ type Options struct {
 	ClusterID        string
 	NoLeaderElect    bool
 	CheckinInterval  time.Duration
+	StartAfter       <-chan struct{}
 }
 
 func Register(ctx context.Context, kubeConfig, namespace, clusterID string) error {
@@ -84,7 +85,8 @@ func Start(ctx context.Context, kubeConfig, namespace string, opts *Options) err
 		clientConfig,
 		fleetMapper,
 		mapper,
-		discovery)
+		discovery,
+		opts.StartAfter)
 }
 
 var (

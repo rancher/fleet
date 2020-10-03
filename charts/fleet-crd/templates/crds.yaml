@@ -62,9 +62,8 @@ spec:
                   nullable: true
                   type: array
               type: object
-            forceSyncBefore:
-              nullable: true
-              type: string
+            forceSyncGeneration:
+              type: integer
             helm:
               nullable: true
               properties:
@@ -374,9 +373,8 @@ spec:
                         nullable: true
                         type: array
                     type: object
-                  forceSyncBefore:
-                    nullable: true
-                    type: string
+                  forceSyncGeneration:
+                    type: integer
                   helm:
                     nullable: true
                     properties:
@@ -777,9 +775,8 @@ spec:
                       nullable: true
                       type: array
                   type: object
-                forceSyncBefore:
-                  nullable: true
-                  type: string
+                forceSyncGeneration:
+                  type: integer
                 helm:
                   nullable: true
                   properties:
@@ -874,9 +871,8 @@ spec:
                       nullable: true
                       type: array
                   type: object
-                forceSyncBefore:
-                  nullable: true
-                  type: string
+                forceSyncGeneration:
+                  type: integer
                 helm:
                   nullable: true
                   properties:
@@ -968,9 +964,6 @@ spec:
                   nullable: true
                   type: string
               type: object
-            forceSync:
-              nullable: true
-              type: string
             modifiedStatus:
               items:
                 properties:
@@ -1040,6 +1033,9 @@ spec:
             release:
               nullable: true
               type: string
+            syncGeneration:
+              nullable: true
+              type: integer
           type: object
       type: object
   version: v1alpha1
@@ -1394,14 +1390,13 @@ spec:
             clientID:
               nullable: true
               type: string
-            forceUpdateAgent:
-              nullable: true
-              type: string
             kubeConfigSecret:
               nullable: true
               type: string
             paused:
               type: boolean
+            redeployAgentGeneration:
+              type: integer
           type: object
         status:
           properties:
@@ -1430,9 +1425,9 @@ spec:
                 readyNodes:
                   type: integer
               type: object
-            agentLastDeployed:
+            agentDeployedGeneration:
               nullable: true
-              type: string
+              type: integer
             conditions:
               items:
                 properties:
@@ -1683,12 +1678,8 @@ spec:
             clientSecretName:
               nullable: true
               type: string
-            forceSyncBefore:
-              nullable: true
-              type: string
-            forceUpdate:
-              nullable: true
-              type: string
+            forceSyncGeneration:
+              type: integer
             paths:
               items:
                 nullable: true

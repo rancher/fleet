@@ -93,25 +93,14 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 	}
 
 	clusterregistration.Register(ctx,
-		appCtx.Apply.WithCacheTypes(
-			appCtx.Core.ServiceAccount(),
-			appCtx.Core.Secret(),
-			appCtx.RBAC.Role(),
-			appCtx.RBAC.RoleBinding(),
-			appCtx.RBAC.ClusterRole(),
-			appCtx.RBAC.ClusterRoleBinding(),
-			appCtx.ClusterRegistration(),
-			appCtx.Cluster()),
+		appCtx.Apply,
 		systemNamespace,
 		systemRegistrationNamespace,
 		appCtx.Core.ServiceAccount(),
 		appCtx.Core.Secret(),
 		appCtx.RBAC.Role(),
 		appCtx.RBAC.RoleBinding(),
-		appCtx.RBAC.ClusterRole(),
-		appCtx.RBAC.ClusterRoleBinding(),
 		appCtx.ClusterRegistration(),
-		appCtx.Cluster().Cache(),
 		appCtx.Cluster())
 
 	cluster.Register(ctx,
@@ -119,9 +108,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.ClusterGroup().Cache(),
 		appCtx.Cluster(),
 		appCtx.GitRepo().Cache(),
-		appCtx.Core.Namespace(),
-		appCtx.Apply.WithCacheTypes(
-			appCtx.Core.Namespace()))
+		appCtx.Core.Namespace())
 
 	cluster.RegisterImport(ctx,
 		systemNamespace,
@@ -220,13 +207,15 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		if err := appCtx.start(ctx); err != nil {
 			logrus.Fatal(err)
 		}
+		logrus.Info("All controllers have been started")
 	})
 
 	return nil
 }
 
 func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
-	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond, 15*time.Second)
+	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond, 60*time.Second)
+	workqueue.DefaultControllerRateLimiter()
 	clientFactory, err := client.NewSharedClientFactory(rest, nil)
 	if err != nil {
 		return nil, err

@@ -80,7 +80,8 @@ func Register(ctx context.Context, leaderElect bool,
 	checkinInterval time.Duration,
 	fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig,
 	fleetMapper, mapper meta.RESTMapper,
-	discovery discovery.CachedDiscoveryInterface) error {
+	discovery discovery.CachedDiscoveryInterface,
+	startChan <-chan struct{}) error {
 	appCtx, err := newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName,
 		fleetConfig, clientConfig, fleetMapper, mapper, discovery)
 	if err != nil {
@@ -124,6 +125,11 @@ func Register(ctx context.Context, leaderElect bool,
 				logrus.Fatal(err)
 			}
 		})
+	} else if startChan != nil {
+		go func() {
+			<-startChan
+			logrus.Fatalf("failed to start: %v", appCtx.start(ctx))
+		}()
 	} else {
 		return appCtx.start(ctx)
 	}

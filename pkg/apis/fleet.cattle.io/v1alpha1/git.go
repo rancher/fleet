@@ -58,11 +58,8 @@ type GitRepoSpec struct {
 	// PollingInterval is how often to check git for new updates
 	PollingInterval *metav1.Duration `json:"pollingInterval,omitempty"`
 
-	// All non-ready deployments before this time will be resynced
-	ForceSyncBefore *metav1.Time `json:"forceSyncBefore,omitempty"`
-
-	// ForceUpdate is a timestamp if set to Now() will cause the git repo to be checked again
-	ForceUpdate *metav1.Time `json:"forceUpdate,omitempty"`
+	// Increment this number to force a redeployment of contents from Git
+	ForceSyncGeneration int64 `json:"forceSyncGeneration,omitempty"`
 }
 
 type GitTarget struct {

@@ -57,13 +57,10 @@ func RegisterImport(
 }
 
 func agentDeployed(cluster *fleet.Cluster) bool {
-	if cluster.Status.AgentLastDeployed == nil {
+	if cluster.Status.AgentDeployedGeneration == nil {
 		return false
 	}
-	if cluster.Spec.ForceUpdateAgent == nil {
-		return true
-	}
-	return !cluster.Status.AgentLastDeployed.Before(cluster.Spec.ForceUpdateAgent)
+	return *cluster.Status.AgentDeployedGeneration != cluster.Spec.RedeployAgentGeneration
 }
 
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
@@ -184,11 +181,6 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
-	if cluster.Spec.ForceUpdateAgent != nil {
-		status.AgentLastDeployed = cluster.Spec.ForceUpdateAgent
-	} else {
-		now := metav1.Now()
-		status.AgentLastDeployed = &now
-	}
+	status.AgentDeployedGeneration = &cluster.Spec.RedeployAgentGeneration
 	return status, nil
 }

@@ -6,6 +6,7 @@ replace (
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v14.0.0+incompatible
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
 	helm.sh/helm/v3 => github.com/ibuildthecloud/helm/v3 v3.1.0-rc.1.0.20200829031744-19e92760f498
+	k8s.io/client-go => github.com/rancher/client-go v0.18.8-fleet1
 )
 
 require (
@@ -14,9 +15,9 @@ require (
 	github.com/hashicorp/go-getter v1.4.1
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
-	github.com/rancher/gitjob v0.1.1
+	github.com/rancher/gitjob v0.1.5
 	github.com/rancher/lasso v0.0.0-20200905045615-7fcb07d6a20b
-	github.com/rancher/wrangler v0.7.1
+	github.com/rancher/wrangler v0.7.3-0.20201002224307-4303c423125a
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0

@@ -93,8 +93,8 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 		}
 		base.YAML.Overlays = append(base.YAML.Overlays, next.YAML.Overlays...)
 	}
-	if next.ForceSyncBefore != nil {
-		base.ForceSyncBefore = next.ForceSyncBefore
+	if next.ForceSyncGeneration > 0 {
+		base.ForceSyncGeneration = next.ForceSyncGeneration
 	}
 	return base
 }
