@@ -16,6 +16,8 @@ import (
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/randomtoken"
 	"github.com/rancher/wrangler/pkg/yaml"
+	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -82,6 +84,48 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 	}
 
 	return cluster, nil
+}
+
+func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Interface) error {
+	err := kc.CoreV1().Secrets(i.systemNamespace).Delete(i.ctx, "fleet-agent", metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	err = kc.CoreV1().Secrets(i.systemNamespace).Delete(i.ctx, "fleet-agent-bootstrap", metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	deployment, err := kc.AppsV1().Deployments(i.systemNamespace).Get(i.ctx, "fleet-agent", metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	} else if err != nil {
+		return nil
+	}
+
+	logrus.Infof("Deleted old agent for cluster %s/%s", cluster.Namespace, cluster.Name)
+
+	err = kc.AppsV1().Deployments(i.systemNamespace).Delete(i.ctx, "fleet-agent", metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+
+	pods, err := kc.CoreV1().Pods(i.systemNamespace).List(i.ctx, metav1.ListOptions{
+		LabelSelector: metav1.FormatLabelSelector(deployment.Spec.Selector),
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, pod := range pods.Items {
+		err := kc.CoreV1().Pods(i.systemNamespace).Delete(i.ctx, pod.Name, metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
@@ -177,10 +221,17 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
+	if err := i.deleteOldAgent(cluster, kc); err != nil {
+		return status, err
+	}
+
 	if err := apply.ApplyObjects(obj...); err != nil {
 		return status, err
 	}
 
+	logrus.Infof("Deployed new agent for cluster %s/%s", cluster.Namespace, cluster.Name)
+
 	status.AgentDeployedGeneration = &cluster.Spec.RedeployAgentGeneration
+	status.Agent = fleet.AgentStatus{}
 	return status, nil
 }

@@ -74,6 +74,7 @@ type GitRepoStatus struct {
 	Commit               string                              `json:"commit,omitempty"`
 	ReadyClusters        int                                 `json:"readyClusters"`
 	DesiredReadyClusters int                                 `json:"desiredReadyClusters"`
+	GitJobStatus         string                              `json:"gitJobStatus,omitempty"`
 	Summary              BundleSummary                       `json:"summary,omitempty"`
 	Display              GitRepoDisplay                      `json:"display,omitempty"`
 	Conditions           []genericcondition.GenericCondition `json:"conditions,omitempty"`
