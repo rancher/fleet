@@ -285,8 +285,13 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	if err == nil {
 		status.Commit = gitJob.Status.Commit
 		status.Conditions = mergeConditions(status.Conditions, gitJob.Status.Conditions)
+		status.GitJobStatus = gitJob.Status.JobStatus
 	} else {
 		status.Commit = ""
+	}
+
+	if status.GitJobStatus != "Current" {
+		status.Display.State = "GitUpdating"
 	}
 
 	branch, rev := gitrepo.Spec.Branch, gitrepo.Spec.Revision
