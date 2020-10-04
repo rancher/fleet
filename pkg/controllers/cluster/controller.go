@@ -3,12 +3,12 @@ package cluster
 import (
 	"context"
 	"sort"
+	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
-	"github.com/rancher/wrangler/pkg/condition"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
@@ -20,7 +20,8 @@ import (
 )
 
 type handler struct {
-	clusters         fleetcontrollers.ClusterCache
+	clusters         fleetcontrollers.ClusterController
+	clusterCache     fleetcontrollers.ClusterCache
 	clusterGroups    fleetcontrollers.ClusterGroupCache
 	bundleDeployment fleetcontrollers.BundleDeploymentCache
 	namespaceCache   corecontrollers.NamespaceCache
@@ -42,7 +43,8 @@ func Register(ctx context.Context,
 
 	h := &handler{
 		clusterGroups:    clusterGroups,
-		clusters:         clusters.Cache(),
+		clusterCache:     clusters.Cache(),
+		clusters:         clusters,
 		bundleDeployment: bundleDeployment.Cache(),
 		namespaceCache:   namespaces.Cache(),
 		namespaces:       namespaces,
@@ -110,7 +112,7 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 		return bundleDeployments[i].Name < bundleDeployments[j].Name
 	})
 
-	repos := map[repoKey]struct{}{}
+	repos := map[repoKey]bool{}
 	for _, app := range bundleDeployments {
 		state := summary.GetDeploymentState(app)
 		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus, app.Status.NonReadyStatus)
@@ -119,19 +121,29 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 		repo := app.Labels[fleet.RepoLabel]
 		ns := app.Labels[fleet.BundleNamespaceLabel]
 		if repo != "" && ns != "" {
-			repos[repoKey{repo: repo, ns: ns}] = struct{}{}
+			repos[repoKey{repo: repo, ns: ns}] = (state == fleet.Ready) || repos[repoKey{repo: repo, ns: ns}]
 		}
 	}
 
-	for repo := range repos {
+	allReady := true
+	for repo, ready := range repos {
 		gitrepo, err := h.gitRepos.Get(repo.ns, repo.repo)
 		if err == nil {
 			summary.IncrementResourceCounts(&status.ResourceCounts, gitrepo.Status.ResourceCounts)
 			status.DesiredReadyGitRepos++
-			if condition.Cond("Ready").IsTrue(gitrepo) {
+			if ready {
 				status.ReadyGitRepos++
+			} else {
+				allReady = false
 			}
 		}
+	}
+
+	if allReady && status.ResourceCounts.Ready != status.ResourceCounts.DesiredReady {
+		// Counts from gitrepo are out of sync with bundleDeployment state
+		// just retry in 15 seconds as there no great way to trigger an event that
+		// doesn't cause a loop
+		h.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, 15*time.Second)
 	}
 
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)

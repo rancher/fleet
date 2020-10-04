@@ -59,16 +59,15 @@ func Register(ctx context.Context,
 	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "Accepted", "gitjobs", h.OnChange, nil)
 	relatedresource.Watch(ctx, "gitjobs",
 		relatedresource.OwnerResolver(true, fleet.SchemeGroupVersion.String(), "GitRepo"), gitRepos, gitJobs)
-	relatedresource.Watch(ctx, "gitjobs", resolveGitRepo, gitRepos, bundleDeployments)
+	relatedresource.Watch(ctx, "gitjobs", resolveGitRepo, gitRepos, bundles)
 }
 
 func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
-	if bundleDeployment, ok := obj.(*fleet.BundleDeployment); ok {
-		repo := bundleDeployment.Labels[fleet.RepoLabel]
-		ns := bundleDeployment.Labels[fleet.BundleNamespaceLabel]
-		if repo != "" && ns != "" {
+	if bundle, ok := obj.(*fleet.Bundle); ok {
+		repo := bundle.Labels[fleet.RepoLabel]
+		if repo != "" {
 			return []relatedresource.Key{{
-				Namespace: ns,
+				Namespace: bundle.Namespace,
 				Name:      repo,
 			}}, nil
 		}
