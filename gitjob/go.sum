@@ -328,6 +328,8 @@ github.com/rancher/wrangler v0.7.2 h1:GlUIFKO26qq1ICMf1CjAGBr2uP52GQX3E0E69zkW88
 github.com/rancher/wrangler v0.7.2/go.mod h1:goezjesEKwMxHLfltdjg9DW0xWV7txQee6vOuSDqXAI=
 github.com/rancher/wrangler v0.7.3-0.20201002224307-4303c423125a h1:rx2kSz+dGj6mcZ3jIXBhXFKTUU5KCBIKQ3PM8ycwWLo=
 github.com/rancher/wrangler v0.7.3-0.20201002224307-4303c423125a/go.mod h1:goezjesEKwMxHLfltdjg9DW0xWV7txQee6vOuSDqXAI=
+github.com/rancher/wrangler v0.7.3-0.20201004050240-264809ad4ab9 h1:JvayfYhLqUHoh+U0QalrjLE0V4Os8JusJW9MVCoeHiM=
+github.com/rancher/wrangler v0.7.3-0.20201004050240-264809ad4ab9/go.mod h1:goezjesEKwMxHLfltdjg9DW0xWV7txQee6vOuSDqXAI=
 github.com/remyoudompheng/bigfft v0.0.0-20170806203942-52369c62f446/go.mod h1:uYEyJGbgTkfkS4+E/PavXkNJcbFIpEtjt2B0KDQ5+9M=
 github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6SoW27p1b0cqNHllgS5HIMJraePCO15w5zCzIWYg=
 github.com/russross/blackfriday v1.5.2 h1:HyvC0ARfnZBqnXwABFeSZHpKvJHJJfPz81GNueLj0oo=
