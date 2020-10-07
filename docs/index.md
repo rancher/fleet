@@ -1,8 +1,5 @@
 # Introduction
 
-!!! hint "Status"
-    Fleet is currently alpha quality and actively being developed.
-
 ![](./arch.png)
 
 Fleet is GitOps at scale. Fleet is designed to manage up to a million clusters. It's also lightweight
