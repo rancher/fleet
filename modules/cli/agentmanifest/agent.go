@@ -36,20 +36,14 @@ type Options struct {
 	CA              []byte
 	Host            string
 	NoCA            bool
-	NoCheck         bool
 	Labels          map[string]string
 	ClientID        string
 	Generation      string
 	CheckinInterval string
 }
 
-func AgentToken(ctx context.Context, controllerNamespace, kubeConfigFile string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
+func AgentToken(ctx context.Context, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
 	token, err := getToken(ctx, tokenName, client)
-	if err != nil {
-		return nil, err
-	}
-
-	kubeConfig, err := getKubeConfig(kubeConfigFile, client.Namespace, token["token"], opts.Host, opts.CA, opts.NoCA)
 	if err != nil {
 		return nil, err
 	}
@@ -59,12 +53,6 @@ func AgentToken(ctx context.Context, controllerNamespace, kubeConfigFile string,
 	}
 	if len(opts.CA) > 0 {
 		token["apiServerCA"] = opts.CA
-	}
-
-	if !opts.NoCheck {
-		if err := testKubeConfig(kubeConfig, opts.Host); err != nil {
-			return nil, fmt.Errorf("failed to testing kubeconfig: %w", err)
-		}
 	}
 
 	return objects(controllerNamespace, token), nil
@@ -115,7 +103,7 @@ func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace str
 		return err
 	}
 
-	objs, err := AgentToken(ctx, controllerNamespace, cg.Kubeconfig, client, tokenName, opts)
+	objs, err := AgentToken(ctx, controllerNamespace, client, tokenName, opts)
 	if err != nil {
 		return err
 	}
