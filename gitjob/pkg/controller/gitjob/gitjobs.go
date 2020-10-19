@@ -187,6 +187,12 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		},
+		corev1.Volume{
+			Name: "tekton-creds",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
 	)
 
 	//setup custom ca
@@ -303,6 +309,10 @@ func (h Handler) generateCloneContainer(obj *v1.GitJob) (corev1.Container, error
 				Name:      "tekton-internal-home",
 				MountPath: "/tekton/home",
 			},
+			{
+				Name:      "tekton-creds",
+				MountPath: "/tekton/creds",
+			},
 		},
 		TerminationMessagePath:   "/tekton/termination",
 		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
@@ -317,6 +327,11 @@ func (h Handler) generateCloneContainer(obj *v1.GitJob) (corev1.Container, error
 		secretType, err := h.inspectSecretType(obj.Spec.Git.ClientSecretName, obj.Namespace)
 		if err != nil {
 			return corev1.Container{}, err
+		}
+
+		//tekton requires https:// to be prefixed on hostname https://github.com/tektoncd/pipeline/issues/2409
+		if secretType == "basic" {
+			hostname = "https://" + hostname
 		}
 
 		c.Args = append([]string{fmt.Sprintf("-%s-git=%s=%s", secretType, obj.Spec.Git.ClientSecretName, hostname)}, c.Args...)

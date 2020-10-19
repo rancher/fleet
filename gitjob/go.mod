@@ -13,7 +13,7 @@ require (
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/rancher/lasso v0.0.0-20200905045615-7fcb07d6a20b
-	github.com/rancher/wrangler v0.7.3-0.20201004050240-264809ad4ab9
+	github.com/rancher/wrangler v0.7.3-0.20201020003736-e86bc912dfac
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/urfave/cli v1.22.4
