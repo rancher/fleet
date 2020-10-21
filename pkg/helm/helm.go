@@ -84,6 +84,7 @@ func toChart(m *manifest.Manifest, style bundle.Style) *manifest.Manifest {
 
 	return &manifest.Manifest{
 		Resources: resources,
+		Commit:    m.Commit,
 	}
 }
 
@@ -93,8 +94,8 @@ func addChartYAML(name string, m, newManifest *manifest.Manifest) (*manifest.Man
 		return nil, err
 	}
 
-	if newManifest.Commit != "" {
-		hash = "git-" + newManifest.Commit
+	if newManifest.Commit != "" && len(newManifest.Commit) > 12 {
+		hash = "git-" + newManifest.Commit[:12]
 	}
 
 	_, chartName := kv.RSplit(name, "/")
