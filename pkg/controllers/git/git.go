@@ -263,12 +263,16 @@ func mergeConditions(existing, next []genericcondition.GenericCondition) []gener
 }
 
 func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
+	status.ObservedGeneration = gitrepo.Generation
+
+	if gitrepo.Spec.Repo == "" {
+		return nil, status, nil
+	}
+
 	gitrepo, err := h.authorizeAndAssignDefaults(gitrepo)
 	if err != nil {
 		return nil, status, err
 	}
-
-	status.ObservedGeneration = gitrepo.Generation
 
 	status, err = h.setBundleStatus(gitrepo, status)
 	if err != nil {
