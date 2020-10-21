@@ -8,12 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"helm.sh/helm/v3/pkg/storage/driver"
-
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/kustomize"
 	"github.com/rancher/fleet/pkg/manifest"
+	"github.com/rancher/fleet/pkg/rawyaml"
 	"github.com/rancher/fleet/pkg/render"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -26,6 +25,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage/driver"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
@@ -82,6 +82,7 @@ type postRender struct {
 	labelPrefix string
 	bundleID    string
 	manifest    *manifest.Manifest
+	chart       *chart.Chart
 	mapper      meta.RESTMapper
 	opts        fleet.BundleDeploymentOptions
 }
@@ -105,6 +106,12 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 	if processed {
 		objs = newObjs
 	}
+
+	yamlObjs, err := rawyaml.ToObjects(p.chart)
+	if err != nil {
+		return nil, err
+	}
+	objs = append(objs, yamlObjs...)
 
 	labels, annotations, err := apply.GetLabelsAndAnnotations(name.SafeConcatName(p.labelPrefix, p.bundleID), nil)
 	if err != nil {
@@ -293,6 +300,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		bundleID:    bundleID,
 		manifest:    manifest,
 		opts:        options,
+		chart:       chart,
 	}
 
 	if !h.useGlobalCfg {
