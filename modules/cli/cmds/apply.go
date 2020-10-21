@@ -1,9 +1,11 @@
 package cmds
 
 import (
+	"bytes"
 	"fmt"
 	"os"
-	"time"
+	"os/exec"
+	"strings"
 
 	"github.com/rancher/fleet/modules/cli/apply"
 	"github.com/rancher/fleet/modules/cli/pkg/writer"
@@ -28,26 +30,19 @@ type Apply struct {
 	SyncGeneration  int               `usage:"Generation number used to force sync the deployment"`
 	TargetNamespace string            `usage:"Ensure this bundle goes to this target namespace"`
 	Paused          bool              `usage:"Create bundles in a paused state"`
-}
-
-func toTime(syncBefore string) (*time.Time, error) {
-	if syncBefore == "" {
-		return nil, nil
-	}
-	t, err := time.Parse(time.RFC3339, syncBefore)
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
+	Commit          string            `usage:"Commit to assign to the bundle" env:"COMMIT"`
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	labels := a.Label
-	if commit := os.Getenv("COMMIT"); commit != "" {
+	if a.Commit == "" {
+		a.Commit = currentCommit()
+	}
+	if a.Commit != "" {
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels["fleet.cattle.io/commit"] = commit
+		labels["fleet.cattle.io/commit"] = a.Commit
 	}
 
 	name := ""
@@ -88,4 +83,15 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	return apply.Apply(cmd.Context(), Client, name, args, opts)
+}
+
+func currentCommit() string {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	buf := &bytes.Buffer{}
+	cmd.Stdout = buf
+	err := cmd.Run()
+	if err == nil {
+		return strings.TrimSpace(buf.String())
+	}
+	return ""
 }
