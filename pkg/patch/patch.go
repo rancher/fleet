@@ -20,7 +20,7 @@ var (
 )
 
 func Process(m *manifest.Manifest, overlays []string) (*manifest.Manifest, error) {
-	newManifest := &manifest.Manifest{}
+	newManifest := &manifest.Manifest{Commit: m.Commit}
 	for i, resource := range m.Resources {
 		if resource.Name == "" {
 			resource.Name = fmt.Sprintf("manifests/file%03d.yaml", i)
@@ -34,7 +34,7 @@ func Process(m *manifest.Manifest, overlays []string) (*manifest.Manifest, error
 		return nil, err
 	}
 
-	newManifest = &manifest.Manifest{}
+	newManifest = &manifest.Manifest{Commit: m.Commit}
 	for _, resource := range m.Resources {
 		if strings.HasPrefix(resource.Name, overlayPrefix) {
 			continue
