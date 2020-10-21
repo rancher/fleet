@@ -130,9 +130,10 @@ targetCustomizations:
   # A file named ./overlays/myoverlay/subdir/resource_patch.yaml will patch the base file.
   # A patch can in JSON Patch or JSON Merge format or a strategic merge patch for builtin
   # Kubernetes types. Refer to "Raw YAML Resource Customization" below for more information.
-  overlays:
-  - custom2
-  - custom3
+  yaml:
+    overlays:
+    - custom2
+    - custom3
   # A selector used to match clusters.  The structure is the standard
   # metav1.LabelSelector format. If clusterGroupSelector or clusterGroup is specified,
   # clusterSelector will be used only to further refine the selection after
