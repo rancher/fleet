@@ -49,7 +49,7 @@ the secret's data key `values`.  To obtain the `values.yaml` content for the abo
 run the following one-liner.
 
 ```shell
-kubectl -n clusters get secret new-token -o 'jsonpath={.data.values}' | base64 -d > values.yaml
+kubectl -n clusters get secret new-token -o 'jsonpath={.data.values}' | base64 --decode > values.yaml
 ```
 
 This `values.yaml` file can now be used repeatedly by clusters to register until the TTL expires.
