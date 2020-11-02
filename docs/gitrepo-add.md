@@ -75,3 +75,45 @@ spec:
   #
   # targets: ...
 ```
+
+## Adding private repository
+
+Fleet supports both http and ssh auth key for private repository. To use this you have to create a secret in the same namespace. 
+
+For example, to generate a private ssh key
+
+```text
+ssh-keygen -t rsa -b 4096 -m pem -C "user@email.com"
+```
+
+Note: The private key format has to be in `EC PRIVATE KEY`, `RSA PRIVATE KEY` or `PRIVATE KEY` and should not contain a passphase. 
+
+Put your private key into secret:
+
+```text
+kubectl create secret generic $name -n $namespace --from-file=ssh-privatekey=/file/to/private/key  --type=kubernetes.io/ssh-auth 
+```
+
+Fleet supports putting `known_hosts` into ssh secret. Here is an example of how to add it:
+
+1. Fetch the public key hash(take github as an example)
+
+```text
+ssh-keyscan -H github.com
+```
+
+2. And add it into secret:
+
+```text
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ssh-key
+type: kubernetes.io/ssh-auth
+stringData:
+  ssh-privatekey: <private-key>
+  known_hosts: |-
+    |1|YJr1VZoi6dM0oE+zkM0do3Z04TQ=|7MclCn1fLROZG+BgR4m1r8TLwWc= ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==
+```
+
+Note: If you don't add it any server's public key will be trusted and added.
