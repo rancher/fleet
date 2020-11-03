@@ -3,6 +3,7 @@ package gitjob
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -268,6 +269,18 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 }
 
 func (h Handler) generateCloneContainer(obj *v1.GitJob) (corev1.Container, error) {
+	env := []corev1.EnvVar{
+		{
+			Name:  "HOME",
+			Value: "/tekton/home",
+		}}
+
+	for _, envVar := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"} {
+		if val, ok := os.LookupEnv(envVar); ok {
+			env = append(env, corev1.EnvVar{Name: envVar, Value: val})
+		}
+	}
+
 	c := corev1.Container{
 		Image: h.Image,
 		Name:  "step-git-source",
@@ -289,12 +302,7 @@ func (h Handler) generateCloneContainer(obj *v1.GitJob) (corev1.Container, error
 		Command: []string{
 			"/tekton/tools/entrypoint",
 		},
-		Env: []corev1.EnvVar{
-			{
-				Name:  "HOME",
-				Value: "/tekton/home",
-			},
-		},
+		Env:        env,
 		WorkingDir: "/workspace",
 		VolumeMounts: []corev1.VolumeMount{
 			{

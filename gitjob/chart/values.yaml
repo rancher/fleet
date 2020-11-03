@@ -9,3 +9,9 @@ tekton:
 global:
   cattle:
     systemDefaultRegistry: ""
+
+# http[s] proxy server
+# proxy: http://<username>@<password>:<url>:<port>
+
+# comma separated list of domains or ip addresses that will not use the proxy
+noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
