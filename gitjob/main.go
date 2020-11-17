@@ -44,7 +44,7 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:  "listen",
-			Value: ":80",
+			Value: ":8080",
 		},
 		cli.StringFlag{
 			Name:  "tekton-image",
