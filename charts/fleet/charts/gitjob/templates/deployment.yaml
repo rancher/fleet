@@ -24,3 +24,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+{{- if .Values.proxy }}
+            - name: HTTP_PROXY
+              value: {{ .Values.proxy }}
+            - name: HTTPS_PROXY
+              value: {{ .Values.proxy }}
+            - name: NO_PROXY
+              value: {{ .Values.noProxy }}
+{{- end }}
