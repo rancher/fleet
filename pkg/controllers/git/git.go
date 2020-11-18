@@ -406,6 +406,9 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 									},
 								},
 							},
+							SecurityContext: &corev1.PodSecurityContext{
+								RunAsUser: &[]int64{1000}[0],
+							},
 							ServiceAccountName: saName,
 							RestartPolicy:      corev1.RestartPolicyNever,
 							Containers: []corev1.Container{
