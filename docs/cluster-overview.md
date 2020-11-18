@@ -18,7 +18,7 @@ calls to the manager.
 Manager initiated registration is a process in which you register an existing Kubernetes cluster
 with the Fleet manager and the Fleet manager will make an API call to the downstream cluster to
 deploy the agent. This style can place additional network access requirements because the Fleet
-manager must be able to communicate with the download cluster API server for the registration process.
+manager must be able to communicate with the downstream cluster API server for the registration process.
 After the cluster is registered there is no further need for the manager to contact the downstream
 cluster API.  This style is more compatible if you wish to manage the creation of all your Kubernetes
 clusters through GitOps using something like [cluster-api](https://github.com/kubernetes-sigs/cluster-api)
