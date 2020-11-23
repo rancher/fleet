@@ -40,6 +40,12 @@ type GitRepoSpec struct {
 	// It is expected the secret be of type "kubernetes.io/basic-auth" or "kubernetes.io/ssh-auth".
 	ClientSecretName string `json:"clientSecretName,omitempty"`
 
+	// CABundle is a PEM encoded CA bundle which will be used to validate the repo's certificate.
+	CABundle []byte `json:"caBundle,omitempty"`
+
+	// InsecureSkipTLSverify will use insecure HTTPS to clone the repo.
+	InsecureSkipTLSverify bool `json:"insecureSkipTLSVerify,omitempty"`
+
 	// Paths is the directories relative to the git repo root that contain resources to be applied.
 	// Path globbing is support, for example ["charts/*"] will match all folders as a subdirectory of charts/
 	// If empty, "/" is the default

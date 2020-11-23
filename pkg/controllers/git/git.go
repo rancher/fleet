@@ -380,7 +380,9 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 				ForceUpdateGeneration: gitrepo.Spec.ForceSyncGeneration,
 				Git: gitjob.GitInfo{
 					Credential: gitjob.Credential{
-						ClientSecretName: gitrepo.Spec.ClientSecretName,
+						ClientSecretName:      gitrepo.Spec.ClientSecretName,
+						CABundle:              gitrepo.Spec.CABundle,
+						InsecureSkipTLSverify: gitrepo.Spec.InsecureSkipTLSverify,
 					},
 					Provider: "polling",
 					Repo:     gitrepo.Spec.Repo,
