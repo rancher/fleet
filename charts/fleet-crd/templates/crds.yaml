@@ -1675,11 +1675,16 @@ spec:
             branch:
               nullable: true
               type: string
+            caBundle:
+              nullable: true
+              type: string
             clientSecretName:
               nullable: true
               type: string
             forceSyncGeneration:
               type: integer
+            insecureSkipTLSVerify:
+              type: boolean
             paths:
               items:
                 nullable: true
