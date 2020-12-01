@@ -3,6 +3,7 @@ package register
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -252,6 +253,10 @@ func createClientConfigFromSecret(secret *corev1.Secret) clientcmd.ClientConfig 
 	apiServerCA := data[APIServerCA]
 	namespace := string(data[ClusterNamespace])
 	token := string(data[Token])
+
+	if _, err := http.Get(apiServerURL); err == nil {
+		apiServerCA = nil
+	}
 
 	cfg := clientcmdapi.Config{
 		Clusters: map[string]*clientcmdapi.Cluster{
