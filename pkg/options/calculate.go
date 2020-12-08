@@ -25,76 +25,76 @@ func DeploymentID(manifest *manifest.Manifest, opts fleet.BundleDeploymentOption
 }
 
 func Calculate(spec *fleet.BundleSpec, target *fleet.BundleTarget) fleet.BundleDeploymentOptions {
-	result := spec.BundleDeploymentOptions
-	return merge(result, target.BundleDeploymentOptions)
+	return merge(spec.BundleDeploymentOptions, target.BundleDeploymentOptions)
 }
 
 func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptions {
+	result := *base.DeepCopy()
 	if next.DefaultNamespace != "" {
-		base.DefaultNamespace = next.DefaultNamespace
+		result.DefaultNamespace = next.DefaultNamespace
 	} else if next.DefaultNamespace == "-" {
-		base.DefaultNamespace = ""
+		result.DefaultNamespace = ""
 	}
 	if next.TargetNamespace != "" {
-		base.TargetNamespace = next.TargetNamespace
+		result.TargetNamespace = next.TargetNamespace
 	} else if next.TargetNamespace == "-" {
-		base.TargetNamespace = ""
+		result.TargetNamespace = ""
 	}
 	if next.ServiceAccount != "" {
-		base.ServiceAccount = next.ServiceAccount
+		result.ServiceAccount = next.ServiceAccount
 	} else if next.ServiceAccount == "-" {
-		base.ServiceAccount = ""
+		result.ServiceAccount = ""
 	}
 	if next.ServiceAccount != "" {
-		base.ServiceAccount = next.ServiceAccount
+		result.ServiceAccount = next.ServiceAccount
 	} else if next.ServiceAccount == "-" {
-		base.ServiceAccount = ""
+		result.ServiceAccount = ""
 	}
 	if next.Helm != nil {
-		if base.Helm == nil {
-			base.Helm = &fleet.HelmOptions{}
+		if result.Helm == nil {
+			result.Helm = &fleet.HelmOptions{}
 		}
 		if next.Helm.TimeoutSeconds > 0 {
-			base.Helm.TimeoutSeconds = next.Helm.TimeoutSeconds
+			result.Helm.TimeoutSeconds = next.Helm.TimeoutSeconds
 		} else if next.Helm.TimeoutSeconds < 0 {
-			base.Helm.TimeoutSeconds = 0
+			result.Helm.TimeoutSeconds = 0
 		}
-		if base.Helm.Values == nil {
-			base.Helm.Values = next.Helm.Values
+		if result.Helm.Values == nil {
+			result.Helm.Values = next.Helm.Values
 		} else if next.Helm.Values != nil {
-			base.Helm.Values.Data = data.MergeMaps(base.Helm.Values.Data, next.Helm.Values.Data)
+			result.Helm.Values.Data = data.MergeMaps(result.Helm.Values.Data, next.Helm.Values.Data)
 		}
 		if next.Helm.Chart != "" {
-			base.Helm.Chart = next.Helm.Chart
+			result.Helm.Chart = next.Helm.Chart
 		}
 		if next.Helm.ReleaseName != "" {
-			base.Helm.ReleaseName = next.Helm.ReleaseName
+			result.Helm.ReleaseName = next.Helm.ReleaseName
 		}
-		base.Helm.Force = base.Helm.Force || next.Helm.Force
-		base.Helm.TakeOwnership = base.Helm.TakeOwnership || next.Helm.TakeOwnership
+		result.Helm.Force = result.Helm.Force || next.Helm.Force
+		result.Helm.TakeOwnership = result.Helm.TakeOwnership || next.Helm.TakeOwnership
 	}
 	if next.Kustomize != nil {
-		if base.Kustomize == nil {
-			base.Kustomize = &fleet.KustomizeOptions{}
+		if result.Kustomize == nil {
+			result.Kustomize = &fleet.KustomizeOptions{}
 		}
 		if next.Kustomize.Dir != "" {
-			base.Kustomize.Dir = next.Kustomize.Dir
+			result.Kustomize.Dir = next.Kustomize.Dir
 		}
 	}
 	if next.Diff != nil {
-		if base.Diff == nil {
-			base.Diff = &fleet.DiffOptions{}
+		if result.Diff == nil {
+			result.Diff = &fleet.DiffOptions{}
 		}
-		base.Diff.ComparePatches = append(base.Diff.ComparePatches, next.Diff.ComparePatches...)
+		result.Diff.ComparePatches = append(result.Diff.ComparePatches, next.Diff.ComparePatches...)
 	}
 	if next.YAML != nil {
-		if base.YAML == nil {
-			base.YAML = &fleet.YAMLOptions{}
+		if result.YAML == nil {
+			result.YAML = &fleet.YAMLOptions{}
 		}
-		base.YAML.Overlays = append(base.YAML.Overlays, next.YAML.Overlays...)
+		result.YAML.Overlays = append(result.YAML.Overlays, next.YAML.Overlays...)
 	}
 	if next.ForceSyncGeneration > 0 {
-		base.ForceSyncGeneration = next.ForceSyncGeneration
+		result.ForceSyncGeneration = next.ForceSyncGeneration
 	}
-	return base
+	return result
 }
