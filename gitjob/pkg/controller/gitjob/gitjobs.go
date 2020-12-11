@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -26,6 +27,12 @@ import (
 	types2 "k8s.io/apimachinery/pkg/types"
 )
 
+const (
+	bundleCAVolumeName = "additional-ca"
+	bundleCAFile       = "additional-ca.crt"
+	bundleDir          = "/etc/rancher/ssl"
+)
+
 func Register(ctx context.Context, cont *types.Context) {
 	h := Handler{
 		ctx: ctx,
@@ -42,7 +49,7 @@ func Register(ctx context.Context, cont *types.Context) {
 	v1controller.RegisterGitJobGeneratingHandler(
 		ctx,
 		cont.Gitjob.Gitjob().V1().GitJob(),
-		cont.Apply.WithSetOwnerReference(true, false).WithCacheTypes(cont.Batch.Batch().V1().Job()).WithPatcher(
+		cont.Apply.WithSetOwnerReference(true, false).WithCacheTypes(cont.Batch.Batch().V1().Job(), cont.Core.Core().V1().Secret()).WithPatcher(
 			batchv1.SchemeGroupVersion.WithKind("Job"),
 			func(namespace, name string, patchType types2.PatchType, data []byte) (runtime.Object, error) {
 				return nil, apply.ErrReplace
@@ -93,7 +100,7 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 	var result []runtime.Object
 
 	if obj.Spec.Git.Credential.CABundle != nil {
-		result = append(result, h.generateConfigmap(obj))
+		result = append(result, h.generateSecret(obj))
 	}
 
 	// if force delete is set, delete the job to make sure a new job is created
@@ -114,14 +121,14 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 	return append(result, job), status, nil
 }
 
-func (h Handler) generateConfigmap(obj *v1.GitJob) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
+func (h Handler) generateSecret(obj *v1.GitJob) *corev1.Secret {
+	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: obj.Namespace,
 			Name:      caBundleName(obj),
 		},
-		BinaryData: map[string][]byte{
-			"ca.crt": obj.Spec.Git.Credential.CABundle,
+		Data: map[string][]byte{
+			bundleCAFile: obj.Spec.Git.CABundle,
 		},
 	}
 }
@@ -131,7 +138,7 @@ func jobName(obj *v1.GitJob) string {
 }
 
 func caBundleName(obj *v1.GitJob) string {
-	return fmt.Sprintf("%s-CABundle", obj.Name)
+	return fmt.Sprintf("%s-cabundle", obj.Name)
 }
 
 func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
@@ -199,12 +206,10 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 	//setup custom ca
 	if obj.Spec.Git.CABundle != nil {
 		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
-			Name: "custom-ca",
+			Name: bundleCAVolumeName,
 			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: caBundleName(obj),
-					},
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: caBundleName(obj),
 				},
 			},
 		})
@@ -240,7 +245,7 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 			"-post_file",
 			"/tekton/tools/1",
 			"-termination_path",
-			"/tekton/fake_termination",
+			"/tekton/tools/termination_path",
 			"-entrypoint",
 		}, append(job.Spec.Template.Spec.Containers[i].Command, job.Spec.Template.Spec.Containers[i].Args...)...)
 		job.Spec.Template.Spec.Containers[i].Command = []string{"/tekton/tools/entrypoint"}
@@ -351,19 +356,19 @@ func (h Handler) generateCloneContainer(obj *v1.GitJob) (corev1.Container, error
 
 	// setup ssl verify
 	if obj.Spec.Git.InsecureSkipTLSverify {
-		c.Args = append(c.Args, "-sslVerify", "true")
+		c.Args = append(c.Args, "-sslVerify=false")
 	}
 
 	// setup CA bundle
 	if obj.Spec.Git.CABundle != nil {
 		c.Env = append(c.Env, corev1.EnvVar{
 			Name:  "GIT_SSL_CAINFO",
-			Value: "/ssl/ca.crt",
+			Value: filepath.Join(bundleDir, bundleCAFile),
 		})
 
 		c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
-			Name:      "custom-ca",
-			MountPath: "/ssl/ca.crt",
+			Name:      bundleCAVolumeName,
+			MountPath: bundleDir,
 		})
 	}
 
@@ -438,5 +443,5 @@ func parseHostname(repo string) (string, error) {
 		return "", err
 	}
 
-	return u.Hostname(), nil
+	return u.Host, nil
 }
