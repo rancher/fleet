@@ -9,3 +9,4 @@ annotations:
   catalog.cattle.io/hidden: "true"
   catalog.cattle.io/namespace: fleet-system
   catalog.cattle.io/release-name: fleet-agent
+  catalog.cattle.io/os: linux

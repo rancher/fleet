@@ -12,3 +12,4 @@ annotations:
   catalog.cattle.io/namespace: fleet-system
   catalog.cattle.io/release-name: fleet
   catalog.cattle.io/provides-gvr: clusters.fleet.cattle.io/v1alpha1
+  catalog.cattle.io/os: linux
