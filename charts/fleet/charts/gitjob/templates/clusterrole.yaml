@@ -22,19 +22,7 @@ rules:
     resources:
       - 'secrets'
     verbs:
-      - 'list'
-      - 'get'
-      - 'watch'
-  - apiGroups:
-      - ""
-    resources:
-      - 'configmaps'
-    verbs:
-      - 'create'
-      - 'list'
-      - 'get'
-      - 'update'
-      - 'watch'
+      - '*'
   - apiGroups:
       - "gitjob.cattle.io"
     resources:
