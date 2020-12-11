@@ -9,3 +9,4 @@ annotations:
   catalog.cattle.io/hidden: "true"
   catalog.cattle.io/namespace: fleet-simulator-system
   catalog.cattle.io/release-name: fleet-simulator
+  catalog.cattle.io/os: linux
