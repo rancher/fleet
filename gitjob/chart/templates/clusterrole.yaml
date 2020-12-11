@@ -24,6 +24,12 @@ rules:
     verbs:
       - '*'
   - apiGroups:
+      - ""
+    resources:
+      - 'configmaps'
+    verbs:
+      - '*'
+  - apiGroups:
       - "gitjob.cattle.io"
     resources:
       - "gitjobs"
