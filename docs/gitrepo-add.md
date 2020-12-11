@@ -48,7 +48,15 @@ spec:
   # same namespace as the GitRepo
   #
   # clientSecretName: my-ssh-key
-
+  #
+  # To add additional ca-bundle for self-signed certs, caBundle can be filled with base64 encoded pem data. For example: `cat /path/to/ca.pem | base64 -w 0` 
+  #
+  # caBundle: my-ca-bundle
+  #
+  # Disable SSL verification for git repo
+  #
+  # insecureSkipTLSVerify: true
+  #
   # A git repo can read multiple paths in a repo at once.
   # The below field is expected to be an array of paths and
   # supports path globbing (ex: some/*/path)
@@ -96,13 +104,13 @@ kubectl create secret generic $name -n $namespace --from-file=ssh-privatekey=/fi
 
 Fleet supports putting `known_hosts` into ssh secret. Here is an example of how to add it:
 
-1. Fetch the public key hash(take github as an example)
+Fetch the public key hash(take github as an example)
 
 ```text
 ssh-keyscan -H github.com
 ```
 
-2. And add it into secret:
+And add it into secret:
 
 ```text
 apiVersion: v1
@@ -117,3 +125,4 @@ stringData:
 ```
 
 Note: If you don't add it any server's public key will be trusted and added.
+
