@@ -26,11 +26,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 var (
@@ -38,7 +36,6 @@ var (
 )
 
 func Register(ctx context.Context,
-	mapper meta.RESTMapper,
 	apply apply.Apply,
 	gitJobs v1.GitJobController,
 	bundleDeployments fleetcontrollers.BundleDeploymentController,
@@ -46,7 +43,6 @@ func Register(ctx context.Context,
 	bundles fleetcontrollers.BundleController,
 	gitRepos fleetcontrollers.GitRepoController) {
 	h := &handler{
-		mapper:              mapper,
 		gitjobCache:         gitJobs.Cache(),
 		bundleCache:         bundles.Cache(),
 		bundles:             bundles,
@@ -76,7 +72,6 @@ func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresour
 }
 
 type handler struct {
-	mapper              meta.RESTMapper
 	shareClientFactory  client.SharedClientFactory
 	gitjobCache         v1.GitJobCache
 	bundleCache         fleetcontrollers.BundleCache
@@ -237,14 +232,6 @@ func (h *handler) DeleteOnChange(key string, gitrepo *fleet.GitRepo) (*fleet.Git
 	return nil, nil
 }
 
-func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
-	mapping, err := h.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return true
-	}
-	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
-}
-
 func mergeConditions(existing, next []genericcondition.GenericCondition) []genericcondition.GenericCondition {
 	result := make([]genericcondition.GenericCondition, 0, len(existing)+len(next))
 	names := map[string]int{}
@@ -321,8 +308,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	if status.Summary.ErrApplied > 0 {
 		bundleErrorState = "ErrApplied"
 	}
-
-	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, bundleErrorState, h.isNamespaced)
+	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, bundleErrorState)
 	status = countResources(status)
 	return []runtime.Object{
 		configMap,

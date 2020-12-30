@@ -139,6 +139,15 @@ type BundleStatus struct {
 	MaxNew                   int               `json:"maxNew,omitempty"`
 	PartitionStatus          []PartitionStatus `json:"partitions,omitempty"`
 	Display                  BundleDisplay     `json:"display,omitempty"`
+	ResourceKey              []ResourceKey     `json:"resourceKey,omitempty"`
+	ObservedGeneration       int64             `json:"observedGeneration"`
+}
+
+type ResourceKey struct {
+	Kind       string
+	APIVersion string
+	Namespace  string
+	Name       string
 }
 
 type BundleDisplay struct {

@@ -2,17 +2,23 @@ package bundle
 
 import (
 	"context"
+	"sort"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmdeployer"
+	"github.com/rancher/fleet/pkg/manifest"
+	"github.com/rancher/fleet/pkg/options"
 	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/fleet/pkg/target"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -23,10 +29,12 @@ type handler struct {
 	targets *target.Manager
 	gitRepo fleetcontrollers.GitRepoCache
 	bundles fleetcontrollers.BundleController
+	mapper  meta.RESTMapper
 }
 
 func Register(ctx context.Context,
 	apply apply.Apply,
+	mapper meta.RESTMapper,
 	targets *target.Manager,
 	bundles fleetcontrollers.BundleController,
 	clusters fleetcontrollers.ClusterController,
@@ -34,6 +42,7 @@ func Register(ctx context.Context,
 	bundleDeployments fleetcontrollers.BundleDeploymentController,
 ) {
 	h := &handler{
+		mapper:  mapper,
 		targets: targets,
 		bundles: bundles,
 		gitRepo: gitRepo,
@@ -116,8 +125,85 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 		return nil, status, err
 	}
 
+	if err := setResourceKey(&status, bundle, h.isNamespaced, status.ObservedGeneration != bundle.Generation); err != nil {
+		return nil, status, err
+	}
+
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
+	status.ObservedGeneration = bundle.Generation
 	return toRuntimeObjects(targets), status, nil
+}
+
+func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
+	mapping, err := h.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return true
+	}
+	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
+}
+
+func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed func(schema.GroupVersionKind) bool, set bool) error {
+	if !set {
+		return nil
+	}
+	bundleMap := map[fleet.ResourceKey]struct{}{}
+	m, err := manifest.New(&bundle.Spec)
+	if err != nil {
+		return err
+	}
+
+	for _, target := range bundle.Spec.Targets {
+		opts := options.Calculate(&bundle.Spec, &target)
+		objs, err := helmdeployer.Template(bundle.Name, m, opts)
+		if err != nil {
+			return err
+		}
+
+		for _, obj := range objs {
+			m, err := meta.Accessor(obj)
+			if err != nil {
+				return err
+			}
+			key := fleet.ResourceKey{
+				Namespace: m.GetNamespace(),
+				Name:      m.GetName(),
+			}
+			gvk := obj.GetObjectKind().GroupVersionKind()
+			if key.Namespace == "" && isNSed(gvk) {
+				if opts.DefaultNamespace == "" {
+					key.Namespace = "default"
+				} else {
+					key.Namespace = opts.DefaultNamespace
+				}
+			}
+			key.APIVersion, key.Kind = gvk.ToAPIVersionAndKind()
+			bundleMap[key] = struct{}{}
+		}
+	}
+	keys := []fleet.ResourceKey{}
+	for k := range bundleMap {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		keyi := keys[i]
+		keyj := keys[j]
+		if keyi.APIVersion != keyj.APIVersion {
+			return keyi.APIVersion < keyj.APIVersion
+		}
+		if keyi.Kind != keyj.Kind {
+			return keyi.Kind < keyj.Kind
+		}
+		if keyi.Namespace != keyj.Namespace {
+			return keyi.Namespace < keyj.Namespace
+		}
+		if keyi.Name != keyj.Name {
+			return keyi.Name < keyj.Name
+		}
+		return false
+	})
+	status.ResourceKey = keys
+
+	return nil
 }
 
 func toRuntimeObjects(targets []*target.Target) (result []runtime.Object) {
