@@ -483,6 +483,8 @@ spec:
               type: integer
             newlyCreated:
               type: integer
+            observedGeneration:
+              type: integer
             partitions:
               items:
                 properties:
@@ -591,6 +593,24 @@ spec:
                     type: object
                   unavailable:
                     type: integer
+                type: object
+              nullable: true
+              type: array
+            resourceKey:
+              items:
+                properties:
+                  apiVersion:
+                    nullable: true
+                    type: string
+                  kind:
+                    nullable: true
+                    type: string
+                  name:
+                    nullable: true
+                    type: string
+                  namespace:
+                    nullable: true
+                    type: string
                 type: object
               nullable: true
               type: array

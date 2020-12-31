@@ -118,6 +118,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 
 	bundle.Register(ctx,
 		appCtx.Apply,
+		appCtx.RESTMapper,
 		appCtx.TargetManager,
 		appCtx.Bundle(),
 		appCtx.Cluster(),
@@ -171,7 +172,6 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Bundle())
 
 	git.Register(ctx,
-		appCtx.RESTMapper,
 		appCtx.Apply.WithCacheTypes(
 			appCtx.RBAC.Role(),
 			appCtx.RBAC.RoleBinding(),

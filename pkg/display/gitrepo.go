@@ -7,12 +7,7 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/helmdeployer"
-	"github.com/rancher/fleet/pkg/manifest"
-	"github.com/rancher/fleet/pkg/options"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type Factory struct {
@@ -25,14 +20,7 @@ func NewFactory(bundleCache fleetcontrollers.BundleCache) *Factory {
 	}
 }
 
-type key struct {
-	Kind       string
-	APIVersion string
-	Namespace  string
-	Name       string
-}
-
-func (b *Factory) Render(namespace, name string, bundleErrorState string, isNSed func(schema.GroupVersionKind) bool) ([]fleet.GitRepoResource, []string) {
+func (b *Factory) Render(namespace, name string, bundleErrorState string) ([]fleet.GitRepoResource, []string) {
 	var (
 		resources []fleet.GitRepoResource
 		errors    []string
@@ -47,14 +35,7 @@ func (b *Factory) Render(namespace, name string, bundleErrorState string, isNSed
 	}
 
 	for _, bundle := range bundles {
-		bundleResources, err := bundleResources(bundle, isNSed)
-		if len(err) > 0 {
-			for _, err := range err {
-				errors = append(errors, err.Error())
-			}
-			continue
-		}
-
+		bundleResources := bundleResources(bundle)
 		incomplete, err := addState(bundle, bundleResources)
 		if len(err) > 0 {
 			incomplete = true
@@ -77,7 +58,7 @@ func (b *Factory) Render(namespace, name string, bundleErrorState string, isNSed
 	return resources, errors
 }
 
-func toResourceState(k key, state []fleet.ResourcePerClusterState, incomplete bool, bundleErrorState string) fleet.GitRepoResource {
+func toResourceState(k fleet.ResourceKey, state []fleet.ResourcePerClusterState, incomplete bool, bundleErrorState string) fleet.GitRepoResource {
 	resource := fleet.GitRepoResource{
 		APIVersion:      k.APIVersion,
 		Kind:            k.Kind,
@@ -130,7 +111,7 @@ func toType(resource fleet.GitRepoResource) (string, string) {
 	return t, resource.Namespace + "/" + resource.Name
 }
 
-func addState(bundle *fleet.Bundle, resources map[key][]fleet.ResourcePerClusterState) (bool, []error) {
+func addState(bundle *fleet.Bundle, resources map[fleet.ResourceKey][]fleet.ResourcePerClusterState) (bool, []error) {
 	var (
 		incomplete bool
 		errors     []error
@@ -146,7 +127,7 @@ func addState(bundle *fleet.Bundle, resources map[key][]fleet.ResourcePerCluster
 		}
 
 		for _, nonReady := range nonReadyResource.NonReadyStatus {
-			key := key{
+			key := fleet.ResourceKey{
 				Kind:       nonReady.Kind,
 				APIVersion: nonReady.APIVersion,
 				Namespace:  nonReady.Namespace,
@@ -163,7 +144,7 @@ func addState(bundle *fleet.Bundle, resources map[key][]fleet.ResourcePerCluster
 		}
 
 		for _, modified := range nonReadyResource.ModifiedStatus {
-			key := key{
+			key := fleet.ResourceKey{
 				Kind:       modified.Kind,
 				APIVersion: modified.APIVersion,
 				Namespace:  modified.Namespace,
@@ -191,7 +172,7 @@ func addState(bundle *fleet.Bundle, resources map[key][]fleet.ResourcePerCluster
 	return incomplete, errors
 }
 
-func appendState(states map[key][]fleet.ResourcePerClusterState, key key, state fleet.ResourcePerClusterState) {
+func appendState(states map[fleet.ResourceKey][]fleet.ResourcePerClusterState, key fleet.ResourceKey, state fleet.ResourcePerClusterState) {
 	if existing, ok := states[key]; ok || key.Namespace != "" {
 		states[key] = append(existing, state)
 		return
@@ -208,48 +189,10 @@ func appendState(states map[key][]fleet.ResourcePerClusterState, key key, state 
 	}
 }
 
-func bundleResources(bundle *fleet.Bundle, isNSed func(schema.GroupVersionKind) bool) (map[key][]fleet.ResourcePerClusterState, []error) {
-	var (
-		errors          []error
-		bundleResources = map[key][]fleet.ResourcePerClusterState{}
-	)
-
-	m, err := manifest.New(&bundle.Spec)
-	if err != nil {
-		errors = append(errors, err)
-		return nil, errors
+func bundleResources(bundle *fleet.Bundle) map[fleet.ResourceKey][]fleet.ResourcePerClusterState {
+	bundleResources := map[fleet.ResourceKey][]fleet.ResourcePerClusterState{}
+	for _, resourceKey := range bundle.Status.ResourceKey {
+		bundleResources[resourceKey] = []fleet.ResourcePerClusterState{}
 	}
-
-	for _, target := range bundle.Spec.Targets {
-		opts := options.Calculate(&bundle.Spec, &target)
-		objs, err := helmdeployer.Template(bundle.Name, m, opts)
-		if err != nil {
-			errors = append(errors, err)
-			continue
-		}
-
-		for _, obj := range objs {
-			m, err := meta.Accessor(obj)
-			if err != nil {
-				errors = append(errors, err)
-				continue
-			}
-			key := key{
-				Namespace: m.GetNamespace(),
-				Name:      m.GetName(),
-			}
-			gvk := obj.GetObjectKind().GroupVersionKind()
-			if key.Namespace == "" && isNSed(gvk) {
-				if opts.DefaultNamespace == "" {
-					key.Namespace = "default"
-				} else {
-					key.Namespace = opts.DefaultNamespace
-				}
-			}
-			key.APIVersion, key.Kind = gvk.ToAPIVersionAndKind()
-			bundleResources[key] = []fleet.ResourcePerClusterState{}
-		}
-	}
-
-	return bundleResources, errors
+	return bundleResources
 }
