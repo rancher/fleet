@@ -42,7 +42,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 
 	for _, target := range spec.Targets {
 		if target.Helm != nil && target.Helm.Chart != "" {
-			chartDirs = append(chartDirs, spec.Helm)
+			chartDirs = append(chartDirs, target.Helm)
 		}
 	}
 
