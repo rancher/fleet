@@ -9,7 +9,7 @@ cluster agents will pull from the Fleet manager.
 ## Fleet Manager
 
 The Fleet manager is a set of Kubernetes controllers running in any standard Kubernetes
-cluster.  The only API exposed by the Fleet manages is the Kubernetes API, there is no
+cluster.  The only API exposed by the Fleet manager is the Kubernetes API, there is no
 custom API for the fleet controller.
 
 ## Cluster Agents
@@ -29,14 +29,14 @@ the agent checks in, as it stands right now they will always attempt to connect.
 
 ## Security
 
-The Fleet manager dynamically creates service account, manages their RBAC and then gives the
+The Fleet manager dynamically creates service accounts, manages their RBAC and then gives the
 tokens to the downstream clusters. Clusters are registered by optionally expiring cluster registration tokens.
 The cluster registration token is used only during the registration process to generate a credential specific
 to that cluster. After the cluster credential is established the cluster "forgets" the cluster registration
  token.
 
 The service accounts given to the clusters only have privileges to list `BundleDeployment` in the namespace created
-specifically for that cluster.  It can also update the `status` subresource of `BundleDeployment` and the `status`
+specifically for that cluster. It can also update the `status` subresource of `BundleDeployment` and the `status`
 subresource of it's `Cluster` resource.
 
 ## Scalability
