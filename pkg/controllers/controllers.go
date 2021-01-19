@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/fleet/pkg/controllers/content"
 	"github.com/rancher/fleet/pkg/controllers/display"
 	"github.com/rancher/fleet/pkg/controllers/git"
+	"github.com/rancher/fleet/pkg/controllers/image"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -124,6 +125,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.TargetManager,
 		appCtx.Bundle(),
 		appCtx.Cluster(),
+		appCtx.ImageScan(),
 		appCtx.GitRepo().Cache(),
 		appCtx.BundleDeployment())
 
@@ -191,6 +193,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.BundleDeployment(),
 			appCtx.GitRepoRestriction().Cache(),
 			appCtx.Bundle(),
+			appCtx.ImageScan(),
 			appCtx.GitRepo(),
 			appCtx.Core.Secret().Cache())
 	}
@@ -213,6 +216,11 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.GitRepo(),
 		appCtx.BundleDeployment(),
 		appCtx.Bundle())
+
+	image.Register(ctx,
+		appCtx.Core,
+		appCtx.GitRepo(),
+		appCtx.ImageScan())
 
 	leader.RunOrDie(ctx, systemNamespace, "fleet-controller-lock", appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {

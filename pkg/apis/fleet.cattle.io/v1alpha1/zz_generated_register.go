@@ -38,6 +38,7 @@ var (
 	ContentResourceName                  = "contents"
 	GitRepoResourceName                  = "gitrepos"
 	GitRepoRestrictionResourceName       = "gitreporestrictions"
+	ImageScanResourceName                = "imagescans"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -81,6 +82,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&GitRepoList{},
 		&GitRepoRestriction{},
 		&GitRepoRestrictionList{},
+		&ImageScan{},
+		&ImageScanList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

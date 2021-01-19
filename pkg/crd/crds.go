@@ -111,6 +111,11 @@ func List() []crd.CRD {
 			c.Status = false
 			return c
 		}),
+		newCRD(&fleet.ImageScan{}, func(c crd.CRD) crd.CRD {
+			return c.WithCategories("fleet").
+				WithColumn("Repository", ".spec.image").
+				WithColumn("Latest", ".status.latestTag")
+		}),
 	}
 }
 
