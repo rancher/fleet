@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/ticker"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -20,9 +21,10 @@ type handler struct {
 }
 
 type contentRef struct {
-	content      fleet.Content
-	safeToDelete bool
-	bundleCount  int
+	deleteCandidate bool
+	safeToDelete    bool
+	markForDeletion bool
+	bundleCount     int
 }
 
 func Register(ctx context.Context,
@@ -56,9 +58,11 @@ func (h *handler) purgeOrphaned(ctx context.Context) {
 		var bundleDeployments []fleet.BundleDeployment
 		for _, ns := range namespaces.Items {
 			nsBundleDeployments, err := h.bundleDeployment.List(ns.Name, metav1.ListOptions{})
-			if err == nil {
-				bundleDeployments = append(bundleDeployments, nsBundleDeployments.Items...)
+			if err != nil {
+				logrus.Warnf("Error listing bundle deployments %v", err)
+				continue
 			}
+			bundleDeployments = append(bundleDeployments, nsBundleDeployments.Items...)
 		}
 
 		contentRefs := make(map[string]*contentRef)
@@ -71,8 +75,8 @@ func (h *handler) purgeOrphaned(ctx context.Context) {
 
 		for _, content := range contents.Items {
 			contentRefs[content.Name] = &contentRef{
-				content:     content,
-				bundleCount: 0,
+				safeToDelete: false,
+				bundleCount:  0,
 			}
 		}
 
@@ -88,21 +92,33 @@ func (h *handler) purgeOrphaned(ctx context.Context) {
 			}
 		}
 
-		for _, cr := range contentRefs {
-			deleteRef, deleteCandidate := deleteRefs[cr.content.Name]
-			if cr.bundleCount == 0 && deleteCandidate && deleteRef.safeToDelete {
-				logrus.Infof("Deleting orphaned content[%s]", cr.content.Name)
-				_ = h.content.Delete(cr.content.Name, &metav1.DeleteOptions{})
-			} else if cr.bundleCount > 0 {
+		for contentName, cr := range contentRefs {
+			_, deleteCandidate := deleteRefs[contentName]
+			if cr.bundleCount > 0 {
 				if deleteCandidate {
-					delete(deleteRefs, cr.content.Name)
+					delete(deleteRefs, contentName)
 				}
 			} else {
-				logrus.Infof("Marking orphaned content[%s] for deletion", cr.content.Name)
-				deleteRefs[cr.content.Name] = &contentRef{
-					content:      cr.content,
-					bundleCount:  0,
-					safeToDelete: true,
+				if deleteCandidate {
+					deleteRefs[contentName].safeToDelete = true
+				} else {
+					logrus.Infof("Marking orphaned content[%s] for deletion", contentName)
+					deleteRefs[contentName] = &contentRef{
+						bundleCount:     0,
+						markForDeletion: true,
+						safeToDelete:    false,
+					}
+				}
+			}
+		}
+
+		for contentName, dr := range deleteRefs {
+			if dr.safeToDelete {
+				logrus.Infof("Deleting orphaned content[%s]", contentName)
+				if err := h.content.Delete(contentName, &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+					logrus.Warnf("Error deleting contentbundle %v", err)
+				} else {
+					delete(deleteRefs, contentName)
 				}
 			}
 		}
