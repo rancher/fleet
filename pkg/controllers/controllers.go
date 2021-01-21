@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistrationtoken"
 	"github.com/rancher/fleet/pkg/controllers/config"
+	"github.com/rancher/fleet/pkg/controllers/content"
 	"github.com/rancher/fleet/pkg/controllers/display"
 	"github.com/rancher/fleet/pkg/controllers/git"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
@@ -128,6 +129,11 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 	clustergroup.Register(ctx,
 		appCtx.Cluster(),
 		appCtx.ClusterGroup())
+
+	content.Register(ctx,
+		appCtx.Content(),
+		appCtx.BundleDeployment(),
+		appCtx.Core.Namespace())
 
 	clusterregistrationtoken.Register(ctx,
 		systemNamespace,
