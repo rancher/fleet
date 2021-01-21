@@ -49,7 +49,9 @@ spec:
   #
   # clientSecretName: my-ssh-key
   #
-  # To add additional ca-bundle for self-signed certs, caBundle can be filled with base64 encoded pem data. For example: `cat /path/to/ca.pem | base64 -w 0` 
+  # To add additional ca-bundle for self-signed certs, caBundle can be 
+  # filled with base64 encoded pem data. For example: 
+  # `cat /path/to/ca.pem | base64 -w 0` 
   #
   # caBundle: my-ca-bundle
   #
