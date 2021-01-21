@@ -1,4 +1,4 @@
-FROM alpine
+FROM alpine:3.12.3
 RUN apk add -U --no-cache git bash
 COPY bin/fleetagent bin/fleet package/log.sh /usr/bin/
 CMD ["fleetagent"]
