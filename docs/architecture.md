@@ -21,7 +21,7 @@ connections to downstream clusters. This means managed clusters can run in priva
 NATs. The only requirement is the cluster agent needs to be able to communicate with the
 Kubernetes API of the cluster running the Fleet manager. The one exception to this is if you use
 the [manager initiated](./manager-initiated.md) cluster registration flow.  This is not required, but
-an optional patter.
+an optional pattern.
 
 The cluster agents are not assumed to have an "always on" connection.  They will resume operation as
 soon as they can connect. Future enhancements will probably add the ability to schedule times of when
@@ -42,4 +42,4 @@ subresource of it's `Cluster` resource.
 ## Scalability
 
 Fleet is designed to scale up to 1 million clusters. There are more details to come here on how we expect to scale
-a Kubernetes controller based architecture to 100's of millions of objects and beyond.
+a Kubernetes, controller-based architecture to 100's of millions of objects and beyond.
