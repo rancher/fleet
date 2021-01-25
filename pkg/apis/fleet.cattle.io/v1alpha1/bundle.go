@@ -220,6 +220,7 @@ type HelmOptions struct {
 	Values         *GenericMap `json:"values,omitempty"`
 	Force          bool        `json:"force,omitempty"`
 	TakeOwnership  bool        `json:"takeOwnership,omitempty"`
+	MaxHistory     int         `json:"maxHistory,omitempty"`
 }
 
 type BundleDeploymentSpec struct {

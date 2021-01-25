@@ -72,6 +72,8 @@ spec:
                   type: string
                 force:
                   type: boolean
+                maxHistory:
+                  type: integer
                 releaseName:
                   nullable: true
                   type: string
@@ -383,6 +385,8 @@ spec:
                         type: string
                       force:
                         type: boolean
+                      maxHistory:
+                        type: integer
                       releaseName:
                         nullable: true
                         type: string
@@ -805,6 +809,8 @@ spec:
                       type: string
                     force:
                       type: boolean
+                    maxHistory:
+                      type: integer
                     releaseName:
                       nullable: true
                       type: string
@@ -901,6 +907,8 @@ spec:
                       type: string
                     force:
                       type: boolean
+                    maxHistory:
+                      type: integer
                     releaseName:
                       nullable: true
                       type: string

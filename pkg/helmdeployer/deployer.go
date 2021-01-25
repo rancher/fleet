@@ -334,6 +334,10 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u := action.NewUpgrade(&cfg)
 	u.Adopt = true
 	u.Force = options.Helm.Force
+	u.MaxHistory = options.Helm.MaxHistory
+	if u.MaxHistory == 0 {
+		u.MaxHistory = 10
+	}
 	u.Namespace = namespace
 	u.Timeout = timeout
 	u.DryRun = dryRun
