@@ -501,8 +501,7 @@ func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dr
 		return nil
 	}
 
-	err = deleteHistory(cfg, bundleID)
-	if err != nil {
+	if err = deleteHistory(cfg, bundleID); err != nil {
 		return err
 	}
 
