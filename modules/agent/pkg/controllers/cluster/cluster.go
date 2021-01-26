@@ -51,7 +51,9 @@ func Register(ctx context.Context,
 
 	go func() {
 		time.Sleep(15 * time.Second)
-		_ = h.Update()
+		if err := h.Update(); err != nil {
+			logrus.Errorf("failed to report cluster node status: %v", err)
+		}
 	}()
 	go func() {
 		if checkinInterval == 0 {

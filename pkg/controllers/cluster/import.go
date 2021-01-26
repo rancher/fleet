@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -157,7 +159,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		apiServerCA = cfg.APIServerCA
 	}
 
-	restConfig, err := clientcmd.RESTConfigFromKubeConfig(secret.Data["value"])
+	restConfig, err := i.restConfigFromKubeConfig(secret.Data["value"])
 	if err != nil {
 		return status, err
 	}
@@ -232,4 +234,29 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	status.AgentDeployedGeneration = &cluster.Spec.RedeployAgentGeneration
 	status.Agent = fleet.AgentStatus{}
 	return status, nil
+}
+
+// restConfigFromKubeConfig checks kubeconfig data and tries to connect to server. If server is behind public CA, remove CertificateAuthorityData in kubeconfig file.
+func (i *importHandler) restConfigFromKubeConfig(data []byte) (*rest.Config, error) {
+	clientConfig, err := clientcmd.NewClientConfigFromBytes(data)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := clientConfig.RawConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if raw.Contexts[raw.CurrentContext] != nil {
+		cluster := raw.Contexts[raw.CurrentContext].Cluster
+		if raw.Clusters[cluster] != nil {
+			_, err := http.Get(raw.Clusters[cluster].Server)
+			if err == nil {
+				raw.Clusters[cluster].CertificateAuthorityData = nil
+			}
+		}
+	}
+
+	return clientcmd.NewDefaultClientConfig(raw, &clientcmd.ConfigOverrides{}).ClientConfig()
 }
