@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"github.com/rancher/wrangler/pkg/genericcondition"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -64,6 +65,7 @@ type ClusterSpec struct {
 	ClientID                string `json:"clientID,omitempty"`
 	KubeConfigSecret        string `json:"kubeConfigSecret,omitempty"`
 	RedeployAgentGeneration int64  `json:"redeployAgentGeneration,omitempty"`
+	AgentEnvVars []v1.EnvVar	`json:"agentEnvVars,omitempty"`
 }
 
 type ClusterStatus struct {

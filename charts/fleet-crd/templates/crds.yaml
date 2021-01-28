@@ -1415,6 +1415,71 @@ spec:
       properties:
         spec:
           properties:
+            agentEnvVars:
+              items:
+                properties:
+                  name:
+                    nullable: true
+                    type: string
+                  value:
+                    nullable: true
+                    type: string
+                  valueFrom:
+                    nullable: true
+                    properties:
+                      configMapKeyRef:
+                        nullable: true
+                        properties:
+                          key:
+                            nullable: true
+                            type: string
+                          name:
+                            nullable: true
+                            type: string
+                          optional:
+                            nullable: true
+                            type: boolean
+                        type: object
+                      fieldRef:
+                        nullable: true
+                        properties:
+                          apiVersion:
+                            nullable: true
+                            type: string
+                          fieldPath:
+                            nullable: true
+                            type: string
+                        type: object
+                      resourceFieldRef:
+                        nullable: true
+                        properties:
+                          containerName:
+                            nullable: true
+                            type: string
+                          divisor:
+                            nullable: true
+                            type: string
+                          resource:
+                            nullable: true
+                            type: string
+                        type: object
+                      secretKeyRef:
+                        nullable: true
+                        properties:
+                          key:
+                            nullable: true
+                            type: string
+                          name:
+                            nullable: true
+                            type: string
+                          optional:
+                            nullable: true
+                            type: boolean
+                        type: object
+                    type: object
+                type: object
+              nullable: true
+              type: array
             clientID:
               nullable: true
               type: string
