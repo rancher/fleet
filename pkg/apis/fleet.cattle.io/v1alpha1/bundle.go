@@ -81,6 +81,7 @@ type RolloutStrategy struct {
 type Partition struct {
 	Name                 string                `json:"name,omitempty"`
 	MaxUnavailable       *intstr.IntOrString   `json:"maxUnavailable,omitempty"`
+	ClusterName          string                `json:"clusterName,omitempty"`
 	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
 	ClusterGroup         string                `json:"clusterGroup,omitempty"`
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
@@ -88,6 +89,7 @@ type Partition struct {
 
 type BundleTargetRestriction struct {
 	Name                 string                `json:"name,omitempty"`
+	ClusterName          string                `json:"clusterName,omitempty"`
 	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
 	ClusterGroup         string                `json:"clusterGroup,omitempty"`
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
@@ -96,6 +98,7 @@ type BundleTargetRestriction struct {
 type BundleTarget struct {
 	BundleDeploymentOptions
 	Name                 string                `json:"name,omitempty"`
+	ClusterName          string                `json:"clusterName,omitempty"`
 	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
 	ClusterGroup         string                `json:"clusterGroup,omitempty"`
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`

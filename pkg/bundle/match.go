@@ -23,14 +23,14 @@ func (a *Bundle) MatchForTarget(name string) *Match {
 	return nil
 }
 
-func (a *Bundle) Match(clusterGroups map[string]map[string]string, clusterLabels map[string]string) *Match {
+func (a *Bundle) Match(clusterName string, clusterGroups map[string]map[string]string, clusterLabels map[string]string) *Match {
 	for clusterGroup, clusterGroupLabels := range clusterGroups {
-		if m := a.matcher.Match(clusterGroup, clusterGroupLabels, clusterLabels); m != nil {
+		if m := a.matcher.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels); m != nil {
 			return m
 		}
 	}
 	if len(clusterGroups) == 0 {
-		return a.matcher.Match("", nil, clusterLabels)
+		return a.matcher.Match(clusterName, "", nil, clusterLabels)
 	}
 	return nil
 }
@@ -51,7 +51,7 @@ func (a *Bundle) initMatcher() error {
 	)
 
 	for i, target := range a.Definition.Spec.Targets {
-		clusterMatcher, err := match.NewClusterMatcher(target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
+		clusterMatcher, err := match.NewClusterMatcher(target.ClusterName, target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
 		if err != nil {
 			return err
 		}
@@ -67,7 +67,7 @@ func (a *Bundle) initMatcher() error {
 	}
 
 	for _, target := range a.Definition.Spec.TargetRestrictions {
-		clusterMatcher, err := match.NewClusterMatcher(target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
+		clusterMatcher, err := match.NewClusterMatcher(target.ClusterName, target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
 		if err != nil {
 			return err
 		}
@@ -78,13 +78,13 @@ func (a *Bundle) initMatcher() error {
 	return nil
 }
 
-func (m *matcher) isRestricted(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
+func (m *matcher) isRestricted(clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
 	if len(m.restrictions) == 0 {
 		return false
 	}
 
 	for _, restriction := range m.restrictions {
-		if restriction.Match(clusterGroup, clusterGroupLabels, clusterLabels) {
+		if restriction.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
 			return false
 		}
 	}
@@ -92,13 +92,13 @@ func (m *matcher) isRestricted(clusterGroup string, clusterGroupLabels, clusterL
 	return true
 }
 
-func (m *matcher) Match(clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) *Match {
-	if m.isRestricted(clusterGroup, clusterGroupLabels, clusterLabels) {
+func (m *matcher) Match(clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) *Match {
+	if m.isRestricted(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
 		return nil
 	}
 
 	for _, targetMatch := range m.matches {
-		if targetMatch.criteria.Match(clusterGroup, clusterGroupLabels, clusterLabels) {
+		if targetMatch.criteria.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
 			return targetMatch.targetBundle
 		}
 	}

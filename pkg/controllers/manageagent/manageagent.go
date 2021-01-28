@@ -9,6 +9,7 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	"github.com/rancher/wrangler/pkg/yaml"
 	corev1 "k8s.io/api/core/v1"
@@ -71,9 +72,14 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 		return namespace, nil
 	}
 
-	objs, err := h.getAgentBundle(namespace.Name)
-	if err != nil {
-		return nil, err
+	var objs []runtime.Object
+
+	for _, cluster := range clusters {
+		bundle, err := h.getAgentBundle(namespace.Name, cluster)
+		if err != nil {
+			return nil, err
+		}
+		objs = append(objs, bundle)
 	}
 
 	return namespace, h.apply.
@@ -83,48 +89,47 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 		ApplyObjects(objs...)
 }
 
-func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
+func (h *handler) getAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Object, error) {
 	cfg := config.Get()
 	if cfg.ManageAgent != nil && !*cfg.ManageAgent {
 		return nil, nil
 	}
 
-	objs := agent.Manifest(h.systemNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, "bundle", cfg.AgentCheckinInternal.Duration.String())
+	objs := agent.Manifest(h.systemNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, "bundle", cfg.AgentCheckinInternal.Duration.String(), cluster.Spec.AgentEnvVars)
 	agentYAML, err := yaml.Export(objs...)
 	if err != nil {
 		return nil, err
 	}
 
-	return []runtime.Object{
-		&fleet.Bundle{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      agentBundleName,
-				Namespace: ns,
+	return &fleet.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name.SafeConcatName(agentBundleName, cluster.Name),
+			Namespace: ns,
+		},
+		Spec: fleet.BundleSpec{
+			BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+				DefaultNamespace: h.systemNamespace,
+				Helm: &fleet.HelmOptions{
+					TakeOwnership: true,
+				},
 			},
-			Spec: fleet.BundleSpec{
-				BundleDeploymentOptions: fleet.BundleDeploymentOptions{
-					DefaultNamespace: h.systemNamespace,
-					Helm: &fleet.HelmOptions{
-						TakeOwnership: true,
-					},
+			Resources: []fleet.BundleResource{
+				{
+					Name:    "agent.yaml",
+					Content: string(agentYAML),
 				},
-				Resources: []fleet.BundleResource{
-					{
-						Name:    "agent.yaml",
-						Content: string(agentYAML),
-					},
-				},
-				Targets: []fleet.BundleTarget{
-					{
-						ClusterSelector: &metav1.LabelSelector{
-							MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      "fleet.cattle.io/non-managed-agent",
-									Operator: metav1.LabelSelectorOpDoesNotExist,
-								},
+			},
+			Targets: []fleet.BundleTarget{
+				{
+					ClusterSelector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "fleet.cattle.io/non-managed-agent",
+								Operator: metav1.LabelSelectorOpDoesNotExist,
 							},
 						},
 					},
+					ClusterName: cluster.Name,
 				},
 			},
 		},
