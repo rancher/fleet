@@ -36,3 +36,12 @@ bootstrap:
 global:
   cattle:
     systemDefaultRegistry: ""
+
+nodeSelector:
+  kubernetes.io/os: linux
+
+tolerations:
+  - key: cattle.io/os
+    operator: "Equal"
+    value: "linux"
+    effect: NoSchedule

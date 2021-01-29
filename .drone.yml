@@ -1,22 +1,19 @@
 ---
 kind: pipeline
-name: amd64
-
+name: linux-amd64
 platform:
   os: linux
   arch: amd64
-
 steps:
 - name: build
-  image: rancher/dapper:v0.4.1
+  image: rancher/dapper:v0.5.5
   environment:
-    CROSS: "true"
+    CROSS: "windows"
   commands:
   - dapper ci
   volumes:
   - name: docker
     path: /var/run/docker.sock
-
 - name: github_binary_release
   image: plugins/github-release
   settings:
@@ -37,7 +34,34 @@ steps:
     - refs/tags/*
     event:
     - tag
-
+- name: upload-tag
+  pull: default
+  image: plugins/gcs
+  settings:
+    acl:
+      - allUsers:READER
+    cache_control: "no-cache,must-revalidate"
+    source: ./dist/artifacts
+    target: releases.rancher.com/fleet/${DRONE_TAG}
+    token:
+      from_secret: google_auth_key
+  when:
+    event:
+      - tag
+- name: upload-latest
+  pull: default
+  image: plugins/gcs
+  settings:
+    acl:
+      - allUsers:READER
+    cache_control: "no-cache,must-revalidate"
+    source: ./dist/artifacts
+    target: releases.rancher.com/fleet/latest
+    token:
+      from_secret: google_auth_key
+  when:
+    event:
+      - tag
 - name: docker-publish-agent
   image: plugins/docker
   settings:
@@ -45,9 +69,11 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-amd64"
+    tag: "${DRONE_TAG}-linux-amd64"
     username:
       from_secret: docker_username
+    build_args:
+      - "ARCH=amd64"
   when:
     instance:
     - drone-publish.rancher.io
@@ -56,7 +82,6 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 - name: docker-publish
   image: plugins/docker
   settings:
@@ -64,9 +89,11 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet"
-    tag: "${DRONE_TAG}-amd64"
+    tag: "${DRONE_TAG}-linux-amd64"
     username:
       from_secret: docker_username
+    build_args:
+      - "ARCH=amd64"
   when:
     instance:
     - drone-publish.rancher.io
@@ -75,29 +102,24 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 volumes:
 - name: docker
   host:
     path: /var/run/docker.sock
-
 ---
 kind: pipeline
-name: arm64
-
+name: linux-arm64
 platform:
   os: linux
   arch: arm64
-
 steps:
 - name: build
-  image: rancher/dapper:v0.4.1
+  image: rancher/dapper:v0.5.5
   commands:
-  - dapper ci
+  - dapper build
   volumes:
   - name: docker
     path: /var/run/docker.sock
-
 - name: github_binary_release
   image: plugins/github-release
   settings:
@@ -118,7 +140,6 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 - name: docker-publish-agent
   image: plugins/docker
   settings:
@@ -126,9 +147,11 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-arm64"
+    tag: "${DRONE_TAG}-linux-arm64"
     username:
       from_secret: docker_username
+    build_args:
+      - "ARCH=arm64"
   when:
     instance:
     - drone-publish.rancher.io
@@ -137,7 +160,6 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 - name: docker-publish
   image: plugins/docker
   settings:
@@ -145,9 +167,11 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet"
-    tag: "${DRONE_TAG}-arm64"
+    tag: "${DRONE_TAG}-linux-arm64"
     username:
       from_secret: docker_username
+    build_args:
+      - "ARCH=arm64"
   when:
     instance:
     - drone-publish.rancher.io
@@ -156,29 +180,25 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 volumes:
 - name: docker
   host:
     path: /var/run/docker.sock
-
 ---
 kind: pipeline
-name: arm
-
+name: linux-arm
 platform:
   os: linux
   arch: arm
-
 steps:
+# Update this tag once dapper arm v7 works on drone.
 - name: build
   image: rancher/dapper:v0.4.1
   commands:
-  - dapper ci
+  - dapper build
   volumes:
   - name: docker
     path: /var/run/docker.sock
-
 - name: github_binary_release
   image: plugins/github-release
   settings:
@@ -199,7 +219,6 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 - name: docker-publish-agent
   image: plugins/docker
   settings:
@@ -207,9 +226,11 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-arm"
+    tag: "${DRONE_TAG}-linux-arm"
     username:
       from_secret: docker_username
+    build_args:
+      - "ARCH=arm"
   when:
     instance:
     - drone-publish.rancher.io
@@ -218,7 +239,6 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 - name: docker-publish
   image: plugins/docker
   settings:
@@ -226,9 +246,11 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet"
-    tag: "${DRONE_TAG}-arm"
+    tag: "${DRONE_TAG}-linux-arm"
     username:
       from_secret: docker_username
+    build_args:
+      - "ARCH=arm"
   when:
     instance:
     - drone-publish.rancher.io
@@ -237,20 +259,194 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 volumes:
 - name: docker
   host:
     path: /var/run/docker.sock
-
+---
+kind: pipeline
+name: windows-amd64-1809
+platform:
+  os: windows
+  arch: amd64
+  version: 1809
+steps:
+- name: docker-publish-agent
+  image: plugins/docker
+  settings:
+    dockerfile: package/windows/Dockerfile.agent
+    password:
+      from_secret: docker_password
+    repo: "rancher/fleet-agent"
+    tag: "${DRONE_TAG}-windows-amd64-1809"
+    username:
+      from_secret: docker_username
+    build_args:
+      - "SERVERCORE_VERSION=1809"
+      - "RELEASES=releases.rancher.com"
+      - "VERSION=${DRONE_TAG}"
+    context: package/
+    custom_dns: 1.1.1.1
+  volumes:
+    - name: docker
+      path: \\\\.\\pipe\\docker_engine
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+volumes:
+  - name: docker
+    host:
+      path: \\\\.\\pipe\\docker_engine
+depends_on:
+- linux-amd64
+---
+kind: pipeline
+name: windows-amd64-1909
+platform:
+  os: windows
+  arch: amd64
+  version: 1909
+steps:
+- name: docker-publish-agent
+  image: plugins/docker
+  settings:
+    dockerfile: package/windows/Dockerfile.agent
+    password:
+      from_secret: docker_password
+    repo: "rancher/fleet-agent"
+    tag: "${DRONE_TAG}-windows-amd64-1909"
+    username:
+      from_secret: docker_username
+    build_args:
+      - "SERVERCORE_VERSION=1909"
+      - "RELEASES=releases.rancher.com"
+      - "VERSION=${DRONE_TAG}"
+    context: package/
+    custom_dns: 1.1.1.1
+  volumes:
+    - name: docker
+      path: \\\\.\\pipe\\docker_engine
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+volumes:
+  - name: docker
+    host:
+      path: \\\\.\\pipe\\docker_engine
+depends_on:
+- linux-amd64
+---
+kind: pipeline
+name: windows-amd64-2004
+platform:
+  os: windows
+  arch: amd64
+  version: 2004
+# remove this and use upstream images when https://github.com/drone/drone-git/pull/25 is merged
+clone:
+  disable: true
+steps:
+- name: clone
+  image: luthermonson/drone-git:windows-2004-amd64
+  settings:
+    depth: 1
+- name: docker-publish-agent
+  image: luthermonson/drone-docker:2004
+  settings:
+    dockerfile: package/windows/Dockerfile.agent
+    password:
+      from_secret: docker_password
+    repo: "rancher/fleet-agent"
+    tag: "${DRONE_TAG}-windows-amd64-2004"
+    username:
+      from_secret: docker_username
+    build_args:
+      - "SERVERCORE_VERSION=2004"
+      - "RELEASES=releases.rancher.com"
+      - "VERSION=${DRONE_TAG}"
+    context: package/
+    custom_dns: 1.1.1.1
+  volumes:
+    - name: docker
+      path: \\\\.\\pipe\\docker_engine
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+volumes:
+  - name: docker
+    host:
+      path: \\\\.\\pipe\\docker_engine
+depends_on:
+- linux-amd64
+---
+kind: pipeline
+name: windows-amd64-20H2
+platform:
+  os: windows
+  arch: amd64
+  version: 20H2
+# remove this and use upstream images when https://github.com/drone/drone-git/pull/25 is merged
+clone:
+  disable: true
+steps:
+- name: clone
+  image: luthermonson/drone-git:windows-20H2-amd64
+  settings:
+    depth: 1
+- name: docker-publish-agent
+  image: luthermonson/drone-docker:20H2
+  settings:
+    dockerfile: package/windows/Dockerfile.agent
+    password:
+      from_secret: docker_password
+    repo: "rancher/fleet-agent"
+    tag: "${DRONE_TAG}-windows-amd64-20H2"
+    username:
+      from_secret: docker_username
+    build_args:
+      - "SERVERCORE_VERSION=20H2"
+      - "RELEASES=releases.rancher.com"
+      - "VERSION=${DRONE_TAG}"
+    context: package/
+    custom_dns: 1.1.1.1
+  volumes:
+    - name: docker
+      path: \\\\.\\pipe\\docker_engine
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+volumes:
+  - name: docker
+    host:
+      path: \\\\.\\pipe\\docker_engine
+depends_on:
+- linux-amd64
 ---
 kind: pipeline
 name: manifest
-
 platform:
   os: linux
   arch: amd64
-
 steps:
 - name: manifest
   image: plugins/manifest:1.0.2
@@ -259,12 +455,7 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-    platforms:
-      - linux/amd64
-      - linux/arm64
-      - linux/arm
-    target: "rancher/fleet:${DRONE_TAG}"
-    template: "rancher/fleet:${DRONE_TAG}-ARCH"
+    spec: manifest.tmpl
   when:
     instance:
     - drone-publish.rancher.io
@@ -280,12 +471,7 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-    platforms:
-      - linux/amd64
-      - linux/arm64
-      - linux/arm
-    target: "rancher/fleet-agent:${DRONE_TAG}"
-    template: "rancher/fleet-agent:${DRONE_TAG}-ARCH"
+    spec: manifest-agent.tmpl
   when:
     instance:
     - drone-publish.rancher.io
@@ -294,22 +480,22 @@ steps:
     - refs/tags/*
     event:
     - tag
-
 depends_on:
-- amd64
-- arm64
-- arm
-
+- linux-amd64
+- linux-arm64
+- linux-arm
+- windows-amd64-1809
+- windows-amd64-1909
+- windows-amd64-2004
+- windows-amd64-20H2
 ---
 kind: pipeline
 name: gorelease
-
 steps:
   - name: fetch
     image: docker:git
     commands:
       - git fetch --tags
-
   - name: release
     image: golang
     environment:
@@ -325,6 +511,5 @@ steps:
         - refs/tags/*
       event:
         - tag
-
 depends_on:
-  - manifest
+- manifest
