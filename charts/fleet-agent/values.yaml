@@ -31,6 +31,19 @@ internal:
   systemNamespace: fleet-system
   managedReleaseName: fleet-agent
 
+# The nodeSelector and tolerations for the agent deployment
+fleetAgent:
+  nodeSelector: {}
+  tolerations: []
+kubectl:
+  nodeSelector:
+    kubernetes.io/os: linux
+  tolerations:
+    - key: cattle.io/os
+      operator: "Equal"
+      value: "linux"
+      effect: NoSchedule
+
 global:
   cattle:
     systemDefaultRegistry: ""

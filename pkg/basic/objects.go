@@ -40,8 +40,9 @@ func Namespace(name string) *corev1.Namespace {
 	}
 
 }
-func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string) *appsv1.Deployment {
-	return &appsv1.Deployment{
+
+func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, linuxOnly bool) *appsv1.Deployment {
+	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
@@ -81,6 +82,16 @@ func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string) 
 			},
 		},
 	}
+	if linuxOnly {
+		deployment.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
+		deployment.Spec.Template.Spec.Tolerations = []corev1.Toleration{{
+			Key:      "cattle.io/os",
+			Operator: "Equal",
+			Value:    "linux",
+			Effect:   "NoSchedule",
+		}}
+	}
+	return deployment
 }
 
 func ServiceAccount(namespace, name string) *corev1.ServiceAccount {

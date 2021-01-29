@@ -17,6 +17,10 @@ if [ -z "$ARCH" ]; then
     ARCH=$(go env GOHOSTARCH)
 fi
 
+if [ -z "$OS" ]; then
+    OS=$(go env GOHOSTOS)
+fi
+
 SUFFIX="-${ARCH}"
 
 HELM_TAG=${TAG:-${VERSION}}

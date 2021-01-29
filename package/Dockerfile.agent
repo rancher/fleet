@@ -1,4 +1,8 @@
 FROM alpine:3.12.3
+ARG ARCH
+ENV ARCH=$ARCH
 RUN apk add -U --no-cache git bash
-COPY bin/fleetagent bin/fleet package/log.sh /usr/bin/
+COPY bin/fleetagent-linux-$ARCH /usr/bin/fleetagent
+COPY bin/fleet-linux-$ARCH /usr/bin/fleet
+COPY package/log.sh /usr/bin/
 CMD ["fleetagent"]

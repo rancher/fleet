@@ -12,7 +12,7 @@ function build-image() {
       DOCKERFILE=${DOCKERFILE}.${ARCH}
   fi
 
-  docker build -f ${DOCKERFILE} -t ${IMAGE} .
+  docker build -f ${DOCKERFILE} -t ${IMAGE} --build-arg ARCH=${ARCH} .
   echo Built ${IMAGE}
 
   if [ "$PUSH" = "true" ]; then
@@ -21,16 +21,7 @@ function build-image() {
 }
 
 mkdir -p dist/artifacts
-cp bin/fleet dist/artifacts/fleet-linux${SUFFIX}
-for i in bin/fleet-*; do
-    if [ -e "$i" ]; then
-        if [ "$i" = fleet-windows-amd64 ]; then
-            cp $i dist/artifacts/fleet-windows-amd64.exe
-        else
-            cp $i dist/artifacts
-        fi
-    fi
-done
+cp -r bin/fleet* dist/artifacts/
 
 build-image fleet
 build-image fleet-agent .agent

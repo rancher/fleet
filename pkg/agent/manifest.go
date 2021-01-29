@@ -32,7 +32,7 @@ func Manifest(namespace, image, pullPolicy, generation, checkInInterval string) 
 		},
 	)
 
-	dep := basic.Deployment(namespace, DefaultName, image, pullPolicy, DefaultName)
+	dep := basic.Deployment(namespace, DefaultName, image, pullPolicy, DefaultName, false)
 	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
 		corev1.EnvVar{
 			Name:  "CHECKIN_INTERVAL",

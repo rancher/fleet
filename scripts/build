@@ -6,16 +6,50 @@ source $(dirname $0)/version
 cd $(dirname $0)/..
 
 mkdir -p bin
-if [ "$(uname)" = "Linux" ]; then
-    OTHER_LINKFLAGS="-extldflags -static"
-fi
+
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.Version=$VERSION"
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.GitCommit=$COMMIT $LINKFLAGS"
 LINKFLAGS="-s -w $LINKFLAGS"
-CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleet
-CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleetcontroller ./cmd/fleetcontroller
-CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/fleetagent ./cmd/fleetagent
-if [ "$CROSS" = "true" ] && [ "$ARCH" = "amd64" ]; then
-    GOOS=darwin go build -ldflags "$LINKFLAGS" -o bin/fleet-darwin${SUFFIX}
-    GOOS=windows go build -ldflags "$LINKFLAGS" -o bin/fleet-windows${SUFFIX}
+OTHER_LINKFLAGS="-extldflags -static"
+
+function build-binaries() {
+    printf "Building for ${1}-${2} ...\n"
+    TEMP_GOARM=""
+    if [ $1 = "arm" ]; then
+        # The whitespace is intentional.
+        TEMP_GOARM=" GOARM=7"
+    fi
+    TEMP_LINKFLAGS=$LINKFLAGS
+    if [ $1 = "linux" ]; then
+        TEMP_LINKFLAGS="$LINKFLAGS $OTHER_LINKFLAGS"
+    fi
+    TEMP_SUFFIX=""
+    if [ $1 = "windows" ]; then
+        TEMP_SUFFIX=".exe"
+    fi
+    GOOS=${1} GOARCH=${2}${TEMP_GOARCH} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleet-${1}-${2}${TEMP_SUFFIX}
+    if ! [ $1 = "darwin" ]; then
+        GOOS=${1} GOARCH=${2}${TEMP_GOARM} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleetcontroller-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetcontroller
+        GOOS=${1} GOARCH=${2}${TEMP_GOARM} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleetagent-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetagent
+    fi
+}
+
+if [ "$CROSS" = "true" ]; then
+    # If local (host) is unset, we default to false since we are already cross-compiling for all platforms.
+    if [ -z "$LOCAL" ]; then
+        LOCAL="false"
+    fi
+    OS_ARCH=( "linux amd64" "linux arm" "linux arm64" "darwin amd64" "windows amd64" )
+    for i in "${OS_ARCH[@]}"; do
+        set -- $i
+        build-binaries ${1} ${2}
+    done
+elif [ "$CROSS" = "windows" ]; then
+   build-binaries "windows" "amd64"
+fi
+
+# Always build for the host (local) OS and ARCH unless otherwise specified (setting LOCAL to "false").
+# LOCAL will be set to "false" if CROSS is "true" (avoids compiling the host OS and ARCH twice).
+if ! [ "$LOCAL" = "false" ]; then
+    build-binaries ${OS} ${ARCH}
 fi
