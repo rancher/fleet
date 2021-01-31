@@ -20,9 +20,6 @@ function build-image() {
   fi
 }
 
-mkdir -p dist/artifacts
-cp -r bin/fleet* dist/artifacts/
-
 build-image fleet
 build-image fleet-agent .agent
 

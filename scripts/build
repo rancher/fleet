@@ -53,3 +53,6 @@ fi
 if ! [ "$LOCAL" = "false" ]; then
     build-binaries ${OS} ${ARCH}
 fi
+
+mkdir -p dist/artifacts
+cp -r bin/fleet* dist/artifacts/
