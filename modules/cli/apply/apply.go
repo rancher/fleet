@@ -129,7 +129,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 }
 
 func createName(name, baseDir string) string {
-	path := filepath.Join(name, baseDir)
+	path := strings.ToLower(filepath.Join(name, baseDir))
 	path = disallowedChars.ReplaceAllString(path, "-")
 	return multiDash.ReplaceAllString(path, "-")
 }
