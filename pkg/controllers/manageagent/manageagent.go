@@ -71,7 +71,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 		return namespace, nil
 	}
 
-	objs, err := h.getAgentBundle(namespace.Name)
+	objs, err := h.getAgentBundle(namespace.Name, clusters[0].Spec.AgentEnvVars)
 	if err != nil {
 		return nil, err
 	}
@@ -83,13 +83,13 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 		ApplyObjects(objs...)
 }
 
-func (h *handler) getAgentBundle(ns string) ([]runtime.Object, error) {
+func (h *handler) getAgentBundle(ns string, agentEnvVars []corev1.EnvVar) ([]runtime.Object, error) {
 	cfg := config.Get()
 	if cfg.ManageAgent != nil && !*cfg.ManageAgent {
 		return nil, nil
 	}
 
-	objs := agent.Manifest(h.systemNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, "bundle", cfg.AgentCheckinInternal.Duration.String())
+	objs := agent.Manifest(h.systemNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, "bundle", cfg.AgentCheckinInternal.Duration.String(), agentEnvVars)
 	agentYAML, err := yaml.Export(objs...)
 	if err != nil {
 		return nil, err

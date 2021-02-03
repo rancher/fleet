@@ -14,7 +14,7 @@ const (
 	DefaultName = "fleet-agent"
 )
 
-func Manifest(namespace, image, pullPolicy, generation, checkInInterval string) []runtime.Object {
+func Manifest(namespace, image, pullPolicy, generation, checkInInterval string, agentEnvVars []corev1.EnvVar) []runtime.Object {
 	if image == "" {
 		image = config.DefaultAgentImage
 	}
@@ -42,6 +42,9 @@ func Manifest(namespace, image, pullPolicy, generation, checkInInterval string) 
 			Name:  "GENERATION",
 			Value: generation,
 		})
+	if agentEnvVars != nil {
+		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, agentEnvVars...)
+	}
 	dep.Spec.Template.Spec.Affinity = &corev1.Affinity{
 		NodeAffinity: &corev1.NodeAffinity{
 			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{

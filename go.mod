@@ -3,10 +3,9 @@ module github.com/rancher/fleet
 go 1.14
 
 replace (
-	github.com/Azure/go-autorest => github.com/Azure/go-autorest v14.0.0+incompatible
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
-	helm.sh/helm/v3 => github.com/ibuildthecloud/helm/v3 v3.1.0-rc.1.0.20200829031744-19e92760f498
-	k8s.io/client-go => github.com/rancher/client-go v0.18.8-fleet1
+	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.3.3-fleet1
+	k8s.io/client-go => github.com/rancher/client-go v0.20.0-fleet1
 )
 
 require (
@@ -20,14 +19,15 @@ require (
 	github.com/rancher/wrangler v0.7.3-0.20201002224307-4303c423125a
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
 	github.com/sirupsen/logrus v1.6.0
-	github.com/spf13/cobra v1.0.0
+	github.com/spf13/cobra v1.1.1
 	go.mozilla.org/sops/v3 v3.6.1
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
-	helm.sh/helm/v3 v3.0.0
-	k8s.io/api v0.18.8
-	k8s.io/apimachinery v0.18.8
-	k8s.io/cli-runtime v0.18.4
-	k8s.io/client-go v0.18.8
+	helm.sh/helm/v3 v3.5.1
+	k8s.io/api v0.20.0
+	k8s.io/apimachinery v0.20.0
+	k8s.io/cli-runtime v0.20.0
+	k8s.io/client-go v0.20.0
+	k8s.io/kubectl v0.20.0 // indirect
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/cli-utils v0.16.0
 	sigs.k8s.io/kustomize/api v0.6.0
