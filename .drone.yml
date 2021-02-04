@@ -274,7 +274,7 @@ steps:
 - name: docker-publish-agent
   image: plugins/docker
   settings:
-    dockerfile: package/windows/Dockerfile.agent
+    dockerfile: package/Dockerfile-windows.agent
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
@@ -315,7 +315,7 @@ steps:
 - name: docker-publish-agent
   image: plugins/docker
   settings:
-    dockerfile: package/windows/Dockerfile.agent
+    dockerfile: package/Dockerfile-windows.agent
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
@@ -363,7 +363,7 @@ steps:
 - name: docker-publish-agent
   image: luthermonson/drone-docker:2004
   settings:
-    dockerfile: package/windows/Dockerfile.agent
+    dockerfile: package/Dockerfile-windows.agent
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
@@ -411,7 +411,7 @@ steps:
 - name: docker-publish-agent
   image: luthermonson/drone-docker:20H2
   settings:
-    dockerfile: package/windows/Dockerfile.agent
+    dockerfile: package/Dockerfile-windows.agent
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
