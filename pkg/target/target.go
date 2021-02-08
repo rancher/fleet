@@ -24,7 +24,8 @@ import (
 )
 
 var (
-	defLimit                    = intstr.FromString("10%")
+	// Default limit is 100%, make sure the default behavior doesn't block rollout
+	defLimit                    = intstr.FromString("100%")
 	defAutoPartitionSize        = intstr.FromString("25%")
 	defMaxUnavailablePartitions = intstr.FromInt(0)
 )
