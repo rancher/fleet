@@ -1,5 +1,5 @@
 ARG SERVERCORE_VERSION
-FROM mcr.microsoft.com/windows/servercore:${SERVERCORE_VERSION}
+FROM mcr.microsoft.com/windows/servercore:${SERVERCORE_VERSION} as builder
 ARG RELEASES
 ARG VERSION
 ENV RELEASES=$RELEASES
@@ -25,4 +25,8 @@ RUN $URL = 'https://{0}/fleet/{1}/fleetagent-windows-amd64.exe' -f $env:RELEASES
     Write-Host ('Downloading dapper from {0} ...' -f $URL); \
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; \
     Invoke-WebRequest -UseBasicParsing -OutFile c:/fleet/fleetagent-windows.exe -Uri $URL;
+FROM mcr.microsoft.com/windows/nanoserver:${SERVERCORE_VERSION}
+USER ContainerAdministrator
+COPY --from=builder /fleet /fleet
+COPY --from=builder /git /git
 CMD ["C:\fleet\fleetagent-windows.exe"]
