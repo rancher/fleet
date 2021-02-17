@@ -21,6 +21,9 @@ func ToObjects(c *chart.Chart) (result []runtime.Object, _ error) {
 		}
 		objs, err := yaml.ToObjects(bytes.NewBuffer(resource.Data))
 		if err != nil {
+			if runtime.IsMissingKind(err) {
+				continue
+			}
 			return nil, err
 		}
 		for _, obj := range objs {
