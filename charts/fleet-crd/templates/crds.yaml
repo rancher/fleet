@@ -14,6 +14,7 @@ spec:
   names:
     kind: Bundle
     plural: bundles
+    singular: bundle
   scope: Namespaced
   subresources:
     status: {}
@@ -746,6 +747,7 @@ spec:
   names:
     kind: BundleDeployment
     plural: bundledeployments
+    singular: bundledeployment
   scope: Namespaced
   subresources:
     status: {}
@@ -1082,6 +1084,7 @@ spec:
   names:
     kind: BundleNamespaceMapping
     plural: bundlenamespacemappings
+    singular: bundlenamespacemapping
   scope: Namespaced
   subresources:
     status: {}
@@ -1173,6 +1176,7 @@ spec:
     - fleet
     kind: ClusterGroup
     plural: clustergroups
+    singular: clustergroup
   scope: Namespaced
   subresources:
     status: {}
@@ -1407,6 +1411,7 @@ spec:
   names:
     kind: Cluster
     plural: clusters
+    singular: cluster
   scope: Namespaced
   subresources:
     status: {}
@@ -1704,6 +1709,7 @@ spec:
   names:
     kind: ClusterRegistrationToken
     plural: clusterregistrationtokens
+    singular: clusterregistrationtoken
   scope: Namespaced
   subresources:
     status: {}
@@ -1757,6 +1763,7 @@ spec:
     - fleet
     kind: GitRepo
     plural: gitrepos
+    singular: gitrepo
   scope: Namespaced
   subresources:
     status: {}
@@ -2126,6 +2133,7 @@ spec:
   names:
     kind: ClusterRegistration
     plural: clusterregistrations
+    singular: clusterregistration
   scope: Namespaced
   subresources:
     status: {}
@@ -2179,6 +2187,7 @@ spec:
   names:
     kind: GitRepoRestriction
     plural: gitreporestrictions
+    singular: gitreporestriction
   scope: Namespaced
   subresources:
     status: {}
@@ -2226,6 +2235,7 @@ spec:
   names:
     kind: Content
     plural: contents
+    singular: content
   scope: Cluster
   validation:
     openAPIV3Schema:
