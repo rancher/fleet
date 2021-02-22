@@ -190,11 +190,12 @@ type DiffOptions struct {
 }
 
 type ComparePatch struct {
-	Kind       string      `json:"kind,omitempty"`
-	APIVersion string      `json:"apiVersion,omitempty"`
-	Namespace  string      `json:"namespace,omitempty"`
-	Name       string      `json:"name,omitempty"`
-	Operations []Operation `json:"operations,omitempty"`
+	Kind         string      `json:"kind,omitempty"`
+	APIVersion   string      `json:"apiVersion,omitempty"`
+	Namespace    string      `json:"namespace,omitempty"`
+	Name         string      `json:"name,omitempty"`
+	Operations   []Operation `json:"operations,omitempty"`
+	JsonPointers []string    `json:"jsonPointers,omitempty"`
 }
 
 type Operation struct {

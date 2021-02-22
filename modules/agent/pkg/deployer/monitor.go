@@ -4,9 +4,16 @@ import (
 	"encoding/json"
 	"sort"
 
+	"github.com/argoproj/argo-cd/pkg/apis/application/v1alpha1"
+	"github.com/argoproj/argo-cd/util/argo"
+	"github.com/argoproj/gitops-engine/pkg/diff"
+	jsonpatch "github.com/evanphx/json-patch"
+	fleetnorm "github.com/rancher/fleet/modules/agent/pkg/deployer/normalizers"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/pkg/merr"
 	"github.com/rancher/wrangler/pkg/name"
+	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/rancher/wrangler/pkg/summary"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,33 +28,120 @@ type DeploymentStatus struct {
 }
 
 func (m *Manager) plan(bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (apply.Plan, error) {
-	a, err := m.getApply(bd, ns)
-	if err != nil {
-		return apply.Plan{}, err
-	}
-	return a.DryRun(objs...)
-}
-
-func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) (apply.Apply, error) {
-	apply := m.apply
 	if ns == "" {
 		ns = m.defaultNamespace
 	}
 
+	a, err := m.getApply(bd, ns)
+	if err != nil {
+		return apply.Plan{}, err
+	}
+	plan, err := a.DryRun(objs...)
+	if err != nil {
+		return plan, err
+	}
+
+	desired := objectset.NewObjectSet(objs...).ObjectsByGVK()
+	live := objectset.NewObjectSet(plan.Objects...).ObjectsByGVK()
+
+	norms, err := m.normalizers(live, bd)
+	if err != nil {
+		return plan, err
+	}
+
+	var errs []error
+	for gvk, objs := range plan.Update {
+		for key := range objs {
+			desiredObj := desired[gvk][key]
+			if desiredObj == nil {
+				desiredKey := key
+				// if different namespace options to guess if resource is namespaced or not
+				if desiredKey.Namespace == "" {
+					desiredKey.Namespace = ns
+				} else {
+					desiredKey.Namespace = ""
+				}
+				desiredObj = desired[gvk][desiredKey]
+				if desiredObj == nil {
+					continue
+				}
+			}
+			desiredObj.(*unstructured.Unstructured).SetNamespace(key.Namespace)
+
+			actualObj := live[gvk][key]
+			if actualObj == nil {
+				continue
+			}
+
+			diffResult, err := diff.Diff(desiredObj.(*unstructured.Unstructured), actualObj.(*unstructured.Unstructured),
+				diff.WithNormalizer(norms),
+				diff.IgnoreAggregatedRoles(true))
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			if !diffResult.Modified {
+				delete(plan.Update[gvk], key)
+				continue
+			}
+			patch, err := jsonpatch.CreateMergePatch(diffResult.NormalizedLive, diffResult.PredictedLive)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			plan.Update.Add(gvk, key.Namespace, key.Name, string(patch))
+		}
+		if len(errs) > 0 {
+			return plan, merr.NewErrors(errs...)
+		}
+	}
+	return plan, nil
+}
+
+func (m *Manager) normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (diff.Normalizer, error) {
+	var ignore []v1alpha1.ResourceIgnoreDifferences
+	jsonPatchNorm := &fleetnorm.JSONPatchNormalizer{}
 	if bd.Spec.Options.Diff != nil {
-		for _, compare := range bd.Spec.Options.Diff.ComparePatches {
-			for _, op := range compare.Operations {
+		for _, patch := range bd.Spec.Options.Diff.ComparePatches {
+			groupVersion, err := schema.ParseGroupVersion(patch.APIVersion)
+			if err != nil {
+				return nil, err
+			}
+			ignore = append(ignore, v1alpha1.ResourceIgnoreDifferences{
+				Namespace:    patch.Namespace,
+				Name:         patch.Name,
+				Kind:         patch.Kind,
+				Group:        groupVersion.Group,
+				JSONPointers: patch.JsonPointers,
+			})
+
+			for _, op := range patch.Operations {
 				// compile each operation by itself so that one failing operation doesn't block the others
-				patch, err := json.Marshal([]interface{}{op})
+				patchData, err := json.Marshal([]interface{}{op})
 				if err != nil {
 					return nil, err
 				}
-				gvk := schema.FromAPIVersionAndKind(compare.APIVersion, compare.Kind)
-				apply = apply.WithDiffPatch(gvk, compare.Namespace, compare.Name, patch)
+				gvk := schema.FromAPIVersionAndKind(patch.APIVersion, patch.Kind)
+				key := objectset.ObjectKey{
+					Name:      patch.Name,
+					Namespace: patch.Namespace,
+				}
+				jsonPatchNorm.Add(gvk, key, patchData)
 			}
 		}
 	}
 
+	ignoreNorm, err := argo.NewDiffNormalizer(ignore, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	norm := fleetnorm.New(live, ignoreNorm, jsonPatchNorm)
+	return norm, nil
+}
+
+func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) (apply.Apply, error) {
+	apply := m.apply
 	return apply.
 		WithIgnorePreviousApplied().
 		WithSetID(name.SafeConcatName(m.labelPrefix, bd.Name)).

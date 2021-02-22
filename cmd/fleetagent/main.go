@@ -14,6 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	debugConfig command.DebugConfig
+)
+
 type FleetAgent struct {
 	Kubeconfig      string `usage:"kubeconfig file"`
 	Namespace       string `usage:"namespace to watch" env:"NAMESPACE"`
@@ -54,5 +58,6 @@ func main() {
 	cmd := command.Command(&FleetAgent{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
+	cmd = command.AddDebug(cmd, &debugConfig)
 	command.Main(cmd)
 }

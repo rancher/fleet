@@ -35,6 +35,12 @@ spec:
                       apiVersion:
                         nullable: true
                         type: string
+                      jsonPointers:
+                        items:
+                          nullable: true
+                          type: string
+                        nullable: true
+                        type: array
                       kind:
                         nullable: true
                         type: string
@@ -348,6 +354,12 @@ spec:
                             apiVersion:
                               nullable: true
                               type: string
+                            jsonPointers:
+                              items:
+                                nullable: true
+                                type: string
+                              nullable: true
+                              type: array
                             kind:
                               nullable: true
                               type: string
@@ -773,6 +785,12 @@ spec:
                           apiVersion:
                             nullable: true
                             type: string
+                          jsonPointers:
+                            items:
+                              nullable: true
+                              type: string
+                            nullable: true
+                            type: array
                           kind:
                             nullable: true
                             type: string
@@ -871,6 +889,12 @@ spec:
                           apiVersion:
                             nullable: true
                             type: string
+                          jsonPointers:
+                            items:
+                              nullable: true
+                              type: string
+                            nullable: true
+                            type: array
                           kind:
                             nullable: true
                             type: string
