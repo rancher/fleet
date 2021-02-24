@@ -428,10 +428,23 @@ func (h *helm) Resources(bundleID, resourcesID string) (*deployer.Resources, err
 }
 
 func (h *helm) Delete(bundleID, releaseName string) error {
-	if releaseName != "" {
-		return h.deleteByRelease(bundleID, releaseName)
+	if releaseName == "" {
+		deployments, err := h.ListDeployments()
+		if err != nil {
+			return err
+		}
+		for _, deployment := range deployments {
+			if deployment.BundleID == bundleID {
+				releaseName = deployment.ReleaseName
+				break
+			}
+		}
 	}
-	return h.delete(bundleID, fleet.BundleDeploymentOptions{}, false)
+	if releaseName == "" {
+		// Never found anything to delete
+		return nil
+	}
+	return h.deleteByRelease(bundleID, releaseName)
 }
 
 func (h *helm) deleteByRelease(bundleID, releaseName string) error {

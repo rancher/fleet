@@ -62,7 +62,7 @@ func (m *Manager) Cleanup() error {
 		bundleDeployment, err := m.bundleDeploymentCache.Get(m.fleetNamespace, deployed.BundleID)
 		if apierror.IsNotFound(err) {
 			logrus.Infof("Deleting orphan bundle ID %s, release %s", deployed.BundleID, deployed.ReleaseName)
-			if err := m.deployer.Delete(deployed.BundleID, ""); err != nil {
+			if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
 				return err
 			}
 		} else if err != nil {
