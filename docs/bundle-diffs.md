@@ -1,9 +1,11 @@
-## Generating diff for modified Git Repos
+## Generating Diffs for Modified GitRepos
 
 
-Continuous Delivery in  Rancher is powered by fleet. When a user adds a git repo, then Continuous Delivery creates the associated fleet bundles.
+Continuous Delivery in Rancher is powered by fleet. When a user adds a GitRepo CR, then Continuous Delivery creates the associated fleet bundles.
 
-This can be accessed in the UI under the bundles section. At times charts such as operators may launch additional resources which are not part of the git repo or bundle itself.
+You can access these bundles by navigating to the Cluster Explorer (Dashboard UI), and selecting the `Bundles` section.
+
+The bundled charts may have some objects that are amended at runtime, for example in ValidatingWebhookConfiguration the `caBundle` is empty and the CA cert is injected by the cluster.
 
 This leads the status of the bundle and associated GitRepo to be reported as "Modified"
 
@@ -12,19 +14,19 @@ This leads the status of the bundle and associated GitRepo to be reported as "Mo
 Associated Bundle
 ![](./assets/ModifiedBundle.png)
 
-Fleet bundles support the ability to specify a custom [jsonPointer patch.](http://jsonpatch.com/) 
+Fleet bundles support the ability to specify a custom [jsonPointer patch](http://jsonpatch.com/).
 
-Using this the users can instruct fleet to ignore the modification on the objects.
+With the patch, users can instruct fleet to ignore object modifications.
 
-In this example we are trying to deploy opa-gatekeeper using ContinousDelivery to our clusters.
+In this example, we are trying to deploy opa-gatekeeper using Continuous Delivery to our clusters.
 
 The opa-gatekeeper bundle associated with the opa GitRepo is in modified state.
 
-The user can view the diff needed to allow ignore fleet to ignore this in the Status of the bundle by clicking through on the actual bundle itself.
+Each path in the GitRepo CR, has an associated Bundle CR. The user can view the Bundles, and the associated diff needed in the Bundle status.
 
 In our case the differences detected are as follows:
 
-```
+```yaml
   summary:
     desiredReady: 1
     modified: 1
@@ -47,16 +49,16 @@ In our case the differences detected are as follows:
         patch: '{"spec":{"template":{"spec":{"$setElementOrder/containers":[{"name":"manager"}],"containers":[{"name":"manager","resources":{"limits":{"cpu":"1000m"}}}],"tolerations":[]}}}}'
 ```        
 
-Based on this summary there are three objects which need to be patched.
+Based on this summary, there are three objects which need to be patched.
 
 We will look at these one at a time.
 
 ### 1. ValidatingWebhookConfiguration: 
 The gatekeeper-validating-webhook-configuration validating webhook has two ValidatingWebhooks in its spec. 
 
-In cases where there is more than on element in the field which needs the patch the patch will refer these to as `$setElementOrder/ELEMENTNAME` 
+In cases where more than one element in the field requires a patch, that patch will refer these to as `$setElementOrder/ELEMENTNAME` 
 
-From this information we can see the two ValidatingWebhooks in question are:
+From this information, we can see the two ValidatingWebhooks in question are:
 
 ```
   "$setElementOrder/webhooks": [
@@ -69,7 +71,7 @@ From this information we can see the two ValidatingWebhooks in question are:
   ],
 ```
 
-Within each ValidatingWebhook the fields that need to be ignore are as follows:
+Within each ValidatingWebhook, the fields that need to be ignore are as follows:
 
 ```
     {
@@ -125,15 +127,15 @@ Within each ValidatingWebhook the fields that need to be ignore are as follows:
     }
 ```
 
-In summary we need to ignore the fields `rules` and `clientConfig.caBundle` in our patch specification.
+In summary, we need to ignore the fields `rules` and `clientConfig.caBundle` in our patch specification.
 
 The field webhook in the ValidatingWebhookConfiguration spec is an array, so we need to address the elements by their index values.
 
 ![](./assets/WebhookConfigurationSpec.png)
 
-Based on this information our diff patch would look as follows:
+Based on this information, our diff patch would look as follows:
 
-```
+```yaml
   - apiVersion: admissionregistration.k8s.io/v1beta1
     kind: ValidatingWebhookConfiguration
     name: gatekeeper-validating-webhook-configuration
@@ -145,7 +147,7 @@ Based on this information our diff patch would look as follows:
 ```    
 
 ### 2. Deployment gatekeeper-controller-manager: 
-The gatekeeper-controller-manager deployment is modified since there are cpu limits and tolerations applied which are not in the actual bundle.
+The gatekeeper-controller-manager deployment is modified since there are cpu limits and tolerations applied (which are not in the actual bundle).
 
 ```
 {
@@ -174,10 +176,10 @@ The gatekeeper-controller-manager deployment is modified since there are cpu lim
 }
 ```
 
-In this case there is only 1 container in the deployments container spec, and that container has cpu limits and tolerations added.
+In this case, there is only 1 container in the deployment container spec, and that container has cpu limits and tolerations added.
 
-Based on this information our diff patch would look as follows:
-```
+Based on this information, our diff patch would look as follows:
+```yaml
   - apiVersion: apps/v1
     kind: Deployment
     name: gatekeeper-controller-manager
@@ -188,7 +190,7 @@ Based on this information our diff patch would look as follows:
 ```
 
 ### 3. Deployment gatekeeper-audit:
-The gatekeeper-audit deployment is modified in a similar manner to the gatekeeper-controller-manager, with additional cpu limits and tolerations applied.
+The gatekeeper-audit deployment is modified in a similarly, to the gatekeeper-controller-manager, with additional cpu limits and tolerations applied.
 
 ```
 {
@@ -217,10 +219,10 @@ The gatekeeper-audit deployment is modified in a similar manner to the gatekeepe
 }
 ```
 
-Similar to gatekeeper-controller-manager there is only 1 container in the deployments container spec, and that has cpu limits and tolerations added.
+Similar to gatekeeper-controller-manager, there is only 1 container in the deployments container spec, and that has cpu limits and tolerations added.
 
-Based on this information our diff patch would look as follows:
-```
+Based on this information, our diff patch would look as follows:
+```yaml
   - apiVersion: apps/v1
     kind: Deployment
     name: gatekeeper-audit
@@ -230,10 +232,10 @@ Based on this information our diff patch would look as follows:
     - {"op": "remove", "path": "/spec/template/spec/tolerations"}
 ```
 
-### Combining it all together
+### Combining It All Together
 We can now combine all these patches as follows:
 
-```
+```yaml
 diff:
   comparePatches:
   - apiVersion: apps/v1
@@ -260,6 +262,6 @@ diff:
     - {"op": "remove", "path":"/webhooks/1/rules"}
 ```
 
-We can add these now to the bundle directly to test and also commit the same to the fleet.yaml in your GitRepo.
+We can add these now to the bundle directly to test and also commit the same to the `fleet.yaml` in your GitRepo.
 
-Once these are added the GitRepo should deploy and be in "Active" status.
+Once these are added, the GitRepo should deploy and be in "Active" status.
