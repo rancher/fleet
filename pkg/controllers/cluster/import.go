@@ -209,7 +209,6 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		CA:              apiServerCA,
 		Host:            apiServerURL,
 		ClientID:        cluster.Spec.ClientID,
-		AgentEnvVars:    cluster.Spec.AgentEnvVars,
 		CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
 		Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
 	})

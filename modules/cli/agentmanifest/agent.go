@@ -20,7 +20,6 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
 	"github.com/rancher/wrangler/pkg/yaml"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -41,7 +40,6 @@ type Options struct {
 	ClientID        string
 	Generation      string
 	CheckinInterval string
-	AgentEnvVars    []v1.EnvVar
 }
 
 func AgentToken(ctx context.Context, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
@@ -125,7 +123,7 @@ func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace str
 		return err
 	}
 
-	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval, opts.AgentEnvVars)...)
+	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval)...)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {
