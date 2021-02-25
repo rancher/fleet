@@ -1006,6 +1006,11 @@ func (in *ComparePatch) DeepCopyInto(out *ComparePatch) {
 		*out = make([]Operation, len(*in))
 		copy(*out, *in)
 	}
+	if in.JsonPointers != nil {
+		in, out := &in.JsonPointers, &out.JsonPointers
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
