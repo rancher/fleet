@@ -83,6 +83,9 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 		if next.Kustomize.Dir != "" {
 			result.Kustomize.Dir = next.Kustomize.Dir
 		}
+		if next.Kustomize.BuildOptions != "" {
+			result.Kustomize.BuildOptions = next.Kustomize.BuildOptions
+		}
 	}
 	if next.Diff != nil {
 		if result.Diff == nil {

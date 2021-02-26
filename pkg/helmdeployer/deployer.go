@@ -99,7 +99,7 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 		data = nil
 	}
 
-	newObjs, processed, err := kustomize.Process(p.manifest, data, p.opts.Kustomize.Dir)
+	newObjs, processed, err := kustomize.Process(p.manifest, data, *p.opts.Kustomize)
 	if err != nil {
 		return nil, err
 	}

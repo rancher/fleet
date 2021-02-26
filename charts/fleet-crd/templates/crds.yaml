@@ -179,6 +179,9 @@ spec:
               kustomize:
                 nullable: true
                 properties:
+                  buildOptions:
+                    nullable: true
+                    type: string
                   dir:
                     nullable: true
                     type: string
@@ -546,6 +549,9 @@ spec:
                     kustomize:
                       nullable: true
                       properties:
+                        buildOptions:
+                          nullable: true
+                          type: string
                         dir:
                           nullable: true
                           type: string
@@ -1053,6 +1059,9 @@ spec:
                   kustomize:
                     nullable: true
                     properties:
+                      buildOptions:
+                        nullable: true
+                        type: string
                       dir:
                         nullable: true
                         type: string
@@ -1196,6 +1205,9 @@ spec:
                   kustomize:
                     nullable: true
                     properties:
+                      buildOptions:
+                        nullable: true
+                        type: string
                       dir:
                         nullable: true
                         type: string
@@ -2850,6 +2862,9 @@ spec:
             kustomize:
               nullable: true
               properties:
+                buildOptions:
+                  nullable: true
+                  type: string
                 dir:
                   nullable: true
                   type: string
@@ -3217,6 +3232,9 @@ spec:
                   kustomize:
                     nullable: true
                     properties:
+                      buildOptions:
+                        nullable: true
+                        type: string
                       dir:
                         nullable: true
                         type: string
@@ -3725,6 +3743,9 @@ spec:
                 kustomize:
                   nullable: true
                   properties:
+                    buildOptions:
+                      nullable: true
+                      type: string
                     dir:
                       nullable: true
                       type: string
@@ -3868,6 +3889,9 @@ spec:
                 kustomize:
                   nullable: true
                   properties:
+                    buildOptions:
+                      nullable: true
+                      type: string
                     dir:
                       nullable: true
                       type: string
