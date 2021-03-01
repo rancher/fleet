@@ -150,8 +150,9 @@ diff:
     operations:
     - {"op":"remove", "path":"/spec/template/spec/hostNetwork"}
     - {"op":"remove", "path":"/spec/template/spec/nodeSelector"}
-    - {"op":"remove", "path":"/spec/template/spec/priorityClassName"}
-    - {"op":"remove", "path":"/spec/template/spec/tolerations"}
+    jsonPointers: # jsonPointers allows to ignore diffs at certain json path
+    - "/spec/template/spec/priorityClassName"
+    - "/spec/template/spec/tolerations" 
 ```
 
 To determine which operations should be removed, observe the logs from `fleet-agent` on the target cluster. You should see entries similar to the following:
