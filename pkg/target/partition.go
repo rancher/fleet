@@ -28,7 +28,7 @@ func manualPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Parti
 	)
 
 	for _, partitionDef := range rollout.Partitions {
-		matcher, err := match.NewClusterMatcher(partitionDef.ClusterGroup, partitionDef.ClusterGroupSelector, partitionDef.ClusterSelector)
+		matcher, err := match.NewClusterMatcher(partitionDef.ClusterName, partitionDef.ClusterGroup, partitionDef.ClusterGroupSelector, partitionDef.ClusterSelector)
 		if err != nil {
 			return nil, err
 		}
@@ -37,7 +37,7 @@ func manualPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Parti
 	targetLoop:
 		for _, target := range targets {
 			for _, cg := range target.ClusterGroups {
-				if matcher.Match(cg.Name, cg.Labels, target.Cluster.Labels) {
+				if matcher.Match(target.Cluster.Name, cg.Name, cg.Labels, target.Cluster.Labels) {
 					partitionTargets = append(partitionTargets, target)
 					continue targetLoop
 				}

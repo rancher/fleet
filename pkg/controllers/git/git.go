@@ -98,12 +98,14 @@ func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 	for _, target := range targetsOrDefault(repo.Spec.Targets) {
 		spec.Targets = append(spec.Targets, fleet.BundleTarget{
 			Name:                 target.Name,
+			ClusterName:          target.ClusterName,
 			ClusterSelector:      target.ClusterSelector,
 			ClusterGroup:         target.ClusterGroup,
 			ClusterGroupSelector: target.ClusterGroupSelector,
 		})
 		spec.TargetRestrictions = append(spec.TargetRestrictions, fleet.BundleTargetRestriction{
 			Name:                 target.Name,
+			ClusterName:          target.ClusterName,
 			ClusterSelector:      target.ClusterSelector,
 			ClusterGroup:         target.ClusterGroup,
 			ClusterGroupSelector: target.ClusterGroupSelector,

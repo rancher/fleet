@@ -61,7 +61,7 @@ func Match(ctx context.Context, opts *Options) error {
 	}
 
 	if opts.Target == "" {
-		m := b.Match(map[string]map[string]string{
+		m := b.Match("", map[string]map[string]string{
 			opts.ClusterGroup: opts.ClusterGroupLabels,
 		}, opts.ClusterLabels)
 		return printMatch(b, m, opts.Output)
