@@ -9,7 +9,7 @@ cluster agents will pull from the Fleet manager.
 ## Fleet Manager
 
 The Fleet manager is a set of Kubernetes controllers running in any standard Kubernetes
-cluster.  The only API exposed by the Fleet manages is the Kubernetes API, there is no
+cluster.  The only API exposed by the Fleet manager is the Kubernetes API, there is no
 custom API for the fleet controller.
 
 ## Cluster Agents
