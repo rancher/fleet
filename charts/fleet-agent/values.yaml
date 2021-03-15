@@ -43,6 +43,10 @@ kubectl:
       operator: "Equal"
       value: "linux"
       effect: NoSchedule
+    - key: node.cloudprovider.kubernetes.io/uninitialized
+      operator: "Equal"
+      value: "true"
+      effect: NoSchedule
 
 global:
   cattle:
