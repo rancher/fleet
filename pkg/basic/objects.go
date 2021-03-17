@@ -91,6 +91,12 @@ func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, 
 			Effect:   "NoSchedule",
 		}}
 	}
+	deployment.Spec.Template.Spec.Tolerations = append(deployment.Spec.Template.Spec.Tolerations, corev1.Toleration{
+		Key:      "deployment.Spec.Template.Spec.Tolerations",
+		Operator: corev1.TolerationOpEqual,
+		Value:    "true",
+		Effect:   corev1.TaintEffectNoSchedule,
+	})
 	return deployment
 }
 
