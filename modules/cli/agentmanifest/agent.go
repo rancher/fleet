@@ -123,7 +123,7 @@ func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace str
 		return err
 	}
 
-	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval)...)
+	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval, cfg.DisableSopsDecryption)...)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {

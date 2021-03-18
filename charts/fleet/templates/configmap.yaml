@@ -11,6 +11,7 @@ data:
       "apiServerCA": "{{b64enc .Values.apiServerCA}}",
       "agentCheckinInterval": "{{.Values.agentCheckinInterval}}",
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
+      "disableSopsDecryption": {{.Values.disableSopsDecryption}},
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",
         "repo": "{{.Values.bootstrap.repo}}",

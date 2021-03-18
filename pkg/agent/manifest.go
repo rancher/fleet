@@ -14,7 +14,7 @@ const (
 	DefaultName = "fleet-agent"
 )
 
-func Manifest(namespace, image, pullPolicy, generation, checkInInterval string) []runtime.Object {
+func Manifest(namespace, image, pullPolicy, generation, checkInInterval string, disableSopsDecryption bool) []runtime.Object {
 	if image == "" {
 		image = config.DefaultAgentImage
 	}
@@ -33,15 +33,22 @@ func Manifest(namespace, image, pullPolicy, generation, checkInInterval string) 
 	)
 
 	dep := basic.Deployment(namespace, DefaultName, image, pullPolicy, DefaultName, false)
-	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
-		corev1.EnvVar{
+
+	envVars := []corev1.EnvVar{
+		{
 			Name:  "CHECKIN_INTERVAL",
 			Value: checkInInterval,
 		},
-		corev1.EnvVar{
+		{
 			Name:  "GENERATION",
 			Value: generation,
-		})
+		},
+	}
+	if disableSopsDecryption {
+		envVars = append(envVars, corev1.EnvVar{Name: "DISABLE_SOPS_DECRYPTION", Value: "true"})
+	}
+	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, envVars...)
+
 	dep.Spec.Template.Spec.Affinity = &corev1.Affinity{
 		NodeAffinity: &corev1.NodeAffinity{
 			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{

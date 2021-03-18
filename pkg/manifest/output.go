@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/rancher/fleet/pkg/content"
@@ -24,9 +25,11 @@ func (m *Manifest) ToTarGZ() (io.Reader, error) {
 			return nil, err
 		}
 
-		bytes, err = decryptSOPS(bytes)
-		if err != nil {
-			return nil, err
+		if os.Getenv("DISABLE_SOPS_DECRYPTION") != "true" {
+			bytes, err = decryptSOPS(bytes)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		if err := w.WriteHeader(&tar.Header{

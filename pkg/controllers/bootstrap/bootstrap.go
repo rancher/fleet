@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"regexp"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -112,6 +113,10 @@ func (h *handler) OnConfig(config *config.Config) error {
 				Paths:            paths,
 			},
 		})
+	}
+
+	if config.DisableSopsDecryption {
+		os.Setenv("DISABLE_SOPS_DECRYPTION", "true")
 	}
 
 	return h.apply.ApplyObjects(objs...)

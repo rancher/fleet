@@ -43,6 +43,7 @@ type Config struct {
 	Bootstrap                       Bootstrap         `json:"bootstrap,omitempty"`
 	IgnoreClusterRegistrationLabels bool              `json:"ignoreClusterRegistrationLabels,omitempty"`
 	IgnoreAgentNamespaceCheck       bool              `json:"ignoreAgentNamespaceCheck,omitempty"`
+	DisableSopsDecryption           bool              `json:"disableSopsDecryption,omitempty"`
 }
 
 type Bootstrap struct {

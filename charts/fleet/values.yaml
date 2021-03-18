@@ -33,6 +33,9 @@ bootstrap:
   branch: master
   paths: ""
 
+# If set to "true", rely on a downstream SOPS operator or handler for SOPS decryption instead of Fleet.
+disableSopsDecryption: false
+
 global:
   cattle:
     systemDefaultRegistry: ""
