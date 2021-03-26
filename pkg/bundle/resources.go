@@ -24,6 +24,7 @@ import (
 	"github.com/rancher/fleet/pkg/content"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+	v2 "gopkg.in/yaml.v2"
 )
 
 func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string) ([]fleet.BundleResource, error) {
@@ -34,7 +35,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 		return nil, err
 	}
 
-	var chartDirs []*fleet.HelmOptions
+	var chartDirs, parsedChartDirs []*fleet.HelmOptions
 
 	if spec.Helm != nil && spec.Helm.Chart != "" {
 		chartDirs = append(chartDirs, spec.Helm)
@@ -44,9 +45,26 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 		if target.Helm != nil && target.Helm.Chart != "" {
 			chartDirs = append(chartDirs, target.Helm)
 		}
+		if target.Helm != nil && target.Helm.Chart == "" && len(target.Helm.ValuesFiles) != 0 {
+			// generate values //
+			parsedChart, err := parseValueFiles(base, target.Helm)
+			if err != nil {
+				return nil, err
+			}
+			target.Helm.Values = parsedChart.Values
+		}
 	}
 
-	directories, err = addCharts(directories, base, chartDirs)
+	// append helm valuesFiles into values
+	for _, chart := range chartDirs {
+		parsedChart, err := parseValueFiles(base, chart)
+		if err != nil {
+			return nil, err
+		}
+		parsedChartDirs = append(parsedChartDirs, parsedChart)
+	}
+
+	directories, err = addCharts(directories, base, parsedChartDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -305,4 +323,53 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 	}
 
 	return files, nil
+}
+
+func parseValueFiles(base string, chart *fleet.HelmOptions) (parsedChart *fleet.HelmOptions, err error) {
+	parsedChart = chart
+	if len(chart.ValuesFiles) != 0 {
+		valuesMap, err := generateValues(base, chart)
+		if err != nil {
+			return nil, err
+		}
+		if parsedChart.Values == nil {
+			parsedChart.Values = &fleet.GenericMap{}
+		}
+		parsedChart.Values.Data = valuesMap
+	}
+
+	return parsedChart, nil
+}
+
+func generateValues(base string, chart *fleet.HelmOptions) (valuesMap map[string]interface{}, err error) {
+
+	valuesMap = make(map[string]interface{})
+	if chart.Values != nil {
+		valuesMap = chart.Values.Data
+	}
+	for _, value := range chart.ValuesFiles {
+		valuesByte, err := ioutil.ReadFile(base + "/" + value)
+		if err != nil {
+			return nil, err
+		}
+		tmpMap := make(map[string]interface{})
+		err = v2.Unmarshal(valuesByte, tmpMap)
+		if err != nil {
+			return nil, err
+		}
+		valuesMap = mergeGenericMap(valuesMap, tmpMap)
+	}
+
+	return valuesMap, nil
+}
+
+func mergeGenericMap(first, second map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range first {
+		result[k] = v
+	}
+	for k, v := range second {
+		result[k] = v
+	}
+	return result
 }

@@ -222,6 +222,7 @@ type HelmOptions struct {
 	Force          bool        `json:"force,omitempty"`
 	TakeOwnership  bool        `json:"takeOwnership,omitempty"`
 	MaxHistory     int         `json:"maxHistory,omitempty"`
+	ValuesFiles    []string    `json:"valuesFiles,omitempty"`
 }
 
 type BundleDeploymentSpec struct {

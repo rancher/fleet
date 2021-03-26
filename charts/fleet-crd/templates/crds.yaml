@@ -94,6 +94,12 @@ spec:
                 values:
                   nullable: true
                   type: object
+                valuesFiles:
+                  items:
+                    nullable: true
+                    type: string
+                  nullable: true
+                  type: array
                 version:
                   nullable: true
                   type: string
@@ -413,6 +419,12 @@ spec:
                       values:
                         nullable: true
                         type: object
+                      valuesFiles:
+                        items:
+                          nullable: true
+                          type: string
+                        nullable: true
+                        type: array
                       version:
                         nullable: true
                         type: string
@@ -844,6 +856,12 @@ spec:
                     values:
                       nullable: true
                       type: object
+                    valuesFiles:
+                      items:
+                        nullable: true
+                        type: string
+                      nullable: true
+                      type: array
                     version:
                       nullable: true
                       type: string
@@ -948,6 +966,12 @@ spec:
                     values:
                       nullable: true
                       type: object
+                    valuesFiles:
+                      items:
+                        nullable: true
+                        type: string
+                      nullable: true
+                      type: array
                     version:
                       nullable: true
                       type: string
