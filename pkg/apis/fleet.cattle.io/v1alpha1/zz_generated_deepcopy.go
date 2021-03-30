@@ -1418,6 +1418,11 @@ func (in *HelmOptions) DeepCopyInto(out *HelmOptions) {
 		in, out := &in.Values, &out.Values
 		*out = (*in).DeepCopy()
 	}
+	if in.ValuesFiles != nil {
+		in, out := &in.ValuesFiles, &out.ValuesFiles
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

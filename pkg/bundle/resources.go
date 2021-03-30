@@ -37,12 +37,21 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	var chartDirs []*fleet.HelmOptions
 
 	if spec.Helm != nil && spec.Helm.Chart != "" {
+		if err := parseValueFiles(base, spec.Helm); err != nil {
+			return nil, err
+		}
 		chartDirs = append(chartDirs, spec.Helm)
 	}
 
 	for _, target := range spec.Targets {
-		if target.Helm != nil && target.Helm.Chart != "" {
-			chartDirs = append(chartDirs, target.Helm)
+		if target.Helm != nil {
+			err := parseValueFiles(base, target.Helm)
+			if err != nil {
+				return nil, err
+			}
+			if target.Helm.Chart != "" {
+				chartDirs = append(chartDirs, target.Helm)
+			}
 		}
 	}
 
@@ -305,4 +314,51 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 	}
 
 	return files, nil
+}
+
+func parseValueFiles(base string, chart *fleet.HelmOptions) (err error) {
+	if len(chart.ValuesFiles) != 0 {
+		valuesMap, err := generateValues(base, chart)
+		if err != nil {
+			return err
+		}
+
+		if len(valuesMap.Data) != 0 {
+			chart.Values = valuesMap
+		}
+	}
+
+	return nil
+}
+
+func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.GenericMap, err error) {
+	valuesMap = &fleet.GenericMap{}
+	if chart.Values != nil {
+		valuesMap = chart.Values
+	}
+	for _, value := range chart.ValuesFiles {
+		valuesByte, err := ioutil.ReadFile(base + "/" + value)
+		if err != nil {
+			return nil, err
+		}
+		tmpDataOpt := &fleet.GenericMap{}
+		err = yaml.Unmarshal(valuesByte, tmpDataOpt)
+		if err != nil {
+			return nil, err
+		}
+		valuesMap = mergeGenericMap(valuesMap, tmpDataOpt)
+	}
+
+	return valuesMap, nil
+}
+
+func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
+	result := &fleet.GenericMap{Data: make(map[string]interface{})}
+	for k, v := range first.Data {
+		result.Data[k] = v
+	}
+	for k, v := range second.Data {
+		result.Data[k] = v
+	}
+	return result
 }

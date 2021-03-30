@@ -47,6 +47,7 @@ require (
 	github.com/spf13/cobra v1.1.1
 	go.mozilla.org/sops/v3 v3.6.1
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	gopkg.in/yaml.v2 v2.3.0
 	helm.sh/helm/v3 v3.5.1
 	k8s.io/api v0.20.2
 	k8s.io/apimachinery v0.20.2
