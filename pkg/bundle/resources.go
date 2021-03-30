@@ -339,7 +339,6 @@ func parseValueFiles(base string, chart *fleet.HelmOptions) (err error) {
 }
 
 func generateValues(base string, chart *fleet.HelmOptions) (valuesMap map[string]interface{}, err error) {
-
 	valuesMap = make(map[string]interface{})
 	if chart.Values != nil {
 		valuesMap = chart.Values.Data
