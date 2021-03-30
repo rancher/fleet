@@ -38,6 +38,9 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	var chartDirs []*fleet.HelmOptions
 
 	if spec.Helm != nil && spec.Helm.Chart != "" {
+		if err := parseValueFiles(base, spec.Helm); err != nil {
+			return nil, err
+		}
 		chartDirs = append(chartDirs, spec.Helm)
 	}
 
