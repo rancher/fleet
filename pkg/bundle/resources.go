@@ -24,7 +24,6 @@ import (
 	"github.com/rancher/fleet/pkg/content"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
-	v2 "gopkg.in/yaml.v2"
 )
 
 func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string) ([]fleet.BundleResource, error) {
@@ -321,43 +320,43 @@ func parseValueFiles(base string, chart *fleet.HelmOptions) (err error) {
 		if err != nil {
 			return err
 		}
-		if chart.Values == nil {
-			chart.Values = &fleet.GenericMap{}
+
+		if len(valuesMap.Data) != 0 {
+			chart.Values = valuesMap
 		}
-		chart.Values.Data = valuesMap
 	}
 
 	return nil
 }
 
-func generateValues(base string, chart *fleet.HelmOptions) (valuesMap map[string]interface{}, err error) {
-	valuesMap = make(map[string]interface{})
+func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.GenericMap, err error) {
+	valuesMap = &fleet.GenericMap{}
 	if chart.Values != nil {
-		valuesMap = chart.Values.Data
+		valuesMap = chart.Values
 	}
 	for _, value := range chart.ValuesFiles {
 		valuesByte, err := ioutil.ReadFile(base + "/" + value)
 		if err != nil {
 			return nil, err
 		}
-		tmpMap := make(map[string]interface{})
-		err = v2.Unmarshal(valuesByte, tmpMap)
+		tmpDataOpt := &fleet.GenericMap{}
+		err = yaml.Unmarshal(valuesByte, tmpDataOpt)
 		if err != nil {
 			return nil, err
 		}
-		valuesMap = mergeGenericMap(valuesMap, tmpMap)
+		valuesMap = mergeGenericMap(valuesMap, tmpDataOpt)
 	}
 
 	return valuesMap, nil
 }
 
-func mergeGenericMap(first, second map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-	for k, v := range first {
-		result[k] = v
+func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
+	result := &fleet.GenericMap{Data: make(map[string]interface{})}
+	for k, v := range first.Data {
+		result.Data[k] = v
 	}
-	for k, v := range second {
-		result[k] = v
+	for k, v := range second.Data {
+		result.Data[k] = v
 	}
 	return result
 }
