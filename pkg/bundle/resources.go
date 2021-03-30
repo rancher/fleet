@@ -35,7 +35,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 		return nil, err
 	}
 
-	var chartDirs, parsedChartDirs []*fleet.HelmOptions
+	var chartDirs []*fleet.HelmOptions
 
 	if spec.Helm != nil && spec.Helm.Chart != "" {
 		chartDirs = append(chartDirs, spec.Helm)
@@ -47,24 +47,22 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 		}
 		if target.Helm != nil && target.Helm.Chart == "" && len(target.Helm.ValuesFiles) != 0 {
 			// generate values //
-			parsedChart, err := parseValueFiles(base, target.Helm)
+			err := parseValueFiles(base, target.Helm)
 			if err != nil {
 				return nil, err
 			}
-			target.Helm.Values = parsedChart.Values
 		}
 	}
 
 	// append helm valuesFiles into values
 	for _, chart := range chartDirs {
-		parsedChart, err := parseValueFiles(base, chart)
+		err := parseValueFiles(base, chart)
 		if err != nil {
 			return nil, err
 		}
-		parsedChartDirs = append(parsedChartDirs, parsedChart)
 	}
 
-	directories, err = addCharts(directories, base, parsedChartDirs)
+	directories, err = addCharts(directories, base, chartDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -325,20 +323,19 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 	return files, nil
 }
 
-func parseValueFiles(base string, chart *fleet.HelmOptions) (parsedChart *fleet.HelmOptions, err error) {
-	parsedChart = chart
+func parseValueFiles(base string, chart *fleet.HelmOptions) (err error) {
 	if len(chart.ValuesFiles) != 0 {
 		valuesMap, err := generateValues(base, chart)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if parsedChart.Values == nil {
-			parsedChart.Values = &fleet.GenericMap{}
+		if chart.Values == nil {
+			chart.Values = &fleet.GenericMap{}
 		}
-		parsedChart.Values.Data = valuesMap
+		chart.Values.Data = valuesMap
 	}
 
-	return parsedChart, nil
+	return nil
 }
 
 func generateValues(base string, chart *fleet.HelmOptions) (valuesMap map[string]interface{}, err error) {
