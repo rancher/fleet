@@ -42,23 +42,12 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	}
 
 	for _, target := range spec.Targets {
-		if target.Helm != nil && target.Helm.Chart != "" {
-			chartDirs = append(chartDirs, target.Helm)
-		}
-		if target.Helm != nil && target.Helm.Chart == "" {
-			// generate values //
-			err := parseValueFiles(base, target.Helm)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// append helm valuesFiles into values
-	for _, chart := range chartDirs {
-		err := parseValueFiles(base, chart)
+		err := parseValueFiles(base, target.Helm)
 		if err != nil {
 			return nil, err
+		}
+		if target.Helm.Chart != "" {
+			chartDirs = append(chartDirs, target.Helm)
 		}
 	}
 
