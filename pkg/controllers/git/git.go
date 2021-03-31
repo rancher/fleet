@@ -310,6 +310,8 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	}
 	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, bundleErrorState)
 	status = countResources(status)
+	volumes, volumeMounts := volumes(gitrepo, configMap)
+	args, envs := argsAndEnvs(gitrepo)
 	return []runtime.Object{
 		configMap,
 		&corev1.ServiceAccount{
@@ -382,18 +384,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 							CreationTimestamp: metav1.Time{Time: time.Unix(0, 0)},
 						},
 						Spec: corev1.PodSpec{
-							Volumes: []corev1.Volume{
-								{
-									Name: "config",
-									VolumeSource: corev1.VolumeSource{
-										ConfigMap: &corev1.ConfigMapVolumeSource{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: configMap.Name,
-											},
-										},
-									},
-								},
-							},
+							Volumes: volumes,
 							SecurityContext: &corev1.PodSecurityContext{
 								RunAsUser: &[]int64{1000}[0],
 							},
@@ -404,26 +395,10 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 									Name:            "fleet",
 									Image:           config.Get().AgentImage,
 									ImagePullPolicy: corev1.PullPolicy(config.Get().AgentImagePullPolicy),
-									Command: append([]string{
-										"log.sh",
-										"fleet",
-										"apply",
-										"--targets-file=/run/config/targets.yaml",
-										"--label=" + fleet.RepoLabel + "=" + gitrepo.Name,
-										"--namespace", gitrepo.Namespace,
-										"--service-account", gitrepo.Spec.ServiceAccount,
-										fmt.Sprintf("--sync-generation=%d", gitrepo.Spec.ForceSyncGeneration),
-										fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
-										"--target-namespace", gitrepo.Spec.TargetNamespace,
-										gitrepo.Name,
-									}, paths...),
-									WorkingDir: "/workspace/source",
-									VolumeMounts: []corev1.VolumeMount{
-										{
-											Name:      "config",
-											MountPath: "/run/config",
-										},
-									},
+									Command:         append(args, paths...),
+									WorkingDir:      "/workspace/source",
+									VolumeMounts:    volumeMounts,
+									Env:             envs,
 								},
 							},
 							NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
@@ -542,4 +517,89 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	status.ReadyClusters = clustersReady
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)
 	return status, nil
+}
+
+func volumes(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volume, []corev1.VolumeMount) {
+	volumes := []corev1.Volume{
+		{
+			Name: "config",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: configMap.Name,
+					},
+				},
+			},
+		},
+	}
+
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "config",
+			MountPath: "/run/config",
+		},
+	}
+
+	if gitrepo.Spec.HelmSecretName != "" {
+		volumes = append(volumes, corev1.Volume{
+			Name: "helm-secret",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: gitrepo.Spec.HelmSecretName,
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "helm-secret",
+			MountPath: "/etc/fleet/helm",
+		})
+	}
+	return volumes, volumeMounts
+}
+
+func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
+	args := []string{
+		"log.sh",
+		"fleet",
+		"apply",
+		"--targets-file=/run/config/targets.yaml",
+		"--label=" + fleet.RepoLabel + "=" + gitrepo.Name,
+		"--namespace", gitrepo.Namespace,
+		"--service-account", gitrepo.Spec.ServiceAccount,
+		fmt.Sprintf("--sync-generation=%d", gitrepo.Spec.ForceSyncGeneration),
+		fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
+		"--target-namespace", gitrepo.Spec.TargetNamespace,
+	}
+
+	var env []corev1.EnvVar
+	if gitrepo.Spec.HelmSecretName != "" {
+		helmArgs := []string{
+			"--password-file",
+			"/etc/fleet/helm/password",
+			"--cacerts-file",
+			"/etc/fleet/helm/cacerts",
+			"--ssh-privatekey-file",
+			"/etc/fleet/helm/ssh-privatekey",
+		}
+		args = append(args, helmArgs...)
+		env = append(env,
+			// for ssh go-getter, make sure we always accept new host key
+			corev1.EnvVar{
+				Name:  "GIT_SSH_COMMAND",
+				Value: "ssh -o stricthostkeychecking=accept-new",
+			},
+			corev1.EnvVar{
+				Name: "HELM_USERNAME",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						Optional: &[]bool{true}[0],
+						Key:      "username",
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: gitrepo.Spec.HelmSecretName,
+						},
+					},
+				},
+			})
+	}
+	return append(args, gitrepo.Name), env
 }

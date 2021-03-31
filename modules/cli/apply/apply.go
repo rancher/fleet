@@ -37,6 +37,7 @@ type Options struct {
 	Paused          bool
 	Labels          map[string]string
 	SyncGeneration  int64
+	Auth            bundle.Auth
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -125,6 +126,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 		TargetNamespace: opts.TargetNamespace,
 		Paused:          opts.Paused,
 		SyncGeneration:  opts.SyncGeneration,
+		Auth:            opts.Auth,
 	})
 }
 

@@ -3,6 +3,9 @@ package bundle
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -14,9 +17,6 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"helm.sh/helm/v3/pkg/repo"
-	"sigs.k8s.io/yaml"
-
 	"github.com/hashicorp/go-getter"
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/modules/cli/pkg/progress"
@@ -24,9 +24,11 @@ import (
 	"github.com/rancher/fleet/pkg/content"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+	"helm.sh/helm/v3/pkg/repo"
+	"sigs.k8s.io/yaml"
 )
 
-func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string) ([]fleet.BundleResource, error) {
+func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth) ([]fleet.BundleResource, error) {
 	var directories []directory
 
 	directories, err := addDirectory(directories, base, ".", ".")
@@ -55,7 +57,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 		}
 	}
 
-	directories, err = addCharts(directories, base, chartDirs)
+	directories, err = addCharts(directories, base, chartDirs, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +86,14 @@ func ChartPath(helm *fleet.HelmOptions) string {
 	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
 }
 
-func chartURL(location *fleet.HelmOptions) (string, error) {
+type Auth struct {
+	Username      string
+	Password      string
+	CABundle      []byte
+	SSHPrivateKey []byte
+}
+
+func chartURL(location *fleet.HelmOptions, auth Auth) (string, error) {
 	if location.Repo == "" {
 		return location.Chart, nil
 	}
@@ -93,7 +102,29 @@ func chartURL(location *fleet.HelmOptions) (string, error) {
 		location.Repo = location.Repo + "/"
 	}
 
-	resp, err := http.Get(location.Repo + "index.yaml")
+	request, err := http.NewRequest("GET", location.Repo+"index.yaml", nil)
+	if err != nil {
+		return "", err
+	}
+
+	if auth.Username != "" && auth.Password != "" {
+		request.SetBasicAuth(auth.Username, auth.Password)
+	}
+	client := &http.Client{}
+	if auth.CABundle != nil {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			pool = x509.NewCertPool()
+		}
+		pool.AppendCertsFromPEM(auth.CABundle)
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{
+			RootCAs: pool,
+		}
+		client.Transport = transport
+	}
+
+	resp, err := client.Do(request)
 	if err != nil {
 		return "", err
 	}
@@ -137,10 +168,10 @@ func chartURL(location *fleet.HelmOptions) (string, error) {
 	return repoURL.ResolveReference(chartURL).String(), nil
 }
 
-func addCharts(directories []directory, base string, charts []*fleet.HelmOptions) ([]directory, error) {
+func addCharts(directories []directory, base string, charts []*fleet.HelmOptions, auth Auth) ([]directory, error) {
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
-			chartURL, err := chartURL(chart)
+			chartURL, err := chartURL(chart, auth)
 			if err != nil {
 				return nil, err
 			}
@@ -150,6 +181,7 @@ func addCharts(directories []directory, base string, charts []*fleet.HelmOptions
 				base:   base,
 				path:   chartURL,
 				key:    ChartPath(chart),
+				auth:   auth,
 			})
 		}
 	}
@@ -179,6 +211,7 @@ type directory struct {
 	base   string
 	path   string
 	key    string
+	auth   Auth
 }
 
 func readDirectories(ctx context.Context, compress bool, directories ...directory) (map[string][]fleet.BundleResource, error) {
@@ -199,7 +232,7 @@ func readDirectories(ctx context.Context, compress bool, directories ...director
 		dir := dir
 		eg.Go(func() error {
 			defer sem.Release(1)
-			resources, err := readDirectory(ctx, p, compress, dir.prefix, dir.base, dir.path)
+			resources, err := readDirectory(ctx, p, compress, dir.prefix, dir.base, dir.path, dir.auth)
 			if err != nil {
 				return err
 			}
@@ -219,10 +252,10 @@ func readDirectories(ctx context.Context, compress bool, directories ...director
 	return result, eg.Wait()
 }
 
-func readDirectory(ctx context.Context, progress *progress.Progress, compress bool, prefix, base, name string) ([]fleet.BundleResource, error) {
+func readDirectory(ctx context.Context, progress *progress.Progress, compress bool, prefix, base, name string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := readContent(ctx, progress, base, name)
+	files, err := readContent(ctx, progress, base, name, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +286,7 @@ func readDirectory(ctx context.Context, progress *progress.Progress, compress bo
 	return resources, nil
 }
 
-func readContent(ctx context.Context, progress *progress.Progress, base, name string) (map[string][]byte, error) {
+func readContent(ctx context.Context, progress *progress.Progress, base, name string, auth Auth) (map[string][]byte, error) {
 	temp, err := ioutil.TempDir("", "fleet")
 	if err != nil {
 		return nil, err
@@ -268,14 +301,47 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 	}
 
 	c := getter.Client{
-		Ctx:  ctx,
-		Src:  name,
-		Dst:  temp,
-		Pwd:  base,
-		Mode: getter.ClientModeDir,
+		Ctx:     ctx,
+		Src:     name,
+		Dst:     temp,
+		Pwd:     base,
+		Mode:    getter.ClientModeDir,
+		Getters: getter.Getters,
 		// TODO: why doesn't this work anymore
 		//ProgressListener: progress,
 	}
+
+	httpGetter := &getter.HttpGetter{
+		Client: &http.Client{},
+	}
+
+	if auth.Username != "" && auth.Password != "" {
+		header := http.Header{}
+		header.Add("Authorization", "Basic "+basicAuth(auth.Username, auth.Password))
+		httpGetter.Header = header
+	}
+	if auth.CABundle != nil {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			pool = x509.NewCertPool()
+		}
+		pool.AppendCertsFromPEM(auth.CABundle)
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{
+			RootCAs: pool,
+		}
+		httpGetter.Client.Transport = transport
+	}
+	if auth.SSHPrivateKey != nil {
+		if strings.IndexAny(c.Src, "&;") == -1 {
+			c.Src += "?"
+		} else {
+			c.Src += "&"
+		}
+		c.Src += fmt.Sprintf("sshkey=%s", base64.StdEncoding.EncodeToString(auth.SSHPrivateKey))
+	}
+	c.Getters["http"] = httpGetter
+	c.Getters["https"] = httpGetter
 
 	if err := c.Get(); err != nil {
 		return nil, err
@@ -365,4 +431,9 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 		result.Data[k] = v
 	}
 	return result
+}
+
+func basicAuth(username, password string) string {
+	auth := username + ":" + password
+	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
