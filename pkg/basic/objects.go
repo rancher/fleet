@@ -84,17 +84,16 @@ func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, 
 	}
 	if linuxOnly {
 		deployment.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
-		deployment.Spec.Template.Spec.Tolerations = []corev1.Toleration{{
-			Key:      "cattle.io/os",
-			Operator: "Equal",
-			Value:    "linux",
-			Effect:   "NoSchedule",
-		}}
 	}
 	deployment.Spec.Template.Spec.Tolerations = append(deployment.Spec.Template.Spec.Tolerations, corev1.Toleration{
 		Key:      "deployment.Spec.Template.Spec.Tolerations",
 		Operator: corev1.TolerationOpEqual,
 		Value:    "true",
+		Effect:   corev1.TaintEffectNoSchedule,
+	}, corev1.Toleration{
+		Key:      "cattle.io/os",
+		Operator: corev1.TolerationOpEqual,
+		Value:    "linux",
 		Effect:   corev1.TaintEffectNoSchedule,
 	})
 	return deployment
