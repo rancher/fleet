@@ -89,7 +89,11 @@ func chartURL(location *fleet.HelmOptions) (string, error) {
 		return location.Chart, nil
 	}
 
-	resp, err := http.Get(location.Repo + "/index.yaml")
+	if !strings.HasSuffix(location.Repo, "/") {
+		location.Repo = location.Repo + "/"
+	}
+
+	resp, err := http.Get(location.Repo + "index.yaml")
 	if err != nil {
 		return "", err
 	}
