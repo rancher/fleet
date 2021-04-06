@@ -31,7 +31,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		result = append(result, &crdObject)
+		result = append(result, crdObject)
 	}
 
 	output, err := yaml.Export(result...)
