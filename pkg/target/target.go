@@ -278,18 +278,7 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 		return
 	}
 
-	prefix := "global.fleet.clusterLabels."
-
-	for key, val := range opts.Helm.Values.Data {
-		valStr, ok := val.(string)
-		if ok && strings.HasPrefix(valStr, prefix) {
-			label := strings.TrimPrefix(valStr, prefix)
-			labelVal, labelPresent := clusterLabels[label]
-			if labelPresent {
-				opts.Helm.Values.Data[key] = labelVal
-			}
-		}
-	}
+	processLabelValues(opts.Helm.Values.Data, clusterLabels)
 
 	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, newValues)
 
@@ -511,4 +500,22 @@ func Summary(targets []*Target) fleet.BundleSummary {
 		bundleSummary.DesiredReady++
 	}
 	return bundleSummary
+}
+
+func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) {
+	prefix := "global.fleet.clusterLabels."
+	for key, val := range valuesMap {
+		valStr, ok := val.(string)
+		if ok && strings.HasPrefix(valStr, prefix) {
+			label := strings.TrimPrefix(valStr, prefix)
+			labelVal, labelPresent := clusterLabels[label]
+			if labelPresent {
+				valuesMap[key] = labelVal
+			}
+		}
+
+		if valMap, ok := val.(map[string]interface{}); ok {
+			processLabelValues(valMap, clusterLabels)
+		}
+	}
 }
