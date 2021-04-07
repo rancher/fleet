@@ -47,15 +47,14 @@ require (
 	github.com/spf13/cobra v1.1.1
 	go.mozilla.org/sops/v3 v3.6.1
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	gopkg.in/yaml.v2 v2.3.0
 	helm.sh/helm/v3 v3.5.1
 	k8s.io/api v0.20.2
 	k8s.io/apimachinery v0.20.2
 	k8s.io/cli-runtime v0.20.2
 	k8s.io/client-go v11.0.1-0.20190816222228-6d55c1b1f1ca+incompatible
 	rsc.io/letsencrypt v0.0.3 // indirect
-	sigs.k8s.io/cli-utils v0.16.0
-	sigs.k8s.io/kustomize/api v0.6.0
-	sigs.k8s.io/kustomize/kyaml v0.7.1
+	sigs.k8s.io/cli-utils v0.23.1
+	sigs.k8s.io/kustomize/api v0.6.9
+	sigs.k8s.io/kustomize/kyaml v0.10.7
 	sigs.k8s.io/yaml v1.2.0
 )
