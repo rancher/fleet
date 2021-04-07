@@ -278,7 +278,21 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 		return
 	}
 
+	prefix := "global.fleet.clusterLabels."
+
+	for key, val := range opts.Helm.Values.Data {
+		valStr, ok := val.(string)
+		if ok && strings.HasPrefix(valStr, prefix) {
+			label := strings.TrimPrefix(valStr, prefix)
+			labelVal, labelPresent := clusterLabels[label]
+			if labelPresent {
+				opts.Helm.Values.Data[key] = labelVal
+			}
+		}
+	}
+
 	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, newValues)
+
 }
 
 func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error {
