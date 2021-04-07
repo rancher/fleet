@@ -217,7 +217,10 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 			}
 
 			opts := options.Calculate(&fleetBundle.Spec, match.Target)
-			addClusterLabels(&opts, cluster.Labels)
+			err = addClusterLabels(&opts, cluster.Labels)
+			if err != nil {
+				return nil, err
+			}
 
 			deploymentID, err := options.DeploymentID(manifest, opts)
 			if err != nil {
@@ -242,7 +245,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 	return result, m.foldInDeployments(fleetBundle, result)
 }
 
-func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]string) {
+func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]string) (err error) {
 	clusterLabels := yaml.CleanAnnotationsForExport(labels)
 	for k, v := range labels {
 		if strings.HasPrefix(k, "fleet.cattle.io/") || strings.HasPrefix(k, "management.cattle.io/") {
@@ -267,7 +270,7 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 				Data: newValues,
 			},
 		}
-		return
+		return nil
 	}
 
 	opts.Helm = opts.Helm.DeepCopy()
@@ -275,12 +278,18 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 		opts.Helm.Values = &fleet.GenericMap{
 			Data: newValues,
 		}
-		return
+		return nil
 	}
 
-	processLabelValues(opts.Helm.Values.Data, clusterLabels)
+	err = processLabelValues(opts.Helm.Values.Data, clusterLabels)
+
+	if err != nil {
+		return err
+	}
 
 	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, newValues)
+
+	return nil
 
 }
 
@@ -502,7 +511,7 @@ func Summary(targets []*Target) fleet.BundleSummary {
 	return bundleSummary
 }
 
-func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) {
+func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) error {
 	prefix := "global.fleet.clusterLabels."
 	for key, val := range valuesMap {
 		valStr, ok := val.(string)
@@ -511,11 +520,18 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 			labelVal, labelPresent := clusterLabels[label]
 			if labelPresent {
 				valuesMap[key] = labelVal
+			} else {
+				return fmt.Errorf("invalid_label_reference %s in key %s", valStr, key)
 			}
 		}
 
 		if valMap, ok := val.(map[string]interface{}); ok {
-			processLabelValues(valMap, clusterLabels)
+			err := processLabelValues(valMap, clusterLabels)
+			if err != nil {
+				return err
+			}
 		}
 	}
+
+	return nil
 }
