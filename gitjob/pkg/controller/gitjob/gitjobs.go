@@ -10,13 +10,12 @@ import (
 
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
-	"github.com/rancher/gitjob/pkg/provider"
-	"github.com/rancher/gitjob/pkg/provider/github"
-	"github.com/rancher/gitjob/pkg/provider/polling"
+	"github.com/rancher/gitjob/pkg/git"
 	"github.com/rancher/gitjob/pkg/types"
 	"github.com/rancher/wrangler/pkg/apply"
 	batchv1controller "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/kstatus"
 	"github.com/rancher/wrangler/pkg/name"
 	giturls "github.com/whilp/git-urls"
 	batchv1 "k8s.io/api/batch/v1"
@@ -35,11 +34,7 @@ const (
 
 func Register(ctx context.Context, cont *types.Context) {
 	h := Handler{
-		ctx: ctx,
-		providers: []provider.Provider{
-			github.NewGitHub(cont),
-			polling.NewPolling(cont),
-		},
+		ctx:     ctx,
 		gitjobs: cont.Gitjob.Gitjob().V1().GitJob(),
 		secrets: cont.Core.Core().V1().Secret().Cache(),
 		batch:   cont.Batch.Batch().V1().Job(),
@@ -62,12 +57,11 @@ func Register(ctx context.Context, cont *types.Context) {
 }
 
 type Handler struct {
-	ctx       context.Context
-	gitjobs   v1controller.GitJobController
-	batch     batchv1controller.JobClient
-	providers []provider.Provider
-	secrets   corev1controller.SecretCache
-	Image     string
+	ctx     context.Context
+	gitjobs v1controller.GitJobController
+	batch   batchv1controller.JobClient
+	secrets corev1controller.SecretCache
+	Image   string
 }
 
 func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Object, v1.GitJobStatus, error) {
@@ -78,18 +72,20 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 	}
 
 	if obj.Spec.Git.Revision == "" {
-		for _, provider := range h.providers {
-			if provider.Supports(obj) {
-				handledStatus, err := provider.Handle(h.ctx, obj)
-				if err != nil {
-					// don't return error in here. The stall error needs to be written into status
-					return nil, handledStatus, nil
-				}
-				status = handledStatus
+		if shouldSync(status, interval) {
+			commit, err := git.LatestCommit(obj, h.secrets)
+			if err != nil {
+				kstatus.SetError(obj, err.Error())
+				return nil, obj.Status, nil
+			} else if !kstatus.Stalled.IsTrue(obj) {
+				kstatus.SetActive(obj)
+				status = obj.Status
 			}
+			status.Commit = commit
+			status.LastSyncedTime = metav1.Now()
 		}
 	} else {
-		obj.Status.Commit = obj.Spec.Git.Revision
+		status.Commit = obj.Spec.Git.Revision
 	}
 
 	if obj.Status.Commit == "" {
@@ -119,6 +115,10 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 	h.gitjobs.EnqueueAfter(obj.Namespace, obj.Name, time.Duration(interval)*time.Second)
 	status.ObservedGeneration = obj.Generation
 	return append(result, job), status, nil
+}
+
+func shouldSync(status v1.GitJobStatus, interval int) bool {
+	return time.Now().Sub(status.LastSyncedTime.Time).Seconds() > float64(interval)
 }
 
 func (h Handler) generateSecret(obj *v1.GitJob) *corev1.Secret {

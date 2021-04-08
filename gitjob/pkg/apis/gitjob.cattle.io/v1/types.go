@@ -23,6 +23,9 @@ type GitEvent struct {
 	// Last executed commit SHA by gitjob controller
 	LastExecutedCommit string `json:"lastExecutedCommit,omitempty"`
 
+	// Last sync time
+	LastSyncedTime metav1.Time `json:"lastSyncedTime,omitempty"`
+
 	GithubMeta
 }
 
@@ -66,13 +69,6 @@ type GitInfo struct {
 
 	// Git branch to watch. Default to master
 	Branch string `json:"branch,omitempty" column:"name=BRANCH,type=string,jsonpath=.spec.git.branch"`
-
-	Github
-}
-
-type Github struct {
-	// Secret Token used to validate requests to ensure only github requests is coming through
-	Token string `json:"secret,omitempty"`
 }
 
 type Credential struct {
