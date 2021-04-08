@@ -1,29 +1,26 @@
 module github.com/rancher/gitjob
 
-go 1.12
+go 1.15
 
-replace github.com/matryer/moq => github.com/rancher/moq v0.0.0-20190404221404-ee5226d43009
+replace (
+	github.com/matryer/moq => github.com/rancher/moq v0.0.0-20190404221404-ee5226d43009
+	k8s.io/client-go => k8s.io/client-go v0.20.2
+)
 
 require (
-	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
-	github.com/google/go-cmp v0.3.1 // indirect
-	github.com/google/go-github/v28 v28.0.0
-	github.com/google/uuid v1.1.1
-	github.com/gorilla/mux v1.7.1
+	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
+	github.com/gorilla/mux v1.7.3
 	github.com/imdario/mergo v0.3.9 // indirect
-	github.com/json-iterator/go v1.1.9 // indirect
 	github.com/rancher/lasso v0.0.0-20210325230905-459cd42cfdd0
+	github.com/rancher/steve v0.0.0-20210318171316-376934558c5b
 	github.com/rancher/wrangler v0.7.3-0.20210406165340-a333c92020cf
 	github.com/sirupsen/logrus v1.6.0
-	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/urfave/cli v1.22.4
 	github.com/whilp/git-urls v0.0.0-20191001220047-6db9661140c0
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
-	k8s.io/api v0.18.8
-	k8s.io/apiextensions-apiserver v0.18.0
-	k8s.io/apimachinery v0.18.8
-	k8s.io/client-go v0.18.8
-	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451 // indirect
+	gopkg.in/go-playground/webhooks.v5 v5.17.0
+	k8s.io/api v0.20.2
+	k8s.io/apiextensions-apiserver v0.20.2
+	k8s.io/apimachinery v0.20.2
+	k8s.io/client-go v12.0.0+incompatible
 	sigs.k8s.io/cli-utils v0.16.0
 )

@@ -11,8 +11,8 @@ import (
 	"os"
 
 	"github.com/rancher/gitjob/pkg/controller"
-	"github.com/rancher/gitjob/pkg/hooks"
 	"github.com/rancher/gitjob/pkg/types"
+	"github.com/rancher/gitjob/pkg/webhook"
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/resolvehome"
@@ -89,7 +89,7 @@ func run(c *cli.Context) {
 	}()
 
 	logrus.Info("Setting up webhook listener")
-	handler := hooks.HandleHooks(cont)
+	handler := webhook.HandleHooks(ctx, cont)
 	addr := c.String("listen")
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		logrus.Fatalf("Failed to listen on %s: %v", addr, err)
