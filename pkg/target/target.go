@@ -281,14 +281,11 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 		return nil
 	}
 
-	err = processLabelValues(opts.Helm.Values.Data, clusterLabels)
-
-	if err != nil {
+	if err := processLabelValues(opts.Helm.Values.Data, clusterLabels); err != nil {
 		return err
 	}
 
 	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, newValues)
-
 	return nil
 
 }
