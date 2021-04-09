@@ -144,7 +144,7 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bun
 			return nil, err
 		}
 
-		m := bundle.Match(ClusterGroupsToLabelMap(cgs), cluster.Labels)
+		m := bundle.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
 		if m != nil {
 			result = append(result, app)
 		}
@@ -211,7 +211,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 				return nil, err
 			}
 
-			match := bundle.Match(ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			match := bundle.Match(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
 			if match == nil {
 				continue
 			}

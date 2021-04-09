@@ -22,6 +22,7 @@ type Options struct {
 	BaseDir            string
 	BundleSpec         string
 	BundleFile         string
+	ClusterName        string
 	ClusterGroup       string
 	ClusterLabels      map[string]string
 	ClusterGroupLabels map[string]string
@@ -61,7 +62,7 @@ func Match(ctx context.Context, opts *Options) error {
 	}
 
 	if opts.Target == "" {
-		m := b.Match(map[string]map[string]string{
+		m := b.Match(opts.ClusterName, map[string]map[string]string{
 			opts.ClusterGroup: opts.ClusterGroupLabels,
 		}, opts.ClusterLabels)
 		return printMatch(b, m, opts.Output)

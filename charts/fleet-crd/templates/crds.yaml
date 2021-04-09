@@ -177,6 +177,9 @@ spec:
                             nullable: true
                             type: object
                         type: object
+                      clusterName:
+                        nullable: true
+                        type: string
                       clusterSelector:
                         nullable: true
                         properties:
@@ -252,6 +255,9 @@ spec:
                         nullable: true
                         type: object
                     type: object
+                  clusterName:
+                    nullable: true
+                    type: string
                   clusterSelector:
                     nullable: true
                     properties:
@@ -320,6 +326,9 @@ spec:
                         nullable: true
                         type: object
                     type: object
+                  clusterName:
+                    nullable: true
+                    type: string
                   clusterSelector:
                     nullable: true
                     properties:
@@ -1893,6 +1902,9 @@ spec:
                         nullable: true
                         type: object
                     type: object
+                  clusterName:
+                    nullable: true
+                    type: string
                   clusterSelector:
                     nullable: true
                     properties:
