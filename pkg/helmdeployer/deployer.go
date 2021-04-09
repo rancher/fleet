@@ -228,7 +228,8 @@ func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 		options.DefaultNamespace = h.defaultNamespace
 	}
 
-	releaseName := bundleID
+	// releaseName has a limit of 53 in helm https://github.com/helm/helm/blob/main/pkg/action/install.go#L58
+	releaseName := name.Limit(bundleID, 53)
 	if options.Helm != nil && options.Helm.ReleaseName != "" {
 		releaseName = options.Helm.ReleaseName
 	}
