@@ -49,6 +49,12 @@ spec:
   #
   # clientSecretName: my-ssh-key
   #
+  # If fleet.yaml contains private helm repo that requires autheticate,
+  # provide credential k8s secret and specify in here. Details are provided
+  # in fleet.yaml documentation
+  #
+  # helmSecretName: my-helm-secret
+  #
   # To add additional ca-bundle for self-signed certs, caBundle can be 
   # filled with base64 encoded pem data. For example: 
   # `cat /path/to/ca.pem | base64 -w 0` 
@@ -103,6 +109,9 @@ Put your private key into secret:
 ```text
 kubectl create secret generic $name -n $namespace --from-file=ssh-privatekey=/file/to/private/key  --type=kubernetes.io/ssh-auth 
 ```
+
+!!! note
+    Private key with passphrase is not supported.
 
 Fleet supports putting `known_hosts` into ssh secret. Here is an example of how to add it:
 
