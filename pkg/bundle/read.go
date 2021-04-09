@@ -23,6 +23,7 @@ type Options struct {
 	TargetNamespace string
 	Paused          bool
 	SyncGeneration  int64
+	Auth            Auth
 }
 
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
@@ -127,7 +128,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	meta.Name = name
 	setTargetNames(&bundle.BundleSpec)
 
-	resources, err := readResources(ctx, &bundle.BundleSpec, opts.Compress, baseDir)
+	resources, err := readResources(ctx, &bundle.BundleSpec, opts.Compress, baseDir, opts.Auth)
 	if err != nil {
 		return nil, err
 	}

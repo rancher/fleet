@@ -40,6 +40,9 @@ type GitRepoSpec struct {
 	// It is expected the secret be of type "kubernetes.io/basic-auth" or "kubernetes.io/ssh-auth".
 	ClientSecretName string `json:"clientSecretName,omitempty"`
 
+	// HelmSecretName contains the auth secret for private helm repository
+	HelmSecretName string `json:"helmSecretName,omitempty"`
+
 	// CABundle is a PEM encoded CA bundle which will be used to validate the repo's certificate.
 	CABundle []byte `json:"caBundle,omitempty"`
 

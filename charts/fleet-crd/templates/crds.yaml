@@ -1831,6 +1831,9 @@ spec:
               type: string
             forceSyncGeneration:
               type: integer
+            helmSecretName:
+              nullable: true
+              type: string
             insecureSkipTLSVerify:
               type: boolean
             paths:

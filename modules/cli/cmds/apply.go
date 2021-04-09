@@ -3,6 +3,7 @@ package cmds
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -23,14 +24,18 @@ func NewApply() *cobra.Command {
 type Apply struct {
 	BundleInputArgs
 	OutputArgsNoDefault
-	Label           map[string]string `usage:"Labels to apply to created bundles" short:"l"`
-	TargetsFile     string            `usage:"Addition source of targets and restrictions to be append"`
-	Compress        bool              `usage:"Force all resources to be compress" short:"c"`
-	ServiceAccount  string            `usage:"Service account to assign to bundle created" short:"a"`
-	SyncGeneration  int               `usage:"Generation number used to force sync the deployment"`
-	TargetNamespace string            `usage:"Ensure this bundle goes to this target namespace"`
-	Paused          bool              `usage:"Create bundles in a paused state"`
-	Commit          string            `usage:"Commit to assign to the bundle" env:"COMMIT"`
+	Label             map[string]string `usage:"Labels to apply to created bundles" short:"l"`
+	TargetsFile       string            `usage:"Addition source of targets and restrictions to be append"`
+	Compress          bool              `usage:"Force all resources to be compress" short:"c"`
+	ServiceAccount    string            `usage:"Service account to assign to bundle created" short:"a"`
+	SyncGeneration    int               `usage:"Generation number used to force sync the deployment"`
+	TargetNamespace   string            `usage:"Ensure this bundle goes to this target namespace"`
+	Paused            bool              `usage:"Create bundles in a paused state"`
+	Commit            string            `usage:"Commit to assign to the bundle" env:"COMMIT"`
+	Username          string            `usage:"Basic auth username for helm repo" env:"HELM_USERNAME"`
+	PasswordFile      string            `usage:"Path of file containing basic auth password for helm repo"`
+	CACertsFile       string            `usage:"Path of custom cacerts for helm repo" name:"cacerts-file"`
+	SSHPrivateKeyFile string            `usage:"Path of ssh-private-key for helm repo" name:"ssh-privatekey-file"`
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
@@ -56,6 +61,30 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		TargetNamespace: a.TargetNamespace,
 		Paused:          a.Paused,
 		SyncGeneration:  int64(a.SyncGeneration),
+	}
+
+	if a.Username != "" && a.PasswordFile != "" {
+		password, err := ioutil.ReadFile(a.PasswordFile)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+
+		opts.Auth.Username = a.Username
+		opts.Auth.Password = string(password)
+	}
+	if a.CACertsFile != "" {
+		cabundle, err := ioutil.ReadFile(a.CACertsFile)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		opts.Auth.CABundle = cabundle
+	}
+	if a.SSHPrivateKeyFile != "" {
+		privateKey, err := ioutil.ReadFile(a.SSHPrivateKeyFile)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		opts.Auth.SSHPrivateKey = privateKey
 	}
 
 	if a.File == "-" {
