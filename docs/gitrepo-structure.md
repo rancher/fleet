@@ -70,7 +70,7 @@ helm:
   values:
     any-custom: value
   # All labels on Rancher clusters are available using global.fleet.clusterLabels.LABELNAME
-  # These can now be access directly as variables
+  # These can now be accessed directly as variables
     variableName: global.fleet.clusterLabels.LABELNAME
   # Path to any values files that need to be passed to helm during install
   valuesFiles:
