@@ -135,6 +135,10 @@ func chartURL(location *fleet.HelmOptions, auth Auth) (string, error) {
 		return "", err
 	}
 
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("failed to read helm repo from %s, error code: %v, response body: %s", location.Repo+"index.yaml", resp.StatusCode, bytes)
+	}
+
 	repo := &repo.IndexFile{}
 	if err := yaml.Unmarshal(bytes, repo); err != nil {
 		return "", err

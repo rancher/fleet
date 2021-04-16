@@ -18,6 +18,7 @@ import (
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/wrangler/pkg/apply"
+	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/genericcondition"
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
@@ -41,7 +42,8 @@ func Register(ctx context.Context,
 	bundleDeployments fleetcontrollers.BundleDeploymentController,
 	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache,
 	bundles fleetcontrollers.BundleController,
-	gitRepos fleetcontrollers.GitRepoController) {
+	gitRepos fleetcontrollers.GitRepoController,
+	secrets corev1controller.SecretCache) {
 	h := &handler{
 		gitjobCache:         gitJobs.Cache(),
 		bundleCache:         bundles.Cache(),
@@ -49,6 +51,7 @@ func Register(ctx context.Context,
 		bundleDeployments:   bundleDeployments.Cache(),
 		gitRepoRestrictions: gitRepoRestrictions,
 		display:             display.NewFactory(bundles.Cache()),
+		secrets:             secrets,
 	}
 
 	gitRepos.OnChange(ctx, "gitjob-purge", h.DeleteOnChange)
@@ -74,6 +77,7 @@ func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresour
 type handler struct {
 	shareClientFactory  client.SharedClientFactory
 	gitjobCache         v1.GitJobCache
+	secrets             corev1controller.SecretCache
 	bundleCache         fleetcontrollers.BundleCache
 	bundles             fleetcontrollers.BundleClient
 	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache
@@ -256,6 +260,12 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 
 	if gitrepo.Spec.Repo == "" {
 		return nil, status, nil
+	}
+
+	if gitrepo.Spec.HelmSecretName != "" {
+		if _, err := h.secrets.Get(gitrepo.Namespace, gitrepo.Spec.HelmSecretName); err != nil {
+			return nil, status, fmt.Errorf("failed to look up helmSecretName, error: %v", err)
+		}
 	}
 
 	gitrepo, err := h.authorizeAndAssignDefaults(gitrepo)

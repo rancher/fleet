@@ -188,7 +188,8 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.BundleDeployment(),
 		appCtx.GitRepoRestriction().Cache(),
 		appCtx.Bundle(),
-		appCtx.GitRepo())
+		appCtx.GitRepo(),
+		appCtx.Core.Secret().Cache())
 
 	bootstrap.Register(ctx,
 		systemNamespace,
