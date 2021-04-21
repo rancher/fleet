@@ -151,11 +151,11 @@ targetCustomizations:
 ```
 
 !!! hint "Private Helm Repo"
-    For private helm repo, user can reference a secret with the following key:
+    For a private Helm repo, users can reference a secret with the following keys:
     
-    1. `username` and `password` for basic http auth if helm http repo is behind basic auth.
+    1. `username` and `password` for basic http auth if the Helm HTTP repo is behind basic auth.
     
-    2. `cacerts` for custom CA bundle if helm repo is using custom CA.
+    2. `cacerts` for custom CA bundle if the Helm repo is using a custom CA.
     
     3. `ssh-privatekey` for ssh private key if repo is using ssh protocol. Private key with passphase is not supported currently.
     

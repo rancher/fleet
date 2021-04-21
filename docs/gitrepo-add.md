@@ -49,9 +49,9 @@ spec:
   #
   # clientSecretName: my-ssh-key
   #
-  # If fleet.yaml contains private helm repo that requires autheticate,
-  # provide credential k8s secret and specify in here. Details are provided
-  # in fleet.yaml documentation
+  # If fleet.yaml contains a private Helm repo that requires authentication,
+  # provide the credentials in a K8s secret and specify them here. Details are provided
+  # in the fleet.yaml documentation.
   #
   # helmSecretName: my-helm-secret
   #
