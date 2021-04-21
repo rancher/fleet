@@ -130,7 +130,7 @@ stringData:
     If you don't add it any server's public key will be trusted and added. (`ssh -o stricthostkeychecking=accept-new` will be used)
 
 !!! note
-    If you are using openssh format for private key and creating it in UI, make sure carriage return is being appended in the end of the private key.
+    If you are using openssh format for the private key and you are creating it in the UI, make sure a carriage return is appended in the end of the private key.
 
 # Troubleshooting
 

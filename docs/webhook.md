@@ -3,7 +3,7 @@
 By default, Fleet utilizes polling (default: 15 seconds) to pull from a Git repo.However, this can be configured to utilize a webhook instead.Fleet currently supports Github,
 GitLab, Bitbucket, Bitbucket Server and Gogs.
 
-### 1. Configure the webhook service. Fleet uses `gitjob` service to handle webhook requests. Create an ingress that points to `gitjob` service.
+### 1. Configure the webhook service. Fleet uses a gitjob service to handle webhook requests. Create an ingress that points to the gitjob service.
 
 ```yaml
 apiVersion: networking.k8s.io/v1beta1
@@ -30,8 +30,8 @@ spec:
 
 ![](./assets/webhook.png)
 
-Configuring secret is optional. This is used to validate webhook payload as payload should not be trusted by default. 
-If your webhook server is public accessible to internet then it is recommended to configure. If you do configure the 
+Configuring a secret is optional. This is used to validate the webhook payload as the payload should not be trusted by default.
+If your webhook server is publicly accessible to the Internet, then it is recommended to configure the secret. If you do configure the
 secret, follow step 3.
 
 !!! note 
@@ -50,7 +50,7 @@ secret, follow step 3.
 | BitBucketServer | `bitbucket-server`               |
 | Gogs            | `gogs`                           |
 
-For example, to create a secret containing github secret to validate webhook payload, run
+For example, to create a secret containing a GitHub secret to validate the webhook payload, run:
 
 ```shell
 kubectl create secret generic gitjob-webhook -n fleet-system --from-literal=github=webhooksecretvalue
