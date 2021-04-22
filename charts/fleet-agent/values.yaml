@@ -1,4 +1,5 @@
 image:
+  os: "windows,linux"
   repository: rancher/fleet-agent
   tag: dev
 
