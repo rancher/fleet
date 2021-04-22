@@ -86,7 +86,7 @@ func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, 
 		deployment.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
 	}
 	deployment.Spec.Template.Spec.Tolerations = append(deployment.Spec.Template.Spec.Tolerations, corev1.Toleration{
-		Key:      "deployment.Spec.Template.Spec.Tolerations",
+		Key:      "node.cloudprovider.kubernetes.io/uninitialized",
 		Operator: corev1.TolerationOpEqual,
 		Value:    "true",
 		Effect:   corev1.TaintEffectNoSchedule,
