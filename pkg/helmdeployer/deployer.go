@@ -514,9 +514,13 @@ func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dr
 		return err
 	}
 
+	// Never uninstall the fleet-agent, just "forget" it
 	if bundleID == "fleet-agent" {
-		// Never uninstall the fleet-agent, just "forget" it
-		return deleteHistory(cfg, bundleID)
+		return nil
+	}
+
+	if err = deleteHistory(cfg, bundleID); err != nil {
+		return err
 	}
 
 	u := action.NewUninstall(&cfg)
