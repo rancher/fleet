@@ -49,9 +49,9 @@ func Register(ctx context.Context,
 	relatedresource.WatchClusterScoped(ctx, "manage-agent-resolver", h.resolveNS, namespace, clusters)
 }
 
-func (h *handler) resolveNS(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
-	if _, ok := obj.(*fleet.Cluster); ok {
-		if _, err := h.bundleCache.Get(namespace, agentBundleName); err != nil {
+func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
+	if cluster, ok := obj.(*fleet.Cluster); ok {
+		if _, err := h.bundleCache.Get(namespace, name.SafeConcatName(agentBundleName, cluster.Name)); err != nil {
 			return []relatedresource.Key{{Name: namespace}}, nil
 		}
 	}

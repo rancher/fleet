@@ -478,6 +478,11 @@ func (h *helm) deleteByRelease(bundleID, releaseName string) error {
 		return err
 	}
 
+	if strings.HasPrefix(bundleID, "fleet-agent") {
+		// Never uninstall the fleet-agent, just "forget" it
+		return deleteHistory(cfg, bundleID)
+	}
+
 	u := action.NewUninstall(&cfg)
 	_, err = u.Run(releaseName)
 	return err
@@ -514,7 +519,7 @@ func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dr
 		return err
 	}
 
-	if bundleID == "fleet-agent" {
+	if strings.HasPrefix(bundleID, "fleet-agent") {
 		// Never uninstall the fleet-agent, just "forget" it
 		return deleteHistory(cfg, bundleID)
 	}
