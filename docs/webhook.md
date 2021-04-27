@@ -55,3 +55,5 @@ For example, to create a secret containing a GitHub secret to validate the webho
 ```shell
 kubectl create secret generic gitjob-webhook -n fleet-system --from-literal=github=webhooksecretvalue
 ```
+
+### 4. Go to your git provider and test the connection. You should get a HTTP response code.
