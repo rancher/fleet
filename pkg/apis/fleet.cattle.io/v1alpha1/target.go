@@ -61,11 +61,11 @@ type Cluster struct {
 }
 
 type ClusterSpec struct {
-	Paused                  bool   `json:"paused,omitempty"`
-	ClientID                string `json:"clientID,omitempty"`
-	KubeConfigSecret        string `json:"kubeConfigSecret,omitempty"`
-	RedeployAgentGeneration int64  `json:"redeployAgentGeneration,omitempty"`
-	AgentEnvVars []v1.EnvVar	`json:"agentEnvVars,omitempty"`
+	Paused                  bool        `json:"paused,omitempty"`
+	ClientID                string      `json:"clientID,omitempty"`
+	KubeConfigSecret        string      `json:"kubeConfigSecret,omitempty"`
+	RedeployAgentGeneration int64       `json:"redeployAgentGeneration,omitempty"`
+	AgentEnvVars            []v1.EnvVar `json:"agentEnvVars,omitempty"`
 }
 
 type ClusterStatus struct {

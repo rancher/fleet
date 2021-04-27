@@ -60,11 +60,23 @@ func RegisterImport(
 	fleetcontrollers.RegisterClusterStatusHandler(ctx, clusters, "Imported", "import-cluster", h.importCluster)
 }
 
-func agentDeployed(cluster *fleet.Cluster) bool {
+func agentDeployed(ctx context.Context, namespace string, kc kubernetes.Interface, cluster *fleet.Cluster) bool {
 	if cluster.Status.AgentDeployedGeneration == nil {
 		return false
 	}
-	return *cluster.Status.AgentDeployedGeneration == cluster.Spec.RedeployAgentGeneration
+
+	if *cluster.Status.AgentDeployedGeneration != cluster.Spec.RedeployAgentGeneration {
+		return false
+	}
+
+	if kc != nil {
+		dp, err := kc.AppsV1().Deployments(namespace).Get(ctx, "fleet-agent", metav1.GetOptions{})
+		if err != nil || dp.DeletionTimestamp != nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
@@ -72,7 +84,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 		return cluster, nil
 	}
 
-	if cluster.Spec.KubeConfigSecret == "" || agentDeployed(cluster) {
+	if cluster.Spec.KubeConfigSecret == "" || agentDeployed(i.ctx, i.systemNamespace, nil, cluster) {
 		return cluster, nil
 	}
 
@@ -132,11 +144,9 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
 	if cluster.Spec.KubeConfigSecret == "" ||
-		agentDeployed(cluster) ||
 		cluster.Spec.ClientID == "" {
 		return status, nil
 	}
-
 	secret, err := i.secrets.Get(cluster.Namespace, cluster.Spec.KubeConfigSecret)
 	if err != nil {
 		return status, err
@@ -168,6 +178,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	kc, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return status, err
+	}
+
+	if agentDeployed(i.ctx, i.systemNamespace, kc, cluster) {
+		return status, nil
 	}
 
 	if _, err = kc.Discovery().ServerVersion(); err != nil {
