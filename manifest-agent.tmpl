@@ -16,31 +16,31 @@ manifests:
       architecture: arm64
       os: linux
   -
-    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-amd64-1809
+    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-1809
     platform:
       architecture: amd64
       os: windows
       version: 1809
   -
-    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-amd64-1903
+    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-1903
     platform:
       architecture: amd64
       os: windows
       version: 1903
   -
-    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-amd64-1909
+    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-1909
     platform:
       architecture: amd64
       os: windows
       version: 1909
   -
-    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-amd64-2004
+    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-2004
     platform:
       architecture: amd64
       os: windows
       version: 2004
   -
-    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-amd64-20H2
+    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-20H2
     platform:
       architecture: amd64
       os: windows
