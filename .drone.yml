@@ -265,7 +265,7 @@ volumes:
     path: /var/run/docker.sock
 ---
 kind: pipeline
-name: windows-amd64-1809
+name: windows-1809
 platform:
   os: windows
   arch: amd64
@@ -278,7 +278,7 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-windows-amd64-1809"
+    tag: "${DRONE_TAG}-windows-1809"
     username:
       from_secret: docker_username
     build_args:
@@ -306,7 +306,7 @@ depends_on:
 - linux-amd64
 ---
 kind: pipeline
-name: windows-amd64-1903
+name: windows-1903
 platform:
   os: windows
   arch: amd64
@@ -319,7 +319,7 @@ steps:
       password:
         from_secret: docker_password
       repo: "rancher/fleet-agent"
-      tag: "${DRONE_TAG}-windows-amd64-1903"
+      tag: "${DRONE_TAG}-windows-1903"
       username:
         from_secret: docker_username
       build_args:
@@ -347,7 +347,7 @@ depends_on:
   - linux-amd64
 ---
 kind: pipeline
-name: windows-amd64-1909
+name: windows-1909
 platform:
   os: windows
   arch: amd64
@@ -360,7 +360,7 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-windows-amd64-1909"
+    tag: "${DRONE_TAG}-windows-1909"
     username:
       from_secret: docker_username
     build_args:
@@ -388,7 +388,7 @@ depends_on:
 - linux-amd64
 ---
 kind: pipeline
-name: windows-amd64-2004
+name: windows-2004
 platform:
   os: windows
   arch: amd64
@@ -408,7 +408,7 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-windows-amd64-2004"
+    tag: "${DRONE_TAG}-windows-2004"
     username:
       from_secret: docker_username
     build_args:
@@ -436,7 +436,7 @@ depends_on:
 - linux-amd64
 ---
 kind: pipeline
-name: windows-amd64-20H2
+name: windows-20H2
 platform:
   os: windows
   arch: amd64
@@ -456,7 +456,7 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-windows-amd64-20H2"
+    tag: "${DRONE_TAG}-windows-20H2"
     username:
       from_secret: docker_username
     build_args:
@@ -525,11 +525,11 @@ depends_on:
 - linux-amd64
 - linux-arm64
 - linux-arm
-- windows-amd64-1809
-- windows-amd64-1903
-- windows-amd64-1909
-- windows-amd64-2004
-- windows-amd64-20H2
+- windows-1809
+- windows-1903
+- windows-1909
+- windows-2004
+- windows-20H2
 ---
 kind: pipeline
 name: gorelease
