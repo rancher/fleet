@@ -60,23 +60,16 @@ func RegisterImport(
 	fleetcontrollers.RegisterClusterStatusHandler(ctx, clusters, "Imported", "import-cluster", h.importCluster)
 }
 
-func agentDeployed(ctx context.Context, namespace string, kc kubernetes.Interface, cluster *fleet.Cluster) bool {
+func agentDeployed(cluster *fleet.Cluster) bool {
+	if !cluster.Status.AgentMigrated {
+		return false
+	}
+
 	if cluster.Status.AgentDeployedGeneration == nil {
 		return false
 	}
 
-	if *cluster.Status.AgentDeployedGeneration != cluster.Spec.RedeployAgentGeneration {
-		return false
-	}
-
-	if kc != nil {
-		dp, err := kc.AppsV1().Deployments(namespace).Get(ctx, "fleet-agent", metav1.GetOptions{})
-		if err != nil || dp.DeletionTimestamp != nil {
-			return false
-		}
-	}
-
-	return true
+	return *cluster.Status.AgentDeployedGeneration == cluster.Spec.RedeployAgentGeneration
 }
 
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
@@ -84,7 +77,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 		return cluster, nil
 	}
 
-	if cluster.Spec.KubeConfigSecret == "" || agentDeployed(i.ctx, i.systemNamespace, nil, cluster) {
+	if cluster.Spec.KubeConfigSecret == "" || agentDeployed(cluster) {
 		return cluster, nil
 	}
 
@@ -144,6 +137,7 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
 	if cluster.Spec.KubeConfigSecret == "" ||
+		agentDeployed(cluster) ||
 		cluster.Spec.ClientID == "" {
 		return status, nil
 	}
@@ -178,10 +172,6 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	kc, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return status, err
-	}
-
-	if agentDeployed(i.ctx, i.systemNamespace, kc, cluster) {
-		return status, nil
 	}
 
 	if _, err = kc.Discovery().ServerVersion(); err != nil {
@@ -247,6 +237,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	logrus.Infof("Deployed new agent for cluster %s/%s", cluster.Namespace, cluster.Name)
 
 	status.AgentDeployedGeneration = &cluster.Spec.RedeployAgentGeneration
+	status.AgentMigrated = true
 	status.Agent = fleet.AgentStatus{}
 	return status, nil
 }

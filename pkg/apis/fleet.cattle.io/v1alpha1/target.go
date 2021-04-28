@@ -77,6 +77,7 @@ type ClusterStatus struct {
 	DesiredReadyGitRepos int                                 `json:"desiredReadyGitRepos"`
 
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
+	AgentMigrated           bool   `json:"agentMigrated,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`

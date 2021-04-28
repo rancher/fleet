@@ -1583,6 +1583,8 @@ spec:
             agentDeployedGeneration:
               nullable: true
               type: integer
+            agentMigrated:
+              type: boolean
             conditions:
               items:
                 properties:
