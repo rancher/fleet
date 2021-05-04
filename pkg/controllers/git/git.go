@@ -97,6 +97,18 @@ func targetsOrDefault(targets []fleet.GitTarget) []fleet.GitTarget {
 	return targets
 }
 
+func targetRestrictionsOrDefault(targets []fleet.GitTargetRestriction) []fleet.GitTargetRestriction {
+	if len(targets) == 0 {
+		return []fleet.GitTargetRestriction{
+			{
+				Name:         "default",
+				ClusterGroup: "default",
+			},
+		}
+	}
+	return targets
+}
+
 func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 	spec := &fleet.BundleSpec{}
 	for _, target := range targetsOrDefault(repo.Spec.Targets) {
@@ -107,6 +119,9 @@ func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 			ClusterGroup:         target.ClusterGroup,
 			ClusterGroupSelector: target.ClusterGroupSelector,
 		})
+	}
+
+	for _, target := range targetRestrictionsOrDefault(repo.Spec.TargetRestrictions) {
 		spec.TargetRestrictions = append(spec.TargetRestrictions, fleet.BundleTargetRestriction{
 			Name:                 target.Name,
 			ClusterName:          target.ClusterName,
@@ -115,6 +130,7 @@ func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 			ClusterGroupSelector: target.ClusterGroupSelector,
 		})
 	}
+
 	data, err := json.Marshal(spec)
 	if err != nil {
 		return nil, err

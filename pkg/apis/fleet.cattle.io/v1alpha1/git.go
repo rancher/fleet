@@ -64,6 +64,9 @@ type GitRepoSpec struct {
 	// Targets is a list of target this repo will deploy to
 	Targets []GitTarget `json:"targets,omitempty"`
 
+	// TargetRestrictions is a list of target restrictions this repo will allow to be targets
+	TargetRestrictions []GitTargetRestriction `json:"targetRestrictions,omitempty"`
+
 	// PollingInterval is how often to check git for new updates
 	PollingInterval *metav1.Duration `json:"pollingInterval,omitempty"`
 
@@ -72,6 +75,14 @@ type GitRepoSpec struct {
 }
 
 type GitTarget struct {
+	Name                 string                `json:"name,omitempty"`
+	ClusterName          string                `json:"clusterName,omitempty"`
+	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
+	ClusterGroup         string                `json:"clusterGroup,omitempty"`
+	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
+}
+
+type GitTargetRestriction struct {
 	Name                 string                `json:"name,omitempty"`
 	ClusterName          string                `json:"clusterName,omitempty"`
 	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
