@@ -97,6 +97,7 @@ func size(bundle *fleet.Bundle) (int, error) {
 
 type localSpec struct {
 	fleet.BundleSpec
+	OverrideTargets      bool                 `json:"overrideTargets,omitempty"`
 	TargetCustomizations []fleet.BundleTarget `json:"targetCustomizations,omitempty"`
 }
 
@@ -153,9 +154,12 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	def.Spec.ForceSyncGeneration = opts.SyncGeneration
 
-	def, err = appendTargets(def, opts.TargetsFile)
-	if err != nil {
-		return nil, err
+	// If override targets is set do not append other targets
+	if !bundle.OverrideTargets && len(def.Spec.Targets) > 0 {
+		def, err = appendTargets(def, opts.TargetsFile)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(def.Spec.Targets) == 0 {
