@@ -168,7 +168,8 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.RBAC.RoleBinding(),
 		appCtx.RBAC.ClusterRole(),
 		appCtx.RBAC.ClusterRoleBinding(),
-		appCtx.Core.Namespace())
+		appCtx.Core.Namespace(),
+		appCtx.Cluster().Cache())
 
 	manageagent.Register(ctx,
 		systemNamespace,
