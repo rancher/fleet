@@ -20,6 +20,7 @@ import (
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/sirupsen/logrus"
+	"github.com/variantdev/vals"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -210,9 +211,15 @@ func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 		options.Helm = &fleet.HelmOptions{}
 	}
 
-	vals := map[string]interface{}{}
+	helmVals := map[string]interface{}{}
 	if options.Helm.Values != nil {
-		vals = options.Helm.Values.Data
+		helmVals = options.Helm.Values.Data
+		valsRendered, err := vals.Eval(helmVals, vals.Options{})
+		if err != nil {
+			logrus.Error("Could not get secrets")
+		} else {
+			helmVals = valsRendered
+		}
 	}
 
 	var timeout time.Duration
@@ -234,7 +241,7 @@ func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 		releaseName = options.Helm.ReleaseName
 	}
 
-	return vals, timeout, options.DefaultNamespace, releaseName
+	return helmVals, timeout, options.DefaultNamespace, releaseName
 }
 
 func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
