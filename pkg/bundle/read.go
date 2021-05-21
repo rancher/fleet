@@ -153,9 +153,11 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	def.Spec.ForceSyncGeneration = opts.SyncGeneration
-
-	// If override targets is set do not append other targets
-	if !bundle.OverrideTargets {
+	
+	// Append inherited targets if either of the following scenerios match:
+	// * If override targets is not set (or false)
+	// * If override targets is set but no targets are provided 
+	if !bundle.OverrideTargets || (bundle.OverrideTargets && len(def.Spec.Targets) > 0) {
 		def, err = appendTargets(def, opts.TargetsFile)
 		if err != nil {
 			return nil, err
