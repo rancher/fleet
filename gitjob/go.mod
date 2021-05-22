@@ -11,9 +11,9 @@ require (
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/gorilla/mux v1.7.3
 	github.com/imdario/mergo v0.3.9 // indirect
-	github.com/rancher/lasso v0.0.0-20210325230905-459cd42cfdd0
+	github.com/rancher/lasso v0.0.0-20210408231703-9ddd9378d08d
 	github.com/rancher/steve v0.0.0-20210318171316-376934558c5b
-	github.com/rancher/wrangler v0.7.3-0.20210406165340-a333c92020cf
+	github.com/rancher/wrangler v0.8.1-0.20210521213200-39dd8bf93e9f
 	github.com/sirupsen/logrus v1.6.0
 	github.com/urfave/cli v1.22.4
 	github.com/whilp/git-urls v0.0.0-20191001220047-6db9661140c0

@@ -8,7 +8,7 @@ import (
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
 	"github.com/rancher/wrangler/pkg/schemas/openapi"
 	"github.com/rancher/wrangler/pkg/yaml"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -19,7 +19,7 @@ func main() {
 			WithStatus().
 			WithSchema(mustSchema(v1.GitJob{})).
 			WithColumnsFromStruct(v1.GitJob{}).
-			WithCustomColumn(v1beta1.CustomResourceColumnDefinition{
+			WithCustomColumn(apiextv1.CustomResourceColumnDefinition{
 				Name:     "Age",
 				Type:     "date",
 				JSONPath: ".metadata.creationTimestamp",
@@ -41,7 +41,7 @@ func main() {
 	fmt.Println(string(output))
 }
 
-func mustSchema(obj interface{}) *v1beta1.JSONSchemaProps {
+func mustSchema(obj interface{}) *apiextv1.JSONSchemaProps {
 	result, err := openapi.ToOpenAPIFromStruct(obj)
 	if err != nil {
 		panic(err)

@@ -360,6 +360,10 @@ func (a *gitJobGeneratingHandler) Remove(key string, obj *v1.GitJob) (*v1.GitJob
 }
 
 func (a *gitJobGeneratingHandler) Handle(obj *v1.GitJob, status v1.GitJobStatus) (v1.GitJobStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.GitJobGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
