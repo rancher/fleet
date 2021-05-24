@@ -27,6 +27,15 @@ spec:
               defaultNamespace:
                 nullable: true
                 type: string
+              dependsOn:
+                items:
+                  properties:
+                    name:
+                      nullable: true
+                      type: string
+                  type: object
+                nullable: true
+                type: array
               diff:
                 nullable: true
                 properties:
@@ -856,6 +865,15 @@ spec:
         properties:
           spec:
             properties:
+              dependsOn:
+                items:
+                  properties:
+                    name:
+                      nullable: true
+                      type: string
+                  type: object
+                nullable: true
+                type: array
               deploymentID:
                 nullable: true
                 type: string
