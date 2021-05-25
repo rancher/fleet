@@ -16,7 +16,9 @@ import (
 )
 
 type handler struct {
-	apply apply.Apply
+	apply      apply.Apply
+	clusters   fleetcontrollers.ClusterCache
+	namespaces corecontrollers.NamespaceClient
 }
 
 func Register(ctx context.Context, apply apply.Apply,
@@ -27,9 +29,12 @@ func Register(ctx context.Context, apply apply.Apply,
 	roleBinding rbaccontrollers.RoleBindingController,
 	clusterRole rbaccontrollers.ClusterRoleController,
 	clusterRoleBinding rbaccontrollers.ClusterRoleBindingController,
-	namespaces corecontrollers.NamespaceController) {
+	namespaces corecontrollers.NamespaceController,
+	clusterCache fleetcontrollers.ClusterCache) {
 	h := &handler{
-		apply: apply,
+		apply:      apply,
+		clusters:   clusterCache,
+		namespaces: namespaces,
 	}
 
 	bundledeployment.OnChange(ctx, "managed-cleanup", func(_ string, obj *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
@@ -81,12 +86,19 @@ func Register(ctx context.Context, apply apply.Apply,
 		return obj, h.cleanup(obj)
 	})
 
-	namespaces.OnChange(ctx, "managed-cleanup", func(_ string, obj *corev1.Namespace) (*corev1.Namespace, error) {
-		if obj == nil {
-			return nil, nil
-		}
-		return obj, h.cleanup(obj)
-	})
+	namespaces.OnChange(ctx, "managed-namespace-cleanup", h.cleanupNamespace)
+}
+
+func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.Namespace, error) {
+	if obj == nil || obj.Labels[fleet.ManagedLabel] != "true" {
+		return obj, nil
+	}
+	_, err := h.clusters.Get(obj.Annotations[fleet.ClusterNamespaceAnnotation], obj.Annotations[fleet.ClusterAnnotation])
+	if apierrors.IsNotFound(err) {
+		err = h.namespaces.Delete(key, nil)
+		return obj, err
+	}
+	return obj, err
 }
 
 func (h *handler) cleanup(ns runtime.Object) error {
