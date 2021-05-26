@@ -218,7 +218,7 @@ func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 	if options.Helm.Values != nil {
 		valsRendered, err := vals.Eval(options.Helm.Values.Data, vals.Options{})
 		if err != nil {
-			logrus.Error("Could not parse helm values to get secrets from secrets store")
+			logrus.Error("Could not get secrets")
 		} else {
 			options.Helm.Values.Data = valsRendered
 		}
