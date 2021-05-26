@@ -59,6 +59,7 @@ type appContext struct {
 	Apply         apply.Apply
 	ClientConfig  clientcmd.ClientConfig
 	starters      []start.Starter
+	DisableGitops bool
 }
 
 func (a *appContext) start(ctx context.Context) error {
@@ -73,8 +74,8 @@ func registrationNamespace(systemNamespace string) string {
 	return systemRegistrationNamespace
 }
 
-func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig) error {
-	appCtx, err := newContext(cfg)
+func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool) error {
+	appCtx, err := newContext(cfg, disableGitops)
 	if err != nil {
 		return err
 	}
@@ -168,7 +169,8 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.RBAC.RoleBinding(),
 		appCtx.RBAC.ClusterRole(),
 		appCtx.RBAC.ClusterRoleBinding(),
-		appCtx.Core.Namespace())
+		appCtx.Core.Namespace(),
+		appCtx.Cluster().Cache())
 
 	manageagent.Register(ctx,
 		systemNamespace,
@@ -177,19 +179,21 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Cluster(),
 		appCtx.Bundle())
 
-	git.Register(ctx,
-		appCtx.Apply.WithCacheTypes(
-			appCtx.RBAC.Role(),
-			appCtx.RBAC.RoleBinding(),
+	if !appCtx.DisableGitops {
+		git.Register(ctx,
+			appCtx.Apply.WithCacheTypes(
+				appCtx.RBAC.Role(),
+				appCtx.RBAC.RoleBinding(),
+				appCtx.GitJob.GitJob(),
+				appCtx.Core.ConfigMap(),
+				appCtx.Core.ServiceAccount()),
 			appCtx.GitJob.GitJob(),
-			appCtx.Core.ConfigMap(),
-			appCtx.Core.ServiceAccount()),
-		appCtx.GitJob.GitJob(),
-		appCtx.BundleDeployment(),
-		appCtx.GitRepoRestriction().Cache(),
-		appCtx.Bundle(),
-		appCtx.GitRepo(),
-		appCtx.Core.Secret().Cache())
+			appCtx.BundleDeployment(),
+			appCtx.GitRepoRestriction().Cache(),
+			appCtx.Bundle(),
+			appCtx.GitRepo(),
+			appCtx.Core.Secret().Cache())
+	}
 
 	bootstrap.Register(ctx,
 		systemNamespace,
@@ -235,7 +239,7 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 	}), nil
 }
 
-func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
+func newContext(cfg clientcmd.ClientConfig, disableGitops bool) (*appContext, error) {
 	client, err := cfg.ClientConfig()
 	if err != nil {
 		return nil, err
@@ -328,5 +332,6 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 			rbac,
 			git,
 		},
+		DisableGitops: disableGitops,
 	}, nil
 }

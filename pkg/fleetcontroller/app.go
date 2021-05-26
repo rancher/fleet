@@ -26,7 +26,7 @@ func OutputCRDs(writer io.Writer) error {
 	return err
 }
 
-func Start(ctx context.Context, systemNamespace string, kubeconfigFile string) error {
+func Start(ctx context.Context, systemNamespace string, kubeconfigFile string, disableGitops bool) error {
 	cfg := kubeconfig.GetNonInteractiveClientConfig(kubeconfigFile)
 	clientConfig, err := cfg.ClientConfig()
 	if err != nil {
@@ -39,5 +39,5 @@ func Start(ctx context.Context, systemNamespace string, kubeconfigFile string) e
 		return err
 	}
 
-	return controllers.Register(ctx, systemNamespace, cfg)
+	return controllers.Register(ctx, systemNamespace, cfg, disableGitops)
 }

@@ -69,6 +69,13 @@ helm:
   # install.
   values:
     any-custom: value
+  # All labels on Rancher clusters are available using global.fleet.clusterLabels.LABELNAME
+  # These can now be accessed directly as variables
+    variableName: global.fleet.clusterLabels.LABELNAME
+  # Path to any values files that need to be passed to helm during install
+  valuesFiles:
+    - values1.yaml
+    - values2.yaml  
   # Override immutable resources. This could be dangerous.
   force: false
 
@@ -149,6 +156,21 @@ targetCustomizations:
   # A specific clusterGroup by name that will be selected
   clusterGroup: group1
 ```
+
+!!! hint "Private Helm Repo"
+    For a private Helm repo, users can reference a secret with the following keys:
+    
+    1. `username` and `password` for basic http auth if the Helm HTTP repo is behind basic auth.
+    
+    2. `cacerts` for custom CA bundle if the Helm repo is using a custom CA.
+    
+    3. `ssh-privatekey` for ssh private key if repo is using ssh protocol. Private key with passphase is not supported currently.
+    
+    For example, to add a secret in kubectl, run 
+    
+    `kubectl create secret -n $namespace generic helm --from-literal=username=foo --from-literal=password=bar --from-file=cacerts=/path/to/cacerts --from-file=ssh-privatekey=/path/to/privatekey.pem`
+    
+    After secret is created, specify the secret to `gitRepo.spec.helmSecretName`. Make sure secret is created under the same namespace with gitrepo.
 
 ## Per Cluster Customization
 
