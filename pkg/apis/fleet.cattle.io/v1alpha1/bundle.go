@@ -61,6 +61,7 @@ type BundleSpec struct {
 	Paused             bool                      `json:"paused,omitempty"`
 	RolloutStrategy    *RolloutStrategy          `json:"rolloutStrategy,omitempty"`
 	Resources          []BundleResource          `json:"resources,omitempty"`
+	OverrideTargets    bool                      `json:"overrideTargets,omitempty"`
 	Targets            []BundleTarget            `json:"targets,omitempty"`
 	TargetRestrictions []BundleTargetRestriction `json:"targetRestrictions,omitempty"`
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -97,7 +98,6 @@ func size(bundle *fleet.Bundle) (int, error) {
 
 type localSpec struct {
 	fleet.BundleSpec
-	OverrideTargets      bool                 `json:"overrideTargets,omitempty"`
 	TargetCustomizations []fleet.BundleTarget `json:"targetCustomizations,omitempty"`
 }
 
@@ -153,12 +153,18 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	def.Spec.ForceSyncGeneration = opts.SyncGeneration
-	
-	// Append inherited targets if either of the following scenerios match:
+
+	// Append inherited targets if either of the following scenarios match:
 	// * If override targets is not set (or false)
 	// * If override targets is set but no targets are provided 
-	if !bundle.OverrideTargets || (bundle.OverrideTargets && len(def.Spec.Targets) > 0) {
+	if !bundle.OverrideTargets || (bundle.OverrideTargets && len(def.Spec.Targets) <= 0) {
 		def, err = appendTargets(def, opts.TargetsFile)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		log.Printf("Override targets is set, only appending restrictions")
+		def, err = appendTargetRestrictions(def, opts.TargetsFile)
 		if err != nil {
 			return nil, err
 		}
@@ -205,6 +211,29 @@ func appendTargets(def *fleet.Bundle, targetsFile string) (*fleet.Bundle, error)
 	for _, target := range spec.Targets {
 		def.Spec.Targets = append(def.Spec.Targets, target)
 	}
+
+	for _, targetRestriction := range spec.TargetRestrictions {
+		def.Spec.TargetRestrictions = append(def.Spec.TargetRestrictions, targetRestriction)
+	}
+
+	return def, nil
+}
+
+func appendTargetRestrictions(def *fleet.Bundle, targetsFile string) (*fleet.Bundle, error) {
+	if targetsFile == "" {
+		return def, nil
+	}
+
+	data, err := ioutil.ReadFile(targetsFile)
+	if err != nil {
+		return nil, err
+	}
+
+	spec := &fleet.BundleSpec{}
+	if err := yaml.Unmarshal(data, spec); err != nil {
+		return nil, err
+	}
+
 	for _, targetRestriction := range spec.TargetRestrictions {
 		def.Spec.TargetRestrictions = append(def.Spec.TargetRestrictions, targetRestriction)
 	}
