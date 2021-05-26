@@ -44,6 +44,8 @@ var ErrNoRelease = errors.New("failed to find release")
 type helm struct {
 	agentNamespace      string
 	serviceAccountCache corecontrollers.ServiceAccountCache
+	configmapCache      corecontrollers.ConfigMapCache
+	secretCache         corecontrollers.SecretCache
 	getter              genericclioptions.RESTClientGetter
 	globalCfg           action.Configuration
 	useGlobalCfg        bool
@@ -53,12 +55,14 @@ type helm struct {
 }
 
 func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclioptions.RESTClientGetter,
-	serviceAccountCache corecontrollers.ServiceAccountCache) (deployer.Deployer, error) {
+	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache) (deployer.Deployer, error) {
 	h := &helm{
 		getter:              getter,
 		defaultNamespace:    defaultNamespace,
 		agentNamespace:      namespace,
 		serviceAccountCache: serviceAccountCache,
+		configmapCache:      configmapCache,
+		secretCache:         secretCache,
 		labelPrefix:         labelPrefix,
 	}
 	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
@@ -206,19 +210,17 @@ func (h *helm) mustInstall(cfg *action.Configuration, releaseName string) (bool,
 	return false, err
 }
 
-func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (map[string]interface{}, time.Duration, string, string) {
+func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (time.Duration, string, string) {
 	if options.Helm == nil {
 		options.Helm = &fleet.HelmOptions{}
 	}
 
-	helmVals := map[string]interface{}{}
 	if options.Helm.Values != nil {
-		helmVals = options.Helm.Values.Data
-		valsRendered, err := vals.Eval(helmVals, vals.Options{})
+		valsRendered, err := vals.Eval(options.Helm.Values.Data, vals.Options{})
 		if err != nil {
 			logrus.Error("Could not get secrets")
 		} else {
-			helmVals = valsRendered
+			options.Helm.Values = valsRendered
 		}
 	}
 
@@ -241,7 +243,7 @@ func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 		releaseName = options.Helm.ReleaseName
 	}
 
-	return helmVals, timeout, options.DefaultNamespace, releaseName
+	return timeout, options.DefaultNamespace, releaseName
 }
 
 func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
@@ -277,7 +279,12 @@ func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 }
 
 func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
-	vals, timeout, namespace, releaseName := h.getOpts(bundleID, options)
+	timeout, namespace, releaseName := h.getOpts(bundleID, options)
+
+	vals, err := h.getValues(options, namespace)
+	if err != nil {
+		return nil, err
+	}
 
 	cfg, err := h.getCfg(namespace, options.ServiceAccount)
 	if err != nil {
@@ -357,6 +364,102 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		logrus.Infof("Helm: Upgrading %s", bundleID)
 	}
 	return u.Run(releaseName, chart, vals)
+}
+
+func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
+	if options.Helm == nil {
+		return nil, nil
+	}
+
+	var values map[string]interface{}
+	if options.Helm.Values != nil {
+		values = options.Helm.Values.Data
+	}
+
+	if h.secretCache == nil || h.configmapCache == nil {
+		return values, nil
+	}
+
+	for _, valuesFrom := range options.Helm.ValuesFrom {
+		var val map[string]interface{}
+		if valuesFrom.SecretKeyRef != nil {
+			name := valuesFrom.SecretKeyRef.Name
+			namespace := valuesFrom.SecretKeyRef.Namespace
+			if namespace == "" {
+				namespace = defaultNamespace
+			}
+			key := valuesFrom.SecretKeyRef.Key
+			if key == "" {
+				key = "values.yaml"
+			}
+			secret, err := h.secretCache.Get(namespace, name)
+			if err != nil {
+				return nil, err
+			}
+			data, ok := secret.Data[key]
+			if !ok {
+				return nil, fmt.Errorf("key %s is missing from secret %s/%s, can't use it in valuesFrom", key, namespace, name)
+			}
+			if err := yaml.Unmarshal(data, &val); err != nil {
+				return nil, err
+			}
+		} else if valuesFrom.ConfigMapKeyRef != nil {
+			name := valuesFrom.ConfigMapKeyRef.Name
+			namespace := valuesFrom.ConfigMapKeyRef.Namespace
+			if namespace == "" {
+				namespace = defaultNamespace
+			}
+			key := valuesFrom.ConfigMapKeyRef.Key
+			if key == "" {
+				key = "values.yaml"
+			}
+			configmap, err := h.configmapCache.Get(namespace, name)
+			if err != nil {
+				return nil, err
+			}
+			data, ok := configmap.Data[key]
+			if !ok {
+				return nil, fmt.Errorf("key %s is missing from configmap %s/%s, can't use it in valuesFrom", key, namespace, name)
+			}
+			if err := yaml.Unmarshal([]byte(data), &val); err != nil {
+				return nil, err
+			}
+		}
+
+		if val != nil {
+			values = mergeValues(values, val)
+		}
+	}
+	return values, nil
+}
+
+// mergeValues merges source and destination map, preferring values
+// from the source values. This is slightly adapted from:
+// https://github.com/helm/helm/blob/2332b480c9cb70a0d8a85247992d6155fbe82416/cmd/helm/install.go#L359
+func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
+	for k, v := range src {
+		// If the key doesn't exist already, then just set the key to that value
+		if _, exists := dest[k]; !exists {
+			dest[k] = v
+			continue
+		}
+		nextMap, ok := v.(map[string]interface{})
+		// If it isn't another map, overwrite the value
+		if !ok {
+			dest[k] = v
+			continue
+		}
+		// Edge case: If the key exists in the destination, but isn't a map
+		destMap, isMap := dest[k].(map[string]interface{})
+		// If the source map has a map for this key, prefer it
+		if !isMap {
+			dest[k] = v
+			continue
+		}
+		// If we got to this point, it is a map in both, so merge them
+		dest[k] = mergeValues(destMap, nextMap)
+	}
+	return dest
 }
 
 func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
@@ -496,7 +599,7 @@ func (h *helm) deleteByRelease(bundleID, releaseName string) error {
 }
 
 func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
-	_, timeout, _, releaseName := h.getOpts(bundleID, options)
+	timeout, _, releaseName := h.getOpts(bundleID, options)
 
 	r, err := h.globalCfg.Releases.Last(releaseName)
 	if err != nil {
