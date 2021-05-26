@@ -28,6 +28,11 @@ spec:
         image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
         name: fleet-controller
         imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
+        command:
+        - fleet-controller
+        {{- if not .Values.gitops.enabled }}
+        - --disable-gitops
+        {{- end }}
       serviceAccountName: fleet-controller
       {{- with .Values.tolerations }}
       tolerations:
