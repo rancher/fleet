@@ -10,6 +10,7 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	v1 "k8s.io/api/core/v1"
@@ -25,7 +26,7 @@ type handler struct {
 	clusterGroups    fleetcontrollers.ClusterGroupCache
 	bundleDeployment fleetcontrollers.BundleDeploymentCache
 	namespaceCache   corecontrollers.NamespaceCache
-	namespaces       corecontrollers.NamespaceClient
+	namespaces       corecontrollers.NamespaceController
 	gitRepos         fleetcontrollers.GitRepoCache
 }
 
@@ -51,6 +52,7 @@ func Register(ctx context.Context,
 		gitRepos:         gitRepos,
 	}
 
+	clusters.OnChange(ctx, "managed-cluster-trigger", h.ensureNSDeleted)
 	fleetcontrollers.RegisterClusterStatusHandler(ctx,
 		clusters,
 		"Processed",
@@ -58,6 +60,13 @@ func Register(ctx context.Context,
 		h.OnClusterChanged)
 
 	relatedresource.Watch(ctx, "managed-cluster", h.findClusters(namespaces.Cache()), clusters, bundleDeployment)
+}
+
+func (h *handler) ensureNSDeleted(key string, obj *fleet.Cluster) (*fleet.Cluster, error) {
+	if obj == nil {
+		h.namespaces.Enqueue(clusterToNamespace(kv.Split(key, "/")))
+	}
+	return obj, nil
 }
 
 func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relatedresource.Resolver {
@@ -85,17 +94,20 @@ func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relate
 	}
 }
 
+func clusterToNamespace(clusterNamespace, clusterName string) string {
+	return name.SafeConcatName("cluster",
+		clusterNamespace,
+		clusterName,
+		clusterregistration.KeyHash(clusterNamespace+"::"+clusterName))
+}
+
 func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
 	if cluster.DeletionTimestamp != nil {
 		return status, nil
 	}
 
 	if status.Namespace == "" {
-		ns := name.SafeConcatName("cluster",
-			cluster.Namespace,
-			cluster.Name,
-			clusterregistration.KeyHash(cluster.Namespace+"::"+cluster.Name))
-		status.Namespace = ns
+		status.Namespace = clusterToNamespace(cluster.Namespace, cluster.Name)
 	}
 
 	bundleDeployments, err := h.bundleDeployment.List(status.Namespace, labels.Everything())

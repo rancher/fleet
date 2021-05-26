@@ -360,6 +360,10 @@ func (a *clusterRegistrationGeneratingHandler) Remove(key string, obj *v1alpha1.
 }
 
 func (a *clusterRegistrationGeneratingHandler) Handle(obj *v1alpha1.ClusterRegistration, status v1alpha1.ClusterRegistrationStatus) (v1alpha1.ClusterRegistrationStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.ClusterRegistrationGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err

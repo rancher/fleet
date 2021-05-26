@@ -51,3 +51,6 @@ tolerations:
     operator: "Equal"
     value: "linux"
     effect: NoSchedule
+
+gitops:
+  enabled: true

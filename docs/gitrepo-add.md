@@ -49,6 +49,12 @@ spec:
   #
   # clientSecretName: my-ssh-key
   #
+  # If fleet.yaml contains a private Helm repo that requires authentication,
+  # provide the credentials in a K8s secret and specify them here. Details are provided
+  # in the fleet.yaml documentation.
+  #
+  # helmSecretName: my-helm-secret
+  #
   # To add additional ca-bundle for self-signed certs, caBundle can be 
   # filled with base64 encoded pem data. For example: 
   # `cat /path/to/ca.pem | base64 -w 0` 
@@ -104,6 +110,9 @@ Put your private key into secret:
 kubectl create secret generic $name -n $namespace --from-file=ssh-privatekey=/file/to/private/key  --type=kubernetes.io/ssh-auth 
 ```
 
+!!! note
+    Private key with passphrase is not supported.
+
 Fleet supports putting `known_hosts` into ssh secret. Here is an example of how to add it:
 
 Fetch the public key hash(take github as an example)
@@ -126,7 +135,11 @@ stringData:
     |1|YJr1VZoi6dM0oE+zkM0do3Z04TQ=|7MclCn1fLROZG+BgR4m1r8TLwWc= ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==
 ```
 
-Note: If you don't add it any server's public key will be trusted and added.
+!!! note
+    If you don't add it any server's public key will be trusted and added. (`ssh -o stricthostkeychecking=accept-new` will be used)
+
+!!! note
+    If you are using openssh format for the private key and you are creating it in the UI, make sure a carriage return is appended in the end of the private key.
 
 # Troubleshooting
 

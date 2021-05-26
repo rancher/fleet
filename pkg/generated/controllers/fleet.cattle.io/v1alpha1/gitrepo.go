@@ -360,6 +360,10 @@ func (a *gitRepoGeneratingHandler) Remove(key string, obj *v1alpha1.GitRepo) (*v
 }
 
 func (a *gitRepoGeneratingHandler) Handle(obj *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) (v1alpha1.GitRepoStatus, error) {
+	if !obj.DeletionTimestamp.IsZero() {
+		return status, nil
+	}
+
 	objs, newStatus, err := a.GitRepoGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
