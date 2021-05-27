@@ -156,7 +156,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	// Append inherited targets if either of the following scenarios match:
 	// * If override targets is not set (or false)
-	// * If override targets is set but no targets are provided 
+	// * If override targets is set but no targets are provided
 	if !bundle.OverrideTargets || (bundle.OverrideTargets && len(def.Spec.Targets) <= 0) {
 		def, err = appendTargets(def, opts.TargetsFile)
 		if err != nil {
