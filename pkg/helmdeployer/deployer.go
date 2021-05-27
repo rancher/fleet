@@ -215,15 +215,6 @@ func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 		options.Helm = &fleet.HelmOptions{}
 	}
 
-	if options.Helm.Values != nil {
-		valsRendered, err := vals.Eval(options.Helm.Values.Data, vals.Options{})
-		if err != nil {
-			logrus.Error("Could not get secrets")
-		} else {
-			options.Helm.Values.Data = valsRendered
-		}
-	}
-
 	var timeout time.Duration
 	if options.Helm.TimeoutSeconds > 0 {
 		timeout = time.Second * time.Duration(options.Helm.TimeoutSeconds)
@@ -430,6 +421,13 @@ func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 			values = mergeValues(values, val)
 		}
 	}
+	valsRendered, err := vals.Eval(values, vals.Options{})
+	if err != nil {
+		logrus.Error("Vals: Could not get secrets")
+	} else {
+		values = valsRendered
+	}
+
 	return values, nil
 }
 
