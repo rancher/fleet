@@ -49,7 +49,9 @@ metadata:
   namespace: fleet-local
 spec:
   # Everything from this repo will be ran in this cluster. You trust me right?
-  repo: "https://github.com/fleet-demo/simple"
+  repo: "https://github.com/rancher/fleet-examples/"
+  paths:
+  - single-cluster/helm
 EOF
 
 kubectl apply -f example.yaml
@@ -60,7 +62,7 @@ kubectl apply -f example.yaml
 Get status of what fleet is doing
 
 ```shell
-kubectl -n fleet-local get fleet
+kubectl -n fleet-helm-example get fleet
 ```
 
 You should see something like this get created in your cluster.
