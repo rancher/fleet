@@ -48,6 +48,9 @@ kustomize:
   # Use a custom folder for kustomize resources. This folder must contain
   # a kustomization.yaml file.
   dir: ./kustomize
+  # Specify build options for kustomize build.
+  # Default: ""
+  buildOptions: --load_restrictor none
 
 helm:
   # Use a custom location for the Helm chart. This can refer to any go-getter URL.

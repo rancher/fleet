@@ -1,7 +1,11 @@
 package kustomize
 
 import (
+	"bytes"
 	"path/filepath"
+	"strings"
+
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/fleet/pkg/content"
 	"github.com/rancher/fleet/pkg/manifest"
@@ -10,9 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/kustomize/api/filesys"
-	"sigs.k8s.io/kustomize/api/konfig"
-	"sigs.k8s.io/kustomize/api/krusty"
-	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kustomize/v3/commands/build"
 	"sigs.k8s.io/yaml"
 )
 
@@ -21,7 +23,8 @@ const (
 	ManifestsYAML = "fleet-manifests.yaml"
 )
 
-func Process(m *manifest.Manifest, content []byte, dir string) ([]runtime.Object, bool, error) {
+func Process(m *manifest.Manifest, content []byte, options fleet.KustomizeOptions) ([]runtime.Object, bool, error) {
+	dir := options.Dir
 	if dir == "" {
 		dir = "."
 	}
@@ -42,7 +45,7 @@ func Process(m *manifest.Manifest, content []byte, dir string) ([]runtime.Object
 		}
 	}
 
-	objs, err := kustomize(fs, dir)
+	objs, err := kustomize(fs, dir, options.BuildOptions)
 	return objs, true, err
 }
 
@@ -91,13 +94,15 @@ func toFilesystem(m *manifest.Manifest, dir string, manifestsContent []byte) (fi
 	return f, err
 }
 
-func kustomize(fs filesys.FileSystem, dir string) (result []runtime.Object, err error) {
-	pcfg := konfig.DisabledPluginConfig()
-	kust := krusty.MakeKustomizer(fs, &krusty.Options{
-		LoadRestrictions: types.LoadRestrictionsRootOnly,
-		PluginConfig:     pcfg,
-	})
-	resMap, err := kust.Run(dir)
+func kustomize(fs filesys.FileSystem, dir string, buildOptions string) (result []runtime.Object, err error) {
+	buildOpts := strings.Split(buildOptions, " ")
+	var o build.Options
+	cmd := build.NewCmdBuildWithOptions("build", new(bytes.Buffer), &o)
+	cmd.Flags().Parse(buildOpts)
+	if err := o.Validate([]string{dir}); err != nil {
+		return nil, err
+	}
+	resMap, err := o.RunBuildWithoutEmitter(fs)
 	if err != nil {
 		return nil, err
 	}

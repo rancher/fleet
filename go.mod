@@ -29,6 +29,7 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.20.2
 	k8s.io/mount-utils => k8s.io/mount-utils v0.20.2
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.2
+	sigs.k8s.io/kustomize/kustomize/v3 => github.com/ron1/kustomize/kustomize/v3 v3.8.10-fleet4
 )
 
 require (
@@ -45,6 +46,7 @@ require (
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.1.1
+	github.com/stretchr/testify v1.6.1
 	go.mozilla.org/sops/v3 v3.6.1
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	helm.sh/helm/v3 v3.5.1
@@ -55,6 +57,7 @@ require (
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/cli-utils v0.23.1
 	sigs.k8s.io/kustomize/api v0.6.9
+	sigs.k8s.io/kustomize/kustomize/v3 v3.8.10
 	sigs.k8s.io/kustomize/kyaml v0.10.7
 	sigs.k8s.io/yaml v1.2.0
 )
