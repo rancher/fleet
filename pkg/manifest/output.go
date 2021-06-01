@@ -13,7 +13,7 @@ import (
 	"go.mozilla.org/sops/v3/decrypt"
 )
 
-func (m *Manifest) ToTarGZ() (io.Reader, error) {
+func (m *Manifest) ToTarGZ(decrypt bool) (io.Reader, error) {
 	buf := &bytes.Buffer{}
 	gz := gzip.NewWriter(buf)
 	w := tar.NewWriter(gz)
@@ -24,9 +24,12 @@ func (m *Manifest) ToTarGZ() (io.Reader, error) {
 			return nil, err
 		}
 
-		bytes, err = decryptSOPS(bytes)
-		if err != nil {
-			return nil, err
+		if decrypt {
+			bytes, err = decryptSOPS(bytes)
+
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		if err := w.WriteHeader(&tar.Header{

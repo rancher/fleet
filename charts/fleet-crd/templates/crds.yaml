@@ -24,6 +24,9 @@ spec:
         properties:
           spec:
             properties:
+              decrypt:
+                nullable: true
+                type: boolean
               defaultNamespace:
                 nullable: true
                 type: string
@@ -391,6 +394,9 @@ spec:
                           nullable: true
                           type: object
                       type: object
+                    decrypt:
+                      nullable: true
+                      type: boolean
                     defaultNamespace:
                       nullable: true
                       type: string
@@ -861,6 +867,9 @@ spec:
                 type: string
               options:
                 properties:
+                  decrypt:
+                    nullable: true
+                    type: boolean
                   defaultNamespace:
                     nullable: true
                     type: string
@@ -1004,6 +1013,9 @@ spec:
                 type: string
               stagedOptions:
                 properties:
+                  decrypt:
+                    nullable: true
+                    type: boolean
                   defaultNamespace:
                     nullable: true
                     type: string

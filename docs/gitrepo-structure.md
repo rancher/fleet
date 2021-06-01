@@ -85,6 +85,10 @@ helm:
 # Default: false
 paused: false
 
+# Decrypt SOPS encrypted resources / fields
+# Default: true
+decrypt: true
+
 rolloutStrategy:
     # A number or percentage of clusters that can be unavailable during an update
     # of a bundle. This follows the same basic approach as a deployment rollout
@@ -266,3 +270,4 @@ For Clusters:
 **Modified**: There are bundles in this cluster that are in Modified state.
 
 **Ready**: Bundles in this cluster have been deployed and all resources are ready.
+

@@ -183,6 +183,11 @@ func (in *BundleDeploymentOptions) DeepCopyInto(out *BundleDeploymentOptions) {
 		*out = new(DiffOptions)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Decrypt != nil {
+		in, out := &in.Decrypt, &out.Decrypt
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
