@@ -111,6 +111,9 @@ type ImageScanStatus struct {
 	// Latest tag is the latest tag filtered by the policy
 	LatestTag string `json:"latestTag,omitempty"`
 
+	// LatestDigest is the digest of latest tag
+	LatestDigest string `json:"latestDigest,omitempty"`
+
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 

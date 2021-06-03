@@ -2566,6 +2566,9 @@ spec:
               lastScanTime:
                 nullable: true
                 type: string
+              latestDigest:
+                nullable: true
+                type: string
               latestImage:
                 nullable: true
                 type: string

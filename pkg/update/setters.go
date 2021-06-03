@@ -144,6 +144,9 @@ func WithSetters(inpath, outpath string, scans []*v1alpha1.ImageScan) error {
 		nameSetter := imageSetter + ":name"
 		defs[fieldmeta.SetterDefinitionPrefix+nameSetter] = setterSchema(nameSetter, name)
 		imageRefs[nameSetter] = ref
+
+		digestSetter := imageSetter + ":digest"
+		defs[fieldmeta.SetterDefinitionPrefix+digestSetter] = setterSchema(digestSetter, fmt.Sprintf("%s@%s", scan.Status.LatestImage, scan.Status.LatestDigest))
 	}
 
 	settersSchema.Definitions = defs

@@ -53,6 +53,7 @@ const (
 
 func Register(ctx context.Context, core corev1controler.Interface, gitRepos fleetcontrollers.GitRepoController, images fleetcontrollers.ImageScanController) {
 	h := handler{
+		ctx:         ctx,
 		secretCache: core.Secret().Cache(),
 		gitrepos:    gitRepos,
 		imagescans:  images,
@@ -64,6 +65,7 @@ func Register(ctx context.Context, core corev1controler.Interface, gitRepos flee
 }
 
 type handler struct {
+	ctx         context.Context
 	secretCache corev1controler.SecretCache
 	gitrepos    fleetcontrollers.GitRepoController
 	imagescans  fleetcontrollers.ImageScanController
@@ -108,7 +110,7 @@ func (h handler) onChange(image *v1alpha1.ImageScan, status v1alpha1.ImageScanSt
 		options = append(options, remote.WithAuth(auth))
 	}
 
-	tags, err := remote.ListWithContext(context.Background(), ref.Context(), options...)
+	tags, err := remote.ListWithContext(h.ctx, ref.Context(), options...)
 	if err != nil {
 		kstatus.SetError(image, err.Error())
 		return status, err
@@ -124,6 +126,12 @@ func (h handler) onChange(image *v1alpha1.ImageScan, status v1alpha1.ImageScanSt
 
 	status.LatestTag = latestTag
 	status.LatestImage = status.CanonicalImageName + ":" + latestTag
+	digest, err := getDigest(status.LatestImage, options...)
+	if err != nil {
+		kstatus.SetError(image, err.Error())
+		return status, err
+	}
+	status.LatestDigest = digest
 
 	interval := image.Spec.Interval
 	if interval.Seconds() == 0.0 {
@@ -133,6 +141,23 @@ func (h handler) onChange(image *v1alpha1.ImageScan, status v1alpha1.ImageScanSt
 	}
 	h.imagescans.EnqueueAfter(image.Namespace, image.Name, interval.Duration)
 	return status, nil
+}
+
+func getDigest(image string, options ...remote.Option) (string, error) {
+	nameRef, err := name.ParseReference(image)
+	if err != nil {
+		return "", err
+	}
+
+	im, err := remote.Image(nameRef, options...)
+	if err != nil {
+		return "", err
+	}
+	digest, err := im.Digest()
+	if err != nil {
+		return "", err
+	}
+	return digest.String(), nil
 }
 
 func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) (v1alpha1.GitRepoStatus, error) {
