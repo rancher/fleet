@@ -32,10 +32,14 @@ replace (
 )
 
 require (
+	github.com/Masterminds/semver/v3 v3.1.0
 	github.com/argoproj/argo-cd v0.8.1-0.20210219223612-6e6cd1a1eff1
 	github.com/argoproj/gitops-engine v0.2.1-0.20210218233004-354817a103ee
 	github.com/cheggaaa/pb v1.0.27
 	github.com/evanphx/json-patch v4.9.0+incompatible
+	github.com/go-git/go-git/v5 v5.2.0
+	github.com/go-openapi/spec v0.19.5
+	github.com/google/go-containerregistry v0.1.1
 	github.com/hashicorp/go-getter v1.4.1
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
@@ -47,6 +51,7 @@ require (
 	github.com/spf13/cobra v1.1.1
 	go.mozilla.org/sops/v3 v3.6.1
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/tools v0.0.0-20200916195026-c9a70fc28ce3 // indirect
 	helm.sh/helm/v3 v3.5.1
 	k8s.io/api v0.20.2
 	k8s.io/apimachinery v0.20.2
