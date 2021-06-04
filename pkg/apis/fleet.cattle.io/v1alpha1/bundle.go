@@ -147,10 +147,10 @@ type BundleStatus struct {
 }
 
 type ResourceKey struct {
-	Kind       string
-	APIVersion string
-	Namespace  string
-	Name       string
+	Kind       string `json:"kind,omitempty"`
+	APIVersion string `json:"apiVersion,omitempty"`
+	Namespace  string `json:"namespace,omitempty"`
+	Name       string `json:"name,omitempty"`
 }
 
 type BundleDisplay struct {
