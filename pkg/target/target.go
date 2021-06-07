@@ -528,6 +528,17 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 				return err
 			}
 		}
+
+		if valArr, ok := val.([]interface{}); ok {
+			for _, item := range valArr {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					err := processLabelValues(itemMap, clusterLabels)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
 	}
 
 	return nil
