@@ -65,6 +65,10 @@ func agentDeployed(cluster *fleet.Cluster) bool {
 		return false
 	}
 
+	if !cluster.Status.CattleNamespaceMigrated {
+		return false
+	}
+
 	if cluster.Status.AgentDeployedGeneration == nil {
 		return false
 	}
@@ -238,6 +242,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 
 	status.AgentDeployedGeneration = &cluster.Spec.RedeployAgentGeneration
 	status.AgentMigrated = true
+	status.CattleNamespaceMigrated = true
 	status.Agent = fleet.AgentStatus{}
 	return status, nil
 }

@@ -2,7 +2,7 @@ package v1alpha1
 
 import (
 	"github.com/rancher/wrangler/pkg/genericcondition"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -78,6 +78,7 @@ type ClusterStatus struct {
 
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
 	AgentMigrated           bool   `json:"agentMigrated,omitempty"`
+	CattleNamespaceMigrated bool   `json:"cattleNamespaceMigrated,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`
