@@ -1718,6 +1718,8 @@ spec:
                 type: integer
               agentMigrated:
                 type: boolean
+              cattleNamespaceMigrated:
+                type: boolean
               conditions:
                 items:
                   properties:
