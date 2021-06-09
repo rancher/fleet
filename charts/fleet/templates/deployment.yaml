@@ -29,7 +29,7 @@ spec:
         name: fleet-controller
         imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
         command:
-        - fleet-controller
+        - fleetcontroller
         {{- if not .Values.gitops.enabled }}
         - --disable-gitops
         {{- end }}
