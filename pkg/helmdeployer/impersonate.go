@@ -68,7 +68,7 @@ func impersonationConfig(namespace, name string) clientcmdapi.Config {
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
 			"user": {
 				TokenFile:   "/run/secrets/kubernetes.io/serviceaccount/token",
-				Impersonate: fmt.Sprintf("serviceaccount:%s:%s", namespace, name),
+				Impersonate: fmt.Sprintf("system:serviceaccount:%s:%s", namespace, name),
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
