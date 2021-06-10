@@ -7,7 +7,6 @@ spec:
   git:
     branch: master
     repo: https://github.com/StrongMonkey/gitjobs-example
-    provider: polling
   jobSpec:
     template:
       spec:
