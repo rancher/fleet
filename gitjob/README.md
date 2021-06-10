@@ -72,7 +72,6 @@ spec:
   git:
     branch: master
     repo: https://github.com/StrongMonkey/gitjob-example
-    provider: polling
   jobSpec:
     template:
       spec:
@@ -122,7 +121,6 @@ spec:
   git:
     branch: master
     repo: git@github.com:StrongMonkey/priv-repo.git
-    provider: polling
     gitSecretName: ssh-key-secret
     gitHostName: github.com
   jobSpec:
@@ -144,7 +142,7 @@ spec:
 
 ### Webhook
 
-gitjob can be configured to use webhook to receive git event. This currently supports Github. More providers will be added later.
+gitjob can be configured to use webhook to receive git event. This currently supports Github, GitLab, Bitbucket, Bitbucket Server and Gogs.
 
 1. Create a gitjob that is configured with webhook.
 
@@ -158,9 +156,6 @@ spec:
   git:
     branch: master
     repo: https://github.com/StrongMonkey/gitjob-example
-    provider: github
-    github:
-      token: randomtoken
   jobSpec:
     template:
       spec:
@@ -178,8 +173,6 @@ spec:
             workingDir: /workspace/source
 ```
 
-Note: you can configure a secret token so that webhook server will validate the request and filter requests that are only coming from Github.
-
 2. Create an ingress that allows traffic.
 
 ```yaml
@@ -193,7 +186,7 @@ spec:
   - host: your.domain.com
     http:
       paths:
-        - path: /hooks
+        - path: /
           pathType: Prefix
           backend:
             serviceName: gitjob
@@ -202,76 +195,11 @@ spec:
 
 Note: To configure a HTTPS receiver, make sure you have proper TLS configuration on your ingress
 
-3. Create a Github webhook that sends payload to `http://your.domain.com/hooks?gitjobId=default:example-webhook`.
+3. Create Your webhook that sends payload to `http://your.domain.com/`.
 
 ![webhook](/webhook.png)
 
 You can choose which event to send when creating the webhook. Gitjob currently supports push and pull-request event.
-
-#### Auto-Configuring github webhook
-
-GitJob will create webhook for you if you have proper setting created
-
-1. Create a configmap in kube-system namespace
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: github-setting
-  namespace: kube-system
-data:
-  WebhookURL: https://webhook.example.com  #This will be your webhook callback URL
-  SecretName: githubtoken
-```
-
-2. Create a secret that contains your github access token
-
-```bash
-kubectl create secret generic -n kube-system githubtoken --from-literal=token=$ACCESS_TOKEN
-```
-
-3. Create a gitjob CR and set provider to github
-
-```yaml
-apiVersion: gitjob.cattle.io/v1
-kind: GitJob
-metadata:
-  name: example-webhook
-  namespace: default
-spec:
-  git:
-    branch: master
-    repo: https://github.com/StrongMonkey/gitjob-example
-    provider: github
-  jobSpec:
-    ...
-```
-
-GitJob controller will automatically create webhook with callback URL `https://webhook.example.com?gitjobId=default:example-webhook` based on the global setting. At this time it doesn't delete webhook if CR is deleted from cluster, so make sure to clean up webhook if not used.
-
-4. Setup ingress and TLS to allow traffic to go into GitJob controller so that it can start receiving events.
-
-```yaml
-apiVersion: networking.k8s.io/v1beta1
-kind: Ingress
-metadata:
-  name: webhook-ingress
-  namespace: gitjob
-spec:
-  rules:
-  - host: webhook.example.com
-    http:
-      paths:
-        - pathType: Prefix
-          backend:
-            serviceName: gitjob
-            servicePort: 80
-  tls:
-    - hosts:
-        - webhook.example.com
-      secretName: testsecret-tls
-```
 
 ### API reference
 

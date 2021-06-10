@@ -8,9 +8,6 @@ spec:
   git:
     branch: master
     repo: https://github.com/StrongMonkey/gitjobs-example
-    provider: github
-    github:
-      token: randomtoken
   jobSpec:
     template:
       spec:
@@ -37,7 +34,7 @@ spec:
   - host: daishan.do.rancher.space
     http:
       paths:
-        - path: /hooks
+        - path: /
           pathType: Prefix
           backend:
             serviceName: gitjob
