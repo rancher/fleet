@@ -3,6 +3,7 @@ package deployer
 import (
 	"encoding/json"
 	"sort"
+	"strings"
 
 	"github.com/argoproj/argo-cd/pkg/apis/application/v1alpha1"
 	"github.com/argoproj/argo-cd/util/argo"
@@ -142,9 +143,14 @@ func (m *Manager) normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeploy
 
 func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) (apply.Apply, error) {
 	apply := m.apply
+	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
+	setID := name.SafeConcatName(m.labelPrefix, bd.Name)
+	if strings.HasPrefix(bd.Name, "fleet-agent") {
+		setID = "fleet-agent-bootstrap"
+	}
 	return apply.
 		WithIgnorePreviousApplied().
-		WithSetID(name.SafeConcatName(m.labelPrefix, bd.Name)).
+		WithSetID(setID).
 		WithDefaultNamespace(ns), nil
 }
 

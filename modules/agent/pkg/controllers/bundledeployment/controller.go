@@ -3,6 +3,7 @@ package bundledeployment
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -106,7 +107,7 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func shouldRedeploy(bd *fleet.BundleDeployment) bool {
-	if bd.Name == "fleet-agent" {
+	if strings.HasPrefix(bd.Name, "fleet-agent") {
 		return true
 	}
 	if bd.Spec.Options.ForceSyncGeneration <= 0 {
