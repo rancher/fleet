@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -163,7 +162,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 			return nil, err
 		}
 	} else {
-		log.Printf("Override targets is set, only appending restrictions")
+		//log.Printf("Override targets is set, only appending restrictions")
 		def, err = appendTargetRestrictions(def, opts.TargetsFile)
 		if err != nil {
 			return nil, err
