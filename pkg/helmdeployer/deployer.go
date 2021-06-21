@@ -318,7 +318,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 
 	if install {
 		u := action.NewInstall(&cfg)
-		u.ClientOnly = h.template
+		u.ClientOnly = h.template || dryRun
 		u.ForceAdopt = options.Helm.TakeOwnership
 		u.Replace = true
 		u.ReleaseName = releaseName
@@ -346,6 +346,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u.Namespace = namespace
 	u.Timeout = timeout
 	u.DryRun = dryRun
+	u.DisableOpenAPIValidation = h.template || dryRun
 	u.PostRenderer = pr
 	if u.Timeout > 0 {
 		u.Wait = true
