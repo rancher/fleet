@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/robfig/cron"
+
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -77,10 +79,60 @@ func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
+
+	if bd.Spec.Options.Schedule != "" && status.ScheduledAt == "" {
+		cronSched, err := cron.ParseStandard(bd.Spec.Options.Schedule)
+		if err != nil {
+			return status, err
+		}
+		scheduledRun := cronSched.Next(time.Now())
+		after := scheduledRun.Sub(time.Now())
+		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, after)
+		status.ScheduledAt = scheduledRun.Format(time.RFC3339)
+		status.Scheduled = true
+		condition.Cond(fleet.BundleScheduledCondition).SetStatusBool(&status, true)
+		condition.Cond(fleet.BundleDeploymentConditionDeployed).SetStatusBool(&status, false)
+		return status, nil
+	}
+
+	if bd.Spec.Options.Schedule != "" && status.ScheduledAt != "" {
+		nextRun, err := time.Parse(time.RFC3339, status.ScheduledAt)
+		if err != nil {
+			return status, err
+		}
+		window := fleet.DefaultWindow
+		if bd.Spec.Options.ScheduleWindow != "" {
+			window = bd.Spec.Options.ScheduleWindow
+		}
+
+		windowDuration, err := time.ParseDuration(window)
+		if err != nil {
+			return status, err
+		}
+
+		if err != nil {
+			return status, err
+		}
+		if nextRun.After(time.Now()) {
+			after := nextRun.Sub(time.Now())
+			h.bdController.EnqueueAfter(bd.Namespace, bd.Name, after)
+			return status, nil
+		}
+
+		// case of disconnected agent during the actual window //
+		if nextRun.Add(windowDuration).Before(time.Now()) {
+			// clean up scheduled at to allow object to fall through scheduling
+			status.ScheduledAt = ""
+			status.Scheduled = false
+			return status, nil
+		}
+	}
+
 	release, err := h.deployManager.Deploy(bd)
 	if err != nil {
 		return status, err
 	}
+	status.Scheduled = false
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
 	return status, nil
@@ -119,6 +171,11 @@ func shouldRedeploy(bd *fleet.BundleDeployment) bool {
 }
 
 func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
+
+	if status.Scheduled {
+		return status, nil
+	}
+
 	if bd.Spec.DeploymentID != status.AppliedDeploymentID {
 		return status, nil
 	}
@@ -166,6 +223,8 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 		if len(status.ModifiedStatus) > 0 {
 			msg = status.ModifiedStatus[0].String()
 		}
+	} else if status.Scheduled {
+		msg = "scheduled"
 	}
 
 	return errors.New(msg)

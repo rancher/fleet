@@ -47,6 +47,7 @@ require (
 	github.com/rancher/lasso v0.0.0-20210408231703-9ddd9378d08d
 	github.com/rancher/wrangler v0.8.1-0.20210521213200-39dd8bf93e9f
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
+	github.com/robfig/cron v1.1.0
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.1.1
 	go.mozilla.org/sops/v3 v3.6.1

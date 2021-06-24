@@ -252,6 +252,12 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              schedule:
+                nullable: true
+                type: string
+              scheduleWindow:
+                nullable: true
+                type: string
               serviceAccount:
                 nullable: true
                 type: string
@@ -516,6 +522,12 @@ spec:
                       nullable: true
                       type: string
                     namespace:
+                      nullable: true
+                      type: string
+                    schedule:
+                      nullable: true
+                      type: string
+                    scheduleWindow:
                       nullable: true
                       type: string
                     serviceAccount:
@@ -985,6 +997,12 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  schedule:
+                    nullable: true
+                    type: string
+                  scheduleWindow:
+                    nullable: true
+                    type: string
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1128,6 +1146,12 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  schedule:
+                    nullable: true
+                    type: string
+                  scheduleWindow:
+                    nullable: true
+                    type: string
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1251,6 +1275,11 @@ spec:
               ready:
                 type: boolean
               release:
+                nullable: true
+                type: string
+              scheduled:
+                type: boolean
+              scheduledAt:
                 nullable: true
                 type: string
               syncGeneration:
