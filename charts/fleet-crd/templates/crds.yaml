@@ -27,6 +27,15 @@ spec:
               defaultNamespace:
                 nullable: true
                 type: string
+              dependsOn:
+                items:
+                  properties:
+                    name:
+                      nullable: true
+                      type: string
+                  type: object
+                nullable: true
+                type: array
               diff:
                 nullable: true
                 properties:
@@ -856,6 +865,15 @@ spec:
         properties:
           spec:
             properties:
+              dependsOn:
+                items:
+                  properties:
+                    name:
+                      nullable: true
+                      type: string
+                  type: object
+                nullable: true
+                type: array
               deploymentID:
                 nullable: true
                 type: string
@@ -1718,6 +1736,8 @@ spec:
                 type: integer
               agentMigrated:
                 type: boolean
+              cattleNamespaceMigrated:
+                type: boolean
               conditions:
                 items:
                   properties:
@@ -1978,6 +1998,21 @@ spec:
               helmSecretName:
                 nullable: true
                 type: string
+              imageScanCommit:
+                properties:
+                  authorEmail:
+                    nullable: true
+                    type: string
+                  authorName:
+                    nullable: true
+                    type: string
+                  messageTemplate:
+                    nullable: true
+                    type: string
+                type: object
+              imageScanInterval:
+                nullable: true
+                type: string
               insecureSkipTLSVerify:
                 type: boolean
               paths:
@@ -2121,6 +2156,9 @@ spec:
                     type: string
                 type: object
               gitJobStatus:
+                nullable: true
+                type: string
+              lastSyncedImageScanTime:
                 nullable: true
                 type: string
               observedGeneration:
@@ -2447,3 +2485,121 @@ spec:
         type: object
     served: true
     storage: true
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: imagescans.fleet.cattle.io
+spec:
+  group: fleet.cattle.io
+  names:
+    categories:
+    - fleet
+    kind: ImageScan
+    plural: imagescans
+    singular: imagescan
+  preserveUnknownFields: false
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.image
+      name: Repository
+      type: string
+    - jsonPath: .status.latestTag
+      name: Latest
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              gitrepoName:
+                nullable: true
+                type: string
+              image:
+                nullable: true
+                type: string
+              interval:
+                nullable: true
+                type: string
+              policy:
+                properties:
+                  alphabetical:
+                    nullable: true
+                    properties:
+                      order:
+                        nullable: true
+                        type: string
+                    type: object
+                  semver:
+                    nullable: true
+                    properties:
+                      range:
+                        nullable: true
+                        type: string
+                    type: object
+                type: object
+              secretRef:
+                nullable: true
+                properties:
+                  name:
+                    nullable: true
+                    type: string
+                type: object
+              suspend:
+                type: boolean
+              tagName:
+                nullable: true
+                type: string
+            type: object
+          status:
+            properties:
+              canonicalImageName:
+                nullable: true
+                type: string
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      nullable: true
+                      type: string
+                    lastUpdateTime:
+                      nullable: true
+                      type: string
+                    message:
+                      nullable: true
+                      type: string
+                    reason:
+                      nullable: true
+                      type: string
+                    status:
+                      nullable: true
+                      type: string
+                    type:
+                      nullable: true
+                      type: string
+                  type: object
+                nullable: true
+                type: array
+              lastScanTime:
+                nullable: true
+                type: string
+              latestDigest:
+                nullable: true
+                type: string
+              latestImage:
+                nullable: true
+                type: string
+              latestTag:
+                nullable: true
+                type: string
+              observedGeneration:
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

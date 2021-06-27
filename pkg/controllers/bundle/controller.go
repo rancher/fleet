@@ -28,6 +28,7 @@ const (
 type handler struct {
 	targets *target.Manager
 	gitRepo fleetcontrollers.GitRepoCache
+	images  fleetcontrollers.ImageScanController
 	bundles fleetcontrollers.BundleController
 	mapper  meta.RESTMapper
 }
@@ -38,6 +39,7 @@ func Register(ctx context.Context,
 	targets *target.Manager,
 	bundles fleetcontrollers.BundleController,
 	clusters fleetcontrollers.ClusterController,
+	images fleetcontrollers.ImageScanController,
 	gitRepo fleetcontrollers.GitRepoCache,
 	bundleDeployments fleetcontrollers.BundleDeploymentController,
 ) {
@@ -45,6 +47,7 @@ func Register(ctx context.Context,
 		mapper:  mapper,
 		targets: targets,
 		bundles: bundles,
+		images:  images,
 		gitRepo: gitRepo,
 	}
 
@@ -61,6 +64,7 @@ func Register(ctx context.Context,
 	relatedresource.Watch(ctx, "app", h.resolveApp, bundles, bundleDeployments)
 	clusters.OnChange(ctx, "app", h.OnClusterChange)
 	bundles.OnChange(ctx, "bundle-orphan", h.OnPurgeOrphaned)
+	images.OnChange(ctx, "imagescan-orphan", h.OnPurgeOrphanedImageScan)
 }
 
 func (h *handler) resolveApp(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
@@ -115,6 +119,23 @@ func (h *handler) OnPurgeOrphaned(key string, bundle *fleet.Bundle) (*fleet.Bund
 	return bundle, nil
 }
 
+func (h *handler) OnPurgeOrphanedImageScan(key string, image *fleet.ImageScan) (*fleet.ImageScan, error) {
+	if image == nil || image.DeletionTimestamp != nil {
+		return image, nil
+	}
+
+	repo := image.Spec.GitRepoName
+
+	_, err := h.gitRepo.Get(image.Namespace, repo)
+	if apierrors.IsNotFound(err) {
+		return nil, h.images.Delete(image.Namespace, image.Name, nil)
+	} else if err != nil {
+		return nil, err
+	}
+
+	return image, nil
+}
+
 func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus) ([]runtime.Object, fleet.BundleStatus, error) {
 	targets, err := h.targets.Targets(bundle)
 	if err != nil {
@@ -131,7 +152,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
-	return toRuntimeObjects(targets), status, nil
+	return toRuntimeObjects(targets, bundle), status, nil
 }
 
 func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
@@ -206,20 +227,21 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 	return nil
 }
 
-func toRuntimeObjects(targets []*target.Target) (result []runtime.Object) {
+func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
 	for _, target := range targets {
 		if target.Deployment == nil {
 			continue
 		}
-
-		result = append(result, &fleet.BundleDeployment{
+		dp := &fleet.BundleDeployment{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      target.Deployment.Name,
 				Namespace: target.Deployment.Namespace,
 				Labels:    target.Deployment.Labels,
 			},
 			Spec: target.Deployment.Spec,
-		})
+		}
+		dp.Spec.DependsOn = bundle.Spec.DependsOn
+		result = append(result, dp)
 	}
 
 	return

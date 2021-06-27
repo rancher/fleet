@@ -4,6 +4,7 @@ go 1.16
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
+	github.com/rancher/fleet/pkg/bundle => ./pkg/bundle
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.3.3-fleet1
 	k8s.io/api => k8s.io/api v0.20.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.2 // indirect
@@ -32,10 +33,14 @@ replace (
 )
 
 require (
+	github.com/Masterminds/semver/v3 v3.1.0
 	github.com/argoproj/argo-cd v0.8.1-0.20210219223612-6e6cd1a1eff1
 	github.com/argoproj/gitops-engine v0.2.1-0.20210218233004-354817a103ee
 	github.com/cheggaaa/pb v1.0.27
 	github.com/evanphx/json-patch v4.9.0+incompatible
+	github.com/go-git/go-git/v5 v5.2.0
+	github.com/go-openapi/spec v0.19.5
+	github.com/google/go-containerregistry v0.1.1
 	github.com/hashicorp/go-getter v1.4.1
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
