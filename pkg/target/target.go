@@ -149,21 +149,7 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bun
 			result = append(result, app)
 		}
 	}
-
-	// apply cluster level schedule to all bundles
-	// this will override any bundle level schedule
-	schedule, ok := cluster.Labels["schedule"]
-	if ok {
-		window, ok := cluster.Labels["scheduleWindow"]
-		if !ok {
-			window = fleet.DefaultWindow
-		}
-
-		for _, b := range result {
-			b.Spec.Schedule = schedule
-			b.Spec.ScheduleWindow = window
-		}
-	}
+	
 	return
 }
 
