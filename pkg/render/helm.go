@@ -32,5 +32,12 @@ func ToChart(name string, m *manifest.Manifest, options fleet.BundleDeploymentOp
 		return nil, err
 	}
 
-	return m.ToTarGZ()
+	decrypt := false
+	if options.Decrypt == nil || *options.Decrypt {
+		decrypt = true
+	} else {
+		decrypt = false
+	}
+
+	return m.ToTarGZ(decrypt)
 }

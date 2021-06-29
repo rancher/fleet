@@ -109,6 +109,9 @@ func (h *handler) getAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 		Spec: fleet.BundleSpec{
 			BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 				DefaultNamespace: h.systemNamespace,
+				// https://stackoverflow.com/a/28818489 - create reference to bool
+				// Decrypt: true,
+				Decrypt: &[]bool{true}[0],
 				Helm: &fleet.HelmOptions{
 					TakeOwnership: true,
 				},
