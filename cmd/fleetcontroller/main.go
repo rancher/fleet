@@ -11,6 +11,9 @@ import (
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/networking.k8s.io"
 	"github.com/spf13/cobra"
+
+	// Add non-default auth providers
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 var (

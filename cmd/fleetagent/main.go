@@ -12,6 +12,9 @@ import (
 	"github.com/rancher/fleet/pkg/version"
 	command "github.com/rancher/wrangler-cli"
 	"github.com/spf13/cobra"
+
+	// Add non-default auth providers
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 var (
