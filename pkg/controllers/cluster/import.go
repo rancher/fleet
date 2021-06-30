@@ -167,7 +167,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		apiServerCA = cfg.APIServerCA
 	}
 
-	restConfig, err := i.restConfigFromKubeConfig(secret.Data["value"])
+	restConfig, err := i.restConfigFromKubeConfig(cluster.Name, secret.Data["value"])
 	if err != nil {
 		return status, err
 	}
@@ -248,7 +248,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 }
 
 // restConfigFromKubeConfig checks kubeconfig data and tries to connect to server. If server is behind public CA, remove CertificateAuthorityData in kubeconfig file.
-func (i *importHandler) restConfigFromKubeConfig(data []byte) (*rest.Config, error) {
+func (i *importHandler) restConfigFromKubeConfig(clusterName string, data []byte) (*rest.Config, error) {
 	clientConfig, err := clientcmd.NewClientConfigFromBytes(data)
 	if err != nil {
 		return nil, err
@@ -259,7 +259,15 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte) (*rest.Config, err
 		return nil, err
 	}
 
-	if raw.Contexts[raw.CurrentContext] != nil {
+	if raw.Contexts[clusterName] != nil {
+		cluster := raw.Contexts[clusterName].Cluster
+		if raw.Clusters[cluster] != nil {
+			_, err := http.Get(raw.Clusters[cluster].Server)
+			if err == nil {
+				raw.Clusters[cluster].CertificateAuthorityData = nil
+			}
+		}
+	} else if raw.Contexts[raw.CurrentContext] != nil {
 		cluster := raw.Contexts[raw.CurrentContext].Cluster
 		if raw.Clusters[cluster] != nil {
 			_, err := http.Get(raw.Clusters[cluster].Server)
@@ -269,5 +277,5 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte) (*rest.Config, err
 		}
 	}
 
-	return clientcmd.NewDefaultClientConfig(raw, &clientcmd.ConfigOverrides{}).ClientConfig()
+	return clientcmd.NewDefaultClientConfig(raw, &clientcmd.ConfigOverrides{CurrentContext: clusterName}).ClientConfig()
 }
