@@ -129,6 +129,8 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 			status.Scheduled = false
 			return status, nil
 		}
+	}
+
 	dependOn, ok, err := h.checkDependency(bd)
 	if err != nil {
 		return status, err

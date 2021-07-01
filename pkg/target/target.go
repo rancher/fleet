@@ -149,7 +149,7 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bun
 			result = append(result, app)
 		}
 	}
-	
+
 	return
 }
 

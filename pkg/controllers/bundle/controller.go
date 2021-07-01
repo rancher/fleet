@@ -3,6 +3,7 @@ package bundle
 import (
 	"context"
 	"sort"
+	"strings"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -232,6 +233,7 @@ func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []
 		if target.Deployment == nil {
 			continue
 		}
+
 		dp := &fleet.BundleDeployment{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      target.Deployment.Name,
@@ -241,6 +243,19 @@ func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []
 			Spec: target.Deployment.Spec,
 		}
 		dp.Spec.DependsOn = bundle.Spec.DependsOn
+
+		// apply cluster level schedule if bundle doesnt have one
+		// of its own. Skip fleet-agent
+		if !strings.HasPrefix(bundle.Name, "fleet-agent") {
+			if target.Cluster.Spec.Schedule != "" && dp.Spec.Options.Schedule == "" {
+				dp.Spec.Options.Schedule = target.Cluster.Spec.Schedule
+			}
+
+			if target.Cluster.Spec.ScheduleWindow != "" && dp.Spec.Options.ScheduleWindow == "" {
+				dp.Spec.Options.ScheduleWindow = target.Cluster.Spec.ScheduleWindow
+			}
+		}
+
 		result = append(result, dp)
 	}
 
