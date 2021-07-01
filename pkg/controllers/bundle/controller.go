@@ -152,7 +152,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
-	return toRuntimeObjects(targets), status, nil
+	return toRuntimeObjects(targets, bundle), status, nil
 }
 
 func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
@@ -227,20 +227,21 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 	return nil
 }
 
-func toRuntimeObjects(targets []*target.Target) (result []runtime.Object) {
+func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
 	for _, target := range targets {
 		if target.Deployment == nil {
 			continue
 		}
-
-		result = append(result, &fleet.BundleDeployment{
+		dp := &fleet.BundleDeployment{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      target.Deployment.Name,
 				Namespace: target.Deployment.Namespace,
 				Labels:    target.Deployment.Labels,
 			},
 			Spec: target.Deployment.Spec,
-		})
+		}
+		dp.Spec.DependsOn = bundle.Spec.DependsOn
+		result = append(result, dp)
 	}
 
 	return

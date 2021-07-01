@@ -3,6 +3,8 @@ package bundledeployment
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -126,6 +129,13 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 			status.Scheduled = false
 			return status, nil
 		}
+	dependOn, ok, err := h.checkDependency(bd)
+	if err != nil {
+		return status, err
+	}
+
+	if !ok {
+		return status, fmt.Errorf("bundle %s has dependent bundle %s that is not ready", bd.Name, dependOn)
 	}
 
 	release, err := h.deployManager.Deploy(bd)
@@ -136,6 +146,35 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
 	return status, nil
+}
+
+func (h *handler) checkDependency(bd *fleet.BundleDeployment) (string, bool, error) {
+	bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
+	for _, depend := range bd.Spec.DependsOn {
+		ls := &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"fleet.cattle.io/bundle-name":      depend.Name,
+				"fleet.cattle.io/bundle-namespace": bundleNamespace,
+			},
+		}
+		selector, err := metav1.LabelSelectorAsSelector(ls)
+		if err != nil {
+			return "", false, err
+		}
+		bds, err := h.bdController.Cache().List(bd.Namespace, selector)
+		if err != nil {
+			return "", false, err
+		}
+		for _, bd := range bds {
+			c := condition.Cond("Ready")
+			if c.IsTrue(bd) {
+				continue
+			} else {
+				return fmt.Sprintf("%s/%s", bundleNamespace, depend.Name), false, nil
+			}
+		}
+	}
+	return "", true, nil
 }
 
 func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
@@ -158,7 +197,7 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func shouldRedeploy(bd *fleet.BundleDeployment) bool {
-	if bd.Name == "fleet-agent" {
+	if strings.HasPrefix(bd.Name, "fleet-agent") {
 		return true
 	}
 	if bd.Spec.Options.ForceSyncGeneration <= 0 {

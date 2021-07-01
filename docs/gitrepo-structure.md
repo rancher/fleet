@@ -75,7 +75,18 @@ helm:
   # Path to any values files that need to be passed to helm during install
   valuesFiles:
     - values1.yaml
-    - values2.yaml  
+    - values2.yaml
+  # Allow to use values files from configmaps or secrets
+  valuesFrom:
+  - configMapKeyRef:
+      name: configmap-values
+      # default to namespace of bundle
+      namespace: default 
+      key: values.yaml
+    secretKeyRef:
+      name: secret-values
+      namespace: default
+      key: values.yaml
   # Override immutable resources. This could be dangerous.
   force: false
 

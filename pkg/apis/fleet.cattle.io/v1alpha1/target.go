@@ -80,6 +80,7 @@ type ClusterStatus struct {
 
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
 	AgentMigrated           bool   `json:"agentMigrated,omitempty"`
+	CattleNamespaceMigrated bool   `json:"cattleNamespaceMigrated,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`

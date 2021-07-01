@@ -117,7 +117,12 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 	}
 	objs = append(objs, yamlObjs...)
 
-	labels, annotations, err := apply.GetLabelsAndAnnotations(name.SafeConcatName(p.labelPrefix, p.bundleID), nil)
+	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
+	setID := name.SafeConcatName(p.labelPrefix, p.bundleID)
+	if strings.HasPrefix(p.bundleID, "fleet-agent") {
+		setID = "fleet-agent-bootstrap"
+	}
+	labels, annotations, err := apply.GetLabelsAndAnnotations(setID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -318,7 +323,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 
 	if install {
 		u := action.NewInstall(&cfg)
-		u.ClientOnly = h.template
+		u.ClientOnly = h.template || dryRun
 		u.ForceAdopt = options.Helm.TakeOwnership
 		u.Replace = true
 		u.ReleaseName = releaseName
@@ -346,6 +351,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u.Namespace = namespace
 	u.Timeout = timeout
 	u.DryRun = dryRun
+	u.DisableOpenAPIValidation = h.template || dryRun
 	u.PostRenderer = pr
 	if u.Timeout > 0 {
 		u.Wait = true
