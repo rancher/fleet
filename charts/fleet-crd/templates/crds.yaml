@@ -255,9 +255,6 @@ spec:
               schedule:
                 nullable: true
                 type: string
-              scheduleWindow:
-                nullable: true
-                type: string
               serviceAccount:
                 nullable: true
                 type: string
@@ -527,10 +524,10 @@ spec:
                     schedule:
                       nullable: true
                       type: string
-                    scheduleWindow:
+                    serviceAccount:
                       nullable: true
                       type: string
-                    serviceAccount:
+                    window:
                       nullable: true
                       type: string
                     yaml:
@@ -546,6 +543,9 @@ spec:
                   type: object
                 nullable: true
                 type: array
+              window:
+                nullable: true
+                type: string
               yaml:
                 nullable: true
                 properties:
@@ -1000,10 +1000,10 @@ spec:
                   schedule:
                     nullable: true
                     type: string
-                  scheduleWindow:
+                  serviceAccount:
                     nullable: true
                     type: string
-                  serviceAccount:
+                  window:
                     nullable: true
                     type: string
                   yaml:
@@ -1149,10 +1149,10 @@ spec:
                   schedule:
                     nullable: true
                     type: string
-                  scheduleWindow:
+                  serviceAccount:
                     nullable: true
                     type: string
-                  serviceAccount:
+                  window:
                     nullable: true
                     type: string
                   yaml:
