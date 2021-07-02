@@ -264,6 +264,9 @@ spec:
               schedule:
                 nullable: true
                 type: string
+              scheduleWindow:
+                nullable: true
+                type: string
               serviceAccount:
                 nullable: true
                 type: string
@@ -533,10 +536,10 @@ spec:
                     schedule:
                       nullable: true
                       type: string
-                    serviceAccount:
+                    scheduleWindow:
                       nullable: true
                       type: string
-                    window:
+                    serviceAccount:
                       nullable: true
                       type: string
                     yaml:
@@ -552,9 +555,6 @@ spec:
                   type: object
                 nullable: true
                 type: array
-              window:
-                nullable: true
-                type: string
               yaml:
                 nullable: true
                 properties:
@@ -1018,10 +1018,10 @@ spec:
                   schedule:
                     nullable: true
                     type: string
-                  serviceAccount:
+                  scheduleWindow:
                     nullable: true
                     type: string
-                  window:
+                  serviceAccount:
                     nullable: true
                     type: string
                   yaml:
@@ -1167,10 +1167,10 @@ spec:
                   schedule:
                     nullable: true
                     type: string
-                  serviceAccount:
+                  scheduleWindow:
                     nullable: true
                     type: string
-                  window:
+                  serviceAccount:
                     nullable: true
                     type: string
                   yaml:
@@ -1732,6 +1732,12 @@ spec:
                 type: boolean
               redeployAgentGeneration:
                 type: integer
+              schedule:
+                nullable: true
+                type: string
+              scheduleWindow:
+                nullable: true
+                type: string
             type: object
           status:
             properties:
