@@ -244,14 +244,14 @@ func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []
 		}
 		dp.Spec.DependsOn = bundle.Spec.DependsOn
 
-		// apply cluster level schedule if bundle doesnt have one
-		// of its own. Skip fleet-agent
+		// Cluster level schedule and window takes priority over bundle specific schedule and window
+		// Ensure cluster schedule is always applied to all bundles
 		if !strings.HasPrefix(bundle.Name, "fleet-agent") {
-			if target.Cluster.Spec.Schedule != "" && dp.Spec.Options.Schedule == "" {
+			if target.Cluster.Spec.Schedule != "" {
 				dp.Spec.Options.Schedule = target.Cluster.Spec.Schedule
 			}
 
-			if target.Cluster.Spec.ScheduleWindow != "" && dp.Spec.Options.ScheduleWindow == "" {
+			if target.Cluster.Spec.ScheduleWindow != "" {
 				dp.Spec.Options.ScheduleWindow = target.Cluster.Spec.ScheduleWindow
 			}
 		}
