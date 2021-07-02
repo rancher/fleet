@@ -27,7 +27,7 @@ type FleetAgent struct {
 
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6061", nil))
+		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
 	var (
