@@ -4,6 +4,7 @@ go 1.16
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
+	github.com/rancher/fleet/pkg/bundle => ./pkg/bundle
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.3.3-fleet1
 	k8s.io/api => k8s.io/api v0.20.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.2 // indirect
@@ -47,11 +48,11 @@ require (
 	github.com/rancher/lasso v0.0.0-20210408231703-9ddd9378d08d
 	github.com/rancher/wrangler v0.8.1-0.20210521213200-39dd8bf93e9f
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
-	github.com/sirupsen/logrus v1.6.0
+	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/cobra v1.1.1
+	github.com/variantdev/vals v0.14.0
 	go.mozilla.org/sops/v3 v3.6.1
-	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
-	golang.org/x/tools v0.0.0-20200916195026-c9a70fc28ce3 // indirect
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	helm.sh/helm/v3 v3.5.1
 	k8s.io/api v0.20.2
 	k8s.io/apimachinery v0.20.2
