@@ -266,8 +266,12 @@ func (i *importHandler) restConfigFromKubeConfig(clusterName string, data []byte
 			if err == nil {
 				raw.Clusters[cluster].CertificateAuthorityData = nil
 			}
+
+			return clientcmd.NewDefaultClientConfig(raw, &clientcmd.ConfigOverrides{CurrentContext: clusterName}).ClientConfig()
 		}
-	} else if raw.Contexts[raw.CurrentContext] != nil {
+	}
+
+	if raw.Contexts[raw.CurrentContext] != nil {
 		cluster := raw.Contexts[raw.CurrentContext].Cluster
 		if raw.Clusters[cluster] != nil {
 			_, err := http.Get(raw.Clusters[cluster].Server)
@@ -277,5 +281,5 @@ func (i *importHandler) restConfigFromKubeConfig(clusterName string, data []byte
 		}
 	}
 
-	return clientcmd.NewDefaultClientConfig(raw, &clientcmd.ConfigOverrides{CurrentContext: clusterName}).ClientConfig()
+	return clientcmd.NewDefaultClientConfig(raw, &clientcmd.ConfigOverrides{}).ClientConfig()
 }
