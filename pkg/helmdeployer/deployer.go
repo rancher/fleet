@@ -26,6 +26,7 @@ import (
 	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
@@ -38,7 +39,19 @@ const (
 	DefaultServiceAccount        = "fleet-default"
 )
 
-var ErrNoRelease = errors.New("failed to find release")
+var (
+	ErrNoRelease = errors.New("failed to find release")
+	DefaultKey   = "values.yaml"
+)
+
+type postRender struct {
+	labelPrefix string
+	bundleID    string
+	manifest    *manifest.Manifest
+	chart       *chart.Chart
+	mapper      meta.RESTMapper
+	opts        fleet.BundleDeploymentOptions
+}
 
 type helm struct {
 	agentNamespace      string
@@ -69,26 +82,6 @@ func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclio
 	}
 	h.globalCfg.Releases.MaxHistory = 5
 	return h, nil
-}
-
-func mergeMaps(base, other map[string]string) map[string]string {
-	result := map[string]string{}
-	for k, v := range base {
-		result[k] = v
-	}
-	for k, v := range other {
-		result[k] = v
-	}
-	return result
-}
-
-type postRender struct {
-	labelPrefix string
-	bundleID    string
-	manifest    *manifest.Manifest
-	chart       *chart.Chart
-	mapper      meta.RESTMapper
-	opts        fleet.BundleDeploymentOptions
 }
 
 func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *bytes.Buffer, err error) {
@@ -274,14 +267,14 @@ func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 }
 
 func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
-	timeout, namespace, releaseName := h.getOpts(bundleID, options)
+	timeout, defaultNamespae, releaseName := h.getOpts(bundleID, options)
 
-	vals, err := h.getValues(options, namespace)
+	values, err := h.getValues(options, defaultNamespae)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := h.getCfg(namespace, options.ServiceAccount)
+	cfg, err := h.getCfg(defaultNamespae, options.ServiceAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +321,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		u.Replace = true
 		u.ReleaseName = releaseName
 		u.CreateNamespace = true
-		u.Namespace = namespace
+		u.Namespace = defaultNamespae
 		u.Timeout = timeout
 		u.DryRun = dryRun
 		u.PostRenderer = pr
@@ -338,7 +331,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		if !dryRun {
 			logrus.Infof("Helm: Installing %s", bundleID)
 		}
-		return u.Run(chart, vals)
+		return u.Run(chart, values)
 	}
 
 	u := action.NewUpgrade(&cfg)
@@ -348,7 +341,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	if u.MaxHistory == 0 {
 		u.MaxHistory = 10
 	}
-	u.Namespace = namespace
+	u.Namespace = defaultNamespae
 	u.Timeout = timeout
 	u.DryRun = dryRun
 	u.DisableOpenAPIValidation = h.template || dryRun
@@ -359,7 +352,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	if !dryRun {
 		logrus.Infof("Helm: Upgrading %s", bundleID)
 	}
-	return u.Run(releaseName, chart, vals)
+	return u.Run(releaseName, chart, values)
 }
 
 func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
@@ -372,12 +365,8 @@ func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 		values = options.Helm.Values.Data
 	}
 
-	if h.secretCache == nil || h.configmapCache == nil {
-		return values, nil
-	}
-
 	for _, valuesFrom := range options.Helm.ValuesFrom {
-		var val map[string]interface{}
+		var tempValues map[string]interface{}
 		if valuesFrom.SecretKeyRef != nil {
 			name := valuesFrom.SecretKeyRef.Name
 			namespace := valuesFrom.SecretKeyRef.Namespace
@@ -386,17 +375,14 @@ func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 			}
 			key := valuesFrom.SecretKeyRef.Key
 			if key == "" {
-				key = "values.yaml"
+				key = DefaultKey
 			}
 			secret, err := h.secretCache.Get(namespace, name)
 			if err != nil {
 				return nil, err
 			}
-			data, ok := secret.Data[key]
-			if !ok {
-				return nil, fmt.Errorf("key %s is missing from secret %s/%s, can't use it in valuesFrom", key, namespace, name)
-			}
-			if err := yaml.Unmarshal(data, &val); err != nil {
+			tempValues, err = processValuesFromObject(name, namespace, key, secret, nil)
+			if err != nil {
 				return nil, err
 			}
 		} else if valuesFrom.ConfigMapKeyRef != nil {
@@ -407,55 +393,22 @@ func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 			}
 			key := valuesFrom.ConfigMapKeyRef.Key
 			if key == "" {
-				key = "values.yaml"
+				key = DefaultKey
 			}
-			configmap, err := h.configmapCache.Get(namespace, name)
+			configMap, err := h.configmapCache.Get(namespace, name)
 			if err != nil {
 				return nil, err
 			}
-			data, ok := configmap.Data[key]
-			if !ok {
-				return nil, fmt.Errorf("key %s is missing from configmap %s/%s, can't use it in valuesFrom", key, namespace, name)
-			}
-			if err := yaml.Unmarshal([]byte(data), &val); err != nil {
+			tempValues, err = processValuesFromObject(name, namespace, key, nil, configMap)
+			if err != nil {
 				return nil, err
 			}
 		}
-
-		if val != nil {
-			values = mergeValues(values, val)
+		if tempValues != nil {
+			values = mergeValues(values, tempValues)
 		}
 	}
 	return values, nil
-}
-
-// mergeValues merges source and destination map, preferring values
-// from the source values. This is slightly adapted from:
-// https://github.com/helm/helm/blob/2332b480c9cb70a0d8a85247992d6155fbe82416/cmd/helm/install.go#L359
-func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
-	for k, v := range src {
-		// If the key doesn't exist already, then just set the key to that value
-		if _, exists := dest[k]; !exists {
-			dest[k] = v
-			continue
-		}
-		nextMap, ok := v.(map[string]interface{})
-		// If it isn't another map, overwrite the value
-		if !ok {
-			dest[k] = v
-			continue
-		}
-		// Edge case: If the key exists in the destination, but isn't a map
-		destMap, isMap := dest[k].(map[string]interface{})
-		// If the source map has a map for this key, prefer it
-		if !isMap {
-			dest[k] = v
-			continue
-		}
-		// If we got to this point, it is a map in both, so merge them
-		dest[k] = mergeValues(destMap, nextMap)
-	}
-	return dest
 }
 
 func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
@@ -655,6 +608,68 @@ func deleteHistory(cfg action.Configuration, bundleID string) error {
 		}
 	}
 	return nil
+}
+
+func processValuesFromObject(name, namespace, key string, secret *corev1.Secret, configMap *corev1.ConfigMap) (map[string]interface{}, error) {
+	var m map[string]interface{}
+	if secret != nil {
+		values, ok := secret.Data[key]
+		if !ok {
+			return nil, fmt.Errorf("key %s is missing from secret %s/%s, can't use it in valuesFrom", key, namespace, name)
+		}
+		if err := yaml.Unmarshal(values, &m); err != nil {
+			return nil, err
+		}
+	} else if configMap != nil {
+		values, ok := configMap.Data[key]
+		if !ok {
+			return nil, fmt.Errorf("key %s is missing from configmap %s/%s, can't use it in valuesFrom", key, namespace, name)
+		}
+		if err := yaml.Unmarshal([]byte(values), &m); err != nil {
+			return nil, err
+		}
+	}
+	return m, nil
+}
+
+func mergeMaps(base, other map[string]string) map[string]string {
+	result := map[string]string{}
+	for k, v := range base {
+		result[k] = v
+	}
+	for k, v := range other {
+		result[k] = v
+	}
+	return result
+}
+
+// mergeValues merges source and destination map, preferring values
+// from the source values. This is slightly adapted from:
+// https://github.com/helm/helm/blob/2332b480c9cb70a0d8a85247992d6155fbe82416/cmd/helm/install.go#L359
+func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
+	for k, v := range src {
+		// If the key doesn't exist already, then just set the key to that value
+		if _, exists := dest[k]; !exists {
+			dest[k] = v
+			continue
+		}
+		nextMap, ok := v.(map[string]interface{})
+		// If it isn't another map, overwrite the value
+		if !ok {
+			dest[k] = v
+			continue
+		}
+		// Edge case: If the key exists in the destination, but isn't a map
+		destMap, isMap := dest[k].(map[string]interface{})
+		// If the source map has a map for this key, prefer it
+		if !isMap {
+			dest[k] = v
+			continue
+		}
+		// If we got to this point, it is a map in both, so merge them
+		dest[k] = mergeValues(destMap, nextMap)
+	}
+	return dest
 }
 
 func releaseToResources(release *release.Release) (*deployer.Resources, error) {
