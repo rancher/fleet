@@ -184,6 +184,26 @@ targetCustomizations:
     
     After secret is created, specify the secret to `gitRepo.spec.helmSecretName`. Make sure secret is created under the same namespace with gitrepo.
 
+### Using ValuesFrom
+
+The examples below include filler `values` data for a generic Helm chart.
+These examples showcase the style and format for using `valuesFrom`.
+
+Recommended `ConfigMap` contents for the `data` field:
+
+```yaml
+values.yaml: |-
+  replication: true
+  replicas: 2
+  serviceType: NodePort
+```
+
+Recommended `Secret` contents for the `data` field (to be converted into bytes):
+
+```yaml
+replication: true\nreplicas: 2\nserviceType: NodePort
+```
+
 ## Per Cluster Customization
 
 The `GitRepo` defines which clusters a git repository should be deployed to and the `fleet.yaml` in the repository
