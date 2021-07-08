@@ -34,6 +34,12 @@ For this guide, we will use [k3d](https://github.com/rancher/k3d).
 k3d cluster create <NAME>
 ```
 
+If you have changed Go code, you may need to generate.
+
+```sh
+go generate
+```
+
 Now, we will build and push our `fleet-agent`, install our Fleet charts, and then replace the controller deployment with our local controller build.
 
 ```sh
