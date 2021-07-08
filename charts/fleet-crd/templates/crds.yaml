@@ -111,38 +111,6 @@ spec:
                       type: string
                     nullable: true
                     type: array
-                  valuesFrom:
-                    items:
-                      properties:
-                        configMapKeyRef:
-                          nullable: true
-                          properties:
-                            key:
-                              nullable: true
-                              type: string
-                            name:
-                              nullable: true
-                              type: string
-                            namespace:
-                              nullable: true
-                              type: string
-                          type: object
-                        secretKeyRef:
-                          nullable: true
-                          properties:
-                            key:
-                              nullable: true
-                              type: string
-                            name:
-                              nullable: true
-                              type: string
-                            namespace:
-                              nullable: true
-                              type: string
-                          type: object
-                      type: object
-                    nullable: true
-                    type: array
                   version:
                     nullable: true
                     type: string
@@ -476,38 +444,6 @@ spec:
                           items:
                             nullable: true
                             type: string
-                          nullable: true
-                          type: array
-                        valuesFrom:
-                          items:
-                            properties:
-                              configMapKeyRef:
-                                nullable: true
-                                properties:
-                                  key:
-                                    nullable: true
-                                    type: string
-                                  name:
-                                    nullable: true
-                                    type: string
-                                  namespace:
-                                    nullable: true
-                                    type: string
-                                type: object
-                              secretKeyRef:
-                                nullable: true
-                                properties:
-                                  key:
-                                    nullable: true
-                                    type: string
-                                  name:
-                                    nullable: true
-                                    type: string
-                                  namespace:
-                                    nullable: true
-                                    type: string
-                                type: object
-                            type: object
                           nullable: true
                           type: array
                         version:
@@ -957,38 +893,6 @@ spec:
                           type: string
                         nullable: true
                         type: array
-                      valuesFrom:
-                        items:
-                          properties:
-                            configMapKeyRef:
-                              nullable: true
-                              properties:
-                                key:
-                                  nullable: true
-                                  type: string
-                                name:
-                                  nullable: true
-                                  type: string
-                                namespace:
-                                  nullable: true
-                                  type: string
-                              type: object
-                            secretKeyRef:
-                              nullable: true
-                              properties:
-                                key:
-                                  nullable: true
-                                  type: string
-                                name:
-                                  nullable: true
-                                  type: string
-                                namespace:
-                                  nullable: true
-                                  type: string
-                              type: object
-                          type: object
-                        nullable: true
-                        type: array
                       version:
                         nullable: true
                         type: string
@@ -1098,38 +1002,6 @@ spec:
                         items:
                           nullable: true
                           type: string
-                        nullable: true
-                        type: array
-                      valuesFrom:
-                        items:
-                          properties:
-                            configMapKeyRef:
-                              nullable: true
-                              properties:
-                                key:
-                                  nullable: true
-                                  type: string
-                                name:
-                                  nullable: true
-                                  type: string
-                                namespace:
-                                  nullable: true
-                                  type: string
-                              type: object
-                            secretKeyRef:
-                              nullable: true
-                              properties:
-                                key:
-                                  nullable: true
-                                  type: string
-                                name:
-                                  nullable: true
-                                  type: string
-                                namespace:
-                                  nullable: true
-                                  type: string
-                              type: object
-                          type: object
                         nullable: true
                         type: array
                       version:
