@@ -110,12 +110,7 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 	}
 	objs = append(objs, yamlObjs...)
 
-	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
-	setID := name.SafeConcatName(p.labelPrefix, p.bundleID)
-	if strings.HasPrefix(p.bundleID, "fleet-agent") {
-		setID = "fleet-agent-bootstrap"
-	}
-	labels, annotations, err := apply.GetLabelsAndAnnotations(setID, nil)
+	labels, annotations, err := apply.GetLabelsAndAnnotations(p.GetSetID(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -147,6 +142,10 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 
 	data, err = yaml.ToBytes(objs)
 	return bytes.NewBuffer(data), err
+}
+
+func (p *postRender) GetSetID() string {
+	return deployer.GetSetID(p.bundleID, p.labelPrefix)
 }
 
 func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*deployer.Resources, error) {

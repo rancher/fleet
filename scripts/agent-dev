@@ -1,0 +1,39 @@
+#!/bin/bash
+set -e
+
+source $(dirname $0)/version
+
+cd $(dirname $0)/..
+
+mkdir -p bin
+mkdir -p dist/artifacts
+
+LINKFLAGS="-X github.com/rancher/fleet/pkg/version.Version=$VERSION"
+LINKFLAGS="-X github.com/rancher/fleet/pkg/version.GitCommit=$COMMIT $LINKFLAGS"
+LINKFLAGS="-s -w $LINKFLAGS"
+LINKFLAGS="$LINKFLAGS -extldflags -static"
+
+function build-binary() {
+    local BINARY=${1}-linux-${2}
+    local OUT="bin/${BINARY}"
+    if [ "$1" = "fleetagent" ]; then
+        OUT="$OUT ./cmd/${1}"
+    fi
+
+    printf "Building binary: ${BINARY} ...\n"
+    GOOS=linux GOARCH=${2} CGO_ENABLED=0 go build -ldflags "$LINKFLAGS" -o $OUT
+    cp bin/${BINARY} dist/artifacts/
+}
+
+function build-agent-image() {
+    build-binary fleet $1
+    build-binary fleetagent $1
+
+    IMAGE=${REPO}/fleet-agent:${TAG}
+    printf "Building fleet-agent image for linux-${1}: ${IMAGE}  ...\n"
+    docker build -f package/Dockerfile.agent -t ${IMAGE} --build-arg ARCH=${1} .
+}
+
+for i in "amd64" "arm64"; do
+    build-agent-image $i
+done
