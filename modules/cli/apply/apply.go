@@ -181,12 +181,10 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 
 	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		_, err = c.Fleet.Bundle().Create(bundle)
-		if err == nil {
-			fmt.Printf("%s/%s\n", bundle.Namespace, bundle.Name)
-		} else {
+		if _, err = c.Fleet.Bundle().Create(bundle); err != nil {
 			return err
 		}
+		logrus.Infof("created: %s/%s\n", bundle.Namespace, bundle.Name)
 	} else if err != nil {
 		return err
 	}
@@ -194,22 +192,20 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 	obj.Spec = bundle.Spec
 	obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
 	obj.Labels = mergeMap(obj.Labels, bundle.Labels)
-	_, err = c.Fleet.Bundle().Update(obj)
-	if err == nil {
-		fmt.Printf("%s/%s\n", obj.Namespace, obj.Name)
+	if _, err := c.Fleet.Bundle().Update(obj); err != nil {
+		return err
 	}
+	logrus.Infof("updated: %s/%s\n", obj.Namespace, obj.Name)
 
 	for _, scan := range imageScans {
 		scan.Namespace = client.Namespace
 		scan.Spec.GitRepoName = bundle.Labels[fleet.RepoLabel]
 		obj, err := c.Fleet.ImageScan().Get(scan.Namespace, scan.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
-			_, err = c.Fleet.ImageScan().Create(scan)
-			if err == nil {
-				fmt.Printf("%s/%s\n", bundle.Namespace, bundle.Name)
-			} else {
+			if _, err = c.Fleet.ImageScan().Create(scan); err != nil {
 				return err
 			}
+			logrus.Infof("created (scan): %s/%s\n", bundle.Namespace, bundle.Name)
 		} else if err != nil {
 			return err
 		}
@@ -217,12 +213,10 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 		obj.Spec = scan.Spec
 		obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
 		obj.Labels = mergeMap(obj.Labels, bundle.Labels)
-		_, err = c.Fleet.ImageScan().Update(obj)
-		if err == nil {
-			fmt.Printf("%s/%s\n", obj.Namespace, obj.Name)
-		} else if err != nil {
+		if _, err := c.Fleet.ImageScan().Update(obj); err != nil {
 			return err
 		}
+		logrus.Infof("updated (scan): %s/%s\n", obj.Namespace, obj.Name)
 	}
 	return err
 }
