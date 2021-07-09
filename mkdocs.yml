@@ -47,6 +47,7 @@ nav:
       - gitrepo-targets.md
       - bundle-diffs.md
       - webhook.md
+      - imagescan.md
 extra:
   fleet:
     apiVersion: fleet.cattle.io/v1alpha1
