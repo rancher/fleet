@@ -1,0 +1,974 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="canonical" href="https://fleet.rancher.io/gitrepo-add/">
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.2.1, mkdocs-material-7.1.10">
+    
+    
+      
+        <title>Registering - Fleet - GitOps at Scale</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.1fe995fd.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.f1a3b89f.min.css">
+        
+          
+          
+          <meta name="theme-color" content="#4cae4f">
+        
+      
+    
+    
+    
+      
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Work+Sans:300,400,400i,700%7C&display=fallback">
+        <style>:root{--md-text-font-family:"Work Sans";--md-code-font-family:""}</style>
+      
+    
+    
+    
+    
+      
+
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="green" data-md-color-accent="">
+  
+    
+    <script>function __prefix(e){return new URL("..",location).pathname+"."+e}function __get(e,t=localStorage){return JSON.parse(t.getItem(__prefix(e)))}</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#registering" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Fleet - GitOps at Scale" class="md-header__button md-logo" aria-label="Fleet - GitOps at Scale" data-md-component="logo">
+      
+  <img src="../assets/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Fleet - GitOps at Scale
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Registering
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+      </label>
+      
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" data-md-state="active" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+      </label>
+      <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        
+<a href="https://github.com/rancher/fleet/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Fleet - GitOps at Scale" class="md-nav__button md-logo" aria-label="Fleet - GitOps at Scale" data-md-component="logo">
+      
+  <img src="../assets/logo.svg" alt="logo">
+
+    </a>
+    Fleet - GitOps at Scale
+  </label>
+  
+    <div class="md-nav__source">
+      
+<a href="https://github.com/rancher/fleet/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Introduction
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        Quick Start
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        Core Concepts
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        Architecture
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        Examples
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
+      
+      <label class="md-nav__link" for="__nav_6">
+        Operator Guide
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Operator Guide" data-md-level="1">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          Operator Guide
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6_1" type="checkbox" id="__nav_6_1" >
+      
+      <label class="md-nav__link" for="__nav_6_1">
+        Installation
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Installation" data-md-level="2">
+        <label class="md-nav__title" for="__nav_6_1">
+          <span class="md-nav__icon md-icon"></span>
+          Installation
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../single-cluster-install/" class="md-nav__link">
+        Single Cluster Install
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../multi-cluster-install/" class="md-nav__link">
+        Multi-cluster Install
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../uninstall/" class="md-nav__link">
+        Uninstall
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6_2" type="checkbox" id="__nav_6_2" >
+      
+      <label class="md-nav__link" for="__nav_6_2">
+        Managing Clusters
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Managing Clusters" data-md-level="2">
+        <label class="md-nav__title" for="__nav_6_2">
+          <span class="md-nav__icon md-icon"></span>
+          Managing Clusters
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6_2_1" type="checkbox" id="__nav_6_2_1" >
+      
+      <label class="md-nav__link" for="__nav_6_2_1">
+        Registration
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Registration" data-md-level="3">
+        <label class="md-nav__title" for="__nav_6_2_1">
+          <span class="md-nav__icon md-icon"></span>
+          Registration
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cluster-overview/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cluster-tokens/" class="md-nav__link">
+        Cluster Registration Tokens
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agent-initiated/" class="md-nav__link">
+        Agent Initiated
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../manager-initiated/" class="md-nav__link">
+        Manager Initiated
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cluster-group/" class="md-nav__link">
+        Cluster Groups
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../namespaces/" class="md-nav__link">
+        Namespaces
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_7" type="checkbox" id="__nav_7" checked>
+      
+      <label class="md-nav__link" for="__nav_7">
+        User Guide
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="User Guide" data-md-level="1">
+        <label class="md-nav__title" for="__nav_7">
+          <span class="md-nav__icon md-icon"></span>
+          User Guide
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_7_1" type="checkbox" id="__nav_7_1" checked>
+      
+      <label class="md-nav__link" for="__nav_7_1">
+        Managing Git Repos
+        <span class="md-nav__icon md-icon"></span>
+      </label>
+      <nav class="md-nav" aria-label="Managing Git Repos" data-md-level="2">
+        <label class="md-nav__title" for="__nav_7_1">
+          <span class="md-nav__icon md-icon"></span>
+          Managing Git Repos
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Registering
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Registering
+      </a>
+      
+        
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#proper-namespace" class="md-nav__link">
+    Proper namespace
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create-gitrepo-instance" class="md-nav__link">
+    Create GitRepo instance
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-private-repository" class="md-nav__link">
+    Adding private repository
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gitrepo-structure/" class="md-nav__link">
+        Expected Repo Structure
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gitrepo-targets/" class="md-nav__link">
+        Mapping to Downstream Clusters
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bundle-diffs/" class="md-nav__link">
+        Bundle diffs
+      </a>
+    </li>
+  
+
+          
+            
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../webhook/" class="md-nav__link">
+        Webhook
+      </a>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#proper-namespace" class="md-nav__link">
+    Proper namespace
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#create-gitrepo-instance" class="md-nav__link">
+    Create GitRepo instance
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-private-repository" class="md-nav__link">
+    Adding private repository
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/rancher/fleet/edit/master/docs/gitrepo-add.md" title="Edit this page" class="md-content__button md-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
+                  </a>
+                
+                
+                <h1 id="registering">Registering<a class="headerlink" href="#registering" title="Permanent link">&para;</a></h1>
+<h2 id="proper-namespace">Proper namespace<a class="headerlink" href="#proper-namespace" title="Permanent link">&para;</a></h2>
+<p>Git repos are added to the Fleet manager using the <code>GitRepo</code> custom resource type. The
+<code>GitRepo</code> type is namespaced. If you are using Fleet in a <a href="../concepts/">single cluster</a>
+style the namespace will always be <strong>fleet-local</strong>. For a <a href="../concepts/">multi-cluster</a> style
+please ensure you use the correct repo that will map to the right target clusters.</p>
+<h2 id="create-gitrepo-instance">Create GitRepo instance<a class="headerlink" href="#create-gitrepo-instance" title="Permanent link">&para;</a></h2>
+<p>Git repositories are register by creating a <code>GitRepo</code> following the below YAML sample.  Refer
+to the inline comments as the means of each field</p>
+<div class="codehilite"><pre><span></span><code><span class="nt">kind</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">GitRepo</span>
+<span class="nt">apiVersion</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">fleet.cattle.io/v1alpha1</span>
+<span class="nt">metadata</span><span class="p">:</span>
+  <span class="c1"># Any name can be used here</span>
+  <span class="nt">name</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">my-repo</span>
+  <span class="c1"># For single cluster use fleet-local, otherwise use the namespace of</span>
+  <span class="c1"># your choosing</span>
+  <span class="nt">namespace</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">fleet-local</span>
+<span class="nt">spec</span><span class="p">:</span>
+  <span class="c1"># This can be a HTTPS or git URL.  If you are using a git URL then</span>
+  <span class="c1"># clientSecretName will probably need to be set to supply a credential.</span>
+  <span class="c1"># repo is the only required parameter for a repo to be monitored.</span>
+  <span class="c1">#</span>
+  <span class="nt">repo</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">https://github.com/rancher/fleet-examples</span>
+
+  <span class="c1"># Enforce all resources go to this target namespace. If a cluster scoped</span>
+  <span class="c1"># resource is found the deployment will fail.</span>
+  <span class="c1">#</span>
+  <span class="c1"># targetNamespace: app1</span>
+
+  <span class="c1"># Any branch can be watched, this field is optional. If not specified the</span>
+  <span class="c1"># branch is assumed to be master</span>
+  <span class="c1">#</span>
+  <span class="c1"># branch: master</span>
+
+  <span class="c1"># A specific commit or tag can also be watched.</span>
+  <span class="c1">#</span>
+  <span class="c1"># revision: v0.3.0</span>
+
+  <span class="c1"># For a private registry you must supply a clientSecretName. A default</span>
+  <span class="c1"># secret can be set at the namespace level using the BundleRestriction</span>
+  <span class="c1"># type. Secrets must be of the type &quot;kubernetes.io/ssh-auth&quot; or</span>
+  <span class="c1"># &quot;kubernetes.io/basic-auth&quot;. The secret is assumed to be in the</span>
+  <span class="c1"># same namespace as the GitRepo</span>
+  <span class="c1">#</span>
+  <span class="c1"># clientSecretName: my-ssh-key</span>
+  <span class="c1">#</span>
+  <span class="c1"># If fleet.yaml contains a private Helm repo that requires authentication,</span>
+  <span class="c1"># provide the credentials in a K8s secret and specify them here. Details are provided</span>
+  <span class="c1"># in the fleet.yaml documentation.</span>
+  <span class="c1">#</span>
+  <span class="c1"># helmSecretName: my-helm-secret</span>
+  <span class="c1">#</span>
+  <span class="c1"># To add additional ca-bundle for self-signed certs, caBundle can be </span>
+  <span class="c1"># filled with base64 encoded pem data. For example: </span>
+  <span class="c1"># `cat /path/to/ca.pem | base64 -w 0` </span>
+  <span class="c1">#</span>
+  <span class="c1"># caBundle: my-ca-bundle</span>
+  <span class="c1">#</span>
+  <span class="c1"># Disable SSL verification for git repo</span>
+  <span class="c1">#</span>
+  <span class="c1"># insecureSkipTLSVerify: true</span>
+  <span class="c1">#</span>
+  <span class="c1"># A git repo can read multiple paths in a repo at once.</span>
+  <span class="c1"># The below field is expected to be an array of paths and</span>
+  <span class="c1"># supports path globbing (ex: some/*/path)</span>
+  <span class="c1">#</span>
+  <span class="c1"># Example:</span>
+  <span class="c1"># paths:</span>
+  <span class="c1"># - single-path</span>
+  <span class="c1"># - multiple-paths/*</span>
+  <span class="nt">paths</span><span class="p">:</span>
+  <span class="p p-Indicator">-</span> <span class="l l-Scalar l-Scalar-Plain">simple</span>
+
+  <span class="c1"># The service account that will be used to perform this deployment.</span>
+  <span class="c1"># This is the name of the service account that exists in the</span>
+  <span class="c1"># downstream cluster in the fleet-system namespace. It is assumed</span>
+  <span class="c1"># this service account already exists so it should be create before</span>
+  <span class="c1"># hand, most likely coming from another git repo registered with</span>
+  <span class="c1"># the Fleet manager.</span>
+  <span class="c1">#</span>
+  <span class="c1"># serviceAccount: moreSecureAccountThanClusterAdmin</span>
+
+  <span class="c1"># Target clusters to deploy to if running Fleet in a multi-cluster</span>
+  <span class="c1"># style. Refer to the &quot;Mapping to Downstream Clusters&quot; docs for</span>
+  <span class="c1"># more information.</span>
+  <span class="c1">#</span>
+  <span class="c1"># targets: ...</span>
+</code></pre></div>
+
+<h2 id="adding-private-repository">Adding private repository<a class="headerlink" href="#adding-private-repository" title="Permanent link">&para;</a></h2>
+<p>Fleet supports both http and ssh auth key for private repository. To use this you have to create a secret in the same namespace. </p>
+<p>For example, to generate a private ssh key</p>
+<div class="codehilite"><pre><span></span><code>ssh-keygen -t rsa -b 4096 -m pem -C &quot;user@email.com&quot;
+</code></pre></div>
+
+<p>Note: The private key format has to be in <code>EC PRIVATE KEY</code>, <code>RSA PRIVATE KEY</code> or <code>PRIVATE KEY</code> and should not contain a passphase. </p>
+<p>Put your private key into secret:</p>
+<div class="codehilite"><pre><span></span><code>kubectl create secret generic $name -n $namespace --from-file=ssh-privatekey=/file/to/private/key  --type=kubernetes.io/ssh-auth 
+</code></pre></div>
+
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Private key with passphrase is not supported.</p>
+</div>
+<p>Fleet supports putting <code>known_hosts</code> into ssh secret. Here is an example of how to add it:</p>
+<p>Fetch the public key hash(take github as an example)</p>
+<div class="codehilite"><pre><span></span><code>ssh-keyscan -H github.com
+</code></pre></div>
+
+<p>And add it into secret:</p>
+<div class="codehilite"><pre><span></span><code>apiVersion: v1
+kind: Secret
+metadata:
+  name: ssh-key
+type: kubernetes.io/ssh-auth
+stringData:
+  ssh-privatekey: &lt;private-key&gt;
+  known_hosts: |-
+    |1|YJr1VZoi6dM0oE+zkM0do3Z04TQ=|7MclCn1fLROZG+BgR4m1r8TLwWc= ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==
+</code></pre></div>
+
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you don't add it any server's public key will be trusted and added. (<code>ssh -o stricthostkeychecking=accept-new</code> will be used)</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you are using openssh format for the private key and you are creating it in the UI, make sure a carriage return is appended in the end of the private key.</p>
+</div>
+<h1 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h1>
+<h3 id="fleet-deployment-stuck-in-modified-state">Fleet deployment stuck in modified state<a class="headerlink" href="#fleet-deployment-stuck-in-modified-state" title="Permanent link">&para;</a></h3>
+<p>When you deploy bundles to Fleet, some of the components are modified, and this causes the "modified" flag in the Fleet environment.</p>
+<p>To ignore the modified flag for the differences between the Helm install generated by <code>fleet.yaml</code> and the resource in your cluster, add a <code>diff.comparePatches</code> to the <code>fleet.yaml</code> for your Deployment, as shown in this example:</p>
+<div class="codehilite"><pre><span></span><code><span class="nt">defaultNamespace</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">&lt;namespace name&gt;</span> 
+<span class="nt">helm</span><span class="p">:</span>  
+  <span class="nt">releaseName</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">&lt;release name&gt;</span>  
+  <span class="nt">repo</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">&lt;repo name&gt;</span> 
+  <span class="nt">chart</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">&lt;chart name&gt;</span>
+<span class="nt">diff</span><span class="p">:</span>  
+  <span class="nt">comparePatches</span><span class="p">:</span>  
+  <span class="p p-Indicator">-</span> <span class="nt">apiVersion</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">apps/v1</span>
+    <span class="nt">kind</span><span class="p">:</span> <span class="l l-Scalar l-Scalar-Plain">Deployment</span>
+    <span class="nt">operations</span><span class="p">:</span>
+    <span class="p p-Indicator">-</span> <span class="p p-Indicator">{</span><span class="s">&quot;op&quot;</span><span class="p p-Indicator">:</span><span class="s">&quot;remove&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;path&quot;</span><span class="p p-Indicator">:</span><span class="s">&quot;/spec/template/spec/hostNetwork&quot;</span><span class="p p-Indicator">}</span>
+    <span class="p p-Indicator">-</span> <span class="p p-Indicator">{</span><span class="s">&quot;op&quot;</span><span class="p p-Indicator">:</span><span class="s">&quot;remove&quot;</span><span class="p p-Indicator">,</span> <span class="s">&quot;path&quot;</span><span class="p p-Indicator">:</span><span class="s">&quot;/spec/template/spec/nodeSelector&quot;</span><span class="p p-Indicator">}</span>
+    <span class="nt">jsonPointers</span><span class="p">:</span> <span class="c1"># jsonPointers allows to ignore diffs at certain json path</span>
+    <span class="p p-Indicator">-</span> <span class="s">&quot;/spec/template/spec/priorityClassName&quot;</span>
+    <span class="p p-Indicator">-</span> <span class="s">&quot;/spec/template/spec/tolerations&quot;</span> 
+</code></pre></div>
+
+<p>To determine which operations should be removed, observe the logs from <code>fleet-agent</code> on the target cluster. You should see entries similar to the following:</p>
+<div class="codehilite"><pre><span></span><code>level=error msg=&quot;bundle monitoring-monitoring: deployment.apps monitoring/monitoring-monitoring-kube-state-metrics modified {\&quot;spec\&quot;:{\&quot;template\&quot;:{\&quot;spec\&quot;:{\&quot;hostNetwork\&quot;:false}}}}&quot;
+</code></pre></div>
+
+<p>Based on the above log, you can add the following entry to remove the operation:</p>
+<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="nt">&quot;op&quot;</span><span class="p">:</span><span class="s2">&quot;remove&quot;</span><span class="p">,</span> <span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="s2">&quot;/spec/template/spec/hostNetwork&quot;</span><span class="p">}</span>
+</code></pre></div>
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+        
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <nav class="md-footer__inner md-grid" aria-label="Footer">
+      
+        
+        <a href="../namespaces/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Namespaces" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              Namespaces
+            </div>
+          </div>
+        </a>
+      
+      
+        
+        <a href="../gitrepo-structure/" class="md-footer__link md-footer__link--next" aria-label="Next: Expected Repo Structure" rel="next">
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              Expected Repo Structure
+            </div>
+          </div>
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11H4z"/></svg>
+          </div>
+        </a>
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        Made with
+        <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+          Material for MkDocs
+        </a>
+        
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../assets/javascripts/workers/search.477d984a.min.js", "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.ddd52ceb.min.js"></script>
+      
+    
+  </body>
+</html>
