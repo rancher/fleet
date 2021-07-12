@@ -49,7 +49,6 @@ require (
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.1.1
-	github.com/stretchr/testify v1.6.1
 	go.mozilla.org/sops/v3 v3.6.1
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	golang.org/x/tools v0.0.0-20200916195026-c9a70fc28ce3 // indirect
