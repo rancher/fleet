@@ -66,6 +66,8 @@ type ClusterSpec struct {
 	KubeConfigSecret        string      `json:"kubeConfigSecret,omitempty"`
 	RedeployAgentGeneration int64       `json:"redeployAgentGeneration,omitempty"`
 	AgentEnvVars            []v1.EnvVar `json:"agentEnvVars,omitempty"`
+	Schedule                string      `json:"schedule,omitempty"`
+	ScheduleWindow          string      `json:"scheduleWindow,omitempty"`
 }
 
 type ClusterStatus struct {

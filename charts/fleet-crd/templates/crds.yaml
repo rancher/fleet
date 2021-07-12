@@ -229,6 +229,12 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              schedule:
+                nullable: true
+                type: string
+              scheduleWindow:
+                nullable: true
+                type: string
               serviceAccount:
                 nullable: true
                 type: string
@@ -461,6 +467,12 @@ spec:
                       nullable: true
                       type: string
                     namespace:
+                      nullable: true
+                      type: string
+                    schedule:
+                      nullable: true
+                      type: string
+                    scheduleWindow:
                       nullable: true
                       type: string
                     serviceAccount:
@@ -907,6 +919,12 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  schedule:
+                    nullable: true
+                    type: string
+                  scheduleWindow:
+                    nullable: true
+                    type: string
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1016,6 +1034,12 @@ spec:
                         type: string
                     type: object
                   namespace:
+                    nullable: true
+                    type: string
+                  schedule:
+                    nullable: true
+                    type: string
+                  scheduleWindow:
                     nullable: true
                     type: string
                   serviceAccount:
@@ -1141,6 +1165,11 @@ spec:
               ready:
                 type: boolean
               release:
+                nullable: true
+                type: string
+              scheduled:
+                type: boolean
+              scheduledAt:
                 nullable: true
                 type: string
               syncGeneration:
@@ -1575,6 +1604,12 @@ spec:
                 type: boolean
               redeployAgentGeneration:
                 type: integer
+              schedule:
+                nullable: true
+                type: string
+              scheduleWindow:
+                nullable: true
+                type: string
             type: object
           status:
             properties:

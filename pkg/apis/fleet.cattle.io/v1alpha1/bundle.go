@@ -31,6 +31,8 @@ var (
 	}
 )
 
+const DefaultWindow = "1h"
+
 type BundleState string
 
 // +genclient
@@ -133,6 +135,7 @@ var (
 	BundleConditionReady              = "Ready"
 	BundleDeploymentConditionReady    = "Ready"
 	BundleDeploymentConditionDeployed = "Deployed"
+	BundleScheduledCondition          = "Scheduled"
 )
 
 type BundleStatus struct {
@@ -191,6 +194,8 @@ type BundleDeploymentOptions struct {
 	ForceSyncGeneration int64             `json:"forceSyncGeneration,omitempty"`
 	YAML                *YAMLOptions      `json:"yaml,omitempty"`
 	Diff                *DiffOptions      `json:"diff,omitempty"`
+	Schedule            string            `json:"schedule,omitempty"`
+	ScheduleWindow      string            `json:"scheduleWindow,omitempty"`
 }
 
 type DiffOptions struct {
@@ -247,10 +252,12 @@ type BundleDeploymentStatus struct {
 	Release             string                              `json:"release,omitempty"`
 	Ready               bool                                `json:"ready,omitempty"`
 	NonModified         bool                                `json:"nonModified,omitempty"`
+	Scheduled           bool                                `json:"scheduled,omitempty"`
 	NonReadyStatus      []NonReadyStatus                    `json:"nonReadyStatus,omitempty"`
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
 	SyncGeneration      *int64                              `json:"syncGeneration,omitempty"`
+	ScheduledAt         string                              `json:"scheduledAt,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {
