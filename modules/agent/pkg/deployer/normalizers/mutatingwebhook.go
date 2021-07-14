@@ -3,8 +3,8 @@ package normalizers
 import (
 	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/admissionregistration/v1"
-	"k8s.io/api/admissionregistration/v1beta1"
+	adregv1 "k8s.io/api/admissionregistration/v1"
+	adregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -19,7 +19,7 @@ func (m *MutatingWebhookNormalizer) Normalize(un *unstructured.Unstructured) err
 		return nil
 	}
 	gvk := un.GroupVersionKind()
-	if gvk.Group != "admissionregistration.k8s.io" || gvk.Kind != "MutatingWebhookConfiguration" {
+	if gvk.Group != adregv1.GroupName || gvk.Kind != "MutatingWebhookConfiguration" {
 		return nil
 	}
 
@@ -31,7 +31,7 @@ func (m *MutatingWebhookNormalizer) Normalize(un *unstructured.Unstructured) err
 }
 
 func (m *MutatingWebhookNormalizer) convertMutatingWebhookV1beta1(un *unstructured.Unstructured) error {
-	var webhook v1beta1.MutatingWebhookConfiguration
+	var webhook adregv1beta1.MutatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
 		logrus.Error("Failed to convert unstructured to webhook")
@@ -55,7 +55,7 @@ func (m *MutatingWebhookNormalizer) convertMutatingWebhookV1beta1(un *unstructur
 }
 
 func (m *MutatingWebhookNormalizer) convertMutatingWebhookV1(un *unstructured.Unstructured) error {
-	var webhook v1.MutatingWebhookConfiguration
+	var webhook adregv1.MutatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
 		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
@@ -79,7 +79,7 @@ func (m *MutatingWebhookNormalizer) convertMutatingWebhookV1(un *unstructured.Un
 }
 
 func setMutatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) error {
-	var webhook v1.MutatingWebhookConfiguration
+	var webhook adregv1.MutatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
 		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
@@ -105,7 +105,7 @@ func setMutatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) err
 }
 
 func setMutatingWebhookV1beta1CacertNil(un *unstructured.Unstructured, index int) error {
-	var webhook v1beta1.MutatingWebhookConfiguration
+	var webhook adregv1beta1.MutatingWebhookConfiguration
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
 		logrus.Error("Failed to convert unstructured to webhook")

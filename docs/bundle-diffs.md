@@ -33,7 +33,7 @@ In our case the differences detected are as follows:
     nonReadyResources:
     - bundleState: Modified
       modifiedStatus:
-      - apiVersion: admissionregistration.k8s.io/v1beta1
+      - apiVersion: admissionregistration.k8s.io/v1
         kind: ValidatingWebhookConfiguration
         name: gatekeeper-validating-webhook-configuration
         patch: '{"$setElementOrder/webhooks":[{"name":"validation.gatekeeper.sh"},{"name":"check-ignore-label.gatekeeper.sh"}],"webhooks":[{"clientConfig":{"caBundle":"Cg=="},"name":"validation.gatekeeper.sh","rules":[{"apiGroups":["*"],"apiVersions":["*"],"operations":["CREATE","UPDATE"],"resources":["*"]}]},{"clientConfig":{"caBundle":"Cg=="},"name":"check-ignore-label.gatekeeper.sh","rules":[{"apiGroups":[""],"apiVersions":["*"],"operations":["CREATE","UPDATE"],"resources":["namespaces"]}]}]}'
@@ -136,7 +136,7 @@ The field webhook in the ValidatingWebhookConfiguration spec is an array, so we 
 Based on this information, our diff patch would look as follows:
 
 ```yaml
-  - apiVersion: admissionregistration.k8s.io/v1beta1
+  - apiVersion: admissionregistration.k8s.io/v1
     kind: ValidatingWebhookConfiguration
     name: gatekeeper-validating-webhook-configuration
     operations:
@@ -252,7 +252,7 @@ diff:
     operations:
     - {"op": "remove", "path": "/spec/template/spec/containers/0/resources/limits/cpu"}
     - {"op": "remove", "path": "/spec/template/spec/tolerations"}
-  - apiVersion: admissionregistration.k8s.io/v1beta1
+  - apiVersion: admissionregistration.k8s.io/v1
     kind: ValidatingWebhookConfiguration
     name: gatekeeper-validating-webhook-configuration
     operations:
