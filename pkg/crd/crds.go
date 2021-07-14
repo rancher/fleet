@@ -1,8 +1,8 @@
 package crd
 
 import (
-	"context"
 	"io"
+	"k8s.io/client-go/rest"
 	"os"
 	"path/filepath"
 
@@ -11,10 +11,9 @@ import (
 	"github.com/rancher/wrangler/pkg/yaml"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/rest"
 )
 
-func WriteFile(filename string) error {
+func WriteFile(filename string, v1beta1 bool) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
@@ -24,13 +23,23 @@ func WriteFile(filename string) error {
 	}
 	defer f.Close()
 
-	return Print(f)
+	return Print(f, v1beta1)
 }
 
-func Print(out io.Writer) error {
-	obj, err := Objects()
-	if err != nil {
-		return err
+func Print(out io.Writer, v1beta1 bool) error {
+	var obj []runtime.Object
+	var err error
+
+	if v1beta1 {
+		obj, err = ObjectsV1Beta1()
+		if err != nil {
+			return err
+		}
+	} else {
+		obj, err = Objects()
+		if err != nil {
+			return err
+		}
 	}
 
 	data, err := yaml.Export(obj...)
@@ -40,6 +49,15 @@ func Print(out io.Writer) error {
 
 	_, err = out.Write(data)
 	return err
+}
+
+func Create(ctx context.Context, cfg *rest.Config) error {
+	factory, err := crd.NewFactoryFromClient(cfg)
+	if err != nil {
+		return err
+	}
+
+	return factory.BatchCreateCRDs(ctx, List()...).BatchWait()
 }
 
 func Objects() (result []runtime.Object, err error) {
@@ -117,15 +135,6 @@ func List() []crd.CRD {
 				WithColumn("Latest", ".status.latestTag")
 		}),
 	}
-}
-
-func Create(ctx context.Context, cfg *rest.Config) error {
-	factory, err := crd.NewFactoryFromClient(cfg)
-	if err != nil {
-		return err
-	}
-
-	return factory.BatchCreateCRDs(ctx, List()...).BatchWait()
 }
 
 func newCRD(obj interface{}, customize func(crd.CRD) crd.CRD) crd.CRD {
