@@ -47,7 +47,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 		} else if os.IsNotExist(err) {
 			// fleet.yaml does *not* exist
 			file = filepath.Join(baseDir, "fleet.yml")
-			if _, err := os.Stat("/path/to/whatever"); err == nil {
+			if _, err := os.Stat(file); err == nil {
 				// fleet.yml exists
 			} else if os.IsNotExist(err) {
 				// fleet.yaml and fleet.yml does *not* exist
