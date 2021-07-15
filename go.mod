@@ -43,7 +43,7 @@ require (
 	github.com/hashicorp/go-getter v1.4.1
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
-	github.com/rancher/gitjob v0.1.5
+	github.com/rancher/gitjob v0.1.17
 	github.com/rancher/lasso v0.0.0-20210408231703-9ddd9378d08d
 	github.com/rancher/wrangler v0.8.1-0.20210521213200-39dd8bf93e9f
 	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
@@ -56,7 +56,7 @@ require (
 	k8s.io/api v0.20.2
 	k8s.io/apimachinery v0.20.2
 	k8s.io/cli-runtime v0.20.2
-	k8s.io/client-go v11.0.1-0.20190816222228-6d55c1b1f1ca+incompatible
+	k8s.io/client-go v12.0.0+incompatible
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/cli-utils v0.23.1
 	sigs.k8s.io/kustomize/api v0.6.9
