@@ -2,6 +2,7 @@ package manageagent
 
 import (
 	"context"
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -27,6 +28,7 @@ type handler struct {
 	systemNamespace string
 	clusterCache    fleetcontrollers.ClusterCache
 	bundleCache     fleetcontrollers.BundleCache
+	namespace corecontrollers.NamespaceController
 }
 
 func Register(ctx context.Context,
@@ -40,6 +42,7 @@ func Register(ctx context.Context,
 		systemNamespace: systemNamespace,
 		clusterCache:    clusters.Cache(),
 		bundleCache:     bundle.Cache(),
+		namespace: namespace,
 		apply: apply.
 			WithSetID("fleet-manage-agent").
 			WithCacheTypes(bundle),
@@ -50,6 +53,7 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
+	logrus.Infof("[NICK|RESOLVENS] ENTER: %s", namespace)
 	if cluster, ok := obj.(*fleet.Cluster); ok {
 		if _, err := h.bundleCache.Get(namespace, name.SafeConcatName(agentBundleName, cluster.Name)); err != nil {
 			return []relatedresource.Key{{Name: namespace}}, nil
@@ -59,16 +63,29 @@ func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedr
 }
 
 func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.Namespace, error) {
+	opts := metav1.ListOptions{}
+	list, err := h.namespace.List(opts)
+	if err != nil {
+		return nil, err
+	}
+	for _, ns := range list.Items {
+		logrus.Infof("[NICK|ONNAMESPACE] ENTER LIST: %s (%s)", ns.Name, ns.Status.Phase)
+	}
+
 	if namespace == nil {
+		logrus.Info("[NICK|ONNAMESPACE] NAMESPACE NIL")
 		return nil, nil
 	}
+	logrus.Infof("[NICK|ONNAMESPACE] NAMESPACE: %s", namespace.Name)
 
 	clusters, err := h.clusterCache.List(namespace.Name, labels.Everything())
 	if err != nil {
+		logrus.Info("[NICK|ONNAMESPACE] LIST FAIL")
 		return nil, err
 	}
 
 	if len(clusters) == 0 {
+		logrus.Infof("[NICK|ONNAMESPACE] LEN NONE: %s", namespace.Name)
 		return namespace, nil
 	}
 
@@ -77,16 +94,36 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 	for _, cluster := range clusters {
 		bundle, err := h.getAgentBundle(namespace.Name, cluster)
 		if err != nil {
+			logrus.Infof("[NICK|ONNAMESPACE] GET BUNDLE FAIL: %s (%s) (%s)", namespace.Name, cluster.Namespace, cluster.Name)
 			return nil, err
 		}
+		logrus.Infof("[NICK|ONNAMESPACE] GOT BUNDLE: %s (%s) (%s)", namespace.Name, cluster.Namespace, cluster.Name)
 		objs = append(objs, bundle)
 	}
 
-	return namespace, h.apply.
+	list, err = h.namespace.List(opts)
+	if err != nil {
+		return nil, err
+	}
+	for _, ns := range list.Items {
+		logrus.Infof("[NICK|ONNAMESPACE] MID LIST: %s (%s)", ns.Name, ns.Status.Phase)
+	}
+
+	err = h.apply.
 		WithOwner(namespace).
 		WithDefaultNamespace(namespace.Name).
 		WithListerNamespace(namespace.Name).
 		ApplyObjects(objs...)
+
+	list, err = h.namespace.List(opts)
+	if err != nil {
+		return nil, err
+	}
+	for _, ns := range list.Items {
+		logrus.Infof("[NICK|ONNAMESPACE] (3): %s (%s)", ns.Name, ns.Status.Phase)
+	}
+
+	return namespace, err
 }
 
 func (h *handler) getAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Object, error) {

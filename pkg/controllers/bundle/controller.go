@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"context"
+	"github.com/sirupsen/logrus"
 	"sort"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -137,21 +138,26 @@ func (h *handler) OnPurgeOrphanedImageScan(key string, image *fleet.ImageScan) (
 }
 
 func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus) ([]runtime.Object, fleet.BundleStatus, error) {
+	logrus.Infof("[NICK|ONBUNDLECHANGE] ENTER %s (%s)", bundle.Name, bundle.Namespace)
 	targets, err := h.targets.Targets(bundle)
 	if err != nil {
 		return nil, status, err
 	}
 
+	logrus.Infof("[NICK|ONBUNDLECHANGE] TARGETS FOUND %s (%s)", bundle.Name, bundle.Namespace)
 	if err := h.calculateChanges(&status, targets); err != nil {
+		logrus.Infof("[NICK|ONBUNDLECHANGE] MISCALCULATION %s (%s)", bundle.Name, bundle.Namespace)
 		return nil, status, err
 	}
 
 	if err := setResourceKey(&status, bundle, h.isNamespaced, status.ObservedGeneration != bundle.Generation); err != nil {
+		logrus.Infof("[NICK|ONBUNDLECHANGE] SET RESOURCE FAIL %s (%s)", bundle.Name, bundle.Namespace)
 		return nil, status, err
 	}
 
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
+	logrus.Infof("[NICK|ONBUNDLECHANGE] EXIT %s (%s)", bundle.Name, bundle.Namespace)
 	return toRuntimeObjects(targets, bundle), status, nil
 }
 

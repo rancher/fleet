@@ -113,6 +113,7 @@ func (h *handler) purgeOrphaned(ctx context.Context) {
 		}
 
 		for contentName, dr := range deleteRefs {
+			logrus.Infof("[NICK|CONTENT] %s", contentName)
 			if dr.safeToDelete {
 				logrus.Infof("Deleting orphaned content[%s]", contentName)
 				if err := h.content.Delete(contentName, &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {

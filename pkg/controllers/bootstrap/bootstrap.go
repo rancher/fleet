@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"regexp"
 
@@ -66,6 +67,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 		return err
 	}
 
+	logrus.Infof("[NICK|BOOTSTRAP|ONCHANGE] %s", config.Bootstrap.Namespace)
 	objs = append(objs, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: config.Bootstrap.Namespace,

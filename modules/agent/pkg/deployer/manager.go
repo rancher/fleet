@@ -83,6 +83,7 @@ func (m *Manager) Cleanup() error {
 
 func (m *Manager) Delete(bundleDeploymentKey string) error {
 	_, name := kv.RSplit(bundleDeploymentKey, "/")
+	logrus.Info("[NICK|BUNDLEDEPLOY|DELETE] %s", name)
 	return m.deployer.Delete(name, "")
 }
 

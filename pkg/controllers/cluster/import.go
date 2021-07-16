@@ -91,6 +91,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 		if err != nil {
 			return nil, err
 		}
+		logrus.Infof("[NICK|IMPORT|ONCHAGE] %s (%s)", cluster.Name, cluster.Namespace)
 		return i.clusters.Update(cluster)
 	}
 
@@ -98,20 +99,29 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 }
 
 func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Interface) error {
+	if cluster != nil {
+		logrus.Infof("[NICK|DELETEOLDAGENT] ENTER %s", cluster.Namespace)
+	} else {
+		logrus.Info("[NICK|DELETEOLDAGENT] ENTER NIL")
+	}
 	err := kc.CoreV1().Secrets(i.systemNamespace).Delete(i.ctx, "fleet-agent", metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
+		logrus.Info("[NICK|DELETEOLDAGENT] DELETE FAIL 1")
 		return err
 	}
 
 	err = kc.CoreV1().Secrets(i.systemNamespace).Delete(i.ctx, "fleet-agent-bootstrap", metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
+		logrus.Info("[NICK|DELETEOLDAGENT] DELETE FAIL 2")
 		return err
 	}
 
 	deployment, err := kc.AppsV1().Deployments(i.systemNamespace).Get(i.ctx, "fleet-agent", metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		logrus.Info("[NICK|DELETEOLDAGENT] GET FAIL (NOT FOUND)")
 		return nil
 	} else if err != nil {
+		logrus.Info("[NICK|DELETEOLDAGENT] GET FAIL (ELSE)")
 		return nil
 	}
 
@@ -119,6 +129,7 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 
 	err = kc.AppsV1().Deployments(i.systemNamespace).Delete(i.ctx, "fleet-agent", metav1.DeleteOptions{})
 	if err != nil {
+		logrus.Info("[NICK|DELETEOLDAGENT] DELETE FAIL 3")
 		return err
 	}
 
@@ -126,14 +137,22 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 		LabelSelector: metav1.FormatLabelSelector(deployment.Spec.Selector),
 	})
 	if err != nil {
+		logrus.Info("[NICK|DELETEOLDAGENT] LIST FAIL")
 		return err
 	}
 
 	for _, pod := range pods.Items {
 		err := kc.CoreV1().Pods(i.systemNamespace).Delete(i.ctx, pod.Name, metav1.DeleteOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
+			logrus.Infof("[NICK|DELETEOLDAGENT] DELETE FAIL 4: %s", pod.Name)
 			return err
 		}
+	}
+
+	if cluster != nil {
+		logrus.Infof("[NICK|DELETEOLDAGENT] EXIT %s", cluster.Namespace)
+	} else {
+		logrus.Info("[NICK|DELETEOLDAGENT] EXIT NIL")
 	}
 
 	return nil
@@ -178,15 +197,36 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
+	/*
+	logrus.Info("<< 1 >>")
+	if err := i.dumpNS(kc); err != nil {
+		return status, err
+	}
+	 */
+
 	if _, err = kc.Discovery().ServerVersion(); err != nil {
 		return status, err
 	}
+
+	/*
+	logrus.Info("<< 2 >>")
+	if err := i.dumpNS(kc); err != nil {
+		return status, err
+	}
+	 */
 
 	apply, err := apply.NewForConfig(restConfig)
 	if err != nil {
 		return status, err
 	}
 	apply = apply.WithDynamicLookup().WithSetID("fleet-agent-bootstrap")
+
+	/*
+	logrus.Info("<< 3 >>")
+	if err := i.dumpNS(kc); err != nil {
+		return status, err
+	}
+	 */
 
 	token, err := i.tokens.Get(cluster.Namespace, ImportTokenPrefix+cluster.Name)
 	if err != nil {
@@ -212,6 +252,12 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, nil
 	}
 
+	/*
+	logrus.Info("<< 4 >>")
+	if err := i.dumpNS(kc); err != nil {
+		return status, err
+	}
+	 */
 	output := &bytes.Buffer{}
 	err = agentmanifest.AgentManifest(i.ctx, i.systemNamespace, i.systemNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
 		CA:              apiServerCA,
@@ -222,23 +268,66 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
 	})
 	if err != nil {
+		logrus.Info("[NICK|IMPORT] SUSPECTED ERROR FOR AGENT MANIFEST")
 		return status, err
 	}
+
+	/*
+	logrus.Info("<< 5 >>")
+	if err := i.dumpNS(kc); err != nil {
+		return status, err
+	}
+	 */
 
 	obj, err := yaml.ToObjects(output)
 	if err != nil {
+		logrus.Info("[NICK|IMPORT] SUSPECTED ERROR FOR TO OBJECTS")
 		return status, err
 	}
+
+	/*
+	logrus.Info("<< 6 >>")
+	if err := i.dumpNS(kc); err != nil {
+		return status, err
+	}
+	time.Sleep(time.Duration(10) * time.Second)
+	 */
 
 	if err := i.deleteOldAgent(cluster, kc); err != nil {
+		logrus.Info("[NICK|IMPORT] SUSPECTED ERROR FOR DELETE OLD AGENT")
 		return status, err
 	}
 
+	/*
+	time.Sleep(time.Duration(30) * time.Second)
+	logrus.Info("<< BEFORE >>")
+	if err := i.dumpNS(kc); err != nil {
+		return status, err
+	}
+	time.Sleep(time.Duration(30) * time.Second)
+	logrus.Info("<< OBJECTS >>")
+	for _, o := range obj {
+		logrus.Infof("[OBJ] >> %+v", o)
+	}
+	time.Sleep(time.Duration(30) * time.Second)
+	 */
+
+	logrus.Info("[NICK|IMPORT] SUSPECTED BREAKAGE STARTS")
 	if err := apply.ApplyObjects(obj...); err != nil {
+		logrus.Info("[NICK|IMPORT] SUSPECTED ERROR FOR APPLY")
+		return status, err
+	}
+	logrus.Info("[NICK|IMPORT] SUSPECTED BREAKAGE ENDS")
+	logrus.Infof("Deployed new agent for cluster %s/%s", cluster.Namespace, cluster.Name)
+
+	/*
+	time.Sleep(time.Duration(30) * time.Second)
+	logrus.Info("<< AFTERf >>")
+	if err := i.dumpNS(kc); err != nil {
 		return status, err
 	}
 
-	logrus.Infof("Deployed new agent for cluster %s/%s", cluster.Namespace, cluster.Name)
+	 */
 
 	status.AgentDeployedGeneration = &cluster.Spec.RedeployAgentGeneration
 	status.AgentMigrated = true
@@ -271,3 +360,19 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte) (*rest.Config, err
 
 	return clientcmd.NewDefaultClientConfig(raw, &clientcmd.ConfigOverrides{}).ClientConfig()
 }
+
+/*
+func (i *importHandler) dumpNS(kc *kubernetes.Clientset) error {
+	logrus.Info("ENTER")
+	opts := metav1.ListOptions{}
+	list, err := kc.CoreV1().Namespaces().List(i.ctx, opts)
+	if err != nil {
+		return err
+	}
+	for _, ns := range list.Items {
+		logrus.Infof(">> %s | %s", ns.Name, ns.Status.Phase)
+	}
+	logrus.Info("EXIT")
+	return nil
+}
+ */

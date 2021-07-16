@@ -57,6 +57,7 @@ func Register(ctx context.Context,
 
 func (h *handler) garbageCollect() {
 	for {
+		logrus.Info("[NICK|BUNDLEDEPLOY|GC] ABOUT TO CLEANUP")
 		if err := h.deployManager.Cleanup(); err != nil {
 			logrus.Errorf("failed to cleanup orphaned releases: %v", err)
 		}
@@ -69,13 +70,20 @@ func (h *handler) garbageCollect() {
 }
 
 func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
+	if bd != nil {
+		logrus.Infof("[NICK|BUNDLEDEPLOY|CLEANUP] ENTER %s (%s) (%s)", bd.Name, bd.Namespace, key)
+	} else {
+		logrus.Infof("[NICK|BUNDLEDEPLOY|CLEANUP] ENTER NIL BD: %s", key)
+	}
 	h.cleanupOnce.Do(func() {
 		go h.garbageCollect()
 	})
 
 	if bd != nil {
+		logrus.Infof("[NICK|BUNDLEDEPLOY|CLEANUP] BD NOT NIL: %s (%s) (%s)", bd.Name, bd.Namespace, key)
 		return bd, nil
 	}
+	logrus.Infof("[NICK|BUNDLEDEPLOY|CLEANUP] DELETE: %s (%s) (%s)", bd.Name, bd.Namespace, key)
 	return nil, h.deployManager.Delete(key)
 }
 
@@ -100,6 +108,9 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 
 func (h *handler) checkDependency(bd *fleet.BundleDeployment) (string, bool, error) {
 	bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
+	if bd != nil {
+		logrus.Infof("[NICK|CHECKDEPENDENCY] %s (%s)", bundleNamespace, bd.Name)
+	}
 	for _, depend := range bd.Spec.DependsOn {
 		ls := &metav1.LabelSelector{
 			MatchLabels: map[string]string{

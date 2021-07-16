@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"regexp"
 	"sort"
 	"time"
@@ -232,6 +233,7 @@ func (h *handler) DeleteOnChange(key string, gitrepo *fleet.GitRepo) (*fleet.Git
 	}
 
 	for _, bundle := range bundles {
+		logrus.Infof("[NICK|DELETEONCHANGE] %s (%s)", bundle.Namespace, bundle.Name)
 		err := h.bundles.Delete(bundle.Namespace, bundle.Name, nil)
 		if err != nil {
 			return nil, err

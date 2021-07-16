@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"github.com/sirupsen/logrus"
 	"sort"
 	"time"
 
@@ -63,6 +64,7 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) ensureNSDeleted(key string, obj *fleet.Cluster) (*fleet.Cluster, error) {
+	logrus.Infof("[NICK|ENSURENSDELETED] %s (%s)", key, obj.Namespace)
 	if obj == nil {
 		h.namespaces.Enqueue(clusterToNamespace(kv.Split(key, "/")))
 	}
