@@ -142,6 +142,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 		opts = &Options{}
 	}
 
+	logrus.Debugf("reading bundle. dir: %s name: %s", baseDir, name)
 	bundle, err := readBundle(ctx, createName(name, baseDir), baseDir, opts)
 	if err != nil {
 		return err
@@ -163,13 +164,11 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	if err != nil {
 		return err
 	}
-
 	if opts.Output == nil {
 		err = save(client, def, bundle.Scans...)
 	} else {
 		_, err = opts.Output.Write(b)
 	}
-
 	return err
 }
 
@@ -179,23 +178,10 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 		return err
 	}
 
-	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		if _, err = c.Fleet.Bundle().Create(bundle); err != nil {
-			return err
-		}
-		logrus.Infof("created: %s/%s\n", bundle.Namespace, bundle.Name)
-	} else if err != nil {
+	_, err = saveBundle(err, c, bundle)
+	if err != nil {
 		return err
 	}
-
-	obj.Spec = bundle.Spec
-	obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
-	obj.Labels = mergeMap(obj.Labels, bundle.Labels)
-	if _, err := c.Fleet.Bundle().Update(obj); err != nil {
-		return err
-	}
-	logrus.Infof("updated: %s/%s\n", obj.Namespace, obj.Name)
 
 	for _, scan := range imageScans {
 		scan.Namespace = client.Namespace
@@ -219,6 +205,30 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 		logrus.Infof("updated (scan): %s/%s\n", obj.Namespace, obj.Name)
 	}
 	return err
+}
+
+func saveBundle(err error, c *client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
+	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		if obj, err = c.Fleet.Bundle().Create(bundle); err != nil {
+			return nil, err
+		}
+		logrus.Infof("created: %s/%s\n", bundle.Namespace, bundle.Name)
+		return obj, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	logrus.Debugf("updating: %s/%s", obj.Namespace, obj.Name)
+	obj.Spec = bundle.Spec
+	obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
+	obj.Labels = mergeMap(obj.Labels, bundle.Labels)
+
+	if _, err := c.Fleet.Bundle().Update(obj); err != nil {
+		return nil, err
+	}
+	logrus.Infof("updated: %s/%s\n", obj.Namespace, obj.Name)
+	return obj, nil
 }
 
 func mergeMap(a, b map[string]string) map[string]string {
