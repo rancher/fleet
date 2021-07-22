@@ -94,7 +94,7 @@ func Register(ctx context.Context, leaderElect bool,
 	}
 
 	helmDeployer, err := helmdeployer.NewHelm(agentNamespace, defaultNamespace, labelPrefix, appCtx,
-		appCtx.Core.ServiceAccount().Cache())
+		appCtx.Core.ServiceAccount().Cache(), appCtx.Core.ConfigMap().Cache(), appCtx.Core.Secret().Cache())
 	if err != nil {
 		return err
 	}
