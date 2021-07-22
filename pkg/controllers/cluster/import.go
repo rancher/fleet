@@ -18,8 +18,10 @@ import (
 	"github.com/rancher/wrangler/pkg/randomtoken"
 	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -29,6 +31,7 @@ var (
 	ImportTokenPrefix = "import-token-"
 	ImportTokenTTL    = 12 * time.Hour
 	t                 = true
+	NamespaceKind     = "Namespace"
 )
 
 type importHandler struct {
@@ -186,7 +189,11 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	apply = apply.WithDynamicLookup().WithSetID("fleet-agent-bootstrap")
+	apply = apply.WithDynamicLookup().WithSetID("fleet-agent-bootstrap").WithNoDeleteGVK(schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    NamespaceKind,
+	})
 
 	token, err := i.tokens.Get(cluster.Namespace, ImportTokenPrefix+cluster.Name)
 	if err != nil {
