@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"text/template"
@@ -27,6 +28,7 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/update"
+	"github.com/rancher/wrangler/pkg/condition"
 	corev1controler "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kstatus"
 	"github.com/sirupsen/logrus"
@@ -49,6 +51,10 @@ const (
 	AlphabeticalOrderDesc = "DESC"
 
 	defaultMessageTemplate = `Update from image update automation`
+
+	imageScanCond = "ImageScanned"
+
+	imageSyncCond = "ImageSynced"
 )
 
 func Register(ctx context.Context, core corev1controler.Interface, gitRepos fleetcontrollers.GitRepoController, images fleetcontrollers.ImageScanController) {
@@ -59,9 +65,9 @@ func Register(ctx context.Context, core corev1controler.Interface, gitRepos flee
 		imagescans:  images,
 	}
 
-	fleetcontrollers.RegisterImageScanStatusHandler(ctx, images, "ImageScanned", "image-scan", h.onChange)
+	fleetcontrollers.RegisterImageScanStatusHandler(ctx, images, imageScanCond, "image-scan", h.onChange)
 
-	fleetcontrollers.RegisterGitRepoStatusHandler(ctx, gitRepos, "ImageSynced", "image-sync", h.onChangeGitRepo)
+	fleetcontrollers.RegisterGitRepoStatusHandler(ctx, gitRepos, imageSyncCond, "image-sync", h.onChangeGitRepo)
 }
 
 type handler struct {
@@ -179,6 +185,21 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 
 	if len(scans) == 0 {
 		return status, nil
+	}
+
+	isStalled := false
+	var messages []string
+	sort.Slice(scans, func(i, j int) bool {
+		return scans[i].Spec.TagName < scans[j].Spec.TagName
+	})
+	for _, scan := range scans {
+		if condition.Cond(imageScanCond).IsFalse(scan) {
+			isStalled = true
+			messages = append(messages, fmt.Sprintf("imageScan %s is not ready: %s", scan.Spec.TagName, condition.Cond(imageScanCond).GetMessage(scan)))
+		}
+	}
+	if isStalled {
+		return status, errors.New(strings.Join(messages, ";"))
 	}
 
 	if !shouldSync(gitrepo) {
