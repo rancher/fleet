@@ -266,14 +266,14 @@ func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 }
 
 func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
-	timeout, defaultNamespae, releaseName := h.getOpts(bundleID, options)
+	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
-	values, err := h.getValues(options, defaultNamespae)
+	values, err := h.getValues(options, defaultNamespace)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := h.getCfg(defaultNamespae, options.ServiceAccount)
+	cfg, err := h.getCfg(defaultNamespace, options.ServiceAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +320,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		u.Replace = true
 		u.ReleaseName = releaseName
 		u.CreateNamespace = true
-		u.Namespace = defaultNamespae
+		u.Namespace = defaultNamespace
 		u.Timeout = timeout
 		u.DryRun = dryRun
 		u.PostRenderer = pr
@@ -340,7 +340,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	if u.MaxHistory == 0 {
 		u.MaxHistory = 10
 	}
-	u.Namespace = defaultNamespae
+	u.Namespace = defaultNamespace
 	u.Timeout = timeout
 	u.DryRun = dryRun
 	u.DisableOpenAPIValidation = h.template || dryRun
@@ -364,49 +364,53 @@ func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 		values = options.Helm.Values.Data
 	}
 
-	for _, valuesFrom := range options.Helm.ValuesFrom {
-		var tempValues map[string]interface{}
-		if valuesFrom.SecretKeyRef != nil {
-			name := valuesFrom.SecretKeyRef.Name
-			namespace := valuesFrom.SecretKeyRef.Namespace
-			if namespace == "" {
-				namespace = defaultNamespace
+	// do not run this when using template
+	if !h.template {
+		for _, valuesFrom := range options.Helm.ValuesFrom {
+			var tempValues map[string]interface{}
+			if valuesFrom.SecretKeyRef != nil {
+				name := valuesFrom.SecretKeyRef.Name
+				namespace := valuesFrom.SecretKeyRef.Namespace
+				if namespace == "" {
+					namespace = defaultNamespace
+				}
+				key := valuesFrom.SecretKeyRef.Key
+				if key == "" {
+					key = DefaultKey
+				}
+				secret, err := h.secretCache.Get(namespace, name)
+				if err != nil {
+					return nil, err
+				}
+				tempValues, err = processValuesFromObject(name, namespace, key, secret, nil)
+				if err != nil {
+					return nil, err
+				}
+			} else if valuesFrom.ConfigMapKeyRef != nil {
+				name := valuesFrom.ConfigMapKeyRef.Name
+				namespace := valuesFrom.ConfigMapKeyRef.Namespace
+				if namespace == "" {
+					namespace = defaultNamespace
+				}
+				key := valuesFrom.ConfigMapKeyRef.Key
+				if key == "" {
+					key = DefaultKey
+				}
+				configMap, err := h.configmapCache.Get(namespace, name)
+				if err != nil {
+					return nil, err
+				}
+				tempValues, err = processValuesFromObject(name, namespace, key, nil, configMap)
+				if err != nil {
+					return nil, err
+				}
 			}
-			key := valuesFrom.SecretKeyRef.Key
-			if key == "" {
-				key = DefaultKey
+			if tempValues != nil {
+				values = mergeValues(values, tempValues)
 			}
-			secret, err := h.secretCache.Get(namespace, name)
-			if err != nil {
-				return nil, err
-			}
-			tempValues, err = processValuesFromObject(name, namespace, key, secret, nil)
-			if err != nil {
-				return nil, err
-			}
-		} else if valuesFrom.ConfigMapKeyRef != nil {
-			name := valuesFrom.ConfigMapKeyRef.Name
-			namespace := valuesFrom.ConfigMapKeyRef.Namespace
-			if namespace == "" {
-				namespace = defaultNamespace
-			}
-			key := valuesFrom.ConfigMapKeyRef.Key
-			if key == "" {
-				key = DefaultKey
-			}
-			configMap, err := h.configmapCache.Get(namespace, name)
-			if err != nil {
-				return nil, err
-			}
-			tempValues, err = processValuesFromObject(name, namespace, key, nil, configMap)
-			if err != nil {
-				return nil, err
-			}
-		}
-		if tempValues != nil {
-			values = mergeValues(values, tempValues)
 		}
 	}
+
 	return values, nil
 }
 
