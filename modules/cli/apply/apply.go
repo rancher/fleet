@@ -187,15 +187,15 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 		logrus.Infof("created: %s/%s\n", bundle.Namespace, bundle.Name)
 	} else if err != nil {
 		return err
+	} else {
+		obj.Spec = bundle.Spec
+		obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
+		obj.Labels = mergeMap(obj.Labels, bundle.Labels)
+		if _, err := c.Fleet.Bundle().Update(obj); err != nil {
+			return err
+		}
+		logrus.Infof("updated: %s/%s\n", obj.Namespace, obj.Name)
 	}
-
-	obj.Spec = bundle.Spec
-	obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
-	obj.Labels = mergeMap(obj.Labels, bundle.Labels)
-	if _, err := c.Fleet.Bundle().Update(obj); err != nil {
-		return err
-	}
-	logrus.Infof("updated: %s/%s\n", obj.Namespace, obj.Name)
 
 	for _, scan := range imageScans {
 		scan.Namespace = client.Namespace
@@ -208,15 +208,15 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 			logrus.Infof("created (scan): %s/%s\n", bundle.Namespace, bundle.Name)
 		} else if err != nil {
 			return err
+		} else {
+			obj.Spec = scan.Spec
+			obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
+			obj.Labels = mergeMap(obj.Labels, bundle.Labels)
+			if _, err := c.Fleet.ImageScan().Update(obj); err != nil {
+				return err
+			}
+			logrus.Infof("updated (scan): %s/%s\n", obj.Namespace, obj.Name)
 		}
-
-		obj.Spec = scan.Spec
-		obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
-		obj.Labels = mergeMap(obj.Labels, bundle.Labels)
-		if _, err := c.Fleet.ImageScan().Update(obj); err != nil {
-			return err
-		}
-		logrus.Infof("updated (scan): %s/%s\n", obj.Namespace, obj.Name)
 	}
 	return err
 }
