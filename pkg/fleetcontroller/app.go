@@ -12,7 +12,7 @@ import (
 )
 
 func OutputCRDs(writer io.Writer) error {
-	objs, err := crd.Objects()
+	objs, err := crd.Objects(false)
 	if err != nil {
 		return err
 	}
