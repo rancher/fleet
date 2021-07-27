@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
-	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/crd"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
 	"github.com/rancher/wrangler/pkg/schemas/openapi"
@@ -13,32 +14,35 @@ import (
 )
 
 func main() {
-	var crds []crd.CRD
-	crds = append(crds,
-		crd.NamespacedType("GitJob.gitjob.cattle.io/v1").
-			WithStatus().
-			WithSchema(mustSchema(v1.GitJob{})).
-			WithColumnsFromStruct(v1.GitJob{}).
-			WithCustomColumn(apiextv1.CustomResourceColumnDefinition{
-				Name:     "Age",
-				Type:     "date",
-				JSONPath: ".metadata.creationTimestamp",
-			}))
+	fmt.Println("{{- if .Capabilities.APIVersions.Has \"apiextensions.k8s.io/v1\" -}}\n" +
+		generateGitJobCrd(false) +
+		"\n{{- else -}}\n" +
+		generateGitJobCrd(true) +
+		"\n{{- end -}}")
+}
 
-	var result []runtime.Object
-	for _, crd := range crds {
-		crdObject, err := crd.ToCustomResourceDefinition()
+func generateGitJobCrd(v1beta1 bool) string {
+	crdObject := crd.NamespacedType("GitJob.gitjob.cattle.io/v1").
+		WithStatus().
+		WithSchema(mustSchema(gitjobv1.GitJob{})).
+		WithColumnsFromStruct(gitjobv1.GitJob{}).
+		WithCustomColumn(apiextv1.CustomResourceColumnDefinition{
+			Name:     "Age",
+			Type:     "date",
+			JSONPath: ".metadata.creationTimestamp",
+		})
+	if v1beta1 {
+		runtimeObject, err := crdObject.ToCustomResourceDefinitionV1Beta1()
 		if err != nil {
 			panic(err)
 		}
-		result = append(result, crdObject)
+		return generateYamlString(runtimeObject)
 	}
-
-	output, err := yaml.Export(result...)
+	runtimeObject, err := crdObject.ToCustomResourceDefinition()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(string(output))
+	return generateYamlString(runtimeObject)
 }
 
 func mustSchema(obj interface{}) *apiextv1.JSONSchemaProps {
@@ -47,4 +51,12 @@ func mustSchema(obj interface{}) *apiextv1.JSONSchemaProps {
 		panic(err)
 	}
 	return result
+}
+
+func generateYamlString(obj runtime.Object) string {
+	crdYaml, err := yaml.Export(obj)
+	if err != nil {
+		panic(err)
+	}
+	return strings.Trim(string(crdYaml), "\n")
 }
