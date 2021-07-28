@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	ManagerConfigName = "fleet-controller"
-	AgentConfigName   = "fleet-agent"
-	Key               = "config"
-	DefaultNamespace  = "fleet-system"
+	ManagerConfigName        = "fleet-controller"
+	AgentConfigName          = "fleet-agent"
+	AgentBootstrapConfigName = "fleet-agent-bootstrap"
+	Key                      = "config"
+	DefaultNamespace         = "fleet-system"
 )
 
 var (

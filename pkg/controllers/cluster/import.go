@@ -101,44 +101,61 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 }
 
 func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Interface) error {
-	err := kc.CoreV1().Secrets(i.systemNamespace).Delete(i.ctx, "fleet-agent", metav1.DeleteOptions{})
+	err := kc.CoreV1().Secrets(i.systemNamespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
-	err = kc.CoreV1().Secrets(i.systemNamespace).Delete(i.ctx, "fleet-agent-bootstrap", metav1.DeleteOptions{})
+	err = kc.CoreV1().Secrets(i.systemNamespace).Delete(i.ctx, config.AgentBootstrapConfigName, metav1.DeleteOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
 
-	deployment, err := kc.AppsV1().Deployments(i.systemNamespace).Get(i.ctx, "fleet-agent", metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		return nil
-	} else if err != nil {
-		return nil
-	}
-
-	logrus.Infof("Deleted old agent for cluster %s/%s", cluster.Namespace, cluster.Name)
-
-	err = kc.AppsV1().Deployments(i.systemNamespace).Delete(i.ctx, "fleet-agent", metav1.DeleteOptions{})
-	if err != nil {
+	if err := i.deleteOldAgentDeployment(kc, i.systemNamespace, cluster.Namespace, cluster.Name); err != nil {
 		return err
 	}
-
-	pods, err := kc.CoreV1().Pods(i.systemNamespace).List(i.ctx, metav1.ListOptions{
-		LabelSelector: metav1.FormatLabelSelector(deployment.Spec.Selector),
-	})
-	if err != nil {
-		return err
-	}
-
-	for _, pod := range pods.Items {
-		err := kc.CoreV1().Pods(i.systemNamespace).Delete(i.ctx, pod.Name, metav1.DeleteOptions{})
-		if err != nil && !apierrors.IsNotFound(err) {
+	if i.systemNamespace != config.DefaultNamespace {
+		if _, err := kc.CoreV1().Namespaces().Get(i.ctx, config.DefaultNamespace, metav1.GetOptions{}); err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			return err
+		}
+		if err := i.deleteOldAgentDeployment(kc, config.DefaultNamespace, cluster.Namespace, cluster.Name); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+func (i *importHandler) deleteOldAgentDeployment(kc kubernetes.Interface, namespace, clusterNamespace, clusterName string) error {
+	deployment, err := kc.AppsV1().Deployments(namespace).Get(i.ctx, config.AgentConfigName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	if err := kc.AppsV1().Deployments(namespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	logrus.Infof("Deleted old agent for cluster (%s/%s) in namespace %s", clusterNamespace, clusterName, namespace)
+
+	pods, err := kc.CoreV1().Pods(namespace).List(i.ctx, metav1.ListOptions{
+		LabelSelector: metav1.FormatLabelSelector(deployment.Spec.Selector),
+	})
+	if apierrors.IsNotFound(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	for _, pod := range pods.Items {
+		if err := kc.CoreV1().Pods(namespace).Delete(i.ctx, pod.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -189,7 +206,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	apply = apply.WithDynamicLookup().WithSetID("fleet-agent-bootstrap").WithNoDeleteGVK(schema.GroupVersionKind{
+	apply = apply.WithDynamicLookup().WithSetID(config.AgentBootstrapConfigName).WithNoDeleteGVK(schema.GroupVersionKind{
 		Group:   corev1.SchemeGroupVersion.Group,
 		Version: corev1.SchemeGroupVersion.Version,
 		Kind:    NamespaceKind,
