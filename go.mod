@@ -53,7 +53,7 @@ require (
 	go.mozilla.org/sops/v3 v3.6.1
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	golang.org/x/tools v0.0.0-20200916195026-c9a70fc28ce3 // indirect
-	helm.sh/helm/v3 v3.5.1
+	helm.sh/helm/v3 v3.6.1
 	k8s.io/api v0.20.2
 	k8s.io/apimachinery v0.20.2
 	k8s.io/cli-runtime v0.20.2
