@@ -54,5 +54,18 @@ Now, we will build and push our `fleet-agent`, install our Fleet charts, and the
 )
 ```
 
+Alternatively, if the agent's code has been unchanged, you can use the latest agent instead.
+We'll use the latest Git tag for this, and _assume_ it is available on DockerHub.
+
+```sh
+(
+    for i in fleet-system fleet-default fleet-local; do kubectl create namespace $i; done
+    helm install -n fleet-system fleet-crd ./charts/fleet-crd
+    helm install -n fleet-system fleet --set agentImage.tag=$(git tag --sort=taggerdate | tail -1) ./charts/fleet
+    kubectl delete deployment -n fleet-system fleet-controller
+    go run cmd/fleetcontroller/main.go
+)
+```
+
 The controller should be running in your terminal window/pane!
 You can now create [GitRepo](https://fleet.rancher.io/gitrepo-structure/) custom resource objects and test Fleet locally.
