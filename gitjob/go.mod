@@ -9,6 +9,7 @@ replace (
 
 require (
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gorilla/mux v1.7.3
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
