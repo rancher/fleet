@@ -241,12 +241,21 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 
 	if i.systemNamespace != config.DefaultNamespace {
 		logrus.Infof("System namespace (%s) does not equal default namespace (%s), checking for leftover objects...", i.systemNamespace, config.DefaultNamespace)
+
+		// Clean up the leftover agent if it exists.
 		_, err := kc.CoreV1().Namespaces().Get(i.ctx, config.DefaultNamespace, metav1.GetOptions{})
 		if err == nil {
 			if err := i.deleteOldAgent(cluster, kc, config.DefaultNamespace); err != nil {
 				return status, err
 			}
 		} else if !apierrors.IsNotFound(err) {
+			return status, err
+		}
+
+		// Clean up the leftover clusters namespace if it exists.
+		// We want to keep the DefaultNamespace alive, but not the clusters namespace.
+		err = kc.CoreV1().Namespaces().Delete(i.ctx, fleetns.RegistrationNamespace(config.DefaultNamespace), metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
 			return status, err
 		}
 	}
