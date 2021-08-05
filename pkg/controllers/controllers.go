@@ -103,7 +103,8 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.ClusterGroup().Cache(),
 		appCtx.Cluster(),
 		appCtx.GitRepo().Cache(),
-		appCtx.Core.Namespace())
+		appCtx.Core.Namespace(),
+		appCtx.ClusterRegistration())
 
 	cluster.RegisterImport(ctx,
 		systemNamespace,
