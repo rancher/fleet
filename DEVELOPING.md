@@ -48,7 +48,7 @@ This step will differ depending on whether you would like to test standalone Fle
 
 #### Option 1/2: Standalone Fleet
 
-Let's build and push our `fleet-agent`, install our Fleet charts, and then replace the controller deployment with our local controller build.
+Let's build and push our `fleet-agent` (`linux-amd64` image by default), install our Fleet charts, and then replace the controller deployment with our local controller build.
 
 ```sh
 (
@@ -84,7 +84,7 @@ You can use the [Rancher Wiki](https://github.com/rancher/rancher/wiki/Setting-U
 
 > If you are unsure about which method you would like use for tunneling to localhost, we recommend [ngrok](https://ngrok.com) or [tunnelware](https://github.com/StrongMonkey/tunnelware).
 
-Now, let's build and push our `fleet-agent`, if applicable.
+Now, let's build and push our `fleet-agent` (`linux-amd64` image by default), if applicable.
 
 ```sh
 (

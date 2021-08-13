@@ -18,6 +18,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	fleetns "github.com/rancher/fleet/pkg/namespace"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
 	"github.com/rancher/wrangler/pkg/yaml"
 	v1 "k8s.io/api/core/v1"
@@ -44,8 +45,8 @@ type Options struct {
 	AgentEnvVars    []v1.EnvVar
 }
 
-func AgentToken(ctx context.Context, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
-	token, err := getToken(ctx, tokenName, client)
+func AgentToken(ctx context.Context, systemNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
+	token, err := getToken(ctx, systemNamespace, tokenName, client)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +106,7 @@ func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace str
 		return err
 	}
 
-	objs, err := AgentToken(ctx, controllerNamespace, client, tokenName, opts)
+	objs, err := AgentToken(ctx, systemNamespace, controllerNamespace, client, tokenName, opts)
 	if err != nil {
 		return err
 	}
@@ -223,7 +224,7 @@ func getCA(ca []byte, cfg clientcmdapi.Config) ([]byte, error) {
 	return GetCAFromConfig(cfg)
 }
 
-func getToken(ctx context.Context, tokenName string, client *client.Client) (map[string][]byte, error) {
+func getToken(ctx context.Context, systemNamespace, tokenName string, client *client.Client) (map[string][]byte, error) {
 	secretName, err := waitForSecretName(ctx, tokenName, client)
 	if err != nil {
 		return nil, err
@@ -246,6 +247,12 @@ func getToken(ctx context.Context, tokenName string, client *client.Client) (map
 
 	if _, ok := data["token"]; !ok {
 		return nil, fmt.Errorf("failed to find token in values")
+	}
+
+	expectedNamespace := fleetns.RegistrationNamespace(systemNamespace)
+	actualNamespace := data["systemRegistrationNamespace"]
+	if actualNamespace != expectedNamespace {
+		return nil, fmt.Errorf("registration namespace (%s) from secret (%s/%s) does not match expected: %s", actualNamespace, secret.Namespace, secret.Name, expectedNamespace)
 	}
 
 	byteData := map[string][]byte{}
