@@ -106,7 +106,9 @@ volumes:
 - name: docker
   host:
     path: /var/run/docker.sock
+
 ---
+
 kind: pipeline
 name: linux-arm64
 platform:
@@ -184,7 +186,9 @@ volumes:
 - name: docker
   host:
     path: /var/run/docker.sock
+
 ---
+
 kind: pipeline
 name: linux-arm
 platform:
@@ -263,7 +267,9 @@ volumes:
 - name: docker
   host:
     path: /var/run/docker.sock
+
 ---
+
 kind: pipeline
 name: windows-1809
 platform:
@@ -304,7 +310,9 @@ volumes:
       path: \\\\.\\pipe\\docker_engine
 depends_on:
 - linux-amd64
+
 ---
+
 kind: pipeline
 name: windows-2004
 platform:
@@ -316,11 +324,11 @@ clone:
   disable: true
 steps:
 - name: clone
-  image: luthermonson/drone-git:windows-2004-amd64
+  image: rancher/drone-images:git-2004
   settings:
     depth: 1
 - name: docker-publish-agent
-  image: luthermonson/drone-docker:2004
+  image: rancher/drone-images:docker-2004
   settings:
     dockerfile: package/Dockerfile-windows.agent
     password:
@@ -352,7 +360,9 @@ volumes:
       path: \\\\.\\pipe\\docker_engine
 depends_on:
 - linux-amd64
+
 ---
+
 kind: pipeline
 name: windows-20H2
 platform:
@@ -364,11 +374,11 @@ clone:
   disable: true
 steps:
 - name: clone
-  image: luthermonson/drone-git:windows-20H2-amd64
+  image: rancher/drone-images:git-20H2
   settings:
     depth: 1
 - name: docker-publish-agent
-  image: luthermonson/drone-docker:20H2
+  image: rancher/drone-images:docker-20H2
   settings:
     dockerfile: package/Dockerfile-windows.agent
     password:
@@ -400,7 +410,9 @@ volumes:
       path: \\\\.\\pipe\\docker_engine
 depends_on:
 - linux-amd64
+
 ---
+
 kind: pipeline
 name: manifest
 platform:
@@ -446,7 +458,9 @@ depends_on:
 - windows-1809
 - windows-2004
 - windows-20H2
+
 ---
+
 kind: pipeline
 name: gorelease
 steps:
