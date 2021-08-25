@@ -1735,6 +1735,9 @@ spec:
               agentDeployedGeneration:
                 nullable: true
                 type: integer
+              agentEnvVarsHash:
+                nullable: true
+                type: string
               agentMigrated:
                 type: boolean
               cattleNamespaceMigrated:
@@ -4346,6 +4349,9 @@ spec:
             agentDeployedGeneration:
               nullable: true
               type: integer
+            agentEnvVarsHash:
+              nullable: true
+              type: string
             agentMigrated:
               type: boolean
             cattleNamespaceMigrated:

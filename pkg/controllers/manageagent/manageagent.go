@@ -2,6 +2,9 @@ package manageagent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 
 	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -27,12 +30,13 @@ type handler struct {
 	systemNamespace string
 	clusterCache    fleetcontrollers.ClusterCache
 	bundleCache     fleetcontrollers.BundleCache
+	namespaces      corecontrollers.NamespaceController
 }
 
 func Register(ctx context.Context,
 	systemNamespace string,
 	apply apply.Apply,
-	namespace corecontrollers.NamespaceController,
+	namespaces corecontrollers.NamespaceController,
 	clusters fleetcontrollers.ClusterController,
 	bundle fleetcontrollers.BundleController,
 ) {
@@ -40,13 +44,51 @@ func Register(ctx context.Context,
 		systemNamespace: systemNamespace,
 		clusterCache:    clusters.Cache(),
 		bundleCache:     bundle.Cache(),
+		namespaces:      namespaces,
 		apply: apply.
 			WithSetID("fleet-manage-agent").
 			WithCacheTypes(bundle),
 	}
 
-	namespace.OnChange(ctx, "manage-agent", h.OnNamespace)
-	relatedresource.WatchClusterScoped(ctx, "manage-agent-resolver", h.resolveNS, namespace, clusters)
+	namespaces.OnChange(ctx, "manage-agent", h.OnNamespace)
+	relatedresource.WatchClusterScoped(ctx, "manage-agent-resolver", h.resolveNS, namespaces, clusters)
+	fleetcontrollers.RegisterClusterStatusHandler(ctx,
+		clusters,
+		"Reconciled",
+		"agent-env-vars",
+		h.OnClusterChange)
+}
+
+func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
+	// Check if the agent environment variables field was updated by hashing its contents into a status field.
+	return h.reconcileAgentEnvVars(cluster, status)
+}
+
+func (h *handler) reconcileAgentEnvVars(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
+	if len(cluster.Spec.AgentEnvVars) < 1 {
+		// Remove the existing hash if the environment variables have been deleted.
+		if status.AgentEnvVarsHash != "" {
+			// We enqueue to ensure that we edit the status after other controllers.
+			h.namespaces.Enqueue(cluster.Namespace)
+			status.AgentEnvVarsHash = ""
+		}
+		return status, nil
+	}
+
+	hasher := sha256.New224()
+	b, err := json.Marshal(cluster.Spec.AgentEnvVars)
+	if err != nil {
+		return status, err
+	}
+	hasher.Write(b)
+	hash := fmt.Sprintf("%x", hasher.Sum(nil))
+
+	if status.AgentEnvVarsHash != hash {
+		// We enqueue to ensure that we edit the status after other controllers.
+		h.namespaces.Enqueue(cluster.Namespace)
+		status.AgentEnvVarsHash = hash
+	}
+	return status, nil
 }
 
 func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
