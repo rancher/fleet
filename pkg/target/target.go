@@ -525,9 +525,9 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 		} else {
 			switch val.(type) {
 			case string:
-				values_template, _ := template.New("clusterLabels").Option("missingkey=error").Parse(valStr)
+				valuesTemplate, _ := template.New("clusterLabels").Option("missingkey=error").Parse(valStr)
 				var tpl bytes.Buffer
-				err := values_template.Execute(&tpl, clusterLabels)
+				err := valuesTemplate.Execute(&tpl, clusterLabels)
 				if err == nil {
 					valuesMap[key] = tpl.String()
 				} else {
