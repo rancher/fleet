@@ -13,6 +13,9 @@ helm:
   releaseName: labels
   values:
     clusterName: global.fleet.clusterLabels.name
+    templateName: "kubernetes.io/cluster/{{ .name }}"
+    templateLogic: "{{ if eq .envType \"production\" }}Production Workload{{ else }}Non Prod{{ end }}"
+    templateMissing: "{{ .missingValue }}"
     customStruct:
       - name: global.fleet.clusterLabels.name
         key1: value1
@@ -103,4 +106,32 @@ func TestProcessLabelValues(t *testing.T) {
 	if thirdElemVal.(string) != "local" {
 		t.Fatal("label replacement not performed in third element")
 	}
+
+	templateName, ok := bundle.Helm.Values.Data["templateName"]
+	if !ok {
+		t.Fatal("key templateName not found")
+	}
+
+	if templateName != "kubernetes.io/cluster/local" {
+		t.Fatal("unable to assert correct template")
+	}
+
+	templateMissing, ok := bundle.Helm.Values.Data["templateMissing"]
+	if !ok {
+		t.Fatal("key templateMissing not found")
+	}
+
+	if templateMissing != "{{ .missingValue }}" {
+		t.Fatal("unable to assert correct templateMising")
+	}
+
+	templateLogic, ok := bundle.Helm.Values.Data["templateLogic"]
+	if !ok {
+		t.Fatal("key templateLogic not found")
+	}
+
+	if templateLogic != "Non Prod" {
+		t.Fatal("unable to assert correct templateLogic")
+	}
+
 }

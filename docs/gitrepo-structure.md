@@ -72,6 +72,10 @@ helm:
   # All labels on Rancher clusters are available using global.fleet.clusterLabels.LABELNAME
   # These can now be accessed directly as variables
     variableName: global.fleet.clusterLabels.LABELNAME
+  # They can also be access using go template logic
+    variableName: "kubernetes.io/cluster/{{ .LABELNAME }}"
+    variableName: "{{ if eq .LABELNAME \"production\" }}Production Workload{{ else }}Non Prod{{ end }}"
+
   # Path to any values files that need to be passed to helm during install
   valuesFiles:
     - values1.yaml

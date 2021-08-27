@@ -1,10 +1,12 @@
 package target
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/pkg/errors"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -519,6 +521,18 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 				valuesMap[key] = labelVal
 			} else {
 				return fmt.Errorf("invalid_label_reference %s in key %s", valStr, key)
+			}
+		} else {
+			switch val.(type) {
+			case string:
+				values_template,_ := template.New("clusterLabels").Option("missingkey=error").Parse(valStr)
+				var tpl bytes.Buffer
+				err := values_template.Execute(&tpl, clusterLabels)
+				if err == nil {
+					valuesMap[key] = tpl.String()
+				} else {
+					logrus.Errorf("Failed to process template label subsitution for key '%s' with value '%s': [%v]", key, valStr, err)
+				}
 			}
 		}
 
