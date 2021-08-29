@@ -13,8 +13,8 @@ helm:
   releaseName: labels
   values:
     clusterName: global.fleet.clusterLabels.name
-    templateName: "kubernetes.io/cluster/{{ .name }}"
-    templateLogic: "{{ if eq .envType \"production\" }}Production Workload{{ else }}Non Prod{{ end }}"
+    templateName: "kubernetes.io/cluster/{{ .global.fleet.clusterLabels.name }}"
+    templateLogic: "{{ if eq .global.fleet.clusterLabels.envType \"production\" }}Production Workload{{ else }}Non Prod{{ end }}"
     templateMissing: "{{ .missingValue }}"
     customStruct:
       - name: global.fleet.clusterLabels.name
