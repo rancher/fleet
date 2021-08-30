@@ -512,13 +512,13 @@ func Summary(targets []*Target) fleet.BundleSummary {
 
 func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) error {
 	prefix := "global.fleet.clusterLabels."
-        scopedClusterLables := map[string]interface{}{
-                "global": map[string]interface{}{
-                        "fleet": map[string]interface{}{
-                                "clusterLabels": clusterLabels,
-                        },
-                },
-        }
+	scopedClusterLables := map[string]interface{}{
+		"global": map[string]interface{}{
+			"fleet": map[string]interface{}{
+				"clusterLabels": clusterLabels,
+			},
+		},
+	}
 	for key, val := range valuesMap {
 		valStr, ok := val.(string)
 		if ok && strings.HasPrefix(valStr, prefix) {
