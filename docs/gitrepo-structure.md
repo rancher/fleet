@@ -155,6 +155,13 @@ targetCustomizations:
       region: us-east
   # A specific clusterGroup by name that will be selected
   clusterGroup: group1
+
+# dependsOn allows you to configure dependencies to other bundles. The current bundle
+# will only be deployed, after all dependencies are deployed and in a Ready state.
+dependsOn:
+  # Format: <GITREPO-NAME>-<BUNDLE_PATH> with all path separators replaced by "-" 
+  # Example: GitRepo name "one", Bundle path "/multi-cluster/hello-world" => "one-multi-cluster-hello-world"
+  - name: one-multi-cluster-hello-world
 ```
 
 !!! hint "Private Helm Repo"
