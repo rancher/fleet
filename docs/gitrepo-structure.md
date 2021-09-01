@@ -77,7 +77,6 @@ helm:
     - values1.yaml
     - values2.yaml
   # Allow to use values files from configmaps or secrets
-  # NOTE: this feature is slated to be available in Fleet v0.3.6
   valuesFrom:
   - configMapKeyRef:
       name: configmap-values
