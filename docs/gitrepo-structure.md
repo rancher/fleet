@@ -76,6 +76,17 @@ helm:
   valuesFiles:
     - values1.yaml
     - values2.yaml
+  # Allow to use values files from configmaps or secrets
+  valuesFrom:
+  - configMapKeyRef:
+      name: configmap-values
+      # default to namespace of bundle
+      namespace: default 
+      key: values.yaml
+    secretKeyRef:
+      name: secret-values
+      namespace: default
+      key: values.yaml
   # Override immutable resources. This could be dangerous.
   force: false
 
@@ -178,6 +189,40 @@ dependsOn:
     `kubectl create secret -n $namespace generic helm --from-literal=username=foo --from-literal=password=bar --from-file=cacerts=/path/to/cacerts --from-file=ssh-privatekey=/path/to/privatekey.pem`
     
     After secret is created, specify the secret to `gitRepo.spec.helmSecretName`. Make sure secret is created under the same namespace with gitrepo.
+
+### Using ValuesFrom
+
+These examples showcase the style and format for using `valuesFrom`.
+
+Example [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/):
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configmap-values
+  namespace: default
+data:  
+  values.yaml: |-
+    replication: true
+    replicas: 2
+    serviceType: NodePort
+```
+
+Example [Secret](https://kubernetes.io/docs/concepts/configuration/secret/):
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-values
+  namespace: default
+stringData:
+  values.yaml: |-
+    replication: true
+    replicas: 2
+    serviceType: NodePort
+```
 
 ## Per Cluster Customization
 
