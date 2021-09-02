@@ -187,7 +187,7 @@ targetCustomizations:
 
 These examples showcase the style and format for using `valuesFrom`.
 
-Example `ConfigMap`:
+Example [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/):
 
 ```yaml
 apiVersion: v1
@@ -202,7 +202,7 @@ data:
     serviceType: NodePort
 ```
 
-Example `Secret`:
+Example [Secret](https://kubernetes.io/docs/concepts/configuration/secret/):
 
 ```yaml
 apiVersion: v1
