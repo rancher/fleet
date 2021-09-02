@@ -185,22 +185,36 @@ targetCustomizations:
 
 ### Using ValuesFrom
 
-The examples below include filler `values` data for a generic Helm chart.
 These examples showcase the style and format for using `valuesFrom`.
 
-Recommended `ConfigMap` contents for the `data` field:
+Example `ConfigMap`:
 
 ```yaml
-values.yaml: |-
-  replication: true
-  replicas: 2
-  serviceType: NodePort
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configmap-values
+  namespace: default
+data:  
+  values.yaml: |-
+    replication: true
+    replicas: 2
+    serviceType: NodePort
 ```
 
-Recommended `Secret` contents for the `data` field (to be converted into bytes):
+Example `Secret`:
 
 ```yaml
-replication: true\nreplicas: 2\nserviceType: NodePort
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-values
+  namespace: default
+stringData:
+  values.yaml: |-
+    replication: true
+    replicas: 2
+    serviceType: NodePort
 ```
 
 ## Per Cluster Customization
