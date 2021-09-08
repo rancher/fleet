@@ -55,3 +55,10 @@ global:
   kubectl:
     repository: rancher/kubectl
     tag: v1.20.2
+
+# Additional env variables in the format key=value
+env: {}
+
+# Use this secret to pass values to the fleet agents
+# Case usage: https://github.com/variantdev/vals#suported-backends
+secret: ""

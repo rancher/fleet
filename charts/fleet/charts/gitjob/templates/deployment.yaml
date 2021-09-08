@@ -32,6 +32,15 @@ spec:
             - name: NO_PROXY
               value: {{ .Values.noProxy }}
           {{- end }}
+          {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value }}
+          {{- end }}
+        {{- if .Values.secret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secret }}
+        {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}

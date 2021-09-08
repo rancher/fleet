@@ -17,6 +17,15 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        {{- range $key, $value := .Values.env }}
+        - name: {{ $key }}
+          value: "{{ $value }}"
+        {{- end }}
+        {{- if .Values.secret }}
+        envFrom:
+          - secretRef:
+              name: {{ .Values.secret }}
+        {{- end }}
         image: '{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}'
         name: fleet-agent
       serviceAccountName: fleet-agent

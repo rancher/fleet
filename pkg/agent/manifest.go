@@ -42,9 +42,26 @@ func Manifest(namespace, image, pullPolicy, generation, checkInInterval string, 
 			Name:  "GENERATION",
 			Value: generation,
 		})
+	if config.Get().Env != nil {
+		for k, v := range config.Get().Env {
+			dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
+				Name:  k,
+				Value: v,
+			})
+		}
+	}
 	if agentEnvVars != nil {
 		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, agentEnvVars...)
 	}
+
+	if config.Get().Secret != "" {
+		dep.Spec.Template.Spec.Containers[0].EnvFrom = []corev1.EnvFromSource{
+			{
+				SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: config.Get().Secret}},
+			},
+		}
+	}
+
 	dep.Spec.Template.Spec.Affinity = &corev1.Affinity{
 		NodeAffinity: &corev1.NodeAffinity{
 			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{

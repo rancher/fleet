@@ -16,8 +16,22 @@ data:
         "repo": "{{.Values.bootstrap.repo}}",
         "secret": "{{.Values.bootstrap.secret}}",
         "branch":  "{{.Values.bootstrap.branch}}",
-        "namespace": "{{.Values.bootstrap.namespace}}",
+        "namespace": "{{.Values.bootstrap.namespace}}"
       },
       "webhookReceiverURL": "{{.Values.webhookReceiverURL}}",
+      {{- if .Values.env }}
+      "env": {
+        {{- range $k,$v := .Values.env }}
+          "{{ $k }}": "{{ $v }}",
+        {{- end }}
+          "VALS_ENABLED": "{{ .Values.vals.enabled }}"
+      },
+      {{- end }}
+      {{- if .Values.secret }}
+      "secret": "{{ .Values.secret }}",
+      {{- end }}
+      {{- if .Values.agentSecret }}
+      "agentSecret": "{{ .Values.agentSecret }}",
+      {{- end }}
       "githubURLPrefix": "{{.Values.githubURLPrefix}}"
     }

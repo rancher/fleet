@@ -341,7 +341,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, bundleErrorState)
 	status = countResources(status)
 	volumes, volumeMounts := volumes(gitrepo, configMap)
-	args, envs := argsAndEnvs(gitrepo)
+	args, envs, secretEnv := argsAndEnvs(gitrepo, configMap)
 	return []runtime.Object{
 		configMap,
 		&corev1.ServiceAccount{
@@ -429,6 +429,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 									WorkingDir:      "/workspace/source",
 									VolumeMounts:    volumeMounts,
 									Env:             envs,
+									EnvFrom:         secretEnv,
 								},
 							},
 							NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
@@ -587,7 +588,7 @@ func volumes(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volu
 	return volumes, volumeMounts
 }
 
-func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
+func argsAndEnvs(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]string, []corev1.EnvVar, []corev1.EnvFromSource) {
 	args := []string{
 		"log.sh",
 		"fleet",
@@ -602,6 +603,24 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 	}
 
 	var env []corev1.EnvVar
+	if config.Get().Env != nil {
+		for k, v := range config.Get().Env {
+			env = append(env, corev1.EnvVar{
+				Name:  k,
+				Value: v,
+			})
+		}
+	}
+
+	var secretEnv []corev1.EnvFromSource
+	if config.Get().AgentSecret != "" {
+		secretEnv = []corev1.EnvFromSource{
+			{
+				SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: config.Get().AgentSecret}},
+			},
+		}
+	}
+
 	if gitrepo.Spec.HelmSecretName != "" {
 		helmArgs := []string{
 			"--password-file",
@@ -612,6 +631,7 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 			"/etc/fleet/helm/ssh-privatekey",
 		}
 		args = append(args, helmArgs...)
+
 		env = append(env,
 			// for ssh go-getter, make sure we always accept new host key
 			corev1.EnvVar{
@@ -631,5 +651,5 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 				},
 			})
 	}
-	return append(args, gitrepo.Name), env
+	return append(args, gitrepo.Name), env, secretEnv
 }

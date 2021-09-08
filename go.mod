@@ -53,8 +53,9 @@ require (
 	github.com/spf13/cobra v1.1.3
 	github.com/stretchr/testify v1.7.0
 	github.com/ulikunitz/xz v0.5.8 // indirect
+	github.com/variantdev/vals v0.14.0
 	go.mozilla.org/sops/v3 v3.6.1
-	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	helm.sh/helm/v3 v3.5.1
 	k8s.io/api v0.21.3
 	k8s.io/apimachinery v0.21.3

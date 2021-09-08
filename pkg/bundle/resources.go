@@ -22,6 +22,8 @@ import (
 	"github.com/rancher/fleet/modules/cli/pkg/progress"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/content"
+	"github.com/sirupsen/logrus"
+	"github.com/variantdev/vals"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 	"helm.sh/helm/v3/pkg/repo"
@@ -419,6 +421,12 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 		err = yaml.Unmarshal(valuesByte, tmpDataOpt)
 		if err != nil {
 			return nil, err
+		}
+		valsRendered, err := vals.Eval(tmpDataOpt.Data, vals.Options{})
+		if err != nil {
+			logrus.Warnf("Vals generateValues: Could not get secrets - %v", err)
+		} else {
+			tmpDataOpt.Data = valsRendered
 		}
 		valuesMap = mergeGenericMap(valuesMap, tmpDataOpt)
 	}

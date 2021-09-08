@@ -24,3 +24,10 @@ tolerations:
     operator: "Equal"
     value: "linux"
     effect: NoSchedule
+
+# Additional env variables in the format key=value
+env: {}
+
+# Use this secret to pass values to the fleet agents
+# Case usage: https://github.com/variantdev/vals#suported-backends
+secret: ""

@@ -17,6 +17,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        {{- range $key, $value := .Values.env }}
+        - name: {{ $key }}
+          value: {{ $value }}
+        {{- end }}
         image: '{{.Values.image.repository}}:{{.Values.image.tag}}'
         args:
         - "fleetagent"

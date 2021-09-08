@@ -44,6 +44,9 @@ type Config struct {
 	Bootstrap                       Bootstrap         `json:"bootstrap,omitempty"`
 	IgnoreClusterRegistrationLabels bool              `json:"ignoreClusterRegistrationLabels,omitempty"`
 	IgnoreAgentNamespaceCheck       bool              `json:"ignoreAgentNamespaceCheck,omitempty"`
+	Env                             map[string]string `json:"env,omitempty"`
+	Secret                          string            `json:"secret,omitempty"`
+	AgentSecret                     string            `json:"agentSecret,omitempty"`
 }
 
 type Bootstrap struct {

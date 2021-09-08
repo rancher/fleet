@@ -20,6 +20,7 @@ import (
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/sirupsen/logrus"
+	"github.com/variantdev/vals"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -409,6 +410,11 @@ func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 				values = mergeValues(values, tempValues)
 			}
 		}
+	}
+	values, err := vals.Eval(values, vals.Options{})
+	if err != nil {
+		logrus.Errorf("Vals getValues: Could not get secrets - %v", err)
+		return nil, err
 	}
 
 	return values, nil

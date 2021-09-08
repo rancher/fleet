@@ -10,3 +10,6 @@ clientID: ""
 
 # Number of simulator to run
 simulators: 1
+
+# Additional env variables in the format key=value
+env: {}

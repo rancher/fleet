@@ -54,3 +54,16 @@ tolerations:
 
 gitops:
   enabled: true
+
+vals:
+  enabled: true
+
+# Additional env variables in the format key=value
+env: {}
+
+# Use this secret to pass values to the fleet agents
+# Case usage: https://github.com/variantdev/vals#suported-backends
+secret: ""
+
+# Same as secret but it should be created in the downstream namespace (fleet-local for example)
+agentSecret: ""
