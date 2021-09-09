@@ -19,14 +19,14 @@ data:
         "namespace": "{{.Values.bootstrap.namespace}}"
       },
       "webhookReceiverURL": "{{.Values.webhookReceiverURL}}",
-      {{- if .Values.env }}
       "env": {
+      {{- if .Values.env }}
         {{- range $k,$v := .Values.env }}
           "{{ $k }}": "{{ $v }}",
         {{- end }}
+      {{- end }}
           "VALS_ENABLED": "{{ .Values.vals.enabled }}"
       },
-      {{- end }}
       {{- if .Values.secret }}
       "secret": "{{ .Values.secret }}",
       {{- end }}
