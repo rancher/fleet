@@ -275,7 +275,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	}
 
 	// Build a custom global section that will only contain fleet values
-	// to make sure only fleet values get substitued via go templating
+	// to make sure only fleet values get substituted via go templating
 	fleetValues := map[string]interface{}{
 		"global": map[string]interface{}{
 			"fleet": values["global"].(map[string]interface{})["fleet"],
