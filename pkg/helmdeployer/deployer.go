@@ -477,17 +477,13 @@ func processValues(valuesMap map[string]interface{}, clusterLabels map[string]st
 					logrus.Errorf("Failed to process template label subsitution for key '%s' with value '%s': [%v]", key, valStr, err)
 				}
 			}
-		}
-
-		if valMap, ok := val.(map[string]interface{}); ok {
-			err := processValues(valMap, clusterLabels, clusterAnnotations, fleetValues)
+		case map[string]interface{}:
+			err := processValues(val.(map[string]interface{}), clusterLabels, clusterAnnotations, fleetValues)
 			if err != nil {
 				return err
 			}
-		}
-
-		if valArr, ok := val.([]interface{}); ok {
-			for _, item := range valArr {
+		case []interface{}:
+			for _, item := range val.([]interface{}) {
 				if itemMap, ok := item.(map[string]interface{}); ok {
 					err := processValues(itemMap, clusterLabels, clusterAnnotations, fleetValues)
 					if err != nil {
