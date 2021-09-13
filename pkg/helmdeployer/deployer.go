@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
@@ -273,6 +274,33 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		return nil, err
 	}
 
+	// Build a custom global section that will only contain fleet values
+	// to make sure only fleet values get substitued via go templating
+	fleetValues := map[string]interface{}{
+		"global": map[string]interface{}{
+			"fleet": values["global"].(map[string]interface{})["fleet"],
+		},
+	}
+
+	clusterLabels := map[string]string{}
+	for key, val := range values["global"].(map[string]interface{})["fleet"].(map[string]interface{})["clusterLables"].(map[string]interface{}) {
+		switch val.(type) {
+		case string:
+			clusterLabels[key] = val.(string)
+		}
+	}
+	clusterAnnoations := map[string]string{}
+	for key, val := range values["global"].(map[string]interface{})["fleet"].(map[string]interface{})["clusterAnnoations"].(map[string]interface{}) {
+		switch val.(type) {
+		case string:
+			clusterAnnoations[key] = val.(string)
+		}
+	}
+
+	err = processValues(values, clusterLabels, clusterAnnoations, fleetValues)
+	if err != nil {
+		return nil, err
+	}
 	cfg, err := h.getCfg(defaultNamespace, options.ServiceAccount)
 	if err != nil {
 		return nil, err
@@ -412,6 +440,65 @@ func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 	}
 
 	return values, nil
+}
+
+func processValues(valuesMap map[string]interface{}, clusterLabels map[string]string, clusterAnnotations map[string]string, fleetValues map[string]interface{}) error {
+	labelPrefix := "global.fleet.clusterLabels."
+	annotationPrefix := "global.fleet.clusterAnnotations."
+
+	for key, val := range valuesMap {
+		switch val.(type) {
+		case string:
+			valStr, _ := val.(string)
+			if strings.HasPrefix(valStr, labelPrefix) {
+				label := strings.TrimPrefix(valStr, labelPrefix)
+				labelVal, labelPresent := clusterLabels[label]
+				if labelPresent {
+					valuesMap[key] = labelVal
+				} else {
+					return fmt.Errorf("invalid_label_reference %s in key %s", valStr, key)
+				}
+			} else if strings.HasPrefix(valStr, annotationPrefix) {
+				annoation := strings.TrimPrefix(valStr, annotationPrefix)
+				annoationVal, present := clusterAnnotations[annoation]
+				if present {
+					valuesMap[key] = annoationVal
+				} else {
+					return fmt.Errorf("invalid_annotations_reference %s in key %s", valStr, key)
+				}
+
+			} else {
+				valuesTemplate, _ := template.New("clusterLabels").Option("missingkey=error").Parse(valStr)
+				var tpl bytes.Buffer
+				err := valuesTemplate.Execute(&tpl, fleetValues)
+				if err == nil {
+					valuesMap[key] = tpl.String()
+				} else {
+					logrus.Errorf("Failed to process template label subsitution for key '%s' with value '%s': [%v]", key, valStr, err)
+				}
+			}
+		}
+
+		if valMap, ok := val.(map[string]interface{}); ok {
+			err := processValues(valMap, clusterLabels, clusterAnnotations, fleetValues)
+			if err != nil {
+				return err
+			}
+		}
+
+		if valArr, ok := val.([]interface{}); ok {
+			for _, item := range valArr {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					err := processValues(itemMap, clusterLabels, clusterAnnotations, fleetValues)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {

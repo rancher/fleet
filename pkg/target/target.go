@@ -217,7 +217,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 			}
 
 			opts := options.Calculate(&fleetBundle.Spec, match.Target)
-			err = addClusterLabels(&opts, cluster.Labels)
+			err = addClusterLabels(&opts, cluster.Labels, cluster.Annotations)
 			if err != nil {
 				return nil, err
 			}
@@ -245,8 +245,10 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 	return result, m.foldInDeployments(fleetBundle, result)
 }
 
-func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]string) (err error) {
+func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]string, annotations map[string]string) (err error) {
 	clusterLabels := yaml.CleanAnnotationsForExport(labels)
+	clusterAnnotations := yaml.CleanAnnotationsForExport(annotations)
+
 	for k, v := range labels {
 		if strings.HasPrefix(k, "fleet.cattle.io/") || strings.HasPrefix(k, "management.cattle.io/") {
 			clusterLabels[k] = v
@@ -259,7 +261,8 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 	newValues := map[string]interface{}{
 		"global": map[string]interface{}{
 			"fleet": map[string]interface{}{
-				"clusterLabels": clusterLabels,
+				"clusterLabels":      clusterLabels,
+				"clusterAnnotations": clusterAnnotations,
 			},
 		},
 	}
@@ -279,10 +282,6 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 			Data: newValues,
 		}
 		return nil
-	}
-
-	if err := processLabelValues(opts.Helm.Values.Data, clusterLabels); err != nil {
-		return err
 	}
 
 	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, newValues)
@@ -506,40 +505,4 @@ func Summary(targets []*Target) fleet.BundleSummary {
 		bundleSummary.DesiredReady++
 	}
 	return bundleSummary
-}
-
-func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) error {
-	prefix := "global.fleet.clusterLabels."
-	for key, val := range valuesMap {
-		valStr, ok := val.(string)
-		if ok && strings.HasPrefix(valStr, prefix) {
-			label := strings.TrimPrefix(valStr, prefix)
-			labelVal, labelPresent := clusterLabels[label]
-			if labelPresent {
-				valuesMap[key] = labelVal
-			} else {
-				return fmt.Errorf("invalid_label_reference %s in key %s", valStr, key)
-			}
-		}
-
-		if valMap, ok := val.(map[string]interface{}); ok {
-			err := processLabelValues(valMap, clusterLabels)
-			if err != nil {
-				return err
-			}
-		}
-
-		if valArr, ok := val.([]interface{}); ok {
-			for _, item := range valArr {
-				if itemMap, ok := item.(map[string]interface{}); ok {
-					err := processLabelValues(itemMap, clusterLabels)
-					if err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	return nil
 }

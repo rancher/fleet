@@ -72,6 +72,13 @@ helm:
   # All labels on Rancher clusters are available using global.fleet.clusterLabels.LABELNAME
   # These can now be accessed directly as variables
     variableName: global.fleet.clusterLabels.LABELNAME
+  # All annotations on Rancher clusters are available using global.fleet.clusterAnnotations.ANNOTATIONNAME
+  # These can now be accessed directly as variables
+    variableName: global.fleet.clusterAnnotations.ANNOTATIONNAME
+  # They can also be access using go template logic
+    variableName: "kubernetes.io/cluster/{{ .global.fleet.clusterLabels.LABELNAME }}"
+    variableName: "{{ if eq .global.fleet.clusterAnnotations.ANNOTATIONNAME \"production\" }}Production Workload{{ else }}Non Prod{{ end }}"
+
   # Path to any values files that need to be passed to helm during install
   valuesFiles:
     - values1.yaml
