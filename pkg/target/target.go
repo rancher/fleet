@@ -520,18 +520,18 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 		},
 	}
 	for key, val := range valuesMap {
-		valStr, ok := val.(string)
-		if ok && strings.HasPrefix(valStr, prefix) {
-			label := strings.TrimPrefix(valStr, prefix)
-			labelVal, labelPresent := clusterLabels[label]
-			if labelPresent {
-				valuesMap[key] = labelVal
+		switch val.(type) {
+		case string:
+			valStr, _ := val.(string)
+			if strings.HasPrefix(valStr, prefix) {
+				label := strings.TrimPrefix(valStr, prefix)
+				labelVal, labelPresent := clusterLabels[label]
+				if labelPresent {
+					valuesMap[key] = labelVal
+				} else {
+					return fmt.Errorf("invalid_label_reference %s in key %s", valStr, key)
+				}
 			} else {
-				return fmt.Errorf("invalid_label_reference %s in key %s", valStr, key)
-			}
-		} else {
-			switch val.(type) {
-			case string:
 				valuesTemplate, _ := template.New("clusterLabels").Option("missingkey=error").Parse(valStr)
 				var tpl bytes.Buffer
 				err := valuesTemplate.Execute(&tpl, scopedClusterLables)
@@ -541,17 +541,13 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 					logrus.Errorf("Failed to process template label subsitution for key '%s' with value '%s': [%v]", key, valStr, err)
 				}
 			}
-		}
-
-		if valMap, ok := val.(map[string]interface{}); ok {
-			err := processLabelValues(valMap, clusterLabels)
+		case map[string]interface{}:
+			err := processLabelValues(val.(map[string]interface{}), clusterLabels)
 			if err != nil {
 				return err
 			}
-		}
-
-		if valArr, ok := val.([]interface{}); ok {
-			for _, item := range valArr {
+		case []interface{}:
+			for _, item := range val.([]interface{}) {
 				if itemMap, ok := item.(map[string]interface{}); ok {
 					err := processLabelValues(itemMap, clusterLabels)
 					if err != nil {

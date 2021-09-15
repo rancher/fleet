@@ -55,7 +55,6 @@ func TestProcessLabelValues(t *testing.T) {
 	if !ok {
 		t.Fatal("key clusterName not found")
 	}
-
 	if clusterName != "local" {
 		t.Fatal("unable to assert correct clusterName")
 	}
@@ -69,12 +68,10 @@ func TestProcessLabelValues(t *testing.T) {
 	if !ok {
 		t.Fatal("unable to assert first element to map[string]interface{}")
 	}
-
 	firstElemVal, ok := firstMap["name"]
 	if !ok {
 		t.Fatal("unable to find key name in the first element of customStruct")
 	}
-
 	if firstElemVal.(string) != "local" {
 		t.Fatal("label replacement not performed in first element")
 	}
@@ -83,12 +80,10 @@ func TestProcessLabelValues(t *testing.T) {
 	if !ok {
 		t.Fatal("unable to assert second element of customStruct to map[string]interface{}")
 	}
-
 	secondElemVal, ok := secondElement["element1"]
 	if !ok {
 		t.Fatal("unable to find key element1")
 	}
-
 	if secondElemVal.(string) != "dev" {
 		t.Fatal("label replacement not performed in second element")
 	}
@@ -97,12 +92,10 @@ func TestProcessLabelValues(t *testing.T) {
 	if !ok {
 		t.Fatal("unable to assert third element of customStruct to map[string]interface{}")
 	}
-
 	thirdElemVal, ok := thirdElement["element2"]
 	if !ok {
 		t.Fatal("unable to find key element2")
 	}
-
 	if thirdElemVal.(string) != "local" {
 		t.Fatal("label replacement not performed in third element")
 	}
@@ -111,7 +104,6 @@ func TestProcessLabelValues(t *testing.T) {
 	if !ok {
 		t.Fatal("key templateName not found")
 	}
-
 	if templateName != "kubernetes.io/cluster/local" {
 		t.Fatal("unable to assert correct template")
 	}
@@ -120,7 +112,6 @@ func TestProcessLabelValues(t *testing.T) {
 	if !ok {
 		t.Fatal("key templateMissing not found")
 	}
-
 	if templateMissing != "{{ .missingValue }}" {
 		t.Fatal("unable to assert correct templateMising")
 	}
@@ -129,7 +120,6 @@ func TestProcessLabelValues(t *testing.T) {
 	if !ok {
 		t.Fatal("key templateLogic not found")
 	}
-
 	if templateLogic != "Non Prod" {
 		t.Fatal("unable to assert correct templateLogic")
 	}
