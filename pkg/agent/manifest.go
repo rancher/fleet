@@ -54,10 +54,10 @@ func Manifest(namespace, image, pullPolicy, generation, checkInInterval string, 
 		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, agentEnvVars...)
 	}
 
-	if config.Get().Secret != "" {
+	if config.Get().ValsSecret != "" {
 		dep.Spec.Template.Spec.Containers[0].EnvFrom = []corev1.EnvFromSource{
 			{
-				SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: config.Get().Secret}},
+				SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: config.Get().ValsSecret}},
 			},
 		}
 	}

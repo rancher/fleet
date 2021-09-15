@@ -36,10 +36,10 @@ spec:
             - name: {{ $key }}
               value: {{ $value }}
           {{- end }}
-        {{- if .Values.secret }}
+        {{- if .Values.valsSecret }}
           envFrom:
             - secretRef:
-                name: {{ .Values.secret }}
+                name: {{ .Values.valsSecret }}
         {{- end }}
       {{- with .Values.tolerations }}
       tolerations:

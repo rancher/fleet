@@ -19,19 +19,14 @@ data:
         "namespace": "{{.Values.bootstrap.namespace}}"
       },
       "webhookReceiverURL": "{{.Values.webhookReceiverURL}}",
-      "env": {
       {{- if .Values.env }}
-        {{- range $k,$v := .Values.env }}
-          "{{ $k }}": "{{ $v }}",
-        {{- end }}
+      "env":{{toJson .Values.env}},
       {{- end }}
-          "VALS_ENABLED": "{{ .Values.vals.enabled }}"
-      },
-      {{- if .Values.secret }}
-      "secret": "{{ .Values.secret }}",
+      {{- if .Values.valsSecret }}
+      "valsSecret": "{{ .Values.valsSecret }}",
       {{- end }}
-      {{- if .Values.agentSecret }}
-      "agentSecret": "{{ .Values.agentSecret }}",
+      {{- if .Values.valsAgentSecret }}
+      "valsAgentSecret": "{{ .Values.valsAgentSecret }}",
       {{- end }}
       "githubURLPrefix": "{{.Values.githubURLPrefix}}"
     }

@@ -29,10 +29,10 @@ spec:
         - name: {{ $key }}
           value: "{{ $value }}"
         {{- end }}
-        {{- if .Values.secret }}
+        {{- if .Values.valsSecret }}
         envFrom:
           - secretRef:
-              name: {{ .Values.secret }}
+              name: {{ .Values.valsSecret }}
         {{- end }}
         image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
         name: fleet-controller

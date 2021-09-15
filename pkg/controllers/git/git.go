@@ -613,10 +613,10 @@ func argsAndEnvs(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]string,
 	}
 
 	var secretEnv []corev1.EnvFromSource
-	if config.Get().AgentSecret != "" {
+	if config.Get().ValsAgentSecret != "" {
 		secretEnv = []corev1.EnvFromSource{
 			{
-				SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: config.Get().AgentSecret}},
+				SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: config.Get().ValsAgentSecret}},
 			},
 		}
 	}

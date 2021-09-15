@@ -61,4 +61,4 @@ env: {}
 
 # Use this secret to pass values to the fleet agents
 # Case usage: https://github.com/variantdev/vals#suported-backends
-secret: ""
+valsSecret: ""

@@ -13,7 +13,7 @@ kubectl create secret generic \
   --dry-run \
   --from-literal=VAULT_ADDR=${VAULT_ADDR} \
   --from-literal=VAULT_TOKEN=${VAULT_TOKEN} \
-  --dry-run -oyaml | kubectl apply -n ${NAMESPACE} -f -
+  -oyaml | kubectl apply -n ${NAMESPACE} -f -
 ```
 
 The secret can be either *upstream*, *downstream* or both. For example, if you run Fleet from Rancher and only the downstream cluster has access to Vault you will need to set up the secret in the downstream cluster in the namespace `cattle-fleet-system` whilst if Vault is only available upstream the secret would be set up in the namespace `fleet-system`
@@ -24,14 +24,14 @@ If you don't need to use secrets, you can use environment variables instead. See
 
 ## Installing
 
-* `agentSecret`: use this for downstream clusters
-* `secret`: this secret is for upstream kubernetes
+* `valsAgentSecret`: use this for downstream clusters
+* `valsSecret`: this secret is for upstream kubernetes
 
 ```shell
 helm -n fleet-system install --create-namespace --wait \
     fleet-crd https://github.com/rancher/fleet/releases/download/{{fleet.version}}/fleet-crd-{{fleet.helmversion}}.tgz
 helm -n fleet-system install --create-namespace --wait \
-    --set secret=fleet-vals \
+    --set valsSecret=fleet-vals \
     fleet https://github.com/rancher/fleet/releases/download/{{fleet.version}}/fleet-{{fleet.helmversion}}.tgz
 ```
 
