@@ -33,7 +33,6 @@ const (
 	Values              = "values"
 	APIServerURL        = "apiServerURL"
 	APIServerCA         = "apiServerCA"
-	SystemNamespace     = "systemNamespace"
 	DeploymentNamespace = "deploymentNamespace"
 	ClusterNamespace    = "clusterNamespace"
 	ClusterName         = "clusterName"
@@ -187,12 +186,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 		newToken := newSecret.Data[Token]
 		clusterNamespace := newSecret.Data[ClusterNamespace]
 		clusterName := newSecret.Data[ClusterName]
-		systemNamespace := string(newSecret.Data[SystemNamespace])
 		deploymentNamespace := newSecret.Data[DeploymentNamespace]
-
-		if !cfg.IgnoreAgentNamespaceCheck && systemNamespace != secret.Namespace {
-			return nil, fmt.Errorf("fleet-agent must be installed in the namespace %s", systemNamespace)
-		}
 
 		newKubeconfig, err := updateClientConfig(clientConfig, string(newToken), string(deploymentNamespace))
 		if err != nil {

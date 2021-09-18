@@ -39,7 +39,7 @@ func Register(ctx context.Context, kubeConfig, namespace, clusterID string) erro
 	return err
 }
 
-func Start(ctx context.Context, kubeConfig, namespace string, opts *Options) error {
+func Start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -78,6 +78,7 @@ func Start(ctx context.Context, kubeConfig, namespace string, opts *Options) err
 		fleetNamespace,
 		namespace,
 		opts.DefaultNamespace,
+		agentScope,
 		agentInfo.ClusterNamespace,
 		agentInfo.ClusterName,
 		opts.CheckinInterval,
