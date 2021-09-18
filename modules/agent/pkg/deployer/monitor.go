@@ -145,7 +145,7 @@ func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) (apply.Apply, 
 	apply := m.apply
 	return apply.
 		WithIgnorePreviousApplied().
-		WithSetID(GetSetID(bd.Name, m.labelPrefix)).
+		WithSetID(GetSetID(bd.Name, m.labelPrefix, m.labelSuffix)).
 		WithDefaultNamespace(ns), nil
 }
 
@@ -177,10 +177,16 @@ func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, e
 	return status, nil
 }
 
-func GetSetID(bundleID, labelPrefix string) string {
+func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
 	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
 	if strings.HasPrefix(bundleID, "fleet-agent") {
-		return "fleet-agent-bootstrap"
+		if labelSuffix == "" {
+			return "fleet-agent-bootstrap"
+		}
+		return name.SafeConcatName("fleet-agent-bootstrap", labelSuffix)
+	}
+	if labelSuffix != "" {
+		return name.SafeConcatName(labelPrefix, bundleID, labelSuffix)
 	}
 	return name.SafeConcatName(labelPrefix, bundleID)
 }
