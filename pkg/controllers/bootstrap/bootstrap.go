@@ -6,14 +6,14 @@ import (
 	"io/ioutil"
 	"regexp"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/rancher/fleet/modules/cli/agentmanifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	fleetns "github.com/rancher/fleet/pkg/namespace"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -114,7 +114,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 		})
 	}
 
-	return h.apply.ApplyObjects(objs...)
+	return h.apply.WithNoDeleteGVK(fleetns.GVK()).ApplyObjects(objs...)
 }
 
 func getHost(rawConfig clientcmdapi.Config) (string, error) {

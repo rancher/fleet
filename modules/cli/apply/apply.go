@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 var (
@@ -153,13 +154,18 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 		return ErrNoResources
 	}
 
-	b, err := yaml.Export(def)
+	objects := []runtime.Object{def}
+	for _, scan := range bundle.Scans {
+		objects = append(objects, scan)
+	}
+
+	b, err := yaml.Export(objects...)
 	if err != nil {
 		return err
 	}
 
 	if opts.Output == nil {
-		err = save(client, def)
+		err = save(client, def, bundle.Scans...)
 	} else {
 		_, err = opts.Output.Write(b)
 	}
@@ -167,7 +173,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	return err
 }
 
-func save(client *client.Getter, bundle *fleet.Bundle) error {
+func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) error {
 	c, err := client.Get()
 	if err != nil {
 		return err
@@ -175,21 +181,42 @@ func save(client *client.Getter, bundle *fleet.Bundle) error {
 
 	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		_, err = c.Fleet.Bundle().Create(bundle)
-		if err == nil {
-			fmt.Printf("%s/%s\n", bundle.Namespace, bundle.Name)
+		if _, err = c.Fleet.Bundle().Create(bundle); err != nil {
+			return err
 		}
-		return err
+		logrus.Infof("created: %s/%s\n", bundle.Namespace, bundle.Name)
 	} else if err != nil {
 		return err
+	} else {
+		obj.Spec = bundle.Spec
+		obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
+		obj.Labels = mergeMap(obj.Labels, bundle.Labels)
+		if _, err := c.Fleet.Bundle().Update(obj); err != nil {
+			return err
+		}
+		logrus.Infof("updated: %s/%s\n", obj.Namespace, obj.Name)
 	}
 
-	obj.Spec = bundle.Spec
-	obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
-	obj.Labels = mergeMap(obj.Labels, bundle.Labels)
-	_, err = c.Fleet.Bundle().Update(obj)
-	if err == nil {
-		fmt.Printf("%s/%s\n", obj.Namespace, obj.Name)
+	for _, scan := range imageScans {
+		scan.Namespace = client.Namespace
+		scan.Spec.GitRepoName = bundle.Labels[fleet.RepoLabel]
+		obj, err := c.Fleet.ImageScan().Get(scan.Namespace, scan.Name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			if _, err = c.Fleet.ImageScan().Create(scan); err != nil {
+				return err
+			}
+			logrus.Infof("created (scan): %s/%s\n", bundle.Namespace, bundle.Name)
+		} else if err != nil {
+			return err
+		} else {
+			obj.Spec = scan.Spec
+			obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
+			obj.Labels = mergeMap(obj.Labels, bundle.Labels)
+			if _, err := c.Fleet.ImageScan().Update(obj); err != nil {
+				return err
+			}
+			logrus.Infof("updated (scan): %s/%s\n", obj.Namespace, obj.Name)
+		}
 	}
 	return err
 }

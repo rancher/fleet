@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	ManagerConfigName = "fleet-controller"
-	AgentConfigName   = "fleet-agent"
-	Key               = "config"
-	DefaultNamespace  = "fleet-system"
+	ManagerConfigName        = "fleet-controller"
+	AgentConfigName          = "fleet-agent"
+	AgentBootstrapConfigName = "fleet-agent-bootstrap"
+	Key                      = "config"
+	DefaultNamespace         = "fleet-system"
 )
 
 var (
@@ -42,7 +43,6 @@ type Config struct {
 	APIServerCA                     []byte            `json:"apiServerCA,omitempty"`
 	Bootstrap                       Bootstrap         `json:"bootstrap,omitempty"`
 	IgnoreClusterRegistrationLabels bool              `json:"ignoreClusterRegistrationLabels,omitempty"`
-	IgnoreAgentNamespaceCheck       bool              `json:"ignoreAgentNamespaceCheck,omitempty"`
 }
 
 type Bootstrap struct {

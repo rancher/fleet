@@ -76,6 +76,17 @@ helm:
   valuesFiles:
     - values1.yaml
     - values2.yaml
+  # Allow to use values files from configmaps or secrets
+  valuesFrom:
+  - configMapKeyRef:
+      name: configmap-values
+      # default to namespace of bundle
+      namespace: default 
+      key: values.yaml
+    secretKeyRef:
+      name: secret-values
+      namespace: default
+      key: values.yaml
   # Override immutable resources. This could be dangerous.
   force: false
 
@@ -132,38 +143,45 @@ overrideTargets: false
 # Target customization are used to determine how resources should be modified per target
 # Targets are evaluated in order and the first one to match a cluster is used for that cluster.
 targetCustomizations:
-  # The name of target. If not specified a default name of the format "target000"
-  # will be used. This value is mostly for display
-  - name: prod
-    # Custom namespace value overriding the value at the root
-    namespace: newvalue
-    # Custom kustomize options overriding the options at the root
-    kustomize: {}
-    # Custom Helm options override the options at the root
-    helm: {}
-    # If using raw YAML these are names that map to overlays/{name} that will be used
-    # to replace or patch a resource. If you wish to customize the file ./subdir/resource.yaml
-    # then a file ./overlays/myoverlay/subdir/resource.yaml will replace the base file.
-    # A file named ./overlays/myoverlay/subdir/resource_patch.yaml will patch the base file.
-    # A patch can in JSON Patch or JSON Merge format or a strategic merge patch for builtin
-    # Kubernetes types. Refer to "Raw YAML Resource Customization" below for more information.
-    yaml:
-      overlays:
-        - custom2
-        - custom3
-    # A selector used to match clusters.  The structure is the standard
-    # metav1.LabelSelector format. If clusterGroupSelector or clusterGroup is specified,
-    # clusterSelector will be used only to further refine the selection after
-    # clusterGroupSelector and clusterGroup is evaluated.
-    clusterSelector:
-      matchLabels:
-        env: prod
-    # A selector used to match cluster groups.
-    clusterGroupSelector:
-      matchLabels:
-        region: us-east
-    # A specific clusterGroup by name that will be selected
-    clusterGroup: group1
+# The name of target. If not specified a default name of the format "target000"
+# will be used. This value is mostly for display
+- name: prod
+  # Custom namespace value overriding the value at the root
+  namespace: newvalue
+  # Custom kustomize options overriding the options at the root
+  kustomize: {}
+  # Custom Helm options override the options at the root
+  helm: {}
+  # If using raw YAML these are names that map to overlays/{name} that will be used
+  # to replace or patch a resource. If you wish to customize the file ./subdir/resource.yaml
+  # then a file ./overlays/myoverlay/subdir/resource.yaml will replace the base file.
+  # A file named ./overlays/myoverlay/subdir/resource_patch.yaml will patch the base file.
+  # A patch can in JSON Patch or JSON Merge format or a strategic merge patch for builtin
+  # Kubernetes types. Refer to "Raw YAML Resource Customization" below for more information.
+  yaml:
+    overlays:
+    - custom2
+    - custom3
+  # A selector used to match clusters.  The structure is the standard
+  # metav1.LabelSelector format. If clusterGroupSelector or clusterGroup is specified,
+  # clusterSelector will be used only to further refine the selection after
+  # clusterGroupSelector and clusterGroup is evaluated.
+  clusterSelector:
+    matchLabels:
+      env: prod
+  # A selector used to match cluster groups.
+  clusterGroupSelector:
+    matchLabels:
+      region: us-east
+  # A specific clusterGroup by name that will be selected
+  clusterGroup: group1
+
+# dependsOn allows you to configure dependencies to other bundles. The current bundle
+# will only be deployed, after all dependencies are deployed and in a Ready state.
+dependsOn:
+  # Format: <GITREPO-NAME>-<BUNDLE_PATH> with all path separators replaced by "-" 
+  # Example: GitRepo name "one", Bundle path "/multi-cluster/hello-world" => "one-multi-cluster-hello-world"
+  - name: one-multi-cluster-hello-world
 ```
 
 !!! hint "Private Helm Repo"
@@ -180,6 +198,40 @@ For a private Helm repo, users can reference a secret with the following keys:
     `kubectl create secret -n $namespace generic helm --from-literal=username=foo --from-literal=password=bar --from-file=cacerts=/path/to/cacerts --from-file=ssh-privatekey=/path/to/privatekey.pem`
 
     After secret is created, specify the secret to `gitRepo.spec.helmSecretName`. Make sure secret is created under the same namespace with gitrepo.
+
+### Using ValuesFrom
+
+These examples showcase the style and format for using `valuesFrom`.
+
+Example [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/):
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configmap-values
+  namespace: default
+data:  
+  values.yaml: |-
+    replication: true
+    replicas: 2
+    serviceType: NodePort
+```
+
+Example [Secret](https://kubernetes.io/docs/concepts/configuration/secret/):
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-values
+  namespace: default
+stringData:
+  values.yaml: |-
+    replication: true
+    replicas: 2
+    serviceType: NodePort
+```
 
 ## Per Cluster Customization
 
