@@ -13,7 +13,9 @@ helm:
   releaseName: labels
   values:
     clusterName: global.fleet.clusterLabels.name
+    clusterAnnotationName: global.fleet.clusterAnnotations.name
     templateName: "kubernetes.io/cluster/{{ .global.fleet.clusterLabels.name }}"
+    template-name: "kubernetes.io/cluster/{{ index .global.fleet.clusterLabels \"template-name\" }}"
     templateLogic: "{{ if eq .global.fleet.clusterLabels.envType \"production\" }}Production Workload{{ else }}Non Prod{{ end }}"
     customStruct:
       - name: global.fleet.clusterLabels.name
@@ -32,13 +34,14 @@ diff:
       path: /spec/rules/0/host
 `
 
-func TestprocessValues(t *testing.T) {
+func TestProcessValues(t *testing.T) {
 
 	bundle := &v1alpha1.BundleSpec{}
 
 	clusterLabels := make(map[string]string)
 	clusterLabels["name"] = "local"
 	clusterLabels["envType"] = "dev"
+	clusterLabels["template-name"] = "c-test"
 
 	clusterAnnotations := make(map[string]string)
 	clusterAnnotations["name"] = "local"
@@ -117,6 +120,14 @@ func TestprocessValues(t *testing.T) {
 	}
 	if templateName != "kubernetes.io/cluster/local" {
 		t.Fatal("unable to assert correct template")
+	}
+
+	templateNameDash, ok := bundle.Helm.Values.Data["template-name"]
+	if !ok {
+		t.Fatal("key template-name not found")
+	}
+	if templateNameDash != "kubernetes.io/cluster/c-test" {
+		t.Fatal("unable to assert correct template-name")
 	}
 
 	templateLogic, ok := bundle.Helm.Values.Data["templateLogic"]
