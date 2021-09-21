@@ -14,7 +14,7 @@ type Options struct {
 	ClientID string
 }
 
-func AgentConfig(ctx context.Context, controllerNamespace string, cg *client.Getter, opts *Options) ([]runtime.Object, error) {
+func AgentConfig(ctx context.Context, agentNamespace, controllerNamespace string, cg *client.Getter, opts *Options) ([]runtime.Object, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -30,7 +30,7 @@ func AgentConfig(ctx context.Context, controllerNamespace string, cg *client.Get
 		return nil, err
 	}
 
-	return Objects(controllerNamespace, opts.Labels, opts.ClientID)
+	return Objects(agentNamespace, opts.Labels, opts.ClientID)
 }
 
 func Objects(controllerNamespace string, clusterLabels map[string]string, clientID string) ([]runtime.Object, error) {

@@ -1694,6 +1694,9 @@ spec:
                   type: object
                 nullable: true
                 type: array
+              agentNamespace:
+                nullable: true
+                type: string
               clientID:
                 nullable: true
                 type: string
@@ -1739,6 +1742,8 @@ spec:
                 nullable: true
                 type: string
               agentMigrated:
+                type: boolean
+              agentNamespaceMigrated:
                 type: boolean
               cattleNamespaceMigrated:
                 type: boolean
@@ -4308,6 +4313,9 @@ spec:
                 type: object
               nullable: true
               type: array
+            agentNamespace:
+              nullable: true
+              type: string
             clientID:
               nullable: true
               type: string
@@ -4353,6 +4361,8 @@ spec:
               nullable: true
               type: string
             agentMigrated:
+              type: boolean
+            agentNamespaceMigrated:
               type: boolean
             cattleNamespaceMigrated:
               type: boolean

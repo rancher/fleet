@@ -14,7 +14,7 @@ const (
 	DefaultName = "fleet-agent"
 )
 
-func Manifest(namespace, image, pullPolicy, generation, checkInInterval string, agentEnvVars []corev1.EnvVar) []runtime.Object {
+func Manifest(namespace, agentScope, image, pullPolicy, generation, checkInInterval string, agentEnvVars []corev1.EnvVar) []runtime.Object {
 	if image == "" {
 		image = config.DefaultAgentImage
 	}
@@ -34,6 +34,10 @@ func Manifest(namespace, image, pullPolicy, generation, checkInInterval string, 
 
 	dep := basic.Deployment(namespace, DefaultName, image, pullPolicy, DefaultName, false)
 	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
+		corev1.EnvVar{
+			Name:  "AGENT_SCOPE",
+			Value: agentScope,
+		},
 		corev1.EnvVar{
 			Name:  "CHECKIN_INTERVAL",
 			Value: checkInInterval,

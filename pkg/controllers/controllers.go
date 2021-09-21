@@ -110,7 +110,9 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		systemNamespace,
 		appCtx.Core.Secret().Cache(),
 		appCtx.Cluster(),
-		appCtx.ClusterRegistrationToken())
+		appCtx.ClusterRegistrationToken(),
+		appCtx.Bundle(),
+		appCtx.Core.Namespace())
 
 	bundle.Register(ctx,
 		appCtx.Apply,

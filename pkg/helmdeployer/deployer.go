@@ -47,6 +47,7 @@ var (
 
 type postRender struct {
 	labelPrefix string
+	labelSuffix string
 	bundleID    string
 	manifest    *manifest.Manifest
 	chart       *chart.Chart
@@ -65,9 +66,10 @@ type helm struct {
 	template            bool
 	defaultNamespace    string
 	labelPrefix         string
+	labelSuffix         string
 }
 
-func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclioptions.RESTClientGetter,
+func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
 	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache) (deployer.Deployer, error) {
 	h := &helm{
 		getter:              getter,
@@ -77,6 +79,7 @@ func NewHelm(namespace, defaultNamespace, labelPrefix string, getter genericclio
 		configmapCache:      configmapCache,
 		secretCache:         secretCache,
 		labelPrefix:         labelPrefix,
+		labelSuffix:         labelSuffix,
 	}
 	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
 		return nil, err
@@ -146,7 +149,7 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 }
 
 func (p *postRender) GetSetID() string {
-	return deployer.GetSetID(p.bundleID, p.labelPrefix)
+	return deployer.GetSetID(p.bundleID, p.labelPrefix, p.labelSuffix)
 }
 
 func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*deployer.Resources, error) {
@@ -300,6 +303,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 
 	pr := &postRender{
 		labelPrefix: h.labelPrefix,
+		labelSuffix: h.labelSuffix,
 		bundleID:    bundleID,
 		manifest:    manifest,
 		opts:        options,
