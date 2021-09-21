@@ -15,7 +15,6 @@ helm:
     clusterName: global.fleet.clusterLabels.name
     templateName: "kubernetes.io/cluster/{{ .global.fleet.clusterLabels.name }}"
     templateLogic: "{{ if eq .global.fleet.clusterLabels.envType \"production\" }}Production Workload{{ else }}Non Prod{{ end }}"
-    templateMissing: "{{ .missingValue }}"
     customStruct:
       - name: global.fleet.clusterLabels.name
         key1: value1
@@ -33,7 +32,7 @@ diff:
       path: /spec/rules/0/host
 `
 
-func TestProcessLabelValues(t *testing.T) {
+func TestprocessValues(t *testing.T) {
 
 	bundle := &v1alpha1.BundleSpec{}
 
@@ -41,12 +40,16 @@ func TestProcessLabelValues(t *testing.T) {
 	clusterLabels["name"] = "local"
 	clusterLabels["envType"] = "dev"
 
+	clusterAnnotations := make(map[string]string)
+	clusterAnnotations["name"] = "local"
+	clusterAnnotations["envType"] = "dev"
+
 	err := yaml.Unmarshal([]byte(bundleYaml), bundle)
 	if err != nil {
 		t.Fatalf("error during yaml parsing %v", err)
 	}
 
-	err = processLabelValues(bundle.Helm.Values.Data, clusterLabels)
+	err = processValues(bundle.Helm.Values.Data, clusterLabels, clusterAnnotations)
 	if err != nil {
 		t.Fatalf("error during label processing %v", err)
 	}
@@ -57,6 +60,14 @@ func TestProcessLabelValues(t *testing.T) {
 	}
 	if clusterName != "local" {
 		t.Fatal("unable to assert correct clusterName")
+	}
+
+	clusterAnnotationName, ok := bundle.Helm.Values.Data["clusterAnnotationName"]
+	if !ok {
+		t.Fatal("key clusterAnnotationName not found")
+	}
+	if clusterAnnotationName != "local" {
+		t.Fatal("unable to assert correct clusterAnnotationName")
 	}
 
 	customStruct, ok := bundle.Helm.Values.Data["customStruct"].([]interface{})
@@ -108,14 +119,6 @@ func TestProcessLabelValues(t *testing.T) {
 		t.Fatal("unable to assert correct template")
 	}
 
-	templateMissing, ok := bundle.Helm.Values.Data["templateMissing"]
-	if !ok {
-		t.Fatal("key templateMissing not found")
-	}
-	if templateMissing != "{{ .missingValue }}" {
-		t.Fatal("unable to assert correct templateMising")
-	}
-
 	templateLogic, ok := bundle.Helm.Values.Data["templateLogic"]
 	if !ok {
 		t.Fatal("key templateLogic not found")
@@ -124,4 +127,15 @@ func TestProcessLabelValues(t *testing.T) {
 		t.Fatal("unable to assert correct templateLogic")
 	}
 
+	bundle.Helm.Values.Data["error"] = "{{ .missingValue }}"
+	err = processValues(bundle.Helm.Values.Data, clusterLabels, clusterAnnotations)
+	if err == nil {
+		t.Fatalf("failed to error on {{ .missingValue }}")
+	}
+
+	bundle.Helm.Values.Data["error"] = "{{ .missingValue-panic }}"
+	err = processValues(bundle.Helm.Values.Data, clusterLabels, clusterAnnotations)
+	if err == nil {
+		t.Fatalf("failed to error on {{ .missingValue-panic }}")
+	}
 }

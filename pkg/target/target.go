@@ -219,7 +219,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 			}
 
 			opts := options.Calculate(&fleetBundle.Spec, match.Target)
-			err = addClusterLabels(&opts, cluster.Labels)
+			err = addClusterValues(&opts, cluster.Labels, cluster.Annotations)
 			if err != nil {
 				return nil, err
 			}
@@ -247,21 +247,23 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 	return result, m.foldInDeployments(fleetBundle, result)
 }
 
-func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]string) (err error) {
+func addClusterValues(opts *fleet.BundleDeploymentOptions, labels map[string]string, annotations map[string]string) (err error) {
 	clusterLabels := yaml.CleanAnnotationsForExport(labels)
+	clusterAnnotations := yaml.CleanAnnotationsForExport(annotations)
 	for k, v := range labels {
 		if strings.HasPrefix(k, "fleet.cattle.io/") || strings.HasPrefix(k, "management.cattle.io/") {
 			clusterLabels[k] = v
 		}
 	}
-	if len(clusterLabels) == 0 {
+	if len(clusterLabels) == 0 && len(clusterAnnotations) == 0 {
 		return
 	}
 
 	newValues := map[string]interface{}{
 		"global": map[string]interface{}{
 			"fleet": map[string]interface{}{
-				"clusterLabels": clusterLabels,
+				"clusterLabels":      clusterLabels,
+				"clusterAnnotations": clusterAnnotations,
 			},
 		},
 	}
@@ -283,7 +285,7 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 		return nil
 	}
 
-	if err := processLabelValues(opts.Helm.Values.Data, clusterLabels); err != nil {
+	if err := processValues(opts.Helm.Values.Data, clusterLabels, clusterAnnotations); err != nil {
 		return err
 	}
 
@@ -510,12 +512,14 @@ func Summary(targets []*Target) fleet.BundleSummary {
 	return bundleSummary
 }
 
-func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) error {
-	prefix := "global.fleet.clusterLabels."
+func processValues(valuesMap map[string]interface{}, clusterLabels map[string]string, clusterAnnotations map[string]string) (err error) {
+	labelPrefix := "global.fleet.clusterLabels."
+	annotationPrefix := "global.fleet.clusterAnnotations."
 	scopedClusterLables := map[string]interface{}{
 		"global": map[string]interface{}{
 			"fleet": map[string]interface{}{
-				"clusterLabels": clusterLabels,
+				"clusterLabels":      clusterLabels,
+				"clusterAnnotations": clusterAnnotations,
 			},
 		},
 	}
@@ -523,33 +527,46 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 		switch val.(type) {
 		case string:
 			valStr, _ := val.(string)
-			if strings.HasPrefix(valStr, prefix) {
-				label := strings.TrimPrefix(valStr, prefix)
+			if strings.HasPrefix(valStr, labelPrefix) {
+				label := strings.TrimPrefix(valStr, labelPrefix)
 				labelVal, labelPresent := clusterLabels[label]
 				if labelPresent {
 					valuesMap[key] = labelVal
 				} else {
 					return fmt.Errorf("invalid_label_reference %s in key %s", valStr, key)
 				}
+			} else if strings.HasPrefix(valStr, annotationPrefix) {
+				annoation := strings.TrimPrefix(valStr, annotationPrefix)
+				annoationVal, annoationPresent := clusterLabels[annoation]
+				if annoationPresent {
+					valuesMap[key] = annoationVal
+				} else {
+					return fmt.Errorf("invalid_annotation_reference %s in key %s", valStr, key)
+				}
 			} else {
-				valuesTemplate, _ := template.New("clusterLabels").Option("missingkey=error").Parse(valStr)
+				valuesTemplate, _ := template.New("values").Option("missingkey=error").Parse(valStr)
 				var tpl bytes.Buffer
-				err := valuesTemplate.Execute(&tpl, scopedClusterLables)
+				defer func() {
+					if r := recover(); r != nil {
+						err = fmt.Errorf("Failed to process template substitution for key '%s' with value '%s': [%v]", key, valStr, err)
+					}
+				}()
+				err = valuesTemplate.Execute(&tpl, scopedClusterLables)
 				if err == nil {
 					valuesMap[key] = tpl.String()
 				} else {
-					logrus.Errorf("Failed to process template label subsitution for key '%s' with value '%s': [%v]", key, valStr, err)
+					return fmt.Errorf("Failed to process template substitution for key '%s' with value '%s': [%v]", key, valStr, err)
 				}
 			}
 		case map[string]interface{}:
-			err := processLabelValues(val.(map[string]interface{}), clusterLabels)
+			err := processValues(val.(map[string]interface{}), clusterLabels, clusterAnnotations)
 			if err != nil {
 				return err
 			}
 		case []interface{}:
 			for _, item := range val.([]interface{}) {
 				if itemMap, ok := item.(map[string]interface{}); ok {
-					err := processLabelValues(itemMap, clusterLabels)
+					err := processValues(itemMap, clusterLabels, clusterAnnotations)
 					if err != nil {
 						return err
 					}
