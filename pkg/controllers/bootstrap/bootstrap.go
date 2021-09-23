@@ -80,6 +80,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 		},
 		Spec: fleet.ClusterSpec{
 			KubeConfigSecret: secret.Name,
+			AgentNamespace:   config.Bootstrap.AgentNamespace,
 		},
 	}, &fleet.ClusterGroup{
 		ObjectMeta: metav1.ObjectMeta{
