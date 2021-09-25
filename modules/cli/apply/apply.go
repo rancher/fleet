@@ -2,14 +2,11 @@ package apply
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -24,9 +21,7 @@ import (
 )
 
 var (
-	disallowedChars = regexp.MustCompile("[^a-zA-Z0-9]+")
-	multiDash       = regexp.MustCompile("-+")
-	ErrNoResources  = errors.New("no resources found to deploy")
+	ErrNoResources = errors.New("no resources found to deploy")
 )
 
 type Options struct {
@@ -44,9 +39,6 @@ type Options struct {
 }
 
 func globDirs(baseDir string) (result []string, err error) {
-	for strings.HasPrefix(baseDir, "/") {
-		baseDir = baseDir[1:]
-	}
 	paths, err := filepath.Glob(baseDir)
 	if err != nil {
 		return nil, err
@@ -112,16 +104,12 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 	return nil
 }
 
-func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bundle.Bundle, error) {
-	if opts.BundleReader != nil {
-		var bundleResource fleet.Bundle
-		if err := json.NewDecoder(opts.BundleReader).Decode(&bundleResource); err != nil {
-			return nil, err
-		}
-		return bundle.New(&bundleResource)
+func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts *Options) error {
+	if opts == nil {
+		opts = &Options{}
 	}
 
-	return bundle.Open(ctx, name, baseDir, opts.BundleFile, &bundle.Options{
+	bund, err := bundle.Read(ctx, name, baseDir, opts.BundleReader, &bundle.Options{
 		Compress:        opts.Compress,
 		Labels:          opts.Labels,
 		ServiceAccount:  opts.ServiceAccount,
@@ -131,25 +119,12 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 		SyncGeneration:  opts.SyncGeneration,
 		Auth:            opts.Auth,
 	})
-}
 
-func createName(name, baseDir string) string {
-	path := strings.ToLower(filepath.Join(name, baseDir))
-	path = disallowedChars.ReplaceAllString(path, "-")
-	return name2.Limit(multiDash.ReplaceAllString(path, "-"), 63)
-}
-
-func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts *Options) error {
-	if opts == nil {
-		opts = &Options{}
-	}
-
-	bundle, err := readBundle(ctx, createName(name, baseDir), baseDir, opts)
 	if err != nil {
 		return err
 	}
 
-	def := bundle.Definition.DeepCopy()
+	def := bund.Definition.DeepCopy()
 	def.Namespace = client.Namespace
 
 	if len(def.Spec.Resources) == 0 {
@@ -157,7 +132,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	}
 
 	objects := []runtime.Object{def}
-	for _, scan := range bundle.Scans {
+	for _, scan := range bund.Scans {
 		objects = append(objects, scan)
 	}
 
@@ -167,7 +142,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	}
 
 	if opts.Output == nil {
-		err = save(client, def, bundle.Scans...)
+		err = save(client, def, bund.Scans...)
 	} else {
 		_, err = opts.Output.Write(b)
 	}
