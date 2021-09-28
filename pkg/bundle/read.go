@@ -153,6 +153,10 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	meta.Name = name
+	if bundle.BundleSpec.CustomBundleName != "" {
+		meta.Name = bundle.BundleSpec.CustomBundleName
+	}
+
 	setTargetNames(&bundle.BundleSpec)
 
 	resources, err := readResources(ctx, &bundle.BundleSpec, opts.Compress, baseDir, opts.Auth)
@@ -171,6 +175,11 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		if def.Labels == nil {
 			def.Labels = map[string]string{}
 		}
+		def.Labels[k] = v
+	}
+
+	// apply additional labels from spec
+	for k, v := range bundle.BundleSpec.AdditionalBundleLabels {
 		def.Labels[k] = v
 	}
 

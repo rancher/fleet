@@ -631,5 +631,13 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 				},
 			})
 	}
+
+	// additional GitRepo labels
+	for label, value := range gitrepo.Labels {
+		if label != "objectset.rio.cattle.io/hash" {
+			args = append(args, fmt.Sprintf("--label=%s=%s", label, value))
+		}
+	}
+
 	return append(args, gitrepo.Name), env
 }
