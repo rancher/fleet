@@ -180,6 +180,9 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	// apply additional labels from spec
 	for k, v := range bundle.BundleSpec.AdditionalBundleLabels {
+		if def.Labels == nil {
+			def.Labels = map[string]string{}
+		}
 		def.Labels[k] = v
 	}
 
