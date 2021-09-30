@@ -99,6 +99,8 @@ func size(bundle *fleet.Bundle) (int, error) {
 }
 
 type localSpec struct {
+	Name   string            `json:"name,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
 	fleet.BundleSpec
 	TargetCustomizations []fleet.BundleTarget `json:"targetCustomizations,omitempty"`
 	ImageScans           []imageScan          `json:"imageScans,omitempty"`
@@ -153,8 +155,8 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	meta.Name = name
-	if bundle.BundleSpec.CustomBundleName != "" {
-		meta.Name = bundle.BundleSpec.CustomBundleName
+	if bundle.Name != "" {
+		meta.Name = bundle.Name
 	}
 
 	setTargetNames(&bundle.BundleSpec)
@@ -179,7 +181,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	// apply additional labels from spec
-	for k, v := range bundle.BundleSpec.AdditionalBundleLabels {
+	for k, v := range bundle.Labels {
 		if def.Labels == nil {
 			def.Labels = map[string]string{}
 		}

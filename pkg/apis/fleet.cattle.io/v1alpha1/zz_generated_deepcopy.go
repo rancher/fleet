@@ -466,13 +466,6 @@ func (in *BundleSpec) DeepCopyInto(out *BundleSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.AdditionalBundleLabels != nil {
-		in, out := &in.AdditionalBundleLabels, &out.AdditionalBundleLabels
-		*out = make(map[string]string, len(*in))
-		for key, val := range *in {
-			(*out)[key] = val
-		}
-	}
 	return
 }
 

@@ -25,15 +25,6 @@ spec:
         properties:
           spec:
             properties:
-              additionalBundleLabels:
-                additionalProperties:
-                  nullable: true
-                  type: string
-                nullable: true
-                type: object
-              customBundleName:
-                nullable: true
-                type: string
               defaultNamespace:
                 nullable: true
                 type: string
@@ -2705,15 +2696,6 @@ spec:
       properties:
         spec:
           properties:
-            additionalBundleLabels:
-              additionalProperties:
-                nullable: true
-                type: string
-              nullable: true
-              type: object
-            customBundleName:
-              nullable: true
-              type: string
             defaultNamespace:
               nullable: true
               type: string

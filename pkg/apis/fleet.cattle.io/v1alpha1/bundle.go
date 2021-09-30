@@ -58,14 +58,12 @@ type BundleNamespaceMapping struct {
 type BundleSpec struct {
 	BundleDeploymentOptions
 
-	Paused                 bool                      `json:"paused,omitempty"`
-	RolloutStrategy        *RolloutStrategy          `json:"rolloutStrategy,omitempty"`
-	Resources              []BundleResource          `json:"resources,omitempty"`
-	Targets                []BundleTarget            `json:"targets,omitempty"`
-	TargetRestrictions     []BundleTargetRestriction `json:"targetRestrictions,omitempty"`
-	DependsOn              []BundleRef               `json:"dependsOn,omitempty"`
-	CustomBundleName       string                    `json:"customBundleName,omitempty"`
-	AdditionalBundleLabels map[string]string         `json:"additionalBundleLabels,omitempty"`
+	Paused             bool                      `json:"paused,omitempty"`
+	RolloutStrategy    *RolloutStrategy          `json:"rolloutStrategy,omitempty"`
+	Resources          []BundleResource          `json:"resources,omitempty"`
+	Targets            []BundleTarget            `json:"targets,omitempty"`
+	TargetRestrictions []BundleTargetRestriction `json:"targetRestrictions,omitempty"`
+	DependsOn          []BundleRef               `json:"dependsOn,omitempty"`
 }
 
 type BundleRef struct {
