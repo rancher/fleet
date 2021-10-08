@@ -74,3 +74,8 @@ frontend   3/3     3            3           116m
 ```
 
 Enjoy and read the [docs](https://fleet.rancher.io/).
+
+## Developer and Maintainer Documentation
+
+- [DEVELOPING.md](./DEVELOPING.md)
+- [RELEASE.md](./RELEASE.md)

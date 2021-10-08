@@ -124,6 +124,10 @@ With that change, we can now run the controller locally.
 )
 ```
 
+**Optional:** you can test Rancher's `FleetWorkspaces` feature by moving Fleet clusters to another workspace in the "Continuous Delivery" section of the Rancher UI.
+You can create your own workspace using the API or the UI.
+Ensure that clusters are in an "Active" state after migration.
+
 ### Step 5: Create GitRepo CR(s)
 
 The controller should be running in your terminal window/pane!
