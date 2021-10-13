@@ -17,6 +17,8 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/rancher/wrangler/pkg/data"
+
 	"github.com/hashicorp/go-getter"
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/modules/cli/pkg/progress"
@@ -428,12 +430,7 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 
 func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 	result := &fleet.GenericMap{Data: make(map[string]interface{})}
-	for k, v := range first.Data {
-		result.Data[k] = v
-	}
-	for k, v := range second.Data {
-		result.Data[k] = v
-	}
+	result.Data = data.MergeMaps(first.Data, second.Data)
 	return result
 }
 
