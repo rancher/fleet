@@ -2,7 +2,20 @@
 
 This document contains tips, workflows, and more for developing within this repository.
 
-## Local Development
+## Design for Fleet Managing Fleet: Hosted Rancher, Harvester, Rancher Managing Rancher, etc.
+
+Starting with Fleet v0.3.7 and Rancher v2.6.1, scenarios where Fleet is managing Fleet (standalone or Rancher managing Rancher) will result in _two_ `fleet-agent` deployments running every _managed_ Fleet cluster.
+The agents will be communicating with two different `fleet-controller` deployments.
+
+```
+Local Fleet Cluster          Managed Fleet Cluster             Downstream Cluster
+===================          ========================          ======================
+fleet-controller  <------->  fleet-agent (downstream)
+fleet-agent (local)          fleet-controller  <------------>  fleet-agent (downstream)
+                             fleet-agent (local)
+```
+
+## Local Development Workflow: Standlone Fleet and Fleet in Rancher
 
 All steps in this guide assume your current working directory is the root of the repository.
 Moreover, this guide was written for Unix-like developer environments, so you may need to modify some steps if you are using a non-Unix-like developer environment (i.e. Windows).
@@ -110,6 +123,10 @@ With that change, we can now run the controller locally.
     go run cmd/fleetcontroller/main.go
 )
 ```
+
+**Optional:** you can test Rancher's `FleetWorkspaces` feature by moving Fleet clusters to another workspace in the "Continuous Delivery" section of the Rancher UI.
+You can create your own workspace using the API or the UI.
+Ensure that clusters are in an "Active" state after migration.
 
 ### Step 5: Create GitRepo CR(s)
 
