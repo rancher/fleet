@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,13 +22,14 @@ import (
 )
 
 type handler struct {
-	clusters         fleetcontrollers.ClusterController
-	clusterCache     fleetcontrollers.ClusterCache
-	clusterGroups    fleetcontrollers.ClusterGroupCache
-	bundleDeployment fleetcontrollers.BundleDeploymentCache
-	namespaceCache   corecontrollers.NamespaceCache
-	namespaces       corecontrollers.NamespaceController
-	gitRepos         fleetcontrollers.GitRepoCache
+	clusters             fleetcontrollers.ClusterController
+	clusterCache         fleetcontrollers.ClusterCache
+	clusterGroups        fleetcontrollers.ClusterGroupCache
+	bundleDeployment     fleetcontrollers.BundleDeploymentCache
+	namespaceCache       corecontrollers.NamespaceCache
+	namespaces           corecontrollers.NamespaceController
+	gitRepos             fleetcontrollers.GitRepoCache
+	clusterRegistrations fleetcontrollers.ClusterRegistrationController
 }
 
 type repoKey struct {
@@ -40,16 +42,18 @@ func Register(ctx context.Context,
 	clusterGroups fleetcontrollers.ClusterGroupCache,
 	clusters fleetcontrollers.ClusterController,
 	gitRepos fleetcontrollers.GitRepoCache,
-	namespaces corecontrollers.NamespaceController) {
+	namespaces corecontrollers.NamespaceController,
+	clusterRegistrations fleetcontrollers.ClusterRegistrationController) {
 
 	h := &handler{
-		clusterGroups:    clusterGroups,
-		clusterCache:     clusters.Cache(),
-		clusters:         clusters,
-		bundleDeployment: bundleDeployment.Cache(),
-		namespaceCache:   namespaces.Cache(),
-		namespaces:       namespaces,
-		gitRepos:         gitRepos,
+		clusterGroups:        clusterGroups,
+		clusterCache:         clusters.Cache(),
+		clusters:             clusters,
+		bundleDeployment:     bundleDeployment.Cache(),
+		namespaceCache:       namespaces.Cache(),
+		namespaces:           namespaces,
+		gitRepos:             gitRepos,
+		clusterRegistrations: clusterRegistrations,
 	}
 
 	clusters.OnChange(ctx, "managed-cluster-trigger", h.ensureNSDeleted)
@@ -103,6 +107,20 @@ func clusterToNamespace(clusterNamespace, clusterName string) string {
 
 func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
 	if cluster.DeletionTimestamp != nil {
+		clusterRegistrations, err := h.clusterRegistrations.List(cluster.Namespace, metav1.ListOptions{})
+		if err != nil {
+			return status, err
+		}
+		for _, clusterRegistration := range clusterRegistrations.Items {
+			if clusterRegistration.Status.ClusterName == cluster.Name {
+				err := h.clusterRegistrations.Delete(clusterRegistration.Namespace, clusterRegistration.Name, &metav1.DeleteOptions{})
+				if err == nil {
+					logrus.Debugf("deleted leftover ClusterRegistration (%s) for cluster: %s", clusterRegistration.Name, cluster.Name)
+				} else if !apierrors.IsNotFound(err) {
+					return status, err
+				}
+			}
+		}
 		return status, nil
 	}
 

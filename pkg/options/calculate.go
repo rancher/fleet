@@ -64,6 +64,9 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 		} else if next.Helm.Values != nil {
 			result.Helm.Values.Data = data.MergeMaps(result.Helm.Values.Data, next.Helm.Values.Data)
 		}
+		if next.Helm.ValuesFrom != nil {
+			result.Helm.ValuesFrom = append(result.Helm.ValuesFrom, next.Helm.ValuesFrom...)
+		}
 		if next.Helm.Chart != "" {
 			result.Helm.Chart = next.Helm.Chart
 		}

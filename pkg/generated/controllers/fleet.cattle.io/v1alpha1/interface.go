@@ -40,6 +40,7 @@ type Interface interface {
 	Content() ContentController
 	GitRepo() GitRepoController
 	GitRepoRestriction() GitRepoRestrictionController
+	ImageScan() ImageScanController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -81,4 +82,7 @@ func (c *version) GitRepo() GitRepoController {
 }
 func (c *version) GitRepoRestriction() GitRepoRestrictionController {
 	return NewGitRepoRestrictionController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "GitRepoRestriction"}, "gitreporestrictions", true, c.controllerFactory)
+}
+func (c *version) ImageScan() ImageScanController {
+	return NewImageScanController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ImageScan"}, "imagescans", true, c.controllerFactory)
 }

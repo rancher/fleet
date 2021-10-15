@@ -72,6 +72,13 @@ type GitRepoSpec struct {
 
 	// Increment this number to force a redeployment of contents from Git
 	ForceSyncGeneration int64 `json:"forceSyncGeneration,omitempty"`
+
+	// ImageScanInterval is the interval of syncing scanned images and writing back to git repo
+	ImageSyncInterval *metav1.Duration `json:"imageScanInterval,omitempty"`
+
+	// Commit specifies how to commit to the git repo when new image is scanned and write back to git repo
+	// +required
+	ImageScanCommit CommitSpec `json:"imageScanCommit,omitempty"`
 }
 
 type GitTarget struct {
@@ -91,17 +98,18 @@ type GitTargetRestriction struct {
 }
 
 type GitRepoStatus struct {
-	ObservedGeneration   int64                               `json:"observedGeneration"`
-	Commit               string                              `json:"commit,omitempty"`
-	ReadyClusters        int                                 `json:"readyClusters"`
-	DesiredReadyClusters int                                 `json:"desiredReadyClusters"`
-	GitJobStatus         string                              `json:"gitJobStatus,omitempty"`
-	Summary              BundleSummary                       `json:"summary,omitempty"`
-	Display              GitRepoDisplay                      `json:"display,omitempty"`
-	Conditions           []genericcondition.GenericCondition `json:"conditions,omitempty"`
-	Resources            []GitRepoResource                   `json:"resources,omitempty"`
-	ResourceCounts       GitRepoResourceCounts               `json:"resourceCounts,omitempty"`
-	ResourceErrors       []string                            `json:"resourceErrors,omitempty"`
+	ObservedGeneration      int64                               `json:"observedGeneration"`
+	Commit                  string                              `json:"commit,omitempty"`
+	ReadyClusters           int                                 `json:"readyClusters"`
+	DesiredReadyClusters    int                                 `json:"desiredReadyClusters"`
+	GitJobStatus            string                              `json:"gitJobStatus,omitempty"`
+	Summary                 BundleSummary                       `json:"summary,omitempty"`
+	Display                 GitRepoDisplay                      `json:"display,omitempty"`
+	Conditions              []genericcondition.GenericCondition `json:"conditions,omitempty"`
+	Resources               []GitRepoResource                   `json:"resources,omitempty"`
+	ResourceCounts          GitRepoResourceCounts               `json:"resourceCounts,omitempty"`
+	ResourceErrors          []string                            `json:"resourceErrors,omitempty"`
+	LastSyncedImageScanTime metav1.Time                         `json:"lastSyncedImageScanTime,omitempty"`
 }
 
 type GitRepoResourceCounts struct {

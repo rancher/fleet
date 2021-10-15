@@ -27,7 +27,7 @@ function build-binaries() {
     if [ $1 = "windows" ]; then
         TEMP_SUFFIX=".exe"
     fi
-    GOOS=${1} GOARCH=${2}${TEMP_GOARCH} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleet-${1}-${2}${TEMP_SUFFIX}
+    GOOS=${1} GOARCH=${2}${TEMP_GOARM} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleet-${1}-${2}${TEMP_SUFFIX}
     if ! [ $1 = "darwin" ]; then
         GOOS=${1} GOARCH=${2}${TEMP_GOARM} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleetcontroller-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetcontroller
         GOOS=${1} GOARCH=${2}${TEMP_GOARM} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleetagent-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetagent

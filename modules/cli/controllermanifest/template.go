@@ -13,7 +13,7 @@ const (
 )
 
 func objects(namespace, controllerImage string, cfg string, crdsOnly bool) ([]runtime.Object, error) {
-	crds, err := crd.Objects()
+	crds, err := crd.Objects(false)
 	if err != nil {
 		return nil, err
 	}

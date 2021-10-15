@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	name1 "github.com/rancher/wrangler/pkg/name"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
@@ -98,6 +101,12 @@ func size(bundle *fleet.Bundle) (int, error) {
 type localSpec struct {
 	fleet.BundleSpec
 	TargetCustomizations []fleet.BundleTarget `json:"targetCustomizations,omitempty"`
+	ImageScans           []imageScan          `json:"imageScans,omitempty"`
+}
+
+type imageScan struct {
+	Name string `json:"name,omitempty"`
+	fleet.ImageScanSpec
 }
 
 func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
@@ -118,6 +127,24 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	if err := yaml.Unmarshal(bytes, bundle); err != nil {
 		return nil, err
 	}
+
+	var scans []*fleet.ImageScan
+	for i, scan := range bundle.ImageScans {
+		if scan.Image == "" {
+			continue
+		}
+		if scan.TagName == "" {
+			return nil, errors.New("the name of scan is required")
+		}
+
+		scans = append(scans, &fleet.ImageScan{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name1.SafeConcatName("imagescan", name, strconv.Itoa(i)),
+			},
+			Spec: scan.ImageScanSpec,
+		})
+	}
+
 	bundle.BundleSpec.Targets = append(bundle.BundleSpec.Targets, bundle.TargetCustomizations...)
 
 	meta, err := readMetadata(bytes)
@@ -178,7 +205,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		def.Spec.Paused = true
 	}
 
-	return New(def)
+	return New(def, scans...)
 }
 
 func appendTargets(def *fleet.Bundle, targetsFile string) (*fleet.Bundle, error) {

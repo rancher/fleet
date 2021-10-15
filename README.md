@@ -27,7 +27,7 @@ brew install helm
 Install the Fleet Helm charts (there's two because we separate out CRDs for ultimate flexibility.)
 
 ```shell
-VERSION=0.3.3
+VERSION=0.3.5
 helm -n fleet-system install --create-namespace --wait \
     fleet-crd https://github.com/rancher/fleet/releases/download/v${VERSION}/fleet-crd-${VERSION}.tgz
 helm -n fleet-system install --create-namespace --wait \
@@ -49,7 +49,7 @@ metadata:
   namespace: fleet-local
 spec:
   # Everything from this repo will be ran in this cluster. You trust me right?
-  repo: "https://github.com/fleet-demo/simple"
+  repo: "https://github.com/rancher/fleet-examples/tree/master/simple"
 EOF
 
 kubectl apply -f example.yaml
@@ -74,3 +74,8 @@ frontend   3/3     3            3           116m
 ```
 
 Enjoy and read the [docs](https://fleet.rancher.io/).
+
+## Developer and Maintainer Documentation
+
+- [DEVELOPING.md](./DEVELOPING.md)
+- [RELEASE.md](./RELEASE.md)
