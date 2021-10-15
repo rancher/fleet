@@ -17,6 +17,7 @@ data:
         "secret": "{{.Values.bootstrap.secret}}",
         "branch":  "{{.Values.bootstrap.branch}}",
         "namespace": "{{.Values.bootstrap.namespace}}",
+        "agentNamespace": "{{.Values.bootstrap.agentNamespace}}",
       },
       "webhookReceiverURL": "{{.Values.webhookReceiverURL}}",
       "githubURLPrefix": "{{.Values.githubURLPrefix}}"

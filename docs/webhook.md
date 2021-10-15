@@ -6,7 +6,7 @@ GitLab, Bitbucket, Bitbucket Server and Gogs.
 ### 1. Configure the webhook service. Fleet uses a gitjob service to handle webhook requests. Create an ingress that points to the gitjob service.
 
 ```yaml
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: webhook-ingress
@@ -19,8 +19,10 @@ spec:
         - path: /
           pathType: Prefix
           backend:
-            serviceName: gitjob
-            servicePort: 80
+            service:
+              name: gitjob
+              port:
+                number: 80
 ```
 
 !!! note

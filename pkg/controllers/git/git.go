@@ -42,12 +42,14 @@ func Register(ctx context.Context,
 	bundleDeployments fleetcontrollers.BundleDeploymentController,
 	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache,
 	bundles fleetcontrollers.BundleController,
+	images fleetcontrollers.ImageScanController,
 	gitRepos fleetcontrollers.GitRepoController,
 	secrets corev1controller.SecretCache) {
 	h := &handler{
 		gitjobCache:         gitJobs.Cache(),
 		bundleCache:         bundles.Cache(),
 		bundles:             bundles,
+		images:              images,
 		bundleDeployments:   bundleDeployments.Cache(),
 		gitRepoRestrictions: gitRepoRestrictions,
 		display:             display.NewFactory(bundles.Cache()),
@@ -80,6 +82,7 @@ type handler struct {
 	secrets             corev1controller.SecretCache
 	bundleCache         fleetcontrollers.BundleCache
 	bundles             fleetcontrollers.BundleClient
+	images              fleetcontrollers.ImageScanController
 	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache
 	bundleDeployments   fleetcontrollers.BundleDeploymentCache
 	display             *display.Factory
@@ -235,6 +238,21 @@ func (h *handler) DeleteOnChange(key string, gitrepo *fleet.GitRepo) (*fleet.Git
 		}
 	}
 
+	images, err := h.images.Cache().List(ns, labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, image := range images {
+		if image.Spec.GitRepoName == name {
+			err := h.images.Delete(image.Namespace, image.Name, nil)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+	}
+
 	return nil, nil
 }
 
@@ -341,7 +359,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 				{
 					Verbs:     []string{"get", "create", "update"},
 					APIGroups: []string{"fleet.cattle.io"},
-					Resources: []string{"bundles"},
+					Resources: []string{"bundles", "imagescans"},
 				},
 				{
 					Verbs:     []string{"get"},

@@ -18,6 +18,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	fleetns "github.com/rancher/fleet/pkg/namespace"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
 	"github.com/rancher/wrangler/pkg/yaml"
 	v1 "k8s.io/api/core/v1"
@@ -44,8 +45,8 @@ type Options struct {
 	AgentEnvVars    []v1.EnvVar
 }
 
-func AgentToken(ctx context.Context, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
-	token, err := getToken(ctx, tokenName, client)
+func AgentToken(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
+	token, err := getToken(ctx, controllerNamespace, tokenName, client)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func AgentToken(ctx context.Context, controllerNamespace string, client *client.
 		token["apiServerCA"] = opts.CA
 	}
 
-	return objects(controllerNamespace, token), nil
+	return objects(agentNamespace, token), nil
 }
 
 func insecurePing(host string) {
@@ -95,7 +96,7 @@ func testKubeConfig(kubeConfig, host string) error {
 	return nil
 }
 
-func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace string, cg *client.Getter, output io.Writer, tokenName string, opts *Options) error {
+func AgentManifest(ctx context.Context, agentNamespace, controllerNamespace, agentScope string, cg *client.Getter, output io.Writer, tokenName string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -105,12 +106,12 @@ func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace str
 		return err
 	}
 
-	objs, err := AgentToken(ctx, controllerNamespace, client, tokenName, opts)
+	objs, err := AgentToken(ctx, agentNamespace, controllerNamespace, client, tokenName, opts)
 	if err != nil {
 		return err
 	}
 
-	agentConfig, err := agentconfig.AgentConfig(ctx, controllerNamespace, cg, &agentconfig.Options{
+	agentConfig, err := agentconfig.AgentConfig(ctx, agentNamespace, controllerNamespace, cg, &agentconfig.Options{
 		Labels:   opts.Labels,
 		ClientID: opts.ClientID,
 	})
@@ -120,12 +121,12 @@ func AgentManifest(ctx context.Context, systemNamespace, controllerNamespace str
 
 	objs = append(objs, agentConfig...)
 
-	cfg, err := config.Lookup(ctx, systemNamespace, config.ManagerConfigName, client.Core.ConfigMap())
+	cfg, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return err
 	}
 
-	objs = append(objs, agent.Manifest(controllerNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval, opts.AgentEnvVars)...)
+	objs = append(objs, agent.Manifest(agentNamespace, agentScope, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval, opts.AgentEnvVars)...)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {
@@ -223,7 +224,7 @@ func getCA(ca []byte, cfg clientcmdapi.Config) ([]byte, error) {
 	return GetCAFromConfig(cfg)
 }
 
-func getToken(ctx context.Context, tokenName string, client *client.Client) (map[string][]byte, error) {
+func getToken(ctx context.Context, controllerNamespace, tokenName string, client *client.Client) (map[string][]byte, error) {
 	secretName, err := waitForSecretName(ctx, tokenName, client)
 	if err != nil {
 		return nil, err
@@ -246,6 +247,12 @@ func getToken(ctx context.Context, tokenName string, client *client.Client) (map
 
 	if _, ok := data["token"]; !ok {
 		return nil, fmt.Errorf("failed to find token in values")
+	}
+
+	expectedNamespace := fleetns.RegistrationNamespace(controllerNamespace)
+	actualNamespace := data["systemRegistrationNamespace"]
+	if actualNamespace != expectedNamespace {
+		return nil, fmt.Errorf("registration namespace (%s) from secret (%s/%s) does not match expected: %s", actualNamespace, secret.Namespace, secret.Name, expectedNamespace)
 	}
 
 	byteData := map[string][]byte{}

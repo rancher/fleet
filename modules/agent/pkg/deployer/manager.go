@@ -19,11 +19,12 @@ type Manager struct {
 	deployer              Deployer
 	apply                 apply.Apply
 	labelPrefix           string
+	labelSuffix           string
 }
 
 func NewManager(fleetNamespace string,
 	defaultNamespace string,
-	labelPrefix string,
+	labelPrefix, labelSuffix string,
 	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache,
 	lookup manifest.Lookup,
 	deployer Deployer,
@@ -32,6 +33,7 @@ func NewManager(fleetNamespace string,
 		fleetNamespace:        fleetNamespace,
 		defaultNamespace:      defaultNamespace,
 		labelPrefix:           labelPrefix,
+		labelSuffix:           labelSuffix,
 		bundleDeploymentCache: bundleDeploymentCache,
 		lookup:                lookup,
 		deployer:              deployer,

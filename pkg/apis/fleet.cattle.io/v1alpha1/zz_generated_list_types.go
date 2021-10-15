@@ -193,3 +193,20 @@ func NewGitRepoRestriction(namespace, name string, obj GitRepoRestriction) *GitR
 	obj.Namespace = namespace
 	return &obj
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ImageScanList is a list of ImageScan resources
+type ImageScanList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ImageScan `json:"items"`
+}
+
+func NewImageScan(namespace, name string, obj ImageScan) *ImageScan {
+	obj.APIVersion, obj.Kind = SchemeGroupVersion.WithKind("ImageScan").ToAPIVersionAndKind()
+	obj.Name = name
+	obj.Namespace = namespace
+	return &obj
+}

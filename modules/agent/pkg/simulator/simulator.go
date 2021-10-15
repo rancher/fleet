@@ -76,7 +76,7 @@ func simulateAgent(ctx context.Context, i int, kubeConfig, namespace, defaultNam
 	opts.DefaultNamespace = simDefaultNamespace
 	opts.ClusterID = clusterID
 	opts.NoLeaderElect = true
-	return agent.Start(ctx, kubeConfig, simNamespace, &opts)
+	return agent.Start(ctx, kubeConfig, simNamespace, simNamespace, &opts)
 }
 
 func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace string) (string, error) {
@@ -159,7 +159,6 @@ func injectConfig(cm *corev1.ConfigMap, simNamespace string) (*corev1.ConfigMap,
 	if err != nil {
 		return nil, err
 	}
-	cfg.IgnoreAgentNamespaceCheck = true
 	if cfg.Labels == nil {
 		cfg.Labels = map[string]string{}
 	}
