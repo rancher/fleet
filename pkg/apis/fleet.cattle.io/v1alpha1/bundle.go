@@ -67,8 +67,8 @@ type BundleSpec struct {
 }
 
 type BundleRef struct {
-	Name           string                `json:"name,omitempty"`
-	BundleSelector *metav1.LabelSelector `json:"bundleSelector,omitempty"`
+	Name     string                `json:"name,omitempty"`
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
 type BundleResource struct {

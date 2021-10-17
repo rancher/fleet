@@ -31,7 +31,10 @@ spec:
               dependsOn:
                 items:
                   properties:
-                    bundleSelector:
+                    name:
+                      nullable: true
+                      type: string
+                    selector:
                       nullable: true
                       properties:
                         matchExpressions:
@@ -59,9 +62,6 @@ spec:
                           nullable: true
                           type: object
                       type: object
-                    name:
-                      nullable: true
-                      type: string
                   type: object
                 nullable: true
                 type: array
@@ -897,7 +897,10 @@ spec:
               dependsOn:
                 items:
                   properties:
-                    bundleSelector:
+                    name:
+                      nullable: true
+                      type: string
+                    selector:
                       nullable: true
                       properties:
                         matchExpressions:
@@ -925,9 +928,6 @@ spec:
                           nullable: true
                           type: object
                       type: object
-                    name:
-                      nullable: true
-                      type: string
                   type: object
                 nullable: true
                 type: array
@@ -2702,7 +2702,10 @@ spec:
             dependsOn:
               items:
                 properties:
-                  bundleSelector:
+                  name:
+                    nullable: true
+                    type: string
+                  selector:
                     nullable: true
                     properties:
                       matchExpressions:
@@ -2730,9 +2733,6 @@ spec:
                         nullable: true
                         type: object
                     type: object
-                  name:
-                    nullable: true
-                    type: string
                 type: object
               nullable: true
               type: array
@@ -3569,7 +3569,10 @@ spec:
             dependsOn:
               items:
                 properties:
-                  bundleSelector:
+                  name:
+                    nullable: true
+                    type: string
+                  selector:
                     nullable: true
                     properties:
                       matchExpressions:
@@ -3597,9 +3600,6 @@ spec:
                         nullable: true
                         type: object
                     type: object
-                  name:
-                    nullable: true
-                    type: string
                 type: object
               nullable: true
               type: array
