@@ -270,12 +270,12 @@ func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentSt
 	if bd.Spec.Options.AlwaysReapply || bd.Spec.StagedOptions.AlwaysReapply {
 		if status.ReapplyAfter == "" {
 			status.ReapplyAfter = time.Now().Add(5 * time.Minute).Format(time.RFC3339)
-			return ok, nil
+			return false, nil
 		}
 
 		reapplyAfter, err := time.Parse(time.RFC3339, status.ReapplyAfter)
 		if err != nil {
-			return ok, err
+			return false, err
 		}
 		if reapplyAfter.Before(time.Now()) {
 			status.ReapplyAfter = ""
