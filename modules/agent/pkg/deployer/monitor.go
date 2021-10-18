@@ -126,7 +126,7 @@ func (m *Manager) normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeploy
 				key := objectset.ObjectKey{
 					Name:      patch.Name,
 					Namespace: patch.Namespace,
-					Index: i
+					Index: i,
 				}
 				jsonPatchNorm.Add(gvk, key, patchData)
 			}
