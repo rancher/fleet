@@ -118,7 +118,7 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) ([]string, bool, e
 	bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
 	for _, depend := range bd.Spec.DependsOn {
 		// skip empty BundleRef definitions. Possible if there is a typo in the yaml
-		if depend != (fleet.BundleRef{}) {
+		if depend.Name != "" || depend.Selector != nil {
 			ls := &metav1.LabelSelector{}
 			if depend.Selector != nil {
 				ls = depend.Selector
@@ -150,13 +150,13 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) ([]string, bool, e
 					depBundleList = append(depBundleList, fmt.Sprintf("dependent bundles %s not ready", depBundle.Name))
 				}
 			}
-
-			if len(depBundleList) != 0 {
-				return depBundleList, false, nil
-			}
 		}
-
 	}
+
+	if len(depBundleList) != 0 {
+		return depBundleList, false, nil
+	}
+
 	return nil, true, nil
 }
 
