@@ -1,4 +1,4 @@
-FROM alpine:3.14.2
+FROM oraclelinux:7-slim
 ARG ARCH
 ENV ARCH=$ARCH
 COPY bin/fleetcontroller-linux-${ARCH} /usr/bin/fleetcontroller
