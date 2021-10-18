@@ -116,7 +116,7 @@ func (m *Manager) normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeploy
 				JSONPointers: patch.JsonPointers,
 			})
 
-			for _, op := range patch.Operations {
+			for i, op := range patch.Operations {
 				// compile each operation by itself so that one failing operation doesn't block the others
 				patchData, err := json.Marshal([]interface{}{op})
 				if err != nil {
@@ -126,6 +126,7 @@ func (m *Manager) normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeploy
 				key := objectset.ObjectKey{
 					Name:      patch.Name,
 					Namespace: patch.Namespace,
+					Index: i
 				}
 				jsonPatchNorm.Add(gvk, key, patchData)
 			}
