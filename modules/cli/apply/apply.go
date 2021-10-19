@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
+	name2 "github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -134,7 +135,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 func createName(name, baseDir string) string {
 	path := strings.ToLower(filepath.Join(name, baseDir))
 	path = disallowedChars.ReplaceAllString(path, "-")
-	return multiDash.ReplaceAllString(path, "-")
+	return name2.Limit(multiDash.ReplaceAllString(path, "-"), 63)
 }
 
 func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts *Options) error {
