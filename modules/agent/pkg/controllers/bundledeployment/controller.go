@@ -264,6 +264,7 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 	return errors.New(msg)
 }
 
+<<<<<<< HEAD
 func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (ok bool) {
 	if bd.Spec.Options.Resync || bd.Spec.StagedOptions.Resync {
 		if status.LastApply == nil {
@@ -271,6 +272,21 @@ func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentSt
 		}
 		if status.LastApply.Add(5 * time.Minute).Before(time.Now()) {
 			status.LastApply = nil
+=======
+func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (ok bool, err error) {
+	if bd.Spec.Options.AlwaysReapply || bd.Spec.StagedOptions.AlwaysReapply {
+		if status.ReapplyAfter == "" {
+			status.ReapplyAfter = time.Now().Add(5 * time.Minute).Format(time.RFC3339)
+			return false, nil
+		}
+
+		reapplyAfter, err := time.Parse(time.RFC3339, status.ReapplyAfter)
+		if err != nil {
+			return false, err
+		}
+		if reapplyAfter.Before(time.Now()) {
+			status.ReapplyAfter = ""
+>>>>>>> 3764a92c332ea7be70b471c1412458dc76d19b8d
 			ok = true
 		}
 	}
