@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/rancher/fleet/pkg/controllers/bootstrap"
@@ -21,6 +20,7 @@ import (
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
+	fleetns "github.com/rancher/fleet/pkg/namespace"
 	"github.com/rancher/fleet/pkg/target"
 	"github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io"
 	gitcontrollers "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
@@ -67,21 +67,13 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func registrationNamespace(systemNamespace string) string {
-	systemRegistrationNamespace := strings.ReplaceAll(systemNamespace, "-system", "-clusters-system")
-	if systemRegistrationNamespace == systemNamespace {
-		return systemNamespace + "-clusters-system"
-	}
-	return systemRegistrationNamespace
-}
-
 func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool) error {
 	appCtx, err := newContext(cfg, disableGitops)
 	if err != nil {
 		return err
 	}
 
-	systemRegistrationNamespace := registrationNamespace(systemNamespace)
+	systemRegistrationNamespace := fleetns.RegistrationNamespace(systemNamespace)
 
 	if err := addData(systemNamespace, systemRegistrationNamespace, appCtx); err != nil {
 		return err
@@ -111,13 +103,16 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.ClusterGroup().Cache(),
 		appCtx.Cluster(),
 		appCtx.GitRepo().Cache(),
-		appCtx.Core.Namespace())
+		appCtx.Core.Namespace(),
+		appCtx.ClusterRegistration())
 
 	cluster.RegisterImport(ctx,
 		systemNamespace,
 		appCtx.Core.Secret().Cache(),
 		appCtx.Cluster(),
-		appCtx.ClusterRegistrationToken())
+		appCtx.ClusterRegistrationToken(),
+		appCtx.Bundle(),
+		appCtx.Core.Namespace())
 
 	bundle.Register(ctx,
 		appCtx.Apply,

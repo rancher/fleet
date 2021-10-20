@@ -3,6 +3,7 @@ package controllers
 import (
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetns "github.com/rancher/fleet/pkg/namespace"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,6 +13,7 @@ func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appCon
 	return appCtx.Apply.
 		WithSetID("fleet-bootstrap-data").
 		WithDynamicLookup().
+		WithNoDeleteGVK(fleetns.GVK()).
 		ApplyObjects(
 			&rbacv1.ClusterRole{
 				ObjectMeta: metav1.ObjectMeta{

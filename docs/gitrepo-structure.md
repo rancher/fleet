@@ -166,6 +166,13 @@ targetCustomizations:
       region: us-east
   # A specific clusterGroup by name that will be selected
   clusterGroup: group1
+
+# dependsOn allows you to configure dependencies to other bundles. The current bundle
+# will only be deployed, after all dependencies are deployed and in a Ready state.
+dependsOn:
+  # Format: <GITREPO-NAME>-<BUNDLE_PATH> with all path separators replaced by "-" 
+  # Example: GitRepo name "one", Bundle path "/multi-cluster/hello-world" => "one-multi-cluster-hello-world"
+  - name: one-multi-cluster-hello-world
 ```
 
 !!! hint "Private Helm Repo"
@@ -182,6 +189,40 @@ targetCustomizations:
     `kubectl create secret -n $namespace generic helm --from-literal=username=foo --from-literal=password=bar --from-file=cacerts=/path/to/cacerts --from-file=ssh-privatekey=/path/to/privatekey.pem`
     
     After secret is created, specify the secret to `gitRepo.spec.helmSecretName`. Make sure secret is created under the same namespace with gitrepo.
+
+### Using ValuesFrom
+
+These examples showcase the style and format for using `valuesFrom`.
+
+Example [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/):
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configmap-values
+  namespace: default
+data:  
+  values.yaml: |-
+    replication: true
+    replicas: 2
+    serviceType: NodePort
+```
+
+Example [Secret](https://kubernetes.io/docs/concepts/configuration/secret/):
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret-values
+  namespace: default
+stringData:
+  values.yaml: |-
+    replication: true
+    replicas: 2
+    serviceType: NodePort
+```
 
 ## Per Cluster Customization
 

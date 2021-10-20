@@ -57,7 +57,7 @@ A `BundleNamespaceMapping` has only two fields.  Which are as below
 
 ```yaml
 kind: BundleNamespaceMapping
-apiVersion: {{fleet.version}}
+apiVersion: {{fleet.apiVersion}}
 metadata:
   name: not-important
   namespace: typically-unique

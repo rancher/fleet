@@ -143,14 +143,9 @@ func (m *Manager) normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeploy
 
 func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) (apply.Apply, error) {
 	apply := m.apply
-	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
-	setID := name.SafeConcatName(m.labelPrefix, bd.Name)
-	if strings.HasPrefix(bd.Name, "fleet-agent") {
-		setID = "fleet-agent-bootstrap"
-	}
 	return apply.
 		WithIgnorePreviousApplied().
-		WithSetID(setID).
+		WithSetID(GetSetID(bd.Name, m.labelPrefix, m.labelSuffix)).
 		WithDefaultNamespace(ns), nil
 }
 
@@ -180,6 +175,20 @@ func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, e
 	}
 
 	return status, nil
+}
+
+func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
+	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
+	if strings.HasPrefix(bundleID, "fleet-agent") {
+		if labelSuffix == "" {
+			return "fleet-agent-bootstrap"
+		}
+		return name.SafeConcatName("fleet-agent-bootstrap", labelSuffix)
+	}
+	if labelSuffix != "" {
+		return name.SafeConcatName(labelPrefix, bundleID, labelSuffix)
+	}
+	return name.SafeConcatName(labelPrefix, bundleID)
 }
 
 func sortKey(f fleet.ModifiedStatus) string {

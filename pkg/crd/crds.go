@@ -28,27 +28,47 @@ func WriteFile(filename string) error {
 }
 
 func Print(out io.Writer) error {
-	obj, err := Objects()
+	obj, err := Objects(false)
 	if err != nil {
 		return err
 	}
-
 	data, err := yaml.Export(obj...)
 	if err != nil {
 		return err
 	}
 
+	objV1Beta1, err := Objects(true)
+	if err != nil {
+		return err
+	}
+	dataV1Beta1, err := yaml.Export(objV1Beta1...)
+	if err != nil {
+		return err
+	}
+
+	data = append([]byte("{{- if .Capabilities.APIVersions.Has \"apiextensions.k8s.io/v1\" -}}\n"), data...)
+	data = append(data, []byte("{{- else -}}\n---\n")...)
+	data = append(data, dataV1Beta1...)
+	data = append(data, []byte("{{- end -}}")...)
 	_, err = out.Write(data)
 	return err
 }
 
-func Objects() (result []runtime.Object, err error) {
+func Objects(v1beta1 bool) (result []runtime.Object, err error) {
 	for _, crdDef := range List() {
-		crd, err := crdDef.ToCustomResourceDefinition()
-		if err != nil {
-			return nil, err
+		if v1beta1 {
+			crd, err := crdDef.ToCustomResourceDefinitionV1Beta1()
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, crd)
+		} else {
+			crd, err := crdDef.ToCustomResourceDefinition()
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, crd)
 		}
-		result = append(result, crd)
 	}
 	return
 }

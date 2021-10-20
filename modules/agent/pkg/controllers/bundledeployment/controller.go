@@ -15,9 +15,13 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/condition"
+	"github.com/rancher/wrangler/pkg/merr"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 )
 
 type handler struct {
@@ -27,10 +31,14 @@ type handler struct {
 	trigger       *trigger.Trigger
 	deployManager *deployer.Manager
 	bdController  fleetcontrollers.BundleDeploymentController
+	restMapper    meta.RESTMapper
+	dynamic       dynamic.Interface
 }
 
 func Register(ctx context.Context,
 	trigger *trigger.Trigger,
+	restMapper meta.RESTMapper,
+	dynamic dynamic.Interface,
 	deployManager *deployer.Manager,
 	bdController fleetcontrollers.BundleDeploymentController) {
 
@@ -39,6 +47,8 @@ func Register(ctx context.Context,
 		trigger:       trigger,
 		deployManager: deployManager,
 		bdController:  bdController,
+		restMapper:    restMapper,
+		dynamic:       dynamic,
 	}
 
 	fleetcontrollers.RegisterBundleDeploymentStatusHandler(ctx,
@@ -131,13 +141,18 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 		}
 	}
 
-	dependOn, ok, err := h.checkDependency(bd)
+	depBundles, ok, err := h.checkDependency(bd)
 	if err != nil {
 		return status, err
 	}
 
 	if !ok {
-		return status, fmt.Errorf("bundle %s has dependent bundle %s that is not ready", bd.Name, dependOn)
+		err = errors.New("error waiting for dependent bundles to be ready")
+		for _, bdName := range depBundles {
+			err = fmt.Errorf("%w: %s", err, bdName)
+		}
+
+		return status, err
 	}
 
 	release, err := h.deployManager.Deploy(bd)
@@ -150,33 +165,51 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	return status, nil
 }
 
-func (h *handler) checkDependency(bd *fleet.BundleDeployment) (string, bool, error) {
+func (h *handler) checkDependency(bd *fleet.BundleDeployment) ([]string, bool, error) {
+	var depBundleList []string
 	bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
 	for _, depend := range bd.Spec.DependsOn {
-		ls := &metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				"fleet.cattle.io/bundle-name":      depend.Name,
-				"fleet.cattle.io/bundle-namespace": bundleNamespace,
-			},
-		}
-		selector, err := metav1.LabelSelectorAsSelector(ls)
-		if err != nil {
-			return "", false, err
-		}
-		bds, err := h.bdController.Cache().List(bd.Namespace, selector)
-		if err != nil {
-			return "", false, err
-		}
-		for _, bd := range bds {
-			c := condition.Cond("Ready")
-			if c.IsTrue(bd) {
-				continue
-			} else {
-				return fmt.Sprintf("%s/%s", bundleNamespace, depend.Name), false, nil
+		// skip empty BundleRef definitions. Possible if there is a typo in the yaml
+		if depend.Name != "" || depend.Selector != nil {
+			ls := &metav1.LabelSelector{}
+			if depend.Selector != nil {
+				ls = depend.Selector
+			}
+
+			if depend.Name != "" {
+				ls = metav1.AddLabelToSelector(ls, "fleet.cattle.io/bundle-name", depend.Name)
+				ls = metav1.AddLabelToSelector(ls, "fleet.cattle.io/bundle-namespace", bundleNamespace)
+			}
+
+			selector, err := metav1.LabelSelectorAsSelector(ls)
+			if err != nil {
+				return nil, false, err
+			}
+			bds, err := h.bdController.Cache().List(bd.Namespace, selector)
+			if err != nil {
+				return nil, false, err
+			}
+
+			if len(bds) == 0 {
+				return nil, false, fmt.Errorf("no bundles matching labels %s in namespace %s", selector.String(), bundleNamespace)
+			}
+
+			for _, depBundle := range bds {
+				c := condition.Cond("Ready")
+				if c.IsTrue(depBundle) {
+					continue
+				} else {
+					depBundleList = append(depBundleList, fmt.Sprintf("dependent bundles %s not ready", depBundle.Name))
+				}
 			}
 		}
 	}
-	return "", true, nil
+
+	if len(depBundleList) != 0 {
+		return depBundleList, false, nil
+	}
+
+	return nil, true, nil
 }
 
 func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
@@ -198,8 +231,12 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 	return bd, nil
 }
 
+func isAgent(bd *fleet.BundleDeployment) bool {
+	return strings.HasPrefix(bd.Name, "fleet-agent")
+}
+
 func shouldRedeploy(bd *fleet.BundleDeployment) bool {
-	if strings.HasPrefix(bd.Name, "fleet-agent") {
+	if isAgent(bd) {
 		return true
 	}
 	if bd.Spec.Options.ForceSyncGeneration <= 0 {
@@ -209,6 +246,28 @@ func shouldRedeploy(bd *fleet.BundleDeployment) bool {
 		return true
 	}
 	return *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration
+}
+
+func (h *handler) cleanupOldAgent(modifiedStatuses []fleet.ModifiedStatus) error {
+	var errs []error
+	for _, modified := range modifiedStatuses {
+		if modified.Delete {
+			gvk := schema.FromAPIVersionAndKind(modified.APIVersion, modified.Kind)
+			mapping, err := h.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("mapping resource for %s for agent cleanup: %w", gvk, err))
+				continue
+			}
+
+			logrus.Infof("Removing old agent resource %s/%s, %s", modified.Namespace, modified.Name, gvk)
+			err = h.dynamic.Resource(mapping.Resource).Namespace(modified.Namespace).Delete(h.ctx, modified.Name, metav1.DeleteOptions{})
+			if err != nil {
+				errs = append(errs, fmt.Errorf("deleting %s/%s for %s for agent cleanup: %w", modified.Namespace, modified.Name, gvk, err))
+				continue
+			}
+		}
+	}
+	return merr.NewErrors(errs...)
 }
 
 func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
@@ -238,6 +297,11 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 		if shouldRedeploy(bd) {
 			logrus.Infof("Redeploying %s", bd.Name)
 			status.AppliedDeploymentID = ""
+			if isAgent(bd) {
+				if err := h.cleanupOldAgent(status.ModifiedStatus); err != nil {
+					return status, fmt.Errorf("failed to clean up agent: %w", err)
+				}
+			}
 		}
 	}
 

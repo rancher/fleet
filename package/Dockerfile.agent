@@ -1,4 +1,4 @@
-FROM alpine:3.14.0
+FROM alpine:3.14.2
 ARG ARCH
 ENV ARCH=$ARCH
 RUN apk add -U --no-cache git bash openssh && adduser -u 1000 -D fleet-apply

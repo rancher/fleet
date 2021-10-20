@@ -68,6 +68,7 @@ type ClusterSpec struct {
 	AgentEnvVars            []v1.EnvVar `json:"agentEnvVars,omitempty"`
 	Schedule                string      `json:"schedule,omitempty"`
 	ScheduleWindow          string      `json:"scheduleWindow,omitempty"`
+	AgentNamespace          string      `json:"agentNamespace,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -78,8 +79,10 @@ type ClusterStatus struct {
 	ReadyGitRepos        int                                 `json:"readyGitRepos"`
 	DesiredReadyGitRepos int                                 `json:"desiredReadyGitRepos"`
 
+	AgentEnvVarsHash        string `json:"agentEnvVarsHash,omitempty"`
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
 	AgentMigrated           bool   `json:"agentMigrated,omitempty"`
+	AgentNamespaceMigrated  bool   `json:"agentNamespaceMigrated,omitempty"`
 	CattleNamespaceMigrated bool   `json:"cattleNamespaceMigrated,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
