@@ -25,8 +25,6 @@ spec:
         properties:
           spec:
             properties:
-              alwaysReapply:
-                type: boolean
               defaultNamespace:
                 nullable: true
                 type: string
@@ -177,6 +175,8 @@ spec:
                   type: object
                 nullable: true
                 type: array
+              resync:
+                type: boolean
               rolloutStrategy:
                 nullable: true
                 properties:
@@ -341,8 +341,6 @@ spec:
               targets:
                 items:
                   properties:
-                    alwaysReapply:
-                      type: boolean
                     clusterGroup:
                       nullable: true
                       type: string
@@ -532,6 +530,8 @@ spec:
                     namespace:
                       nullable: true
                       type: string
+                    resync:
+                      type: boolean
                     serviceAccount:
                       nullable: true
                       type: string
@@ -884,8 +884,6 @@ spec:
                 type: string
               options:
                 properties:
-                  alwaysReapply:
-                    type: boolean
                   defaultNamespace:
                     nullable: true
                     type: string
@@ -1010,6 +1008,8 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  resync:
+                    type: boolean
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1029,8 +1029,6 @@ spec:
                 type: string
               stagedOptions:
                 properties:
-                  alwaysReapply:
-                    type: boolean
                   defaultNamespace:
                     nullable: true
                     type: string
@@ -1155,6 +1153,8 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  resync:
+                    type: boolean
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1211,6 +1211,9 @@ spec:
                     nullable: true
                     type: string
                 type: object
+              lastApply:
+                nullable: true
+                type: string
               modifiedStatus:
                 items:
                   properties:
@@ -1277,9 +1280,6 @@ spec:
                 type: array
               ready:
                 type: boolean
-              reapplyAfter:
-                nullable: true
-                type: string
               release:
                 nullable: true
                 type: string
@@ -2651,8 +2651,6 @@ spec:
       properties:
         spec:
           properties:
-            alwaysReapply:
-              type: boolean
             defaultNamespace:
               nullable: true
               type: string
@@ -2803,6 +2801,8 @@ spec:
                 type: object
               nullable: true
               type: array
+            resync:
+              type: boolean
             rolloutStrategy:
               nullable: true
               properties:
@@ -2967,8 +2967,6 @@ spec:
             targets:
               items:
                 properties:
-                  alwaysReapply:
-                    type: boolean
                   clusterGroup:
                     nullable: true
                     type: string
@@ -3158,6 +3156,8 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  resync:
+                    type: boolean
                   serviceAccount:
                     nullable: true
                     type: string
@@ -3511,8 +3511,6 @@ spec:
               type: string
             options:
               properties:
-                alwaysReapply:
-                  type: boolean
                 defaultNamespace:
                   nullable: true
                   type: string
@@ -3637,6 +3635,8 @@ spec:
                 namespace:
                   nullable: true
                   type: string
+                resync:
+                  type: boolean
                 serviceAccount:
                   nullable: true
                   type: string
@@ -3656,8 +3656,6 @@ spec:
               type: string
             stagedOptions:
               properties:
-                alwaysReapply:
-                  type: boolean
                 defaultNamespace:
                   nullable: true
                   type: string
@@ -3782,6 +3780,8 @@ spec:
                 namespace:
                   nullable: true
                   type: string
+                resync:
+                  type: boolean
                 serviceAccount:
                   nullable: true
                   type: string
@@ -3838,6 +3838,9 @@ spec:
                   nullable: true
                   type: string
               type: object
+            lastApply:
+              nullable: true
+              type: string
             modifiedStatus:
               items:
                 properties:
@@ -3904,9 +3907,6 @@ spec:
               type: array
             ready:
               type: boolean
-            reapplyAfter:
-              nullable: true
-              type: string
             release:
               nullable: true
               type: string

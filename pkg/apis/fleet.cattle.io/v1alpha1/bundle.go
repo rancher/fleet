@@ -191,7 +191,7 @@ type BundleDeploymentOptions struct {
 	ForceSyncGeneration int64             `json:"forceSyncGeneration,omitempty"`
 	YAML                *YAMLOptions      `json:"yaml,omitempty"`
 	Diff                *DiffOptions      `json:"diff,omitempty"`
-	AlwaysReapply       bool              `json:"alwaysReapply,omitempty"remo`
+	Resync              bool              `json:"resync,omitempty"`
 }
 
 type DiffOptions struct {
@@ -283,7 +283,7 @@ type BundleDeploymentStatus struct {
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
 	SyncGeneration      *int64                              `json:"syncGeneration,omitempty"`
-	ReapplyAfter        string                              `json:"reapplyAfter,omitempty"`
+	LastApply           *metav1.Time                        `json:"lastApply,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {

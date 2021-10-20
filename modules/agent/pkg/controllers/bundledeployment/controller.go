@@ -103,6 +103,11 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	if err != nil {
 		return status, err
 	}
+
+	if status.LastApply == nil {
+		applyTime := metav1.Now()
+		status.LastApply = &applyTime
+	}
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
 	return status, nil
@@ -160,26 +165,22 @@ func isAgent(bd *fleet.BundleDeployment) bool {
 	return strings.HasPrefix(bd.Name, "fleet-agent")
 }
 
-func shouldRedeploy(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (bool, error) {
+func shouldRedeploy(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) bool {
 	if isAgent(bd) {
-		return true, nil
-	}
-	ok, err := hasAutoReapply(bd, status)
-	if err != nil {
-		return ok, err
+		return true
 	}
 
-	if ok {
-		return ok, nil
+	if hasAutoReapply(bd, status) {
+		return true
 	}
 
 	if bd.Spec.Options.ForceSyncGeneration <= 0 {
-		return false, nil
+		return false
 	}
 	if bd.Status.SyncGeneration == nil {
-		return true, nil
+		return true
 	}
-	return *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration, nil
+	return *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration
 }
 
 func (h *handler) cleanupOldAgent(modifiedStatuses []fleet.ModifiedStatus) error {
@@ -223,10 +224,7 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
 	if len(status.ModifiedStatus) > 0 {
 		defer h.bdController.EnqueueAfter(bd.Namespace, bd.Name, 5*time.Minute)
-		ok, err := shouldRedeploy(bd, &status)
-		if err != nil {
-			return status, err
-		}
+		ok := shouldRedeploy(bd, &status)
 		if ok {
 			logrus.Infof("Redeploying %s", bd.Name)
 			status.AppliedDeploymentID = ""
@@ -266,23 +264,16 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 	return errors.New(msg)
 }
 
-func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (ok bool, err error) {
-	if bd.Spec.Options.AlwaysReapply || bd.Spec.StagedOptions.AlwaysReapply {
-		if status.ReapplyAfter == "" {
-			status.ReapplyAfter = time.Now().Add(5 * time.Minute).Format(time.RFC3339)
-			return ok, nil
+func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (ok bool) {
+	if bd.Spec.Options.Resync || bd.Spec.StagedOptions.Resync {
+		if status.LastApply == nil {
+			return false
 		}
-
-		reapplyAfter, err := time.Parse(time.RFC3339, status.ReapplyAfter)
-		if err != nil {
-			return ok, err
-		}
-		if reapplyAfter.Before(time.Now()) {
-			status.ReapplyAfter = ""
+		if status.LastApply.Add(5 * time.Minute).Before(time.Now()) {
+			status.LastApply = nil
 			ok = true
 		}
-
 	}
 
-	return ok, nil
+	return ok
 }

@@ -261,6 +261,10 @@ func (in *BundleDeploymentStatus) DeepCopyInto(out *BundleDeploymentStatus) {
 		*out = new(int64)
 		**out = **in
 	}
+	if in.LastApply != nil {
+		in, out := &in.LastApply, &out.LastApply
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 
