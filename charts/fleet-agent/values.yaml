@@ -54,7 +54,7 @@ global:
     systemDefaultRegistry: ""
   kubectl:
     repository: rancher/kubectl
-    tag: v1.20.2
+    tag: v1.21.5
 
 # Additional env variables in the format key=value
 env: {}

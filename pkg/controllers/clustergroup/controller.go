@@ -69,6 +69,14 @@ func (h *handler) OnClusterChange(key string, cluster *fleet.Cluster) (*fleet.Cl
 		if sel.Matches(labels.Set(cluster.Labels)) {
 			h.clusterGroups.Enqueue(cg.Namespace, cg.Name)
 		}
+		// if cluster is removed from CG, need to reconcile if ClusterCount doesnt match
+		clusters, err := h.clusterCache.List(cg.Namespace, sel)
+		if err != nil {
+			logrus.Errorf("error fetching clusters in clustergroup %s%s: %v", cg.Namespace, cg.Name, err)
+		}
+		if cg.Status.ClusterCount != len(clusters) {
+			h.clusterGroups.Enqueue(cg.Namespace, cg.Name)
+		}
 	}
 
 	return cluster, nil
