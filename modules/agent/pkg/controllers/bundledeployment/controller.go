@@ -90,17 +90,7 @@ func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
-	depBundles, ok, err := h.checkDependency(bd)
-	if err != nil {
-		return status, err
-	}
-
-	if !ok {
-		err = errors.New("error waiting for dependent bundles to be ready")
-		for _, bdName := range depBundles {
-			err = fmt.Errorf("%w: %s", err, bdName)
-		}
-
+	if err := h.checkDependency(bd); err != nil {
 		return status, err
 	}
 
@@ -113,7 +103,7 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	return status, nil
 }
 
-func (h *handler) checkDependency(bd *fleet.BundleDeployment) ([]string, bool, error) {
+func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
 	var depBundleList []string
 	bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
 	for _, depend := range bd.Spec.DependsOn {
@@ -131,15 +121,15 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) ([]string, bool, e
 
 			selector, err := metav1.LabelSelectorAsSelector(ls)
 			if err != nil {
-				return nil, false, err
+				return err
 			}
 			bds, err := h.bdController.Cache().List(bd.Namespace, selector)
 			if err != nil {
-				return nil, false, err
+				return err
 			}
 
 			if len(bds) == 0 {
-				return nil, false, fmt.Errorf("no bundles matching labels %s in namespace %s", selector.String(), bundleNamespace)
+				return fmt.Errorf("no bundles matching labels %s in namespace %s", selector.String(), bundleNamespace)
 			}
 
 			for _, depBundle := range bds {
@@ -147,17 +137,17 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) ([]string, bool, e
 				if c.IsTrue(depBundle) {
 					continue
 				} else {
-					depBundleList = append(depBundleList, fmt.Sprintf("dependent bundles %s not ready", depBundle.Name))
+					depBundleList = append(depBundleList, depBundle.Name)
 				}
 			}
 		}
 	}
 
 	if len(depBundleList) != 0 {
-		return depBundleList, false, nil
+		return fmt.Errorf("dependent bundle(s) are not ready: %v", depBundleList)
 	}
 
-	return nil, true, nil
+	return nil
 }
 
 func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
