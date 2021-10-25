@@ -173,6 +173,10 @@ dependsOn:
   # Format: <GITREPO-NAME>-<BUNDLE_PATH> with all path separators replaced by "-" 
   # Example: GitRepo name "one", Bundle path "/multi-cluster/hello-world" => "one-multi-cluster-hello-world"
   - name: one-multi-cluster-hello-world
+  # Select bundles to depend on based on their label.
+  - bundleSelector:
+      matchLabels:
+        app: weak-monkey
 ```
 
 !!! hint "Private Helm Repo"
