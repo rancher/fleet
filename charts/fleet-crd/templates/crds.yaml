@@ -177,6 +177,18 @@ spec:
                 type: array
               resync:
                 type: boolean
+              resyncPolicy:
+                nullable: true
+                properties:
+                  backoffDelay:
+                    nullable: true
+                    type: string
+                  maxRetries:
+                    type: integer
+                  resyncDelay:
+                    nullable: true
+                    type: string
+                type: object
               rolloutStrategy:
                 nullable: true
                 properties:
@@ -532,6 +544,18 @@ spec:
                       type: string
                     resync:
                       type: boolean
+                    resyncPolicy:
+                      nullable: true
+                      properties:
+                        backoffDelay:
+                          nullable: true
+                          type: string
+                        maxRetries:
+                          type: integer
+                        resyncDelay:
+                          nullable: true
+                          type: string
+                      type: object
                     serviceAccount:
                       nullable: true
                       type: string
@@ -1010,6 +1034,18 @@ spec:
                     type: string
                   resync:
                     type: boolean
+                  resyncPolicy:
+                    nullable: true
+                    properties:
+                      backoffDelay:
+                        nullable: true
+                        type: string
+                      maxRetries:
+                        type: integer
+                      resyncDelay:
+                        nullable: true
+                        type: string
+                    type: object
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1155,6 +1191,18 @@ spec:
                     type: string
                   resync:
                     type: boolean
+                  resyncPolicy:
+                    nullable: true
+                    properties:
+                      backoffDelay:
+                        nullable: true
+                        type: string
+                      maxRetries:
+                        type: integer
+                      resyncDelay:
+                        nullable: true
+                        type: string
+                    type: object
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1283,6 +1331,8 @@ spec:
               release:
                 nullable: true
                 type: string
+              resyncCounter:
+                type: integer
               syncGeneration:
                 nullable: true
                 type: integer
@@ -2803,6 +2853,18 @@ spec:
               type: array
             resync:
               type: boolean
+            resyncPolicy:
+              nullable: true
+              properties:
+                backoffDelay:
+                  nullable: true
+                  type: string
+                maxRetries:
+                  type: integer
+                resyncDelay:
+                  nullable: true
+                  type: string
+              type: object
             rolloutStrategy:
               nullable: true
               properties:
@@ -3158,6 +3220,18 @@ spec:
                     type: string
                   resync:
                     type: boolean
+                  resyncPolicy:
+                    nullable: true
+                    properties:
+                      backoffDelay:
+                        nullable: true
+                        type: string
+                      maxRetries:
+                        type: integer
+                      resyncDelay:
+                        nullable: true
+                        type: string
+                    type: object
                   serviceAccount:
                     nullable: true
                     type: string
@@ -3637,6 +3711,18 @@ spec:
                   type: string
                 resync:
                   type: boolean
+                resyncPolicy:
+                  nullable: true
+                  properties:
+                    backoffDelay:
+                      nullable: true
+                      type: string
+                    maxRetries:
+                      type: integer
+                    resyncDelay:
+                      nullable: true
+                      type: string
+                  type: object
                 serviceAccount:
                   nullable: true
                   type: string
@@ -3782,6 +3868,18 @@ spec:
                   type: string
                 resync:
                   type: boolean
+                resyncPolicy:
+                  nullable: true
+                  properties:
+                    backoffDelay:
+                      nullable: true
+                      type: string
+                    maxRetries:
+                      type: integer
+                    resyncDelay:
+                      nullable: true
+                      type: string
+                  type: object
                 serviceAccount:
                   nullable: true
                   type: string
@@ -3910,6 +4008,8 @@ spec:
             release:
               nullable: true
               type: string
+            resyncCounter:
+              type: integer
             syncGeneration:
               nullable: true
               type: integer

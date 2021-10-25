@@ -22,6 +22,12 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
+const (
+	DefaultReapplyInterval = 5 * time.Minute
+	DefaultMaxRetries      = -1
+	DefaultBackoffInterval = 5 * time.Minute
+)
+
 type handler struct {
 	cleanupOnce sync.Once
 
@@ -165,22 +171,29 @@ func isAgent(bd *fleet.BundleDeployment) bool {
 	return strings.HasPrefix(bd.Name, "fleet-agent")
 }
 
-func shouldRedeploy(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) bool {
-	if isAgent(bd) {
-		return true
+func shouldRedeploy(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (ok bool, duration time.Duration, err error) {
+
+	if bd.Spec.Options.Resync || bd.Spec.StagedOptions.Resync {
+		ok, duration, err = hasAutoReapply(bd, status)
+		return ok, duration, nil
 	}
 
-	if hasAutoReapply(bd, status) {
-		return true
+	if isAgent(bd) {
+		return true, DefaultReapplyInterval, nil
 	}
 
 	if bd.Spec.Options.ForceSyncGeneration <= 0 {
-		return false
+		return false, DefaultReapplyInterval, nil
 	}
 	if bd.Status.SyncGeneration == nil {
-		return true
+		return true, DefaultReapplyInterval, nil
 	}
-	return *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration
+
+	if *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration {
+		ok = true
+	}
+
+	return ok, DefaultReapplyInterval, nil
 }
 
 func (h *handler) cleanupOldAgent(modifiedStatuses []fleet.ModifiedStatus) error {
@@ -223,8 +236,11 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	readyError := readyError(status)
 	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
 	if len(status.ModifiedStatus) > 0 {
-		defer h.bdController.EnqueueAfter(bd.Namespace, bd.Name, 5*time.Minute)
-		ok := shouldRedeploy(bd, &status)
+		ok, duration, err := shouldRedeploy(bd, &status)
+		if err != nil {
+			return status, err
+		}
+		defer h.bdController.EnqueueAfter(bd.Namespace, bd.Name, duration)
 		if ok {
 			logrus.Infof("Redeploying %s", bd.Name)
 			status.AppliedDeploymentID = ""
@@ -264,16 +280,71 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 	return errors.New(msg)
 }
 
-func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (ok bool) {
+func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (ok bool, requeueAfter time.Duration, err error) {
+	requeueAfter = DefaultReapplyInterval
 	if bd.Spec.Options.Resync || bd.Spec.StagedOptions.Resync {
-		if status.LastApply == nil {
-			return false
+		if bd.Spec.Options.ResyncPolicy == nil && bd.Spec.StagedOptions.ResyncPolicy == nil {
+			if status.LastApply == nil {
+				return false, requeueAfter, nil
+			}
+			if status.LastApply.Add(DefaultReapplyInterval).Before(time.Now()) {
+				status.LastApply = nil
+				return true, requeueAfter, nil
+			}
+		} else {
+			// use custom resync policy from the template //
+			policy := fleet.ResyncPolicy{}
+
+			if bd.Spec.Options.ResyncPolicy != nil {
+				policy = *bd.Spec.Options.ResyncPolicy
+			}
+
+			if bd.Spec.StagedOptions.ResyncPolicy != nil {
+				policy = *bd.Spec.StagedOptions.ResyncPolicy
+			}
+
+			if policy.ResyncDelay != "" {
+				requeueAfter, err = time.ParseDuration(policy.ResyncDelay)
+				if err != nil {
+					logrus.Errorf("inside reapply delay calculation %v", err)
+					return false, requeueAfter, err
+				}
+			}
+
+			if status.ResyncCounter == policy.MaxRetries {
+				requeueAfter, err = time.ParseDuration(policy.BackoffDelay)
+				if err != nil {
+					return false, requeueAfter, err
+				}
+			}
+
+			if policy.MaxRetries == DefaultMaxRetries && status.LastApply.Add(requeueAfter).Before(time.Now()) {
+				// keep checking and reapplying at reapplyDelay. Backoff not needed
+				status.LastApply = nil
+				return true, requeueAfter, nil
+			}
+
+			if policy.MaxRetries == 0 {
+				// we never reapply, same as not having the resync flag
+				return false, requeueAfter, nil
+			}
+
+			if status.ResyncCounter <= policy.MaxRetries && status.LastApply.Add(requeueAfter).Before(time.Now()) {
+				status.LastApply = nil
+				status.ResyncCounter++
+				return true, requeueAfter, nil
+			}
+
+			if status.ResyncCounter > policy.MaxRetries && status.LastApply.Add(requeueAfter).Before(time.Now()) {
+				status.LastApply = nil
+				status.ResyncCounter = 0
+				return true, requeueAfter, nil
+			}
 		}
-		if status.LastApply.Add(5 * time.Minute).Before(time.Now()) {
-			status.LastApply = nil
-			ok = true
-		}
+
 	}
 
-	return ok
+	// default behaviour when no resync is provided
+	// modified bundle will be reapplied as before
+	return false, requeueAfter, nil
 }

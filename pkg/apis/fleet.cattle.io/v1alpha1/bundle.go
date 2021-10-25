@@ -192,6 +192,7 @@ type BundleDeploymentOptions struct {
 	YAML                *YAMLOptions      `json:"yaml,omitempty"`
 	Diff                *DiffOptions      `json:"diff,omitempty"`
 	Resync              bool              `json:"resync,omitempty"`
+	ResyncPolicy        *ResyncPolicy     `json:"resyncPolicy,omitempty"`
 }
 
 type DiffOptions struct {
@@ -284,6 +285,7 @@ type BundleDeploymentStatus struct {
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
 	SyncGeneration      *int64                              `json:"syncGeneration,omitempty"`
 	LastApply           *metav1.Time                        `json:"lastApply,omitempty"`
+	ResyncCounter       int                                 `json:"resyncCounter,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {
@@ -347,4 +349,10 @@ type Content struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Content []byte `json:"content,omitempty"`
+}
+
+type ResyncPolicy struct {
+	MaxRetries   int    `json:"maxRetries,omitempty"`
+	ResyncDelay  string `json:"resyncDelay,omitempty"`
+	BackoffDelay string `json:"backoffDelay,omitempty"`
 }
