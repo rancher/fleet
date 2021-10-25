@@ -175,7 +175,7 @@ func shouldRedeploy(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentSt
 
 	if bd.Spec.Options.Resync || bd.Spec.StagedOptions.Resync {
 		ok, duration, err = hasAutoReapply(bd, status)
-		return ok, duration, nil
+		return ok, duration, err
 	}
 
 	if isAgent(bd) {
