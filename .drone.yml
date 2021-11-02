@@ -14,6 +14,26 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
+- name: fossa
+  image: registry.suse.com/suse/sle15:15.3
+  failure: ignore
+  environment:
+    FOSSA_API_KEY:
+      from_secret: FOSSA_API_KEY
+  commands:
+    - zypper -n install curl unzip
+    - "curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/spectrometer/master/install.sh | sh"
+    - fossa analyze
+    - fossa test
+  when:
+    instance:
+      - drone-publish.rancher.io
+    ref:
+      include:
+        - "refs/heads/master"
+    event:
+      - push
+      - tag
 - name: github_binary_release
   image: plugins/github-release
   settings:
