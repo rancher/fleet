@@ -8,6 +8,7 @@ replace (
 )
 
 require (
+	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/gorilla/mux v1.7.3
@@ -19,6 +20,7 @@ require (
 	github.com/urfave/cli v1.22.4
 	github.com/whilp/git-urls v0.0.0-20191001220047-6db9661140c0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
+	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.20.2
 	k8s.io/apiextensions-apiserver v0.20.2
 	k8s.io/apimachinery v0.20.2

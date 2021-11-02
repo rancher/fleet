@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	gogsclient "github.com/gogits/go-gogs-client"
 	"github.com/gorilla/mux"
 	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
@@ -30,6 +32,9 @@ const (
 	bitbucketKey       = "bitbucket"
 	bitbucketServerKey = "bitbucket-server"
 	gogsKey            = "gogs"
+
+	branchRefPrefix = "refs/heads/"
+	tagRefPrefix    = "refs/tags/"
 )
 
 type Webhook struct {
@@ -110,28 +115,39 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logrus.Debugf("Webhook payload %+v", payload)
+
 	if err != nil {
 		logAndReturn(rw, err)
 		return
 	}
 
-	var revision string
+	var revision, branch, tag string
 	var repoURLs []string
 	// credit from https://github.com/argoproj/argo-cd/blob/97003caebcaafe1683e71934eb483a88026a4c33/util/webhook/webhook.go#L84-L87
 	switch t := payload.(type) {
 	case github.PushPayload:
+		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.After
 		repoURLs = append(repoURLs, t.Repository.HTMLURL)
 	case gitlab.PushEventPayload:
+		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.CheckoutSHA
 		repoURLs = append(repoURLs, t.Project.WebURL)
 	case gitlab.TagEventPayload:
+		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.CheckoutSHA
 		repoURLs = append(repoURLs, t.Project.WebURL)
+	// https://support.atlassian.com/bitbucket-cloud/docs/event-payloads/#Push
 	case bitbucket.RepoPushPayload:
 		repoURLs = append(repoURLs, t.Repository.Links.HTML.Href)
 		for _, change := range t.Push.Changes {
 			revision = change.New.Target.Hash
+			if change.New.Type == "branch" {
+				branch = change.New.Name
+			} else if change.New.Type == "tag" {
+				tag = change.New.Name
+			}
 			break
 		}
 	case bitbucketserver.RepositoryReferenceChangedPayload:
@@ -146,10 +162,12 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		for _, change := range t.Changes {
 			revision = change.ToHash
+			branch, tag = getBranchTagFromRef(change.ReferenceId)
 			break
 		}
 	case gogsclient.PushPayload:
 		repoURLs = append(repoURLs, t.Repo.HTMLURL)
+		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.After
 	}
 
@@ -172,9 +190,40 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, gitjob := range gitjobs {
+			if gitjob.Spec.Git.Revision != "" {
+				continue
+			}
+
 			if !repoRegexp.MatchString(gitjob.Spec.Git.Repo) {
 				continue
 			}
+
+			// if onTag is enabled, we only watch tag event, as it can be coming from any branch
+			if gitjob.Spec.Git.OnTag != "" {
+				// skipping if gitjob is watching tag only and tag is empty(not a tag event)
+				if tag == "" {
+					continue
+				}
+				contraints, err := semver.NewConstraint(gitjob.Spec.Git.OnTag)
+				if err != nil {
+					logrus.Warnf("Failed to parsing onTag semver from %s/%s, err: %v, skipping", gitjob.Namespace, gitjob.Name, err)
+					continue
+				}
+				v, err := semver.NewVersion(tag)
+				if err != nil {
+					logrus.Warnf("Failed to parsing semver on incoming tag, err: %v, skipping", err)
+					continue
+				}
+				if !contraints.Check(v) {
+					continue
+				}
+			} else if gitjob.Spec.Git.Branch != "" {
+				// else we check if the branch from webhook matches gitjob's branch
+				if branch == "" || branch != gitjob.Spec.Git.Branch {
+					continue
+				}
+			}
+
 			dp := gitjob.DeepCopy()
 			if dp.Status.Commit != revision && revision != "" {
 				dp.Status.Commit = revision
@@ -200,8 +249,8 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 func logAndReturn(rw http.ResponseWriter, err error) {
 	logrus.Errorf("Webhook processing failed: %s", err)
-	rw.Write([]byte(err.Error()))
 	rw.WriteHeader(500)
+	rw.Write([]byte(err.Error()))
 	return
 }
 
@@ -216,4 +265,17 @@ func HandleHooks(ctx context.Context, rContext *types.Context) http.Handler {
 		"steve-aggregation",
 		root)
 	return root
+}
+
+// git ref docs: https://git-scm.com/book/en/v2/Git-Internals-Git-References
+func getBranchTagFromRef(ref string) (string, string) {
+	if strings.HasPrefix(ref, branchRefPrefix) {
+		return strings.TrimPrefix(ref, branchRefPrefix), ""
+	}
+
+	if strings.HasPrefix(ref, tagRefPrefix) {
+		return "", strings.TrimPrefix(ref, tagRefPrefix)
+	}
+
+	return "", ""
 }
