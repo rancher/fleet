@@ -69,6 +69,9 @@ type GitInfo struct {
 
 	// Git branch to watch. Default to master
 	Branch string `json:"branch,omitempty" column:"name=BRANCH,type=string,jsonpath=.spec.git.branch"`
+
+	// Semver matching for incoming tag event
+	OnTag string `json:"onTag,omitempty"`
 }
 
 type Credential struct {
