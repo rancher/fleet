@@ -233,6 +233,7 @@ type HelmOptions struct {
 	TakeOwnership  bool         `json:"takeOwnership,omitempty"`
 	MaxHistory     int          `json:"maxHistory,omitempty"`
 	ValuesFiles    []string     `json:"valuesFiles,omitempty"`
+	Test           HelmTest     `json:"test,omitempty"`
 }
 
 // Define helm values that can come from configmap, secret or external. Credit: https://github.com/fluxcd/helm-operator/blob/0cfea875b5d44bea995abe7324819432070dfbdc/pkg/apis/helm.fluxcd.io/v1/types_helmrelease.go#L439
@@ -244,6 +245,20 @@ type ValuesFrom struct {
 	// +optional
 	SecretKeyRef *SecretKeySelector `json:"secretKeyRef,omitempty"`
 }
+
+// Configure the helm test run for the release.
+type HelmTest struct {
+	// Enable helm test for this release or not.
+	Enabled bool `json:"enabled"`
+	// Timeout passed to helm test. If absent a default helm test timeout is applied.
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
+	// Filters for tests to be run during helm test. See: https://helm.sh/docs/helm/helm_test/ for syntax.
+	// +optional
+	Filters HelmFilters `json:"filters,omitempty"`
+}
+
+type HelmFilters map[string][]string
 
 type ConfigMapKeySelector struct {
 	LocalObjectReference `json:",inline"`

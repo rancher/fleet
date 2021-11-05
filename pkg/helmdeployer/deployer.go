@@ -24,6 +24,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/kube"
+	"helm.sh/helm/v3/pkg/postrender"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	corev1 "k8s.io/api/core/v1"
@@ -66,6 +67,7 @@ type helm struct {
 	defaultNamespace    string
 	labelPrefix         string
 	labelSuffix         string
+	defaultTestTimeout  time.Duration
 }
 
 func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
@@ -79,6 +81,7 @@ func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, gette
 		secretCache:         secretCache,
 		labelPrefix:         labelPrefix,
 		labelSuffix:         labelSuffix,
+		defaultTestTimeout:  120 * time.Second,
 	}
 	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
 		return nil, err
@@ -269,6 +272,9 @@ func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 }
 
 func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
+
+	defer logrus.Infof("exiting install %s", bundleID)
+
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
 	values, err := h.getValues(options, defaultNamespace)
@@ -317,30 +323,59 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		pr.mapper = mapper
 	}
 
+	var readyRelease *release.Release
 	if install {
-		u := action.NewInstall(&cfg)
-		u.ClientOnly = h.template || dryRun
-		u.ForceAdopt = options.Helm.TakeOwnership
-		u.Replace = true
-		u.ReleaseName = releaseName
-		u.CreateNamespace = true
-		u.Namespace = defaultNamespace
-		u.Timeout = timeout
-		u.DryRun = dryRun
-		u.PostRenderer = pr
-		if u.Timeout > 0 {
-			u.Wait = true
-		}
+		u := h.newInstallAction(releaseName, &cfg, *options.Helm, defaultNamespace, timeout, dryRun, pr)
 		if !dryRun {
 			logrus.Infof("Helm: Installing %s", bundleID)
 		}
-		return u.Run(chart, values)
+		readyRelease, err = u.Run(chart, values)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		u := h.newUpgradeAction(&cfg, *options.Helm, defaultNamespace, timeout, dryRun, pr)
+		if !dryRun {
+			logrus.Infof("Helm: Upgrading %s", bundleID)
+		}
+		readyRelease, err = u.Run(releaseName, chart, values)
+		if err != nil {
+			return nil, err
+		}
 	}
+	helmTest := options.Helm.Test
+	if !dryRun && helmTest.Enabled {
+		t := h.newReleaseTestingAction(&cfg, helmTest)
+		logrus.Infof("Helm: Release Testing %s", bundleID)
+		return t.Run(releaseName)
+	}
+	return readyRelease, nil
+}
 
-	u := action.NewUpgrade(&cfg)
+func (h *helm) newInstallAction(releaseName string, cfg *action.Configuration, helmOptions fleet.HelmOptions,
+	defaultNamespace string, timeout time.Duration, dryRun bool, pr postrender.PostRenderer) *action.Install {
+	u := action.NewInstall(cfg)
+	u.ClientOnly = h.template || dryRun
+	u.ForceAdopt = helmOptions.TakeOwnership
+	u.Replace = true
+	u.ReleaseName = releaseName
+	u.CreateNamespace = true
+	u.Namespace = defaultNamespace
+	u.Timeout = timeout
+	u.DryRun = dryRun
+	u.PostRenderer = pr
+	if u.Timeout > 0 {
+		u.Wait = true
+	}
+	return u
+}
+
+func (h *helm) newUpgradeAction(cfg *action.Configuration, helmOptions fleet.HelmOptions,
+	defaultNamespace string, timeout time.Duration, dryRun bool, pr postrender.PostRenderer) *action.Upgrade {
+	u := action.NewUpgrade(cfg)
 	u.Adopt = true
-	u.Force = options.Helm.Force
-	u.MaxHistory = options.Helm.MaxHistory
+	u.Force = helmOptions.Force
+	u.MaxHistory = helmOptions.MaxHistory
 	if u.MaxHistory == 0 {
 		u.MaxHistory = 10
 	}
@@ -352,10 +387,18 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	if u.Timeout > 0 {
 		u.Wait = true
 	}
-	if !dryRun {
-		logrus.Infof("Helm: Upgrading %s", bundleID)
+	return u
+}
+
+func (h *helm) newReleaseTestingAction(cfg *action.Configuration, helmTest fleet.HelmTest) *action.ReleaseTesting {
+	t := action.NewReleaseTesting(cfg)
+	t.Filters = helmTest.Filters
+	if helmTest.Timeout == nil {
+		t.Timeout = h.defaultTestTimeout
+	} else {
+		t.Timeout = helmTest.Timeout.Duration
 	}
-	return u.Run(releaseName, chart, values)
+	return t
 }
 
 func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
