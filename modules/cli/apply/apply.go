@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
+	"github.com/rancher/fleet/pkg/bundleyaml"
 	name2 "github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/sirupsen/logrus"
@@ -85,7 +86,7 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 					if !info.IsDir() {
 						return nil
 					}
-					if _, err := os.Stat(filepath.Join(path, "fleet.yaml")); err != nil {
+					if !bundleyaml.FoundFleetYamlInDirectory(path) {
 						return nil
 					}
 				}
