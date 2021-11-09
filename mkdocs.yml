@@ -48,6 +48,7 @@ nav:
       - bundle-diffs.md
       - webhook.md
       - imagescan.md
+      - cluster-bundles-state.md
 extra:
   fleet:
     apiVersion: fleet.cattle.io/v1alpha1
