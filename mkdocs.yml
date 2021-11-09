@@ -49,6 +49,7 @@ nav:
       - webhook.md
       - imagescan.md
       - cluster-bundles-state.md
+  - troubleshooting.md
 extra:
   fleet:
     apiVersion: fleet.cattle.io/v1alpha1
