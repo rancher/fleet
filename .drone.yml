@@ -6,7 +6,7 @@ platform:
   arch: amd64
 steps:
 - name: build
-  image: rancher/dapper:v0.5.5
+  image: rancher/dapper:v0.5.7
   environment:
     CROSS: "windows"
   commands:
@@ -136,7 +136,7 @@ platform:
   arch: arm64
 steps:
 - name: build
-  image: rancher/dapper:v0.5.5
+  image: rancher/dapper:v0.5.7
   commands:
   - dapper build
   volumes:
@@ -332,57 +332,6 @@ depends_on:
 - linux-amd64
 
 ---
-
-kind: pipeline
-name: windows-2004
-platform:
-  os: windows
-  arch: amd64
-  version: 2004
-# remove this and use upstream images when https://github.com/drone/drone-git/pull/25 is merged
-clone:
-  disable: true
-steps:
-- name: clone
-  image: rancher/drone-images:git-2004
-  settings:
-    depth: 1
-- name: docker-publish-agent
-  image: rancher/drone-images:docker-2004
-  settings:
-    dockerfile: package/Dockerfile-windows.agent
-    password:
-      from_secret: docker_password
-    repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-windows-2004"
-    username:
-      from_secret: docker_username
-    build_args:
-      - "SERVERCORE_VERSION=2004"
-      - "RELEASES=releases.rancher.com"
-      - "VERSION=${DRONE_TAG}"
-    context: package/
-    custom_dns: 1.1.1.1
-  volumes:
-    - name: docker
-      path: \\\\.\\pipe\\docker_engine
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
-volumes:
-  - name: docker
-    host:
-      path: \\\\.\\pipe\\docker_engine
-depends_on:
-- linux-amd64
-
----
-
 kind: pipeline
 name: windows-20H2
 platform:
@@ -476,5 +425,4 @@ depends_on:
 - linux-arm64
 - linux-arm
 - windows-1809
-- windows-2004
 - windows-20H2
