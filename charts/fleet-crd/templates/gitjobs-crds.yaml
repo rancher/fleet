@@ -49,6 +49,9 @@ spec:
                     type: string
                   insecureSkipTLSVerify:
                     type: boolean
+                  onTag:
+                    nullable: true
+                    type: string
                   provider:
                     nullable: true
                     type: string
@@ -3486,6 +3489,9 @@ spec:
                   type: string
                 insecureSkipTLSVerify:
                   type: boolean
+                onTag:
+                  nullable: true
+                  type: string
                 provider:
                   nullable: true
                   type: string

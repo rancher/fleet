@@ -132,3 +132,12 @@ Ensure that clusters are in an "Active" state after migration.
 
 The controller should be running in your terminal window/pane!
 You can now create [GitRepo](https://fleet.rancher.io/gitrepo-structure/) custom resource objects and test Fleet locally.
+
+## Updating Fleet Components
+
+1. Update and tag [rancher/build-tekton](https://github.com/rancher/build-tekton)
+1. Update the `rancher/tekton-utils` tag in the `GitJob` helm chart in [rancher/gitjob](https://github.com/rancher/gitjob)
+1. Update and tag [rancher/gitjob](https://github.com/rancher/gitjob)
+1. Copy the `GitJob` helm chart to `./charts/fleet/charts/gitjob` in [rancher/fleet](https://github.com/rancher/fleet)
+1. Generate the `GitJob` CRD into a file in [rancher/fleet](https://github.com/rancher/fleet): `go run $GITJOB_REPO/pkg/crdgen/main.go > $FLEET_REPO/charts/fleet-crd/templates/gitjobs-crds.yaml`
+1. Update and tag [rancher/fleet](https://github.com/rancher/fleet) (usually as a release candidate) to use those components in a released version of Fleet
