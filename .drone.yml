@@ -313,7 +313,7 @@ steps:
     username:
       from_secret: docker_username
     build_args:
-      - "SERVERCORE_VERSION=1809"
+      - "SERVER_VERSION=1809"
       - "RELEASES=releases.rancher.com"
       - "VERSION=${DRONE_TAG}"
     context: package/
@@ -363,7 +363,7 @@ steps:
     username:
       from_secret: docker_username
     build_args:
-      - "SERVERCORE_VERSION=20H2"
+      - "SERVER_VERSION=20H2"
       - "RELEASES=releases.rancher.com"
       - "VERSION=${DRONE_TAG}"
     context: package/

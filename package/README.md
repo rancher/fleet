@@ -21,5 +21,5 @@ Finally, you can build the image with an uploaded binary from a tagged release.
 This is useful when testing the `agent` in a Windows cluster.
 
 ```powershell
-docker build -t test -f package\Dockerfile-windows.agent --build-arg SERVERCORE_VERSION=1909 --build-arg RELEASES=releases.rancher.com --build-arg VERSION=v0.3.4-rc4 .
+docker build -t test -f package\Dockerfile-windows.agent --build-arg SERVER_VERSION=1909 --build-arg RELEASES=releases.rancher.com --build-arg VERSION=v0.3.4-rc4 .
 ```
