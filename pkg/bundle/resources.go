@@ -58,6 +58,17 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 		}
 	}
 
+	// if auth doesnt have a CA cert but bundle helm Options do then
+	// lets add them here
+
+	if len(auth.CABundle) == 0 && spec.Helm.CABundle != "" {
+		cert, err := base64.StdEncoding.DecodeString(spec.Helm.CABundle)
+		if err != nil {
+			return nil, err
+		}
+		auth.CABundle = cert
+	}
+
 	directories, err = addCharts(directories, base, chartDirs, auth)
 	if err != nil {
 		return nil, err

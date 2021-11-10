@@ -113,6 +113,9 @@ spec:
               helm:
                 nullable: true
                 properties:
+                  caBundle:
+                    nullable: true
+                    type: string
                   chart:
                     nullable: true
                     type: string
@@ -480,6 +483,9 @@ spec:
                     helm:
                       nullable: true
                       properties:
+                        caBundle:
+                          nullable: true
+                          type: string
                         chart:
                           nullable: true
                           type: string
@@ -987,6 +993,9 @@ spec:
                   helm:
                     nullable: true
                     properties:
+                      caBundle:
+                        nullable: true
+                        type: string
                       chart:
                         nullable: true
                         type: string
@@ -1130,6 +1139,9 @@ spec:
                   helm:
                     nullable: true
                     properties:
+                      caBundle:
+                        nullable: true
+                        type: string
                       chart:
                         nullable: true
                         type: string
@@ -2784,6 +2796,9 @@ spec:
             helm:
               nullable: true
               properties:
+                caBundle:
+                  nullable: true
+                  type: string
                 chart:
                   nullable: true
                   type: string
@@ -3151,6 +3166,9 @@ spec:
                   helm:
                     nullable: true
                     properties:
+                      caBundle:
+                        nullable: true
+                        type: string
                       chart:
                         nullable: true
                         type: string
@@ -3659,6 +3677,9 @@ spec:
                 helm:
                   nullable: true
                   properties:
+                    caBundle:
+                      nullable: true
+                      type: string
                     chart:
                       nullable: true
                       type: string
@@ -3802,6 +3823,9 @@ spec:
                 helm:
                   nullable: true
                   properties:
+                    caBundle:
+                      nullable: true
+                      type: string
                     chart:
                       nullable: true
                       type: string
