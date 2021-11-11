@@ -28,3 +28,27 @@ This may indicate that fleet cannot access the helm repo you specified in your [
 
 - check if your repo is accessible from your dev machine and you can actually download the helm chart
 - check if your credentials for the git repo are fine
+
+## Helm chart repo: certificate signed by unknown authority
+
+If you see your GitJob complaining with this error
+
+```
+time="2021-11-11T05:55:08Z" level=fatal msg="Get \"https://helm.intra/virtual-helm/index.yaml\": x509: certificate signed by unknown authority" 
+```
+
+You may have added the wrong certificate chain. Please verify with
+
+```bash
+context=playground-local
+kubectl get secret -n fleet-default helm-repo -o jsonpath="{['data']['cacerts']}" --context $context | base64 -d | openssl x509 -text -noout
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            7a:1e:df:79:5f:b0:e0:be:49:de:11:5e:d9:9c:a9:71
+        Signature Algorithm: sha512WithRSAEncryption
+        Issuer: C = CH, O = MY COMPANY, CN = NOP Root CA G3
+...
+
+```
