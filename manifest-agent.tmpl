@@ -27,3 +27,10 @@ manifests:
       architecture: amd64
       os: windows
       version: 20H2
+  -
+    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-ltsc2022
+    platform:
+      architecture: amd64
+      os: windows
+      version: ltsc2022
+      
