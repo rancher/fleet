@@ -50,6 +50,9 @@ func main() {
 			Name:  "tekton-image",
 			Value: "rancher/tekton-utils:dev",
 		},
+		cli.BoolTFlag{
+			Name: "debug",
+		},
 	}
 	app.Action = run
 
@@ -61,6 +64,11 @@ func main() {
 func run(c *cli.Context) {
 	logrus.Info("Starting controller")
 	ctx := signals.SetupSignalHandler(context.Background())
+
+	if c.Bool("debug") {
+		logrus.SetLevel(logrus.DebugLevel)
+		logrus.Debugf("Loglevel set to [%v]", logrus.DebugLevel)
+	}
 
 	kubeconfig, err := resolvehome.Resolve(c.String("kubeconfig"))
 	if err != nil {
