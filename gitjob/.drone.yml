@@ -102,6 +102,51 @@ volumes:
     path: /var/run/docker.sock
 
 ---
+
+kind: pipeline
+name: s390x
+
+platform:
+  os: linux
+  arch: amd64
+
+node:
+  arch: s390x
+
+steps:
+  - name: build
+    image: rancher/dapper:v0.5.8
+    commands:
+      - dapper ci
+    volumes:
+      - name: docker
+        path: /var/run/docker.sock
+
+  - name: docker-publish
+    image: rancher/drone-images:docker-s390x
+    settings:
+      dockerfile: package/Dockerfile
+      password:
+        from_secret: docker_password
+      repo: "rancher/gitjob"
+      tag: "${DRONE_TAG}-s390x"
+      username:
+        from_secret: docker_username
+    when:
+      instance:
+        - drone-publish.rancher.io
+      ref:
+        - refs/head/master
+        - refs/tags/*
+      event:
+        - tag
+
+volumes:
+  - name: docker
+    host:
+      path: /var/run/docker.sock
+
+---
 kind: pipeline
 name: manifest
 
@@ -120,6 +165,7 @@ steps:
     platforms:
       - linux/amd64
       - linux/arm64
+      - linux/s390x
     target: "rancher/gitjob:${DRONE_TAG}"
     template: "rancher/gitjob:${DRONE_TAG}-ARCH"
   when:
@@ -134,3 +180,4 @@ steps:
 depends_on:
 - amd64
 - arm64
+- s390x
