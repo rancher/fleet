@@ -24,3 +24,5 @@ tolerations:
     operator: "Equal"
     value: "linux"
     effect: NoSchedule
+
+debug: false
