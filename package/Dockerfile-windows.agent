@@ -1,10 +1,10 @@
 ARG SERVER_VERSION
-FROM mcr.microsoft.com/powershell:lts-nanoserver-${SERVER_VERSION} AS BUILD
+FROM mcr.microsoft.com/windows/servercore:${SERVER_VERSION} AS BUILD
 ARG RELEASES
 ARG VERSION
 ENV RELEASES=$RELEASES
 ENV VERSION=$VERSION
-SHELL ["pwsh", "-NoLogo", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+SHELL ["powershell", "-NoLogo", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 RUN pushd c:\; \
     $URL = 'https://github.com/git-for-windows/git/releases/download/v2.33.1.windows.1/MinGit-2.33.1-64-bit.zip'; \
     \
@@ -26,7 +26,7 @@ RUN $URL = 'https://{0}/fleet/{1}/fleetagent-windows-amd64.exe' -f $env:RELEASES
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; \
     Invoke-RestMethod -UseBasicParsing -OutFile c:/fleet/fleetagent-windows.exe -Uri $URL;
 
-FROM mcr.microsoft.com/windows/nanoserver:${SERVER_VERSION}
+FROM mcr.microsoft.com/windows/servercore:${SERVER_VERSION}
 
 RUN mkdir "git" "fleet"
 COPY --from=build c:/git/. c:/git/.
