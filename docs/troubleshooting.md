@@ -37,7 +37,7 @@ If you see your GitJob complaining with this error
 time="2021-11-11T05:55:08Z" level=fatal msg="Get \"https://helm.intra/virtual-helm/index.yaml\": x509: certificate signed by unknown authority" 
 ```
 
-You may have added the wrong certificate chain. Please verify with
+Please verify your certificate with the following command:
 
 ```bash
 context=playground-local
