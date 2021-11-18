@@ -24,7 +24,7 @@ If you see your GitJob complaining with this error
 time="2021-11-04T09:21:24Z" level=fatal msg="bad response code: 403"
 ```
 
-This may indicate that fleet cannot access the helm repo you specified in your [`fleet.yaml`](./gitrepo-structure.md).
+Perform the following steps to assess:
 
 - check if your repo is accessible from your dev machine and you can actually download the helm chart
 - check if your credentials for the git repo are fine
