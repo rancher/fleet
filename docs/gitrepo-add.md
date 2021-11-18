@@ -143,4 +143,4 @@ stringData:
 
 # Troubleshooting
 
-see [Fleet deployment stuck in modified state](./troubleshooting.md)
+See Fleet Troubleshooting section [here](./troubleshooting.md).
