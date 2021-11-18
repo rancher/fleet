@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This is a collection of information, which help you to troubleshoot if fleet is not working
+This section contains commands and tips to troubleshoot Fleet.
 
 ## Check status of fleet controller
 
