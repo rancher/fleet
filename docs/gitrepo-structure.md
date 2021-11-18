@@ -283,4 +283,4 @@ using YAML syntax.
 
 ## Cluster and Bundle state
 
-see [Cluster and Bundle state](./cluster-bundles-state.md)
+See [Cluster and Bundle state](./cluster-bundles-state.md).
