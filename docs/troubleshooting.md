@@ -26,7 +26,7 @@ time="2021-11-04T09:21:24Z" level=fatal msg="bad response code: 403"
 
 Perform the following steps to assess:
 
-- check if your repo is accessible from your dev machine and you can actually download the helm chart
+- Check that your repo is accessible from your dev machine, and that you can download the Helm chart successfully
 - Check that your credentials for the git repo are valid
 
 ## Helm chart repo: certificate signed by unknown authority
