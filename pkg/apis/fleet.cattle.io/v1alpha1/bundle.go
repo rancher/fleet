@@ -353,6 +353,6 @@ type Content struct {
 
 type ResyncPolicy struct {
 	MaxRetries   int    `json:"maxRetries,omitempty"`
-	ResyncDelay  string `json:"resyncDelay,omitempty"`
-	BackoffDelay string `json:"backoffDelay,omitempty"`
+	ResyncDelay  *metav1.Duration `json:"resyncDelay,omitempty"`
+	BackoffDelay *metav1.Duration `json:"backoffDelay,omitempty"`
 }

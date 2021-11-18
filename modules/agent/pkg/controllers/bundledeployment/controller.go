@@ -110,9 +110,10 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 		return status, err
 	}
 
-	if status.LastApply == nil {
+	if status.Release != release {
 		applyTime := metav1.Now()
 		status.LastApply = &applyTime
+		status.ResyncCounter++
 	}
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
@@ -171,29 +172,24 @@ func isAgent(bd *fleet.BundleDeployment) bool {
 	return strings.HasPrefix(bd.Name, "fleet-agent")
 }
 
-func shouldRedeploy(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (ok bool, duration time.Duration, err error) {
+func shouldRedeploy(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) bool {
 
 	if bd.Spec.Options.Resync || bd.Spec.StagedOptions.Resync {
-		ok, duration, err = hasAutoReapply(bd, status)
-		return ok, duration, err
+		return hasAutoReapply(bd, status)
 	}
 
 	if isAgent(bd) {
-		return true, DefaultReapplyInterval, nil
+		return true
 	}
 
 	if bd.Spec.Options.ForceSyncGeneration <= 0 {
-		return false, DefaultReapplyInterval, nil
+		return false
 	}
 	if bd.Status.SyncGeneration == nil {
-		return true, DefaultReapplyInterval, nil
+		return true
 	}
 
-	if *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration {
-		ok = true
-	}
-
-	return ok, DefaultReapplyInterval, nil
+	return *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration
 }
 
 func (h *handler) cleanupOldAgent(modifiedStatuses []fleet.ModifiedStatus) error {
@@ -236,11 +232,13 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	readyError := readyError(status)
 	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
 	if len(status.ModifiedStatus) > 0 {
-		ok, duration, err := shouldRedeploy(bd, &status)
-		if err != nil {
-			return status, err
+		duration := customResyncDuration(bd)
+		ok := shouldRedeploy(bd, &status)
+		if ok {
+			// manage resync counter if needed
+			status.ResyncCounter = manageResyncCounter(bd)
 		}
-		defer h.bdController.EnqueueAfter(bd.Namespace, bd.Name, duration)
+		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, duration)
 		if ok {
 			logrus.Infof("Redeploying %s", bd.Name)
 			status.AppliedDeploymentID = ""
@@ -280,71 +278,112 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 	return errors.New(msg)
 }
 
-func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) (ok bool, requeueAfter time.Duration, err error) {
-	requeueAfter = DefaultReapplyInterval
+func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) bool {
 	if bd.Spec.Options.Resync || bd.Spec.StagedOptions.Resync {
 		if bd.Spec.Options.ResyncPolicy == nil && bd.Spec.StagedOptions.ResyncPolicy == nil {
 			if status.LastApply == nil {
-				return false, requeueAfter, nil
+				return false
 			}
 			if status.LastApply.Add(DefaultReapplyInterval).Before(time.Now()) {
-				status.LastApply = nil
-				return true, requeueAfter, nil
+				return true
 			}
-		} else {
-			// use custom resync policy from the template //
-			policy := fleet.ResyncPolicy{}
+		}
+		// use custom resync policy from the template //
+		policy := &fleet.ResyncPolicy{}
+		if bd.Spec.Options.ResyncPolicy != nil {
+			policy = bd.Spec.Options.ResyncPolicy
+		}
 
-			if bd.Spec.Options.ResyncPolicy != nil {
-				policy = *bd.Spec.Options.ResyncPolicy
-			}
+		if bd.Spec.StagedOptions.ResyncPolicy != nil {
+			policy = bd.Spec.StagedOptions.ResyncPolicy
+		}
 
-			if bd.Spec.StagedOptions.ResyncPolicy != nil {
-				policy = *bd.Spec.StagedOptions.ResyncPolicy
-			}
+		if policy.MaxRetries == 0 {
+			return false
+		}
 
-			if policy.ResyncDelay != "" {
-				requeueAfter, err = time.ParseDuration(policy.ResyncDelay)
-				if err != nil {
-					logrus.Errorf("inside reapply delay calculation %v", err)
-					return false, requeueAfter, err
-				}
-			}
+		if policy.MaxRetries == DefaultMaxRetries && status.LastApply.Add(policy.ResyncDelay.Duration).Before(time.Now()) {
+			return true
+		}
 
-			if status.ResyncCounter == policy.MaxRetries {
-				requeueAfter, err = time.ParseDuration(policy.BackoffDelay)
-				if err != nil {
-					return false, requeueAfter, err
-				}
-			}
+		if status.ResyncCounter <= policy.MaxRetries && status.LastApply.Add(policy.ResyncDelay.Duration).Before(time.Now()) {
+			return true
+		}
 
-			if policy.MaxRetries == DefaultMaxRetries && status.LastApply.Add(requeueAfter).Before(time.Now()) {
-				// keep checking and reapplying at reapplyDelay. Backoff not needed
-				status.LastApply = nil
-				return true, requeueAfter, nil
-			}
-
-			if policy.MaxRetries == 0 {
-				// we never reapply, same as not having the resync flag
-				return false, requeueAfter, nil
-			}
-
-			if status.ResyncCounter <= policy.MaxRetries && status.LastApply.Add(requeueAfter).Before(time.Now()) {
-				status.LastApply = nil
-				status.ResyncCounter++
-				return true, requeueAfter, nil
-			}
-
-			if status.ResyncCounter > policy.MaxRetries && status.LastApply.Add(requeueAfter).Before(time.Now()) {
-				status.LastApply = nil
-				status.ResyncCounter = 0
-				return true, requeueAfter, nil
-			}
+		// backoff has been processed, reset resync counter
+		if status.ResyncCounter > policy.MaxRetries && status.LastApply.Add(policy.BackoffDelay.Duration).Before(time.Now()) {
+			return true
 		}
 
 	}
-
 	// default behaviour when no resync is provided
 	// modified bundle will be reapplied as before
-	return false, requeueAfter, nil
+	return false
+}
+
+func customResyncDuration(bd *fleet.BundleDeployment) time.Duration {
+
+	if bd.Spec.Options.Resync || bd.Spec.StagedOptions.Resync {
+		// no custom Resync policy in place however we do have a timeDuration in place
+		if bd.Spec.Options.ResyncPolicy == nil && bd.Spec.StagedOptions.ResyncPolicy == nil {
+			return DefaultReapplyInterval
+		}
+		policy := &fleet.ResyncPolicy{}
+		if bd.Spec.Options.ResyncPolicy != nil {
+			policy = bd.Spec.Options.ResyncPolicy
+		}
+
+		if bd.Spec.StagedOptions.ResyncPolicy != nil {
+			policy = bd.Spec.StagedOptions.ResyncPolicy
+		}
+
+		if policy.ResyncDelay == nil {
+			policy.ResyncDelay = &metav1.Duration{Duration: DefaultReapplyInterval}
+		}
+
+		if policy.BackoffDelay == nil {
+			policy.BackoffDelay = &metav1.Duration{Duration: DefaultBackoffInterval}
+		}
+
+		if policy.MaxRetries == DefaultMaxRetries {
+			return policy.ResyncDelay.Duration
+		}
+
+		if bd.Status.ResyncCounter <= policy.MaxRetries {
+			return policy.ResyncDelay.Duration
+		}
+
+		// return back off interval
+		if bd.Status.ResyncCounter > policy.MaxRetries {
+			return policy.BackoffDelay.Duration
+		}
+	}
+
+	// Default duration when no custom policy is available
+	return DefaultReapplyInterval
+}
+
+func manageResyncCounter(bd *fleet.BundleDeployment) int {
+	policy := &fleet.ResyncPolicy{}
+	if bd.Spec.Options.ResyncPolicy != nil {
+		policy = bd.Spec.Options.ResyncPolicy
+	}
+
+	if bd.Spec.StagedOptions.ResyncPolicy != nil {
+		policy = bd.Spec.StagedOptions.ResyncPolicy
+	}
+
+	if policy.MaxRetries == DefaultMaxRetries || bd.Status.ResyncCounter <= policy.MaxRetries {
+		bd.Status.ResyncCounter++
+		return bd.Status.ResyncCounter
+	}
+
+	if bd.Status.ResyncCounter > policy.MaxRetries {
+		// reset counter
+		return 0
+	}
+
+	// default when no custom policy is defined
+	bd.Status.ResyncCounter++
+	return bd.Status.ResyncCounter
 }
