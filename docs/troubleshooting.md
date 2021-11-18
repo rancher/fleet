@@ -31,7 +31,7 @@ Perform the following steps to assess:
 
 ## Helm chart repo: certificate signed by unknown authority
 
-If you see your GitJob complaining with this error
+If your GitJob returns the error below, you may have added the wrong certificate chain:
 
 ```
 time="2021-11-11T05:55:08Z" level=fatal msg="Get \"https://helm.intra/virtual-helm/index.yaml\": x509: certificate signed by unknown authority" 
