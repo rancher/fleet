@@ -4,7 +4,7 @@ This section contains commands and tips to troubleshoot Fleet.
 
 ## Check status of fleet controller
 
-You can check the status of the Fleet controller pods by running the below commands.
+You can check the status of the Fleet controller pods by running the commands below:
 
 ```bash
 kubectl -n fleet-system logs -l app=fleet-controller
