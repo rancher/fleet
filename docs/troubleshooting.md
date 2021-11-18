@@ -18,7 +18,7 @@ fleet-controller-64f49d756b-n57wq   1/1     Running   0          3m21s
 
 ## Fleet fails with bad response code: 403
 
-If you see your GitJob complaining with this error
+If your GitJob returns the error below, the problem may be that Fleet cannot access the Helm repo you specified in your [`fleet.yaml`](./gitrepo-structure.md):
 
 ```
 time="2021-11-04T09:21:24Z" level=fatal msg="bad response code: 403"
