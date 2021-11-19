@@ -1,6 +1,6 @@
 gitjob:
   repository: rancher/gitjob
-  tag: v0.1.22
+  tag: v0.1.23
 
 tekton:
   repository: rancher/tekton-utils
@@ -24,3 +24,5 @@ tolerations:
     operator: "Equal"
     value: "linux"
     effect: NoSchedule
+
+debug: false

@@ -19,6 +19,13 @@ spec:
               fieldPath: metadata.namespace
         image: '{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}'
         name: fleet-agent
+        command:
+        - fleetagent
+        {{- if .Values.debug }}
+        - --debug
+        - --debug-level
+        - {{ quote .Values.debugLevel }}
+        {{- end }}
       serviceAccountName: fleet-agent
       {{- with .Values.fleetAgent.tolerations }}
       tolerations:
