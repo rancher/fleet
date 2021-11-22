@@ -233,13 +233,11 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
 	if len(status.ModifiedStatus) > 0 {
 		duration := customResyncDuration(bd)
+		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, duration)
 		ok := shouldRedeploy(bd, &status)
 		if ok {
-			// manage resync counter if needed
+			// manage resync counter
 			status.ResyncCounter = manageResyncCounter(bd)
-		}
-		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, duration)
-		if ok {
 			logrus.Infof("Redeploying %s", bd.Name)
 			status.AppliedDeploymentID = ""
 			if isAgent(bd) {
@@ -279,14 +277,12 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 }
 
 func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) bool {
-	if bd.Spec.Options.Resync || bd.Spec.StagedOptions.Resync {
-		if bd.Spec.Options.ResyncPolicy == nil && bd.Spec.StagedOptions.ResyncPolicy == nil {
-			if status.LastApply == nil {
-				return false
-			}
-			if status.LastApply.Add(DefaultReapplyInterval).Before(time.Now()) {
-				return true
-			}
+	if bd.Spec.Options.ResyncPolicy == nil && bd.Spec.StagedOptions.ResyncPolicy == nil {
+		if status.LastApply == nil {
+			return false
+		}
+		if status.LastApply.Add(DefaultReapplyInterval).Before(time.Now()) {
+			return true
 		}
 		// use custom resync policy from the template //
 		policy := &fleet.ResyncPolicy{}
