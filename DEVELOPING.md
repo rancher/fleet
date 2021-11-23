@@ -8,20 +8,58 @@ Starting with Fleet v0.3.7 and Rancher v2.6.1, scenarios where Fleet is managing
 The agents will be communicating with two different `fleet-controller` deployments.
 
 ```
-Local Fleet Cluster           Managed Fleet Cluster             Downstream Cluster
-===================           =========================         ======================
-fleet-controller*  <------->  fleet-agent* (downstream)
-fleet-agent** (local)         fleet-controller*  <----------->  fleet-agent* (downstream)
-                              fleet-agent** (local)
+ Local Fleet Cluster                  Managed Fleet Cluster                     Downstream Cluster
+┌───────────────────────────────┐    ┌────────────────────────────────────┐    ┌────────────────────────────────────┐
+│                               │    │                                    │    │                                    │
+│ ┌────cattle-fleet-system────┐ │    │ ┌──────cattle-fleet-system───────┐ │    │                                    │
+│ │                           │ │    │ │                                │ │    │                                    │
+│ │  ┌─────────────────────┐  │ │    │ │  ┌──────────────────────────┐  │ │    │                                    │
+│ │  │  fleet-controller   ◄──┼─┼────┼─┼──► fleet-agent (downstream) │  │ │    │                                    │
+│ │  └─────────────────────┘  │ │    │ │  └──────────────────────────┘  │ │    │                                    │
+│ │                           │ │    │ │                                │ │    │                                    │ 
+│ └───────────────────────────┘ │    │ │                                │ │    │                                    │
+│                               │    │ │                                │ │    │                                    │
+│ ┌─cattle-fleet-local-system─┐ │    │ │                                │ │    │ ┌──────cattle-fleet-system───────┐ │
+│ │                           │ │    │ │                                │ │    │ │                                │ │
+│ │  ┌─────────────────────┐  │ │    │ │  ┌──────────────────────────┐  │ │    │ │  ┌──────────────────────────┐  │ │
+│ │  │ fleet-agent (local) │  │ │    │ │  │    fleet-controller      ◄──┼─┼────┼─┼──► fleet-agent (downstream) │  │ │
+│ │  └─────────────────────┘  │ │    │ │  └──────────────────────────┘  │ │    │ │  └──────────────────────────┘  │ │
+│ │                           │ │    │ │                                │ │    │ │                                │ │
+│ └───────────────────────────┘ │    │ └────────────────────────────────┘ │    │ └────────────────────────────────┘ │
+│                               │    │                                    │    │                                    │
+└───────────────────────────────┘    │ ┌───cattle-fleet-local-system────┐ │    └────────────────────────────────────┘
+                                     │ │                                │ │
+                                     │ │  ┌──────────────────────────┐  │ │
+                                     │ │  │   fleet-agent (local)    │  │ │
+                                     │ │  └──────────────────────────┘  │ │
+                                     │ │                                │ │
+                                     │ └────────────────────────────────┘ │
+                                     │                                    │
+                                     └────────────────────────────────────┘
+```
 
+## Design for Fleet in Rancher v2.6+
 
-* namespace is cattle-fleet-system
-** namespace is cattle-fleet-local-system
+Fleet is a required component of Rancher as of Rancher v2.6+.
+Fleet clusters are tied directly to native Rancher object types accordingly:
+
+```
+┌───────────────────────────────────┐  ==  ┌────────────────────────────────────┐  ==  ┌──────────────────────────────────┐
+│ clusters.fleet.cattle.io/v1alpha1 ├──────┤ clusters.provisioning.cattle.io/v1 ├──────┤ clusters.management.cattle.io/v3 │
+└────────────────┬──────────────────┘      └───────────────────┬────────────────┘      └──────────────────────────────────┘
+                 │                                             │
+                 └──────────────────────┬──────────────────────┘
+                                        │
+                          ┌─────────────▼────────────────────────┐
+                          │                                      │
+       ┌──────────────────▼──────────────────────┐  ==  ┌────────▼──────┐
+       │ fleetworkspaces.management.cattle.io/v3 ├──────┤ namespaces/v1 │
+       └─────────────────────────────────────────┘      └───────────────┘
 ```
 
 ---
 
-## Local Development Workflow: Standlone Fleet and Fleet in Rancher
+## Local Development Workflow: Fleet in Rancher
 
 All steps in this guide assume your current working directory is the root of the repository.
 Moreover, this guide was written for Unix-like developer environments, so you may need to modify some steps if you are using a non-Unix-like developer environment (i.e. Windows).
@@ -250,3 +288,9 @@ This section contains information on releasing Fleet.
 
 1. Pull Fleet images from DockerHub to ensure manifests work as expected
 1. Open a PR in [rancher/charts](https://github.com/rancher/charts) that ensures every Fleet-related chart is using the new RC (branches and number of PRs is dependent on Rancher)
+
+---
+
+## Attributions
+
+- ASCII charts created with [asciiflow](https://asciiflow.com/)
