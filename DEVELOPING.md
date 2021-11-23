@@ -8,18 +8,58 @@ Starting with Fleet v0.3.7 and Rancher v2.6.1, scenarios where Fleet is managing
 The agents will be communicating with two different `fleet-controller` deployments.
 
 ```
-Local Fleet Cluster           Managed Fleet Cluster             Downstream Cluster
-===================           =========================         ======================
-fleet-controller*  <------->  fleet-agent* (downstream)
-fleet-agent** (local)         fleet-controller*  <----------->  fleet-agent* (downstream)
-                              fleet-agent** (local)
-
-
-* namespace is cattle-fleet-system
-** namespace is cattle-fleet-local-system
+ Local Fleet Cluster                  Managed Fleet Cluster                     Downstream Cluster
+┌───────────────────────────────┐    ┌────────────────────────────────────┐    ┌────────────────────────────────────┐
+│                               │    │                                    │    │                                    │
+│ ┌────cattle-fleet-system────┐ │    │ ┌──────cattle-fleet-system───────┐ │    │                                    │
+│ │                           │ │    │ │                                │ │    │                                    │
+│ │  ┌─────────────────────┐  │ │    │ │  ┌──────────────────────────┐  │ │    │                                    │
+│ │  │  fleet-controller   ◄──┼─┼────┼─┼──► fleet-agent (downstream) │  │ │    │                                    │
+│ │  └─────────────────────┘  │ │    │ │  └──────────────────────────┘  │ │    │                                    │
+│ │                           │ │    │ │                                │ │    │                                    │ 
+│ └───────────────────────────┘ │    │ │                                │ │    │                                    │
+│                               │    │ │                                │ │    │                                    │
+│ ┌─cattle-fleet-local-system─┐ │    │ │                                │ │    │ ┌──────cattle-fleet-system───────┐ │
+│ │                           │ │    │ │                                │ │    │ │                                │ │
+│ │  ┌─────────────────────┐  │ │    │ │  ┌──────────────────────────┐  │ │    │ │  ┌──────────────────────────┐  │ │
+│ │  │ fleet-agent (local) │  │ │    │ │  │    fleet-controller      ◄──┼─┼────┼─┼──► fleet-agent (downstream) │  │ │
+│ │  └─────────────────────┘  │ │    │ │  └──────────────────────────┘  │ │    │ │  └──────────────────────────┘  │ │
+│ │                           │ │    │ │                                │ │    │ │                                │ │
+│ └───────────────────────────┘ │    │ └────────────────────────────────┘ │    │ └────────────────────────────────┘ │
+│                               │    │                                    │    │                                    │
+└───────────────────────────────┘    │ ┌───cattle-fleet-local-system────┐ │    └────────────────────────────────────┘
+                                     │ │                                │ │
+                                     │ │  ┌──────────────────────────┐  │ │
+                                     │ │  │   fleet-agent (local)    │  │ │
+                                     │ │  └──────────────────────────┘  │ │
+                                     │ │                                │ │
+                                     │ └────────────────────────────────┘ │
+                                     │                                    │
+                                     └────────────────────────────────────┘
 ```
 
-## Local Development Workflow: Standlone Fleet and Fleet in Rancher
+## Design for Fleet in Rancher v2.6+
+
+Fleet is a required component of Rancher as of Rancher v2.6+.
+Fleet clusters are tied directly to native Rancher object types accordingly:
+
+```
+┌───────────────────────────────────┐  ==  ┌────────────────────────────────────┐  ==  ┌──────────────────────────────────┐
+│ clusters.fleet.cattle.io/v1alpha1 ├──────┤ clusters.provisioning.cattle.io/v1 ├──────┤ clusters.management.cattle.io/v3 │
+└────────────────┬──────────────────┘      └───────────────────┬────────────────┘      └──────────────────────────────────┘
+                 │                                             │
+                 └──────────────────────┬──────────────────────┘
+                                        │
+                          ┌─────────────▼────────────────────────┐
+                          │                                      │
+       ┌──────────────────▼──────────────────────┐  ==  ┌────────▼──────┐
+       │ fleetworkspaces.management.cattle.io/v3 ├──────┤ namespaces/v1 │
+       └─────────────────────────────────────────┘      └───────────────┘
+```
+
+---
+
+## Local Development Workflow: Fleet in Rancher
 
 All steps in this guide assume your current working directory is the root of the repository.
 Moreover, this guide was written for Unix-like developer environments, so you may need to modify some steps if you are using a non-Unix-like developer environment (i.e. Windows).
@@ -101,6 +141,8 @@ Ensure that clusters are in an "Active" state after migration.
 
 The controller should be running in your terminal window/pane!
 You can now create [GitRepo](https://fleet.rancher.io/gitrepo-structure/) custom resource objects and test Fleet locally.
+
+---
 
 ## Updating Fleet Components
 
@@ -193,3 +235,62 @@ We'll use the latest Git tag for this, and _assume_ it is available on DockerHub
     go run cmd/fleetcontroller/main.go
 )
 ```
+
+---
+
+## Examining Performance Issues
+
+Fleet differs from Rancher in one major design philosophy: nearly all "business logic" happens in the local cluster rather than in downstream clusters via agents.
+The good news here is that the `fleet-controller` will tell us nearly all that we need to know via pod logs, network traffic and resource usage.
+That being said, downstream `fleet-agent` deployments can perform Kubernetes API requests _back_ to the local cluster, which means that we have to monitor traffic inbound to the local cluster from our agents _as well as_ the outbound traffic we'd come to expect from the local `fleet-controller`.
+
+While network traffic is major point of consideration, we also have to consider whether our performance issues are **compute-based**, **memory-based**, or **network-based**.
+For example: you may encounter a pod with high compute usage, but that could be caused by heightened network traffic received from the _truly_ malfunctioning pod.
+
+### Tips and Tricks
+
+Since the Fleet components' controller framework of choice is [Wrangler](https://github.com/rancher/wrangler), we can share caches and avoid unnecessary API requests.
+Moreover, we can customize enqueue logic to decrease load on the cluster and its components.
+For example: if a `BundleDeployment` encounters failure and meets certain criteria such that it'll never become active, we should move the object to a permanent error state that requires manual triage.
+While reconciling state and automatically attempting to reach desired state is... desired..., we should find opportunities to eliminate loops, scheduling logic, and frequent re-enqueuing so that we decrease CPU and network load.
+Solving example scenario may even result in manual triage for the `BundleDeployment`, which could be a good trade-off for the user!
+
+To examine Fleet network load, we can use Istio pod injection to monitor network traffic and observe it with Kiali.
+If Istio is installed via the Rancher UI, you can perform pod injection with a checkbox per pod.
+To learn more, please refer to the [Istio documentation for Rancher](https://rancher.com/docs/rancher/v2.6/en/istio/).
+
+---
+
+## Release
+
+This section contains information on releasing Fleet.
+**Please note: it may be sparse since it is only intended for maintainers.**
+
+### Pre-Release
+
+1. Ensure that all modules are at their desired versions in `go.mod`
+1. Ensure that all nested and external images are at their desired versions (check `charts/` as well, and you can the following [ripgrep](https://github.com/BurntSushi/ripgrep) command at the root of the repository to see all images used: `rg "repository:" -A 1 | rg "tag:" -B 1`
+1. Run `go mod tidy` and `go generate` and ensure that `git status` is clean
+1. Determine the tag for the next intended release (must be valid [SemVer](https://semver.org/) prepended with `v`)
+
+### Release Candidates
+
+1. Checkout `master`
+1. Use `git tag` and append the tag from the **Pre-Release** section with `-rcX` where `X` is an unsigned integer that starts with `1` (if `-rcX` already exists, increment `X` by one)
+
+### Full Releases
+
+1. Open a draft release on the GitHub releases page
+1. Send draft link to maintainers with view permissions to ensure that contents are valid
+1. Create GitHub release and create a new tag while doing so (using the tag from the **Pre-Release** section)
+
+### Post-Release
+
+1. Pull Fleet images from DockerHub to ensure manifests work as expected
+1. Open a PR in [rancher/charts](https://github.com/rancher/charts) that ensures every Fleet-related chart is using the new RC (branches and number of PRs is dependent on Rancher)
+
+---
+
+## Attributions
+
+- ASCII charts created with [asciiflow](https://asciiflow.com/)
