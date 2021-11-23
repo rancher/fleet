@@ -113,7 +113,7 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	if status.Release != release {
 		applyTime := metav1.Now()
 		status.LastApply = &applyTime
-		status.ResyncCounter++
+		manageResyncCounter(bd, &status)
 	}
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
@@ -236,8 +236,6 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, duration)
 		ok := shouldRedeploy(bd, &status)
 		if ok {
-			// manage resync counter
-			status.ResyncCounter = manageResyncCounter(bd)
 			logrus.Infof("Redeploying %s", bd.Name)
 			status.AppliedDeploymentID = ""
 			if isAgent(bd) {
@@ -284,6 +282,7 @@ func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentSt
 		if status.LastApply.Add(DefaultReapplyInterval).Before(time.Now()) {
 			return true
 		}
+	} else {
 		// use custom resync policy from the template //
 		policy := &fleet.ResyncPolicy{}
 		if bd.Spec.Options.ResyncPolicy != nil {
@@ -312,8 +311,9 @@ func hasAutoReapply(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentSt
 		}
 
 	}
-	// default behaviour when no resync is provided
-	// modified bundle will be reapplied as before
+
+	// default behaviour when no resync policy is provided
+	// and we are within the DefaultReapplyInterval
 	return false
 }
 
@@ -359,7 +359,7 @@ func customResyncDuration(bd *fleet.BundleDeployment) time.Duration {
 	return DefaultReapplyInterval
 }
 
-func manageResyncCounter(bd *fleet.BundleDeployment) int {
+func manageResyncCounter(bd *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) {
 	policy := &fleet.ResyncPolicy{}
 	if bd.Spec.Options.ResyncPolicy != nil {
 		policy = bd.Spec.Options.ResyncPolicy
@@ -370,16 +370,16 @@ func manageResyncCounter(bd *fleet.BundleDeployment) int {
 	}
 
 	if policy.MaxRetries == DefaultMaxRetries || bd.Status.ResyncCounter <= policy.MaxRetries {
-		bd.Status.ResyncCounter++
-		return bd.Status.ResyncCounter
+		status.ResyncCounter++
+		return
 	}
 
 	if bd.Status.ResyncCounter > policy.MaxRetries {
 		// reset counter
-		return 0
+		status.ResyncCounter = 0
+		return
 	}
 
 	// default when no custom policy is defined
-	bd.Status.ResyncCounter++
-	return bd.Status.ResyncCounter
+	status.ResyncCounter++
 }
