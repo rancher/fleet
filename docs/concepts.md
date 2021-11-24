@@ -1,7 +1,7 @@
 # Core Concepts
 
 Fleet is fundamentally a set of Kubernetes custom resource definitions (CRDs) and controllers
-to manage GitOps for a single Kubernetes cluster or a large scale deployments of Kubernetes clusters
+to manage GitOps for a single Kubernetes cluster or a large scale deployment of Kubernetes clusters
 (up to one million). Below are some of the concepts of Fleet that will be useful through out this documentation.
 
 * **Fleet Manager**: The centralized component that orchestrates the deployments of Kubernetes assets
@@ -22,6 +22,9 @@ to manage GitOps for a single Kubernetes cluster or a large scale deployments of
     contents of a `Bundle` may be Kubernetes manifests, Kustomize configuration, or Helm charts.
     Regardless of the source the contents are dynamically rendered into a Helm chart by the agent
     and installed into the downstream cluster as a helm release.
+
+    - To see the **lifecycle of a bundle**, click [here](./examples.md#lifecycle-of-a-fleet-bundle).
+
 * **BundleDeployment**: When a `Bundle` is deployed to a cluster an instance of a `Bundle` is called a `BundleDeployment`.
     A `BundleDeployment` represents the state of that `Bundle` on a specific cluster with it's cluster specific
     customizations. The Fleet agent is only aware of `BundleDeployment` resources that are created for 
