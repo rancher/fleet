@@ -1,8 +1,12 @@
 # Multi-cluster Install
 ![](./arch.png)
 
-In this use case you will setup a centralized Fleet manager.  The centralized Fleet manager is a
-Kubernetes cluster running the Fleet controllers. After installing the Fleet manager you will then
+**Note:** Downstream clusters in Rancher are automatically registered in Fleet. Users can access Fleet under `Continuous Delivery` on Rancher.
+
+**Warning:** The multi-cluster install described below is **only** covered in standalone Fleet, which is untested by Rancher QA. 
+
+In the below use case, you will setup a centralized Fleet manager.  The centralized Fleet manager is a
+Kubernetes cluster running the Fleet controllers. After installing the Fleet manager, you will then
 need to register remote downstream clusters with the Fleet manager.
 
 ## Prerequisites
