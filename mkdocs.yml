@@ -2,7 +2,7 @@ site_name: Fleet - GitOps at Scale
 site_url: https://fleet.rancher.io
 repo_url: https://github.com/rancher/fleet
 # Set to false for local docs development
-strict: false
+strict: true
 theme:
   name: material
   palette:
