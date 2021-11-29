@@ -50,7 +50,7 @@ Note that there are two containers inside the pod: the `step-git-source` contain
 The pods will usually have images named `rancher/tekton-utils` with the `gitRepo` name as a prefix. Check the logs for these Kubernetes job pods in the local management cluster as follows, filling in your specific `gitRepoName` pod name:
 
 ```
-kubectl logs -f gitRepoName-pod-name -n cattle-fleet-system
+kubectl logs -f gitRepoName-pod-name -n namespace
 ```
 
 ### Check the status of the `fleet-controller`?
