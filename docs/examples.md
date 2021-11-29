@@ -10,7 +10,7 @@ To demonstrate the lifecycle of a Fleet bundle, we will use [multi-cluster/helm]
 >**Note:** The job pod with the image name `rancher/tekton-utils` will be under the same namespace as the GitRepo.
 
 3. The `fleet-controller` then syncs changes from the bundle. According to the targets, the `fleet-controller` will create `BundleDeployment` resources, which are a combination of a bundle and a target cluster.
-4. The `fleet-agent` will then pull the `BundleDeployment` from the Fleet controlplane. The agent deploys a real application and configuration as a [Helm chart](https://helm.sh/docs/intro/install/) from the `BundleDeployment` into the downstream clusters.
+4. The `fleet-agent` will then pull the `BundleDeployment` from the Fleet controlplane. The agent deploys bundle manifests as a [Helm chart](https://helm.sh/docs/intro/install/) from the `BundleDeployment` into the downstream clusters.
 5. The `fleet-agent` will continue to monitor the application bundle and report statuses back in the following order: bundledeployment > bundle > GitRepo > cluster.
 
 ### Additional Examples
