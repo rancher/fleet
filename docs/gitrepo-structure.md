@@ -29,6 +29,9 @@ the resources are deployed and customized.  The `fleet.yaml` is always at the ro
 and if a subdirectory is found with a `fleet.yaml` a new [bundle](./concepts.md) is defined that will then be
 configured differently from the parent bundle.
 
+!!! warning "Helm chart dependencies"
+    It is up to the user to fulfill the dependency list for the Helm charts. As such, you must manually run `helm dependencies update $chart` OR run `helm dependencies build $chart` prior to install. See the [Fleet docs](https://rancher.com/docs/rancher/v2.6/en/deploy-across-clusters/fleet/#helm-chart-dependencies) in Rancher for more information.
+
 ### Reference
 
 ```yaml
