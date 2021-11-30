@@ -1,8 +1,8 @@
 # Core Concepts
 
 Fleet is fundamentally a set of Kubernetes custom resource definitions (CRDs) and controllers
-to manage GitOps for a single Kubernetes cluster or a large scale deployment of Kubernetes clusters
-(up to one million). 
+to manage GitOps for a single Kubernetes cluster or a large-scale deployment of Kubernetes clusters. 
+Note that Fleet is designed for mass horizontal scaling, but to date, scaling up to one million clusters has only been done in a test environment, not in production.
 
 Below are some of the concepts of Fleet that will be useful throughout this documentation:
 
@@ -19,12 +19,12 @@ Below are some of the concepts of Fleet that will be useful throughout this docu
     This agent is just another set of Kubernetes controllers running in the downstream cluster.
 * **GitRepo**: Git repositories that are watched by Fleet are represented by the type `GitRepo`.
 
->**Example installation order via `GitRepo` custom resources when using Fleet for the configuration management behind clusters:**
+>**Example installation order via `GitRepo` custom resources when using Fleet for the configuration management of downstream clusters:**
 >
-> 1. Install Calico CRDs and controllers.
-> 2. Set the global network policy at a cluster level.
-> 3. Install GateKeeper. Note that **cluster labels** and **overlays** are critical features in Fleet as they determine which clusters will get each part of the bundle.
-> 4. Set up and configure the ingress and system daemons.
+> 1. Install [Calico](https://github.com/projectcalico/calico) CRDs and controllers.
+> 2. Set one or multiple cluster-level global network policies.
+> 3. Install [GateKeeper](https://github.com/open-policy-agent/gatekeeper). Note that **cluster labels** and **overlays** are critical features in Fleet as they determine which clusters will get each part of the bundle.
+> 4. Set up and configure ingress and system daemons.
 
 * **Bundle**: An internal unit used for the orchestration of resources from git.
     When a `GitRepo` is scanned it will produce one or more bundles. Bundles are a collection of
