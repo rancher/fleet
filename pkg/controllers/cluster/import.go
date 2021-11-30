@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	"github.com/rancher/fleet/pkg/connection"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
@@ -203,7 +204,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
-	if _, err = kc.Discovery().ServerVersion(); err != nil {
+	if err := connection.SmokeTestKubeClientConnection(kc); err != nil {
 		return status, err
 	}
 
