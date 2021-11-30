@@ -10,7 +10,7 @@ This section contains commands and tips to troubleshoot Fleet.
 In the local management cluster where the `fleet-controller` is deployed, run the following command with your specific `fleet-controller` pod name filled in:
 
 ```
-kubectl logs -f fleet-controller-pod-name -n cattle-fleet-system
+$ kubectl logs -f $fleet-controller-pod-name -n cattle-fleet-system
 ```
 
 ### Fetch the log from the `fleet-agent`?
@@ -19,9 +19,9 @@ Go to each downstream cluster and run the following command for the local cluste
 
 ```
 # Downstream cluster
-kubectl logs -f fleet-agent-pod-name -n cattle-fleet-system
+$ kubectl logs -f $fleet-agent-pod-name -n cattle-fleet-system
 # Local cluster
-kubectl logs -f fleet-agent-pod-name -n cattle-local-fleet-system
+$ kubectl logs -f $fleet-agent-pod-name -n cattle-local-fleet-system
 ```
 
 ### Fetch detailed error logs from `GitRepos` and `Bundles`?
@@ -35,14 +35,14 @@ Normally, errors should appear in the Rancher UI. However, if there is not enoug
 
 ### Check a chart rendering error in `Kustomize`?
 
-Check the `fleet-controller` logs and the `fleet-agent` log.
+Check the [`fleet-controller` logs](./troubleshooting.md#fetch-the-log-from-fleet-controller) and the [`fleet-agent` logs](./troubleshooting.md#fetch-the-log-from-the-fleet-agent).
 
 ### Check errors about watching or checking out the `GitRepo`, or about the downloaded Helm repo in `fleet.yaml`?
 
 Check the `gitjob-controller` logs using the following command with your specific `gitjob` pod name filled in:
 
 ```
-kubectl logs -f gitjob-pod-name -n cattle-fleet-system
+$ kubectl logs -f $gitjob-pod-name -n cattle-fleet-system
 ```
 
 Note that there are two containers inside the pod: the `step-git-source` container that clones the git repo, and the `fleet` container that applies bundles based on the git repo. 
@@ -50,7 +50,7 @@ Note that there are two containers inside the pod: the `step-git-source` contain
 The pods will usually have images named `rancher/tekton-utils` with the `gitRepo` name as a prefix. Check the logs for these Kubernetes job pods in the local management cluster as follows, filling in your specific `gitRepoName` pod name and namespace:
 
 ```
-kubectl logs -f gitRepoName-pod-name -n namespace
+$ kubectl logs -f $gitRepoName-pod-name -n namespace
 ```
 
 ### Check the status of the `fleet-controller`?
