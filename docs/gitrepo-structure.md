@@ -91,7 +91,7 @@ helm:
   force: false
 
 # A paused bundle will not update downstream clusters but instead mark the bundle
-# as OutOfSync. On can the manually confirm that a bundle should be deployed to
+# as OutOfSync. One can then manually confirm that a bundle should be deployed to
 # the downstream clusters.
 # Default: false
 paused: false
