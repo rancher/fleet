@@ -4,6 +4,9 @@ Note that using Fleet outside of Rancher is highly discouraged for any users who
 
 The following are examples of advanced use cases:
 
+- Nested GitRepo CRs
+>Managing Fleet within Fleet (nested GitRepo usage) is not currently supported. We will update the documentation if support becomes available.
+
 - [Single cluster installation](./single-cluster-install.md)
 - [Multi-cluster installation](./multi-cluster-install.md) 
 
