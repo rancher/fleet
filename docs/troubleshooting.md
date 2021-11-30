@@ -2,9 +2,60 @@
 
 This section contains commands and tips to troubleshoot Fleet.
 
-## Check status of fleet controller
+## **How Do I...**
 
-You can check the status of the Fleet controller pods by running the commands below:
+
+### Fetch the log from `fleet-controller`?
+
+In the local management cluster where the `fleet-controller` is deployed, run the following command with your specific `fleet-controller` pod name filled in:
+
+```
+$ kubectl logs -f $fleet-controller-pod-name -n cattle-fleet-system
+```
+
+### Fetch the log from the `fleet-agent`?
+
+Go to each downstream cluster and run the following command for the local cluster with your specific `fleet-agent` pod name filled in:
+
+```
+# Downstream cluster
+$ kubectl logs -f $fleet-agent-pod-name -n cattle-fleet-system
+# Local cluster
+$ kubectl logs -f $fleet-agent-pod-name -n cattle-local-fleet-system
+```
+
+### Fetch detailed error logs from `GitRepos` and `Bundles`?
+
+Normally, errors should appear in the Rancher UI. However, if there is not enough information displayed about the error there, you can research further by trying one or more of the following as needed:
+
+- For more information about the bundle, click on `bundle`, and the YAML mode will be enabled. 
+- For more information about the GitRepo, click on `GitRepo`, then click on `View Yaml` in the upper right of the screen. After viewing the YAML, check `status.conditions`; a detailed error message should be displayed here.
+- Check the `fleet-controller` for synching errors.
+- Check the `fleet-agent` log in the downstream cluster if you encounter issues when deploying the bundle.
+
+### Check a chart rendering error in `Kustomize`?
+
+Check the [`fleet-controller` logs](./troubleshooting.md#fetch-the-log-from-fleet-controller) and the [`fleet-agent` logs](./troubleshooting.md#fetch-the-log-from-the-fleet-agent).
+
+### Check errors about watching or checking out the `GitRepo`, or about the downloaded Helm repo in `fleet.yaml`?
+
+Check the `gitjob-controller` logs using the following command with your specific `gitjob` pod name filled in:
+
+```
+$ kubectl logs -f $gitjob-pod-name -n cattle-fleet-system
+```
+
+Note that there are two containers inside the pod: the `step-git-source` container that clones the git repo, and the `fleet` container that applies bundles based on the git repo. 
+
+The pods will usually have images named `rancher/tekton-utils` with the `gitRepo` name as a prefix. Check the logs for these Kubernetes job pods in the local management cluster as follows, filling in your specific `gitRepoName` pod name and namespace:
+
+```
+$ kubectl logs -f $gitRepoName-pod-name -n namespace
+```
+
+### Check the status of the `fleet-controller`?
+
+You can check the status of the `fleet-controller` pods by running the commands below:
 
 ```bash
 kubectl -n fleet-system logs -l app=fleet-controller
@@ -16,7 +67,9 @@ NAME                                READY   STATUS    RESTARTS   AGE
 fleet-controller-64f49d756b-n57wq   1/1     Running   0          3m21s
 ```
 
-## Fleet fails with bad response code: 403
+## Additional Solutions for Other Fleet Errors
+
+### Fleet fails with bad response code: 403
 
 If your GitJob returns the error below, the problem may be that Fleet cannot access the Helm repo you specified in your [`fleet.yaml`](./gitrepo-structure.md):
 
@@ -29,7 +82,7 @@ Perform the following steps to assess:
 - Check that your repo is accessible from your dev machine, and that you can download the Helm chart successfully
 - Check that your credentials for the git repo are valid
 
-## Helm chart repo: certificate signed by unknown authority
+### Helm chart repo: certificate signed by unknown authority
 
 If your GitJob returns the error below, you may have added the wrong certificate chain:
 
@@ -53,7 +106,7 @@ Certificate:
 
 ```
 
-## Fleet deployment stuck in modified state
+### Fleet deployment stuck in modified state
 
 When you deploy bundles to Fleet, some of the components are modified, and this causes the "modified" flag in the Fleet environment.
 
