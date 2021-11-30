@@ -7,8 +7,6 @@ Who needs documentation, lets just run this thing!
 Get helm if you don't have it.  Helm 3 is just a CLI and won't do bad insecure
 things to your cluster.
 
->**Warning on Helm Chart Dependencies:** Before you install Helm, you must either manually run `helm dependencies update` OR run `helm dependencies build` locally, then commit the complete charts directory to your git repository. This tells Fleet where to retrieve the dependencies. For more information, see the [Fleet docs](https://rancher.com/docs/rancher/v2.6/en/en/deploy-across-clusters/fleet/#fleet-helm-chart-dependencies) in Rancher.
-
 ```
 brew install helm
 ```
