@@ -58,15 +58,22 @@ a file and then running
 base64 -d encoded-file > ca.pem
 ```
 If you have `jq` and `base64` available then this one-liners will pull all CA certificates from your
-`${HOME}/.kube/config` and place then in a file named `ca.pem`.
+`KUBECONFIG` and place then in a file named `ca.pem`.
 
 ```shell
 kubectl config view -o json --raw  | jq -r '.clusters[].cluster["certificate-authority-data"]' | base64 -d > ca.pem
 ```
 
+If you have a multi-cluster setup, you can use this command:
+
+```shell
+# replace CLUSTERNAME with the name of the cluster according to your KUBECONFIG
+kubectl config view -o json --raw  | jq -r '.clusters[] | select(.name=="CLUSTERNAME").cluster["certificate-authority-data"]' | base64 -d > ca.pem
+```
+
 ## Install
 
-In the following example it will be assumed the API server URL is `https://example.com:6443`
+In the following example it will be assumed the API server URL from the `KUBECONFIG` which is `https://example.com:6443`
 and the CA certificate is in the file `ca.pem`. If your API server URL is signed by a well-known CA you can
 omit the `apiServerCA` parameter below or just create an empty `ca.pem` file (ie `touch ca.pem`).
 
@@ -76,6 +83,14 @@ Setup the environment with your specific values.
 
 ```shell
 API_SERVER_URL="https://example.com:6443"
+API_SERVER_CA="ca.pem"
+```
+
+If you have a multi-cluster setup, you can use this command:
+
+```shell
+# replace CLUSTERNAME with the name of the cluster according to your KUBECONFIG
+API_SERVER_URL=$(kubectl config view -o json --raw  | jq -r '.clusters[] | select(.name=="CLUSTER").cluster["server"]')
 # Leave empty if your API server is signed by a well known CA
 API_SERVER_CA="ca.pem"
 ```
