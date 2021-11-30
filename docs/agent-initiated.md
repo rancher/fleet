@@ -90,7 +90,7 @@ kind: Cluster
 apiVersion: {{fleet.apiVersion}}
 metadata:
   name: my-cluster
-  namespaces: clusters
+  namespace: clusters
 spec:
   clientID: "really-random"
 ```
