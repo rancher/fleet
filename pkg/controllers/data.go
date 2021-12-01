@@ -74,9 +74,9 @@ func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appCon
 				},
 				Subjects: []rbacv1.Subject{
 					{
-						Kind:     "Group",
-						APIGroup: "rbac.authorization.k8s.io",
-						Name:     "system:serviceaccounts",
+						Kind:      "ServiceAccount",
+						Name:      "fleet-agent",
+						Namespace: "cattle-fleet-local-system",
 					},
 				},
 				RoleRef: rbacv1.RoleRef{
@@ -91,9 +91,9 @@ func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appCon
 				},
 				Subjects: []rbacv1.Subject{
 					{
-						Kind:     "Group",
-						APIGroup: "rbac.authorization.k8s.io",
-						Name:     "system:serviceaccounts",
+						Kind:      "ServiceAccount",
+						Name:      "fleet-agent",
+						Namespace: "cattle-fleet-local-system",
 					},
 				},
 				RoleRef: rbacv1.RoleRef{
