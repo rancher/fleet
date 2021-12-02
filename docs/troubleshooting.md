@@ -76,7 +76,7 @@ For users who want to deploy to the local cluster as well, they may move the clu
 - Select **Assign to** from the tabs above the cluster.
 - Select **`fleet-default`** from the **Assign Cluster To** dropdown.
 
-**Result**: The cluster and its resources will be migrated to `fleet-default`.
+**Result**: The cluster will be migrated to `fleet-default`.
 
 ## Additional Solutions for Other Fleet Errors
 
