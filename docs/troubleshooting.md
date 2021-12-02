@@ -67,6 +67,17 @@ NAME                                READY   STATUS    RESTARTS   AGE
 fleet-controller-64f49d756b-n57wq   1/1     Running   0          3m21s
 ```
 
+### Migrate the local cluster to the Fleet default cluster
+
+For users who want to deploy to the local cluster as well, they may move the cluster and its resources from `fleet-local` to `fleet-default` in the Rancher UI as follows:
+
+- To get to Fleet in Rancher, click ☰ > Continuous Delivery.
+- Under the **Clusters** menu, select the **local** cluster by checking the box to the left.
+- Select **Assign to** from the tabs above the cluster.
+- Select **`fleet-default`** from the **Assign Cluster To** dropdown.
+
+**Result**: The cluster and its resources will be migrated to `fleet-default`.
+
 ## Additional Solutions for Other Fleet Errors
 
 ### Fleet fails with bad response code: 403
