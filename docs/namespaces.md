@@ -25,7 +25,7 @@ When fleet is installed the `fleet-local` namespace is created along with one `C
 automatically target the `local` `Cluster`.  The `local` `Cluster` refers to the cluster the Fleet manager is running
 on.
 
-**Note:** If you would like to migrate your cluster and its resources from `fleet-local` to `default`, please see this [documentation](./troubleshooting.md#migrate-the-local-cluster-to-the-fleet-default-cluster).
+**Note:** If you would like to migrate your cluster from `fleet-local` to `default`, please see this [documentation](./troubleshooting.md#migrate-the-local-cluster-to-the-fleet-default-cluster).
 
 ### fleet-system
 
