@@ -78,7 +78,7 @@ For users who want to deploy to the local cluster as well, they may move the clu
 
 **Result**: The cluster will be migrated to `fleet-default`.
 
-## Additional Solutions for Other Fleet Errors
+## **Additional Solutions for Other Fleet Errors**
 
 ### Fleet fails with bad response code: 403
 
@@ -116,7 +116,6 @@ Certificate:
 ...
 
 ```
-
 ### Fleet deployment stuck in modified state
 
 When you deploy bundles to Fleet, some of the components are modified, and this causes the "modified" flag in the Fleet environment.
@@ -153,3 +152,15 @@ Based on the above log, you can add the following entry to remove the operation:
 ```json
 {"op":"remove", "path":"/spec/template/spec/hostNetwork"}
 ```
+
+### `GitRepo` or `Bundle` stuck in modified state
+
+**Modified** means that there is a mismatch between the actual state and the desired state, the source of truth, which lives in the git repository.
+
+1. Check the [bundle diffs documentation](./bundle-diffs.md) for more information. 
+
+1. You can also force update the `gitrepo` to perform a manual resync. Select **GitRepo** on the left navigation bar, then select **Force Update**.
+
+### What if the cluster is unavailable, or is in a `WaitCheckIn` state?
+
+You will need to re-import and restart the registration process: Select **Cluster** on the left navigation bar, then select **Force Update**.
