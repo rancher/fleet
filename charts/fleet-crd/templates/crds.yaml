@@ -117,6 +117,8 @@ spec:
                   chart:
                     nullable: true
                     type: string
+                  disablePreProcess:
+                    type: boolean
                   force:
                     type: boolean
                   maxHistory:
@@ -488,6 +490,8 @@ spec:
                         chart:
                           nullable: true
                           type: string
+                        disablePreProcess:
+                          type: boolean
                         force:
                           type: boolean
                         maxHistory:
@@ -997,6 +1001,8 @@ spec:
                       chart:
                         nullable: true
                         type: string
+                      disablePreProcess:
+                        type: boolean
                       force:
                         type: boolean
                       maxHistory:
@@ -1144,6 +1150,8 @@ spec:
                       chart:
                         nullable: true
                         type: string
+                      disablePreProcess:
+                        type: boolean
                       force:
                         type: boolean
                       maxHistory:
@@ -1784,6 +1792,10 @@ spec:
                 type: string
               redeployAgentGeneration:
                 type: integer
+              templateValues:
+                nullable: true
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
             type: object
           status:
             properties:

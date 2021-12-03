@@ -70,6 +70,9 @@ type ClusterSpec struct {
 	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system
 	AgentNamespace string `json:"agentNamespace,omitempty"`
 	PrivateRepoURL string `json:"privateRepoURL,omitempty"`
+
+	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating
+	TemplateValues *GenericMap `json:"templateValues,omitempty"`
 }
 
 type ClusterStatus struct {
