@@ -1,8 +1,10 @@
 # Core Concepts
 
 Fleet is fundamentally a set of Kubernetes custom resource definitions (CRDs) and controllers
-to manage GitOps for a single Kubernetes cluster or a large-scale deployment of Kubernetes clusters. 
-Note that Fleet is designed for mass horizontal scaling, but to date, scaling up to one million clusters has only been done in a test environment, not in production.
+to manage GitOps for a single Kubernetes cluster or a large-scale deployment of Kubernetes clusters. Note that Fleet is designed for mass horizontal scaling, but to date, scaling up to one million clusters has only been done in a test environment, not in production.
+
+!!! note "Note"
+    For more on the naming conventions of CRDs, click [here](./troubleshooting.md#naming-conventions-for-crds). 
 
 Below are some of the concepts of Fleet that will be useful throughout this documentation:
 
