@@ -78,7 +78,15 @@ For users who want to deploy to the local cluster as well, they may move the clu
 
 **Result**: The cluster will be migrated to `fleet-default`.
 
-## **Additional Solutions for Other Fleet Errors**
+## **Additional Solutions for Other Fleet Issues**
+
+### Naming conventions for CRDs
+
+1. For CRD terms like `clusters` and `gitrepos`, you must reference the full CRD name. For example, the cluster CRD's complete name is `clusters.fleet.cattle.io`, and the gitrepo CRD's complete name is `gitrepo.fleet.cattle.io`.
+
+1. `Bundles`, which are created from the `GitRepo`, follow the pattern `$gitrepoName-$path` in the same workspace/namespace where the `GitRepo` was created. Note that `$path` is the path directory in the git repository that contains the `bundle` (`fleet.yaml`).
+
+1. `BundleDeployments`, which are created from the `bundle`, follow the pattern `$bundleName-$clusterName` in the namespace `clusters-$workspace-$cluster-$generateHash`. Note that `$clusterName` is the cluster to which the bundle will be deployed.
 
 ### Fleet fails with bad response code: 403
 
