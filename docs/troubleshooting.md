@@ -175,7 +175,7 @@ For bundles with an HPA, the expected state is `Modified`, as the bundle contain
 
 You must define a patch in the `fleet.yaml` to ignore this field according to [`GitRepo` or `Bundle` stuck in modified state](#gitrepo-or-bundle-stuck-in-modified-state).
 
-Here an example of such a patch for the deployment `nginx` in namespace `default`
+Here is an example of such a patch for the deployment `nginx` in namespace `default`:
 
 ```yaml
 diff:
