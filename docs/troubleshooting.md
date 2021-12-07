@@ -172,3 +172,6 @@ Based on the above log, you can add the following entry to remove the operation:
 ### What if the cluster is unavailable, or is in a `WaitCheckIn` state?
 
 You will need to re-import and restart the registration process: Select **Cluster** on the left navigation bar, then select **Force Update**.
+
+!!! note "WaitCheckIn status for Rancher v2.5"
+    The cluster will show in `WaitCheckIn` status because the `fleet-controller` is attempting to communicate with Fleet using the Rancher service IP. However, Rancher must communicate directly with Kubernetes service DNS using service discovery, not through the proxy. For more, see the [Rancher docs](https://rancher.com/docs/rancher/v2.5/en/installation/other-installation-methods/behind-proxy/install-rancher/#install-rancher). 
