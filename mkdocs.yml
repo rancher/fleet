@@ -21,7 +21,7 @@ markdown_extensions:
 - toc:
     permalink: true
 nav:
-  - index.md
+  - overview.md
   - quickstart.md
   - concepts.md
   - architecture.md
