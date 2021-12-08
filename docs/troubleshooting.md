@@ -88,6 +88,14 @@ For users who want to deploy to the local cluster as well, they may move the clu
 
 1. `BundleDeployments`, which are created from the `bundle`, follow the pattern `$bundleName-$clusterName` in the namespace `clusters-$workspace-$cluster-$generateHash`. Note that `$clusterName` is the cluster to which the bundle will be deployed.
 
+### HTTP secrets in Github
+
+When testing Fleet with private git repositories, you will notice that HTTP secrets are no longer supported in Github. To work around this issue, follow these steps:
+
+1. Create a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) in Github.
+1. In Rancher, create an HTTP [secret](https://rancher.com/docs/rancher/v2.6/en/k8s-in-rancher/secrets/) with your Github username.
+1. Use your token as the secret.
+
 ### Fleet fails with bad response code: 403
 
 If your GitJob returns the error below, the problem may be that Fleet cannot access the Helm repo you specified in your [`fleet.yaml`](./gitrepo-structure.md):
