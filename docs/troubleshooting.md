@@ -177,6 +177,25 @@ Based on the above log, you can add the following entry to remove the operation:
 
 1. You can also force update the `gitrepo` to perform a manual resync. Select **GitRepo** on the left navigation bar, then select **Force Update**.
 
+### Bundle has a Horizontal Pod Autoscaler (HPA) in modified state
+
+For bundles with an HPA, the expected state is `Modified`, as the bundle contains fields that differ from the state of the Bundle at deployment - usually `ReplicaSet`.
+
+You must define a patch in the `fleet.yaml` to ignore this field according to [`GitRepo` or `Bundle` stuck in modified state](#gitrepo-or-bundle-stuck-in-modified-state).
+
+Here is an example of such a patch for the deployment `nginx` in namespace `default`:
+
+```yaml
+diff:
+  comparePatches:
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: nginx
+    namespace: default
+    operations:
+    - {"op": "remove", "path": "/spec/replicas"}
+```
+
 ### What if the cluster is unavailable, or is in a `WaitCheckIn` state?
 
 You will need to re-import and restart the registration process: Select **Cluster** on the left navigation bar, then select **Force Update**.
