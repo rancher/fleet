@@ -88,6 +88,14 @@ For users who want to deploy to the local cluster as well, they may move the clu
 
 1. `BundleDeployments`, which are created from the `bundle`, follow the pattern `$bundleName-$clusterName` in the namespace `clusters-$workspace-$cluster-$generateHash`. Note that `$clusterName` is the cluster to which the bundle will be deployed.
 
+### HTTP secrets in Github
+
+When testing Fleet with private git repositories, you will notice that HTTP secrets are no longer supported in Github. To work around this issue, follow these steps:
+
+1. Create a [personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) in Github.
+1. In Rancher, create an HTTP [secret](https://rancher.com/docs/rancher/v2.6/en/k8s-in-rancher/secrets/) with your Github username.
+1. Use your token as the secret.
+
 ### Fleet fails with bad response code: 403
 
 If your GitJob returns the error below, the problem may be that Fleet cannot access the Helm repo you specified in your [`fleet.yaml`](./gitrepo-structure.md):
@@ -169,9 +177,28 @@ Based on the above log, you can add the following entry to remove the operation:
 
 1. You can also force update the `gitrepo` to perform a manual resync. Select **GitRepo** on the left navigation bar, then select **Force Update**.
 
+### Bundle has a Horizontal Pod Autoscaler (HPA) in modified state
+
+For bundles with an HPA, the expected state is `Modified`, as the bundle contains fields that differ from the state of the Bundle at deployment - usually `ReplicaSet`.
+
+You must define a patch in the `fleet.yaml` to ignore this field according to [`GitRepo` or `Bundle` stuck in modified state](#gitrepo-or-bundle-stuck-in-modified-state).
+
+Here is an example of such a patch for the deployment `nginx` in namespace `default`:
+
+```yaml
+diff:
+  comparePatches:
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: nginx
+    namespace: default
+    operations:
+    - {"op": "remove", "path": "/spec/replicas"}
+```
+
 ### What if the cluster is unavailable, or is in a `WaitCheckIn` state?
 
-You will need to re-import and restart the registration process: Select **Cluster** on the left navigation bar, then select **Force Update**.
+You will need to re-import and restart the registration process: Select **Cluster** on the left navigation bar, then select **Force Update**
 
 !!! note "WaitCheckIn status for Rancher v2.5"
     The cluster will show in `WaitCheckIn` status because the `fleet-controller` is attempting to communicate with Fleet using the Rancher service IP. However, Fleet must communicate directly with Rancher via the Kubernetes service DNS using service discovery, not through the proxy. For more, see the [Rancher docs](https://rancher.com/docs/rancher/v2.5/en/installation/other-installation-methods/behind-proxy/install-rancher/#install-rancher). 
