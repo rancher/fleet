@@ -29,7 +29,16 @@ the resources are deployed and customized. The `fleet.yaml` is always at the roo
 and if a subdirectory is found with a `fleet.yaml` a new [bundle](./concepts.md) is defined that will then be
 configured differently from the parent bundle.
 
+!!! warning "Helm chart dependencies"
+    It is up to the user to fulfill the dependency list for the Helm charts. As such, you must manually run `helm dependencies update $chart` OR run `helm dependencies build $chart` prior to install. See the [Fleet docs](https://rancher.com/docs/rancher/v2.6/en/deploy-across-clusters/fleet/#helm-chart-dependencies) in Rancher for more information.
+
 ### Reference
+
+!!! tip "How changes are applied to `values.yaml`"
+
+    - Note that the most recently applied changes to the `values.yaml` will override any previously existing values.
+
+    - When changes are applied to the `values.yaml` from multiple sources at the same time, the values will update in the following order: `helmValues` -> `helm.valueFiles` -> `helm.valuesFrom`.
 
 ```yaml
 # The default namespace to be applied to resources. This field is not used to
@@ -91,7 +100,7 @@ helm:
   force: false
 
 # A paused bundle will not update downstream clusters but instead mark the bundle
-# as OutOfSync. On can the manually confirm that a bundle should be deployed to
+# as OutOfSync. One can then manually confirm that a bundle should be deployed to
 # the downstream clusters.
 # Default: false
 paused: false
@@ -292,38 +301,4 @@ using YAML syntax.
 
 ## Cluster and Bundle state
 
-Clusters and Bundles have different states in each phase of applying Bundles.
-
-For Bundles:
-
-**Ready**: Bundles have been deployed and all resources are ready.
-
-**NotReady**: Bundles have been deployed and some resources are not ready.
-
-**WaitApplied**: Bundles have been synced from Fleet controller and downstream cluster, but are waiting to be deployed.
-
-**ErrApplied**: Bundles have been synced from the Fleet controller and the downstream cluster, but there were some errors when deploying the Bundle.
-
-**OutOfSync**: Bundles have been synced from Fleet controller, but downstream agent hasn't synced the change yet.
-
-**Pending**: Bundles are being processed by Fleet controller.
-
-**Modified**: Bundles have been deployed and all resources are ready, but there are some changes that were not made from the Git Repository.
-
-For Clusters:
-
-**WaitCheckIn**: Waiting for agent to report registration information and cluster status back.
-
-**NotReady**: There are bundles in this cluster that are in NotReady state.
-
-**WaitApplied**: There are bundles in this cluster that are in WaitApplied state.
-
-**ErrApplied**: There are bundles in this cluster that are in ErrApplied state.
-
-**OutOfSync**: There are bundles in this cluster that are in OutOfSync state.
-
-**Pending**: There are bundles in this cluster that are in Pending state.
-
-**Modified**: There are bundles in this cluster that are in Modified state.
-
-**Ready**: Bundles in this cluster have been deployed and all resources are ready.
+See [Cluster and Bundle state](./cluster-bundles-state.md).

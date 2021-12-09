@@ -57,3 +57,6 @@ tolerations:
 
 gitops:
   enabled: true
+
+debug: false
+debugLevel: 0

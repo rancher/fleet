@@ -90,13 +90,8 @@ func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
-	dependOn, ok, err := h.checkDependency(bd)
-	if err != nil {
+	if err := h.checkDependency(bd); err != nil {
 		return status, err
-	}
-
-	if !ok {
-		return status, fmt.Errorf("bundle %s has dependent bundle %s that is not ready", bd.Name, dependOn)
 	}
 
 	release, err := h.deployManager.Deploy(bd)
@@ -108,33 +103,51 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	return status, nil
 }
 
-func (h *handler) checkDependency(bd *fleet.BundleDeployment) (string, bool, error) {
+func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
+	var depBundleList []string
 	bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
 	for _, depend := range bd.Spec.DependsOn {
-		ls := &metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				"fleet.cattle.io/bundle-name":      depend.Name,
-				"fleet.cattle.io/bundle-namespace": bundleNamespace,
-			},
-		}
-		selector, err := metav1.LabelSelectorAsSelector(ls)
-		if err != nil {
-			return "", false, err
-		}
-		bds, err := h.bdController.Cache().List(bd.Namespace, selector)
-		if err != nil {
-			return "", false, err
-		}
-		for _, bd := range bds {
-			c := condition.Cond("Ready")
-			if c.IsTrue(bd) {
-				continue
-			} else {
-				return fmt.Sprintf("%s/%s", bundleNamespace, depend.Name), false, nil
+		// skip empty BundleRef definitions. Possible if there is a typo in the yaml
+		if depend.Name != "" || depend.Selector != nil {
+			ls := &metav1.LabelSelector{}
+			if depend.Selector != nil {
+				ls = depend.Selector
+			}
+
+			if depend.Name != "" {
+				ls = metav1.AddLabelToSelector(ls, "fleet.cattle.io/bundle-name", depend.Name)
+				ls = metav1.AddLabelToSelector(ls, "fleet.cattle.io/bundle-namespace", bundleNamespace)
+			}
+
+			selector, err := metav1.LabelSelectorAsSelector(ls)
+			if err != nil {
+				return err
+			}
+			bds, err := h.bdController.Cache().List(bd.Namespace, selector)
+			if err != nil {
+				return err
+			}
+
+			if len(bds) == 0 {
+				return fmt.Errorf("no bundles matching labels %s in namespace %s", selector.String(), bundleNamespace)
+			}
+
+			for _, depBundle := range bds {
+				c := condition.Cond("Ready")
+				if c.IsTrue(depBundle) {
+					continue
+				} else {
+					depBundleList = append(depBundleList, depBundle.Name)
+				}
 			}
 		}
 	}
-	return "", true, nil
+
+	if len(depBundleList) != 0 {
+		return fmt.Errorf("dependent bundle(s) are not ready: %v", depBundleList)
+	}
+
+	return nil
 }
 
 func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {

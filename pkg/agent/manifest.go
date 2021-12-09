@@ -1,13 +1,20 @@
 package agent
 
 import (
+	"strconv"
+
 	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+)
+
+var (
+	DebugLevel = 0
 )
 
 const (
@@ -48,6 +55,15 @@ func Manifest(namespace, agentScope, image, pullPolicy, generation, checkInInter
 		})
 	if agentEnvVars != nil {
 		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, agentEnvVars...)
+	}
+	// if debug level logging is enabled in controller, enable in agent too
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+		dep.Spec.Template.Spec.Containers[0].Command = []string{
+			"fleetagent",
+			"--debug",
+			"--debug-level",
+			strconv.Itoa(DebugLevel),
+		}
 	}
 	dep.Spec.Template.Spec.Affinity = &corev1.Affinity{
 		NodeAffinity: &corev1.NodeAffinity{

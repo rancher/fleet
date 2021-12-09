@@ -1,12 +1,14 @@
 ---
+
 kind: pipeline
+type: docker
 name: linux-amd64
 platform:
   os: linux
   arch: amd64
 steps:
 - name: build
-  image: rancher/dapper:v0.5.5
+  image: rancher/dapper:v0.5.8
   environment:
     CROSS: "windows"
   commands:
@@ -14,6 +16,26 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
+- name: fossa
+  image: registry.suse.com/suse/sle15:15.3
+  failure: ignore
+  environment:
+    FOSSA_API_KEY:
+      from_secret: FOSSA_API_KEY
+  commands:
+    - zypper -n install curl unzip
+    - "curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/spectrometer/master/install.sh | sh"
+    - fossa analyze
+    - fossa test
+  when:
+    instance:
+      - drone-publish.rancher.io
+    ref:
+      include:
+        - "refs/heads/master"
+    event:
+      - push
+      - tag
 - name: github_binary_release
   image: plugins/github-release
   settings:
@@ -110,13 +132,14 @@ volumes:
 ---
 
 kind: pipeline
+type: docker
 name: linux-arm64
 platform:
   os: linux
   arch: arm64
 steps:
 - name: build
-  image: rancher/dapper:v0.5.5
+  image: rancher/dapper:v0.5.8
   commands:
   - dapper build
   volumes:
@@ -190,6 +213,7 @@ volumes:
 ---
 
 kind: pipeline
+type: docker
 name: linux-arm
 platform:
   os: linux
@@ -271,6 +295,7 @@ volumes:
 ---
 
 kind: pipeline
+type: docker
 name: windows-1809
 platform:
   os: windows
@@ -312,58 +337,8 @@ depends_on:
 - linux-amd64
 
 ---
-
 kind: pipeline
-name: windows-2004
-platform:
-  os: windows
-  arch: amd64
-  version: 2004
-# remove this and use upstream images when https://github.com/drone/drone-git/pull/25 is merged
-clone:
-  disable: true
-steps:
-- name: clone
-  image: rancher/drone-images:git-2004
-  settings:
-    depth: 1
-- name: docker-publish-agent
-  image: rancher/drone-images:docker-2004
-  settings:
-    dockerfile: package/Dockerfile-windows.agent
-    password:
-      from_secret: docker_password
-    repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-windows-2004"
-    username:
-      from_secret: docker_username
-    build_args:
-      - "SERVERCORE_VERSION=2004"
-      - "RELEASES=releases.rancher.com"
-      - "VERSION=${DRONE_TAG}"
-    context: package/
-    custom_dns: 1.1.1.1
-  volumes:
-    - name: docker
-      path: \\\\.\\pipe\\docker_engine
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
-volumes:
-  - name: docker
-    host:
-      path: \\\\.\\pipe\\docker_engine
-depends_on:
-- linux-amd64
-
----
-
-kind: pipeline
+type: docker
 name: windows-20H2
 platform:
   os: windows
@@ -414,6 +389,58 @@ depends_on:
 ---
 
 kind: pipeline
+type: docker
+name: windows-2022
+platform:
+  os: windows
+  arch: amd64
+  version: 2022
+# remove this and use upstream images when https://github.com/drone/drone-git/pull/25 is merged
+clone:
+  disable: true
+steps:
+  - name: clone
+    image: rancher/drone-images:git-amd64-ltsc2022
+    settings:
+      depth: 1
+  - name: docker-publish-agent
+    image: rancher/drone-images:docker-amd64-ltsc2022
+    settings:
+      dockerfile: package/Dockerfile-windows.agent
+      password:
+        from_secret: docker_password
+      repo: "rancher/fleet-agent"
+      tag: "${DRONE_TAG}-windows-ltsc2022"
+      username:
+        from_secret: docker_username
+      build_args:
+        - "SERVERCORE_VERSION=ltsc2022"
+        - "RELEASES=releases.rancher.com"
+        - "VERSION=${DRONE_TAG}"
+      context: package/
+      custom_dns: 1.1.1.1
+    volumes:
+      - name: docker
+        path: \\\\.\\pipe\\docker_engine
+    when:
+      instance:
+        - drone-publish.rancher.io
+      ref:
+        - refs/head/master
+        - refs/tags/*
+      event:
+        - tag
+volumes:
+  - name: docker
+    host:
+      path: \\\\.\\pipe\\docker_engine
+depends_on:
+  - linux-amd64
+
+---
+
+kind: pipeline
+type: docker
 name: manifest
 platform:
   os: linux
@@ -456,5 +483,5 @@ depends_on:
 - linux-arm64
 - linux-arm
 - windows-1809
-- windows-2004
 - windows-20H2
+- windows-2022

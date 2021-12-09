@@ -31,6 +31,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
+	debugConfig.MustSetupDebug()
 	var (
 		opts agent.Options
 		err  error

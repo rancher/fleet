@@ -41,18 +41,17 @@ require (
 	github.com/go-openapi/spec v0.19.5
 	github.com/google/go-containerregistry v0.1.1
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
-	github.com/hashicorp/go-getter v1.4.1
+	github.com/hashicorp/go-getter v1.5.9
 	github.com/hashicorp/go-multierror v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
 	github.com/rancher/gitjob v0.1.5
 	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
-	github.com/rancher/wrangler v0.8.4
-	github.com/rancher/wrangler-cli v0.0.0-20200815040857-81c48cf8ab43
+	github.com/rancher/wrangler v0.8.8
+	github.com/rancher/wrangler-cli v0.0.0-20211112052728-f172e9bf59af
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.1.3
 	github.com/stretchr/testify v1.7.0
-	github.com/ulikunitz/xz v0.5.8 // indirect
 	go.mozilla.org/sops/v3 v3.6.1
 	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
 	helm.sh/helm/v3 v3.5.1

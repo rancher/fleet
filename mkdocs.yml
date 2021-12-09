@@ -27,11 +27,6 @@ nav:
   - architecture.md
   - examples.md
   - Operator Guide:
-    - Installation:
-      - Overview: installation.md
-      - single-cluster-install.md
-      - multi-cluster-install.md
-      - uninstall.md
     - Managing Clusters:
       - Registration:
         - cluster-overview.md
@@ -48,6 +43,15 @@ nav:
       - bundle-diffs.md
       - webhook.md
       - imagescan.md
+      - cluster-bundles-state.md
+  - troubleshooting.md
+  - Advanced Users: 
+    - Overview: advanced-users.md
+    - Installation: 
+      - Overview: installation.md
+      - single-cluster-install.md
+      - multi-cluster-install.md
+      - uninstall.md
 extra:
   fleet:
     apiVersion: fleet.cattle.io/v1alpha1

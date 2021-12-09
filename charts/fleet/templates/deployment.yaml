@@ -30,6 +30,11 @@ spec:
         imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
         command:
         - fleetcontroller
+        {{- if .Values.debug }}
+        - --debug
+        - --debug-level
+        - {{ quote .Values.debugLevel }}
+        {{- end }}
         {{- if not .Values.gitops.enabled }}
         - --disable-gitops
         {{- end }}

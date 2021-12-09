@@ -22,6 +22,7 @@ import (
 	"github.com/rancher/fleet/modules/cli/pkg/progress"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/content"
+	"github.com/rancher/wrangler/pkg/data"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 	"helm.sh/helm/v3/pkg/repo"
@@ -337,7 +338,7 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 		httpGetter.Client.Transport = transport
 	}
 	if auth.SSHPrivateKey != nil {
-		if strings.IndexAny(c.Src, "&;") == -1 {
+		if strings.IndexAny(c.Src, "?") == -1 {
 			c.Src += "?"
 		} else {
 			c.Src += "&"
@@ -428,12 +429,7 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 
 func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 	result := &fleet.GenericMap{Data: make(map[string]interface{})}
-	for k, v := range first.Data {
-		result.Data[k] = v
-	}
-	for k, v := range second.Data {
-		result.Data[k] = v
-	}
+	result.Data = data.MergeMaps(first.Data, second.Data)
 	return result
 }
 

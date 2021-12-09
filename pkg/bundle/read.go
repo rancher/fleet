@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/bundleyaml"
 	name1 "github.com/rancher/wrangler/pkg/name"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
@@ -43,14 +44,14 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 	)
 
 	if file == "" {
-		file = filepath.Join(baseDir, "fleet.yaml")
-		if f, err := os.Open(file); os.IsNotExist(err) {
-			in = bytes.NewBufferString("{}")
-		} else if err != nil {
+		if file, err := setupIOReader(baseDir); err != nil {
 			return nil, err
+		} else if file != nil {
+			in = file
+			defer file.Close()
 		} else {
-			in = f
-			defer f.Close()
+			// Create a new buffer if opening both files resulted in "IsNotExist" errors.
+			in = bytes.NewBufferString("{}")
 		}
 	} else {
 		f, err := os.Open(filepath.Join(baseDir, file))
@@ -62,6 +63,27 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 	}
 
 	return Read(ctx, name, baseDir, in, opts)
+}
+
+// Try accessing the documented, primary fleet.yaml extension first. If that returns an "IsNotExist" error, then we
+// try the fallback extension. If we receive "IsNotExist" errors for both file extensions, then we return a "nil" file
+// and a "nil" error. If either return a non-"IsNotExist" error, then we return the error immediately.
+func setupIOReader(baseDir string) (*os.File, error) {
+	if file, err := os.Open(bundleyaml.GetFleetYamlPath(baseDir, false)); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	} else if err == nil {
+		// File must be closed in the parent function.
+		return file, nil
+	}
+
+	if file, err := os.Open(bundleyaml.GetFleetYamlPath(baseDir, true)); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	} else if err == nil {
+		// File must be closed in the parent function.
+		return file, nil
+	}
+
+	return nil, nil
 }
 
 func Read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
@@ -99,6 +121,8 @@ func size(bundle *fleet.Bundle) (int, error) {
 }
 
 type localSpec struct {
+	Name   string            `json:"name,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
 	fleet.BundleSpec
 	TargetCustomizations []fleet.BundleTarget `json:"targetCustomizations,omitempty"`
 	ImageScans           []imageScan          `json:"imageScans,omitempty"`
@@ -153,6 +177,10 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	meta.Name = name
+	if bundle.Name != "" {
+		meta.Name = bundle.Name
+	}
+
 	setTargetNames(&bundle.BundleSpec)
 
 	resources, err := readResources(ctx, &bundle.BundleSpec, opts.Compress, baseDir, opts.Auth)
@@ -169,7 +197,15 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	for k, v := range opts.Labels {
 		if def.Labels == nil {
-			def.Labels = map[string]string{}
+			def.Labels = make(map[string]string)
+		}
+		def.Labels[k] = v
+	}
+
+	// apply additional labels from spec
+	for k, v := range bundle.Labels {
+		if def.Labels == nil {
+			def.Labels = make(map[string]string)
 		}
 		def.Labels[k] = v
 	}

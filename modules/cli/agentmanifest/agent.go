@@ -25,7 +25,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
@@ -76,24 +75,6 @@ func insecurePing(host string) {
 	if err == nil {
 		resp.Body.Close()
 	}
-}
-
-func testKubeConfig(kubeConfig, host string) error {
-	insecurePing(host)
-
-	restConfig, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeConfig))
-	if err != nil {
-		return fmt.Errorf("failed to test kubeconfig: %w", err)
-	}
-	client, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("failed to test build client from kubeconfig: %w", err)
-	}
-	_, err = client.Discovery().ServerVersion()
-	if err != nil {
-		return fmt.Errorf("failed to test connection to %s: %w", host, err)
-	}
-	return nil
 }
 
 func AgentManifest(ctx context.Context, agentNamespace, controllerNamespace, agentScope string, cg *client.Getter, output io.Writer, tokenName string, opts *Options) error {
