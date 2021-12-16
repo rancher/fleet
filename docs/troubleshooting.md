@@ -80,7 +80,7 @@ For users who want to deploy to the local cluster as well, they may move the clu
 
 ### Enable debug logging for `fleet-controller` and `fleet-agent`?
 
-Available in Rancher v2.6.3, the ability to enable debug logging has been added to Fleet in Rancher.
+Available in Rancher v2.6.3 (Fleet v0.3.8), the ability to enable debug logging has been added to Fleet in Rancher.
 
 - Go to the **Dashboard**, then click on the **local cluster** in the left navigation menu 
 - Select **Apps & Marketplace**, then **Installed Apps** from the dropdown 
