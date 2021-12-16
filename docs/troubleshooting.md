@@ -67,7 +67,7 @@ NAME                                READY   STATUS    RESTARTS   AGE
 fleet-controller-64f49d756b-n57wq   1/1     Running   0          3m21s
 ```
 
-### Migrate the local cluster to the Fleet default cluster
+### Migrate the local cluster to the Fleet default cluster?
 
 For users who want to deploy to the local cluster as well, they may move the cluster from `fleet-local` to `fleet-default` in the Rancher UI as follows:
 
@@ -77,6 +77,14 @@ For users who want to deploy to the local cluster as well, they may move the clu
 - Select **`fleet-default`** from the **Assign Cluster To** dropdown.
 
 **Result**: The cluster will be migrated to `fleet-default`.
+
+### Enable debug logging for `fleet-controller` and `fleet-agent`?
+
+Available in Rancher v2.6.3, the ability to enable debug logging has been added to Fleet in Rancher.
+
+- Go to the **Dashboard**, then click on the **local cluster** in the left navigation menu 
+- Select **Apps & Marketplace**, then **Installed Apps** from the dropdown 
+- From there, you will upgrade the Fleet chart with the value `debug=true`. You can also set `debugLevel=5` if desired.
 
 ## **Additional Solutions for Other Fleet Issues**
 
