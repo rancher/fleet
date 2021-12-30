@@ -55,6 +55,20 @@ subjects:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-fleet-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fleet-controller
+subjects:
+  - kind: ServiceAccount
+    name: fleet-controller
+    namespace: {{.Release.Namespace}}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: fleet-controller
