@@ -36,7 +36,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 		status.Summary.DesiredReady)
 	status.Display.State = string(summary.GetSummaryState(status.Summary))
 
-	metrics.ObserveBundle(bundle, &status)
+	metrics.CollectBundleMetrics(bundle, &status)
 
 	return status, nil
 }
@@ -90,6 +90,8 @@ func (h *handler) OnRepoChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatu
 	status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)
+
+	metrics.CollectGitRepoMetrics(gitrepo, &status)
 	return status, nil
 }
 
@@ -113,7 +115,7 @@ func (h *handler) OnBundleDeploymentChange(bundleDeployment *fleet.BundleDeploym
 		State:     string(summary.GetDeploymentState(bundleDeployment)),
 	}
 
-	metrics.ObserveBundleDeployment(bundleDeployment, &status)
+	metrics.CollectBundleDeploymentMetrics(bundleDeployment, &status)
 
 	return status, nil
 }
