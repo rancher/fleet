@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"fmt"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 
@@ -88,7 +90,7 @@ var (
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: bundleSubsystem,
-			Name:      "total_observations",
+			Name:      "observations_total",
 			Help:      "The total times that this bundle has been observed",
 		},
 		bundleLabels,
@@ -104,13 +106,13 @@ var (
 	)
 )
 
-func ObserveBundle(bundle *fleet.Bundle, status *fleet.BundleStatus) {
+func CollectBundleMetrics(bundle *fleet.Bundle, status *fleet.BundleStatus) {
 	labels := prometheus.Labels{
 		"name":       bundle.Name,
 		"namespace":  bundle.Namespace,
 		"commit":     bundle.ObjectMeta.Labels["fleet.cattle.io/commit"],
 		"repo":       bundle.ObjectMeta.Labels["fleet.cattle.io/repo-name"],
-		"generation": string(bundle.ObjectMeta.Generation),
+		"generation": fmt.Sprintf("%d", bundle.ObjectMeta.Generation),
 	}
 
 	bundleNotReadyDeployments.With(labels).Set(float64(status.Summary.NotReady))

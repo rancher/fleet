@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"fmt"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 
@@ -26,14 +28,14 @@ var (
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: bundledeploymentSubsystem,
-			Name:      "total_observations",
+			Name:      "observations_total",
 			Help:      "The total times that this bundle deployment has been observed",
 		},
 		bundledeploymentLabels,
 	)
 )
 
-func ObserveBundleDeployment(bundleDep *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) {
+func CollectBundleDeploymentMetrics(bundleDep *fleet.BundleDeployment, status *fleet.BundleDeploymentStatus) {
 	clusterName, clusterDisplayName := getClusterName(bundleDep)
 
 	labels := prometheus.Labels{
@@ -45,7 +47,7 @@ func ObserveBundleDeployment(bundleDep *fleet.BundleDeployment, status *fleet.Bu
 		"commit":               bundleDep.ObjectMeta.Labels["fleet.cattle.io/commit"],
 		"bundle":               bundleDep.ObjectMeta.Labels["fleet.cattle.io/bundle-name"],
 		"bundle_namespace":     bundleDep.ObjectMeta.Labels["fleet.cattle.io/bundle-namespace"],
-		"generation":           string(bundleDep.ObjectMeta.Generation),
+		"generation":           fmt.Sprintf("%d", bundleDep.ObjectMeta.Generation),
 	}
 
 	bundleDeploymentState.With(labels).Set(float64(fleet.StateRank[summary.GetDeploymentState(bundleDep)]))
