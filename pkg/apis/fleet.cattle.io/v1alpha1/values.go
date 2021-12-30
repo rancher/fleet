@@ -8,7 +8,7 @@ import (
 
 // GlobalValues are values that are inserted into deployments containing some metadata about the deployment
 type GlobalValues struct {
-	Fleet *FleetGlobalValues `json:"fleet,omitempty"`
+	Fleet FleetGlobalValues `json:"fleet,omitempty"`
 }
 
 // FleetGlobalValues is metadata pertaining to fleet
@@ -19,7 +19,7 @@ type FleetGlobalValues struct {
 
 type GenericMap struct {
 	Data   map[string]interface{} `json:"-"`
-	Global *GlobalValues          `json:"global,omitempty"`
+	Global GlobalValues           `json:"global,omitempty"`
 }
 
 func (in GenericMap) MarshalJSON() ([]byte, error) {
@@ -47,14 +47,14 @@ func (in *GenericMap) UnmarshalJSON(data []byte) error {
 	if !ok {
 		return nil
 	}
-	labels := make(map[string]string{}, len(clusterLabels))
+	labels := make(map[string]string, len(clusterLabels))
 
 	for k, v := range clusterLabels {
 		labels[k] = v.(string)
 	}
 
-	in.Global = &GlobalValues{
-		Fleet: &FleetGlobalValues{
+	in.Global = GlobalValues{
+		Fleet: FleetGlobalValues{
 			ClusterLabels: labels,
 		},
 	}

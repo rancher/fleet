@@ -53,27 +53,12 @@ func ObserveBundleDeployment(bundleDep *fleet.BundleDeployment, status *fleet.Bu
 }
 
 func getClusterName(bundleDep *fleet.BundleDeployment) (string, string) {
-	globalValues := bundleDep.Spec.StagedOptions.Helm.Values.Global
-	if globalValues == nil {
-		return "", ""
-	}
-
-	fleetValues := globalValues.Fleet
-	if fleetValues == nil {
-		return "", ""
-	}
-
-	clusterLabels := fleetValues.ClusterLabels
-	if clusterLabels == nil {
-		return "", ""
-	}
-
-	name, ok := clusterLabels["management.cattle.io/cluster-name"]
+	name, ok := bundleDep.Spec.StagedOptions.Helm.Values.Global.Fleet.ClusterLabels["management.cattle.io/cluster-name"]
 	if !ok {
 		name = ""
 	}
 
-	displayName, ok := clusterLabels["management.cattle.io/cluster-display-name"]
+	displayName, ok := bundleDep.Spec.StagedOptions.Helm.Values.Global.Fleet.ClusterLabels["management.cattle.io/cluster-display-name"]
 	if !ok {
 		displayName = ""
 	}
