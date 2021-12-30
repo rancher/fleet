@@ -36,7 +36,7 @@ require (
 	github.com/argoproj/argo-cd v1.8.7
 	github.com/argoproj/gitops-engine v0.3.3
 	github.com/cheggaaa/pb v1.0.27
-	github.com/evanphx/json-patch v4.9.0+incompatible
+	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/go-git/go-git/v5 v5.2.0
 	github.com/go-openapi/spec v0.19.5
 	github.com/google/go-containerregistry v0.1.1
@@ -44,6 +44,7 @@ require (
 	github.com/hashicorp/go-getter v1.5.9
 	github.com/hashicorp/go-multierror v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.11.0 // indirect
 	github.com/rancher/fleet/pkg/apis v0.0.0
 	github.com/rancher/gitjob v0.1.5
 	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
@@ -62,6 +63,7 @@ require (
 	k8s.io/kubernetes v1.21.3 // indirect
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/cli-utils v0.23.1
+	sigs.k8s.io/controller-runtime v0.9.0 // indirect
 	sigs.k8s.io/kustomize/api v0.8.8
 	sigs.k8s.io/kustomize/kyaml v0.10.17
 	sigs.k8s.io/yaml v1.2.0
