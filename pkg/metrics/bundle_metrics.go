@@ -10,7 +10,7 @@ import (
 
 var (
 	bundleSubsystem = "bundle"
-	bundleLabels    = []string{"name", "namespace"}
+	bundleLabels    = []string{"name", "namespace", "commit", "repo", "generation"}
 
 	bundleNotReadyDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -106,8 +106,11 @@ var (
 
 func ObserveBundle(bundle *fleet.Bundle, status *fleet.BundleStatus) {
 	labels := prometheus.Labels{
-		"name":      bundle.Name,
-		"namespace": bundle.Namespace,
+		"name":       bundle.Name,
+		"namespace":  bundle.Namespace,
+		"commit":     bundle.ObjectMeta.Labels["fleet.cattle.io/commit"],
+		"repo":       bundle.ObjectMeta.Labels["fleet.cattle.io/repo-name"],
+		"generation": string(bundle.ObjectMeta.Generation),
 	}
 
 	bundleNotReadyDeployments.With(labels).Set(float64(status.Summary.NotReady))
