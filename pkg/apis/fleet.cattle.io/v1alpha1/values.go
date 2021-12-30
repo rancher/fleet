@@ -47,7 +47,7 @@ func (in *GenericMap) UnmarshalJSON(data []byte) error {
 	if !ok {
 		return nil
 	}
-	var labels = map[string]string{}
+	labels := make(map[string]string{}, len(clusterLabels))
 
 	for k, v := range clusterLabels {
 		labels[k] = v.(string)
