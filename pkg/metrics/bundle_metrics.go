@@ -9,98 +9,98 @@ import (
 )
 
 var (
-	bundle_subsystem = "bundle"
-	bundle_labels    = []string{"name", "namespace"}
+	bundleSubsystem = "bundle"
+	bundleLabels    = []string{"name", "namespace"}
 
 	bundleNotReadyDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "not_ready",
 			Help:      "Number of deployments for a specific bundle in a not ready state.",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 	bundleWaitAppliedDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "wait_applied",
 			Help:      "Number of deployments for a specific bundle in a wait applied state.",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 	bundleErrAppliedDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "err_applied",
 			Help:      "Number of deployments for a specific bundle in a error applied state.",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 	bundleOutOfSyncDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "out_of_sync",
 			Help:      "Number of deployments for a specific bundle in a out of sync state.",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 	bundleModifiedDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "modified",
 			Help:      "Number of deployments for a specific bundle in a modified state.",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 	bundleReadyDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "ready",
 			Help:      "Number of deployments for a specific bundle in a ready state.",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 	bundlePendingDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "pending",
 			Help:      "Number of deployments for a specific bundle in a pending state.",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 	bundleDesiredReadyDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "desired_ready",
 			Help:      "Number of deployments that are desired to be ready for a bundle.",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 	bundleObserved = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "total_observations",
 			Help:      "The total times that this bundle has been observed",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 	bundleState = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundle_subsystem,
+			Subsystem: bundleSubsystem,
 			Name:      "state",
 			Help:      "Shows the state of this bundle deployment. Ready = 1, NotReady = 2, Pending = 3, OutOfSync = 4, Modified = 5, WaitApplied = 6, ErrApplied = 7.",
 		},
-		bundle_labels,
+		bundleLabels,
 	)
 )
 

@@ -9,27 +9,27 @@ import (
 )
 
 var (
-	bundledeployment_subsystem = "bundledeployment"
-	bundledeployment_labels    = []string{"name", "namespace", "cluster_name", "cluster_display_name"}
+	bundledeploymentSubsystem = "bundledeployment"
+	bundledeploymentLabels    = []string{"name", "namespace", "cluster_name", "cluster_display_name"}
 
 	bundleDeploymentState = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Subsystem: bundledeployment_subsystem,
+			Subsystem: bundledeploymentSubsystem,
 			Name:      "state",
 			Help:      "Shows the state of this bundle deployment. Ready = 1, NotReady = 2, Pending = 3, OutOfSync = 4, Modified = 5, WaitApplied = 6, ErrApplied = 7.",
 		},
-		bundledeployment_labels,
+		bundledeploymentLabels,
 	)
 
 	bundleDeploymentObserved = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
-			Subsystem: bundledeployment_subsystem,
+			Subsystem: bundledeploymentSubsystem,
 			Name:      "total_observations",
 			Help:      "The total times that this bundle deployment has been observed",
 		},
-		bundledeployment_labels,
+		bundledeploymentLabels,
 	)
 )
 
