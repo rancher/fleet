@@ -132,8 +132,22 @@ spec:
                     type: integer
                   values:
                     nullable: true
+                    properties:
+                      global:
+                        nullable: true
+                        properties:
+                          fleet:
+                            nullable: true
+                            properties:
+                              clusterLabels:
+                                additionalProperties:
+                                  nullable: true
+                                  type: string
+                                nullable: true
+                                type: object
+                            type: object
+                        type: object
                     type: object
-                    x-kubernetes-preserve-unknown-fields: true
                   valuesFiles:
                     items:
                       nullable: true
@@ -499,8 +513,22 @@ spec:
                           type: integer
                         values:
                           nullable: true
+                          properties:
+                            global:
+                              nullable: true
+                              properties:
+                                fleet:
+                                  nullable: true
+                                  properties:
+                                    clusterLabels:
+                                      additionalProperties:
+                                        nullable: true
+                                        type: string
+                                      nullable: true
+                                      type: object
+                                  type: object
+                              type: object
                           type: object
-                          x-kubernetes-preserve-unknown-fields: true
                         valuesFiles:
                           items:
                             nullable: true
@@ -1006,8 +1034,22 @@ spec:
                         type: integer
                       values:
                         nullable: true
+                        properties:
+                          global:
+                            nullable: true
+                            properties:
+                              fleet:
+                                nullable: true
+                                properties:
+                                  clusterLabels:
+                                    additionalProperties:
+                                      nullable: true
+                                      type: string
+                                    nullable: true
+                                    type: object
+                                type: object
+                            type: object
                         type: object
-                        x-kubernetes-preserve-unknown-fields: true
                       valuesFiles:
                         items:
                           nullable: true
@@ -1149,8 +1191,22 @@ spec:
                         type: integer
                       values:
                         nullable: true
+                        properties:
+                          global:
+                            nullable: true
+                            properties:
+                              fleet:
+                                nullable: true
+                                properties:
+                                  clusterLabels:
+                                    additionalProperties:
+                                      nullable: true
+                                      type: string
+                                    nullable: true
+                                    type: object
+                                type: object
+                            type: object
                         type: object
-                        x-kubernetes-preserve-unknown-fields: true
                       valuesFiles:
                         items:
                           nullable: true
@@ -2293,8 +2349,22 @@ spec:
                             type: string
                           patch:
                             nullable: true
+                            properties:
+                              global:
+                                nullable: true
+                                properties:
+                                  fleet:
+                                    nullable: true
+                                    properties:
+                                      clusterLabels:
+                                        additionalProperties:
+                                          nullable: true
+                                          type: string
+                                        nullable: true
+                                        type: object
+                                    type: object
+                                type: object
                             type: object
-                            x-kubernetes-preserve-unknown-fields: true
                           state:
                             nullable: true
                             type: string
@@ -2803,8 +2873,22 @@ spec:
                   type: integer
                 values:
                   nullable: true
+                  properties:
+                    global:
+                      nullable: true
+                      properties:
+                        fleet:
+                          nullable: true
+                          properties:
+                            clusterLabels:
+                              additionalProperties:
+                                nullable: true
+                                type: string
+                              nullable: true
+                              type: object
+                          type: object
+                      type: object
                   type: object
-                  x-kubernetes-preserve-unknown-fields: true
                 valuesFiles:
                   items:
                     nullable: true
@@ -3170,8 +3254,22 @@ spec:
                         type: integer
                       values:
                         nullable: true
+                        properties:
+                          global:
+                            nullable: true
+                            properties:
+                              fleet:
+                                nullable: true
+                                properties:
+                                  clusterLabels:
+                                    additionalProperties:
+                                      nullable: true
+                                      type: string
+                                    nullable: true
+                                    type: object
+                                type: object
+                            type: object
                         type: object
-                        x-kubernetes-preserve-unknown-fields: true
                       valuesFiles:
                         items:
                           nullable: true
@@ -3678,8 +3776,22 @@ spec:
                       type: integer
                     values:
                       nullable: true
+                      properties:
+                        global:
+                          nullable: true
+                          properties:
+                            fleet:
+                              nullable: true
+                              properties:
+                                clusterLabels:
+                                  additionalProperties:
+                                    nullable: true
+                                    type: string
+                                  nullable: true
+                                  type: object
+                              type: object
+                          type: object
                       type: object
-                      x-kubernetes-preserve-unknown-fields: true
                     valuesFiles:
                       items:
                         nullable: true
@@ -3821,8 +3933,22 @@ spec:
                       type: integer
                     values:
                       nullable: true
+                      properties:
+                        global:
+                          nullable: true
+                          properties:
+                            fleet:
+                              nullable: true
+                              properties:
+                                clusterLabels:
+                                  additionalProperties:
+                                    nullable: true
+                                    type: string
+                                  nullable: true
+                                  type: object
+                              type: object
+                          type: object
                       type: object
-                      x-kubernetes-preserve-unknown-fields: true
                     valuesFiles:
                       items:
                         nullable: true
@@ -4970,8 +5096,22 @@ spec:
                           type: string
                         patch:
                           nullable: true
+                          properties:
+                            global:
+                              nullable: true
+                              properties:
+                                fleet:
+                                  nullable: true
+                                  properties:
+                                    clusterLabels:
+                                      additionalProperties:
+                                        nullable: true
+                                        type: string
+                                      nullable: true
+                                      type: object
+                                  type: object
+                              type: object
                           type: object
-                          x-kubernetes-preserve-unknown-fields: true
                         state:
                           nullable: true
                           type: string
