@@ -134,10 +134,8 @@ spec:
                     nullable: true
                     properties:
                       global:
-                        nullable: true
                         properties:
                           fleet:
-                            nullable: true
                             properties:
                               clusterLabels:
                                 additionalProperties:
@@ -515,10 +513,8 @@ spec:
                           nullable: true
                           properties:
                             global:
-                              nullable: true
                               properties:
                                 fleet:
-                                  nullable: true
                                   properties:
                                     clusterLabels:
                                       additionalProperties:
@@ -1036,10 +1032,8 @@ spec:
                         nullable: true
                         properties:
                           global:
-                            nullable: true
                             properties:
                               fleet:
-                                nullable: true
                                 properties:
                                   clusterLabels:
                                     additionalProperties:
@@ -1193,10 +1187,8 @@ spec:
                         nullable: true
                         properties:
                           global:
-                            nullable: true
                             properties:
                               fleet:
-                                nullable: true
                                 properties:
                                   clusterLabels:
                                     additionalProperties:
@@ -2351,10 +2343,8 @@ spec:
                             nullable: true
                             properties:
                               global:
-                                nullable: true
                                 properties:
                                   fleet:
-                                    nullable: true
                                     properties:
                                       clusterLabels:
                                         additionalProperties:
@@ -2875,10 +2865,8 @@ spec:
                   nullable: true
                   properties:
                     global:
-                      nullable: true
                       properties:
                         fleet:
-                          nullable: true
                           properties:
                             clusterLabels:
                               additionalProperties:
@@ -3256,10 +3244,8 @@ spec:
                         nullable: true
                         properties:
                           global:
-                            nullable: true
                             properties:
                               fleet:
-                                nullable: true
                                 properties:
                                   clusterLabels:
                                     additionalProperties:
@@ -3778,10 +3764,8 @@ spec:
                       nullable: true
                       properties:
                         global:
-                          nullable: true
                           properties:
                             fleet:
-                              nullable: true
                               properties:
                                 clusterLabels:
                                   additionalProperties:
@@ -3935,10 +3919,8 @@ spec:
                       nullable: true
                       properties:
                         global:
-                          nullable: true
                           properties:
                             fleet:
-                              nullable: true
                               properties:
                                 clusterLabels:
                                   additionalProperties:
@@ -5098,10 +5080,8 @@ spec:
                           nullable: true
                           properties:
                             global:
-                              nullable: true
                               properties:
                                 fleet:
-                                  nullable: true
                                   properties:
                                     clusterLabels:
                                       additionalProperties:
