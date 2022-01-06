@@ -128,7 +128,7 @@ func CollectBundleMetrics(bundle *fleet.Bundle, status *fleet.BundleStatus) {
 
 	currentState := summary.GetSummaryState(bundle.Status.Summary)
 
-	for _, state := range states {
+	for _, state := range bundleStates {
 		labels["state"] = string(state)
 
 		if state == currentState {

@@ -86,6 +86,9 @@ func (h *handler) OnClusterGroupChange(cluster *fleet.ClusterGroup, status fleet
 	}
 
 	status.Display.State = string(state)
+
+	metrics.CollectClusterGroupMetrics(cluster, &status)
+
 	return status, nil
 }
 

@@ -5,7 +5,7 @@ import fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 var (
 	namespace = "fleet"
 
-	states = []fleet.BundleState{
+	bundleStates = []fleet.BundleState{
 		fleet.Ready,
 		fleet.NotReady,
 		fleet.Pending,
@@ -13,6 +13,17 @@ var (
 		fleet.Modified,
 		fleet.WaitApplied,
 		fleet.ErrApplied,
+	}
+
+	clusterStates = []string{
+		string(fleet.NotReady),
+		string(fleet.Ready),
+		"WaitCheckIn",
+	}
+
+	clusterGroupStates = []string{
+		string(fleet.NotReady),
+		string(fleet.Ready),
 	}
 
 	clusterNameLabel        = "management.cattle.io/cluster-name"

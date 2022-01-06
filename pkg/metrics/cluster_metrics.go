@@ -11,7 +11,7 @@ import (
 
 var (
 	clusterSubsystem = "cluster"
-	clusterLabels    = []string{"name", "namespace", "cluster_name", "cluster_display_name", "generation"}
+	clusterLabels    = []string{"name", "namespace", "cluster_name", "cluster_display_name", "generation", "state"}
 
 	clusterAgentNodesReady = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -121,6 +121,15 @@ var (
 		},
 		clusterLabels,
 	)
+	clusterState = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: clusterSubsystem,
+			Name:      "state",
+			Help:      "The current state of a given cluster",
+		},
+		clusterLabels,
+	)
 	clusterObserved = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -139,6 +148,7 @@ func CollectClusterMetrics(cluster *fleet.Cluster, status *fleet.ClusterStatus) 
 		"cluster_name":         cluster.ObjectMeta.Labels[clusterNameLabel],
 		"cluster_display_name": cluster.ObjectMeta.Labels[clusterDisplayNameLabel],
 		"generation":           fmt.Sprintf("%d", cluster.ObjectMeta.Generation),
+		"state":                status.Display.State,
 	}
 
 	clusterAgentNodesReady.With(labels).Set(float64(status.Agent.ReadyNodes))
@@ -154,4 +164,14 @@ func CollectClusterMetrics(cluster *fleet.Cluster, status *fleet.ClusterStatus) 
 	clusterResourcesUnknown.With(labels).Set(float64(status.ResourceCounts.Unknown))
 	clusterResourcesWaitApplied.With(labels).Set(float64(status.ResourceCounts.WaitApplied))
 	clusterObserved.With(labels).Inc()
+
+	for _, state := range clusterStates {
+		labels["state"] = state
+
+		if state == status.Display.State {
+			clusterState.With(labels).Set(1)
+		} else {
+			clusterState.With(labels).Set(0)
+		}
+	}
 }

@@ -54,7 +54,7 @@ func CollectBundleDeploymentMetrics(bundleDep *fleet.BundleDeployment, status *f
 
 	currentState := summary.GetDeploymentState(bundleDep)
 
-	for _, state := range states {
+	for _, state := range bundleStates {
 		labels["state"] = string(state)
 
 		if state == currentState {
