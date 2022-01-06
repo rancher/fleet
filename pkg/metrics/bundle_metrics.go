@@ -12,7 +12,7 @@ import (
 
 var (
 	bundleSubsystem = "bundle"
-	bundleLabels    = []string{"name", "namespace", "commit", "repo", "generation"}
+	bundleLabels    = []string{"name", "namespace", "commit", "repo", "generation", "state"}
 
 	bundleNotReadyDeployments = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -113,6 +113,7 @@ func CollectBundleMetrics(bundle *fleet.Bundle, status *fleet.BundleStatus) {
 		"commit":     bundle.ObjectMeta.Labels["fleet.cattle.io/commit"],
 		"repo":       bundle.ObjectMeta.Labels["fleet.cattle.io/repo-name"],
 		"generation": fmt.Sprintf("%d", bundle.ObjectMeta.Generation),
+		"state":      string(summary.GetSummaryState(bundle.Status.Summary)),
 	}
 
 	bundleNotReadyDeployments.With(labels).Set(float64(status.Summary.NotReady))
@@ -123,6 +124,17 @@ func CollectBundleMetrics(bundle *fleet.Bundle, status *fleet.BundleStatus) {
 	bundleReadyDeployments.With(labels).Set(float64(status.Summary.Ready))
 	bundlePendingDeployments.With(labels).Set(float64(status.Summary.Pending))
 	bundleDesiredReadyDeployments.With(labels).Set(float64(status.Summary.DesiredReady))
-	bundleState.With(labels).Set(float64(fleet.StateRank[summary.GetSummaryState(bundle.Status.Summary)]))
 	bundleObserved.With(labels).Inc()
+
+	currentState := summary.GetSummaryState(bundle.Status.Summary)
+
+	for _, state := range states {
+		labels["state"] = string(state)
+
+		if state == currentState {
+			bundleState.With(labels).Set(1)
+		} else {
+			bundleState.With(labels).Set(0)
+		}
+	}
 }

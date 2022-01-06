@@ -12,7 +12,7 @@ import (
 
 var (
 	bundledeploymentSubsystem = "bundledeployment"
-	bundledeploymentLabels    = []string{"name", "namespace", "cluster_name", "cluster_display_name", "repo", "commit", "bundle", "bundle_namespace", "generation"}
+	bundledeploymentLabels    = []string{"name", "namespace", "cluster_name", "cluster_display_name", "repo", "commit", "bundle", "bundle_namespace", "generation", "state"}
 
 	bundleDeploymentState = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -48,10 +48,21 @@ func CollectBundleDeploymentMetrics(bundleDep *fleet.BundleDeployment, status *f
 		"bundle":               bundleDep.ObjectMeta.Labels["fleet.cattle.io/bundle-name"],
 		"bundle_namespace":     bundleDep.ObjectMeta.Labels["fleet.cattle.io/bundle-namespace"],
 		"generation":           fmt.Sprintf("%d", bundleDep.ObjectMeta.Generation),
+		"state":                string(summary.GetDeploymentState(bundleDep)),
 	}
-
-	bundleDeploymentState.With(labels).Set(float64(fleet.StateRank[summary.GetDeploymentState(bundleDep)]))
 	bundleDeploymentObserved.With(labels).Inc()
+
+	currentState := summary.GetDeploymentState(bundleDep)
+
+	for _, state := range states {
+		labels["state"] = string(state)
+
+		if state == currentState {
+			bundleState.With(labels).Set(1)
+		} else {
+			bundleState.With(labels).Set(0)
+		}
+	}
 }
 
 func getClusterName(bundleDep *fleet.BundleDeployment) (string, string) {
