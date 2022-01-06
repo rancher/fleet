@@ -19,7 +19,7 @@ var (
 			Namespace: namespace,
 			Subsystem: bundledeploymentSubsystem,
 			Name:      "state",
-			Help:      "Shows the state of this bundle deployment. Ready = 1, NotReady = 2, Pending = 3, OutOfSync = 4, Modified = 5, WaitApplied = 6, ErrApplied = 7.",
+			Help:      "Shows the state of this bundle deployment based on the state label. A value of 1 is true 0 is false.",
 		},
 		bundledeploymentLabels,
 	)
@@ -58,9 +58,9 @@ func CollectBundleDeploymentMetrics(bundleDep *fleet.BundleDeployment, status *f
 		labels["state"] = string(state)
 
 		if state == currentState {
-			bundleState.With(labels).Set(1)
+			bundleDeploymentState.With(labels).Set(1)
 		} else {
-			bundleState.With(labels).Set(0)
+			bundleDeploymentState.With(labels).Set(0)
 		}
 	}
 }
