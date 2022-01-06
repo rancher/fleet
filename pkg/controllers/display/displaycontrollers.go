@@ -61,6 +61,9 @@ func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterSt
 	if status.Agent.LastSeen.IsZero() {
 		status.Display.State = "WaitCheckIn"
 	}
+
+	metrics.CollectClusterMetrics(cluster, &status)
+
 	return status, nil
 }
 

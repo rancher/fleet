@@ -14,4 +14,7 @@ var (
 		fleet.WaitApplied,
 		fleet.ErrApplied,
 	}
+
+	clusterNameLabel        = "management.cattle.io/cluster-name"
+	clusterDisplayNameLabel = "management.cattle.io/cluster-display-name"
 )
