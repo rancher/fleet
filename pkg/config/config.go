@@ -43,6 +43,7 @@ type Config struct {
 	APIServerCA                     []byte            `json:"apiServerCA,omitempty"`
 	Bootstrap                       Bootstrap         `json:"bootstrap,omitempty"`
 	IgnoreClusterRegistrationLabels bool              `json:"ignoreClusterRegistrationLabels,omitempty"`
+	ControllerTolerations           []v1.Toleration   `json:"controllerTolerations,omitempty"`
 }
 
 type Bootstrap struct {

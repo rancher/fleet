@@ -34,14 +34,15 @@ var (
 )
 
 type Options struct {
-	CA              []byte
-	Host            string
-	NoCA            bool
-	Labels          map[string]string
-	ClientID        string
-	Generation      string
-	CheckinInterval string
-	AgentEnvVars    []v1.EnvVar
+	CA               []byte
+	Host             string
+	NoCA             bool
+	Labels           map[string]string
+	ClientID         string
+	Generation       string
+	CheckinInterval  string
+	AgentEnvVars     []v1.EnvVar
+	AgentTolerations []v1.Toleration
 }
 
 func AgentToken(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
@@ -107,7 +108,7 @@ func AgentManifest(ctx context.Context, agentNamespace, controllerNamespace, age
 		return err
 	}
 
-	objs = append(objs, agent.Manifest(agentNamespace, agentScope, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval, opts.AgentEnvVars)...)
+	objs = append(objs, agent.Manifest(agentNamespace, agentScope, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval, opts.AgentEnvVars, opts.AgentTolerations)...)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {

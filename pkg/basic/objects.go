@@ -1,6 +1,8 @@
 package basic
 
 import (
+	"reflect"
+
 	"github.com/rancher/wrangler/pkg/name"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -41,7 +43,7 @@ func Namespace(name string) *corev1.Namespace {
 
 }
 
-func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, linuxOnly bool) *appsv1.Deployment {
+func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, linuxOnly bool, additionalTolerations []corev1.Toleration) *appsv1.Deployment {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -90,12 +92,20 @@ func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, 
 		Operator: corev1.TolerationOpEqual,
 		Value:    "true",
 		Effect:   corev1.TaintEffectNoSchedule,
-	}, corev1.Toleration{
-		Key:      "cattle.io/os",
-		Operator: corev1.TolerationOpEqual,
-		Value:    "linux",
-		Effect:   corev1.TaintEffectNoSchedule,
 	})
+	for _, toleration := range additionalTolerations {
+		found := false
+		for _, existingToleration := range deployment.Spec.Template.Spec.Tolerations {
+			if reflect.DeepEqual(toleration, existingToleration) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			// only add a new toleration if we don't already have it defined in the spec
+			deployment.Spec.Template.Spec.Tolerations = append(deployment.Spec.Template.Spec.Tolerations, toleration)
+		}
+	}
 	return deployment
 }
 

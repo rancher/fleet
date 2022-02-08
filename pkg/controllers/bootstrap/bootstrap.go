@@ -78,9 +78,11 @@ func (h *handler) OnConfig(config *config.Config) error {
 				"name": "local",
 			},
 		},
+		// for the local cluster, set the Agent's tolerations to the controller's tolerations
 		Spec: fleet.ClusterSpec{
 			KubeConfigSecret: secret.Name,
 			AgentNamespace:   config.Bootstrap.AgentNamespace,
+			AgentTolerations: config.ControllerTolerations,
 		},
 	}, &fleet.ClusterGroup{
 		ObjectMeta: metav1.ObjectMeta{

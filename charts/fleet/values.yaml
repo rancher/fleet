@@ -58,5 +58,12 @@ tolerations:
 gitops:
   enabled: true
 
+# when gitops is enabled, you can use a gitjob block like the below to specify options for the gitjob subchart
+# e.x.
+# gitjob:
+#   tolerations:
+#     - key: mykey
+
+
 debug: false
 debugLevel: 0

@@ -144,7 +144,7 @@ func (h *handler) getAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
-	objs := agent.Manifest(agentNamespace, cluster.Spec.AgentNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, "bundle", cfg.AgentCheckinInternal.Duration.String(), cluster.Spec.AgentEnvVars)
+	objs := agent.Manifest(agentNamespace, cluster.Spec.AgentNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, "bundle", cfg.AgentCheckinInternal.Duration.String(), cluster.Spec.AgentEnvVars, cluster.Spec.AgentTolerations)
 	agentYAML, err := yaml.Export(objs...)
 	if err != nil {
 		return nil, err

@@ -63,7 +63,7 @@ func objects(namespace, controllerImage string, cfg string, crdsOnly bool) ([]ru
 	objs := []runtime.Object{
 		basic.Namespace(namespace),
 		serviceAccount,
-		basic.Deployment(namespace, genericName, controllerImage, "", serviceAccount.Name, true),
+		basic.Deployment(namespace, genericName, controllerImage, "", serviceAccount.Name, true, nil),
 		basic.ConfigMap(namespace, config.ManagerConfigName, config.Key, cfg),
 	}
 
