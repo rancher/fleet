@@ -49,9 +49,6 @@ spec:
                     type: string
                   insecureSkipTLSVerify:
                     type: boolean
-                  onTag:
-                    nullable: true
-                    type: string
                   provider:
                     nullable: true
                     type: string
@@ -59,6 +56,9 @@ spec:
                     nullable: true
                     type: string
                   revision:
+                    nullable: true
+                    type: string
+                  secret:
                     nullable: true
                     type: string
                 type: object
@@ -70,6 +70,9 @@ spec:
                   backoffLimit:
                     nullable: true
                     type: integer
+                  completionMode:
+                    nullable: true
+                    type: string
                   completions:
                     nullable: true
                     type: integer
@@ -107,6 +110,9 @@ spec:
                         nullable: true
                         type: object
                     type: object
+                  suspend:
+                    nullable: true
+                    type: boolean
                   template:
                     properties:
                       metadata:
@@ -351,6 +357,34 @@ spec:
                                                   nullable: true
                                                   type: object
                                               type: object
+                                            namespaceSelector:
+                                              nullable: true
+                                              properties:
+                                                matchExpressions:
+                                                  items:
+                                                    properties:
+                                                      key:
+                                                        nullable: true
+                                                        type: string
+                                                      operator:
+                                                        nullable: true
+                                                        type: string
+                                                      values:
+                                                        items:
+                                                          nullable: true
+                                                          type: string
+                                                        nullable: true
+                                                        type: array
+                                                    type: object
+                                                  nullable: true
+                                                  type: array
+                                                matchLabels:
+                                                  additionalProperties:
+                                                    nullable: true
+                                                    type: string
+                                                  nullable: true
+                                                  type: object
+                                              type: object
                                             namespaces:
                                               items:
                                                 nullable: true
@@ -370,6 +404,34 @@ spec:
                                     items:
                                       properties:
                                         labelSelector:
+                                          nullable: true
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    nullable: true
+                                                    type: string
+                                                  operator:
+                                                    nullable: true
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      nullable: true
+                                                      type: string
+                                                    nullable: true
+                                                    type: array
+                                                type: object
+                                              nullable: true
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                nullable: true
+                                                type: string
+                                              nullable: true
+                                              type: object
+                                          type: object
+                                        namespaceSelector:
                                           nullable: true
                                           properties:
                                             matchExpressions:
@@ -446,6 +508,34 @@ spec:
                                                   nullable: true
                                                   type: object
                                               type: object
+                                            namespaceSelector:
+                                              nullable: true
+                                              properties:
+                                                matchExpressions:
+                                                  items:
+                                                    properties:
+                                                      key:
+                                                        nullable: true
+                                                        type: string
+                                                      operator:
+                                                        nullable: true
+                                                        type: string
+                                                      values:
+                                                        items:
+                                                          nullable: true
+                                                          type: string
+                                                        nullable: true
+                                                        type: array
+                                                    type: object
+                                                  nullable: true
+                                                  type: array
+                                                matchLabels:
+                                                  additionalProperties:
+                                                    nullable: true
+                                                    type: string
+                                                  nullable: true
+                                                  type: object
+                                              type: object
                                             namespaces:
                                               items:
                                                 nullable: true
@@ -465,6 +555,34 @@ spec:
                                     items:
                                       properties:
                                         labelSelector:
+                                          nullable: true
+                                          properties:
+                                            matchExpressions:
+                                              items:
+                                                properties:
+                                                  key:
+                                                    nullable: true
+                                                    type: string
+                                                  operator:
+                                                    nullable: true
+                                                    type: string
+                                                  values:
+                                                    items:
+                                                      nullable: true
+                                                      type: string
+                                                    nullable: true
+                                                    type: array
+                                                type: object
+                                              nullable: true
+                                              type: array
+                                            matchLabels:
+                                              additionalProperties:
+                                                nullable: true
+                                                type: string
+                                              nullable: true
+                                              type: object
+                                          type: object
+                                        namespaceSelector:
                                           nullable: true
                                           properties:
                                             matchExpressions:
@@ -791,6 +909,9 @@ spec:
                                           nullable: true
                                           type: string
                                       type: object
+                                    terminationGracePeriodSeconds:
+                                      nullable: true
+                                      type: integer
                                     timeoutSeconds:
                                       type: integer
                                   type: object
@@ -875,6 +996,9 @@ spec:
                                           nullable: true
                                           type: string
                                       type: object
+                                    terminationGracePeriodSeconds:
+                                      nullable: true
+                                      type: integer
                                     timeoutSeconds:
                                       type: integer
                                   type: object
@@ -1032,6 +1156,9 @@ spec:
                                           nullable: true
                                           type: string
                                       type: object
+                                    terminationGracePeriodSeconds:
+                                      nullable: true
+                                      type: integer
                                     timeoutSeconds:
                                       type: integer
                                   type: object
@@ -1404,6 +1531,9 @@ spec:
                                           nullable: true
                                           type: string
                                       type: object
+                                    terminationGracePeriodSeconds:
+                                      nullable: true
+                                      type: integer
                                     timeoutSeconds:
                                       type: integer
                                   type: object
@@ -1488,6 +1618,9 @@ spec:
                                           nullable: true
                                           type: string
                                       type: object
+                                    terminationGracePeriodSeconds:
+                                      nullable: true
+                                      type: integer
                                     timeoutSeconds:
                                       type: integer
                                   type: object
@@ -1645,6 +1778,9 @@ spec:
                                           nullable: true
                                           type: string
                                       type: object
+                                    terminationGracePeriodSeconds:
+                                      nullable: true
+                                      type: integer
                                     timeoutSeconds:
                                       type: integer
                                   type: object
@@ -2019,6 +2155,9 @@ spec:
                                           nullable: true
                                           type: string
                                       type: object
+                                    terminationGracePeriodSeconds:
+                                      nullable: true
+                                      type: integer
                                     timeoutSeconds:
                                       type: integer
                                   type: object
@@ -2103,6 +2242,9 @@ spec:
                                           nullable: true
                                           type: string
                                       type: object
+                                    terminationGracePeriodSeconds:
+                                      nullable: true
+                                      type: integer
                                     timeoutSeconds:
                                       type: integer
                                   type: object
@@ -2260,6 +2402,9 @@ spec:
                                           nullable: true
                                           type: string
                                       type: object
+                                    terminationGracePeriodSeconds:
+                                      nullable: true
+                                      type: integer
                                     timeoutSeconds:
                                       type: integer
                                   type: object
@@ -2721,8 +2866,6 @@ spec:
                                 ephemeral:
                                   nullable: true
                                   properties:
-                                    readOnly:
-                                      type: boolean
                                     volumeClaimTemplate:
                                       nullable: true
                                       properties:
@@ -3422,9 +3565,6 @@ spec:
               lastExecutedCommit:
                 nullable: true
                 type: string
-              lastSyncedTime:
-                nullable: true
-                type: string
               observedGeneration:
                 type: integer
               secretToken:
@@ -3489,9 +3629,6 @@ spec:
                   type: string
                 insecureSkipTLSVerify:
                   type: boolean
-                onTag:
-                  nullable: true
-                  type: string
                 provider:
                   nullable: true
                   type: string
@@ -3499,6 +3636,9 @@ spec:
                   nullable: true
                   type: string
                 revision:
+                  nullable: true
+                  type: string
+                secret:
                   nullable: true
                   type: string
               type: object
@@ -3510,6 +3650,9 @@ spec:
                 backoffLimit:
                   nullable: true
                   type: integer
+                completionMode:
+                  nullable: true
+                  type: string
                 completions:
                   nullable: true
                   type: integer
@@ -3547,6 +3690,9 @@ spec:
                       nullable: true
                       type: object
                   type: object
+                suspend:
+                  nullable: true
+                  type: boolean
                 template:
                   properties:
                     metadata:
@@ -3791,6 +3937,34 @@ spec:
                                                 nullable: true
                                                 type: object
                                             type: object
+                                          namespaceSelector:
+                                            nullable: true
+                                            properties:
+                                              matchExpressions:
+                                                items:
+                                                  properties:
+                                                    key:
+                                                      nullable: true
+                                                      type: string
+                                                    operator:
+                                                      nullable: true
+                                                      type: string
+                                                    values:
+                                                      items:
+                                                        nullable: true
+                                                        type: string
+                                                      nullable: true
+                                                      type: array
+                                                  type: object
+                                                nullable: true
+                                                type: array
+                                              matchLabels:
+                                                additionalProperties:
+                                                  nullable: true
+                                                  type: string
+                                                nullable: true
+                                                type: object
+                                            type: object
                                           namespaces:
                                             items:
                                               nullable: true
@@ -3810,6 +3984,34 @@ spec:
                                   items:
                                     properties:
                                       labelSelector:
+                                        nullable: true
+                                        properties:
+                                          matchExpressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  nullable: true
+                                                  type: string
+                                                operator:
+                                                  nullable: true
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    nullable: true
+                                                    type: string
+                                                  nullable: true
+                                                  type: array
+                                              type: object
+                                            nullable: true
+                                            type: array
+                                          matchLabels:
+                                            additionalProperties:
+                                              nullable: true
+                                              type: string
+                                            nullable: true
+                                            type: object
+                                        type: object
+                                      namespaceSelector:
                                         nullable: true
                                         properties:
                                           matchExpressions:
@@ -3886,6 +4088,34 @@ spec:
                                                 nullable: true
                                                 type: object
                                             type: object
+                                          namespaceSelector:
+                                            nullable: true
+                                            properties:
+                                              matchExpressions:
+                                                items:
+                                                  properties:
+                                                    key:
+                                                      nullable: true
+                                                      type: string
+                                                    operator:
+                                                      nullable: true
+                                                      type: string
+                                                    values:
+                                                      items:
+                                                        nullable: true
+                                                        type: string
+                                                      nullable: true
+                                                      type: array
+                                                  type: object
+                                                nullable: true
+                                                type: array
+                                              matchLabels:
+                                                additionalProperties:
+                                                  nullable: true
+                                                  type: string
+                                                nullable: true
+                                                type: object
+                                            type: object
                                           namespaces:
                                             items:
                                               nullable: true
@@ -3905,6 +4135,34 @@ spec:
                                   items:
                                     properties:
                                       labelSelector:
+                                        nullable: true
+                                        properties:
+                                          matchExpressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  nullable: true
+                                                  type: string
+                                                operator:
+                                                  nullable: true
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    nullable: true
+                                                    type: string
+                                                  nullable: true
+                                                  type: array
+                                              type: object
+                                            nullable: true
+                                            type: array
+                                          matchLabels:
+                                            additionalProperties:
+                                              nullable: true
+                                              type: string
+                                            nullable: true
+                                            type: object
+                                        type: object
+                                      namespaceSelector:
                                         nullable: true
                                         properties:
                                           matchExpressions:
@@ -4231,6 +4489,9 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  terminationGracePeriodSeconds:
+                                    nullable: true
+                                    type: integer
                                   timeoutSeconds:
                                     type: integer
                                 type: object
@@ -4315,6 +4576,9 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  terminationGracePeriodSeconds:
+                                    nullable: true
+                                    type: integer
                                   timeoutSeconds:
                                     type: integer
                                 type: object
@@ -4472,6 +4736,9 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  terminationGracePeriodSeconds:
+                                    nullable: true
+                                    type: integer
                                   timeoutSeconds:
                                     type: integer
                                 type: object
@@ -4844,6 +5111,9 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  terminationGracePeriodSeconds:
+                                    nullable: true
+                                    type: integer
                                   timeoutSeconds:
                                     type: integer
                                 type: object
@@ -4928,6 +5198,9 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  terminationGracePeriodSeconds:
+                                    nullable: true
+                                    type: integer
                                   timeoutSeconds:
                                     type: integer
                                 type: object
@@ -5085,6 +5358,9 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  terminationGracePeriodSeconds:
+                                    nullable: true
+                                    type: integer
                                   timeoutSeconds:
                                     type: integer
                                 type: object
@@ -5459,6 +5735,9 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  terminationGracePeriodSeconds:
+                                    nullable: true
+                                    type: integer
                                   timeoutSeconds:
                                     type: integer
                                 type: object
@@ -5543,6 +5822,9 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  terminationGracePeriodSeconds:
+                                    nullable: true
+                                    type: integer
                                   timeoutSeconds:
                                     type: integer
                                 type: object
@@ -5700,6 +5982,9 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  terminationGracePeriodSeconds:
+                                    nullable: true
+                                    type: integer
                                   timeoutSeconds:
                                     type: integer
                                 type: object
@@ -6161,8 +6446,6 @@ spec:
                               ephemeral:
                                 nullable: true
                                 properties:
-                                  readOnly:
-                                    type: boolean
                                   volumeClaimTemplate:
                                     nullable: true
                                     properties:
@@ -6860,9 +7143,6 @@ spec:
               nullable: true
               type: string
             lastExecutedCommit:
-              nullable: true
-              type: string
-            lastSyncedTime:
               nullable: true
               type: string
             observedGeneration:
