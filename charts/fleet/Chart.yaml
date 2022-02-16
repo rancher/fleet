@@ -11,9 +11,11 @@ annotations:
   catalog.cattle.io/experimental: "true"
   catalog.cattle.io/namespace: cattle-fleet-system
   catalog.cattle.io/release-name: fleet
+  catalog.cattle.io/permits-os: linux,windows
   catalog.cattle.io/provides-gvr: clusters.fleet.cattle.io/v1alpha1
   catalog.cattle.io/os: linux
 dependencies:
 - condition: gitops.enabled
   name: gitjob
   repository: file://./charts/gitjob
+
