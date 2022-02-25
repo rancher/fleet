@@ -1,9 +1,14 @@
-# Cluster and Bundle state
+# Clusters and Bundles
 
 Clusters and Bundles have different states in each phase of applying Bundles.
 
 ## Bundles
 
+Each bundle is created from paths in a GitRepo and modified further by reading the discovered `fleet.yaml` file.
+Bundle lifecycles are tracked between releases by the helm releaseName field added to each bundle. If the releaseName is not
+specified within fleet.yaml it is generated from `GitRepo.name + path`. Names over 54 characters are truncated with a `-<hash>` prefix.
+
+### Bundle States
 **Ready**: Bundles have been deployed and all resources are ready.
 
 **NotReady**: Bundles have been deployed and some resources are not ready.
@@ -19,6 +24,8 @@ Clusters and Bundles have different states in each phase of applying Bundles.
 **Modified**: Bundles have been deployed and all resources are ready, but there are some changes that were not made from the Git Repository.
 
 ## Clusters
+
+## Cluster States
 
 **WaitCheckIn**: Waiting for agent to report registration information and cluster status back.
 
