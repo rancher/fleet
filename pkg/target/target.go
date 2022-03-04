@@ -126,10 +126,10 @@ func (m *Manager) getBundlesInScopeForCluster(cluster *fleet.Cluster) ([]*fleet.
 	return bundleSet.bundles(), nil
 }
 
-func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bundle, _ error) {
+func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bundle, bdCleanupSet []*fleet.BundleDeployment, _ error) {
 	bundles, err := m.getBundlesInScopeForCluster(cluster)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for _, app := range bundles {
@@ -141,16 +141,38 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bun
 
 		cgs, err := m.clusterGroupsForCluster(cluster)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		m := bundle.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
-		if m != nil {
+		match := bundle.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
+		if match != nil {
 			result = append(result, app)
+		} else {
+			bd, err := m.getBundleDeploymentsInCluster(app, cluster)
+			if err != nil {
+				return nil, nil, err
+			}
+			bdCleanupSet = append(bdCleanupSet, bd...)
 		}
 	}
 
 	return
+}
+
+func (m *Manager) getBundleDeploymentsInCluster(app *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
+	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(DeploymentLabelsForSelector(app)))
+	if err != nil {
+		return nil, err
+	}
+	str := []string{"cluster", cluster.Namespace, cluster.Name}
+	nsPrefix := strings.Join(str, "-")
+	for _, appDep := range bundleDeployments {
+		if strings.HasPrefix(appDep.Namespace, nsPrefix) {
+			result = append(result, appDep)
+		}
+	}
+
+	return result, nil
 }
 
 func (m *Manager) getNamespacesForBundle(fleetBundle *fleet.Bundle) ([]string, error) {
