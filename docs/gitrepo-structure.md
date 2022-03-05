@@ -85,7 +85,7 @@ helm:
   valuesFiles:
     - values1.yaml
     - values2.yaml
-  # Allow to use values files from configmaps or secrets
+  # Allow to use values files from configmaps or secrets defined in the downstream clusters
   valuesFrom:
   - configMapKeyRef:
       name: configmap-values
@@ -201,7 +201,7 @@ dependsOn:
 
 ### Using ValuesFrom
 
-These examples showcase the style and format for using `valuesFrom`.
+These examples showcase the style and format for using `valuesFrom`. ConfigMaps and Secrets should be created in downstream clusters.
 
 Example [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/):
 
