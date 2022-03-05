@@ -31,8 +31,8 @@ type handler struct {
 	gitRepo           fleetcontrollers.GitRepoCache
 	images            fleetcontrollers.ImageScanController
 	bundles           fleetcontrollers.BundleController
-	mapper            meta.RESTMapper
 	bundleDeployments fleetcontrollers.BundleDeploymentController
+	mapper            meta.RESTMapper
 }
 
 func Register(ctx context.Context,
@@ -49,9 +49,9 @@ func Register(ctx context.Context,
 		mapper:            mapper,
 		targets:           targets,
 		bundles:           bundles,
+		bundleDeployments: bundleDeployments,
 		images:            images,
 		gitRepo:           gitRepo,
-		bundleDeployments: bundleDeployments,
 	}
 
 	fleetcontrollers.RegisterBundleGeneratingHandler(ctx,
@@ -90,16 +90,22 @@ func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Clus
 		return nil, nil
 	}
 
-	bundles, bdCleanupSet, err := h.targets.BundlesForCluster(cluster)
+	bundlesToRefresh, bundlesToCleanup, err := h.targets.BundlesForCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
-	for _, bundleDeployment := range bdCleanupSet {
-		logrus.Debugf("Deleting bundleDeployment: %v %v", bundleDeployment.Namespace, bundleDeployment.Name)
-		h.bundleDeployments.Delete(bundleDeployment.Namespace, bundleDeployment.Name, nil)
+	for _, bundle := range bundlesToCleanup {
+		bundleDeployments, err := h.targets.GetBundleDeploymentsForBundleInCluster(bundle, cluster)
+		if err != nil {
+			return nil, err
+		}
+		for _, bundleDeployment := range bundleDeployments {
+			logrus.Debugf("cleaning up bundleDeployment %v in namespace %v not matching the cluster: %v", bundleDeployment.Name, bundleDeployment.Namespace, cluster.Name)
+			h.bundleDeployments.Delete(bundleDeployment.Namespace, bundleDeployment.Name, nil)
+		}
 	}
 
-	for _, bundle := range bundles {
+	for _, bundle := range bundlesToRefresh {
 		h.bundles.Enqueue(bundle.Namespace, bundle.Name)
 	}
 

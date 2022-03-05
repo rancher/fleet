@@ -15,6 +15,7 @@ import (
 	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/wrangler/pkg/data"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -126,7 +127,7 @@ func (m *Manager) getBundlesInScopeForCluster(cluster *fleet.Cluster) ([]*fleet.
 	return bundleSet.bundles(), nil
 }
 
-func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bundle, bdCleanupSet []*fleet.BundleDeployment, _ error) {
+func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, bundlesToCleanup []*fleet.Bundle, err error) {
 	bundles, err := m.getBundlesInScopeForCluster(cluster)
 	if err != nil {
 		return nil, nil, err
@@ -146,29 +147,24 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bun
 
 		match := bundle.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
 		if match != nil {
-			result = append(result, app)
+			bundlesToRefresh = append(bundlesToRefresh, app)
 		} else {
-			bd, err := m.getBundleDeploymentsInCluster(app, cluster)
-			if err != nil {
-				return nil, nil, err
-			}
-			bdCleanupSet = append(bdCleanupSet, bd...)
+			bundlesToCleanup = append(bundlesToCleanup, app)
 		}
 	}
 
 	return
 }
 
-func (m *Manager) getBundleDeploymentsInCluster(app *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
+func (m *Manager) GetBundleDeploymentsForBundleInCluster(app *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
 	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(DeploymentLabelsForSelector(app)))
 	if err != nil {
 		return nil, err
 	}
-	str := []string{"cluster", cluster.Namespace, cluster.Name}
-	nsPrefix := strings.Join(str, "-")
-	for _, appDep := range bundleDeployments {
-		if strings.HasPrefix(appDep.Namespace, nsPrefix) {
-			result = append(result, appDep)
+	nsPrefix := name.SafeConcatName("cluster", cluster.Namespace, cluster.Name)
+	for _, bd := range bundleDeployments {
+		if strings.HasPrefix(bd.Namespace, nsPrefix) {
+			result = append(result, bd)
 		}
 	}
 
