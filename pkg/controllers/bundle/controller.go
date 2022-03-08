@@ -3,6 +3,7 @@ package bundle
 import (
 	"context"
 	"sort"
+	"strings"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -239,6 +240,17 @@ func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []
 				Labels:    target.Deployment.Labels,
 			},
 			Spec: target.Deployment.Spec,
+		}
+		// Apply cluster schedule if no schedule defined in bundle
+		// Bundle schedule takes precedence over cluster schedule
+		if !strings.HasPrefix(bundle.Name, "fleet-agent") {
+			if target.Cluster.Spec.DeploymentSchedule.Cron != "" && dp.Spec.Options.Schedule.Cron == "" {
+				dp.Spec.Options.Schedule.Cron = target.Cluster.Spec.DeploymentSchedule.Cron
+			}
+
+			if target.Cluster.Spec.DeploymentSchedule.Duration != "" && dp.Spec.Options.Schedule.Duration == "" {
+				dp.Spec.Options.Schedule.Duration = target.Cluster.Spec.DeploymentSchedule.Duration
+			}
 		}
 		dp.Spec.DependsOn = bundle.Spec.DependsOn
 		result = append(result, dp)
