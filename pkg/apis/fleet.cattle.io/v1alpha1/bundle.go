@@ -134,11 +134,13 @@ var (
 	BundleConditionReady              = "Ready"
 	BundleDeploymentConditionReady    = "Ready"
 	BundleDeploymentConditionDeployed = "Deployed"
+	BundleScheduledCondition          = "Scheduled"
 )
 
 type BundleStatus struct {
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 
+	Schedule                 *Schedule         `json:"schedule,omitempty"`
 	Summary                  BundleSummary     `json:"summary,omitempty"`
 	NewlyCreated             int               `json:"newlyCreated,omitempty"`
 	Unavailable              int               `json:"unavailable"`
@@ -184,6 +186,7 @@ type BundleDeployment struct {
 }
 
 type BundleDeploymentOptions struct {
+	Schedule            *Schedule         `json:"schedule,omitempty"`
 	DefaultNamespace    string            `json:"defaultNamespace,omitempty"`
 	TargetNamespace     string            `json:"namespace,omitempty"`
 	Kustomize           *KustomizeOptions `json:"kustomize,omitempty"`
@@ -283,6 +286,8 @@ type BundleDeploymentStatus struct {
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
 	SyncGeneration      *int64                              `json:"syncGeneration,omitempty"`
+	ScheduledAt         string                              `json:"scheduledAt,omitempty"`
+	Scheduled           bool                                `json:"scheduled,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {

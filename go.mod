@@ -4,7 +4,9 @@ go 1.16
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
+	github.com/robfig/cron/v3 => github.com/juliev0/cron/v3 v3.0.2-0.20220201201149-588c2c0f7d0e
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.6.3-fleet1
+
 	k8s.io/api => k8s.io/api v0.21.3
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.21.3 // indirect
 	k8s.io/apimachinery => k8s.io/apimachinery v0.21.3 // indirect
@@ -49,6 +51,7 @@ require (
 	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
 	github.com/rancher/wrangler v0.8.8
 	github.com/rancher/wrangler-cli v0.0.0-20211112052728-f172e9bf59af
+	github.com/robfig/cron/v3 v3.0.0-00010101000000-000000000000
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.1.3
 	github.com/stretchr/testify v1.7.0
