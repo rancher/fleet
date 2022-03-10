@@ -4,7 +4,7 @@ go 1.16
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
-	github.com/robfig/cron/v3 => github.com/juliev0/cron/v3 v3.0.2-0.20220201201149-588c2c0f7d0e
+	github.com/robfig/cron/v3 => github.com/juliev0/cron/v3 v3.0.2-0.20220310063235-7181f74c09e9
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.6.3-fleet1
 
 	k8s.io/api => k8s.io/api v0.21.3

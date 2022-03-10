@@ -14,7 +14,6 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/merr"
-	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -155,9 +154,7 @@ func isWithinScheduleWindow(bd *fleet.BundleDeployment) (bool, error) {
 	}
 	now := time.Now()
 
-	// TODO: Improve this hack to remove cast
-	// waiting for https://github.com/robfig/cron/pull/437
-	latestCronTick := cronSchedule.(*cron.SpecSchedule).Prev(now)
+	latestCronTick := cronSchedule.Prev(now)
 	deadline := latestCronTick.Add(duration)
 
 	var helmTimeout time.Duration
