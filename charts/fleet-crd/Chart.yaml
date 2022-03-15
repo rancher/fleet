@@ -10,3 +10,5 @@ annotations:
   catalog.cattle.io/namespace: cattle-fleet-system
   catalog.cattle.io/release-name: fleet-crd
   catalog.cattle.io/os: linux
+  catalog.cattle.io/permits-os: linux,windows
+

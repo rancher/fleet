@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/relatedresource"
+	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,11 +27,12 @@ const (
 )
 
 type handler struct {
-	targets *target.Manager
-	gitRepo fleetcontrollers.GitRepoCache
-	images  fleetcontrollers.ImageScanController
-	bundles fleetcontrollers.BundleController
-	mapper  meta.RESTMapper
+	targets           *target.Manager
+	gitRepo           fleetcontrollers.GitRepoCache
+	images            fleetcontrollers.ImageScanController
+	bundles           fleetcontrollers.BundleController
+	bundleDeployments fleetcontrollers.BundleDeploymentController
+	mapper            meta.RESTMapper
 }
 
 func Register(ctx context.Context,
@@ -44,11 +46,12 @@ func Register(ctx context.Context,
 	bundleDeployments fleetcontrollers.BundleDeploymentController,
 ) {
 	h := &handler{
-		mapper:  mapper,
-		targets: targets,
-		bundles: bundles,
-		images:  images,
-		gitRepo: gitRepo,
+		mapper:            mapper,
+		targets:           targets,
+		bundles:           bundles,
+		bundleDeployments: bundleDeployments,
+		images:            images,
+		gitRepo:           gitRepo,
 	}
 
 	fleetcontrollers.RegisterBundleGeneratingHandler(ctx,
@@ -87,12 +90,22 @@ func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Clus
 		return nil, nil
 	}
 
-	bundles, err := h.targets.BundlesForCluster(cluster)
+	bundlesToRefresh, bundlesToCleanup, err := h.targets.BundlesForCluster(cluster)
 	if err != nil {
 		return nil, err
 	}
+	for _, bundle := range bundlesToCleanup {
+		bundleDeployments, err := h.targets.GetBundleDeploymentsForBundleInCluster(bundle, cluster)
+		if err != nil {
+			return nil, err
+		}
+		for _, bundleDeployment := range bundleDeployments {
+			logrus.Debugf("cleaning up bundleDeployment %v in namespace %v not matching the cluster: %v", bundleDeployment.Name, bundleDeployment.Namespace, cluster.Name)
+			h.bundleDeployments.Delete(bundleDeployment.Namespace, bundleDeployment.Name, nil)
+		}
+	}
 
-	for _, bundle := range bundles {
+	for _, bundle := range bundlesToRefresh {
 		h.bundles.Enqueue(bundle.Namespace, bundle.Name)
 	}
 

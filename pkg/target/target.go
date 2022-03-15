@@ -15,6 +15,7 @@ import (
 	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/wrangler/pkg/data"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -126,10 +127,10 @@ func (m *Manager) getBundlesInScopeForCluster(cluster *fleet.Cluster) ([]*fleet.
 	return bundleSet.bundles(), nil
 }
 
-func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bundle, _ error) {
+func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, bundlesToCleanup []*fleet.Bundle, err error) {
 	bundles, err := m.getBundlesInScopeForCluster(cluster)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for _, app := range bundles {
@@ -141,16 +142,33 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (result []*fleet.Bun
 
 		cgs, err := m.clusterGroupsForCluster(cluster)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
-		m := bundle.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
-		if m != nil {
-			result = append(result, app)
+		match := bundle.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
+		if match != nil {
+			bundlesToRefresh = append(bundlesToRefresh, app)
+		} else {
+			bundlesToCleanup = append(bundlesToCleanup, app)
 		}
 	}
 
 	return
+}
+
+func (m *Manager) GetBundleDeploymentsForBundleInCluster(app *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
+	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(DeploymentLabelsForSelector(app)))
+	if err != nil {
+		return nil, err
+	}
+	nsPrefix := name.SafeConcatName("cluster", cluster.Namespace, cluster.Name)
+	for _, bd := range bundleDeployments {
+		if strings.HasPrefix(bd.Namespace, nsPrefix) {
+			result = append(result, bd)
+		}
+	}
+
+	return result, nil
 }
 
 func (m *Manager) getNamespacesForBundle(fleetBundle *fleet.Bundle) ([]string, error) {
