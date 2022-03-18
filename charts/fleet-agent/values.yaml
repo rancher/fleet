@@ -34,20 +34,23 @@ internal:
 
 # The nodeSelector and tolerations for the agent deployment
 fleetAgent:
+  ## Node labels for pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
   nodeSelector: {}
+  ## List of node taints to tolerate (requires Kubernetes >= 1.6)
   tolerations: []
 kubectl:
-  nodeSelector:
-    kubernetes.io/os: linux
+  ## Node labels for pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+  ## List of node taints to tolerate (requires Kubernetes >= 1.6)
   tolerations:
-    - key: cattle.io/os
-      operator: "Equal"
-      value: "linux"
-      effect: NoSchedule
-    - key: node.cloudprovider.kubernetes.io/uninitialized
-      operator: "Equal"
-      value: "true"
-      effect: NoSchedule
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    operator: "Equal"
+    value: "true"
+    effect: NoSchedule
 
 global:
   cattle:
