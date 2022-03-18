@@ -27,11 +27,11 @@ spec:
         - {{ quote .Values.debugLevel }}
         {{- end }}
       serviceAccountName: fleet-agent
-      {{- with .Values.fleetAgent.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.fleetAgent.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
+{{- if .Values.fleetAgent.nodeSelector }}
+{{ toYaml .Values.fleetAgent.nodeSelector | indent 8 }}
+{{- end }}
+      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
+{{- if .Values.fleetAgent.tolerations }}
+{{ toYaml .Values.fleetAgent.tolerations | indent 8 }}
+{{- end }}
