@@ -10,7 +10,7 @@ This section contains commands and tips to troubleshoot Fleet.
 In the local management cluster where the `fleet-controller` is deployed, run the following command with your specific `fleet-controller` pod name filled in:
 
 ```
-$ kubectl logs -f $fleet-controller-pod-name -n cattle-fleet-system
+$ kubectl logs -f -l app=fleet-controller -n cattle-fleet-system
 ```
 
 ### Fetch the log from the `fleet-agent`?
@@ -19,9 +19,9 @@ Go to each downstream cluster and run the following command for the local cluste
 
 ```
 # Downstream cluster
-$ kubectl logs -f $fleet-agent-pod-name -n cattle-fleet-system
+$ kubectl logs -f -l app=fleet-agent -n cattle-fleet-system
 # Local cluster
-$ kubectl logs -f $fleet-agent-pod-name -n cattle-local-fleet-system
+$ kubectl logs -f -l app=fleet-agent -n cattle-local-fleet-system
 ```
 
 ### Fetch detailed error logs from `GitRepos` and `Bundles`?
@@ -58,8 +58,8 @@ $ kubectl logs -f $gitRepoName-pod-name -n namespace
 You can check the status of the `fleet-controller` pods by running the commands below:
 
 ```bash
-kubectl -n fleet-system logs -l app=fleet-controller
-kubectl -n fleet-system get pods -l app=fleet-controller
+kubectl logs -l app=fleet-controller -n cattle-fleet-system
+kubectl get pods -l app=fleet-controller -n cattle-fleet-system
 ```
 
 ```bash
