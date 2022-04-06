@@ -67,40 +67,5 @@ func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appCon
 					},
 				},
 			},
-			&rbacv1.RoleBinding{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "fleet-agent-get-cred",
-					Namespace: systemRegistrationNamespace,
-				},
-				Subjects: []rbacv1.Subject{
-					{
-						Kind:     "Group",
-						APIGroup: "rbac.authorization.k8s.io",
-						Name:     "system:serviceaccounts",
-					},
-				},
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "Role",
-					Name:     "fleet-agent-get-cred",
-				},
-			},
-			&rbacv1.ClusterRoleBinding{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "fleet-agent-get-content",
-				},
-				Subjects: []rbacv1.Subject{
-					{
-						Kind:     "Group",
-						APIGroup: "rbac.authorization.k8s.io",
-						Name:     "system:serviceaccounts",
-					},
-				},
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "ClusterRole",
-					Name:     "fleet-content",
-				},
-			},
 		)
 }
