@@ -62,7 +62,7 @@ require (
 	k8s.io/kubernetes v1.21.3 // indirect
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/cli-utils v0.23.1
-	sigs.k8s.io/kustomize/api v0.8.8
-	sigs.k8s.io/kustomize/kyaml v0.10.17
+	sigs.k8s.io/kustomize/api v0.11.4
+	sigs.k8s.io/kustomize/kyaml v0.13.6
 	sigs.k8s.io/yaml v1.2.0
 )
