@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/argoproj/argo-cd/pkg/apis/application/v1alpha1"
-	"github.com/argoproj/argo-cd/util/argo"
+	"github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
+	"github.com/argoproj/argo-cd/v2/util/argo/normalizers"
 	"github.com/argoproj/gitops-engine/pkg/diff"
 	jsonpatch "github.com/evanphx/json-patch"
 	fleetnorm "github.com/rancher/fleet/modules/agent/pkg/deployer/normalizers"
@@ -132,7 +132,7 @@ func (m *Manager) normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeploy
 		}
 	}
 
-	ignoreNorm, err := argo.NewDiffNormalizer(ignore, nil)
+	ignoreNorm, err := normalizers.NewIgnoreNormalizer(ignore, nil)
 	if err != nil {
 		return nil, err
 	}
