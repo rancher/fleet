@@ -120,7 +120,8 @@ func chartURL(location *fleet.HelmOptions, auth Auth) (string, error) {
 		pool.AppendCertsFromPEM(auth.CABundle)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = &tls.Config{
-			RootCAs: pool,
+			RootCAs:    pool,
+			MinVersion: tls.VersionTLS12,
 		}
 		client.Transport = transport
 	}
@@ -333,7 +334,8 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 		pool.AppendCertsFromPEM(auth.CABundle)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = &tls.Config{
-			RootCAs: pool,
+			RootCAs:    pool,
+			MinVersion: tls.VersionTLS12,
 		}
 		httpGetter.Client.Transport = transport
 	}
