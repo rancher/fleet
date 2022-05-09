@@ -52,6 +52,14 @@
       {
         "path": "pkg/controllers/clusterregistration/controller.go",
         "text": "G101: Potential hardcoded credentials"
+      },
+      {
+        "path": "cmd/fleetcontroller/main.go",
+        "text": "G108: Profiling endpoint is automatically exposed on /debug/pprof"
+      },
+      {
+        "path": "cmd/fleetagent/main.go",
+        "text": "G108: Profiling endpoint is automatically exposed on /debug/pprof"
       }
     ]
   }
