@@ -360,6 +360,10 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 	}
 
 	err = filepath.Walk(temp, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if info.IsDir() {
 			if strings.HasPrefix(filepath.Base(path), ".") {
 				return filepath.SkipDir
