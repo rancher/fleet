@@ -21,7 +21,6 @@ type handler struct {
 }
 
 type contentRef struct {
-	deleteCandidate bool
 	safeToDelete    bool
 	markForDeletion bool
 	bundleCount     int

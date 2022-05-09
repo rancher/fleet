@@ -16,7 +16,6 @@ import (
 	"github.com/rancher/fleet/pkg/summary"
 	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
-	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/wrangler/pkg/apply"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/genericcondition"
@@ -77,7 +76,6 @@ func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresour
 }
 
 type handler struct {
-	shareClientFactory  client.SharedClientFactory
 	gitjobCache         v1.GitJobCache
 	secrets             corev1controller.SecretCache
 	bundleCache         fleetcontrollers.BundleCache
