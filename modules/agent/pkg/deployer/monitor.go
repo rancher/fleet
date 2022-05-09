@@ -249,7 +249,7 @@ func modified(plan apply.Plan) (result []fleet.ModifiedStatus) {
 		}
 	}
 
-	return
+	return result
 }
 
 func nonReady(plan apply.Plan) (result []fleet.NonReadyStatus) {
