@@ -54,7 +54,7 @@ func marshalConfig(opts *Options) (string, error) {
 	if err := enc.Encode(config); err != nil {
 		return "", err
 	}
-	return string(buf.Bytes()), nil
+	return buf.String(), nil
 }
 
 func assignDefaults(opts *Options) {

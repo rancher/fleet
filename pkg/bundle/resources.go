@@ -338,7 +338,7 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 		httpGetter.Client.Transport = transport
 	}
 	if auth.SSHPrivateKey != nil {
-		if strings.IndexAny(c.Src, "?") == -1 {
+		if !strings.ContainsAny(c.Src, "?") {
 			c.Src += "?"
 		} else {
 			c.Src += "&"

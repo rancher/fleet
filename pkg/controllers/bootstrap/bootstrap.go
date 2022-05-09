@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	splitter = regexp.MustCompile("\\s*,\\s*")
+	splitter = regexp.MustCompile(`\s*,\s*`)
 )
 
 type handler struct {
