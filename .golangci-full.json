@@ -46,5 +46,13 @@
       "unused",
       "funlen"
     ]
+  },
+  "issues": {
+    "exclude-rules": [
+      {
+        "path": "pkg/controllers/clusterregistration/controller.go",
+        "text": "G101: Potential hardcoded credentials"
+      }
+    ]
   }
 }
