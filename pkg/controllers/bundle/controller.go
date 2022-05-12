@@ -101,7 +101,10 @@ func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Clus
 		}
 		for _, bundleDeployment := range bundleDeployments {
 			logrus.Debugf("cleaning up bundleDeployment %v in namespace %v not matching the cluster: %v", bundleDeployment.Name, bundleDeployment.Namespace, cluster.Name)
-			h.bundleDeployments.Delete(bundleDeployment.Namespace, bundleDeployment.Name, nil)
+			err := h.bundleDeployments.Delete(bundleDeployment.Namespace, bundleDeployment.Name, nil)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
