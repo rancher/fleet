@@ -28,6 +28,8 @@ spec:
         image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
         name: fleet-controller
         imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
+        ports:
+          - containerPort: 6060
         command:
         - fleetcontroller
         {{- if .Values.debug }}

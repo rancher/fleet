@@ -5,6 +5,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rancher/fleet/pkg/agent"
 	"github.com/rancher/fleet/pkg/fleetcontroller"
 	"github.com/rancher/fleet/pkg/version"
@@ -26,6 +27,7 @@ type FleetManager struct {
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	go func() {
+		http.Handle("/metrics", promhttp.Handler())
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 	debugConfig.MustSetupDebug()
