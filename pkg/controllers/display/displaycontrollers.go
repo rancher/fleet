@@ -7,6 +7,7 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/metrics"
 	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/wrangler/pkg/genericcondition"
 )
@@ -29,11 +30,13 @@ func Register(ctx context.Context,
 	fleetcontrollers.RegisterBundleStatusHandler(ctx, bundles, "", "bundle-display", h.OnBundleChange)
 }
 
-func (h *handler) OnBundleChange(_ *fleet.Bundle, status fleet.BundleStatus) (fleet.BundleStatus, error) {
+func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus) (fleet.BundleStatus, error) {
 	status.Display.ReadyClusters = fmt.Sprintf("%d/%d",
 		status.Summary.Ready,
 		status.Summary.DesiredReady)
 	status.Display.State = string(summary.GetSummaryState(status.Summary))
+
+	metrics.CollectBundleMetrics(bundle, &status)
 
 	return status, nil
 }
@@ -58,6 +61,9 @@ func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterSt
 	if status.Agent.LastSeen.IsZero() {
 		status.Display.State = "WaitCheckIn"
 	}
+
+	metrics.CollectClusterMetrics(cluster, &status)
+
 	return status, nil
 }
 
@@ -80,6 +86,9 @@ func (h *handler) OnClusterGroupChange(cluster *fleet.ClusterGroup, status fleet
 	}
 
 	status.Display.State = string(state)
+
+	metrics.CollectClusterGroupMetrics(cluster, &status)
+
 	return status, nil
 }
 
@@ -87,6 +96,8 @@ func (h *handler) OnRepoChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatu
 	status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)
+
+	metrics.CollectGitRepoMetrics(gitrepo, &status)
 	return status, nil
 }
 
@@ -109,6 +120,8 @@ func (h *handler) OnBundleDeploymentChange(bundleDeployment *fleet.BundleDeploym
 		Monitored: monitored,
 		State:     string(summary.GetDeploymentState(bundleDeployment)),
 	}
+
+	metrics.CollectBundleDeploymentMetrics(bundleDeployment, &status)
 
 	return status, nil
 }
