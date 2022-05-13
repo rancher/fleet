@@ -52,7 +52,6 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		labels["fleet.cattle.io/commit"] = a.Commit
 	}
 
-	name := ""
 	opts := &apply.Options{
 		BundleFile:      a.BundleFile,
 		Output:          writer.NewDefaultNone(a.Output),
@@ -91,29 +90,22 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 
 	if a.File == "-" {
 		opts.BundleReader = os.Stdin
-		if len(args) != 1 {
-			return fmt.Errorf("the bundle name is required as the first argument")
-		}
-		name = args[0]
 	} else if a.File != "" {
 		f, err := os.Open(a.File)
 		if err != nil {
-			return err
+			return fmt.Errorf("there was an issue opening the given fleet file %q: %w", a.File, err)
 		}
+
 		defer f.Close()
 		opts.BundleReader = f
-		if len(args) != 1 {
-			return fmt.Errorf("the bundle name is required as the first argument")
-		}
-		name = args[0]
-	} else if len(args) < 1 {
-		return fmt.Errorf("at least one arguments is required BUNDLE_NAME")
-	} else {
-		name = args[0]
-		args = args[1:]
+	} else if len(args) == 0 {
+		return fmt.Errorf("argument BUNDLE_NAME is required")
 	}
 
-	return apply.Apply(cmd.Context(), Client, name, args, opts)
+	name := args[0]
+	paths := args[1:]
+
+	return apply.Apply(cmd.Context(), Client, name, paths, opts)
 }
 
 func currentCommit() string {
