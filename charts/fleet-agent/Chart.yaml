@@ -1,12 +1,13 @@
-apiVersion: v2
-name: fleet-agent
-description: Fleet Manager Agent - GitOps at Scale
-version: 0.0.0
-appVersion: 0.0.0
-icon: https://charts.rancher.io/assets/logos/fleet.svg
 annotations:
   catalog.cattle.io/certified: rancher
   catalog.cattle.io/hidden: "true"
   catalog.cattle.io/namespace: cattle-fleet-system
   catalog.cattle.io/release-name: fleet-agent
   catalog.cattle.io/os: linux
+  catalog.cattle.io/permits-os: linux,windows
+apiVersion: v2
+appVersion: 0.0.0
+description: Fleet Manager Agent - GitOps at Scale
+icon: https://charts.rancher.io/assets/logos/fleet.svg
+name: fleet-agent
+version: 0.0.0

@@ -55,5 +55,5 @@ nav:
 extra:
   fleet:
     apiVersion: fleet.cattle.io/v1alpha1
-    version: v0.3.3
+    version: v0.3.9
     helmversion: 0.3.3

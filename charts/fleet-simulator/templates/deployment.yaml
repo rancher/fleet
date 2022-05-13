@@ -23,3 +23,12 @@ spec:
         - "--simulators={{.Values.simulators}}"
         name: fleet-agent-simulator
       serviceAccountName: fleet-agent
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+

@@ -33,4 +33,8 @@ manifests:
       architecture: amd64
       os: windows
       version: ltsc2022
-      
+  -
+    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-linux-s390x
+    platform:
+      architecture: s390x
+      os: linux
