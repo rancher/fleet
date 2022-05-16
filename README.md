@@ -49,7 +49,9 @@ metadata:
   namespace: fleet-local
 spec:
   # Everything from this repo will be ran in this cluster. You trust me right?
-  repo: "https://github.com/rancher/fleet-examples/tree/master/simple"
+  repo: "https://github.com/rancher/fleet-examples"
+  paths:
+  - simple
 EOF
 
 kubectl apply -f example.yaml
