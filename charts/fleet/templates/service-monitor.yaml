@@ -1,0 +1,12 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: fleet-controller
+  labels:
+    app: fleet-controller
+spec:
+  selector:
+    matchLabels:
+      app: fleet-controller
+  endpoints:
+  - port: metrics
