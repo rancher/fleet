@@ -66,3 +66,5 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.10.17
 	sigs.k8s.io/yaml v1.2.0
 )
+
+replace github.com/json-iterator/go v1.1.10 => github.com/json-iterator/go v1.1.12
