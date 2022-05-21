@@ -237,7 +237,14 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 		return status, err
 	}
 
-	for _, path := range gitrepo.Spec.Paths {
+	// Checking if paths field is empty
+	// if yes, using the default value "/"
+	paths := gitrepo.Spec.Paths
+	if len(paths) == 0 {
+		paths = []string{"/"}
+	}
+
+	for _, path := range paths {
 		updatePath := filepath.Join(tmp, path)
 		if err := update.WithSetters(updatePath, updatePath, scans); err != nil {
 			kstatus.SetError(gitrepo, err.Error())
