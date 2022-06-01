@@ -1,5 +1,8 @@
-FROM alpine:3.15.0
-RUN apk -U --no-cache add git openssh && adduser -u 1000 -D gituser
+FROM registry.suse.com/bci/bci-base:15.3.17.17.8
+RUN zypper -n update && \
+    zypper -n install openssh && \
+    zypper -n clean -a
+RUN useradd -u 1000 -U -m gitjob
 COPY bin/gitjob /usr/bin/
-USER 1000
+USER gitjob
 CMD ["gitjob"]
