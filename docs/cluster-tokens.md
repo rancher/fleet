@@ -39,6 +39,14 @@ spec:
     ttl: 240h
 ```
 
+After the `ClusterRegistrationToken` is created, Fleet will create a corresponding `Secret` with the same name.
+As the `Secret` creation is performed asynchronously, you will need to wait until it's available before using it.
+
+One way to do so is via the following one-liner:
+```shell
+while ! kubectl --namespace=clusters  get secret new-token; do sleep 5; done
+```
+
 ## Obtaining Token Value (Agent values.yaml)
 
 The token value is the contents of a `values.yaml` file that is expected to be passed to `helm install`
