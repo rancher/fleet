@@ -41,7 +41,7 @@ require (
 	github.com/go-openapi/spec v0.19.5
 	github.com/google/go-containerregistry v0.1.1
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
-	github.com/hashicorp/go-getter v1.5.11
+	github.com/hashicorp/go-getter v1.6.1
 	github.com/hashicorp/go-multierror v1.1.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.19.0
