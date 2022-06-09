@@ -72,7 +72,7 @@ jobs:
       -
         name: K3d Import Images
         run: |
-          k3d image import rancher/fleet:dev rancher/fleet-agent:dev -m direct
+          k3d image import rancher/fleet:dev rancher/fleet-agent:dev
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate }}
