@@ -37,7 +37,7 @@ var _ = Describe("SingleCluster", func() {
 
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
-					out, _ := env.Kubectl.Namespace("fleet-helm-example").Get("pods")
+					out, _ := k.Namespace("fleet-helm-example").Get("pods")
 					return out
 				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
 			})
@@ -50,7 +50,7 @@ var _ = Describe("SingleCluster", func() {
 
 			It("deploys the manifest", func() {
 				Eventually(func() string {
-					out, _ := env.Kubectl.Namespace("fleet-manifest-example").Get("pods")
+					out, _ := k.Namespace("fleet-manifest-example").Get("pods")
 					return out
 				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend-"), ContainSubstring("redis-")))
 			})
@@ -63,7 +63,7 @@ var _ = Describe("SingleCluster", func() {
 
 			It("runs kustomize and deploys the manifest", func() {
 				Eventually(func() string {
-					out, _ := env.Kubectl.Namespace("fleet-kustomize-example").Get("pods")
+					out, _ := k.Namespace("fleet-kustomize-example").Get("pods")
 					return out
 				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
 			})
@@ -76,7 +76,7 @@ var _ = Describe("SingleCluster", func() {
 
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
-					out, _ := env.Kubectl.Namespace("fleet-helm-kustomize-example").Get("pods")
+					out, _ := k.Namespace("fleet-helm-kustomize-example").Get("pods")
 					return out
 				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
 			})
@@ -89,13 +89,25 @@ var _ = Describe("SingleCluster", func() {
 
 			It("deploys all the helm charts", func() {
 				Eventually(func() string {
-					out, _ := env.Kubectl.Namespace("fleet-multi-chart-helm-example").Get("pods")
+					out, _ := k.Namespace("fleet-local").Get("bundles")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend-"), ContainSubstring("redis-")))
+				}, testenv.Timeout).Should(SatisfyAll(
+					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
+					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
+				))
+
 				Eventually(func() string {
-					out, _ := env.Kubectl.Namespace("cattle-monitoring-system").Get("deployments")
+					out, _ := k.Get("bundledeployments", "-A")
 					return out
-				}, testenv.Timeout).Should(ContainSubstring("rancher-monitoring-"))
+				}, testenv.Timeout).Should(SatisfyAll(
+					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
+					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
+				))
+
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-multi-chart-helm-example").Get("deployments")
+					return out
+				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
 			})
 		})
 	})
