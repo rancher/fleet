@@ -58,17 +58,4 @@ above example one can run the following one-liner:
 kubectl --namespace clusters get secret new-token -o 'jsonpath={.data.values}' | base64 --decode > values.yaml
 ```
 
-Note the `values.yaml` file is incomplete and will need manual adjustment before being used. Contents will be similar
-to the following:
-
-```yaml
-apiServerCA: ""
-apiServerURL: ""
-clusterNamespace: clusters
-systemRegistrationNamespace: clusters-system
-token: eyJhbGciOiJSUzI1NiIsImtpZCI6IkR5bEth...
-```
-
-Specifically, `apiServerCA` and `apiServerURL` strings will need to be completed appropriately.
-
 Once the `values.yaml` is ready it can be used repeatedly by clusters to register until the TTL expires.
