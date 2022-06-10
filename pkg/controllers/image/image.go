@@ -279,7 +279,7 @@ func shouldSync(gitrepo *v1alpha1.GitRepo) bool {
 		}
 	}
 
-	if time.Now().Sub(gitrepo.Status.LastSyncedImageScanTime.Time) < interval.Duration {
+	if time.Since(gitrepo.Status.LastSyncedImageScanTime.Time) < interval.Duration {
 		return false
 	}
 	return true
@@ -388,7 +388,7 @@ func shouldScan(image *v1alpha1.ImageScan) bool {
 		return true
 	}
 
-	if time.Now().Sub(image.Status.LastScanTime.Time) < interval.Duration {
+	if time.Since(image.Status.LastScanTime.Time) < interval.Duration {
 		return false
 	}
 	return true

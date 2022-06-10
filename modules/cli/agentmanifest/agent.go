@@ -2,13 +2,9 @@ package agentmanifest
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -19,13 +15,11 @@ import (
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
-	"github.com/rancher/wrangler/pkg/kubeconfig"
 	"github.com/rancher/wrangler/pkg/yaml"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -58,23 +52,6 @@ func AgentToken(ctx context.Context, agentNamespace, controllerNamespace string,
 	}
 
 	return objects(agentNamespace, token), nil
-}
-
-func insecurePing(host string) {
-	// I do this to make k3s generate a new SAN if it needs to
-	client := http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
-	}
-	defer client.CloseIdleConnections()
-
-	resp, err := client.Get(host)
-	if err == nil {
-		resp.Body.Close()
-	}
 }
 
 func AgentManifest(ctx context.Context, agentNamespace, controllerNamespace, agentScope string, cg *client.Getter, output io.Writer, tokenName string, opts *Options) error {
@@ -116,93 +93,6 @@ func AgentManifest(ctx context.Context, agentNamespace, controllerNamespace, age
 
 	_, err = output.Write(data)
 	return err
-}
-
-func checkHost(host string) error {
-	u, err := url.Parse(host)
-	if err != nil {
-		return errors.Wrapf(err, "invalid host, override with --server-url")
-	}
-	if u.Hostname() == "localhost" || strings.HasPrefix(u.Hostname(), "127.") || u.Hostname() == "0.0.0.0" {
-		return fmt.Errorf("invalid host %s in server URL, use --server-url to set a proper server URL for the kubernetes endpoint", u.Hostname())
-	}
-	return nil
-}
-
-func getKubeConfig(kubeConfig string, namespace string, token []byte, host string, ca []byte, noCA bool) (string, error) {
-	cc := kubeconfig.GetNonInteractiveClientConfig(kubeConfig)
-	cfg, err := cc.RawConfig()
-	if err != nil {
-		return "", err
-	}
-
-	customHost := len(host) > 0
-
-	host, doCheckHost, err := getHost(host, cfg)
-	if err != nil {
-		return "", err
-	}
-
-	if doCheckHost {
-		if err := checkHost(host); err != nil {
-			return "", err
-		}
-	}
-
-	if noCA {
-		ca = nil
-	} else if !customHost {
-		ca, err = getCA(ca, cfg)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	cfg = clientcmdapi.Config{
-		Clusters: map[string]*clientcmdapi.Cluster{
-			"cluster": {
-				Server:                   host,
-				CertificateAuthorityData: ca,
-			},
-		},
-		AuthInfos: map[string]*clientcmdapi.AuthInfo{
-			"user": {
-				Token: string(token),
-			},
-		},
-		Contexts: map[string]*clientcmdapi.Context{
-			"default": {
-				Cluster:   "cluster",
-				AuthInfo:  "user",
-				Namespace: namespace,
-			},
-		},
-		CurrentContext: "default",
-	}
-
-	data, err := clientcmd.Write(cfg)
-	return string(data), err
-}
-
-func getHost(host string, cfg clientcmdapi.Config) (string, bool, error) {
-	if host != "" {
-		return host, false, nil
-	}
-
-	host, err := GetHostFromConfig(cfg)
-	if err != nil {
-		return "", false, err
-	}
-
-	return host, true, nil
-}
-
-func getCA(ca []byte, cfg clientcmdapi.Config) ([]byte, error) {
-	if len(ca) > 0 {
-		return ca, nil
-	}
-
-	return GetCAFromConfig(cfg)
 }
 
 func getToken(ctx context.Context, controllerNamespace, tokenName string, client *client.Client) (map[string][]byte, error) {

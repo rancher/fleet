@@ -33,7 +33,6 @@ import (
 var (
 	ImportTokenPrefix = "import-token-"
 	ImportTokenTTL    = 12 * time.Hour
-	t                 = true
 )
 
 type importHandler struct {

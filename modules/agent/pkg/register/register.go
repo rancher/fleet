@@ -83,7 +83,7 @@ func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.
 		}
 	} else if err != nil {
 		return nil, err
-	} else if err := testClientConfig(ctx, secret.Data[Kubeconfig]); err != nil {
+	} else if err := testClientConfig(secret.Data[Kubeconfig]); err != nil {
 		logrus.Errorf("Current credential failed, failing back to reregistering: %v", err)
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace, clusterID)
 		if err != nil {
@@ -193,7 +193,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 			return nil, err
 		}
 
-		if err := testClientConfig(ctx, newKubeconfig); err != nil {
+		if err := testClientConfig(newKubeconfig); err != nil {
 			return nil, err
 		}
 
@@ -277,7 +277,7 @@ func createClientConfigFromSecret(secret *corev1.Secret) clientcmd.ClientConfig 
 	return clientcmd.NewDefaultClientConfig(cfg, &clientcmd.ConfigOverrides{})
 }
 
-func testClientConfig(ctx context.Context, cfg []byte) error {
+func testClientConfig(cfg []byte) error {
 	cc, err := clientcmd.NewClientConfigFromBytes(cfg)
 	if err != nil {
 		return err

@@ -33,10 +33,7 @@ func (m *Manager) plan(bd *fleet.BundleDeployment, ns string, objs ...runtime.Ob
 		ns = m.defaultNamespace
 	}
 
-	a, err := m.getApply(bd, ns)
-	if err != nil {
-		return apply.Plan{}, err
-	}
+	a := m.getApply(bd, ns)
 	plan, err := a.DryRun(objs...)
 	if err != nil {
 		return plan, err
@@ -141,12 +138,12 @@ func (m *Manager) normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeploy
 	return norm, nil
 }
 
-func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) (apply.Apply, error) {
+func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) apply.Apply {
 	apply := m.apply
 	return apply.
 		WithIgnorePreviousApplied().
 		WithSetID(GetSetID(bd.Name, m.labelPrefix, m.labelSuffix)).
-		WithDefaultNamespace(ns), nil
+		WithDefaultNamespace(ns)
 }
 
 func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, error) {
@@ -252,7 +249,7 @@ func modified(plan apply.Plan) (result []fleet.ModifiedStatus) {
 		}
 	}
 
-	return
+	return result
 }
 
 func nonReady(plan apply.Plan) (result []fleet.NonReadyStatus) {

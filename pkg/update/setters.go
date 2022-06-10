@@ -93,7 +93,7 @@ func WithSetters(inpath, outpath string, scans []*v1alpha1.ImageScan) error {
 			}
 			result.Files[file] = fileres
 		}
-		objres, _ := fileres.Objects[oid]
+		objres := fileres.Objects[oid]
 		for _, n := range objres {
 			if n == ref {
 				return

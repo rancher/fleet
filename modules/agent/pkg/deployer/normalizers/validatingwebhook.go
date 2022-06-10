@@ -82,7 +82,7 @@ func setValidatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) e
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
 		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
-		return nil
+		return err
 	}
 
 	if index >= len(webhook.Webhooks) {
@@ -92,12 +92,12 @@ func setValidatingWebhookV1CacertNil(un *unstructured.Unstructured, index int) e
 	newObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&webhook)
 	if err != nil {
 		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
-		return nil
+		return err
 	}
 	if webhook.Webhooks != nil {
 		if err = unstructured.SetNestedField(un.Object, newObj["webhooks"], "webhooks"); err != nil {
 			logrus.Errorf("ValidatingWebhook normalization error: %v", err)
-			return nil
+			return err
 		}
 	}
 	return nil
@@ -108,7 +108,7 @@ func setValidatingWebhookV1beta1CacertNil(un *unstructured.Unstructured, index i
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &webhook)
 	if err != nil {
 		logrus.Error("Failed to convert unstructured to webhook")
-		return nil
+		return err
 	}
 
 	if index >= len(webhook.Webhooks) {
@@ -118,12 +118,12 @@ func setValidatingWebhookV1beta1CacertNil(un *unstructured.Unstructured, index i
 	newObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&webhook)
 	if err != nil {
 		logrus.Errorf("Failed to convert unstructured to webhook, err: %v", err)
-		return nil
+		return err
 	}
 	if webhook.Webhooks != nil {
 		if err = unstructured.SetNestedField(un.Object, newObj["webhooks"], "webhooks"); err != nil {
 			logrus.Errorf("ValidatingWebhook normalization error: %v", err)
-			return nil
+			return err
 		}
 	}
 	return nil

@@ -104,10 +104,10 @@ func accept(v visitor, object *yaml.RNode, p string, settersSchema *spec.Schema)
 }
 
 // set applies the value from ext to field
-func (s *SetAllCallback) set(field *yaml.RNode, ext *setters2.CliExtension, sch *spec.Schema) (bool, error) {
+func (s *SetAllCallback) set(field *yaml.RNode, ext *setters2.CliExtension, sch *spec.Schema) error {
 	// check full setter
 	if ext.Setter == nil {
-		return false, nil
+		return nil
 	}
 
 	// this has a full setter, set its value
@@ -120,7 +120,7 @@ func (s *SetAllCallback) set(field *yaml.RNode, ext *setters2.CliExtension, sch 
 	if len(sch.Type) > 0 {
 		yaml.FormatNonStringStyle(field.YNode(), *sch)
 	}
-	return true, nil
+	return nil
 }
 
 // visitScalar
@@ -138,6 +138,6 @@ func (s *SetAllCallback) visitScalar(object *yaml.RNode, p string, fieldSchema *
 	}
 
 	// perform a direct set of the field if it matches
-	_, err = s.set(object, ext, fieldSchema.Schema)
+	err = s.set(object, ext, fieldSchema.Schema)
 	return err
 }
