@@ -43,6 +43,8 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/hashicorp/go-getter v1.5.11
 	github.com/hashicorp/go-multierror v1.1.0 // indirect
+	github.com/onsi/ginkgo/v2 v2.1.4
+	github.com/onsi/gomega v1.19.0
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
 	github.com/rancher/gitjob v0.1.5
@@ -53,7 +55,7 @@ require (
 	github.com/spf13/cobra v1.1.3
 	github.com/stretchr/testify v1.7.0
 	go.mozilla.org/sops/v3 v3.6.1
-	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	helm.sh/helm/v3 v3.5.1
 	k8s.io/api v0.21.3
 	k8s.io/apimachinery v0.21.3
@@ -66,3 +68,5 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.10.17
 	sigs.k8s.io/yaml v1.2.0
 )
+
+replace github.com/json-iterator/go v1.1.10 => github.com/json-iterator/go v1.1.12

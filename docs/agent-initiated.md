@@ -17,10 +17,10 @@ cluster in the Fleet manager, in which case you will need a **client ID**.  The 
 
 ## Install agent for a new Cluster
 
-The Fleet agent is installed as a Helm chart. The only parameter required is the cluster registration token, which
-is represented by the `values.yaml` file.
+The Fleet agent is installed as a Helm chart. Following are explanations how to determine and set its parameters.
 
-First follow the [cluster registration token page](./cluster-tokens.md) to obtain the `values.yaml` file to be used.
+First, follow the [cluster registration token page](./cluster-tokens.md) to obtain the `values.yaml` which contains
+the registration token to authenticate against the Fleet cluster.
 
 Second, optionally you can define labels that will assigned to the newly created cluster upon registration. After
 registration is completed an agent cannot change the labels of the cluster. To add cluster labels add
@@ -31,6 +31,19 @@ add `--set-string labels.foo=bar --set-string labels.bar=baz` to the command lin
 # Leave blank if you do not want any labels
 CLUSTER_LABELS="--set-string labels.example=true --set-string labels.env=dev"
 ```
+
+Third, set variables with the Fleet cluster's API Server URL and CA, for the downstream cluster to use for connecting.
+
+```shell
+API_SERVER_URL=https://...
+API_SERVER_CA=...
+```
+
+Value in `API_SERVER_CA` can be obtained from a `.kube/config` file with valid data to connect to the upstream cluster
+(under the `certificate-authority-data` key). Alternatively it can be obtained from within the upstream cluster itself,
+by looking up the default ServiceAccount secret name (typically prefixed with `default-token-`, in the default namespace),
+under the `ca.crt` key.
+
 
 !!! hint "Use proper namespace and release name"
     For the agent chart the namespace must be `fleet-system` and the release name `fleet-agent`
@@ -45,6 +58,8 @@ Finally, install the agent using Helm.
 helm -n fleet-system install --create-namespace --wait \
     ${CLUSTER_LABELS} \
     --values values.yaml \
+    --set apiServerCA=${API_SERVER_CA} \
+    --set apiServerURL=${API_SERVER_URL} \
     fleet-agent https://github.com/rancher/fleet/releases/download/{{fleet.version}}/fleet-agent-{{fleet.helmversion}}.tgz
 ```
 
@@ -116,7 +131,7 @@ Finally, install the agent using Helm.
 helm -n fleet-system install --create-namespace --wait \
     --set clientID="${CLUSTER_CLIENT_ID}" \
     --values values.yaml \
-    fleet-agent https://github.com/rancher/fleet/releases/download/{{fleet.version}}/fleet-agent-{{fleet.helmversion}}.tgz
+    fleet-agent https://github.com/rancher/fleet/releases/download/{{fleet.version}}/fleet-agent-{{fleet.version}}.tgz
 ```
 
 The agent should now be deployed.  You can check that status of the fleet pods by running the below commands.

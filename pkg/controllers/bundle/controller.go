@@ -101,7 +101,10 @@ func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Clus
 		}
 		for _, bundleDeployment := range bundleDeployments {
 			logrus.Debugf("cleaning up bundleDeployment %v in namespace %v not matching the cluster: %v", bundleDeployment.Name, bundleDeployment.Namespace, cluster.Name)
-			h.bundleDeployments.Delete(bundleDeployment.Namespace, bundleDeployment.Name, nil)
+			err := h.bundleDeployments.Delete(bundleDeployment.Namespace, bundleDeployment.Name, nil)
+			if err != nil {
+				logrus.Debugf("deleting bundleDeployment returned an error: %v", err)
+			}
 		}
 	}
 
@@ -186,8 +189,8 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 		return err
 	}
 
-	for _, target := range bundle.Spec.Targets {
-		opts := options.Calculate(&bundle.Spec, &target)
+	for i := range bundle.Spec.Targets {
+		opts := options.Calculate(&bundle.Spec, &bundle.Spec.Targets[i])
 		objs, err := helmdeployer.Template(bundle.Name, m, opts)
 		if err != nil {
 			return err

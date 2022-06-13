@@ -259,12 +259,8 @@ func appendTargets(def *fleet.Bundle, targetsFile string) (*fleet.Bundle, error)
 		return nil, err
 	}
 
-	for _, target := range spec.Targets {
-		def.Spec.Targets = append(def.Spec.Targets, target)
-	}
-	for _, targetRestriction := range spec.TargetRestrictions {
-		def.Spec.TargetRestrictions = append(def.Spec.TargetRestrictions, targetRestriction)
-	}
+	def.Spec.Targets = append(def.Spec.Targets, spec.Targets...)
+	def.Spec.TargetRestrictions = append(def.Spec.TargetRestrictions, spec.TargetRestrictions...)
 
 	return def, nil
 }

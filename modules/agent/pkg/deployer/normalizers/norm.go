@@ -31,8 +31,7 @@ func New(lives objectset.ObjectByGVK, additions ...diff.Normalizer) Norm {
 		},
 	}
 
-	for _, a := range additions {
-		n.normalizers = append(n.normalizers, a)
-	}
+	n.normalizers = append(n.normalizers, additions...)
+
 	return n
 }

@@ -39,17 +39,23 @@ spec:
     ttl: 240h
 ```
 
-## Obtaining Token Value (Agent values.yaml)
+After the `ClusterRegistrationToken` is created, Fleet will create a corresponding `Secret` with the same name.
+As the `Secret` creation is performed asynchronously, you will need to wait until it's available before using it.
 
-The token value is the contents of a `values.yaml` file that is expected to be passed to `helm install`
-to install the Fleet agent on a downstream cluster.  The token is stored in a Kubernetes secret referenced
-by the `status.secretName` field on the newly created `ClusterRegistrationToken`.  In practice the secret
-name is always the same as the `ClusterRegistrationToken` name. The contents will be in
-the secret's data key `values`.  To obtain the `values.yaml` content for the above example YAML one can
-run the following one-liner.
-
+One way to do so is via the following one-liner:
 ```shell
-kubectl -n clusters get secret new-token -o 'jsonpath={.data.values}' | base64 --decode > values.yaml
+while ! kubectl --namespace=clusters  get secret new-token; do sleep 5; done
 ```
 
-This `values.yaml` file can now be used repeatedly by clusters to register until the TTL expires.
+## Obtaining Token Value (Agent values.yaml)
+
+The token value contains YAML content for a `values.yaml` file that is expected to be passed to `helm install`
+to install the Fleet agent on a downstream cluster.
+
+Such value is contained in the `values` field of the `Secret` mentioned above. To obtain the YAML content for the
+above example one can run the following one-liner:
+```shell
+kubectl --namespace clusters get secret new-token -o 'jsonpath={.data.values}' | base64 --decode > values.yaml
+```
+
+Once the `values.yaml` is ready it can be used repeatedly by clusters to register until the TTL expires.

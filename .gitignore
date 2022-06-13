@@ -6,5 +6,5 @@
 *.swp
 .idea
 *.DS_Store
-fleet
 /.vscode
+/fleet

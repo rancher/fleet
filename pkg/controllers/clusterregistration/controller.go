@@ -169,7 +169,7 @@ func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, err
 		return secret, nil
 	}
 
-	if time.Now().Sub(secret.CreationTimestamp.Time) > deleteSecretAfter {
+	if time.Since(secret.CreationTimestamp.Time) > deleteSecretAfter {
 		logrus.Infof("Deleting expired registration secret %s/%s", secret.Namespace, secret.Name)
 		return secret, h.secrets.Delete(secret.Namespace, secret.Name, nil)
 	}

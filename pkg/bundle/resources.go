@@ -120,7 +120,8 @@ func chartURL(location *fleet.HelmOptions, auth Auth) (string, error) {
 		pool.AppendCertsFromPEM(auth.CABundle)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = &tls.Config{
-			RootCAs: pool,
+			RootCAs:    pool,
+			MinVersion: tls.VersionTLS12,
 		}
 		client.Transport = transport
 	}
@@ -237,7 +238,7 @@ func readDirectories(ctx context.Context, compress bool, directories ...director
 		dir := dir
 		eg.Go(func() error {
 			defer sem.Release(1)
-			resources, err := readDirectory(ctx, p, compress, dir.prefix, dir.base, dir.path, dir.auth)
+			resources, err := readDirectory(ctx, compress, dir.prefix, dir.base, dir.path, dir.auth)
 			if err != nil {
 				return err
 			}
@@ -257,10 +258,10 @@ func readDirectories(ctx context.Context, compress bool, directories ...director
 	return result, eg.Wait()
 }
 
-func readDirectory(ctx context.Context, progress *progress.Progress, compress bool, prefix, base, name string, auth Auth) ([]fleet.BundleResource, error) {
+func readDirectory(ctx context.Context, compress bool, prefix, base, name string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := readContent(ctx, progress, base, name, auth)
+	files, err := readContent(ctx, base, name, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +292,7 @@ func readDirectory(ctx context.Context, progress *progress.Progress, compress bo
 	return resources, nil
 }
 
-func readContent(ctx context.Context, progress *progress.Progress, base, name string, auth Auth) (map[string][]byte, error) {
+func readContent(ctx context.Context, base, name string, auth Auth) (map[string][]byte, error) {
 	temp, err := ioutil.TempDir("", "fleet")
 	if err != nil {
 		return nil, err
@@ -333,12 +334,13 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 		pool.AppendCertsFromPEM(auth.CABundle)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = &tls.Config{
-			RootCAs: pool,
+			RootCAs:    pool,
+			MinVersion: tls.VersionTLS12,
 		}
 		httpGetter.Client.Transport = transport
 	}
 	if auth.SSHPrivateKey != nil {
-		if strings.IndexAny(c.Src, "?") == -1 {
+		if !strings.ContainsAny(c.Src, "?") {
 			c.Src += "?"
 		} else {
 			c.Src += "&"
@@ -360,6 +362,10 @@ func readContent(ctx context.Context, progress *progress.Progress, base, name st
 	}
 
 	err = filepath.Walk(temp, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if info.IsDir() {
 			if strings.HasPrefix(filepath.Base(path), ".") {
 				return filepath.SkipDir
