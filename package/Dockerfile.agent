@@ -1,7 +1,7 @@
-FROM alpine:3.16.0
+FROM registry.suse.com/bci/bci-base:15.3
 ARG ARCH
 ENV ARCH=$ARCH
-RUN apk add -U --no-cache git bash openssh && adduser -u 1000 -D fleet-apply
+RUN zypper in --no-recommends -y git bash openssh && groupadd -g 1000 fleet-apply && useradd -u 1000 -g 1000 -m fleet-apply; rm -fr /var/cache/* /var/log/*log
 COPY bin/fleetagent-linux-$ARCH /usr/bin/fleetagent
 COPY bin/fleet-linux-$ARCH /usr/bin/fleet
 COPY package/log.sh /usr/bin/

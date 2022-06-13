@@ -1,4 +1,4 @@
-FROM alpine:3.16.0
+FROM registry.suse.com/bci/bci-base:15.3
 ARG ARCH
 ENV ARCH=$ARCH
 COPY bin/fleetcontroller-linux-${ARCH} /usr/bin/fleetcontroller
