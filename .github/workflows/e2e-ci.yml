@@ -1,4 +1,4 @@
-name: E2E Standalone Fleet
+name: E2E Fleet
 
 on:
   schedule:
@@ -59,7 +59,7 @@ jobs:
           docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
           docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
       -
-        name: Set Up k3d Cluster
+        name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
         # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
         with:
@@ -70,7 +70,7 @@ jobs:
             --agents 3
             --network "nw01"
       -
-        name: K3d Import Images
+        name: Import Images Into k3d
         run: |
           k3d image import rancher/fleet:dev rancher/fleet-agent:dev
       -
@@ -81,7 +81,7 @@ jobs:
         with:
           limit-access-to-actor: true
       -
-        name: Deploy Standalone Fleet
+        name: Deploy Fleet
         run: |
           helm -n fleet-system install --create-namespace --wait fleet-crd charts/fleet-crd
           helm -n fleet-system upgrade --install --create-namespace --wait fleet charts/fleet
@@ -113,7 +113,7 @@ jobs:
         uses: actions/upload-artifact@v2
         if: failure()
         with:
-          name: gha-fleet-e2e-standalone-logs-${{ github.sha }}-${{ github.run_id }}
+          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ github.run_id }}
           path: |
             tmp/*.json
             tmp/*.log

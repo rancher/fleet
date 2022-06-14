@@ -1,4 +1,4 @@
-name: E2E Standalone Multi-Cluster Fleet
+name: E2E Multi-Cluster Fleet
 
 on:
   schedule:
@@ -59,7 +59,7 @@ jobs:
           docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
           docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
       -
-        name: Set Up k3d Cluster
+        name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
         with:
           cluster-name: "upstream"
@@ -70,7 +70,7 @@ jobs:
             --agents 3
             --network "nw01"
       -
-        name: Set Up k3d Downstream Cluster
+        name: Provision k3d Downstream Cluster
         uses: AbsaOSS/k3d-action@v2
         with:
           cluster-name: "downstream"
@@ -81,7 +81,7 @@ jobs:
             --agents 1
             --network "nw01"
       -
-        name: K3d Import Images
+        name: Import Images Into k3d
         run: |
           k3d image import rancher/fleet:dev rancher/fleet-agent:dev -c upstream
           k3d image import rancher/fleet-agent:dev -c downstream
@@ -172,7 +172,7 @@ jobs:
         uses: actions/upload-artifact@v2
         if: failure()
         with:
-          name: gha-fleet-e2e-standalone-logs-${{ github.sha }}-${{ github.run_id }}
+          name: gha-fleet-mc-e2e-logs-${{ github.sha }}-${{ github.run_id }}
           path: |
             tmp/*.json
             tmp/*.log
