@@ -2,7 +2,7 @@ name: E2E Multi-Cluster Fleet
 
 on:
   schedule:
-    - cron:  '0 5 30 * *'
+    - cron: '0 5 0 * *'
   workflow_dispatch:
     inputs:
       enable_tmate:
@@ -11,10 +11,10 @@ on:
         default: "false"
   pull_request:
     paths-ignore:
-    - 'docs/**'
-    - 'charts/**'
-    - 'scripts/**'
-    - '*.md'
+      - 'docs/**'
+      - 'charts/**'
+      - 'scripts/**'
+      - '*.md'
 
 env:
   GOARCH: amd64
