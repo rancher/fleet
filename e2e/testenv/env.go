@@ -19,7 +19,7 @@ type Env struct {
 
 func New() *Env {
 	env := &Env{
-		Kubectl:    kubectl.New("k3d-k3s-default", "default"),
+		Kubectl:    kubectl.New("", "default"),
 		Fleet:      "k3d-k3s-default",
 		Downstream: "k3d-k3s-second",
 		Namespace:  "fleet-default",
