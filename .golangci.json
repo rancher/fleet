@@ -1,19 +1,70 @@
 {
-	"linters": {
-		"disable-all": true,
-		"enable": [
-			"govet",
-			"golint",
-			"goimports",
-			"misspell",
-			"ineffassign",
-			"gofmt"
-		]
-	},
-	"run": {
-		"skip-files": [
-			"/zz_generated_"
-		],
-		"deadline": "5m"
-	}
+  "run": {
+    "deadline": "20s",
+    "skip-files": [
+      "/zz_generated_"
+    ]
+  },
+  "linters-settings": {
+    "revive": {
+      "rules": [
+        {
+          "name": "blank-imports",
+          "severity": "warning"
+        },
+        {
+          "name": "unexported-return",
+          "severity": "warning"
+        }
+      ]
+    },
+    "funlen": {
+      "lines": 270,
+      "statements": 110
+    }
+  },
+  "linters": {
+    "disable-all": true,
+    "enable": [
+      "misspell",
+      "structcheck",
+      "govet",
+      "staticcheck",
+      "deadcode",
+      "errcheck",
+      "varcheck",
+      "unparam",
+      "ineffassign",
+      "nakedret",
+      "gocyclo",
+      "dupl",
+      "goimports",
+      "revive",
+      "gosec",
+      "gosimple",
+      "typecheck",
+      "unused",
+      "funlen"
+    ]
+  },
+  "issues": {
+    "exclude-rules": [
+      {
+        "path": "pkg/controllers/clusterregistration/controller.go",
+        "text": "G101: Potential hardcoded credentials"
+      },
+      {
+        "path": "cmd/fleetcontroller/main.go",
+        "text": "G108: Profiling endpoint is automatically exposed on /debug/pprof"
+      },
+      {
+        "path": "cmd/fleetagent/main.go",
+        "text": "G108: Profiling endpoint is automatically exposed on /debug/pprof"
+      },
+      {
+        "path": "modules/agent/pkg/register/register.go",
+        "text": "G107: Potential HTTP request made with variable url"
+      }
+    ]
+  }
 }
