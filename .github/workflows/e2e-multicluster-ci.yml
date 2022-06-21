@@ -2,7 +2,8 @@ name: E2E Multi-Cluster Fleet
 
 on:
   schedule:
-    - cron: '0 5 0 * *'
+    # Run everyday day at 5:00 AM
+    - cron: '0 5 * * *'
   workflow_dispatch:
     inputs:
       enable_tmate:
