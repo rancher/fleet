@@ -44,7 +44,8 @@
       "gosimple",
       "typecheck",
       "unused",
-      "funlen"
+      "funlen",
+      "gofmt"
     ]
   },
   "issues": {
