@@ -38,7 +38,7 @@ configured differently from the parent bundle.
 
     - Note that the most recently applied changes to the `values.yaml` will override any previously existing values.
 
-    - When changes are applied to the `values.yaml` from multiple sources at the same time, the values will update in the following order: `helmValues` -> `helm.valueFiles` -> `helm.valuesFrom`.
+    - When changes are applied to the `values.yaml` from multiple sources at the same time, the values will update in the following order: `helmValues` -> `helm.valuesFiles` -> `helm.valuesFrom`.
 
 ```yaml
 # The default namespace to be applied to resources. This field is not used to
