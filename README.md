@@ -1,5 +1,9 @@
 # Introduction
 
+[![Fleet Examples](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml)
+[![Multi-Cluster Examples](https://github.com/rancher/fleet/actions/workflows/e2e-multicluster-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-multicluster-ci.yml)
+[![golangci-lint](https://github.com/rancher/fleet/actions/workflows/golangci-lint.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/golangci-lint.yml)
+
 ![](./docs/arch.png)
 
 Fleet is GitOps at scale. Fleet is designed to manage up to a million clusters. It's also lightweight
