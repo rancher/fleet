@@ -1,7 +1,8 @@
 # Introduction
 
-[![Fleet Examples](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml)
-[![Multi-Cluster Examples](https://github.com/rancher/fleet/actions/workflows/e2e-multicluster-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-multicluster-ci.yml)
+[![Unit](https://github.com/rancher/fleet/actions/workflows/ci.yml/badge.svg)](https://github.com/rancher/fleet/actions/workflows/ci.yml)
+[![E2E Examples](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml)
+[![E2E Multi-Cluster Examples](https://github.com/rancher/fleet/actions/workflows/e2e-multicluster-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-multicluster-ci.yml)
 [![golangci-lint](https://github.com/rancher/fleet/actions/workflows/golangci-lint.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/golangci-lint.yml)
 
 ![](./docs/arch.png)
