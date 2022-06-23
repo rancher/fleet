@@ -14,7 +14,7 @@ not be able to target each others clusters, they should be in different namespac
 
 ## Namespace Creation Behavior in Bundles
 
-The `--create-namespace` flag in Fleet is responsible for the default behavior for namespace creation in bundles. Therefore, when deploying a Fleet bundle, the specified namespace will automatically be created if it does not already exist.
+When deploying a Fleet bundle, the specified namespace will automatically be created if it does not already exist.
 
 ## Special Namespaces
 
