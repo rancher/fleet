@@ -9,6 +9,13 @@ updates:
       - "dependencies"
   -
     package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+-
+    package-ecosystem: "docker"
     directory: "/package/"
     schedule:
       interval: "monthly"
