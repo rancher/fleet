@@ -169,7 +169,7 @@ jobs:
           docker exec k3d-downstream-server-0 sh -c 'cd /var/log/containers; grep -r "." .' > tmp/containers-downstream.log
       -
         name: Upload Logs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: gha-fleet-mc-e2e-logs-${{ github.sha }}-${{ github.run_id }}

@@ -115,7 +115,7 @@ jobs:
           docker exec k3d-k3s-default-server-0 sh -c 'cd /var/log/containers; grep -r "." .' > tmp/containers.log
       -
         name: Upload Logs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
