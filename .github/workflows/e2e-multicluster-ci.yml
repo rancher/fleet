@@ -2,8 +2,8 @@ name: E2E Multi-Cluster Fleet
 
 on:
   schedule:
-    # Run everyday day at 5:00 AM
-    - cron: '0 5 * * *'
+    # Run everyday day at 9:00 AM
+    - cron: '0 9 * * *'
   workflow_dispatch:
     inputs:
       enable_tmate:
@@ -13,7 +13,6 @@ on:
   pull_request:
     paths-ignore:
       - 'docs/**'
-      - 'charts/**'
       - 'scripts/**'
       - '*.md'
 
@@ -114,7 +113,7 @@ jobs:
           spec:
             ttl: 12h
           EOF
-          { grep -q -m 1 "second-token"; kill $!; } < <(kubectl get secrets -n fleet-local -w)
+          { grep -q -m 1 "second-token"; kill $!; } < <(kubectl get secrets -n fleet-local -l "fleet.cattle.io/managed=true" -w)
 
           token=$(kubectl get secret -n fleet-local second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
           name=$(kubectl get -n default sa default -o=jsonpath='{.secrets[0].name}')
