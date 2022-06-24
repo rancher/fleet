@@ -87,7 +87,7 @@ jobs:
           k3d image import rancher/fleet-agent:dev -c downstream
       -
         name: Set Up Tmate Debug Session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
         uses: mxschmitt/action-tmate@v3
         timeout-minutes: 15
         with:

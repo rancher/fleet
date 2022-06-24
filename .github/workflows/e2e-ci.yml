@@ -2,7 +2,8 @@ name: E2E Fleet
 
 on:
   schedule:
-    - cron: '0 4 * * *'
+    # Run everyday day at 7:00 AM
+    - cron: '0 7 * * *'
   workflow_dispatch:
     inputs:
       enable_tmate:
@@ -12,7 +13,6 @@ on:
   pull_request:
     paths-ignore:
       - 'docs/**'
-      - 'charts/**'
       - 'scripts/**'
       - '*.md'
 
@@ -24,7 +24,13 @@ env:
 jobs:
   e2e-fleet-test:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        k3s_version:
+          # k3d version list k3s | sed 's/+/-/' | sort -h
+          #- v1.24.1-k3s1
+          - v1.22.10-k3s1
+          - v1.20.15-k3s1
     steps:
       -
         uses: actions/checkout@v3
@@ -65,17 +71,16 @@ jobs:
         with:
           cluster-name: "k3s-default"
           args: >-
-            -p "80:80@agent:0:direct"
-            -p "443:443@agent:0:direct"
             --agents 3
             --network "nw01"
+            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
       -
         name: Import Images Into k3d
         run: |
           k3d image import rancher/fleet:dev rancher/fleet-agent:dev
       -
         name: Set Up Tmate Debug Session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
         uses: mxschmitt/action-tmate@v3
         timeout-minutes: 15
         with:
@@ -113,7 +118,7 @@ jobs:
         uses: actions/upload-artifact@v2
         if: failure()
         with:
-          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ github.run_id }}
+          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
           path: |
             tmp/*.json
             tmp/*.log
