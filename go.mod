@@ -45,7 +45,7 @@ require (
 	github.com/onsi/gomega v1.19.0
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
-	github.com/rancher/gitjob v0.1.5
+	github.com/rancher/gitjob v0.1.28
 	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
 	github.com/rancher/wrangler v0.8.8
 	github.com/rancher/wrangler-cli v0.0.0-20211112052728-f172e9bf59af
@@ -58,7 +58,7 @@ require (
 	k8s.io/api v0.21.3
 	k8s.io/apimachinery v0.21.3
 	k8s.io/cli-runtime v0.21.3
-	k8s.io/client-go v11.0.1-0.20190816222228-6d55c1b1f1ca+incompatible
+	k8s.io/client-go v12.0.0+incompatible
 	sigs.k8s.io/cli-utils v0.23.1
 	sigs.k8s.io/kustomize/api v0.8.8
 	sigs.k8s.io/kustomize/kyaml v0.10.17
@@ -252,7 +252,7 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+	gopkg.in/yaml.v3 v3.0.0 // indirect
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 	k8s.io/apiextensions-apiserver v0.21.0 // indirect
 	k8s.io/apiserver v0.21.3 // indirect
