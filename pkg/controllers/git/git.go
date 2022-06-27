@@ -244,7 +244,6 @@ func (h *handler) DeleteOnChange(key string, gitrepo *fleet.GitRepo) (*fleet.Git
 		}
 
 	}
-
 	return nil, nil
 }
 
@@ -349,7 +348,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 			},
 			Rules: []rbacv1.PolicyRule{
 				{
-					Verbs:     []string{"get", "create", "update"},
+					Verbs:     []string{"get", "create", "update", "list", "delete"},
 					APIGroups: []string{"fleet.cattle.io"},
 					Resources: []string{"bundles", "imagescans"},
 				},

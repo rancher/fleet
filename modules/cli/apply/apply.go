@@ -20,6 +20,7 @@ import (
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -75,6 +76,7 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 			return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
 		}
 		for _, baseDir := range matches {
+			gitRepoBundlesMap := make(map[string]bool)
 			if i > 0 && opts.Output != nil {
 				if _, err := opts.Output.Write([]byte("\n---\n")); err != nil {
 					return err
@@ -90,15 +92,21 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 						return nil
 					}
 				}
-				if err := Dir(ctx, client, name, path, opts); err == ErrNoResources {
+				if err := Dir(ctx, client, name, path, opts, gitRepoBundlesMap); err == ErrNoResources {
 					logrus.Warnf("%s: %v", path, err)
 					return nil
 				} else if err != nil {
 					return err
 				}
 				foundBundle = true
+
 				return nil
 			})
+			if err != nil {
+				return err
+			}
+
+			err = pruneBundlesNotFoundInRepo(name, gitRepoBundlesMap, client, opts)
 			if err != nil {
 				return err
 			}
@@ -109,6 +117,58 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
+	return nil
+}
+
+func pruneBundlesNotFoundInRepo(repoName string, gitRepoBundlesMap map[string]bool, client *client.Getter, opts *Options) error {
+	//list all bundles for this gitrepo and prune those not found if output is nil
+	c, err := client.Get()
+	if err != nil {
+		return err
+	}
+	filter := labels.Set(map[string]string{fleet.RepoLabel: repoName})
+	bundles, err := c.Fleet.Bundle().List(client.Namespace, metav1.ListOptions{LabelSelector: filter.AsSelector().String()})
+	if err != nil {
+		return err
+	}
+
+	objects := []runtime.Object{}
+	for i, bundle := range bundles.Items {
+		if ok := gitRepoBundlesMap[bundle.Name]; !ok {
+			if opts.Output == nil {
+				err := prune(bundle, client, repoName)
+				if err != nil {
+					return err
+				}
+			} else {
+				objects = append(objects, &bundles.Items[i])
+			}
+		}
+	}
+	if opts.Output != nil {
+		b, err := yaml.Export(objects...)
+		if err != nil {
+			return err
+		}
+		_, err = opts.Output.Write(b)
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
+func prune(bundle fleet.Bundle, client *client.Getter, repoName string) error {
+	c, err := client.Get()
+	if err != nil {
+		return err
+	}
+
+	logrus.Debugf("Bundle to be deleted since it is not found in gitrepo %v anymore %v %v", repoName, bundle.Namespace, bundle.Name)
+	err = c.Fleet.Bundle().Delete(bundle.Namespace, bundle.Name, nil)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -139,11 +199,10 @@ func createName(name, baseDir string) string {
 	return name2.Limit(multiDash.ReplaceAllString(path, "-"), 63)
 }
 
-func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts *Options) error {
+func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
 	if opts == nil {
 		opts = &Options{}
 	}
-
 	bundle, err := readBundle(ctx, createName(name, baseDir), baseDir, opts)
 	if err != nil {
 		return err
@@ -155,6 +214,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	if len(def.Spec.Resources) == 0 {
 		return ErrNoResources
 	}
+	gitRepoBundlesMap[def.Name] = true
 
 	objects := []runtime.Object{def}
 	for _, scan := range bundle.Scans {
