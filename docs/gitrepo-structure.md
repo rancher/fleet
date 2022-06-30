@@ -53,6 +53,17 @@ defaultNamespace: default
 # Default: ""
 namespace: default
 
+# Specify a deployment schedule to deploy bundle during that window.
+# In this example we will deploy bundles every monday from 4pm to 5pm.
+# If a helm timeout is specified in the helm structure below, it will be considered in the schedule evaluation.
+# For instance, if the agent were to pickup the deployment at 16:50, and you specified a helm timeout of 15 minutes, 
+# then the deployment would be skipped for this window and will be rescheduled for the next.
+schedule:
+  # [Standard format](https://crontab.guru/)
+  # Supports predefined scheduling definitions such as @yearly, @weekly, etc.
+  cron: "0 16 * * 1"
+  duration: "1h"
+
 kustomize:
   # Use a custom folder for kustomize resources. This folder must contain
   # a kustomization.yaml file.

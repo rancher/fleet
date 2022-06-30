@@ -290,6 +290,16 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              schedule:
+                nullable: true
+                properties:
+                  cron:
+                    nullable: true
+                    type: string
+                  duration:
+                    nullable: true
+                    type: string
+                type: object
               serviceAccount:
                 nullable: true
                 type: string
@@ -556,6 +566,16 @@ spec:
                     namespace:
                       nullable: true
                       type: string
+                    schedule:
+                      nullable: true
+                      properties:
+                        cron:
+                          nullable: true
+                          type: string
+                        duration:
+                          nullable: true
+                          type: string
+                      type: object
                     serviceAccount:
                       nullable: true
                       type: string
@@ -757,6 +777,16 @@ spec:
                   type: object
                 nullable: true
                 type: array
+              schedule:
+                nullable: true
+                properties:
+                  cron:
+                    nullable: true
+                    type: string
+                  duration:
+                    nullable: true
+                    type: string
+                type: object
               summary:
                 properties:
                   desiredReady:
@@ -1060,6 +1090,16 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  schedule:
+                    nullable: true
+                    properties:
+                      cron:
+                        nullable: true
+                        type: string
+                      duration:
+                        nullable: true
+                        type: string
+                    type: object
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1203,6 +1243,16 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  schedule:
+                    nullable: true
+                    properties:
+                      cron:
+                        nullable: true
+                        type: string
+                      duration:
+                        nullable: true
+                        type: string
+                    type: object
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1326,6 +1376,11 @@ spec:
               ready:
                 type: boolean
               release:
+                nullable: true
+                type: string
+              scheduled:
+                type: boolean
+              scheduledAt:
                 nullable: true
                 type: string
               syncGeneration:
@@ -1756,6 +1811,16 @@ spec:
               clientID:
                 nullable: true
                 type: string
+              deploymentSchedule:
+                nullable: true
+                properties:
+                  cron:
+                    nullable: true
+                    type: string
+                  duration:
+                    nullable: true
+                    type: string
+                type: object
               kubeConfigSecret:
                 nullable: true
                 type: string
@@ -2961,6 +3026,16 @@ spec:
                   nullable: true
                   type: array
               type: object
+            schedule:
+              nullable: true
+              properties:
+                cron:
+                  nullable: true
+                  type: string
+                duration:
+                  nullable: true
+                  type: string
+              type: object
             serviceAccount:
               nullable: true
               type: string
@@ -3227,6 +3302,16 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  schedule:
+                    nullable: true
+                    properties:
+                      cron:
+                        nullable: true
+                        type: string
+                      duration:
+                        nullable: true
+                        type: string
+                    type: object
                   serviceAccount:
                     nullable: true
                     type: string
@@ -3428,6 +3513,16 @@ spec:
                 type: object
               nullable: true
               type: array
+            schedule:
+              nullable: true
+              properties:
+                cron:
+                  nullable: true
+                  type: string
+                duration:
+                  nullable: true
+                  type: string
+              type: object
             summary:
               properties:
                 desiredReady:
@@ -3732,6 +3827,16 @@ spec:
                 namespace:
                   nullable: true
                   type: string
+                schedule:
+                  nullable: true
+                  properties:
+                    cron:
+                      nullable: true
+                      type: string
+                    duration:
+                      nullable: true
+                      type: string
+                  type: object
                 serviceAccount:
                   nullable: true
                   type: string
@@ -3875,6 +3980,16 @@ spec:
                 namespace:
                   nullable: true
                   type: string
+                schedule:
+                  nullable: true
+                  properties:
+                    cron:
+                      nullable: true
+                      type: string
+                    duration:
+                      nullable: true
+                      type: string
+                  type: object
                 serviceAccount:
                   nullable: true
                   type: string
@@ -3998,6 +4113,11 @@ spec:
             ready:
               type: boolean
             release:
+              nullable: true
+              type: string
+            scheduled:
+              type: boolean
+            scheduledAt:
               nullable: true
               type: string
             syncGeneration:
@@ -4431,6 +4551,16 @@ spec:
             clientID:
               nullable: true
               type: string
+            deploymentSchedule:
+              nullable: true
+              properties:
+                cron:
+                  nullable: true
+                  type: string
+                duration:
+                  nullable: true
+                  type: string
+              type: object
             kubeConfigSecret:
               nullable: true
               type: string

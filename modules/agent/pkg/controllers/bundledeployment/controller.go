@@ -90,6 +90,14 @@ func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
+	isWithinScheduleWindow, err := isWithinScheduleWindow(bd)
+	if err != nil {
+		return status, err
+	}
+	if !isWithinScheduleWindow {
+		return h.scheduleBundleForNextWindow(bd, status)
+	}
+
 	if err := h.checkDependency(bd); err != nil {
 		return status, err
 	}
@@ -98,9 +106,63 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	if err != nil {
 		return status, err
 	}
+	status.Scheduled = false
+	status.ScheduledAt = ""
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
 	return status, nil
+}
+
+func (h *handler) scheduleBundleForNextWindow(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
+	remainingDuration, err := timeToNextWindow(bd.Spec.Options.Schedule)
+	if err != nil {
+		return status, err
+	}
+	scheduledAt := time.Now().Add(remainingDuration).Format(time.RFC3339)
+	status.ScheduledAt = scheduledAt
+	status.Scheduled = true
+
+	h.bdController.EnqueueAfter(bd.Namespace, bd.Name, remainingDuration)
+	condition.Cond(fleet.BundleScheduledCondition).SetStatusBool(&status, true)
+	condition.Cond(fleet.BundleDeploymentConditionDeployed).SetStatusBool(&status, false)
+	logrus.Infof("Bundle %s is scheduled to be deployed at %s", bd.Name, scheduledAt)
+	return status, nil
+}
+
+func timeToNextWindow(schedule *fleet.Schedule) (time.Duration, error) {
+	cron, err := schedule.GetCron()
+	if err != nil {
+		return 0, err
+	}
+	now := time.Now()
+	return cron.Next(now).Sub(now), nil
+}
+
+func isWithinScheduleWindow(bd *fleet.BundleDeployment) (bool, error) {
+	// If no schedule is defined, we can deploy anytime
+	if bd.Spec.Options.Schedule == nil {
+		return true, nil
+	}
+
+	cronSchedule, err := bd.Spec.Options.Schedule.GetCron()
+	if err != nil {
+		return false, err
+	}
+	duration, err := bd.Spec.Options.Schedule.GetDuration()
+	if err != nil {
+		return false, err
+	}
+	now := time.Now()
+
+	latestCronTick := cronSchedule.Prev(now)
+	deadline := latestCronTick.Add(duration)
+
+	var helmTimeout time.Duration
+	if bd.Spec.Options.Helm != nil {
+		helmTimeout = time.Second * time.Duration(bd.Spec.Options.Helm.TimeoutSeconds)
+	}
+	estimatedEndTime := now.Add(helmTimeout)
+	return now.After(latestCronTick) && estimatedEndTime.Before(deadline), nil
 }
 
 func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
@@ -209,6 +271,10 @@ func (h *handler) cleanupOldAgent(modifiedStatuses []fleet.ModifiedStatus) error
 }
 
 func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
+	if bd.Status.Scheduled {
+		return status, nil
+	}
+
 	if bd.Spec.DeploymentID != status.AppliedDeploymentID {
 		return status, nil
 	}
@@ -261,6 +327,8 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 		if len(status.ModifiedStatus) > 0 {
 			msg = status.ModifiedStatus[0].String()
 		}
+	} else if status.Scheduled {
+		msg = "scheduled"
 	}
 
 	return errors.New(msg)
