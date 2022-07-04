@@ -39,7 +39,6 @@ require (
 	github.com/cheggaaa/pb v1.0.29
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/go-git/go-git/v5 v5.4.2
-	github.com/go-openapi/spec v0.20.6
 	github.com/google/go-containerregistry v0.10.0
 	github.com/hashicorp/go-getter v1.6.2
 	github.com/onsi/ginkgo/v2 v2.1.4
@@ -60,6 +59,7 @@ require (
 	k8s.io/apimachinery v0.24.2
 	k8s.io/cli-runtime v0.24.2
 	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/kube-openapi v0.0.0-20220621154418-c39d0f63fac8
 	sigs.k8s.io/cli-utils v0.31.2
 	sigs.k8s.io/kustomize/api v0.11.5
 	sigs.k8s.io/kustomize/kyaml v0.13.7
@@ -131,6 +131,7 @@ require (
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
+	github.com/go-openapi/spec v0.20.6 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -272,7 +273,6 @@ require (
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/klog/v2 v2.70.0 // indirect
 	k8s.io/kube-aggregator v0.24.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20220621154418-c39d0f63fac8 // indirect
 	k8s.io/kubectl v0.24.2 // indirect
 	k8s.io/kubernetes v1.24.2 // indirect
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9 // indirect
