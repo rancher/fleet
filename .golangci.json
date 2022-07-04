@@ -64,6 +64,12 @@
       {
         "path": "modules/agent/pkg/register/register.go",
         "text": "G107: Potential HTTP request made with variable url"
+      },
+      {
+        "path": "modules/agent/pkg/deployer/internal/",
+        "linters": [
+          "revive"
+        ]
       }
     ]
   }
