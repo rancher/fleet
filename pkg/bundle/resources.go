@@ -306,16 +306,12 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 		return nil, err
 	}
 
-	c := getter.Client{
-		Ctx:     ctx,
-		Src:     name,
-		Dst:     temp,
-		Pwd:     base,
-		Mode:    getter.ClientModeDir,
-		Getters: getter.Getters,
-		// TODO: why doesn't this work anymore
-		//ProgressListener: progress,
+	// copy getter.Getters before changing
+	getters := map[string]getter.Getter{}
+	for k, v := range getter.Getters {
+		getters[k] = v
 	}
+	src := name
 
 	httpGetter := &getter.HttpGetter{
 		Client: &http.Client{},
@@ -340,15 +336,26 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 		httpGetter.Client.Transport = transport
 	}
 	if auth.SSHPrivateKey != nil {
-		if !strings.ContainsAny(c.Src, "?") {
-			c.Src += "?"
+		if !strings.ContainsAny(src, "?") {
+			src += "?"
 		} else {
-			c.Src += "&"
+			src += "&"
 		}
-		c.Src += fmt.Sprintf("sshkey=%s", base64.StdEncoding.EncodeToString(auth.SSHPrivateKey))
+		src += fmt.Sprintf("sshkey=%s", base64.StdEncoding.EncodeToString(auth.SSHPrivateKey))
 	}
-	c.Getters["http"] = httpGetter
-	c.Getters["https"] = httpGetter
+	getters["http"] = httpGetter
+	getters["https"] = httpGetter
+
+	c := getter.Client{
+		Ctx:     ctx,
+		Src:     src,
+		Dst:     temp,
+		Pwd:     base,
+		Mode:    getter.ClientModeDir,
+		Getters: getters,
+		// TODO: why doesn't this work anymore
+		//ProgressListener: progress,
+	}
 
 	if err := c.Get(); err != nil {
 		return nil, err
