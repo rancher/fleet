@@ -31,22 +31,17 @@ type handler struct {
 	nodes            corecontrollers.NodeCache
 	clusters         fleetcontrollers.ClusterClient
 	reported         fleet.AgentStatus
+	capabilities     fleet.Capabilities
 }
 
-func Register(ctx context.Context,
-	agentNamespace string,
-	clusterNamespace string,
-	clusterName string,
-	checkinInterval time.Duration,
-	nodes corecontrollers.NodeCache,
-	clusters fleetcontrollers.ClusterClient) {
-
+func Register(ctx context.Context, agentNamespace string, clusterNamespace string, clusterName string, checkinInterval time.Duration, nodes corecontrollers.NodeCache, clusters fleetcontrollers.ClusterClient, capabilities fleet.Capabilities) {
 	h := handler{
 		agentNamespace:   agentNamespace,
 		clusterName:      clusterName,
 		clusterNamespace: clusterNamespace,
 		nodes:            nodes,
 		clusters:         clusters,
+		capabilities:     capabilities,
 	}
 
 	go func() {
@@ -98,7 +93,8 @@ func (h *handler) Update() error {
 
 	data, err := json.Marshal(fleet.Cluster{
 		Status: fleet.ClusterStatus{
-			Agent: agentStatus,
+			Agent:        agentStatus,
+			Capabilities: h.capabilities,
 		},
 	})
 	if err != nil {

@@ -87,7 +87,12 @@ func printMatch(bundle *bundle.Bundle, m *bundle.Match, output io.Writer) error 
 		return err
 	}
 
-	objs, err := helmdeployer.Template(m.Bundle.Definition.Name, manifest, opts)
+	clusterCapabilities := fleet.Capabilities{
+		KubeVersion: fleet.KubeVersion{},
+		APIVersions: nil,
+	}
+
+	objs, err := helmdeployer.Template(m.Bundle.Definition.Name, manifest, opts, clusterCapabilities)
 	if err != nil {
 		return err
 	}
