@@ -61,7 +61,7 @@ require (
 	k8s.io/apimachinery v0.24.2
 	k8s.io/cli-runtime v0.24.2
 	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/klog/v2 v2.70.0
+	k8s.io/klog/v2 v2.70.1
 	k8s.io/kube-openapi v0.0.0-20220621154418-c39d0f63fac8
 	k8s.io/kubernetes v1.24.2
 	sigs.k8s.io/cli-utils v0.31.2
