@@ -1,4 +1,4 @@
-package examples_test
+package mc_examples_test
 
 import (
 	"encoding/json"

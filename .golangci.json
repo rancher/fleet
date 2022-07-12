@@ -70,6 +70,14 @@
         "linters": [
           "revive"
         ]
+      },
+      {
+        "path": "_test.go",
+        "linters": [
+          "gocyclo",
+          "dupl",
+          "gosec"
+        ]
       }
     ]
   }

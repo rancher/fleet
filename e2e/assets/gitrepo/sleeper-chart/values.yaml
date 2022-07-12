@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  repository: rancher/mirrored-library-busybox
+  pullPolicy: IfNotPresent
+  tag: "1.34.1"
+
+imagePullSecrets: []
+
+podAnnotations: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
