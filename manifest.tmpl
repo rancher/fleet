@@ -6,11 +6,6 @@ manifests:
       architecture: amd64
       os: linux
   -
-    image: rancher/fleet:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-linux-arm
-    platform:
-      architecture: arm
-      os: linux
-  -
     image: rancher/fleet:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-linux-arm64
     platform:
       architecture: arm64
