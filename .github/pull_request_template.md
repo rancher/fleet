@@ -3,14 +3,21 @@ Fix #XXX
 
 <!-- Describe the changes introduced by this pull request -->
 
+<!--
+  To simplify the reviewing process of this pullrequest,
+  please explain how it should be tested.
+  The following is just an exammple
+
 ## Test
 
 To test this pull request, you can run the following commands:
 
 ```shell
-cp <to_package_directory>
+cd <to_package_directory>
 go test
 ```
+
+-->
 
 ## Additional Information
 
