@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
+	"helm.sh/helm/v3/pkg/chartutil"
 	"sort"
 
 	"path"
@@ -13,7 +14,6 @@ import (
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/cluster"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
-	_fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
@@ -131,7 +131,6 @@ func Register(ctx context.Context, leaderElect bool,
 		checkinInterval,
 		appCtx.Core.Node().Cache(),
 		appCtx.Fleet.Cluster(),
-		clusterCapabilities,
 	)
 
 	if leaderElect {
@@ -275,19 +274,19 @@ func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName st
 }
 
 // Taken from Helm capabilities
-func GetCapabilities(discovery discovery.CachedDiscoveryInterface) (_fleet.Capabilities, error) {
+func GetCapabilities(discovery discovery.CachedDiscoveryInterface) (chartutil.Capabilities, error) {
 	discovery.Invalidate()
 	kubeVersion, err := discovery.ServerVersion()
 	if err != nil {
-		return _fleet.Capabilities{}, errors.Wrap(err, "could not get server version from Kubernetes")
+		return chartutil.Capabilities{}, errors.Wrap(err, "could not get server version from Kubernetes")
 	}
 
 	apiVersions, err := GetVersionSet(discovery)
 	if err != nil {
 		println(err, "could not get server capabilities from Kubernetes")
 	}
-	clusterCapabilities := _fleet.Capabilities{
-		KubeVersion: _fleet.KubeVersion{
+	clusterCapabilities := chartutil.Capabilities{
+		KubeVersion: chartutil.KubeVersion{
 			Version: fmt.Sprintf("v%s.%s.0", kubeVersion.Major, kubeVersion.Minor),
 			Major:   kubeVersion.Major,
 			Minor:   kubeVersion.Minor,
@@ -298,7 +297,7 @@ func GetCapabilities(discovery discovery.CachedDiscoveryInterface) (_fleet.Capab
 	return clusterCapabilities, nil
 }
 
-func GetVersionSet(client discovery.ServerResourcesInterface) (_fleet.VersionSet, error) {
+func GetVersionSet(client discovery.ServerResourcesInterface) (chartutil.VersionSet, error) {
 	groups, resources, err := client.ServerGroupsAndResources()
 	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
 		return []string{}, errors.Wrap(err, "could not get apiVersions from Kubernetes")

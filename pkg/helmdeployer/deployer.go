@@ -71,8 +71,7 @@ type helm struct {
 	labelSuffix         string
 }
 
-func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
-	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache, clusterCapabilities fleet.Capabilities) (deployer.Deployer, error) {
+func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter, serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache, clusterCapabilities chartutil.Capabilities) (deployer.Deployer, error) {
 	h := &helm{
 		getter:              getter,
 		defaultNamespace:    defaultNamespace,
@@ -86,7 +85,7 @@ func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, gette
 	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
 		return nil, err
 	}
-	h.globalCfg.Capabilities = clusterCapabilities.ToHelmCapabilities()
+	h.globalCfg.Capabilities = clusterCapabilities.Copy()
 	h.globalCfg.Releases.MaxHistory = 5
 	return h, nil
 }

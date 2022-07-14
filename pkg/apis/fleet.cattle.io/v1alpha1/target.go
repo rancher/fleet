@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	"github.com/rancher/wrangler/pkg/genericcondition"
-	"helm.sh/helm/v3/pkg/chartutil"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -87,44 +86,6 @@ type ClusterStatus struct {
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`
 }
-
-// Taken from Helm capabilities
-type Capabilities struct {
-	// KubeVersion is the Kubernetes version.
-	KubeVersion KubeVersion `json:"kubeVersion,omitempty"`
-	// APIversions are supported Kubernetes API versions.
-	APIVersions VersionSet `json:"apiVersions,omitempty"`
-}
-
-func (c *Capabilities) ToHelmCapabilities() *chartutil.Capabilities {
-	capabilities := chartutil.DefaultCapabilities.Copy()
-	if capabilities.APIVersions != nil {
-		vs := make(chartutil.VersionSet, 0, len(capabilities.APIVersions))
-		for _, v := range capabilities.APIVersions {
-			vs = append(vs, v)
-		}
-		capabilities.APIVersions = vs
-	}
-	if capabilities.KubeVersion.Version != "" {
-		capabilities.KubeVersion = chartutil.KubeVersion{
-			Version: capabilities.KubeVersion.Version,
-			Major:   capabilities.KubeVersion.Major,
-			Minor:   capabilities.KubeVersion.Minor,
-		}
-	}
-
-	return capabilities
-}
-
-// KubeVersion is the Kubernetes version.
-type KubeVersion struct {
-	Version string `json:"version,omitempty"` // Kubernetes version
-	Major   string `json:"major,omitempty"`   // Kubernetes major version
-	Minor   string `json:"minor,omitempty"`   // Kubernetes minor version
-}
-
-// VersionSet is a set of Kubernetes API versions.
-type VersionSet []string
 
 type ClusterDisplay struct {
 	ReadyBundles string `json:"readyBundles,omitempty"`
