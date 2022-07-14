@@ -1,5 +1,5 @@
 name: 'Feature Request'
-labels: ['[zube]: To Triage','kind/enhancement']
+labels: ['[zube]: To Triage','kind/enhancement','area/fleet']
 description: Create a feature request to help Fleet to improve
 title: 'Feature Request: '
 body:

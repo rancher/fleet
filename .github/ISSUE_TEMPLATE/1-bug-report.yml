@@ -1,5 +1,5 @@
 name: 'Bug report'
-labels: ['kind/bug', '[zube]: To Triage' ]
+labels: ['kind/bug', '[zube]: To Triage','area/fleet']
 description: Create a report to help Fleet to improve
 body:
 - type: checkboxes
