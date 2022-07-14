@@ -264,6 +264,11 @@ func (in *BundleDeploymentStatus) DeepCopyInto(out *BundleDeploymentStatus) {
 		*out = new(int64)
 		**out = **in
 	}
+	if in.ResourceKey != nil {
+		in, out := &in.ResourceKey, &out.ResourceKey
+		*out = make([]ResourceKey, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
@@ -1059,7 +1064,6 @@ func (in *ClusterStatus) DeepCopyInto(out *ClusterStatus) {
 	}
 	out.Display = in.Display
 	in.Agent.DeepCopyInto(&out.Agent)
-	in.Capabilities.DeepCopyInto(&out.Capabilities)
 	return
 }
 

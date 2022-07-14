@@ -32,8 +32,7 @@ type handler struct {
 	bundles           fleetcontrollers.BundleController
 	bundleDeployments fleetcontrollers.BundleDeploymentController
 	mapper            meta.RESTMapper
-	//clusterMap        map[string]*fleet.Cluster
-	clusters fleetcontrollers.ClusterController
+	clusters          fleetcontrollers.ClusterController
 }
 
 func Register(ctx context.Context,
@@ -53,8 +52,7 @@ func Register(ctx context.Context,
 		bundleDeployments: bundleDeployments,
 		images:            images,
 		gitRepo:           gitRepo,
-		//clusterMap:        make(map[string]*fleet.Cluster),
-		clusters: clusters,
+		clusters:          clusters,
 	}
 
 	fleetcontrollers.RegisterBundleGeneratingHandler(ctx,
@@ -91,10 +89,6 @@ func (h *handler) resolveApp(_ string, _ string, obj runtime.Object) ([]relatedr
 func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Cluster, error) {
 	if cluster == nil {
 		return nil, nil
-	}
-	if cluster.Status.Capabilities.KubeVersion.Version != "" {
-		h.clusters.UpdateStatus(cluster)
-		//h.clusterMap[cluster.ClusterName] = cluster
 	}
 
 	bundlesToRefresh, bundlesToCleanup, err := h.targets.BundlesForCluster(cluster)
@@ -164,29 +158,14 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	if err != nil {
 		return nil, status, err
 	}
-	//cluster, ok := h.clusterMap[bundle.ClusterName]
-	//
-	//if ok {
-	//	data, _ := json.Marshal(cluster.Status.Capabilities)
-	//	println("Have cluster status: " + string(data))
-	//} else {
-	//	println("No cluster status, trying again")
-	cluster, err := h.clusters.Get(bundle.Namespace, bundle.ClusterName, v1.GetOptions{})
-	//	if err == nil {
-	//		data, _ := json.Marshal(cluster.Status.Capabilities)
-	//		println("Have cluster status: " + string(data))
-	//	} else {
-	//		println("Still no cluster status")
-	//	}
-	//}
 
 	if err := h.calculateChanges(&status, targets); err != nil {
 		return nil, status, err
 	}
 
-	if err := setResourceKey(&status, bundle, h.isNamespaced, status.ObservedGeneration != bundle.Generation, cluster); err != nil {
+	/*if err := setResourceKey(&status, bundle, h.isNamespaced, status.ObservedGeneration != bundle.Generation); err != nil {
 		return nil, status, err
-	}
+	}*/
 
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
@@ -201,7 +180,7 @@ func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
 	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
 }
 
-func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed func(schema.GroupVersionKind) bool, set bool, cluster *fleet.Cluster) error {
+func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed func(schema.GroupVersionKind) bool, set bool) error {
 	if !set {
 		return nil
 	}
@@ -211,17 +190,13 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 		return err
 	}
 	for i := range bundle.Spec.Targets {
-		if bundle.Spec.Targets[i].Name == "" {
-			println("Skipping empty target?")
-			continue
-		}
-		opts := options.Calculate(&bundle.Spec, &bundle.Spec.Targets[i])
+		target := &bundle.Spec.Targets[i]
+
+		opts := options.Calculate(&bundle.Spec, target)
+
 		clusterCapabilities := fleet.Capabilities{
 			KubeVersion: fleet.KubeVersion{},
 			APIVersions: nil,
-		}
-		if cluster != nil {
-			clusterCapabilities = cluster.Status.Capabilities
 		}
 		objs, err := helmdeployer.Template(bundle.Name, m, opts, clusterCapabilities)
 		if err != nil {

@@ -8,7 +8,10 @@ import (
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/sirupsen/logrus"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sort"
 )
 
 type Manager struct {
@@ -112,26 +115,74 @@ func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
 	return resources, nil
 }
 
-func (m *Manager) Deploy(bd *fleet.BundleDeployment) (string, error) {
+func (m *Manager) Deploy(bd *fleet.BundleDeployment, isNSed func(gvk schema.GroupVersionKind) bool) (string, []fleet.ResourceKey, error) {
 	if bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
 		if ok, err := m.deployer.EnsureInstalled(bd.Name, bd.Status.Release); err != nil {
-			return "", err
+			return "", nil, err
 		} else if ok {
-			return bd.Status.Release, nil
+			return bd.Status.Release, bd.Status.ResourceKey, nil
 		}
 	}
 
 	manifestID, _ := kv.Split(bd.Spec.DeploymentID, ":")
 	manifest, err := m.lookup.Get(manifestID)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	manifest.Commit = bd.Labels["fleet.cattle.io/commit"]
 	resource, err := m.deployer.Deploy(bd.Name, manifest, bd.Spec.Options)
 	if err != nil {
-		return "", err
+		return "", nil, err
+	}
+	resources, _ := getResourceKeysFromResources(bd, resource, isNSed)
+	return resource.ID, resources, nil
+}
+
+func getResourceKeysFromResources(bd *fleet.BundleDeployment, resources *Resources, isNSed func(schema.GroupVersionKind) bool) ([]fleet.ResourceKey, error) {
+	objs := resources.Objects
+	bundleMap := map[fleet.ResourceKey]struct{}{}
+	for _, obj := range objs {
+		m, err := meta.Accessor(obj)
+		if err != nil {
+			return nil, err
+		}
+		key := fleet.ResourceKey{
+			Namespace: m.GetNamespace(),
+			Name:      m.GetName(),
+		}
+		gvk := obj.GetObjectKind().GroupVersionKind()
+		if key.Namespace == "" && isNSed(gvk) {
+			if bd.Spec.Options.DefaultNamespace == "" {
+				key.Namespace = "default"
+			} else {
+				key.Namespace = bd.Spec.Options.DefaultNamespace
+			}
+		}
+		key.APIVersion, key.Kind = gvk.ToAPIVersionAndKind()
+		bundleMap[key] = struct{}{}
 	}
 
-	return resource.ID, nil
+	keys := []fleet.ResourceKey{}
+	for k := range bundleMap {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		keyi := keys[i]
+		keyj := keys[j]
+		if keyi.APIVersion != keyj.APIVersion {
+			return keyi.APIVersion < keyj.APIVersion
+		}
+		if keyi.Kind != keyj.Kind {
+			return keyi.Kind < keyj.Kind
+		}
+		if keyi.Namespace != keyj.Namespace {
+			return keyi.Namespace < keyj.Namespace
+		}
+		if keyi.Name != keyj.Name {
+			return keyi.Name < keyj.Name
+		}
+		return false
+	})
+	return keys, nil
 }

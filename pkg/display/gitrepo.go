@@ -2,6 +2,7 @@ package display
 
 import (
 	"encoding/json"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sort"
 	"strings"
 
@@ -11,12 +12,16 @@ import (
 )
 
 type Factory struct {
-	bundleCache fleetcontrollers.BundleCache
+	bundleCache           fleetcontrollers.BundleCache
+	bundles               fleetcontrollers.BundleController
+	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache
 }
 
-func NewFactory(bundleCache fleetcontrollers.BundleCache) *Factory {
+func NewFactory(bundleCache fleetcontrollers.BundleCache, bundles fleetcontrollers.BundleController, bundleDeploymentCache fleetcontrollers.BundleDeploymentCache) *Factory {
 	return &Factory{
-		bundleCache: bundleCache,
+		bundleCache:           bundleCache,
+		bundles:               bundles,
+		bundleDeploymentCache: bundleDeploymentCache,
 	}
 }
 
@@ -26,17 +31,24 @@ func (b *Factory) Render(namespace, name string, bundleErrorState string) ([]fle
 		errors    []string
 	)
 
-	bundles, err := b.bundleCache.List(namespace, labels.SelectorFromSet(labels.Set{
-		fleet.RepoLabel: name,
-	}))
+	//bundles, err := b.bundleCache.List(namespace, labels.SelectorFromSet(labels.Set{
+	//	fleet.RepoLabel: name,
+	//}))
+
+	bundles, err := b.bundles.List(namespace, v1.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labels.Set{
+			fleet.RepoLabel: name,
+		}).String(),
+	})
 	if err != nil {
 		errors = append(errors, err.Error())
 		return resources, errors
 	}
 
-	for _, bundle := range bundles {
-		bundleResources := bundleResources(bundle)
-		incomplete, err := addState(bundle, bundleResources)
+	for _, bundle := range bundles.Items {
+		bundleDeployments, _ := GetBundleDeploymentsForBundle(b.bundleDeploymentCache, &bundle)
+		bundleResources := bundleResources(bundleDeployments)
+		incomplete, err := addState(&bundle, bundleResources)
 		if len(err) > 0 {
 			incomplete = true
 			for _, err := range err {
@@ -56,6 +68,22 @@ func (b *Factory) Render(namespace, name string, bundleErrorState string) ([]fle
 	})
 
 	return resources, errors
+}
+
+func GetBundleDeploymentsForBundle(bundleDeploymentCache fleetcontrollers.BundleDeploymentCache, app *fleet.Bundle) (result []*fleet.BundleDeployment, err error) {
+	bundleDeployments, err := bundleDeploymentCache.List("", labels.SelectorFromSet(DeploymentLabelsForSelector(app)))
+	if err != nil {
+		return nil, err
+	}
+
+	return bundleDeployments, nil
+}
+
+func DeploymentLabelsForSelector(app *fleet.Bundle) map[string]string {
+	return map[string]string{
+		"fleet.cattle.io/bundle-name":      app.Name,
+		"fleet.cattle.io/bundle-namespace": app.Namespace,
+	}
 }
 
 func toResourceState(k fleet.ResourceKey, state []fleet.ResourcePerClusterState, incomplete bool, bundleErrorState string) fleet.GitRepoResource {
@@ -189,10 +217,12 @@ func appendState(states map[fleet.ResourceKey][]fleet.ResourcePerClusterState, k
 	}
 }
 
-func bundleResources(bundle *fleet.Bundle) map[fleet.ResourceKey][]fleet.ResourcePerClusterState {
+func bundleResources(bundleDeployments []*fleet.BundleDeployment) map[fleet.ResourceKey][]fleet.ResourcePerClusterState {
 	bundleResources := map[fleet.ResourceKey][]fleet.ResourcePerClusterState{}
-	for _, resourceKey := range bundle.Status.ResourceKey {
-		bundleResources[resourceKey] = []fleet.ResourcePerClusterState{}
+	for _, bd := range bundleDeployments {
+		for _, resourceKey := range bd.Status.ResourceKey {
+			bundleResources[resourceKey] = []fleet.ResourcePerClusterState{}
+		}
 	}
 	return bundleResources
 }

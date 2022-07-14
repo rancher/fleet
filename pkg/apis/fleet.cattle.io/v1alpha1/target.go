@@ -84,9 +84,8 @@ type ClusterStatus struct {
 	AgentNamespaceMigrated  bool   `json:"agentNamespaceMigrated,omitempty"`
 	CattleNamespaceMigrated bool   `json:"cattleNamespaceMigrated,omitempty"`
 
-	Display      ClusterDisplay `json:"display,omitempty"`
-	Agent        AgentStatus    `json:"agent,omitempty"`
-	Capabilities Capabilities   `json:"capabilities,omitempty"`
+	Display ClusterDisplay `json:"display,omitempty"`
+	Agent   AgentStatus    `json:"agent,omitempty"`
 }
 
 // Taken from Helm capabilities

@@ -44,14 +44,15 @@ func Register(ctx context.Context,
 	images fleetcontrollers.ImageScanController,
 	gitRepos fleetcontrollers.GitRepoController,
 	secrets corev1controller.SecretCache) {
+	bundleDeploymentCache := bundleDeployments.Cache()
 	h := &handler{
 		gitjobCache:         gitJobs.Cache(),
 		bundleCache:         bundles.Cache(),
 		bundles:             bundles,
 		images:              images,
-		bundleDeployments:   bundleDeployments.Cache(),
+		bundleDeployments:   bundleDeploymentCache,
 		gitRepoRestrictions: gitRepoRestrictions,
-		display:             display.NewFactory(bundles.Cache()),
+		display:             display.NewFactory(bundles.Cache(), bundles, bundleDeploymentCache),
 		secrets:             secrets,
 	}
 
