@@ -88,11 +88,7 @@ jobs:
       -
         name: Deploy Fleet
         run: |
-          helm -n fleet-system install --create-namespace --wait fleet-crd charts/fleet-crd
-          helm -n fleet-system upgrade --install --create-namespace --wait fleet charts/fleet
-          kubectl -n fleet-system rollout status deploy/fleet-controller
-          { grep -q -m 1 "fleet-agent"; kill $!; } < <(kubectl get deployment -n fleet-system -w)
-          kubectl -n fleet-system rollout status deploy/fleet-agent
+          ./.github/scripts/deploy-fleet.sh
       -
         name: E2E Tests for Examples
         env:
@@ -101,6 +97,8 @@ jobs:
           ginkgo e2e/single-cluster
       -
         name: Fleet Gitrepo Tests
+        # git repo tests can't run for PRs, because PRs don't have access to the secrets
+        if: github.event_name != 'pull_request'
         env:
           FLEET_E2E_NS: fleet-local
           GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"
