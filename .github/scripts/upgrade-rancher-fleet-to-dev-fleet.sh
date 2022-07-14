@@ -23,6 +23,9 @@ helm upgrade fleet-crd charts/fleet-crd  --wait -n cattle-fleet-system
 
 until helm -n cattle-fleet-system status fleet | grep -q "STATUS: deployed"; do echo waiting for original fleet chart to be deployed; sleep 3; done
 
+# avoid a downgrade by rancher
+sed -i 's/^version: 0/version: 9000/' charts/fleet/Chart.yaml
+
 helm upgrade fleet charts/fleet \
   --wait -n cattle-fleet-system \
   --create-namespace \
