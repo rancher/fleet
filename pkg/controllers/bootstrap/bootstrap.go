@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"regexp"
 
@@ -10,8 +9,10 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
+	secretutil "github.com/rancher/fleet/pkg/secret"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +35,7 @@ type handler struct {
 	systemNamespace     string
 	serviceAccountCache corecontrollers.ServiceAccountCache
 	secretsCache        corecontrollers.SecretCache
+	secretsController   corecontrollers.SecretController
 	cfg                 clientcmd.ClientConfig
 }
 
@@ -42,12 +44,14 @@ func Register(ctx context.Context,
 	apply apply.Apply,
 	cfg clientcmd.ClientConfig,
 	serviceAccountCache corecontrollers.ServiceAccountCache,
+	secretsController corecontrollers.SecretController,
 	secretsCache corecontrollers.SecretCache,
 ) {
 	h := handler{
 		systemNamespace:     systemNamespace,
 		serviceAccountCache: serviceAccountCache,
 		secretsCache:        secretsCache,
+		secretsController:   secretsController,
 		apply:               apply.WithSetID("fleet-bootstrap"),
 		cfg:                 cfg,
 	}
@@ -65,7 +69,6 @@ func (h *handler) OnConfig(config *config.Config) error {
 	if err != nil {
 		return err
 	}
-
 	objs = append(objs, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: config.Bootstrap.Namespace,
@@ -147,7 +150,12 @@ func (h *handler) getToken() (string, error) {
 	}
 
 	if len(sa.Secrets) == 0 {
-		return "", fmt.Errorf("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
+		logrus.Infof("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
+		secret, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
+		if err != nil {
+			return "", err
+		}
+		return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
 	}
 
 	secret, err := h.secretsCache.Get(h.systemNamespace, sa.Secrets[0].Name)

@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/pkg/config"
+	secretutil "github.com/rancher/fleet/pkg/secret"
+	"github.com/sirupsen/logrus"
 
 	yaml "sigs.k8s.io/yaml"
 
@@ -28,6 +30,7 @@ type handler struct {
 	clusterRegistrationTokens   fleetcontrollers.ClusterRegistrationTokenController
 	serviceAccountCache         corecontrollers.ServiceAccountCache
 	secretsCache                corecontrollers.SecretCache
+	secretsController           corecontrollers.SecretController
 }
 
 func Register(ctx context.Context,
@@ -37,6 +40,7 @@ func Register(ctx context.Context,
 	clusterGroupToken fleetcontrollers.ClusterRegistrationTokenController,
 	serviceAccounts corecontrollers.ServiceAccountController,
 	secretsCache corecontrollers.SecretCache,
+	secretsController corecontrollers.SecretController,
 ) {
 	h := &handler{
 		systemNamespace:             systemNamespace,
@@ -44,6 +48,7 @@ func Register(ctx context.Context,
 		clusterRegistrationTokens:   clusterGroupToken,
 		serviceAccountCache:         serviceAccounts.Cache(),
 		secretsCache:                secretsCache,
+		secretsController:           secretsController,
 	}
 
 	fleetcontrollers.RegisterClusterRegistrationTokenGeneratingHandler(ctx,
@@ -69,15 +74,34 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		secrets []runtime.Object
 	)
 	status.SecretName = ""
-
 	sa, err := h.serviceAccountCache.Get(token.Namespace, saName)
 	if apierror.IsNotFound(err) {
+		logrus.Infof("ClusterRegistrationToken SA does not exist %v", saName)
 		// secret doesn't exist
 	} else if err != nil {
 		return nil, status, err
 	} else if len(sa.Secrets) > 0 {
 		status.SecretName = token.Name
 		secrets, err = h.getValuesYAMLSecret(token, sa.Secrets[0].Name)
+		if err != nil {
+			return nil, status, err
+		}
+	} else if len(sa.Secrets) == 0 {
+		secretCreated, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
+		if err != nil {
+			return nil, status, err
+		}
+		secretReloaded, err := h.secretsCache.Get(token.Namespace, secretCreated.Name)
+		if err != nil {
+			return nil, status, err
+		}
+		if string(secretReloaded.Data["token"]) == "" {
+			h.clusterRegistrationTokens.Enqueue(token.Namespace, token.Name)
+			return nil, status, err
+		}
+
+		status.SecretName = token.Name
+		secrets, err = h.getValuesYAMLSecret(token, secretCreated.Name)
 		if err != nil {
 			return nil, status, err
 		}
