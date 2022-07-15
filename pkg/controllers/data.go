@@ -10,6 +10,7 @@ import (
 )
 
 func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appContext) error {
+
 	return appCtx.Apply.
 		WithSetID("fleet-bootstrap-data").
 		WithDynamicLookup().

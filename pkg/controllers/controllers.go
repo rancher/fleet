@@ -143,7 +143,8 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.RBAC.RoleBinding()),
 		appCtx.ClusterRegistrationToken(),
 		appCtx.Core.ServiceAccount(),
-		appCtx.Core.Secret().Cache())
+		appCtx.Core.Secret().Cache(),
+		appCtx.Core.Secret())
 
 	cleanup.Register(ctx,
 		appCtx.Apply.WithCacheTypes(
@@ -203,6 +204,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.Core.Secret()),
 		appCtx.ClientConfig,
 		appCtx.Core.ServiceAccount().Cache(),
+		appCtx.Core.Secret(),
 		appCtx.Core.Secret().Cache())
 
 	display.Register(ctx,
