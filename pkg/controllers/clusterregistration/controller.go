@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/registration"
+	secretutil "github.com/rancher/fleet/pkg/secret"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
@@ -98,7 +99,7 @@ func saToClusterRegistration(namespace, name string, obj runtime.Object) ([]rela
 	if sa, ok := obj.(*v1.ServiceAccount); ok {
 		ns := sa.Annotations[fleet.ClusterRegistrationNamespaceAnnotation]
 		name := sa.Annotations[fleet.ClusterRegistrationAnnotation]
-		if ns != "" && name != "" && len(sa.Secrets) > 0 {
+		if ns != "" && name != "" {
 			return []relatedresource.Key{{
 				Namespace: ns,
 				Name:      name,
@@ -130,13 +131,16 @@ func (h *handler) OnCluster(key string, cluster *fleet.Cluster) (*fleet.Cluster,
 }
 
 func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster, req *fleet.ClusterRegistration) (*v1.Secret, error) {
-	if len(sa.Secrets) == 0 {
-		return nil, nil
-	}
-	secret, err := h.secretsCache.Get(sa.Namespace, sa.Secrets[0].Name)
-	if apierrors.IsNotFound(err) {
-		// secrets can be slow to propagate to the cache
-		secret, err = h.secrets.Get(sa.Namespace, sa.Secrets[0].Name, metav1.GetOptions{})
+	var secret *v1.Secret
+	var err error
+	if len(sa.Secrets) != 0 {
+		secret, err = h.secretsCache.Get(sa.Namespace, sa.Secrets[0].Name)
+		if apierrors.IsNotFound(err) {
+			// secrets can be slow to propagate to the cache
+			secret, err = h.secrets.Get(sa.Namespace, sa.Secrets[0].Name, metav1.GetOptions{})
+		}
+	} else {
+		secret, err = secretutil.GetServiceAccountTokenSecret(sa, h.secrets)
 	}
 	if err != nil || secret == nil {
 		return nil, err
