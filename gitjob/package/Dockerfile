@@ -4,5 +4,5 @@ RUN zypper -n update && \
     zypper -n clean -a
 RUN useradd -u 1000 -U -m gitjob
 COPY bin/gitjob /usr/bin/
-USER gitjob
+USER 1000
 CMD ["gitjob"]
