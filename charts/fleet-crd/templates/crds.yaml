@@ -1328,6 +1328,24 @@ spec:
               release:
                 nullable: true
                 type: string
+              resourceKey:
+                items:
+                  properties:
+                    apiVersion:
+                      nullable: true
+                      type: string
+                    kind:
+                      nullable: true
+                      type: string
+                    name:
+                      nullable: true
+                      type: string
+                    namespace:
+                      nullable: true
+                      type: string
+                  type: object
+                nullable: true
+                type: array
               syncGeneration:
                 nullable: true
                 type: integer
@@ -4000,6 +4018,24 @@ spec:
             release:
               nullable: true
               type: string
+            resourceKey:
+              items:
+                properties:
+                  apiVersion:
+                    nullable: true
+                    type: string
+                  kind:
+                    nullable: true
+                    type: string
+                  name:
+                    nullable: true
+                    type: string
+                  namespace:
+                    nullable: true
+                    type: string
+                type: object
+              nullable: true
+              type: array
             syncGeneration:
               nullable: true
               type: integer
