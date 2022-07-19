@@ -194,11 +194,7 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 
 		opts := options.Calculate(&bundle.Spec, target)
 
-		clusterCapabilities := fleet.Capabilities{
-			KubeVersion: fleet.KubeVersion{},
-			APIVersions: nil,
-		}
-		objs, err := helmdeployer.Template(bundle.Name, m, opts, clusterCapabilities)
+		objs, err := helmdeployer.Template(bundle.Name, m, opts)
 		if err != nil {
 			return err
 		}
