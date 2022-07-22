@@ -1115,8 +1115,8 @@ github.com/quasilyte/regex/syntax v0.0.0-20200407221936-30656e2c4a95/go.mod h1:r
 github.com/quobyte/api v0.1.8/go.mod h1:jL7lIHrmqQ7yh05OJ+eEEdHr0u/kmT1Ff9iHd+4H6VI=
 github.com/rancher/client-go v0.24.0-fleet1 h1:rZcmrDNEMhvimyi0CtRZ76A5iSv1sBqXvQ3uyHpG1dI=
 github.com/rancher/client-go v0.24.0-fleet1/go.mod h1:VFPQET+cAFpYxh6Bq6f4xyMY80G6jKKktU6G0m00VDw=
-github.com/rancher/gitjob v0.1.29 h1:LAgdJCgWEtUwAw97KEZeCNZ5syDMp89L2dg5CVpiuxw=
-github.com/rancher/gitjob v0.1.29/go.mod h1:RrsJjHmiiVUZDd57ezGk4y9DNWa0LQSPRRE12sO0Hyc=
+github.com/rancher/gitjob v0.1.30 h1:w4znQ2cHgWmRYFBITaEyJWo1tNoWtfiAnaGVR3IZVdk=
+github.com/rancher/gitjob v0.1.30/go.mod h1:RrsJjHmiiVUZDd57ezGk4y9DNWa0LQSPRRE12sO0Hyc=
 github.com/rancher/helm/v3 v3.9.0-rancher1 h1:lqDYFI2AmkDn6Jwzu9A3YKr8EJ34ZmdahREF6lDk2pw=
 github.com/rancher/helm/v3 v3.9.0-rancher1/go.mod h1:fzZfyslcPAWwSdkXrXlpKexFeE2Dei8N27FFQWt+PN0=
 github.com/rancher/lasso v0.0.0-20220519004610-700f167d8324 h1:yi3gGq+tBqkMppIY2gLDidDMtxr6ajcoWxJ6HaLI0TA=
