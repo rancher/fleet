@@ -148,6 +148,8 @@ targetCustomizations:
 - name: prod
   # Custom namespace value overriding the value at the root
   namespace: newvalue
+  # Custom defaultNamespace value overriding the value at the root
+  defaultNamespace: newdefaultvalue
   # Custom kustomize options overriding the options at the root
   kustomize: {}
   # Custom Helm options override the options at the root
