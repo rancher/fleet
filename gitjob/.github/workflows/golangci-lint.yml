@@ -1,0 +1,45 @@
+name: golangci-lint
+
+env:
+  SETUP_GO_VERSION: '^1.18'
+
+on:
+  schedule:
+    - cron:  '0 5 * * *'
+  pull_request:
+    paths-ignore:
+    - 'docs/**'
+    - 'charts/**'
+    - 'scripts/**'
+    - '*.md'
+
+jobs:
+  golangci:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.SETUP_GO_VERSION }}
+
+      - name: Generate Golang
+        run: |
+          export PATH=$PATH:/home/runner/go/bin/
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3.1.0
+        with:
+          # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
+          version: v1.46
+
+          args: --timeout=10m --config=.golangci.json
+
+          # Optional: show only new issues if it's a pull request. The default value is `false`.
+          # The condition sets this to true for PR events.
+          only-new-issues: "${{ github.event_name == 'pull_request'}}"
