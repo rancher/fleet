@@ -46,7 +46,7 @@ under the `ca.crt` key.
 
 
 !!! hint "Use proper namespace and release name"
-    For the agent chart the namespace must be `fleet-system` and the release name `fleet-agent`
+    For the agent chart the namespace must be `cattle-fleet-system` and the release name `fleet-agent`
 
 !!! hint "Ensure you are installing to the right cluster"
     Helm will use the default context in `${HOME}/.kube/config` to deploy the agent. Use `--kubeconfig` and `--kube-context`
@@ -55,7 +55,7 @@ under the `ca.crt` key.
 Finally, install the agent using Helm.
 
 ```shell
-helm -n fleet-system install --create-namespace --wait \
+helm -n cattle-fleet-system install --create-namespace --wait \
     ${CLUSTER_LABELS} \
     --values values.yaml \
     --set apiServerCA=${API_SERVER_CA} \
@@ -67,8 +67,8 @@ The agent should now be deployed.  You can check that status of the fleet pods b
 
 ```shell
 # Ensure kubectl is pointing to the right cluster
-kubectl -n fleet-system logs -l app=fleet-agent
-kubectl -n fleet-system get pods -l app=fleet-agent
+kubectl -n cattle-fleet-system logs -l app=fleet-agent
+kubectl -n cattle-fleet-system get pods -l app=fleet-agent
 ```
 
 Additionally you should see a new cluster registered in the Fleet manager.  Below is an example of checking that a new cluster
@@ -119,7 +119,7 @@ CLUSTER_CLIENT_ID="really-random"
 ```
 
 !!! hint "Use proper namespace and release name"
-    For the agent chart the namespace must be `fleet-system` and the release name `fleet-agent`
+    For the agent chart the namespace must be `cattle-fleet-system` and the release name `fleet-agent`
 
 !!! hint "Ensure you are installing to the right cluster"
     Helm will use the default context in `${HOME}/.kube/config` to deploy the agent. Use `--kubeconfig` and `--kube-context`
@@ -128,7 +128,7 @@ CLUSTER_CLIENT_ID="really-random"
 Finally, install the agent using Helm.
 
 ```shell
-helm -n fleet-system install --create-namespace --wait \
+helm -n cattle-fleet-system install --create-namespace --wait \
     --set clientID="${CLUSTER_CLIENT_ID}" \
     --values values.yaml \
     fleet-agent https://github.com/rancher/fleet/releases/download/{{fleet.version}}/fleet-agent-{{fleet.version}}.tgz
@@ -138,8 +138,8 @@ The agent should now be deployed.  You can check that status of the fleet pods b
 
 ```shell
 # Ensure kubectl is pointing to the right cluster
-kubectl -n fleet-system logs -l app=fleet-agent
-kubectl -n fleet-system get pods -l app=fleet-agent
+kubectl -n cattle-fleet-system logs -l app=fleet-agent
+kubectl -n cattle-fleet-system get pods -l app=fleet-agent
 ```
 
 Additionally you should see a new cluster registered in the Fleet manager.  Below is an example of checking that a new cluster

@@ -87,7 +87,7 @@ spec:
 
   # The service account that will be used to perform this deployment.
   # This is the name of the service account that exists in the
-  # downstream cluster in the fleet-system namespace. It is assumed
+  # downstream cluster in the cattle-fleet-system namespace. It is assumed
   # this service account already exists so it should be create before
   # hand, most likely coming from another git repo registered with
   # the Fleet manager.

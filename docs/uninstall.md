@@ -5,6 +5,6 @@ uninstalling the appropriate Helm charts. To uninstall Fleet run the following
 two commands:
 
 ```shell
-helm -n fleet-system uninstall fleet
-helm -n fleet-system uninstall fleet-crd
+helm -n cattle-fleet-system uninstall fleet
+helm -n cattle-fleet-system uninstall fleet-crd
 ```

@@ -31,7 +31,7 @@ on.
 
 **Note:** If you would like to migrate your cluster from `fleet-local` to `default`, please see this [documentation](./troubleshooting.md#migrate-the-local-cluster-to-the-fleet-default-cluster).
 
-### fleet-system
+### cattle-fleet-system
 
 The Fleet controller and Fleet agent run in this namespace. All service accounts referenced by `GitRepos` are expected
 to live in this namespace in the downstream cluster.
