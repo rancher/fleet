@@ -1,0 +1,53 @@
+{
+  "run": {
+    "deadline": "20s",
+    "skip-files": [
+      "/zz_generated_"
+    ]
+  },
+  "linters-settings": {
+    "revive": {
+      "rules": [
+        {
+          "name": "blank-imports",
+          "severity": "warning"
+        },
+        {
+          "name": "unexported-return",
+          "severity": "warning"
+        }
+      ]
+    },
+    "funlen": {
+      "lines": 270,
+      "statements": 110
+    }
+  },
+  "linters": {
+    "disable-all": true,
+    "enable": [
+      "misspell",
+      "structcheck",
+      "govet",
+      "staticcheck",
+      "deadcode",
+      "errcheck",
+      "varcheck",
+      "unparam",
+      "ineffassign",
+      "nakedret",
+      "gocyclo",
+      "dupl",
+      "goimports",
+      "revive",
+      "gosec",
+      "gosimple",
+      "typecheck",
+      "unused",
+      "funlen"
+    ]
+  },
+  "issues": {
+    "exclude-rules": []
+  }
+}
