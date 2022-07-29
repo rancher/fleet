@@ -63,7 +63,7 @@ func main() {
 
 func run(c *cli.Context) {
 	logrus.Info("Starting controller")
-	ctx := signals.SetupSignalHandler(context.Background())
+	ctx := signals.SetupSignalContext()
 
 	if c.Bool("debug") {
 		logrus.SetLevel(logrus.DebugLevel)
