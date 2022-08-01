@@ -65,8 +65,8 @@ require (
 	k8s.io/kube-openapi v0.0.0-20220621154418-c39d0f63fac8
 	k8s.io/kubernetes v1.24.3
 	sigs.k8s.io/cli-utils v0.31.2
-	sigs.k8s.io/kustomize/api v0.11.5
-	sigs.k8s.io/kustomize/kyaml v0.13.7
+	sigs.k8s.io/kustomize/api v0.12.0
+	sigs.k8s.io/kustomize/kyaml v0.13.8
 	sigs.k8s.io/yaml v1.3.0
 )
 
