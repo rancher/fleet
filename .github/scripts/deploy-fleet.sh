@@ -15,15 +15,15 @@ else
   agentTag="dev"
 fi
 
-helm -n fleet-system install --create-namespace --wait fleet-crd charts/fleet-crd
+helm -n cattle-fleet-system install --create-namespace --wait fleet-crd charts/fleet-crd
 helm upgrade --install fleet charts/fleet \
-  -n fleet-system --create-namespace --wait \
+  -n cattle-fleet-system --create-namespace --wait \
   --set image.repository="$fleetRepo" \
   --set image.tag="$fleetTag" \
   --set agentImage.repository="$agentRepo" \
   --set agentImage.tag="$agentTag" \
   --set agentImage.imagePullPolicy=IfNotPresent
 
-kubectl -n fleet-system rollout status deploy/fleet-controller
-{ grep -q -m 1 "fleet-agent"; kill $!; } < <(kubectl get deployment -n fleet-system -w)
-kubectl -n fleet-system rollout status deploy/fleet-agent
+kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
+{ grep -q -m 1 "fleet-agent"; kill $!; } < <(kubectl get deployment -n cattle-fleet-system -w)
+kubectl -n cattle-fleet-system rollout status deploy/fleet-agent
