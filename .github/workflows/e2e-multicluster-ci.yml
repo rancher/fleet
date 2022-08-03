@@ -121,7 +121,6 @@ jobs:
             --set apiServerCA="$ca" \
             --set apiServerURL="https://172.18.0.1.omg.howdoi.website:6443" \
             --set clusterNamespace="fleet-local" \
-            --set systemRegistrationNamespace="fleet-clusters-system" \
             --set token="$token"
       -
         name: Label Downstream Cluster

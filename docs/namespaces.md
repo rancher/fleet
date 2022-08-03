@@ -36,7 +36,7 @@ on.
 The Fleet controller and Fleet agent run in this namespace. All service accounts referenced by `GitRepos` are expected
 to live in this namespace in the downstream cluster.
 
-### fleet-clusters-system
+### cattle-fleet-clusters-system
 
 This namespace holds secrets for the cluster registration process. It should contain no other resources in it,
 especially secrets.
