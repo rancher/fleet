@@ -67,7 +67,7 @@ require (
 	k8s.io/kubernetes v1.24.3
 	sigs.k8s.io/cli-utils v0.32.0
 	sigs.k8s.io/kustomize/api v0.12.0
-	sigs.k8s.io/kustomize/kyaml v0.13.8
+	sigs.k8s.io/kustomize/kyaml v0.13.9
 	sigs.k8s.io/yaml v1.3.0
 )
 
