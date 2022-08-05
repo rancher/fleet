@@ -116,12 +116,11 @@ jobs:
           ca=$(kubectl get -n default secret "$name" -o go-template='{{index .data "ca.crt" | base64decode}}')
 
           kubectl config use-context k3d-downstream
-          helm -n fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \
+          helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \
             --set-string labels.env=dev \
             --set apiServerCA="$ca" \
             --set apiServerURL="https://172.18.0.1.omg.howdoi.website:6443" \
             --set clusterNamespace="fleet-local" \
-            --set systemRegistrationNamespace="fleet-clusters-system" \
             --set token="$token"
       -
         name: Label Downstream Cluster
@@ -149,14 +148,14 @@ jobs:
           kubectl get -A gitrepos,clusters,clustergroups,bundles,bundledeployments -o json > tmp/fleet.json
           kubectl get -A events > tmp/events.log
           helm list -A > tmp/helm.log
-          kubectl logs -n fleet-system -l app=fleet-controller > tmp/fleetcontroller.log
-          kubectl logs -n fleet-system -l app=fleet-agent > tmp/fleetagent.log
+          kubectl logs -n cattle-fleet-system -l app=fleet-controller > tmp/fleetcontroller.log
+          kubectl logs -n cattle-fleet-system -l app=fleet-agent > tmp/fleetagent.log
 
           kubectl config use-context k3d-downstream
           kubectl get -A pod,secret,service,ingress -o json > tmp/cluster-downstream.json
           kubectl get -A events > tmp/events-downstream.log
           helm list -A > tmp/helm-downstream.log
-          kubectl logs -n fleet-system -l app=fleet-agent > tmp/fleetagent-downstream.log
+          kubectl logs -n cattle-fleet-system -l app=fleet-agent > tmp/fleetagent-downstream.log
 
           docker logs k3d-upstream-server-0 &> tmp/k3s.log
           docker exec k3d-upstream-server-0 sh -c 'cd /var/log/containers; grep -r "." .' > tmp/containers.log

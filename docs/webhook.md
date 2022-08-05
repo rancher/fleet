@@ -10,7 +10,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: webhook-ingress
-  namespace: fleet-system
+  namespace: cattle-fleet-system
 spec:
   rules:
   - host: your.domain.com
@@ -42,7 +42,7 @@ secret, follow step 3.
 !!! note
     If you configured the webhook the polling interval will be automatically adjusted to 1 hour.
     
-### 3. (Optional) Configure webhook secret. The secret is for validating webhook payload. Make sure to put it in a k8s secret called `gitjob-webhook` in `fleet-system`.
+### 3. (Optional) Configure webhook secret. The secret is for validating webhook payload. Make sure to put it in a k8s secret called `gitjob-webhook` in `cattle-fleet-system`.
 
 | Provider        | K8s Secret Key                   |
 |-----------------| ---------------------------------|
@@ -55,7 +55,7 @@ secret, follow step 3.
 For example, to create a secret containing a GitHub secret to validate the webhook payload, run:
 
 ```shell
-kubectl create secret generic gitjob-webhook -n fleet-system --from-literal=github=webhooksecretvalue
+kubectl create secret generic gitjob-webhook -n cattle-fleet-system --from-literal=github=webhooksecretvalue
 ```
 
 ### 4. Go to your git provider and test the connection. You should get a HTTP response code.

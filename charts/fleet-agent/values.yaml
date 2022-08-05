@@ -25,11 +25,11 @@ clientID: ""
 clusterNamespace: ""
 
 # The namespace containing the clusters registration secrets
-systemRegistrationNamespace: fleet-clusters-system
+systemRegistrationNamespace: cattle-fleet-clusters-system
 
 # Please do not change the below setting unless you really know what you are doing
 internal:
-  systemNamespace: fleet-system
+  systemNamespace: cattle-fleet-system
   managedReleaseName: fleet-agent
 
 # The nodeSelector and tolerations for the agent deployment

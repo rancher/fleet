@@ -214,10 +214,10 @@ If you would like to test standalone Fleet, you can do the following: build and 
     go fmt ./...
     REPO=$AGENT_REPO make agent-dev
     docker push $AGENT_REPO/fleet-agent:dev
-    for i in fleet-system fleet-default fleet-local; do kubectl create namespace $i; done
-    helm install -n fleet-system fleet-crd ./charts/fleet-crd
-    helm install -n fleet-system fleet --set agentImage.repository=$AGENT_REPO/fleet-agent --set agentImage.imagePullPolicy=Always ./charts/fleet
-    kubectl delete deployment -n fleet-system fleet-controller
+    for i in cattle-fleet-system fleet-default fleet-local; do kubectl create namespace $i; done
+    helm install -n cattle-fleet-system fleet-crd ./charts/fleet-crd
+    helm install -n cattle-fleet-system fleet --set agentImage.repository=$AGENT_REPO/fleet-agent --set agentImage.imagePullPolicy=Always ./charts/fleet
+    kubectl delete deployment -n cattle-fleet-system fleet-controller
     go run cmd/fleetcontroller/main.go
 )
 ```
@@ -228,10 +228,10 @@ We'll use the latest Git tag for this, and _assume_ it is available on DockerHub
 ```sh
 (
     go fmt ./...
-    for i in fleet-system fleet-default fleet-local; do kubectl create namespace $i; done
-    helm install -n fleet-system fleet-crd ./charts/fleet-crd
-    helm install -n fleet-system fleet --set agentImage.tag=$(git tag --sort=taggerdate | tail -1) ./charts/fleet
-    kubectl delete deployment -n fleet-system fleet-controller
+    for i in cattle-fleet-system fleet-default fleet-local; do kubectl create namespace $i; done
+    helm install -n cattle-fleet-system fleet-crd ./charts/fleet-crd
+    helm install -n cattle-fleet-system fleet --set agentImage.tag=$(git tag --sort=taggerdate | tail -1) ./charts/fleet
+    kubectl delete deployment -n cattle-fleet-system fleet-controller
     go run cmd/fleetcontroller/main.go
 )
 ```

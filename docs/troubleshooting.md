@@ -58,8 +58,8 @@ $ kubectl logs -f $gitRepoName-pod-name -n namespace
 You can check the status of the `fleet-controller` pods by running the commands below:
 
 ```bash
-kubectl -n fleet-system logs -l app=fleet-controller
-kubectl -n fleet-system get pods -l app=fleet-controller
+kubectl -n cattle-fleet-system logs -l app=fleet-controller
+kubectl -n cattle-fleet-system get pods -l app=fleet-controller
 ```
 
 ```bash
