@@ -18,7 +18,7 @@ const (
 	AgentConfigName          = "fleet-agent"
 	AgentBootstrapConfigName = "fleet-agent-bootstrap"
 	Key                      = "config"
-	DefaultNamespace         = "fleet-system"
+	DefaultNamespace         = "cattle-fleet-system"
 )
 
 var (

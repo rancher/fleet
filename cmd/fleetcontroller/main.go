@@ -20,7 +20,7 @@ var (
 
 type FleetManager struct {
 	Kubeconfig    string `usage:"Kubeconfig file"`
-	Namespace     string `usage:"namespace to watch" default:"fleet-system" env:"NAMESPACE"`
+	Namespace     string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
 	DisableGitops bool   `usage:"disable gitops components" name:"disable-gitops"`
 }
 
