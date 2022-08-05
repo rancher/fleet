@@ -1,0 +1,84 @@
+name: 'Bug report'
+labels: ['kind/bug', '[zube]: To Triage','area/fleet']
+description: Create a report to help Fleet to improve
+body:
+- type: checkboxes
+  attributes:
+    label: Is there an existing issue for this?
+    description: Please search to see if an issue already exists for the bug you encountered.
+    options:
+    - label: I have searched the existing issues
+      required: true
+- type: textarea
+  attributes:
+    label: Current Behavior
+    description: A concise description of what you're experiencing.
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: Expected Behavior
+    description: A concise description of what you expected to happen.
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: Steps To Reproduce
+    description: Steps to reproduce the behavior.
+    placeholder: |
+      1. Install Fleet to '...'
+      4. See error
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: Environment
+    description: |
+      examples:
+        - **Architecture**: arm64
+        - **Fleet Version**: 0.3.9
+        - **Cluster (please complete the following information):**
+          - Provider: [e.g. K3D, minikube, KinD, AKS, EKS, GKE, RKE, ...]
+          - Options: [e.g. number of nodes, storageclasses, loadbalancer if customised]
+          - Kubernetes Version: [e.g. 1.20]
+
+    value: |
+        - Architecture:
+        - Fleet Version:
+        - Cluster:
+          - Provider:
+          - Options:
+          - Kubernetes Version:
+    render: markdown
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: Logs
+    description: |
+      If applicable, add logs to help explain your problem.
+      You can use attachments to add a screenshot of your clusters state, e.g. from k9s.
+
+      If you paste long logs, you could also add them into a collapsed block:
+
+      &lt;details&gt;
+        &lt;summary&gt;Click to expand&lt;summary&gt;
+
+        \```
+        pasted log
+        \```
+      &lt;details&gt;
+
+    render: markdown
+  validations:
+    required: false
+
+- type: textarea
+  attributes:
+    label: Anything else?
+    description: |
+      Links? References? Screenshots? Anything that will give us more context about the issue you are encountering!
+
+      Tip: You can attach images or log files by clicking this area to highlight it and then dragging files in.
+  validations:
+    required: false
