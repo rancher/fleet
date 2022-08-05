@@ -96,11 +96,7 @@ jobs:
         name: Deploy Fleet
         run: |
           kubectl config use-context k3d-upstream
-          helm -n fleet-system install --create-namespace --wait fleet-crd charts/fleet-crd
-          helm -n fleet-system upgrade --install --create-namespace --wait fleet charts/fleet
-          kubectl -n fleet-system rollout status deploy/fleet-controller
-          { grep -q -m 1 "fleet-agent"; kill $!; } < <(kubectl get deployment -n fleet-system -w)
-          kubectl -n fleet-system rollout status deploy/fleet-agent
+          ./.github/scripts/deploy-fleet.sh
       -
         name: Deploy and Register Downstream Fleet
         run: |

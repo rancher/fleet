@@ -1,4 +1,4 @@
-package mc_examples_test
+package gitrepo_test
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ import (
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "E2E Suite for Multi-Cluster Examples")
+	RunSpecs(t, "E2E Suite for Git Repo Tests")
 }
 
 var (
