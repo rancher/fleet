@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubectl-apply
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubectl-apply
+rules:
+  - apiGroups:
+    - "apps"
+    resources:
+    - 'deployments'
+    verbs:
+    - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubectl-apply
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kubectl-apply
+subjects:
+  - kind: ServiceAccount
+    name: kubectl-apply

@@ -1,0 +1,107 @@
+name: E2E Gitjob
+
+on:
+  schedule:
+    # Run everyday day at 7:00 AM
+    - cron: '0 7 * * *'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'scripts/**'
+      - '*.md'
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+  SETUP_GO_VERSION: '^1.18'
+
+jobs:
+  e2e-gitjob-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k3s_version:
+          # k3d version list k3s | sed 's/+/-/' | sort -h
+          # - v1.24.1-k3s1
+          - v1.22.10-k3s1
+    steps:
+      -
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.SETUP_GO_VERSION }}
+      -
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      -
+        name: Install Ginkgo CLI
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.1
+      -
+        name: Build Binaries
+        run: |
+          go build -o "bin/gitjob"
+      -
+        name: Build Docker Images
+        run: |
+          docker build -f package/Dockerfile -t rancher/gitjob:dev .
+      -
+        name: Provision k3d Cluster
+        uses: AbsaOSS/k3d-action@v2
+        # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
+        with:
+          cluster-name: "k3s-default"
+          args: >-
+            --agents 3
+            --network "nw01"
+            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
+      -
+        name: Import Images Into k3d
+        run: |
+          k3d image import rancher/gitjob:dev
+      -
+        name: Deploy
+        run: |
+          # FIXME this generates a template file, can't copy it into crd/
+          go run pkg/crdgen/main.go > chart/templates/crds.yaml
+          HELM_VERSION=v0.0.0
+          sed -i \
+              -e "s/version:.*/version: $HELM_VERSION/" \
+              -e "s/appVersion:.*/appVersion: $HELM_VERSION/" \
+              chart/Chart.yaml
+          helm upgrade --install gitjob chart/ \
+            --set gitjob.tag=dev \
+            -n cattle-fleet-system --create-namespace --wait
+      -
+        name: Tests
+        run: |
+          go test -cover -tags=test $(go list ./... | grep -v /e2e)
+          ginkgo e2e/
+      -
+        name: Dump Failed Environment
+        if: failure()
+        run: |
+          mkdir -p tmp
+          kubectl get -A pod,secret,service,ingress -o json > tmp/cluster.json
+          kubectl get -A gitjobs -o json > tmp/gitjob.json
+          kubectl get -A events > tmp/events.log
+          helm list -A > tmp/helm.log
+          kubectl logs -n cattle-fleet-system -l app=gitjob > tmp/gitjobcontroller.log
+      -
+        name: Upload Logs
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: gha-gitjob-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
+          path: |
+            tmp/*.json
+            tmp/*.log
+          retention-days: 2
