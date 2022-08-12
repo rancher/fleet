@@ -23,5 +23,5 @@ sed -i \
     build/chart/values.yaml
 
 mkdir build/chart/crds
-go run pkg/crdgen/main.go > ./build/chart/crds/crds.yaml
+go run pkg/crdgen/main.go > ./build/chart/templates/crds.yaml
 helm package -d ./dist/artifacts ./build/chart
