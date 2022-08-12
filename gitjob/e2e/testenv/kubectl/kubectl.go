@@ -49,6 +49,10 @@ func (c Command) Delete(args ...string) (string, error) {
 	return c.Run(append([]string{"delete"}, args...)...)
 }
 
+func (c Command) Create(args ...string) (string, error) {
+	return c.Run(append([]string{"create"}, args...)...)
+}
+
 func (c Command) Run(args ...string) (string, error) {
 	if c.ns != "" {
 		args = append([]string{"-n", c.ns}, args...)
