@@ -1,6 +1,9 @@
 gitjob
 ========
 
+[![E2E](https://github.com/rancher/gitjob/actions/workflows/e2e-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/gitjob/actions/workflows/e2e-ci.yml)
+[![golangci-lint](https://github.com/rancher/gitjob/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/rancher/gitjob/actions/workflows/golangci-lint.yml)
+
 Job controller to launch kubernetes jobs based on git event
 
 ## Building
