@@ -7,11 +7,6 @@ on:
   schedule:
     - cron:  '0 5 * * *'
   pull_request:
-    paths-ignore:
-    - 'docs/**'
-    - 'charts/**'
-    - 'scripts/**'
-    - '*.md'
 
 jobs:
   golangci:
