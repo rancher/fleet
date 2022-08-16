@@ -246,6 +246,7 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 			}
 		}
 
+		cArgs := append([]string{"--"}, job.Spec.Template.Spec.Containers[i].Args...)
 		job.Spec.Template.Spec.Containers[i].Args = append([]string{
 			"-wait_file",
 			"/tekton/tools/0",
@@ -254,7 +255,7 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 			"-termination_path",
 			"/tekton/tools/termination_path",
 			"-entrypoint",
-		}, append(job.Spec.Template.Spec.Containers[i].Command, job.Spec.Template.Spec.Containers[i].Args...)...)
+		}, append(job.Spec.Template.Spec.Containers[i].Command, cArgs...)...)
 		job.Spec.Template.Spec.Containers[i].Command = []string{"/tekton/tools/entrypoint"}
 		job.Spec.Template.Spec.Containers[i].VolumeMounts = append(job.Spec.Template.Spec.Containers[i].VolumeMounts, []corev1.VolumeMount{
 			{
