@@ -4,11 +4,7 @@ gitjob:
 
 tekton:
   repository: rancher/tekton-utils
-<<<<<<< Updated upstream
-  tag: v0.1.6
-=======
   tag: v0.1.7-rc2
->>>>>>> Stashed changes
 
 global:
   cattle:
