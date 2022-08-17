@@ -71,7 +71,9 @@ type helm struct {
 	labelSuffix         string
 }
 
-func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter, serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache, clusterCapabilities chartutil.Capabilities) (deployer.Deployer, error) {
+func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
+	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache,
+	secretCache corecontrollers.SecretCache, clusterCapabilities chartutil.Capabilities) (deployer.Deployer, error) {
 	h := &helm{
 		getter:              getter,
 		defaultNamespace:    defaultNamespace,

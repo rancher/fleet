@@ -32,7 +32,6 @@ type handler struct {
 	bundles           fleetcontrollers.BundleController
 	bundleDeployments fleetcontrollers.BundleDeploymentController
 	mapper            meta.RESTMapper
-	clusters          fleetcontrollers.ClusterController
 }
 
 func Register(ctx context.Context,
@@ -52,7 +51,6 @@ func Register(ctx context.Context,
 		bundleDeployments: bundleDeployments,
 		images:            images,
 		gitRepo:           gitRepo,
-		clusters:          clusters,
 	}
 
 	fleetcontrollers.RegisterBundleGeneratingHandler(ctx,

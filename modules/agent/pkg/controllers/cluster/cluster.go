@@ -33,7 +33,14 @@ type handler struct {
 	reported         fleet.AgentStatus
 }
 
-func Register(ctx context.Context, agentNamespace string, clusterNamespace string, clusterName string, checkinInterval time.Duration, nodes corecontrollers.NodeCache, clusters fleetcontrollers.ClusterClient) {
+func Register(ctx context.Context,
+	agentNamespace string,
+	clusterNamespace string,
+	clusterName string,
+	checkinInterval time.Duration,
+	nodes corecontrollers.NodeCache,
+	clusters fleetcontrollers.ClusterClient) {
+
 	h := handler{
 		agentNamespace:   agentNamespace,
 		clusterName:      clusterName,
