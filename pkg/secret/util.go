@@ -7,12 +7,11 @@ import (
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetServiceAccountTokenSecret(sa *v1.ServiceAccount, secretsController corecontrollers.SecretController) (*v1.Secret, error) {
+func GetServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsController corecontrollers.SecretController) (*corev1.Secret, error) {
 	name := sa.Name + "-token"
 	secret, err := secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
 	if err != nil {
@@ -24,7 +23,7 @@ func GetServiceAccountTokenSecret(sa *v1.ServiceAccount, secretsController corec
 	return secret, nil
 }
 
-func createServiceAccountTokenSecret(sa *v1.ServiceAccount, secretsController corecontrollers.SecretController) (*v1.Secret, error) {
+func createServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsController corecontrollers.SecretController) (*corev1.Secret, error) {
 	// create the secret for the serviceAccount
 	logrus.Debugf("creating ServiceAccountTokenSecret for sa %v", sa.Name)
 	name := sa.Name + "-token"
@@ -59,7 +58,7 @@ func createServiceAccountTokenSecret(sa *v1.ServiceAccount, secretsController co
 	}
 	//Kubernetes auto populates the secret token after it is created, for which we should wait
 	logrus.Infof("waiting for service account token key to be populated for secret %s/%s", secret.Namespace, secret.Name)
-	if _, ok := secret.Data[v1.ServiceAccountTokenKey]; !ok {
+	if _, ok := secret.Data[corev1.ServiceAccountTokenKey]; !ok {
 		for {
 			logrus.Debugf("wait for svc account secret to be populated with token %s", secret.Name)
 			time.Sleep(2 * time.Second)
@@ -67,7 +66,7 @@ func createServiceAccountTokenSecret(sa *v1.ServiceAccount, secretsController co
 			if err != nil {
 				return nil, err
 			}
-			if _, ok := secret.Data[v1.ServiceAccountTokenKey]; ok {
+			if _, ok := secret.Data[corev1.ServiceAccountTokenKey]; ok {
 				break
 			}
 		}

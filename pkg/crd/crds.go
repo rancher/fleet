@@ -8,7 +8,9 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/crd"
+	"github.com/rancher/wrangler/pkg/schemas/openapi"
 	"github.com/rancher/wrangler/pkg/yaml"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -28,7 +30,7 @@ func WriteFile(filename string) error {
 }
 
 func Print(out io.Writer) error {
-	obj, err := Objects(false)
+	obj, err := Objects()
 	if err != nil {
 		return err
 	}
@@ -37,38 +39,17 @@ func Print(out io.Writer) error {
 		return err
 	}
 
-	objV1Beta1, err := Objects(true)
-	if err != nil {
-		return err
-	}
-	dataV1Beta1, err := yaml.Export(objV1Beta1...)
-	if err != nil {
-		return err
-	}
-
-	data = append([]byte("{{- if .Capabilities.APIVersions.Has \"apiextensions.k8s.io/v1\" -}}\n"), data...)
-	data = append(data, []byte("{{- else -}}\n---\n")...)
-	data = append(data, dataV1Beta1...)
-	data = append(data, []byte("{{- end -}}")...)
 	_, err = out.Write(data)
 	return err
 }
 
-func Objects(v1beta1 bool) (result []runtime.Object, err error) {
+func Objects() (result []runtime.Object, err error) {
 	for _, crdDef := range List() {
-		if v1beta1 {
-			crd, err := crdDef.ToCustomResourceDefinitionV1Beta1()
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, crd)
-		} else {
-			crd, err := crdDef.ToCustomResourceDefinition()
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, crd)
+		crd, err := crdDef.ToCustomResourceDefinition()
+		if err != nil {
+			return nil, err
 		}
+		result = append(result, crd)
 	}
 	return
 }
@@ -97,7 +78,13 @@ func List() []crd.CRD {
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.Cluster{}, func(c crd.CRD) crd.CRD {
+			schema := mustSchema(fleet.Cluster{})
+			schema.Properties["metadata"] = metadataNameValidation()
+
+			c.GVK.Kind = "Cluster"
 			return c.
+				WithSchemaFromStruct(nil).
+				WithSchema(schema).
 				WithColumn("Bundles-Ready", ".status.display.readyBundles").
 				WithColumn("Nodes-Ready", ".status.display.readyNodes").
 				WithColumn("Sample-Node", ".status.display.sampleNode").
@@ -105,7 +92,13 @@ func List() []crd.CRD {
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.ClusterRegistrationToken{}, func(c crd.CRD) crd.CRD {
+			schema := mustSchema(fleet.ClusterRegistrationToken{})
+			schema.Properties["metadata"] = metadataNameValidation()
+
+			c.GVK.Kind = "ClusterRegistrationToken"
 			return c.
+				WithSchemaFromStruct(nil).
+				WithSchema(schema).
 				WithColumn("Secret-Name", ".status.secretName")
 		}),
 		newCRD(&fleet.GitRepo{}, func(c crd.CRD) crd.CRD {
@@ -161,4 +154,34 @@ func newCRD(obj interface{}, customize func(crd.CRD) crd.CRD) crd.CRD {
 		crd = customize(crd)
 	}
 	return crd
+}
+
+// metadataNameValidation returns a schema that validates the metadata.name field
+// metadata:
+//
+//	properties:
+//	  name:
+//	    type: string
+//	    pattern: "^[-a-z0-9]*$"
+//	    maxLength: 63
+//	type: object
+func metadataNameValidation() apiextv1.JSONSchemaProps {
+	prop := apiextv1.JSONSchemaProps{
+		Type:      "string",
+		Pattern:   "^[-a-z0-9]*$",
+		MaxLength: &[]int64{63}[0],
+	}
+	return apiextv1.JSONSchemaProps{
+		Type:       "object",
+		Properties: map[string]apiextv1.JSONSchemaProps{"name": prop},
+	}
+
+}
+
+func mustSchema(obj interface{}) *apiextv1.JSONSchemaProps {
+	result, err := openapi.ToOpenAPIFromStruct(obj)
+	if err != nil {
+		panic(err)
+	}
+	return result
 }

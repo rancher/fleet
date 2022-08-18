@@ -98,6 +98,8 @@ func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relate
 	}
 }
 
+// clusterToNamespace returns the namespace name for a given cluster name, e.g.:
+// cluster-fleet-local-cluster-294db1acfa77-d9ccf852678f
 func clusterToNamespace(clusterNamespace, clusterName string) string {
 	return name.SafeConcatName("cluster",
 		clusterNamespace,
