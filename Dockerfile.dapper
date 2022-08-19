@@ -4,7 +4,7 @@ ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
 
 RUN zypper -n install git docker vim wget
-RUN curl -sL https://get.helm.sh/helm-v3.3.0-linux-${ARCH}.tar.gz | tar xvzf - -C /usr/local/bin --strip-components=1
+RUN curl -sL https://get.helm.sh/helm-v3.9.3-linux-${ARCH}.tar.gz | tar xvzf - -C /usr/local/bin --strip-components=1
 
 ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS
 ENV DAPPER_SOURCE /go/src/github.com/rancher/fleet/
