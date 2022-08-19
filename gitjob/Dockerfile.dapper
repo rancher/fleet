@@ -2,7 +2,7 @@ FROM registry.suse.com/bci/golang:1.18-15.1
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
-ENV HELM_VERSION v3.2.0
+ENV HELM_VERSION v3.9.3
 ENV HELM_URL_V3=https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
 
 RUN zypper -n install git docker vim wget
