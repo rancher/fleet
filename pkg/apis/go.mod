@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/rancher/wrangler v1.0.0
 	k8s.io/api v0.24.3
-	k8s.io/apimachinery v0.24.3
+	k8s.io/apimachinery v0.24.4
 )
 
 require (
