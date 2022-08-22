@@ -75,13 +75,12 @@ spec:
   # insecureSkipTLSVerify: true
   #
   # A git repo can read multiple paths in a repo at once.
-  # The below field is expected to be an array of paths and
-  # supports path globbing (ex: some/*/path)
+  # The below field is expected to be an array of paths and will include subdirs.
   #
   # Example:
   # paths:
   # - single-path
-  # - multiple-paths/*
+  # - multiple-paths
   paths:
   - simple
 
