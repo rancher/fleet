@@ -112,6 +112,8 @@ spec:
               helm:
                 nullable: true
                 properties:
+                  atomic:
+                    type: boolean
                   chart:
                     nullable: true
                     type: string
@@ -479,6 +481,8 @@ spec:
                     helm:
                       nullable: true
                       properties:
+                        atomic:
+                          type: boolean
                         chart:
                           nullable: true
                           type: string
@@ -986,6 +990,8 @@ spec:
                   helm:
                     nullable: true
                     properties:
+                      atomic:
+                        type: boolean
                       chart:
                         nullable: true
                         type: string
@@ -1129,6 +1135,8 @@ spec:
                   helm:
                     nullable: true
                     properties:
+                      atomic:
+                        type: boolean
                       chart:
                         nullable: true
                         type: string
