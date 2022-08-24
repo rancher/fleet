@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-    DIRTY="-dirty"
+    DIRTY="+dirty"
 fi
 
 GIT_TAG=${DRONE_TAG:-$(git tag -l --contains HEAD | head -n 1)}
@@ -14,7 +14,7 @@ else
     if [[ ${#TAGS[@]} == 0 ]]; then
         git fetch -t
     fi
-    VERSION="$(git describe --tags)"
+    VERSION="$(git describe --tags)${DIRTY}"
 fi
 
 if [ -z "$ARCH" ]; then
