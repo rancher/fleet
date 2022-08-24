@@ -225,6 +225,7 @@ func readDirectories(ctx context.Context, compress bool, directories ...director
 		sem    = semaphore.NewWeighted(4)
 		result = map[string][]fleet.BundleResource{}
 		l      = sync.Mutex{}
+		gl     = &sync.Mutex{}
 		p      = progress.NewProgress()
 	)
 	defer p.Close()
@@ -238,7 +239,7 @@ func readDirectories(ctx context.Context, compress bool, directories ...director
 		dir := dir
 		eg.Go(func() error {
 			defer sem.Release(1)
-			resources, err := readDirectory(ctx, compress, dir.prefix, dir.base, dir.path, dir.auth)
+			resources, err := readDirectory(ctx, gl, compress, dir.prefix, dir.base, dir.path, dir.auth)
 			if err != nil {
 				return err
 			}
@@ -258,10 +259,10 @@ func readDirectories(ctx context.Context, compress bool, directories ...director
 	return result, eg.Wait()
 }
 
-func readDirectory(ctx context.Context, compress bool, prefix, base, name string, auth Auth) ([]fleet.BundleResource, error) {
+func readDirectory(ctx context.Context, gl sync.Locker, compress bool, prefix, base, name string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := readContent(ctx, base, name, auth)
+	files, err := readContent(ctx, gl, base, name, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +293,7 @@ func readDirectory(ctx context.Context, compress bool, prefix, base, name string
 	return resources, nil
 }
 
-func readContent(ctx context.Context, base, name string, auth Auth) (map[string][]byte, error) {
+func readContent(ctx context.Context, gl sync.Locker, base, name string, auth Auth) (map[string][]byte, error) {
 	temp, err := ioutil.TempDir("", "fleet")
 	if err != nil {
 		return nil, err
@@ -339,6 +340,7 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 		}
 		httpGetter.Client.Transport = transport
 	}
+
 	if auth.SSHPrivateKey != nil {
 		if !strings.ContainsAny(c.Src, "?") {
 			c.Src += "?"
@@ -347,12 +349,16 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 		}
 		c.Src += fmt.Sprintf("sshkey=%s", base64.StdEncoding.EncodeToString(auth.SSHPrivateKey))
 	}
+
+	gl.Lock()
 	c.Getters["http"] = httpGetter
 	c.Getters["https"] = httpGetter
 
 	if err := c.Get(); err != nil {
+		// no need to unlock here, as errgroup will cancel the go routines
 		return nil, err
 	}
+	gl.Unlock()
 
 	files := map[string][]byte{}
 
