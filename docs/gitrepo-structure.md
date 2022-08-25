@@ -98,6 +98,8 @@ helm:
       key: values.yaml
   # Override immutable resources. This could be dangerous.
   force: false
+  # Set the Helm --atomic flag when upgrading
+  atomic: false
 
 # A paused bundle will not update downstream clusters but instead mark the bundle
 # as OutOfSync. One can then manually confirm that a bundle should be deployed to
