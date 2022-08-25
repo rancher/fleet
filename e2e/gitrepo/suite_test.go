@@ -19,6 +19,7 @@ var (
 )
 
 var _ = BeforeSuite(func() {
+	SetDefaultEventuallyTimeout(testenv.Timeout)
 	testenv.SetRoot("../..")
 
 	env = testenv.New()

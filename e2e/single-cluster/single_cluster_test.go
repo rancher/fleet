@@ -41,7 +41,7 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-helm-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+				}).Should(ContainSubstring("frontend-"))
 			})
 		})
 
@@ -54,7 +54,7 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-manifest-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend-"), ContainSubstring("redis-")))
+				}).Should(SatisfyAll(ContainSubstring("frontend-"), ContainSubstring("redis-")))
 			})
 		})
 
@@ -67,7 +67,7 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-kustomize-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+				}).Should(ContainSubstring("frontend-"))
 			})
 		})
 
@@ -80,7 +80,7 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-helm-kustomize-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+				}).Should(ContainSubstring("frontend-"))
 			})
 		})
 
@@ -93,7 +93,7 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-local").Get("bundles")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(
+				}).Should(SatisfyAll(
 					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
 					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
 				))
@@ -101,7 +101,7 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Get("bundledeployments", "-A")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(
+				}).Should(SatisfyAll(
 					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
 					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
 				))
@@ -109,7 +109,46 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-multi-chart-helm-example").Get("deployments")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+				}).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+			})
+		})
+
+		Context("containing multiple paths", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/multiple-paths.yaml"
+			})
+
+			It("deploys bundles from all the paths", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-local").Get("bundles")
+					return out
+				}).Should(SatisfyAll(
+					ContainSubstring("multiple-paths-single-cluster-manifests"),
+					ContainSubstring("multiple-paths-single-cluster-helm"),
+				))
+
+				out, _ := k.Namespace("fleet-local").Get("bundles",
+					"-l", "fleet.cattle.io/repo-name=multiple-paths",
+					`-o=jsonpath={.items[*].metadata.name}`)
+				Expect(strings.Split(out, " ")).To(HaveLen(2))
+
+				Eventually(func() string {
+					out, _ := k.Get("bundledeployments", "-A")
+					return out
+				}).Should(SatisfyAll(
+					ContainSubstring("multiple-paths-single-cluster-manifests"),
+					ContainSubstring("multiple-paths-single-cluster-helm"),
+				))
+
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-manifest-example").Get("deployments")
+					return out
+				}).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-helm-example").Get("deployments")
+					return out
+				}).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
 			})
 		})
 
