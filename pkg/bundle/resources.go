@@ -306,35 +306,7 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 		return nil, err
 	}
 
-	// copy getter.Getters before changing
-	getters := map[string]getter.Getter{}
-	for k, v := range getter.Getters {
-		getters[k] = v
-	}
 	src := name
-
-	httpGetter := &getter.HttpGetter{
-		Client: &http.Client{},
-	}
-
-	if auth.Username != "" && auth.Password != "" {
-		header := http.Header{}
-		header.Add("Authorization", "Basic "+basicAuth(auth.Username, auth.Password))
-		httpGetter.Header = header
-	}
-	if auth.CABundle != nil {
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			pool = x509.NewCertPool()
-		}
-		pool.AppendCertsFromPEM(auth.CABundle)
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.TLSClientConfig = &tls.Config{
-			RootCAs:    pool,
-			MinVersion: tls.VersionTLS12,
-		}
-		httpGetter.Client.Transport = transport
-	}
 	if auth.SSHPrivateKey != nil {
 		if !strings.ContainsAny(src, "?") {
 			src += "?"
@@ -343,6 +315,14 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 		}
 		src += fmt.Sprintf("sshkey=%s", base64.StdEncoding.EncodeToString(auth.SSHPrivateKey))
 	}
+
+	// copy getter.Getters before changing
+	getters := map[string]getter.Getter{}
+	for k, v := range getter.Getters {
+		getters[k] = v
+	}
+
+	httpGetter := newHttpGetter(auth)
 	getters["http"] = httpGetter
 	getters["https"] = httpGetter
 
@@ -402,6 +382,32 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 	}
 
 	return files, nil
+}
+
+func newHttpGetter(auth Auth) *getter.HttpGetter {
+	httpGetter := &getter.HttpGetter{
+		Client: &http.Client{},
+	}
+
+	if auth.Username != "" && auth.Password != "" {
+		header := http.Header{}
+		header.Add("Authorization", "Basic "+basicAuth(auth.Username, auth.Password))
+		httpGetter.Header = header
+	}
+	if auth.CABundle != nil {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			pool = x509.NewCertPool()
+		}
+		pool.AppendCertsFromPEM(auth.CABundle)
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{
+			RootCAs:    pool,
+			MinVersion: tls.VersionTLS12,
+		}
+		httpGetter.Client.Transport = transport
+	}
+	return httpGetter
 }
 
 func parseValueFiles(base string, chart *fleet.HelmOptions) (err error) {
