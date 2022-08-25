@@ -2,7 +2,6 @@ package progress
 
 import (
 	"io"
-	"io/ioutil"
 	"sync"
 
 	"github.com/cheggaaa/pb"
@@ -38,5 +37,5 @@ func (p *Progress) TrackProgress(src string, currentSize, totalSize int64, strea
 	progress.SetUnits(pb.U_BYTES)
 	progress.Prefix(src)
 
-	return ioutil.NopCloser(progress.NewProxyReader(stream))
+	return io.NopCloser(progress.NewProxyReader(stream))
 }

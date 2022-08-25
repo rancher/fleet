@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -91,7 +90,7 @@ func Read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		opts = &Options{}
 	}
 
-	data, err := ioutil.ReadAll(bundleSpecReader)
+	data, err := io.ReadAll(bundleSpecReader)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +141,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		baseDir = "./"
 	}
 
-	bytes, err := ioutil.ReadAll(bundleSpecReader)
+	bytes, err := io.ReadAll(bundleSpecReader)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +248,7 @@ func appendTargets(def *fleet.Bundle, targetsFile string) (*fleet.Bundle, error)
 		return def, nil
 	}
 
-	data, err := ioutil.ReadFile(targetsFile)
+	data, err := os.ReadFile(targetsFile)
 	if err != nil {
 		return nil, err
 	}

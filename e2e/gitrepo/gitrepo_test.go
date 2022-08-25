@@ -3,7 +3,6 @@ package gitrepo_test
 import (
 	"bytes"
 	"html/template"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -32,7 +31,7 @@ var _ = Describe("Git Repo", func() {
 
 		b = bytes.ReplaceAll(b, []byte(s), []byte(r))
 
-		err = ioutil.WriteFile(path, b, 0644)
+		err = os.WriteFile(path, b, 0644)
 		Expect(err).ToNot(HaveOccurred())
 	}
 

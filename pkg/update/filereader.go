@@ -19,7 +19,6 @@ package update
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -91,7 +90,7 @@ func (r *ScreeningLocalReader) Read() ([]*yaml.RNode, error) {
 
 		// To check for the token, I need the file contents. This
 		// assumes the file is encoded as UTF8.
-		filebytes, err := ioutil.ReadFile(p)
+		filebytes, err := os.ReadFile(p)
 		if err != nil {
 			return fmt.Errorf("reading YAML file: %w", err)
 		}

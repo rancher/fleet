@@ -7,7 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -132,7 +132,7 @@ func chartURL(location *fleet.HelmOptions, auth Auth) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	bytes, err := ioutil.ReadAll(resp.Body)
+	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -293,7 +293,7 @@ func readDirectory(ctx context.Context, compress bool, prefix, base, name string
 }
 
 func readContent(ctx context.Context, base, name string, auth Auth) (map[string][]byte, error) {
-	temp, err := ioutil.TempDir("", "fleet")
+	temp, err := os.MkdirTemp("", "fleet")
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +382,7 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 			return nil
 		}
 
-		content, err := ioutil.ReadFile(path)
+		content, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
@@ -418,7 +418,7 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 		valuesMap = chart.Values
 	}
 	for _, value := range chart.ValuesFiles {
-		valuesByte, err := ioutil.ReadFile(base + "/" + value)
+		valuesByte, err := os.ReadFile(base + "/" + value)
 		if err != nil {
 			return nil, err
 		}

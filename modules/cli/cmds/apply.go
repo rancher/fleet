@@ -3,7 +3,6 @@ package cmds
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -66,7 +65,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if a.Username != "" && a.PasswordFile != "" {
-		password, err := ioutil.ReadFile(a.PasswordFile)
+		password, err := os.ReadFile(a.PasswordFile)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -75,14 +74,14 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		opts.Auth.Password = string(password)
 	}
 	if a.CACertsFile != "" {
-		cabundle, err := ioutil.ReadFile(a.CACertsFile)
+		cabundle, err := os.ReadFile(a.CACertsFile)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		opts.Auth.CABundle = cabundle
 	}
 	if a.SSHPrivateKeyFile != "" {
-		privateKey, err := ioutil.ReadFile(a.SSHPrivateKeyFile)
+		privateKey, err := os.ReadFile(a.SSHPrivateKeyFile)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}

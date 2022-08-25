@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -116,7 +115,7 @@ func (h handler) onChange(image *v1alpha1.ImageScan, status v1alpha1.ImageScanSt
 		options = append(options, remote.WithAuth(auth))
 	}
 
-	tags, err := remote.ListWithContext(h.ctx, ref.Context(), options...)
+	tags, err := remote.List(ref.Context(), append(options, remote.WithContext(h.ctx))...)
 	if err != nil {
 		kstatus.SetError(image, err.Error())
 		return status, err
@@ -209,7 +208,7 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	lock.Lock()
 	defer lock.Unlock()
 	// todo: maybe we should preserve the dir
-	tmp, err := ioutil.TempDir("", fmt.Sprintf("%s-%s", gitrepo.Namespace, gitrepo.Name))
+	tmp, err := os.MkdirTemp("", fmt.Sprintf("%s-%s", gitrepo.Namespace, gitrepo.Name))
 	if err != nil {
 		kstatus.SetError(gitrepo, err.Error())
 		return status, err

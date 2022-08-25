@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -199,7 +199,7 @@ func GetCAFromConfig(rawConfig clientcmdapi.Config) ([]byte, error) {
 		if len(cluster.CertificateAuthorityData) > 0 {
 			return cluster.CertificateAuthorityData, nil
 		}
-		return ioutil.ReadFile(cluster.CertificateAuthority)
+		return os.ReadFile(cluster.CertificateAuthority)
 	}
 
 	return nil, nil
