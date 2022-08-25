@@ -126,7 +126,9 @@ jobs:
             -p "80:80@agent:0:direct"
             -p "443:443@agent:0:direct"
             --api-port 6443
-            --agents 3
+            --agents 1
+            --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*'
+            --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
       -
         name: Set up k3d downstream cluster
@@ -138,6 +140,8 @@ jobs:
             -p "444:443@agent:0:direct"
             --api-port 6644
             --agents 1
+            --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*'
+            --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
       -
         name: Set up tmate debug session
