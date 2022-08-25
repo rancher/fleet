@@ -2,7 +2,6 @@ package writer
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -23,7 +22,7 @@ func NewDefaultNone(output string) io.WriteCloser {
 func New(output string) io.WriteCloser {
 	switch output {
 	case "":
-		return nopCloser{Writer: ioutil.Discard}
+		return nopCloser{Writer: io.Discard}
 	case "-":
 		return os.Stdout
 	default:

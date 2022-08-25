@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
-	"io/ioutil"
+	"io"
 	"strings"
 )
 
@@ -13,7 +13,7 @@ func GUnzip(content []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(r)
+	return io.ReadAll(r)
 }
 
 func Base64GZ(data []byte) (string, error) {

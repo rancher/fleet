@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -45,7 +44,7 @@ func Match(ctx context.Context, opts *Options) error {
 			return err
 		}
 	} else {
-		data, err := ioutil.ReadFile(opts.BundleFile)
+		data, err := os.ReadFile(opts.BundleFile)
 		if err != nil {
 			return err
 		}

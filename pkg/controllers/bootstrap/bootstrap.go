@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"regexp"
 
 	"github.com/rancher/fleet/modules/cli/agentmanifest"
@@ -134,7 +134,7 @@ func getCA(rawConfig clientcmdapi.Config) ([]byte, error) {
 	if err != nil {
 		return agentmanifest.GetCAFromConfig(rawConfig)
 	}
-	return ioutil.ReadFile(icc.TLSClientConfig.CAFile)
+	return os.ReadFile(icc.CAFile)
 }
 
 func (h *handler) getToken() (string, error) {
