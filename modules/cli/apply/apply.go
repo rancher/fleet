@@ -70,13 +70,13 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 	}
 
 	foundBundle := false
+	gitRepoBundlesMap := make(map[string]bool)
 	for i, baseDir := range baseDirs {
 		matches, err := globDirs(baseDir)
 		if err != nil {
 			return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
 		}
 		for _, baseDir := range matches {
-			gitRepoBundlesMap := make(map[string]bool)
 			if i > 0 && opts.Output != nil {
 				if _, err := opts.Output.Write([]byte("\n---\n")); err != nil {
 					return err
@@ -105,13 +105,13 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 			if err != nil {
 				return err
 			}
+		}
+	}
 
-			if opts.Output == nil {
-				err = pruneBundlesNotFoundInRepo(name, gitRepoBundlesMap, client)
-				if err != nil {
-					return err
-				}
-			}
+	if opts.Output == nil {
+		err := pruneBundlesNotFoundInRepo(client, name, gitRepoBundlesMap)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -122,8 +122,8 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 	return nil
 }
 
-// pruneBundlesNotFoundInRepo lists all bundles for this gitrepo and prunes those not found
-func pruneBundlesNotFoundInRepo(repoName string, gitRepoBundlesMap map[string]bool, client *client.Getter) error {
+// pruneBundlesNotFoundInRepo lists all bundles for this gitrepo and prunes those not found in the repo
+func pruneBundlesNotFoundInRepo(client *client.Getter, repoName string, gitRepoBundlesMap map[string]bool) error {
 	c, err := client.Get()
 	if err != nil {
 		return err
