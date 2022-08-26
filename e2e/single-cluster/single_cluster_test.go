@@ -1,6 +1,8 @@
 package examples_test
 
 import (
+	"strings"
+
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 
@@ -106,6 +108,45 @@ var _ = Describe("SingleCluster", func() {
 
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-multi-chart-helm-example").Get("deployments")
+					return out
+				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+			})
+		})
+
+		Context("containing multiple paths", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/multiple-paths.yaml"
+			})
+
+			It("deploys bundles from all the paths", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-local").Get("bundles")
+					return out
+				}, testenv.Timeout).Should(SatisfyAll(
+					ContainSubstring("multiple-paths-single-cluster-manifests"),
+					ContainSubstring("multiple-paths-single-cluster-helm"),
+				))
+
+				out, _ := k.Namespace("fleet-local").Get("bundles",
+					"-l", "fleet.cattle.io/repo-name=multiple-paths",
+					`-o=jsonpath={.items[*].metadata.name}`)
+				Expect(strings.Split(out, " ")).To(HaveLen(2))
+
+				Eventually(func() string {
+					out, _ := k.Get("bundledeployments", "-A")
+					return out
+				}, testenv.Timeout).Should(SatisfyAll(
+					ContainSubstring("multiple-paths-single-cluster-manifests"),
+					ContainSubstring("multiple-paths-single-cluster-helm"),
+				))
+
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-manifest-example").Get("deployments")
+					return out
+				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-helm-example").Get("deployments")
 					return out
 				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
 			})

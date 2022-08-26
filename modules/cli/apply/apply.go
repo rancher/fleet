@@ -70,13 +70,13 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 	}
 
 	foundBundle := false
+	gitRepoBundlesMap := make(map[string]bool)
 	for i, baseDir := range baseDirs {
 		matches, err := globDirs(baseDir)
 		if err != nil {
 			return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
 		}
 		for _, baseDir := range matches {
-			gitRepoBundlesMap := make(map[string]bool)
 			if i > 0 && opts.Output != nil {
 				if _, err := opts.Output.Write([]byte("\n---\n")); err != nil {
 					return err
@@ -105,11 +105,13 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 			if err != nil {
 				return err
 			}
+		}
+	}
 
-			err = pruneBundlesNotFoundInRepo(name, gitRepoBundlesMap, client, opts)
-			if err != nil {
-				return err
-			}
+	if opts.Output == nil {
+		err := pruneBundlesNotFoundInRepo(client, name, gitRepoBundlesMap)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -120,8 +122,8 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 	return nil
 }
 
-func pruneBundlesNotFoundInRepo(repoName string, gitRepoBundlesMap map[string]bool, client *client.Getter, opts *Options) error {
-	//list all bundles for this gitrepo and prune those not found if output is nil
+// pruneBundlesNotFoundInRepo lists all bundles for this gitrepo and prunes those not found in the repo
+func pruneBundlesNotFoundInRepo(client *client.Getter, repoName string, gitRepoBundlesMap map[string]bool) error {
 	c, err := client.Get()
 	if err != nil {
 		return err
@@ -132,44 +134,16 @@ func pruneBundlesNotFoundInRepo(repoName string, gitRepoBundlesMap map[string]bo
 		return err
 	}
 
-	objects := []runtime.Object{}
-	for i, bundle := range bundles.Items {
+	for _, bundle := range bundles.Items {
 		if ok := gitRepoBundlesMap[bundle.Name]; !ok {
-			if opts.Output == nil {
-				err := prune(bundle, client, repoName)
-				if err != nil {
-					return err
-				}
-			} else {
-				objects = append(objects, &bundles.Items[i])
+			logrus.Debugf("Bundle to be deleted since it is not found in gitrepo %v anymore %v %v", repoName, bundle.Namespace, bundle.Name)
+			err = c.Fleet.Bundle().Delete(bundle.Namespace, bundle.Name, nil)
+			if err != nil {
+				return err
 			}
 		}
 	}
-	if opts.Output != nil {
-		b, err := yaml.Export(objects...)
-		if err != nil {
-			return err
-		}
-		_, err = opts.Output.Write(b)
-		if err != nil {
-			return err
-		}
-	}
 	return err
-}
-
-func prune(bundle fleet.Bundle, client *client.Getter, repoName string) error {
-	c, err := client.Get()
-	if err != nil {
-		return err
-	}
-
-	logrus.Debugf("Bundle to be deleted since it is not found in gitrepo %v anymore %v %v", repoName, bundle.Namespace, bundle.Name)
-	err = c.Fleet.Bundle().Delete(bundle.Namespace, bundle.Name, nil)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bundle.Bundle, error) {
