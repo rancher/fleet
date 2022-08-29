@@ -44,7 +44,7 @@ var _ = Describe("multiCluster", func() {
 				Eventually(func() string {
 					out, _ := kd.Namespace("fleet-mc-helm-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend-"), ContainSubstring("redis-")))
+				}).Should(SatisfyAll(ContainSubstring("frontend-"), ContainSubstring("redis-")))
 			})
 		})
 
@@ -57,7 +57,7 @@ var _ = Describe("multiCluster", func() {
 				Eventually(func() string {
 					out, _ := kd.Namespace("fleet-mc-manifest-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend-"), ContainSubstring("redis-")))
+				}).Should(SatisfyAll(ContainSubstring("frontend-"), ContainSubstring("redis-")))
 
 				out, err := kd.Namespace("fleet-mc-manifest-example").Get("deployment", "-o", "json", "frontend")
 				Expect(err).ToNot(HaveOccurred())
@@ -78,7 +78,7 @@ var _ = Describe("multiCluster", func() {
 				Eventually(func() string {
 					out, _ := kd.Namespace("fleet-mc-kustomize-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+				}).Should(ContainSubstring("frontend-"))
 			})
 		})
 
@@ -91,7 +91,7 @@ var _ = Describe("multiCluster", func() {
 				Eventually(func() string {
 					out, _ := kd.Namespace("fleet-mc-helm-kustomize-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+				}).Should(ContainSubstring("frontend-"))
 			})
 		})
 
@@ -104,7 +104,7 @@ var _ = Describe("multiCluster", func() {
 				Eventually(func() string {
 					out, _ := kd.Namespace("fleet-mc-helm-external-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+				}).Should(ContainSubstring("frontend-"))
 			})
 		})
 
