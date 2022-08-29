@@ -146,6 +146,7 @@ func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) apply.Apply {
 		WithDefaultNamespace(ns)
 }
 
+// MonitorBundle returns the DeploymentStatus for the given bundledeployment
 func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, error) {
 	var status DeploymentStatus
 
@@ -174,6 +175,7 @@ func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, e
 	return status, nil
 }
 
+// GetSetID constructs a identifier from the provided args, bundleID "fleet-agent" is special
 func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
 	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
 	if strings.HasPrefix(bundleID, "fleet-agent") {

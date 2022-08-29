@@ -67,6 +67,7 @@ func Register(ctx context.Context,
 	}()
 }
 
+// Update the cluster.fleet.cattle.io status in the upstream cluster with the current node status
 func (h *handler) Update() error {
 	nodes, err := h.nodes.List(labels.Everything())
 	if err != nil {

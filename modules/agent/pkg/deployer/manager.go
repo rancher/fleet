@@ -88,6 +88,7 @@ func (m *Manager) Delete(bundleDeploymentKey string) error {
 	return m.deployer.Delete(name, "")
 }
 
+// Resources returns the resources that are deployed by the bundle deployment, used by trigger.Watches
 func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
 	resources, err := m.deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
@@ -112,6 +113,7 @@ func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
 	return resources, nil
 }
 
+// Deploy the bundle deployment, i.e. with helmdeployer
 func (m *Manager) Deploy(bd *fleet.BundleDeployment) (string, error) {
 	if bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
 		if ok, err := m.deployer.EnsureInstalled(bd.Name, bd.Status.Release); err != nil {
