@@ -104,3 +104,62 @@ func TestProcessLabelValues(t *testing.T) {
 		t.Fatal("label replacement not performed in third element")
 	}
 }
+
+const bundleDefaultValueYaml = `namespace: default
+helm:
+  releaseName: labels
+  values:
+    clusterName: global.fleet.clusterLabels.name, default
+`
+func TestProcessLabelValuesWithDefaultValue(t *testing.T) {
+
+	bundle := &v1alpha1.BundleSpec{}
+
+	clusterLabels := make(map[string]string)
+	clusterLabels["envType"] = "dev"
+
+	err := yaml.Unmarshal([]byte(bundleDefaultValueYaml), bundle)
+	if err != nil {
+		t.Fatalf("error during yaml parsing %v", err)
+	}
+
+	err = processLabelValues(bundle.Helm.Values.Data, clusterLabels)
+	if err != nil {
+		t.Fatalf("error during label processing %v", err)
+	}
+
+
+	clusterName, ok := bundle.Helm.Values.Data["clusterName"]
+	if !ok {
+		t.Fatal("key clusterName not found")
+	}
+
+	if clusterName != "default"{
+		t.Fatalf("unable to assert correct clusterName: %v", clusterName)
+	}
+}
+
+
+const bundleNoDefaultValueYaml = `namespace: default
+helm:
+  releaseName: labels
+  values:
+    clusterName: global.fleet.clusterLabels.name
+`
+func TestProcessLabelValuesWithoutDefaultValue(t *testing.T) {
+
+	bundle := &v1alpha1.BundleSpec{}
+
+	clusterLabels := make(map[string]string)
+	clusterLabels["envType"] = "dev"
+
+	err := yaml.Unmarshal([]byte(bundleNoDefaultValueYaml), bundle)
+	if err != nil {
+		t.Fatalf("error during yaml parsing %v", err)
+	}
+
+	err = processLabelValues(bundle.Helm.Values.Data, clusterLabels)
+	if err == nil {
+		t.Fatalf("Label doesn't exist, but was processed successfully")
+	}
+}

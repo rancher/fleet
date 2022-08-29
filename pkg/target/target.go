@@ -531,10 +531,14 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 	for key, val := range valuesMap {
 		valStr, ok := val.(string)
 		if ok && strings.HasPrefix(valStr, prefix) {
-			label := strings.TrimPrefix(valStr, prefix)
+			keywords := strings.TrimPrefix(valStr, prefix)
+			s := strings.Split(keywords, ",")
+			label := s[0]
 			labelVal, labelPresent := clusterLabels[label]
 			if labelPresent {
 				valuesMap[key] = labelVal
+			} else if len(s) > 1 {
+				valuesMap[key] = strings.TrimSpace(s[1])
 			} else {
 				return fmt.Errorf("invalid_label_reference %s in key %s", valStr, key)
 			}
