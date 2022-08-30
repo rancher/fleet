@@ -2,7 +2,6 @@ package git
 
 import (
 	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
-	"github.com/rancher/wrangler/pkg/git"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 )
@@ -32,7 +31,7 @@ func LatestCommit(gitjob *gitjobv1.GitJob, secretGetter SecretGetter) (string, e
 		branch = "master"
 	}
 
-	git, err := git.NewGit("", gitjob.Spec.Git.Repo, &git.Options{
+	git, err := newGit("", gitjob.Spec.Git.Repo, &options{
 		CABundle:          gitjob.Spec.Git.Credential.CABundle,
 		Credential:        secret,
 		InsecureTLSVerify: gitjob.Spec.Git.Credential.InsecureSkipTLSverify,
@@ -41,5 +40,5 @@ func LatestCommit(gitjob *gitjobv1.GitJob, secretGetter SecretGetter) (string, e
 		return "", err
 	}
 
-	return git.LsRemote(branch, gitjob.Status.Commit)
+	return git.lsRemote(branch, gitjob.Status.Commit)
 }
