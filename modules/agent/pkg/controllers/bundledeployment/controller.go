@@ -89,17 +89,26 @@ func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 	return nil, h.deployManager.Delete(key)
 }
 
+func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
+	mapping, err := h.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return true
+	}
+	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
+}
+
 func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
 	if err := h.checkDependency(bd); err != nil {
 		return status, err
 	}
 
-	release, err := h.deployManager.Deploy(bd)
+	release, keys, err := h.deployManager.Deploy(bd, h.isNamespaced)
 	if err != nil {
 		return status, err
 	}
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
+	status.ResourceKey = keys
 	return status, nil
 }
 

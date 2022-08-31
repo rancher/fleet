@@ -2,6 +2,12 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"github.com/pkg/errors"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"sort"
+
+	"path"
 	"time"
 
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
@@ -93,8 +99,12 @@ func Register(ctx context.Context, leaderElect bool,
 		labelPrefix = defaultNamespace
 	}
 
+	clusterCapabilities, err := GetCapabilities(discovery)
+	if err != nil {
+		return err
+	}
 	helmDeployer, err := helmdeployer.NewHelm(agentNamespace, defaultNamespace, labelPrefix, agentScope, appCtx,
-		appCtx.Core.ServiceAccount().Cache(), appCtx.Core.ConfigMap().Cache(), appCtx.Core.Secret().Cache())
+		appCtx.Core.ServiceAccount().Cache(), appCtx.Core.ConfigMap().Cache(), appCtx.Core.Secret().Cache(), clusterCapabilities)
 	if err != nil {
 		return err
 	}
@@ -260,4 +270,75 @@ func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName st
 			batch,
 		},
 	}, nil
+}
+
+// Taken from Helm capabilities
+func GetCapabilities(discovery discovery.CachedDiscoveryInterface) (chartutil.Capabilities, error) {
+	discovery.Invalidate()
+	kubeVersion, err := discovery.ServerVersion()
+	if err != nil {
+		return chartutil.Capabilities{}, errors.Wrap(err, "could not get server version from Kubernetes")
+	}
+
+	apiVersions, err := GetVersionSet(discovery)
+	if err != nil {
+		println(err, "could not get server capabilities from Kubernetes")
+	}
+	clusterCapabilities := chartutil.Capabilities{
+		KubeVersion: chartutil.KubeVersion{
+			Version: fmt.Sprintf("v%s.%s.0", kubeVersion.Major, kubeVersion.Minor),
+			Major:   kubeVersion.Major,
+			Minor:   kubeVersion.Minor,
+		},
+		APIVersions: apiVersions,
+	}
+	sort.Strings(clusterCapabilities.APIVersions)
+	return clusterCapabilities, nil
+}
+
+func GetVersionSet(client discovery.ServerResourcesInterface) (chartutil.VersionSet, error) {
+	groups, resources, err := client.ServerGroupsAndResources()
+	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
+		return []string{}, errors.Wrap(err, "could not get apiVersions from Kubernetes")
+	}
+
+	// FIXME: The Kubernetes test fixture for cli appears to always return nil
+	// for calls to Discovery().ServerGroupsAndResources(). So in this case, we
+	// return the default API list. This is also a safe value to return in any
+	// other odd-ball case.
+	if len(groups) == 0 && len(resources) == 0 {
+		return []string{}, nil
+	}
+
+	versionMap := make(map[string]interface{})
+	versions := []string{}
+
+	// Extract the groups
+	for _, g := range groups {
+		for _, gv := range g.Versions {
+			versionMap[gv.GroupVersion] = struct{}{}
+		}
+	}
+
+	// Extract the resources
+	var id string
+	var ok bool
+	for _, r := range resources {
+		for _, rl := range r.APIResources {
+
+			// A Kind at a GroupVersion can show up more than once. We only want
+			// it displayed once in the final output.
+			id = path.Join(r.GroupVersion, rl.Kind)
+			if _, ok = versionMap[id]; !ok {
+				versionMap[id] = struct{}{}
+			}
+		}
+	}
+
+	// Convert to a form that NewVersionSet can use
+	for k := range versionMap {
+		versions = append(versions, k)
+	}
+
+	return versions, nil
 }

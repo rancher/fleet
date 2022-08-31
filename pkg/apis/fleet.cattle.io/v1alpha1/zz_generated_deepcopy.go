@@ -264,6 +264,11 @@ func (in *BundleDeploymentStatus) DeepCopyInto(out *BundleDeploymentStatus) {
 		*out = new(int64)
 		**out = **in
 	}
+	if in.ResourceKey != nil {
+		in, out := &in.ResourceKey, &out.ResourceKey
+		*out = make([]ResourceKey, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

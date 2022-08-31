@@ -286,6 +286,7 @@ type BundleDeploymentStatus struct {
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
 	SyncGeneration      *int64                              `json:"syncGeneration,omitempty"`
+	ResourceKey         []ResourceKey                       `json:"resourceKey,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {

@@ -49,9 +49,9 @@ func Register(ctx context.Context,
 		bundleCache:         bundles.Cache(),
 		bundles:             bundles,
 		images:              images,
-		bundleDeployments:   bundleDeployments.Cache(),
+		bundleDeployments:   bundleDeployments,
 		gitRepoRestrictions: gitRepoRestrictions,
-		display:             display.NewFactory(bundles.Cache()),
+		display:             display.NewFactory(bundles.Cache(), bundles, bundleDeployments),
 		secrets:             secrets,
 	}
 
@@ -82,7 +82,7 @@ type handler struct {
 	bundles             fleetcontrollers.BundleClient
 	images              fleetcontrollers.ImageScanController
 	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache
-	bundleDeployments   fleetcontrollers.BundleDeploymentCache
+	bundleDeployments   fleetcontrollers.BundleDeploymentController
 	display             *display.Factory
 }
 
@@ -469,15 +469,18 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 		return status, nil
 	}
 
-	bundleDeployments, err := h.bundleDeployments.List("", labels.SelectorFromSet(labels.Set{
-		fleet.RepoLabel:                    gitrepo.Name,
-		"fleet.cattle.io/bundle-namespace": gitrepo.Namespace,
-	}))
+	bundleDeploymentList, err := h.bundleDeployments.List("", metav1.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labels.Set{
+			fleet.RepoLabel:                    gitrepo.Name,
+			"fleet.cattle.io/bundle-namespace": gitrepo.Namespace,
+		}).String(),
+	})
 	if err != nil {
 		return status, err
 	}
 
 	status.Summary = fleet.BundleSummary{}
+	bundleDeployments := bundleDeploymentList.Items
 
 	sort.Slice(bundleDeployments, func(i, j int) bool {
 		return bundleDeployments[i].UID < bundleDeployments[j].UID
@@ -489,12 +492,12 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	)
 
 	for _, app := range bundleDeployments {
-		state := summary.GetDeploymentState(app)
-		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus, app.Status.NonReadyStatus)
+		state := summary.GetDeploymentState(&app)
+		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(&app), app.Status.ModifiedStatus, app.Status.NonReadyStatus)
 		status.Summary.DesiredReady++
 		if fleet.StateRank[state] > fleet.StateRank[maxState] {
 			maxState = state
-			message = summary.MessageFromDeployment(app)
+			message = summary.MessageFromDeployment(&app)
 		}
 	}
 

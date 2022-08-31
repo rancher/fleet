@@ -26,7 +26,7 @@ func Template(bundleID string, manifest *manifest.Manifest, options fleet.Bundle
 	mem := driver.NewMemory()
 	mem.SetNamespace("default")
 
-	h.globalCfg.Capabilities = chartutil.DefaultCapabilities
+	h.globalCfg.Capabilities = chartutil.DefaultCapabilities.Copy()
 	h.globalCfg.KubeClient = &kubefake.PrintingKubeClient{Out: io.Discard}
 	h.globalCfg.Log = logrus.Infof
 	h.globalCfg.Releases = storage.Init(mem)

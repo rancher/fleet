@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"k8s.io/client-go/discovery"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -69,7 +72,8 @@ type helm struct {
 }
 
 func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
-	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache) (deployer.Deployer, error) {
+	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache,
+	secretCache corecontrollers.SecretCache, clusterCapabilities chartutil.Capabilities) (deployer.Deployer, error) {
 	h := &helm{
 		getter:              getter,
 		defaultNamespace:    defaultNamespace,
@@ -83,6 +87,7 @@ func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, gette
 	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
 		return nil, err
 	}
+	h.globalCfg.Capabilities = clusterCapabilities.Copy()
 	h.globalCfg.Releases.MaxHistory = 5
 	return h, nil
 }
@@ -264,13 +269,11 @@ func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 	err = cfg.Init(getter, namespace, "secrets", logrus.Infof)
 	cfg.Releases.MaxHistory = 5
 	cfg.KubeClient = kClient
-
 	return cfg, err
 }
 
 func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
-
 	values, err := h.getValues(options, defaultNamespace)
 	if err != nil {
 		return nil, err
@@ -279,6 +282,10 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	cfg, err := h.getCfg(defaultNamespace, options.ServiceAccount)
 	if err != nil {
 		return nil, err
+	}
+
+	if !h.useGlobalCfg {
+		cfg.Capabilities, _ = GetCapabilities(cfg)
 	}
 
 	uninstall, err := h.mustUninstall(&cfg, releaseName)
@@ -316,10 +323,17 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		}
 		pr.mapper = mapper
 	}
-
 	if install {
 		u := action.NewInstall(&cfg)
 		u.ClientOnly = h.template || dryRun
+		if cfg.Capabilities != nil {
+			if cfg.Capabilities.KubeVersion.Version != "" {
+				u.KubeVersion = &cfg.Capabilities.KubeVersion
+			}
+			if cfg.Capabilities.APIVersions != nil {
+				u.APIVersions = cfg.Capabilities.APIVersions
+			}
+		}
 		u.ForceAdopt = options.Helm.TakeOwnership
 		u.Replace = true
 		u.ReleaseName = releaseName
@@ -357,6 +371,94 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		logrus.Infof("Helm: Upgrading %s", bundleID)
 	}
 	return u.Run(releaseName, chart, values)
+}
+
+// Taken from Helm capabilities
+func GetCapabilities(c action.Configuration) (*chartutil.Capabilities, error) {
+	if c.Capabilities != nil {
+		return c.Capabilities, nil
+	}
+	dc, err := c.RESTClientGetter.ToDiscoveryClient()
+	if err != nil {
+		return nil, errors.New("could not get Kubernetes discovery client")
+	}
+	// force a discovery cache invalidation to always fetch the latest server version/capabilities.
+	dc.Invalidate()
+	kubeVersion, err := dc.ServerVersion()
+	if err != nil {
+		return nil, errors.New("could not get server version from Kubernetes")
+	}
+	// Issue #6361:
+	// Client-Go emits an error when an API service is registered but unimplemented.
+	// We trap that error here and print a warning. But since the discovery client continues
+	// building the API object, it is correctly populated with all valid APIs.
+	// See https://github.com/kubernetes/kubernetes/issues/72051#issuecomment-521157642
+	apiVersions, err := GetVersionSet(dc)
+	if err != nil {
+		if discovery.IsGroupDiscoveryFailedError(err) {
+			c.Log("WARNING: The Kubernetes server has an orphaned API service. Server reports: %s", err)
+			c.Log("WARNING: To fix this, kubectl delete apiservice <service-name>")
+		} else {
+			return nil, errors.New("could not get apiVersions from Kubernetes")
+		}
+	}
+
+	c.Capabilities = &chartutil.Capabilities{
+		APIVersions: apiVersions,
+		KubeVersion: chartutil.KubeVersion{
+			Version: kubeVersion.GitVersion,
+			Major:   kubeVersion.Major,
+			Minor:   kubeVersion.Minor,
+		},
+	}
+	return c.Capabilities, nil
+}
+
+func GetVersionSet(client discovery.ServerResourcesInterface) (chartutil.VersionSet, error) {
+	groups, resources, err := client.ServerGroupsAndResources()
+	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
+		return chartutil.DefaultVersionSet, errors.New("could not get apiVersions from Kubernetes")
+	}
+
+	// FIXME: The Kubernetes test fixture for cli appears to always return nil
+	// for calls to Discovery().ServerGroupsAndResources(). So in this case, we
+	// return the default API list. This is also a safe value to return in any
+	// other odd-ball case.
+	if len(groups) == 0 && len(resources) == 0 {
+		return chartutil.DefaultVersionSet, nil
+	}
+
+	versionMap := make(map[string]interface{})
+	versions := []string{}
+
+	// Extract the groups
+	for _, g := range groups {
+		for _, gv := range g.Versions {
+			versionMap[gv.GroupVersion] = struct{}{}
+		}
+	}
+
+	// Extract the resources
+	var id string
+	var ok bool
+	for _, r := range resources {
+		for _, rl := range r.APIResources {
+
+			// A Kind at a GroupVersion can show up more than once. We only want
+			// it displayed once in the final output.
+			id = path.Join(r.GroupVersion, rl.Kind)
+			if _, ok = versionMap[id]; !ok {
+				versionMap[id] = struct{}{}
+			}
+		}
+	}
+
+	// Convert to a form that NewVersionSet can use
+	for k := range versionMap {
+		versions = append(versions, k)
+	}
+
+	return versions, nil
 }
 
 func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
