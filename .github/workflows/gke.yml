@@ -13,11 +13,6 @@ on:
         description: "Keep the cluster afterwards? (empty/yes)"
         required: false
         default: ""
-      fleetci_gke_project:
-        description: "FLEETCI_GKE_PROJECT"
-        required: false
-        default: ""
-
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
@@ -75,7 +70,7 @@ jobs:
         name: Get kubeconfig file from GKE
         run: |
           id="${{ steps.create-cluster.outputs.ID }}"
-          gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ github.events.inputs.fleetci_gke_project || secrets.FLEETCI_GKE_PROJECT }}
+          gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }}
       -
         name: Build fleet binaries
         run: |
