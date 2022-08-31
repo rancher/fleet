@@ -1,8 +1,8 @@
 name: CI AKS
 
 on:
-  # schedule:
-  #   - cron:  '0 0 * * *'
+  schedule:
+    - cron:  '5 10 * * *'
   workflow_dispatch:
     inputs:
       ref:
@@ -11,10 +11,6 @@ on:
         default: "master"
       keep_cluster:
         description: "Keep the cluster afterwards? (empty/yes)"
-        required: false
-        default: ""
-      azure_credentials:
-        description: "AZURE_CREDENTIALS"
         required: false
         default: ""
 
