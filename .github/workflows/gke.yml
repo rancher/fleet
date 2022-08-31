@@ -1,8 +1,8 @@
 name: CI GKE
 
 on:
-  # schedule:
-  #   - cron:  '0 1 * * *'
+  schedule:
+    - cron:  '0 1 * * *'
   workflow_dispatch:
     inputs:
       ref:
@@ -11,10 +11,6 @@ on:
         default: "master"
       keep_cluster:
         description: "Keep the cluster afterwards? (empty/yes)"
-        required: false
-        default: ""
-      fleetci_gcp_credentials:
-        description: "FLEETCI_GCP_CREDENTIALS"
         required: false
         default: ""
       fleetci_gke_project:
@@ -54,7 +50,7 @@ jobs:
         name: Authenticate to GCP
         uses: 'google-github-actions/auth@v0'
         with:
-          credentials_json: '${{ github.events.inputs.fleetci_gcp_credentials || secrets.FLEETCI_GCP_CREDENTIALS }}'
+          credentials_json: '${{ secrets.CI_GOOGLE_CREDENTIALS }}'
       -
         name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v0
