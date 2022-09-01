@@ -70,7 +70,7 @@ jobs:
         name: Get kubeconfig file from GKE
         run: |
           id="${{ steps.create-cluster.outputs.ID }}"
-          gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }}
+          gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }} --network fleet-ci
       -
         name: Build fleet binaries
         run: |
