@@ -65,12 +65,13 @@ jobs:
           --machine-type ${{ env.GKE_MACHINE_TYPE }} \
           --no-enable-cloud-logging \
           --no-enable-cloud-monitoring  \
+          --network fleet-ci \
           --zone ${{ env.GKE_ZONE }}
       -
         name: Get kubeconfig file from GKE
         run: |
           id="${{ steps.create-cluster.outputs.ID }}"
-          gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }} --network fleet-ci
+          gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }}
       -
         name: Build fleet binaries
         run: |
