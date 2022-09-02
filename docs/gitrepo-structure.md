@@ -173,6 +173,8 @@ targetCustomizations:
   clusterSelector:
     matchLabels:
       env: prod
+  # A selector used to match a specific cluster by name.    
+  clusterName: dev-cluster    
   # A selector used to match cluster groups.
   clusterGroupSelector:
     matchLabels:
