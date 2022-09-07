@@ -6,13 +6,22 @@ source $(dirname $0)/version
 cd $(dirname $0)/..
 
 mkdir -p bin
-if [ "$(uname)" = "Linux" ]; then
-    OTHER_LINKFLAGS="-extldflags -static -s"
+
+if [ -n "${DEBUG}" ]; then
+  GCFLAGS="-N -l"
 fi
+
+if [ "$(uname)" = "Linux" ]; then
+    OTHER_LINKFLAGS="-extldflags -static"
+    if [ -z "${DEBUG}" ]; then
+      OTHER_LINKFLAGS="${OTHER_LINKFLAGS} -s"
+    fi
+fi
+
 LINKFLAGS="-X github.com/rancher/gitjob.Version=$VERSION"
 LINKFLAGS="-X github.com/rancher/gitjob.GitCommit=$COMMIT $LINKFLAGS"
-CGO_ENABLED=0 go build -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/gitjob
+CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/gitjob
 if [ "$CROSS" = "true" ] && [ "$ARCH" = "amd64" ]; then
-    GOOS=darwin go build -ldflags "$LINKFLAGS" -o bin/gitjob-darwin
-    GOOS=windows go build -ldflags "$LINKFLAGS" -o bin/gitjob-windows
+    GOOS=darwin go build -gcflags="all=${GCFLAGS}" -ldflags "$LINKFLAGS" -o bin/gitjob-darwin
+    GOOS=windows go build -gcflags="all=${GCFLAGS}" -ldflags "$LINKFLAGS" -o bin/gitjob-windows
 fi
