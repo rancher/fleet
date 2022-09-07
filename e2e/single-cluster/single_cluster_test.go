@@ -10,7 +10,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("SingleCluster", func() {
+// These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/single-cluster
+var _ = Describe("Single Cluster Examples", func() {
 	var (
 		asset string
 		k     kubectl.Command
