@@ -13,7 +13,7 @@ RUN mkdir /usr/tmp && \
     curl ${HELM_URL_V3} | tar xvzf - --strip-components=1 -C /usr/tmp/ && \
     mv /usr/tmp/helm /usr/bin/helm
 
-ENV DAPPER_ENV REPO TAG DRONE_TAG
+ENV DAPPER_ENV REPO TAG DRONE_TAG DEBUG
 ENV DAPPER_SOURCE /go/src/github.com/rancher/gitjob/
 ENV DAPPER_OUTPUT ./bin ./dist
 ENV DAPPER_DOCKER_SOCKET true
