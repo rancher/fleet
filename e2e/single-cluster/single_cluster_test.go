@@ -96,7 +96,7 @@ var _ = Describe("Single Cluster Examples", func() {
 					return out
 				}).Should(SatisfyAll(
 					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
-					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
+					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-mo-"),
 				))
 
 				Eventually(func() string {
@@ -104,7 +104,7 @@ var _ = Describe("Single Cluster Examples", func() {
 					return out
 				}).Should(SatisfyAll(
 					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
-					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
+					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-mo-"),
 				))
 
 				Eventually(func() string {
