@@ -67,15 +67,17 @@ func (m *Manager) Cleanup() error {
 			if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
 				return err
 			}
+
+			return nil
 		} else if err != nil {
 			return err
-		} else {
-			releaseName := m.releaseName(bundleDeployment)
-			if releaseName != deployed.ReleaseName {
-				logrus.Infof("Deleting unknown bundle ID %s, release %s, expecting release %s", deployed.BundleID, deployed.ReleaseName, releaseName)
-				if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
-					return err
-				}
+		}
+
+		releaseName := m.releaseName(bundleDeployment)
+		if releaseName != deployed.ReleaseName {
+			logrus.Infof("Deleting unknown bundle ID %s, release %s, expecting release %s", deployed.BundleID, deployed.ReleaseName, releaseName)
+			if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
+				return err
 			}
 		}
 	}
