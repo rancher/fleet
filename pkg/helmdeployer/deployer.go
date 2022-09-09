@@ -228,8 +228,10 @@ func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 	}
 
 	// releaseName has a limit of 53 in helm https://github.com/helm/helm/blob/main/pkg/action/install.go#L58
+	// apply already makes sure that the bundle.Name is not longer than 53 characters
 	releaseName := name.Limit(bundleID, 53)
 	if options.Helm != nil && options.Helm.ReleaseName != "" {
+		// JSON schema validation makes sure that the option is valid
 		releaseName = options.Helm.ReleaseName
 	}
 
@@ -419,6 +421,8 @@ func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 	return values, nil
 }
 
+// ListDeployments returns a list of bundles by listing all helm relases via
+// helm's storage driver (secrets)
 func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
 	list := action.NewList(&h.globalCfg)
 	list.All = true
@@ -495,6 +499,9 @@ func (h *helm) Resources(bundleID, resourcesID string) (*deployer.Resources, err
 	return releaseToResources(release)
 }
 
+// Delete the release for the given bundleID. releaseName is a key in the
+// format "namespace/name". If releaseName is empty, search for a matching
+// release.
 func (h *helm) Delete(bundleID, releaseName string) error {
 	if releaseName == "" {
 		deployments, err := h.ListDeployments()
