@@ -13,7 +13,9 @@ type Resources struct {
 }
 
 type DeployedBundle struct {
-	BundleID    string
+	// BundleID is the bundle.Name
+	BundleID string
+	// ReleaseName is actually in the form "namespace/release name"
 	ReleaseName string
 }
 

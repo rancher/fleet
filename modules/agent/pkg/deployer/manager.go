@@ -41,13 +41,15 @@ func NewManager(fleetNamespace string,
 	}
 }
 
-func (m *Manager) releaseName(bd *fleet.BundleDeployment) string {
+// releaseKey returns a deploymentKey from namespace+releaseName
+func (m *Manager) releaseKey(bd *fleet.BundleDeployment) string {
 	ns := m.defaultNamespace
 	if bd.Spec.Options.TargetNamespace != "" {
 		ns = bd.Spec.Options.TargetNamespace
 	} else if bd.Spec.Options.DefaultNamespace != "" {
 		ns = bd.Spec.Options.DefaultNamespace
 	}
+
 	if bd.Spec.Options.Helm == nil || bd.Spec.Options.Helm.ReleaseName == "" {
 		return ns + "/" + bd.Name
 	}
@@ -63,6 +65,7 @@ func (m *Manager) Cleanup() error {
 	for _, deployed := range deployed {
 		bundleDeployment, err := m.bundleDeploymentCache.Get(m.fleetNamespace, deployed.BundleID)
 		if apierror.IsNotFound(err) {
+			// found a helm secret, but no bundle deployment, so uninstall the release
 			logrus.Infof("Deleting orphan bundle ID %s, release %s", deployed.BundleID, deployed.ReleaseName)
 			if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
 				return err
@@ -73,9 +76,10 @@ func (m *Manager) Cleanup() error {
 			return err
 		}
 
-		releaseName := m.releaseName(bundleDeployment)
-		if releaseName != deployed.ReleaseName {
-			logrus.Infof("Deleting unknown bundle ID %s, release %s, expecting release %s", deployed.BundleID, deployed.ReleaseName, releaseName)
+		key := m.releaseKey(bundleDeployment)
+		if key != deployed.ReleaseName {
+			// found helm secret and bundle deployment for BundleID, but release name doesn't match, so delete the release
+			logrus.Infof("Deleting unknown bundle ID %s, release %s, expecting release %s", deployed.BundleID, deployed.ReleaseName, key)
 			if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
 				return err
 			}
