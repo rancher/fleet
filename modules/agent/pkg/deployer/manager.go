@@ -3,6 +3,7 @@ package deployer
 import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/kv"
@@ -16,7 +17,7 @@ type Manager struct {
 	defaultNamespace      string
 	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache
 	lookup                manifest.Lookup
-	deployer              Deployer
+	deployer              *helmdeployer.Helm
 	apply                 apply.Apply
 	labelPrefix           string
 	labelSuffix           string
@@ -27,7 +28,7 @@ func NewManager(fleetNamespace string,
 	labelPrefix, labelSuffix string,
 	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache,
 	lookup manifest.Lookup,
-	deployer Deployer,
+	deployer *helmdeployer.Helm,
 	apply apply.Apply) *Manager {
 	return &Manager{
 		fleetNamespace:        fleetNamespace,
@@ -95,7 +96,7 @@ func (m *Manager) Delete(bundleDeploymentKey string) error {
 }
 
 // Resources returns the resources that are deployed by the bundle deployment, used by trigger.Watches
-func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
+func (m *Manager) Resources(bd *fleet.BundleDeployment) (*helmdeployer.Resources, error) {
 	resources, err := m.deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
 		return nil, nil

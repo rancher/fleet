@@ -17,7 +17,7 @@ import (
 )
 
 func Template(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) ([]runtime.Object, error) {
-	h := &helm{
+	h := &Helm{
 		globalCfg:    action.Configuration{},
 		useGlobalCfg: true,
 		template:     true,
