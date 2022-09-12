@@ -43,7 +43,7 @@ func Namespace(name string) *corev1.Namespace {
 
 }
 
-func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, linuxOnly bool) *appsv1.Deployment {
+func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, linuxOnly, debug bool) *appsv1.Deployment {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -78,20 +78,24 @@ func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, 
 									},
 								},
 							},
-							SecurityContext: &corev1.SecurityContext{
-								AllowPrivilegeEscalation: &[]bool{false}[0],
-								ReadOnlyRootFilesystem:   &[]bool{true}[0],
-							},
 						},
-					},
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: &[]bool{true}[0],
-						RunAsUser:    &[]int64{1000}[0],
-						RunAsGroup:   &[]int64{1000}[0],
 					},
 				},
 			},
 		},
+	}
+	if !debug {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			container.SecurityContext = &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &[]bool{false}[0],
+				ReadOnlyRootFilesystem:   &[]bool{true}[0],
+			}
+		}
+		deployment.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
+			RunAsNonRoot: &[]bool{true}[0],
+			RunAsUser:    &[]int64{1000}[0],
+			RunAsGroup:   &[]int64{1000}[0],
+		}
 	}
 	if linuxOnly {
 		deployment.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
