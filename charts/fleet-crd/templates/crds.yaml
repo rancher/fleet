@@ -122,7 +122,9 @@ spec:
                   maxHistory:
                     type: integer
                   releaseName:
+                    maxLength: 53
                     nullable: true
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                     type: string
                   repo:
                     nullable: true
@@ -1000,7 +1002,9 @@ spec:
                       maxHistory:
                         type: integer
                       releaseName:
+                        maxLength: 53
                         nullable: true
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                         type: string
                       repo:
                         nullable: true
@@ -1694,7 +1698,7 @@ spec:
             properties:
               name:
                 maxLength: 63
-                pattern: ^[-a-z0-9]*$
+                pattern: ^[-a-z0-9]+$
                 type: string
             type: object
           spec:
@@ -2011,7 +2015,7 @@ spec:
             properties:
               name:
                 maxLength: 63
-                pattern: ^[-a-z0-9]*$
+                pattern: ^[-a-z0-9]+$
                 type: string
             type: object
           spec:
