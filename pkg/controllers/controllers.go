@@ -1,3 +1,4 @@
+// Package controllers sets up the controllers for the fleet-controller. (fleetcontroller)
 package controllers
 
 import (

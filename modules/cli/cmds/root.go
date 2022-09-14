@@ -1,3 +1,4 @@
+// Package cmds sets up the CLI commands for the fleet apply binary. (fleetapply)
 package cmds
 
 import (

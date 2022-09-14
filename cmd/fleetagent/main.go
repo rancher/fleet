@@ -1,3 +1,4 @@
+// Package main is the entrypoint for the fleet-agent binary. (fleetagent)
 package main
 
 import (

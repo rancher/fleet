@@ -1,3 +1,4 @@
+// Package agentmanifest creates the manifest for the fleet-agent (fleetcontroller)
 package agentmanifest
 
 import (

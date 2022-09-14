@@ -1,3 +1,4 @@
+// Package simulator simulates multiple agents on the same cluster. (fleetagent)
 package simulator
 
 import (

@@ -1,3 +1,4 @@
+// Package main provides the entrypoint for the fleet-controller binary (fleetcontroller)
 package main
 
 import (

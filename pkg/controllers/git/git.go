@@ -1,3 +1,6 @@
+// Package git implements a controller that watches for GitRepo objects. (fleetcontrollers)
+//
+// It manages the lifecycle of GitJob resources for GitRepos. It cleans up orphaned bundles and image scans. Also updates the GitRepo and bundle status.
 package git
 
 import (

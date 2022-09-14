@@ -1,3 +1,4 @@
+// Package image registers a controller for image scans. (fleetcontroller)
 package image
 
 import (

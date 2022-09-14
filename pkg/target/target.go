@@ -1,3 +1,4 @@
+// Package target provides a functions to match bundles and clusters and to list the bundledeployments for that match. (fleetcontroller)
 package target
 
 import (

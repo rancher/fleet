@@ -1,3 +1,4 @@
+// Package basic provides basic resources, like deployments, services, etc. (fleetcontroller)
 package basic
 
 import (

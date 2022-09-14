@@ -1,3 +1,4 @@
+// Package agent provides the deployment manifest for the fleet-agent. (fleetcontroller)
 package agent
 
 import (

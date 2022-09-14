@@ -1,3 +1,4 @@
+// Package agentconfig builds the configuration for the fleet-agent (fleetcontroller)
 package agentconfig
 
 import (

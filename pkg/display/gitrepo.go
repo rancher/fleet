@@ -1,3 +1,4 @@
+// Package display accumulates the resources for the gitrepo status from bundles. (fleetcontroller)
 package display
 
 import (

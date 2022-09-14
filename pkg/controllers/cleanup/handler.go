@@ -1,3 +1,4 @@
+// Package cleanup provides a controller that cleans up resources that are no longer needed. (fleetcontroller)
 package cleanup
 
 import (

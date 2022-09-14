@@ -1,3 +1,4 @@
+// Package match is used to test matching a bundles to a target on the command line. (fleetapply)
 package match
 
 import (

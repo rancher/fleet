@@ -1,3 +1,4 @@
+// Package apply creates bundle resources from gitrepo resources (fleetapply)
 package apply
 
 import (

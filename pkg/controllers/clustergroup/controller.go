@@ -1,3 +1,4 @@
+// Package clustergroup provides a controller to update the ClusterGroup resource status. (fleetcontroller)
 package clustergroup
 
 import (

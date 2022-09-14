@@ -1,3 +1,4 @@
+// Package display provides controllers that update the status fields on several resources. (fleetcontroller)
 package display
 
 import (

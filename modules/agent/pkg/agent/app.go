@@ -1,3 +1,4 @@
+// Package agent provides the agent controller. (fleetagent)
 package agent
 
 import (

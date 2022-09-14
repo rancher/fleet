@@ -1,3 +1,4 @@
+// Package cluster provides controllers for managing clusters: status changes, importing, bootstrapping. (fleetcontroller)
 package cluster
 
 import (

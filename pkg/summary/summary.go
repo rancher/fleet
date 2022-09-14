@@ -1,3 +1,4 @@
+// Package summary provides a summary of a bundle's state. (fleetcontroller)
 package summary
 
 import (

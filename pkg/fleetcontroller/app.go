@@ -1,3 +1,4 @@
+// Package fleetcontroller registers the fleet controller. (fleetcontroller)
 package fleetcontroller
 
 import (

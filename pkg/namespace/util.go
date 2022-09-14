@@ -1,3 +1,4 @@
+// Package namespace generates the name of the cluster registration namespace. (fleetcontroller)
 package namespace
 
 import (

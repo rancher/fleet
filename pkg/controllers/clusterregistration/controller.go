@@ -1,3 +1,7 @@
+// Package clusterregistration implements manager-initiated and agent-initiated registration. (fleetcontroller)
+//
+// Add or import downstream clusters / agents to Fleet and keep information
+// from their registration (e.g. local cluster kubeconfig) up-to-date.
 package clusterregistration
 
 import (

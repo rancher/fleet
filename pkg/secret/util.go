@@ -1,3 +1,4 @@
+// Package secret gets or creates service account secrets for cluster registration. (fleetcontroller)
 package secret
 
 import (

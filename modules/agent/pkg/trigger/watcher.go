@@ -1,3 +1,4 @@
+// Package trigger watches a set of deployed resources and triggers a callback when one of them is deleted. (fleetagent)
 package trigger
 
 import (
