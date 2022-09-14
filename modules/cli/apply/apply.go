@@ -174,7 +174,10 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 	})
 }
 
-// createName uses the bundle name + the path to the bundle to create a unique name
+// createName uses the bundle name + the path to the bundle to create a unique
+// name. The resulting name is DNS label safe (RFC1123) and complies with
+// Helm's regex for release names.
+//
 // name: the gitrepo name, passed to 'fleet apply' on the cli
 // basedir: the path from the walk func in Dir, []baseDirs
 func createName(name, baseDir string) string {
@@ -207,6 +210,7 @@ func createName(name, baseDir string) string {
 
 	// shorten name to 53 characters, the limit for helm release names
 	if helmReleaseName.MatchString(str) && dnsLabelSafe.MatchString(str) {
+		// name2.Limit will add another checksum if the name is too long
 		return name2.Limit(str, 53)
 	}
 
