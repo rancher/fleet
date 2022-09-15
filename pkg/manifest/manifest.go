@@ -1,3 +1,6 @@
+// Package manifest manages content resources, which contain all the resources for a deployed bundle.
+//
+// Content resources are not namespaced.
 package manifest
 
 import (

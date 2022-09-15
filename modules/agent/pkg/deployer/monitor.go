@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	jsonpatch "github.com/evanphx/json-patch"
+
 	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/diff"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/diffnormalize"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/resource"

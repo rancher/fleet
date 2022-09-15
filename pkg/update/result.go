@@ -2,6 +2,7 @@ package update
 
 import (
 	"github.com/google/go-containerregistry/pkg/name"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )

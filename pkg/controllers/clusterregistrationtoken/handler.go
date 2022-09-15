@@ -1,27 +1,31 @@
+// Package clusterregistrationtoken provides a controller for ClusterRegistrationToken. (fleetcontroller)
+//
+// It creates a service account and role binding for the token.
 package clusterregistrationtoken
 
 import (
 	"context"
 	"time"
 
-	"github.com/rancher/fleet/pkg/config"
-	secretutil "github.com/rancher/fleet/pkg/secret"
 	"github.com/sirupsen/logrus"
-
-	yaml "sigs.k8s.io/yaml"
 
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	secretutil "github.com/rancher/fleet/pkg/secret"
+
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
+
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	yaml "sigs.k8s.io/yaml"
 )
 
 type handler struct {

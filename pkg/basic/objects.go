@@ -1,7 +1,9 @@
+// Package basic provides basic resources, like deployments, services, etc. (fleetcontroller)
 package basic
 
 import (
 	"github.com/rancher/wrangler/pkg/name"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"

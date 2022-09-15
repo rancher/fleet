@@ -7,10 +7,11 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rancher/fleet/modules/cli/apply"
 	"github.com/rancher/fleet/modules/cli/pkg/writer"
 	command "github.com/rancher/wrangler-cli"
-	"github.com/spf13/cobra"
 )
 
 func NewApply() *cobra.Command {

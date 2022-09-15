@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/resource"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/resource"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"

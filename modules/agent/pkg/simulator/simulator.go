@@ -1,3 +1,4 @@
+// Package simulator simulates multiple agents on the same cluster. (fleetagent)
 package simulator
 
 import (
@@ -5,15 +6,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/fleet/modules/agent/pkg/agent"
-	"github.com/rancher/fleet/modules/agent/pkg/register"
-	"github.com/rancher/fleet/pkg/config"
-	"github.com/rancher/wrangler/pkg/kubeconfig"
-	"github.com/rancher/wrangler/pkg/name"
-	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+
+	"github.com/rancher/fleet/modules/agent/pkg/agent"
+	"github.com/rancher/fleet/modules/agent/pkg/register"
+	"github.com/rancher/fleet/pkg/config"
+
+	"github.com/rancher/wrangler/pkg/kubeconfig"
+	"github.com/rancher/wrangler/pkg/name"
+	"github.com/rancher/wrangler/pkg/ratelimit"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

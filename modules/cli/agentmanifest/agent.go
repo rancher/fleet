@@ -1,3 +1,4 @@
+// Package agentmanifest creates the manifest for the fleet-agent (fleetcontroller)
 package agentmanifest
 
 import (
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+
 	"github.com/rancher/fleet/modules/cli/agentconfig"
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	"github.com/rancher/fleet/pkg/agent"
@@ -15,7 +17,9 @@ import (
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
+
 	"github.com/rancher/wrangler/pkg/yaml"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

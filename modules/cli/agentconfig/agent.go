@@ -1,3 +1,4 @@
+// Package agentconfig builds the configuration for the fleet-agent (fleetcontroller)
 package agentconfig
 
 import (
@@ -6,6 +7,7 @@ import (
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
+
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
