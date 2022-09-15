@@ -6,13 +6,15 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rancher/fleet/pkg/agent"
 	"github.com/rancher/fleet/pkg/fleetcontroller"
 	"github.com/rancher/fleet/pkg/version"
+
 	command "github.com/rancher/wrangler-cli"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/networking.k8s.io"
-	"github.com/spf13/cobra"
 )
 
 var (

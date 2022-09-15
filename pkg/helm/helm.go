@@ -4,13 +4,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"helm.sh/helm/v3/pkg/chart"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
 	"github.com/rancher/fleet/pkg/bundleyaml"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/rawyaml"
 	"github.com/rancher/wrangler/pkg/kv"
-	"helm.sh/helm/v3/pkg/chart"
 	"sigs.k8s.io/yaml"
 )
 

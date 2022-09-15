@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
+
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

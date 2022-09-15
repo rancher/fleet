@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rancher/wrangler/pkg/genericcondition"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
 	"github.com/rancher/wrangler/pkg/condition"
+	"github.com/rancher/wrangler/pkg/genericcondition"
 )
 
 func IncrementState(summary *fleet.BundleSummary, name string, state fleet.BundleState, message string, modified []fleet.ModifiedStatus, nonReady []fleet.NonReadyStatus) {

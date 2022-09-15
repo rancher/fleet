@@ -8,10 +8,12 @@ import (
 
 	"github.com/rancher/fleet/modules/agent/pkg/controllers"
 	"github.com/rancher/fleet/modules/agent/pkg/register"
+
 	"github.com/rancher/lasso/pkg/mapper"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
 	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/ticker"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"

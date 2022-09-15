@@ -5,7 +5,9 @@ import (
 	"context"
 
 	"github.com/rancher/fleet/pkg/config"
+
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+
 	v1 "k8s.io/api/core/v1"
 )
 

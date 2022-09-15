@@ -2,10 +2,12 @@
 package cmds
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	"github.com/rancher/fleet/pkg/version"
+
 	command "github.com/rancher/wrangler-cli"
-	"github.com/spf13/cobra"
 )
 
 var (

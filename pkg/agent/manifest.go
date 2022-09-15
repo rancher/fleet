@@ -4,9 +4,11 @@ package agent
 import (
 	"strconv"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
-	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"

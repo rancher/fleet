@@ -2,8 +2,9 @@ package normalizers
 
 import (
 	jsonpatch "github.com/evanphx/json-patch"
-	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/sirupsen/logrus"
+
+	"github.com/rancher/wrangler/pkg/objectset"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"

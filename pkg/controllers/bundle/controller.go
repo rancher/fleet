@@ -5,6 +5,8 @@ import (
 	"context"
 	"sort"
 
+	"github.com/sirupsen/logrus"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
@@ -12,10 +14,11 @@ import (
 	"github.com/rancher/fleet/pkg/options"
 	"github.com/rancher/fleet/pkg/summary"
 	"github.com/rancher/fleet/pkg/target"
+
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/relatedresource"
-	"github.com/sirupsen/logrus"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
