@@ -12,7 +12,9 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/content"
 	"github.com/rancher/fleet/pkg/manifest"
+
 	"github.com/rancher/wrangler/pkg/patch"
+
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 

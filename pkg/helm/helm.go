@@ -11,7 +11,9 @@ import (
 	"github.com/rancher/fleet/pkg/bundleyaml"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/rawyaml"
+
 	"github.com/rancher/wrangler/pkg/kv"
+
 	"sigs.k8s.io/yaml"
 )
 
