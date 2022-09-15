@@ -61,11 +61,11 @@ var _ = Describe("Git Repo", func() {
 		var yaml strings.Builder
 		err = tmpl.Execute(&yaml, githelper.GitRepo{Repo: gh.URL, Branch: gh.Branch})
 		Expect(err).ToNot(HaveOccurred())
-		fleet := path.Join(tmpdir, "fleet.yaml")
-		err = os.WriteFile(fleet, []byte(yaml.String()), 0644)
+		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
+		err = os.WriteFile(gitrepo, []byte(yaml.String()), 0644)
 		Expect(err).ToNot(HaveOccurred())
 
-		out, err = k.Apply("-f", fleet)
+		out, err = k.Apply("-f", gitrepo)
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
