@@ -26,7 +26,9 @@ import (
 	"github.com/rancher/fleet/modules/cli/pkg/progress"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/content"
+
 	"github.com/rancher/wrangler/pkg/data"
+
 	"sigs.k8s.io/yaml"
 )
 
