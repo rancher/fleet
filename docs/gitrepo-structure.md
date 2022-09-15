@@ -59,7 +59,8 @@ kustomize:
   dir: ./kustomize
 
 helm:
-  # Use a custom location for the Helm chart. This can refer to any go-getter URL.
+  # Use a custom location for the Helm chart. This can refer to any go-getter URL or
+  # OCI registry based helm chart URL e.g. "oci://ghcr.io/fleetrepoci/guestbook".
   # This allows one to download charts from most any location.  Also know that
   # go-getter URL supports adding a digest to validate the download. If repo
   # is set below this field is the name of the chart to lookup
