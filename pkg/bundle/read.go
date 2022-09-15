@@ -29,6 +29,8 @@ type Options struct {
 	Auth            Auth
 }
 
+// Open reads the content, from stdin, or basedir, or a file in basedir. It
+// returns a bundle with the given name
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
 	if baseDir == "" {
 		baseDir = "."

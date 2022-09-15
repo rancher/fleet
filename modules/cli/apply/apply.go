@@ -25,7 +25,9 @@ import (
 )
 
 var (
-	disallowedChars = regexp.MustCompile("[^a-zA-Z0-9]+")
+	disallowedChars = regexp.MustCompile("[^a-zA-Z0-9-]+")
+	helmReleaseName = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
+	dnsLabelSafe    = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 	multiDash       = regexp.MustCompile("-+")
 	ErrNoResources  = errors.New("no resources found to deploy")
 )
@@ -60,7 +62,10 @@ func globDirs(baseDir string) (result []string, err error) {
 	return
 }
 
-func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []string, opts *Options) error {
+// Apply creates bundles from the baseDirs, their names are prefixed with
+// repoName. Depending on opts.Outpus the bundles are created in the cluster or
+// printed to stdout, ...
+func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs []string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -92,7 +97,7 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 						return nil
 					}
 				}
-				if err := Dir(ctx, client, name, path, opts, gitRepoBundlesMap); err == ErrNoResources {
+				if err := Dir(ctx, client, repoName, path, opts, gitRepoBundlesMap); err == ErrNoResources {
 					logrus.Warnf("%s: %v", path, err)
 					return nil
 				} else if err != nil {
@@ -109,7 +114,7 @@ func Apply(ctx context.Context, client *client.Getter, name string, baseDirs []s
 	}
 
 	if opts.Output == nil {
-		err := pruneBundlesNotFoundInRepo(client, name, gitRepoBundlesMap)
+		err := pruneBundlesNotFoundInRepo(client, repoName, gitRepoBundlesMap)
 		if err != nil {
 			return err
 		}
@@ -146,6 +151,8 @@ func pruneBundlesNotFoundInRepo(client *client.Getter, repoName string, gitRepoB
 	return err
 }
 
+// readBundle reads bundle data from a source and return a bundle with the
+// given name, or the name from the raw source file
 func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bundle.Bundle, error) {
 	if opts.BundleReader != nil {
 		var bundleResource fleet.Bundle
@@ -167,10 +174,50 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 	})
 }
 
+// createName uses the bundle name + the path to the bundle to create a unique
+// name. The resulting name is DNS label safe (RFC1123) and complies with
+// Helm's regex for release names.
+//
+// name: the gitrepo name, passed to 'fleet apply' on the cli
+// basedir: the path from the walk func in Dir, []baseDirs
 func createName(name, baseDir string) string {
-	path := strings.ToLower(filepath.Join(name, baseDir))
-	path = disallowedChars.ReplaceAllString(path, "-")
-	return name2.Limit(multiDash.ReplaceAllString(path, "-"), 63)
+	needHex := false
+
+	str := filepath.Join(name, baseDir)
+	str = strings.ReplaceAll(str, "/", "-")
+
+	// avoid collision from different case
+	if str != strings.ToLower(str) {
+		needHex = true
+	}
+
+	// avoid collision from disallowed characters
+	if disallowedChars.MatchString(str) {
+		needHex = true
+	}
+
+	if needHex {
+		// append checksum before cleaning up the string
+		str = fmt.Sprintf("%s-%s", str, name2.Hex(str, 8))
+	}
+
+	// clean up new name
+	str = strings.ToLower(str)
+	str = disallowedChars.ReplaceAllLiteralString(str, "-")
+	str = multiDash.ReplaceAllString(str, "-")
+	str = strings.TrimLeft(str, "-")
+	str = strings.TrimRight(str, "-")
+
+	// shorten name to 53 characters, the limit for helm release names
+	if helmReleaseName.MatchString(str) && dnsLabelSafe.MatchString(str) {
+		// name2.Limit will add another checksum if the name is too long
+		return name2.Limit(str, 53)
+	}
+
+	// if the string ends up empty or otherwise invalid, fall back to just
+	// a checksum of the original input
+	logrus.Debugf("couldn't derive a valid bundle name, using checksum instead for '%s'", str)
+	return name2.Hex(filepath.Join(name, baseDir), 24)
 }
 
 func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
@@ -220,7 +267,7 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 		if _, err = c.Fleet.Bundle().Create(bundle); err != nil {
 			return err
 		}
-		logrus.Infof("created: %s/%s\n", bundle.Namespace, bundle.Name)
+		logrus.Infof("created: %s/%s", bundle.Namespace, bundle.Name)
 	} else if err != nil {
 		return err
 	} else {
@@ -230,7 +277,7 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 		if _, err := c.Fleet.Bundle().Update(obj); err != nil {
 			return err
 		}
-		logrus.Infof("updated: %s/%s\n", obj.Namespace, obj.Name)
+		logrus.Infof("updated: %s/%s", obj.Namespace, obj.Name)
 	}
 
 	for _, scan := range imageScans {
@@ -241,7 +288,7 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 			if _, err = c.Fleet.ImageScan().Create(scan); err != nil {
 				return err
 			}
-			logrus.Infof("created (scan): %s/%s\n", bundle.Namespace, bundle.Name)
+			logrus.Infof("created (scan): %s/%s", bundle.Namespace, bundle.Name)
 		} else if err != nil {
 			return err
 		} else {
@@ -251,7 +298,7 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 			if _, err := c.Fleet.ImageScan().Update(obj); err != nil {
 				return err
 			}
-			logrus.Infof("updated (scan): %s/%s\n", obj.Namespace, obj.Name)
+			logrus.Infof("updated (scan): %s/%s", obj.Namespace, obj.Name)
 		}
 	}
 	return err
