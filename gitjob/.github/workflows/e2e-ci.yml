@@ -84,6 +84,11 @@ jobs:
         name: Tests
         run: |
           go test -cover -tags=test $(go list ./... | grep -v /e2e)
+      -
+        name: E2E Tests
+        # git repo tests can't run for PRs, because PRs don't have access to the secrets
+        if: github.event_name != 'pull_request'
+        run: |
           export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
           echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
           ginkgo e2e/
