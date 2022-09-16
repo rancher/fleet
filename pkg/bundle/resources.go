@@ -87,7 +87,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	return result, nil
 }
 
-func ChartPath(helm *fleet.HelmOptions) string {
+func checksum(helm *fleet.HelmOptions) string {
 	if helm == nil {
 		return "none"
 	}
@@ -190,10 +190,10 @@ func addCharts(directories []directory, base string, charts []*fleet.HelmOptions
 			}
 
 			directories = append(directories, directory{
-				prefix:  ChartPath(chart),
+				prefix:  checksum(chart),
 				base:    base,
 				path:    chartURL,
-				key:     ChartPath(chart),
+				key:     checksum(chart),
 				auth:    auth,
 				version: chart.Version,
 			})

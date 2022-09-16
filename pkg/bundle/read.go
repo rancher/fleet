@@ -39,7 +39,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 	}
 
 	if file == "-" {
-		return Read(ctx, name, baseDir, os.Stdin, opts)
+		return mayCompress(ctx, name, baseDir, os.Stdin, opts)
 	}
 
 	var (
@@ -65,7 +65,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 		in = f
 	}
 
-	return Read(ctx, name, baseDir, in, opts)
+	return mayCompress(ctx, name, baseDir, in, opts)
 }
 
 // Try accessing the documented, primary fleet.yaml extension first. If that returns an "IsNotExist" error, then we
@@ -89,7 +89,7 @@ func setupIOReader(baseDir string) (*os.File, error) {
 	return nil, nil
 }
 
-func Read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
+func mayCompress(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
