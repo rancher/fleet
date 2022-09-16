@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"path"
 	"strconv"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -29,6 +31,7 @@ type ManifestOptions struct {
 	AgentImagePullPolicy string
 	CheckinInterval      string
 	Generation           string
+	PrivateRepoURL       string
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
@@ -53,7 +56,11 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 		},
 	)
 
-	dep := basic.Deployment(namespace, DefaultName, opts.AgentImage, opts.AgentImagePullPolicy, DefaultName, false)
+	// PrivateRepoURL = registry.yourdomain.com:5000
+	// DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
+	image := resolve(opts.PrivateRepoURL, opts.AgentImage)
+
+	dep := basic.Deployment(namespace, DefaultName, image, opts.AgentImagePullPolicy, DefaultName, false)
 	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
 		corev1.EnvVar{
 			Name:  "AGENT_SCOPE",
@@ -123,4 +130,12 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	objs = append(objs, sa, defaultSa, dep, networkPolicy)
 
 	return objs
+}
+
+func resolve(reg, image string) string {
+	if reg != "" && !strings.HasPrefix(image, reg) {
+		return path.Join(reg, image)
+	}
+
+	return image
 }

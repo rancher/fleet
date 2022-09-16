@@ -15,6 +15,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -124,6 +125,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 	var objs []runtime.Object
 
 	for _, cluster := range clusters {
+		logrus.Infof("Updated agent for cluster %s/%s", cluster.Namespace, cluster.Name)
 		bundle, err := h.getAgentBundle(namespace.Name, cluster)
 		if err != nil {
 			return nil, err
@@ -159,6 +161,7 @@ func (h *handler) getAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			AgentImagePullPolicy: cfg.AgentImagePullPolicy,
 			CheckinInterval:      cfg.AgentCheckinInternal.Duration.String(),
 			Generation:           "bundle",
+			PrivateRepoURL:       cluster.Spec.PrivateRepoURL,
 		},
 	)
 	agentYAML, err := yaml.Export(objs...)
