@@ -246,14 +246,24 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
-	err = agent.AgentWithConfig(i.ctx, agentNamespace, i.systemNamespace, cluster.Spec.AgentNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agent.Options{
-		CA:              apiServerCA,
-		Host:            apiServerURL,
-		ClientID:        cluster.Spec.ClientID,
-		AgentEnvVars:    cluster.Spec.AgentEnvVars,
-		CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
-		Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
-	})
+	err = agent.AgentWithConfig(
+		i.ctx, agentNamespace, i.systemNamespace,
+		cluster.Spec.AgentNamespace,
+		&client.Getter{Namespace: cluster.Namespace},
+		output,
+		token.Name,
+		&agent.Options{
+			CA:   apiServerCA,
+			Host: apiServerURL,
+			ConfigOptions: agent.ConfigOptions{
+				ClientID: cluster.Spec.ClientID,
+			},
+			ManifestOptions: agent.ManifestOptions{
+				AgentEnvVars:    cluster.Spec.AgentEnvVars,
+				CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
+				Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
+			},
+		})
 	if err != nil {
 		return status, err
 	}

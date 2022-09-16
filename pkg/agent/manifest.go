@@ -23,11 +23,17 @@ const (
 	DefaultName = "fleet-agent"
 )
 
+type ManifestOptions struct {
+	Generation      string
+	CheckinInterval string
+	AgentEnvVars    []corev1.EnvVar
+}
+
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
 // cluster role, two service accounts and a network policy
 //
 // This is called by both, import and manageagent.
-func Manifest(namespace, agentScope, image, pullPolicy, generation, checkInInterval string, agentEnvVars []corev1.EnvVar) []runtime.Object {
+func Manifest(namespace, agentScope, image, pullPolicy string, opts *ManifestOptions) []runtime.Object {
 	if image == "" {
 		image = config.DefaultAgentImage
 	}
@@ -53,14 +59,14 @@ func Manifest(namespace, agentScope, image, pullPolicy, generation, checkInInter
 		},
 		corev1.EnvVar{
 			Name:  "CHECKIN_INTERVAL",
-			Value: checkInInterval,
+			Value: opts.CheckinInterval,
 		},
 		corev1.EnvVar{
 			Name:  "GENERATION",
-			Value: generation,
+			Value: opts.Generation,
 		})
-	if agentEnvVars != nil {
-		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, agentEnvVars...)
+	if opts.AgentEnvVars != nil {
+		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, opts.AgentEnvVars...)
 	}
 	// if debug level logging is enabled in controller, enable in agent too
 	if logrus.IsLevelEnabled(logrus.DebugLevel) {

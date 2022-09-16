@@ -10,14 +10,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-type configOptions struct {
-	Labels   map[string]string
+type ConfigOptions struct {
+	Labels   map[string]string // unused
 	ClientID string
 }
 
-func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string, cg *client.Getter, opts *configOptions) ([]runtime.Object, error) {
+func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string, cg *client.Getter, opts *ConfigOptions) ([]runtime.Object, error) {
 	if opts == nil {
-		opts = &configOptions{}
+		opts = &ConfigOptions{}
 	}
 
 	client, err := cg.Get()
