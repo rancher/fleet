@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -21,6 +22,9 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/downloader"
+	helmgetter "helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/repo"
 
 	"github.com/rancher/fleet/modules/cli/pkg/progress"
@@ -83,7 +87,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	return result, nil
 }
 
-func ChartPath(helm *fleet.HelmOptions) string {
+func checksum(helm *fleet.HelmOptions) string {
 	if helm == nil {
 		return "none"
 	}
@@ -186,11 +190,12 @@ func addCharts(directories []directory, base string, charts []*fleet.HelmOptions
 			}
 
 			directories = append(directories, directory{
-				prefix: ChartPath(chart),
-				base:   base,
-				path:   chartURL,
-				key:    ChartPath(chart),
-				auth:   auth,
+				prefix:  checksum(chart),
+				base:    base,
+				path:    chartURL,
+				key:     checksum(chart),
+				auth:    auth,
+				version: chart.Version,
 			})
 		}
 	}
@@ -216,11 +221,12 @@ func addDirectory(directories []directory, base, customDir, defaultDir string) (
 }
 
 type directory struct {
-	prefix string
-	base   string
-	path   string
-	key    string
-	auth   Auth
+	prefix  string
+	base    string
+	path    string
+	key     string
+	version string
+	auth    Auth
 }
 
 func readDirectories(ctx context.Context, compress bool, directories ...directory) (map[string][]fleet.BundleResource, error) {
@@ -241,7 +247,7 @@ func readDirectories(ctx context.Context, compress bool, directories ...director
 		dir := dir
 		eg.Go(func() error {
 			defer sem.Release(1)
-			resources, err := readDirectory(ctx, compress, dir.prefix, dir.base, dir.path, dir.auth)
+			resources, err := readDirectory(ctx, compress, dir.prefix, dir.base, dir.path, dir.version, dir.auth)
 			if err != nil {
 				return err
 			}
@@ -261,10 +267,10 @@ func readDirectories(ctx context.Context, compress bool, directories ...director
 	return result, eg.Wait()
 }
 
-func readDirectory(ctx context.Context, compress bool, prefix, base, name string, auth Auth) ([]fleet.BundleResource, error) {
+func readDirectory(ctx context.Context, compress bool, prefix, base, name, version string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := readContent(ctx, base, name, auth)
+	files, err := readContent(ctx, base, name, version, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -295,12 +301,28 @@ func readDirectory(ctx context.Context, compress bool, prefix, base, name string
 	return resources, nil
 }
 
-func readContent(ctx context.Context, base, name string, auth Auth) (map[string][]byte, error) {
+func readContent(ctx context.Context, base, name, version string, auth Auth) (map[string][]byte, error) {
 	temp, err := os.MkdirTemp("", "fleet")
 	if err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(temp)
+
+	src := name
+
+	// go-getter does not support downloading OCI registry based files yet
+	// until this is implemented we use Helm to download charts from OCI based registries
+	// and provide the downloaded file to go-getter locally
+	hasOCIURL, err := regexp.MatchString(`^oci:\/\/`, name)
+	if err != nil {
+		return nil, err
+	}
+	if hasOCIURL {
+		src, err = downloadOCIChart(name, version, temp)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	temp = filepath.Join(temp, "content")
 
@@ -309,7 +331,6 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 		return nil, err
 	}
 
-	src := name
 	if auth.SSHPrivateKey != nil {
 		if !strings.ContainsAny(src, "?") {
 			src += "?"
@@ -385,6 +406,21 @@ func readContent(ctx context.Context, base, name string, auth Auth) (map[string]
 	}
 
 	return files, nil
+}
+
+// downloadOciChart uses Helm to download charts from OCI based registries
+func downloadOCIChart(name, version, path string) (string, error) {
+	c := downloader.ChartDownloader{
+		Verify:  downloader.VerifyNever,
+		Getters: helmgetter.All(&cli.EnvSettings{}),
+	}
+
+	saved, _, err := c.DownloadTo(name, version, path)
+	if err != nil {
+		return "", err
+	}
+
+	return saved, nil
 }
 
 func newHttpGetter(auth Auth) *getter.HttpGetter {
