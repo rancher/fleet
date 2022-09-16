@@ -11,7 +11,7 @@ import (
 )
 
 type ConfigOptions struct {
-	Labels   map[string]string // unused
+	Labels   map[string]string
 	ClientID string
 }
 

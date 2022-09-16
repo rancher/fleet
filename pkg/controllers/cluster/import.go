@@ -257,6 +257,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			Host: apiServerURL,
 			ConfigOptions: agent.ConfigOptions{
 				ClientID: cluster.Spec.ClientID,
+				Labels:   cluster.Labels,
 			},
 			ManifestOptions: agent.ManifestOptions{
 				AgentEnvVars:    cluster.Spec.AgentEnvVars,
