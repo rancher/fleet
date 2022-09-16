@@ -24,18 +24,20 @@ const (
 )
 
 type ManifestOptions struct {
-	Generation      string
-	CheckinInterval string
-	AgentEnvVars    []corev1.EnvVar
+	AgentEnvVars         []corev1.EnvVar
+	AgentImage           string
+	AgentImagePullPolicy string
+	CheckinInterval      string
+	Generation           string
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
 // cluster role, two service accounts and a network policy
 //
 // This is called by both, import and manageagent.
-func Manifest(namespace, agentScope, image, pullPolicy string, opts *ManifestOptions) []runtime.Object {
-	if image == "" {
-		image = config.DefaultAgentImage
+func Manifest(namespace string, agentScope string, opts ManifestOptions) []runtime.Object {
+	if opts.AgentImage == "" {
+		opts.AgentImage = config.DefaultAgentImage
 	}
 
 	sa := basic.ServiceAccount(namespace, DefaultName)
@@ -51,7 +53,7 @@ func Manifest(namespace, agentScope, image, pullPolicy string, opts *ManifestOpt
 		},
 	)
 
-	dep := basic.Deployment(namespace, DefaultName, image, pullPolicy, DefaultName, false)
+	dep := basic.Deployment(namespace, DefaultName, opts.AgentImage, opts.AgentImagePullPolicy, DefaultName, false)
 	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
 		corev1.EnvVar{
 			Name:  "AGENT_SCOPE",

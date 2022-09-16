@@ -81,12 +81,18 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 
 	objs = append(objs, agentConfig...)
 
+	// get a fresh config from the API
 	cfg, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return err
 	}
 
-	objs = append(objs, Manifest(agentNamespace, agentScope, cfg.AgentImage, cfg.AgentImagePullPolicy, &opts.ManifestOptions)...)
+	mo := opts.ManifestOptions
+	mo.AgentImage = cfg.AgentImage
+	mo.AgentImagePullPolicy = cfg.AgentImagePullPolicy
+	mo.CheckinInterval = cfg.AgentCheckinInternal.Duration.String()
+
+	objs = append(objs, Manifest(agentNamespace, agentScope, mo)...)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {
