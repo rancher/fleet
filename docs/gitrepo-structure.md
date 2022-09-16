@@ -74,6 +74,7 @@ helm:
   releaseName: my-release
   # The version of the chart or semver constraint of the chart to find. If a constraint
   # is specified it is evaluated each time git changes.
+  # The version also determines which chart to download from OCI registries.
   version: 0.1.0
   # Any values that should be placed in the `values.yaml` and passed to helm during
   # install.
