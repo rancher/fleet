@@ -1,4 +1,3 @@
-// Package agent provides the deployment manifest for the fleet-agent. (fleetcontroller)
 package agent
 
 import (
@@ -24,6 +23,10 @@ const (
 	DefaultName = "fleet-agent"
 )
 
+// Manifest builds and returns a deployment manifest for the fleet-agent with a
+// cluster role, two service accounts and a network policy
+//
+// This is called by both, import and manageagent.
 func Manifest(namespace, agentScope, image, pullPolicy, generation, checkInInterval string, agentEnvVars []corev1.EnvVar) []runtime.Object {
 	if image == "" {
 		image = config.DefaultAgentImage

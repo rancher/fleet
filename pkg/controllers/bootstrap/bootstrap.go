@@ -7,7 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/fleet/modules/cli/agentmanifest"
+	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
@@ -125,7 +125,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 func getHost(rawConfig clientcmdapi.Config) (string, error) {
 	icc, err := rest.InClusterConfig()
 	if err != nil {
-		return agentmanifest.GetHostFromConfig(rawConfig)
+		return agent.GetHostFromConfig(rawConfig)
 	}
 	return icc.Host, nil
 }
@@ -133,7 +133,7 @@ func getHost(rawConfig clientcmdapi.Config) (string, error) {
 func getCA(rawConfig clientcmdapi.Config) ([]byte, error) {
 	icc, err := rest.InClusterConfig()
 	if err != nil {
-		return agentmanifest.GetCAFromConfig(rawConfig)
+		return agent.GetCAFromConfig(rawConfig)
 	}
 	return os.ReadFile(icc.CAFile)
 }

@@ -1,5 +1,4 @@
-// Package agentconfig builds the configuration for the fleet-agent (fleetcontroller)
-package agentconfig
+package agent
 
 import (
 	"context"
@@ -11,14 +10,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-type Options struct {
+type configOptions struct {
 	Labels   map[string]string
 	ClientID string
 }
 
-func AgentConfig(ctx context.Context, agentNamespace, controllerNamespace string, cg *client.Getter, opts *Options) ([]runtime.Object, error) {
+func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string, cg *client.Getter, opts *configOptions) ([]runtime.Object, error) {
 	if opts == nil {
-		opts = &Options{}
+		opts = &configOptions{}
 	}
 
 	client, err := cg.Get()
@@ -32,10 +31,10 @@ func AgentConfig(ctx context.Context, agentNamespace, controllerNamespace string
 		return nil, err
 	}
 
-	return Objects(agentNamespace, opts.Labels, opts.ClientID)
+	return configObjects(agentNamespace, opts.Labels, opts.ClientID)
 }
 
-func Objects(controllerNamespace string, clusterLabels map[string]string, clientID string) ([]runtime.Object, error) {
+func configObjects(controllerNamespace string, clusterLabels map[string]string, clientID string) ([]runtime.Object, error) {
 	cm, err := config.ToConfigMap(controllerNamespace, config.AgentConfigName, &config.Config{
 		Labels:   clusterLabels,
 		ClientID: clientID,
