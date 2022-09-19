@@ -14,10 +14,10 @@ import (
 type Factory struct {
 	bundleCache      fleetcontrollers.BundleCache
 	bundles          fleetcontrollers.BundleController
-	bundleDeployment fleetcontrollers.BundleDeploymentController
+	bundleDeployment fleetcontrollers.BundleDeploymentCache
 }
 
-func NewFactory(bundleCache fleetcontrollers.BundleCache, bundles fleetcontrollers.BundleController, bundleDeployment fleetcontrollers.BundleDeploymentController) *Factory {
+func NewFactory(bundleCache fleetcontrollers.BundleCache, bundles fleetcontrollers.BundleController, bundleDeployment fleetcontrollers.BundleDeploymentCache) *Factory {
 	return &Factory{
 		bundleCache:      bundleCache,
 		bundles:          bundles,
@@ -70,16 +70,14 @@ func (b *Factory) Render(namespace, name string, bundleErrorState string) ([]fle
 	return resources, errors
 }
 
-func GetBundleDeploymentsForBundle(bundleDeployment fleetcontrollers.BundleDeploymentController, app *fleet.Bundle) (result []fleet.BundleDeployment, err error) {
+func GetBundleDeploymentsForBundle(bundleDeployment fleetcontrollers.BundleDeploymentCache, app *fleet.Bundle) (result []*fleet.BundleDeployment, err error) {
 
-	bundleDeployments, err := bundleDeployment.List("", v1.ListOptions{
-		LabelSelector: labels.SelectorFromSet(DeploymentLabelsForSelector(app)).String(),
-	})
+	bundleDeployments, err := bundleDeployment.List("", labels.SelectorFromSet(DeploymentLabelsForSelector(app)))
 	if err != nil {
 		return nil, err
 	}
 
-	return bundleDeployments.Items, nil
+	return bundleDeployments, nil
 }
 
 func DeploymentLabelsForSelector(app *fleet.Bundle) map[string]string {
@@ -220,7 +218,7 @@ func appendState(states map[fleet.ResourceKey][]fleet.ResourcePerClusterState, k
 	}
 }
 
-func bundleResources(bundleDeployments []fleet.BundleDeployment) map[fleet.ResourceKey][]fleet.ResourcePerClusterState {
+func bundleResources(bundleDeployments []*fleet.BundleDeployment) map[fleet.ResourceKey][]fleet.ResourcePerClusterState {
 	bundleResources := map[fleet.ResourceKey][]fleet.ResourcePerClusterState{}
 	for _, bd := range bundleDeployments {
 		for _, resourceKey := range bd.Status.ResourceKey {

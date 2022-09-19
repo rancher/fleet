@@ -44,14 +44,15 @@ func Register(ctx context.Context,
 	images fleetcontrollers.ImageScanController,
 	gitRepos fleetcontrollers.GitRepoController,
 	secrets corev1controller.SecretCache) {
+	bundleDeploymentsCache := bundleDeployments.Cache()
 	h := &handler{
 		gitjobCache:         gitJobs.Cache(),
 		bundleCache:         bundles.Cache(),
 		bundles:             bundles,
 		images:              images,
-		bundleDeployments:   bundleDeployments,
+		bundleDeployments:   bundleDeploymentsCache,
 		gitRepoRestrictions: gitRepoRestrictions,
-		display:             display.NewFactory(bundles.Cache(), bundles, bundleDeployments),
+		display:             display.NewFactory(bundles.Cache(), bundles, bundleDeploymentsCache),
 		secrets:             secrets,
 	}
 
@@ -82,7 +83,7 @@ type handler struct {
 	bundles             fleetcontrollers.BundleClient
 	images              fleetcontrollers.ImageScanController
 	gitRepoRestrictions fleetcontrollers.GitRepoRestrictionCache
-	bundleDeployments   fleetcontrollers.BundleDeploymentController
+	bundleDeployments   fleetcontrollers.BundleDeploymentCache
 	display             *display.Factory
 }
 
@@ -469,18 +470,16 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 		return status, nil
 	}
 
-	bundleDeploymentList, err := h.bundleDeployments.List("", metav1.ListOptions{
-		LabelSelector: labels.SelectorFromSet(labels.Set{
-			fleet.RepoLabel:                    gitrepo.Name,
-			"fleet.cattle.io/bundle-namespace": gitrepo.Namespace,
-		}).String(),
-	})
+	bundleDeploymentList, err := h.bundleDeployments.List("", labels.SelectorFromSet(labels.Set{
+		fleet.RepoLabel:                    gitrepo.Name,
+		"fleet.cattle.io/bundle-namespace": gitrepo.Namespace,
+	}))
 	if err != nil {
 		return status, err
 	}
 
 	status.Summary = fleet.BundleSummary{}
-	bundleDeployments := bundleDeploymentList.Items
+	bundleDeployments := bundleDeploymentList
 
 	sort.Slice(bundleDeployments, func(i, j int) bool {
 		return bundleDeployments[i].UID < bundleDeployments[j].UID
@@ -492,12 +491,12 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	)
 
 	for _, app := range bundleDeployments {
-		state := summary.GetDeploymentState(&app)
-		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(&app), app.Status.ModifiedStatus, app.Status.NonReadyStatus)
+		state := summary.GetDeploymentState(app)
+		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus, app.Status.NonReadyStatus)
 		status.Summary.DesiredReady++
 		if fleet.StateRank[state] > fleet.StateRank[maxState] {
 			maxState = state
-			message = summary.MessageFromDeployment(&app)
+			message = summary.MessageFromDeployment(app)
 		}
 	}
 

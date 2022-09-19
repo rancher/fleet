@@ -117,10 +117,12 @@ func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
 
 func (m *Manager) Deploy(bd *fleet.BundleDeployment, isNSed func(gvk schema.GroupVersionKind) bool) (string, []fleet.ResourceKey, error) {
 	if bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
-		if ok, err := m.deployer.EnsureInstalled(bd.Name, bd.Status.Release); err != nil {
+		resource, err := m.deployer.Resources(bd.Name, bd.Status.Release)
+		if err != nil {
 			return "", nil, err
-		} else if ok {
-			return bd.Status.Release, bd.Status.ResourceKey, nil
+		} else if len(resource.ID) > 0 {
+			resources, _ := getResourceKeysFromResources(bd, resource, isNSed)
+			return resource.ID, resources, nil
 		}
 	}
 

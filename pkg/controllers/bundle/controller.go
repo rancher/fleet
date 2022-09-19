@@ -68,6 +68,7 @@ func Register(ctx context.Context,
 	clusters.OnChange(ctx, "app", h.OnClusterChange)
 	bundles.OnChange(ctx, "bundle-orphan", h.OnPurgeOrphaned)
 	images.OnChange(ctx, "imagescan-orphan", h.OnPurgeOrphanedImageScan)
+	bundleDeployments.OnChange(ctx, "bundle-status", h.OnBundleDeploymentStatus)
 }
 
 func (h *handler) resolveApp(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
@@ -157,7 +158,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	if err != nil {
 		return nil, status, err
 	}
-
+	println("{} has {} targets", bundle.Name, len(targets))
 	if err := h.calculateChanges(&status, targets); err != nil {
 		return nil, status, err
 	}
@@ -317,6 +318,49 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 	}
 
 	return nil
+}
+
+func (h *handler) OnBundleDeploymentStatus(s string, deployment *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
+	bundleName := deployment.Labels["fleet.cattle.io/bundle-name"]
+	bundleNamespace := deployment.Labels["fleet.cattle.io/bundle-namespace"]
+	bundleDeploymentCommit := deployment.Labels["fleet.cattle.io/commit"]
+
+	bundle, err := h.bundles.Get(bundleNamespace, bundleName, v1.GetOptions{})
+	if err != nil {
+		return deployment, err
+	}
+
+	bundleCommit := bundle.Labels["fleet.cattle.io/commit"]
+
+	if bundleDeploymentCommit != bundleCommit {
+		return deployment, nil
+	}
+
+	bundleResources := append(
+		bundle.Status.ResourceKey,
+		deployment.Status.ResourceKey...,
+	)
+
+	sort.Slice(bundleResources, func(i, j int) bool {
+		keyi := bundleResources[i]
+		keyj := bundleResources[j]
+		if keyi.APIVersion != keyj.APIVersion {
+			return keyi.APIVersion < keyj.APIVersion
+		}
+		if keyi.Kind != keyj.Kind {
+			return keyi.Kind < keyj.Kind
+		}
+		if keyi.Namespace != keyj.Namespace {
+			return keyi.Namespace < keyj.Namespace
+		}
+		if keyi.Name != keyj.Name {
+			return keyi.Name < keyj.Name
+		}
+		return false
+	})
+	bundle.Status.ResourceKey = bundleResources
+	_, err = h.bundles.UpdateStatus(bundle)
+	return deployment, err
 }
 
 func updateManifest(t *target.Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
