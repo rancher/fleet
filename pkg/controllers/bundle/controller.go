@@ -335,6 +335,9 @@ func (h *handler) OnBundleDeploymentStatus(s string, deployment *fleet.BundleDep
 	if err != nil {
 		return deployment, err
 	}
+	if bundle == nil {
+		return deployment, nil
+	}
 
 	bundleCommit := bundle.Labels["fleet.cattle.io/commit"]
 

@@ -151,7 +151,7 @@ func (m *Manager) Deploy(bd *fleet.BundleDeployment, isNSed func(gvk schema.Grou
 	return resource.ID, resources, nil
 }
 
-func getResourceKeysFromResources(bd *fleet.BundleDeployment, resources *Resources, isNSed func(schema.GroupVersionKind) bool) ([]fleet.ResourceKey, error) {
+func getResourceKeysFromResources(bd *fleet.BundleDeployment, resources *helmdeployer.Resources, isNSed func(schema.GroupVersionKind) bool) ([]fleet.ResourceKey, error) {
 	objs := resources.Objects
 	bundleMap := map[fleet.ResourceKey]struct{}{}
 	for _, obj := range objs {
