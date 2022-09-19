@@ -1,3 +1,8 @@
+// Package manageagent provides a controller for managing the agent bundle. (fleetcontroller)
+//
+// Allows Fleet to deploy the Fleet Agent itself as a Bundle, which ensures
+// changes to Fleet’s configuration are reflected in the Agent.
+// The agent is deployed into the namespace, that contains a cluster resource.
 package manageagent
 
 import (
@@ -10,11 +15,13 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	"github.com/rancher/wrangler/pkg/yaml"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"

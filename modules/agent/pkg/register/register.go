@@ -6,15 +6,18 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	"github.com/rancher/fleet/pkg/registration"
+
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/randomtoken"
 	"github.com/rancher/wrangler/pkg/ratelimit"
-	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

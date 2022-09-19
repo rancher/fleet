@@ -1,3 +1,4 @@
+// Package match is used to test matching a bundles to a target on the command line. (fleetapply)
 package match
 
 import (
@@ -13,6 +14,7 @@ import (
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
+
 	"github.com/rancher/wrangler/pkg/yaml"
 )
 

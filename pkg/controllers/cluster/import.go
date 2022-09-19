@@ -8,7 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rancher/fleet/modules/agent/pkg/deployer"
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/fleet/modules/cli/agentmanifest"
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -16,13 +17,13 @@ import (
 	"github.com/rancher/fleet/pkg/connection"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmdeployer"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/randomtoken"
 	"github.com/rancher/wrangler/pkg/yaml"
-	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -211,7 +212,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	setID := deployer.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
+	setID := helmdeployer.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
 	apply = apply.WithDynamicLookup().WithSetID(setID).WithNoDeleteGVK(fleetns.GVK())
 
 	token, err := i.tokens.Get(cluster.Namespace, ImportTokenPrefix+cluster.Name)

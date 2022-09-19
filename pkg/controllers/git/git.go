@@ -1,3 +1,6 @@
+// Package git implements a controller that watches for GitRepo objects. (fleetcontrollers)
+//
+// It manages the lifecycle of GitJob resources for GitRepos. It cleans up orphaned bundles and image scans. Also updates the GitRepo and bundle status.
 package git
 
 import (
@@ -8,12 +11,15 @@ import (
 	"sort"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
 	"github.com/rancher/fleet/pkg/display"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
+
 	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
@@ -23,6 +29,7 @@ import (
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	"github.com/rancher/wrangler/pkg/yaml"
+
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -585,14 +592,22 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
 		"apply",
+	}
+
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+		args = append(args, "--debug", "--debug-level", "9")
+	}
+
+	args = append(args,
 		"--targets-file=/run/config/targets.yaml",
-		"--label=" + fleet.RepoLabel + "=" + gitrepo.Name,
+		"--label="+fleet.RepoLabel+"="+gitrepo.Name,
 		"--namespace", gitrepo.Namespace,
 		"--service-account", gitrepo.Spec.ServiceAccount,
 		fmt.Sprintf("--sync-generation=%d", gitrepo.Spec.ForceSyncGeneration),
 		fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
 		"--target-namespace", gitrepo.Spec.TargetNamespace,
-	}
+		"--",
+	)
 
 	var env []corev1.EnvVar
 	if gitrepo.Spec.HelmSecretName != "" {
@@ -624,5 +639,6 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 				},
 			})
 	}
+
 	return append(args, gitrepo.Name), env
 }

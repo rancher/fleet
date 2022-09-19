@@ -1,12 +1,14 @@
 package deployer
 
 import (
+	"github.com/sirupsen/logrus"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/kv"
-	"github.com/sirupsen/logrus"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -19,7 +21,7 @@ type Manager struct {
 	defaultNamespace      string
 	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache
 	lookup                manifest.Lookup
-	deployer              Deployer
+	deployer              *helmdeployer.Helm
 	apply                 apply.Apply
 	labelPrefix           string
 	labelSuffix           string
@@ -30,7 +32,7 @@ func NewManager(fleetNamespace string,
 	labelPrefix, labelSuffix string,
 	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache,
 	lookup manifest.Lookup,
-	deployer Deployer,
+	deployer *helmdeployer.Helm,
 	apply apply.Apply) *Manager {
 	return &Manager{
 		fleetNamespace:        fleetNamespace,
@@ -44,13 +46,15 @@ func NewManager(fleetNamespace string,
 	}
 }
 
-func (m *Manager) releaseName(bd *fleet.BundleDeployment) string {
+// releaseKey returns a deploymentKey from namespace+releaseName
+func (m *Manager) releaseKey(bd *fleet.BundleDeployment) string {
 	ns := m.defaultNamespace
 	if bd.Spec.Options.TargetNamespace != "" {
 		ns = bd.Spec.Options.TargetNamespace
 	} else if bd.Spec.Options.DefaultNamespace != "" {
 		ns = bd.Spec.Options.DefaultNamespace
 	}
+
 	if bd.Spec.Options.Helm == nil || bd.Spec.Options.Helm.ReleaseName == "" {
 		return ns + "/" + bd.Name
 	}
@@ -66,19 +70,23 @@ func (m *Manager) Cleanup() error {
 	for _, deployed := range deployed {
 		bundleDeployment, err := m.bundleDeploymentCache.Get(m.fleetNamespace, deployed.BundleID)
 		if apierror.IsNotFound(err) {
+			// found a helm secret, but no bundle deployment, so uninstall the release
 			logrus.Infof("Deleting orphan bundle ID %s, release %s", deployed.BundleID, deployed.ReleaseName)
 			if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
 				return err
 			}
+
+			return nil
 		} else if err != nil {
 			return err
-		} else {
-			releaseName := m.releaseName(bundleDeployment)
-			if releaseName != deployed.ReleaseName {
-				logrus.Infof("Deleting unknown bundle ID %s, release %s, expecting release %s", deployed.BundleID, deployed.ReleaseName, releaseName)
-				if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
-					return err
-				}
+		}
+
+		key := m.releaseKey(bundleDeployment)
+		if key != deployed.ReleaseName {
+			// found helm secret and bundle deployment for BundleID, but release name doesn't match, so delete the release
+			logrus.Infof("Deleting unknown bundle ID %s, release %s, expecting release %s", deployed.BundleID, deployed.ReleaseName, key)
+			if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
+				return err
 			}
 		}
 	}
@@ -91,7 +99,8 @@ func (m *Manager) Delete(bundleDeploymentKey string) error {
 	return m.deployer.Delete(name, "")
 }
 
-func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
+// Resources returns the resources that are deployed by the bundle deployment, used by trigger.Watches
+func (m *Manager) Resources(bd *fleet.BundleDeployment) (*helmdeployer.Resources, error) {
 	resources, err := m.deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
 		return nil, nil
@@ -115,6 +124,7 @@ func (m *Manager) Resources(bd *fleet.BundleDeployment) (*Resources, error) {
 	return resources, nil
 }
 
+// Deploy the bundle deployment, i.e. with helmdeployer
 func (m *Manager) Deploy(bd *fleet.BundleDeployment, isNSed func(gvk schema.GroupVersionKind) bool) (string, []fleet.ResourceKey, error) {
 	if bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
 		resource, err := m.deployer.Resources(bd.Name, bd.Status.Release)

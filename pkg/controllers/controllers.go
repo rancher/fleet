@@ -1,8 +1,11 @@
+// Package controllers sets up the controllers for the fleet-controller. (fleetcontroller)
 package controllers
 
 import (
 	"context"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/pkg/controllers/bootstrap"
 	"github.com/rancher/fleet/pkg/controllers/bundle"
@@ -22,6 +25,7 @@ import (
 	"github.com/rancher/fleet/pkg/manifest"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
 	"github.com/rancher/fleet/pkg/target"
+
 	"github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io"
 	gitcontrollers "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/cache"
@@ -37,7 +41,7 @@ import (
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/start"
-	"github.com/sirupsen/logrus"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	memory "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/kubernetes"

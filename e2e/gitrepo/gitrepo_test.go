@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
@@ -71,7 +72,7 @@ var _ = Describe("Git Repo", func() {
 	AfterEach(func() {
 		os.RemoveAll(tmpdir)
 		_, _ = k.Delete("secret", "git-auth")
-		_, _ = k.Delete("gitrepo", "testing")
+		_, _ = k.Delete("gitrepo", "gitrepo-test")
 	})
 
 	When("updating a git repository", func() {
@@ -91,7 +92,7 @@ var _ = Describe("Git Repo", func() {
 
 			By("checking for the updated commit hash in gitrepo")
 			Eventually(func() string {
-				out, _ := k.Get("gitrepo", "testing", "-o", "yaml")
+				out, _ := k.Get("gitrepo", "gitrepo-test", "-o", "yaml")
 				return out
 			}).Should(ContainSubstring("commit: " + commit))
 

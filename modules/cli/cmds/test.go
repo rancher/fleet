@@ -3,9 +3,10 @@ package cmds
 import (
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rancher/fleet/modules/cli/match"
 	command "github.com/rancher/wrangler-cli"
-	"github.com/spf13/cobra"
 )
 
 func NewTest() *cobra.Command {

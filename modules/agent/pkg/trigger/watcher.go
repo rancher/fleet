@@ -1,3 +1,4 @@
+// Package trigger watches a set of deployed resources and triggers a callback when one of them is deleted. (fleetagent)
 package trigger
 
 import (
@@ -6,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rancher/wrangler/pkg/objectset"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

@@ -1,7 +1,9 @@
+// Package main is the entry point for the fleet apply binary. (fleetapply)
 package main
 
 import (
 	"github.com/rancher/fleet/modules/cli/cmds"
+
 	command "github.com/rancher/wrangler-cli"
 
 	// Ensure GVKs are registered

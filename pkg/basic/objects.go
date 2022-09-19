@@ -1,7 +1,9 @@
+// Package basic provides basic resources, like deployments, services, etc. (fleetcontroller)
 package basic
 
 import (
 	"github.com/rancher/wrangler/pkg/name"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -76,7 +78,16 @@ func Deployment(namespace, name, image, imagePullPolicy, serviceAccount string, 
 									},
 								},
 							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: &[]bool{false}[0],
+								ReadOnlyRootFilesystem:   &[]bool{true}[0],
+							},
 						},
+					},
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsNonRoot: &[]bool{true}[0],
+						RunAsUser:    &[]int64{1000}[0],
+						RunAsGroup:   &[]int64{1000}[0],
 					},
 				},
 			},

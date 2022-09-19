@@ -20,7 +20,7 @@ func chartPath(options fleet.BundleDeploymentOptions) (string, string) {
 	if options.Helm == nil || options.Helm.Chart == "" {
 		return chartYAML, ""
 	}
-	return joinAndClean(options.Helm.Chart, chartYAML), ChartPath(options.Helm) + "/"
+	return joinAndClean(options.Helm.Chart, chartYAML), checksum(options.Helm) + "/"
 }
 
 func kustomizePath(options fleet.BundleDeploymentOptions) string {

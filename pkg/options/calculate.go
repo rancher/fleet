@@ -74,6 +74,7 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 			result.Helm.ReleaseName = next.Helm.ReleaseName
 		}
 		result.Helm.Force = result.Helm.Force || next.Helm.Force
+		result.Helm.Atomic = result.Helm.Atomic || next.Helm.Atomic
 		result.Helm.TakeOwnership = result.Helm.TakeOwnership || next.Helm.TakeOwnership
 	}
 	if next.Kustomize != nil {

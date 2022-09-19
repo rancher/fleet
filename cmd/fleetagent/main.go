@@ -1,3 +1,4 @@
+// Package main is the entrypoint for the fleet-agent binary. (fleetagent)
 package main
 
 import (
@@ -7,11 +8,13 @@ import (
 	_ "net/http/pprof"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rancher/fleet/modules/agent/pkg/agent"
 	"github.com/rancher/fleet/modules/agent/pkg/simulator"
 	"github.com/rancher/fleet/pkg/version"
+
 	command "github.com/rancher/wrangler-cli"
-	"github.com/spf13/cobra"
 )
 
 var (

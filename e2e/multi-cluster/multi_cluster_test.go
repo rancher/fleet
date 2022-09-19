@@ -11,7 +11,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("multiCluster", func() {
+// These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/multi-cluster
+var _ = Describe("Multi Cluster Examples", func() {
 	var (
 		asset string
 		k     kubectl.Command

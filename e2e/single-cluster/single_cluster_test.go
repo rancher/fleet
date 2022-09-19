@@ -10,7 +10,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("SingleCluster", func() {
+// These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/single-cluster
+var _ = Describe("Single Cluster Examples", func() {
 	var (
 		asset string
 		k     kubectl.Command
@@ -29,6 +30,19 @@ var _ = Describe("SingleCluster", func() {
 		out, err := k.Delete("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
 
+	})
+
+	Context("containing an oci based helm chart", func() {
+		BeforeEach(func() {
+			asset = "single-cluster/helm-oci.yaml"
+		})
+
+		It("deploys the helm chart", func() {
+			Eventually(func() string {
+				out, _ := k.Namespace("fleet-helm-oci-example").Get("pods")
+				return out
+			}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+		})
 	})
 
 	When("creating a gitrepo resource", func() {
@@ -95,7 +109,7 @@ var _ = Describe("SingleCluster", func() {
 					return out
 				}).Should(SatisfyAll(
 					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
-					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
+					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-mo-"),
 				))
 
 				Eventually(func() string {
@@ -103,7 +117,7 @@ var _ = Describe("SingleCluster", func() {
 					return out
 				}).Should(SatisfyAll(
 					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
-					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
+					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-mo-"),
 				))
 
 				Eventually(func() string {

@@ -5,7 +5,7 @@ const GitRepoTemplate = `
 kind: GitRepo
 apiVersion: fleet.cattle.io/v1alpha1
 metadata:
-  name: testing
+  name: gitrepo-test
 spec:
   repo: {{.Repo}}
   clientSecretName: git-auth

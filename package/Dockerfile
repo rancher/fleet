@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/bci-base:15.4.27.11.13
+FROM registry.suse.com/bci/bci-base:15.4.27.11.22
 ARG ARCH
 ENV ARCH=$ARCH
 COPY bin/fleetcontroller-linux-${ARCH} /usr/bin/fleetcontroller
