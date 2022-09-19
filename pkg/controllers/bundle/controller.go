@@ -166,9 +166,11 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 		return nil, status, err
 	}*/
 
+	if status.ObservedGeneration != bundle.Generation {
+		status.ResourceKey = []fleet.ResourceKey{}
+	}
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
-	status.ResourceKey = []fleet.ResourceKey{}
 	return toRuntimeObjects(targets, bundle), status, nil
 }
 
