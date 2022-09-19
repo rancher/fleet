@@ -327,6 +327,10 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 }
 
 func (h *handler) OnBundleDeploymentStatus(s string, deployment *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
+	if deployment == nil {
+		return nil, nil
+	}
+
 	bundleName := deployment.Labels["fleet.cattle.io/bundle-name"]
 	bundleNamespace := deployment.Labels["fleet.cattle.io/bundle-namespace"]
 	bundleDeploymentCommit := deployment.Labels["fleet.cattle.io/commit"]
