@@ -212,6 +212,15 @@ func (h *handler) cleanupOldAgent(modifiedStatuses []fleet.ModifiedStatus) error
 	return merr.NewErrors(errs...)
 }
 
+// removePrivateFields removes fields from the status, which won't be marshalled to JSON.
+// They would however trigger a status update in apply
+func removePrivateFields(s1 *fleet.BundleDeploymentStatus) {
+	for id := range s1.NonReadyStatus {
+		s1.NonReadyStatus[id].Summary.Relationships = nil
+		s1.NonReadyStatus[id].Summary.Attributes = nil
+	}
+}
+
 func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
 	if bd.Spec.DeploymentID != status.AppliedDeploymentID {
 		return status, nil
@@ -246,6 +255,8 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	if readyError != nil {
 		logrus.Errorf("bundle %s: %v", bd.Name, readyError)
 	}
+
+	removePrivateFields(&status)
 	return status, nil
 }
 
