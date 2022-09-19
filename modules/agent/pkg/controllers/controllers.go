@@ -282,7 +282,7 @@ func GetCapabilities(discovery discovery.CachedDiscoveryInterface) (chartutil.Ca
 
 	apiVersions, err := GetVersionSet(discovery)
 	if err != nil {
-		println(err, "could not get server capabilities from Kubernetes")
+		logrus.Errorf("could not get server capabilities from Kubernetes: %s", err.Error())
 	}
 	clusterCapabilities := chartutil.Capabilities{
 		KubeVersion: chartutil.KubeVersion{
