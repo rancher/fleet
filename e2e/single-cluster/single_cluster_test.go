@@ -32,19 +32,6 @@ var _ = Describe("Single Cluster Examples", func() {
 
 	})
 
-	Context("containing an oci based helm chart", func() {
-		BeforeEach(func() {
-			asset = "single-cluster/helm-oci.yaml"
-		})
-
-		It("deploys the helm chart", func() {
-			Eventually(func() string {
-				out, _ := k.Namespace("fleet-helm-oci-example").Get("pods")
-				return out
-			}, testenv.Timeout).Should(ContainSubstring("frontend-"))
-		})
-	})
-
 	When("creating a gitrepo resource", func() {
 		Context("containing a helm chart", func() {
 			BeforeEach(func() {
@@ -56,6 +43,19 @@ var _ = Describe("Single Cluster Examples", func() {
 					out, _ := k.Namespace("fleet-helm-example").Get("pods")
 					return out
 				}).Should(ContainSubstring("frontend-"))
+			})
+		})
+
+		Context("containing an oci based helm chart", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/helm-oci.yaml"
+			})
+
+			It("deploys the helm chart", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-helm-oci-example").Get("pods")
+					return out
+				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
 			})
 		})
 

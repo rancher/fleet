@@ -4,7 +4,6 @@ metadata:
   name: helm
 spec:
   repo: https://github.com/rancher/fleet-examples
-  branch: add-helm-oci-example
   paths:
   - single-cluster/helm-oci
   targets:
