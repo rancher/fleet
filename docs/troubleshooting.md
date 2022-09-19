@@ -42,7 +42,7 @@ Check the [`fleet-controller` logs](./troubleshooting.md#fetch-the-log-from-flee
 Check the `gitjob-controller` logs using the following command with your specific `gitjob` pod name filled in:
 
 ```
-$ kubectl logs -f $gitjob-pod-name -n cattle-fleet-system
+$ kubectl logs -f -l app=gitjob -n cattle-fleet-system
 ```
 
 Note that there are two containers inside the pod: the `step-git-source` container that clones the git repo, and the `fleet` container that applies bundles based on the git repo. 
