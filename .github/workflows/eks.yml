@@ -146,6 +146,8 @@ jobs:
         name: Fleet Examples Tests
         env:
           FLEET_E2E_NS: fleet-local
+          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
+          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
         run: |
           export KUBECONFIG="$GITHUB_WORKSPACE/kubeconfig-fleet-ci"
           ginkgo e2e/single-cluster
