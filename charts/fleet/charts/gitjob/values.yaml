@@ -23,4 +23,7 @@ nodeSelector: {}
 ## List of node taints to tolerate (requires Kubernetes >= 1.6)
 tolerations: []
 
+## PriorityClassName assigned to deployment.
+priorityClassName: ""
+
 debug: false
