@@ -25,4 +25,7 @@ tolerations:
     value: "linux"
     effect: NoSchedule
 
+# PriorityClassName assigned to deployment.
+priorityClassName: ""
+
 debug: false
