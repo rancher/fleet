@@ -1,6 +1,7 @@
 package examples_test
 
 import (
+	"os"
 	"strings"
 
 	"github.com/rancher/fleet/e2e/testenv"
@@ -46,7 +47,7 @@ var _ = Describe("Single Cluster Examples", func() {
 			})
 		})
 
-		Context("containing an oci based helm chart", func() {
+		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/helm-oci.yaml"
 			})
@@ -54,6 +55,27 @@ var _ = Describe("Single Cluster Examples", func() {
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-helm-oci-example").Get("pods")
+					return out
+				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+			})
+		})
+
+		Context("containing a private oci based helm chart", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/helm-oci-with-auth.yaml"
+				k = env.Kubectl.Namespace(env.Namespace)
+
+				out, err := k.Create(
+					"secret", "generic", "helm-oci-secret",
+					"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+					"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
+			})
+
+			It("deploys the helm chart", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-helm-oci-with-auth-example").Get("pods")
 					return out
 				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
 			})
