@@ -60,7 +60,9 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	// DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
 	image := resolve(opts.PrivateRepoURL, opts.AgentImage)
 
-	dep := basic.Deployment(namespace, DefaultName, image, opts.AgentImagePullPolicy, DefaultName, false)
+	// if debug is enabled in controller, enable in agent too
+	debug := logrus.IsLevelEnabled(logrus.DebugLevel)
+	dep := basic.Deployment(namespace, DefaultName, image, opts.AgentImagePullPolicy, DefaultName, false, debug)
 	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
 		corev1.EnvVar{
 			Name:  "AGENT_SCOPE",
@@ -77,8 +79,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	if opts.AgentEnvVars != nil {
 		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, opts.AgentEnvVars...)
 	}
-	// if debug level logging is enabled in controller, enable in agent too
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+	if debug {
 		dep.Spec.Template.Spec.Containers[0].Command = []string{
 			"fleetagent",
 			"--debug",
