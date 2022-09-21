@@ -54,7 +54,7 @@ func manualPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Parti
 }
 
 func appendPartition(partitions []Partition, name string, partitionTargets []*Target, maxUnavailable ...*intstr.IntOrString) ([]Partition, error) {
-	maxUnavailableValue, err := Limit(len(partitionTargets), maxUnavailable...)
+	maxUnavailableValue, err := limit(len(partitionTargets), maxUnavailable...)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func autoPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Partiti
 		return appendPartition(nil, "All", targets, rollout.MaxUnavailable)
 	}
 
-	maxSize, err := Limit(len(targets), rollout.AutoPartitionSize, &defAutoPartitionSize)
+	maxSize, err := limit(len(targets), rollout.AutoPartitionSize, &defAutoPartitionSize)
 	if err != nil {
 		return nil, err
 	}
