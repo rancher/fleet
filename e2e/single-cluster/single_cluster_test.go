@@ -73,6 +73,15 @@ var _ = Describe("Single Cluster Examples", func() {
 				Expect(err).ToNot(HaveOccurred(), out)
 			})
 
+			AfterEach(func() {
+				k = env.Kubectl.Namespace(env.Namespace)
+
+				out, err := k.Delete(
+					"secret", "helm-oci-secret",
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
+			})
+
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-helm-oci-with-auth-example").Get("pods")
