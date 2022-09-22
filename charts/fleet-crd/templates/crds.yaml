@@ -1822,6 +1822,9 @@ spec:
                 type: boolean
               agentNamespaceMigrated:
                 type: boolean
+              agentPrivateRepoURL:
+                nullable: true
+                type: string
               cattleNamespaceMigrated:
                 type: boolean
               conditions:
