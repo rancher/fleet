@@ -219,6 +219,6 @@ func (h *handler) deleteExpired(token *fleet.ClusterRegistrationToken) (bool, er
 		return true, h.clusterRegistrationTokens.Delete(token.Namespace, token.Name, nil)
 	}
 
-	h.clusterRegistrationTokens.EnqueueAfter(token.Namespace, token.Name, time.Until(time.Now()))
+	h.clusterRegistrationTokens.EnqueueAfter(token.Namespace, token.Name, time.Until(expire))
 	return false, nil
 }
