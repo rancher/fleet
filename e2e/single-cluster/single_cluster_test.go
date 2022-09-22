@@ -56,7 +56,7 @@ var _ = Describe("Single Cluster Examples", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-helm-oci-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+				}).Should(ContainSubstring("frontend-"))
 			})
 		})
 
@@ -77,7 +77,7 @@ var _ = Describe("Single Cluster Examples", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-helm-oci-with-auth-example").Get("pods")
 					return out
-				}, testenv.Timeout).Should(ContainSubstring("frontend-"))
+				}).Should(ContainSubstring("frontend-"))
 			})
 		})
 
@@ -197,7 +197,7 @@ var _ = Describe("Single Cluster Examples", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-local").Get("bundles")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(
+				}).Should(SatisfyAll(
 					ContainSubstring("multiple-paths-single-cluster-manifests"),
 					ContainSubstring("multiple-paths-single-cluster-helm"),
 				))
@@ -210,7 +210,7 @@ var _ = Describe("Single Cluster Examples", func() {
 				Eventually(func() string {
 					out, _ := k.Get("bundledeployments", "-A")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(
+				}).Should(SatisfyAll(
 					ContainSubstring("multiple-paths-single-cluster-manifests"),
 					ContainSubstring("multiple-paths-single-cluster-helm"),
 				))
@@ -218,12 +218,12 @@ var _ = Describe("Single Cluster Examples", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-manifest-example").Get("deployments")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+				}).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
 
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-helm-example").Get("deployments")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+				}).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
 			})
 		})
 	})
