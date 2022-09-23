@@ -91,17 +91,27 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			return nil, status, err
 		}
 	} else if len(sa.Secrets) == 0 {
+		// Kubernetes 1.24 doesn't populate serviceAccount.Secrets:
+		// "This field should not be used to find auto-generated
+		// service account token secrets for use outside of pods."
 		secretCreated, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
 		if err != nil {
 			return nil, status, err
 		}
-		secretReloaded, err := h.secretsCache.Get(token.Namespace, secretCreated.Name)
-		if err != nil {
-			return nil, status, err
-		}
-		if string(secretReloaded.Data["token"]) == "" {
-			h.clusterRegistrationTokens.Enqueue(token.Namespace, token.Name)
-			return nil, status, err
+
+		if string(secretCreated.Data["token"]) == "" {
+			logrus.Debugf("ClusterRegistrationToken SA does not have a secret %s/%s", token.Namespace, saName)
+
+			secretReloaded, err := h.secretsCache.Get(token.Namespace, secretCreated.Name)
+			if err != nil {
+				return nil, status, err
+			}
+
+			if string(secretReloaded.Data["token"]) == "" {
+				// it can take some time for the secret to be populated, try later
+				h.clusterRegistrationTokens.Enqueue(token.Namespace, token.Name)
+				return nil, status, err
+			}
 		}
 
 		status.SecretName = token.Name
@@ -115,6 +125,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 	if token.Spec.TTL != nil {
 		status.Expires = &metav1.Time{Time: token.CreationTimestamp.Add(token.Spec.TTL.Duration)}
 	}
+
 	return append([]runtime.Object{
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
