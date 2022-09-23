@@ -4,7 +4,6 @@ metadata:
   name: helm
 spec:
   repo: https://github.com/rancher/fleet-examples
-  branch: add-helm-oci-with-auth-example
   helmSecretName: helm-oci-secret
   paths:
   - single-cluster/helm-oci-with-auth

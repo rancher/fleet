@@ -1,4 +1,4 @@
-package gitrepo_test
+package require_secrets
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ import (
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "E2E Suite for Git Repo Tests")
+	RunSpecs(t, "E2E Suite for Github Secrets based Examples")
 }
 
 var (
