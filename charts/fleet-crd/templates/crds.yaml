@@ -1797,6 +1797,9 @@ spec:
                 type: string
               paused:
                 type: boolean
+              privateRepoURL:
+                nullable: true
+                type: string
               redeployAgentGeneration:
                 type: integer
             type: object

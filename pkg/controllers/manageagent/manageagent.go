@@ -15,6 +15,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -124,6 +125,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 	var objs []runtime.Object
 
 	for _, cluster := range clusters {
+		logrus.Infof("Updated agent for cluster %s/%s", cluster.Namespace, cluster.Name)
 		bundle, err := h.getAgentBundle(namespace.Name, cluster)
 		if err != nil {
 			return nil, err
@@ -151,7 +153,17 @@ func (h *handler) getAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
-	objs := agent.Manifest(agentNamespace, cluster.Spec.AgentNamespace, cfg.AgentImage, cfg.AgentImagePullPolicy, "bundle", cfg.AgentCheckinInternal.Duration.String(), cluster.Spec.AgentEnvVars)
+	objs := agent.Manifest(
+		agentNamespace, cluster.Spec.AgentNamespace,
+		agent.ManifestOptions{
+			AgentEnvVars:         cluster.Spec.AgentEnvVars,
+			AgentImage:           cfg.AgentImage,
+			AgentImagePullPolicy: cfg.AgentImagePullPolicy,
+			CheckinInterval:      cfg.AgentCheckinInternal.Duration.String(),
+			Generation:           "bundle",
+			PrivateRepoURL:       cluster.Spec.PrivateRepoURL,
+		},
+	)
 	agentYAML, err := yaml.Export(objs...)
 	if err != nil {
 		return nil, err

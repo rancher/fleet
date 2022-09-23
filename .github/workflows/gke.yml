@@ -135,19 +135,22 @@ jobs:
         run: |
           ginkgo e2e/single-cluster
       -
-        name: Fleet Gitrepo Tests
+        name: Fleet Tests Requiring Github Secrets
+        # These tests can't run for PRs, because PRs don't have access to the secrets
         env:
           FLEET_E2E_NS: fleet-local
           GIT_REPO_URL: "git@github.com:fleetrepoci/testgke.git"
           GIT_REPO_HOST: "github.com"
           GIT_REPO_USER: "git"
+          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
+          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
         run: |
           export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
           export GIT_SSH_PUBKEY="$GITHUB_WORKSPACE/id_ecdsa.pub"
           echo "${{ secrets.CI_GKE_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_GKE_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo e2e/gitrepo
+          ginkgo e2e/require-secrets
       -
         name: Delete GKE cluster
         if: ${{ always() && github.event.inputs.keep_cluster != 'yes' }}

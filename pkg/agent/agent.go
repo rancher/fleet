@@ -1,5 +1,5 @@
-// Package agentmanifest creates the manifest for the fleet-agent (fleetcontroller)
-package agentmanifest
+// Package agent builds manifests for creating a managed fleet-agent. (fleetcontroller)
+package agent
 
 import (
 	"context"
@@ -10,9 +10,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/rancher/fleet/modules/cli/agentconfig"
+	"github.com/rancher/fleet/modules/agent/pkg/register"
 	"github.com/rancher/fleet/modules/cli/pkg/client"
-	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -32,17 +31,14 @@ var (
 )
 
 type Options struct {
-	CA              []byte
-	Host            string
-	NoCA            bool
-	Labels          map[string]string
-	ClientID        string
-	Generation      string
-	CheckinInterval string
-	AgentEnvVars    []v1.EnvVar
+	ManifestOptions
+	ConfigOptions
+	CA   []byte
+	Host string
+	NoCA bool // unused
 }
 
-func AgentToken(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
+func agentToken(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
 	token, err := getToken(ctx, controllerNamespace, tokenName, client)
 	if err != nil {
 		return nil, err
@@ -55,10 +51,15 @@ func AgentToken(ctx context.Context, agentNamespace, controllerNamespace string,
 		token["apiServerCA"] = opts.CA
 	}
 
-	return objects(agentNamespace, token), nil
+	return tokenObjects(agentNamespace, token), nil
 }
 
-func AgentManifest(ctx context.Context, agentNamespace, controllerNamespace, agentScope string, cg *client.Getter, output io.Writer, tokenName string, opts *Options) error {
+// AgentWithConfig writes the agent manifest to the given writer. It
+// includes an updated agent token secret from the cluster. It finds or creates
+// the agent config inside a configmap.
+//
+// This is used when importing a cluster.
+func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, agentScope string, cg *client.Getter, output io.Writer, tokenName string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -68,27 +69,30 @@ func AgentManifest(ctx context.Context, agentNamespace, controllerNamespace, age
 		return err
 	}
 
-	objs, err := AgentToken(ctx, agentNamespace, controllerNamespace, client, tokenName, opts)
+	objs, err := agentToken(ctx, agentNamespace, controllerNamespace, client, tokenName, opts)
 	if err != nil {
 		return err
 	}
 
-	agentConfig, err := agentconfig.AgentConfig(ctx, agentNamespace, controllerNamespace, cg, &agentconfig.Options{
-		Labels:   opts.Labels,
-		ClientID: opts.ClientID,
-	})
+	agentConfig, err := agentConfig(ctx, agentNamespace, controllerNamespace, cg, &opts.ConfigOptions)
 	if err != nil {
 		return err
 	}
 
 	objs = append(objs, agentConfig...)
 
+	// get a fresh config from the API
 	cfg, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
 		return err
 	}
 
-	objs = append(objs, agent.Manifest(agentNamespace, agentScope, cfg.AgentImage, cfg.AgentImagePullPolicy, opts.Generation, opts.CheckinInterval, opts.AgentEnvVars)...)
+	mo := opts.ManifestOptions
+	mo.AgentImage = cfg.AgentImage
+	mo.AgentImagePullPolicy = cfg.AgentImagePullPolicy
+	mo.CheckinInterval = cfg.AgentCheckinInternal.Duration.String()
+
+	objs = append(objs, Manifest(agentNamespace, agentScope, mo)...)
 
 	data, err := yaml.Export(objs...)
 	if err != nil {
@@ -220,4 +224,26 @@ func GetHostFromConfig(rawConfig clientcmdapi.Config) (string, error) {
 	}
 
 	return "", ErrNoHostInConfig
+}
+
+func tokenObjects(namespace string, data map[string][]byte) []runtime.Object {
+	objs := []runtime.Object{
+		&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+				Annotations: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
+			},
+		},
+		&v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      register.BootstrapCredName,
+				Namespace: namespace,
+			},
+			Data: data,
+		},
+	}
+
+	return objs
 }

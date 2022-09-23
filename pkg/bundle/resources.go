@@ -25,6 +25,7 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/downloader"
 	helmgetter "helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
 
 	"github.com/rancher/fleet/modules/cli/pkg/progress"
@@ -318,7 +319,7 @@ func readContent(ctx context.Context, base, name, version string, auth Auth) (ma
 		return nil, err
 	}
 	if hasOCIURL {
-		src, err = downloadOCIChart(name, version, temp)
+		src, err = downloadOCIChart(name, version, temp, auth)
 		if err != nil {
 			return nil, err
 		}
@@ -409,15 +410,44 @@ func readContent(ctx context.Context, base, name, version string, auth Auth) (ma
 }
 
 // downloadOciChart uses Helm to download charts from OCI based registries
-func downloadOCIChart(name, version, path string) (string, error) {
+func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
+	var registryClient *registry.Client
+	var requiresLogin bool = auth.Username != "" && auth.Password != ""
+
 	c := downloader.ChartDownloader{
 		Verify:  downloader.VerifyNever,
 		Getters: helmgetter.All(&cli.EnvSettings{}),
+	}
+	url, err := url.Parse(name)
+	if err != nil {
+		return "", err
+	}
+
+	// Helm does not support direct authentication for private OCI regstries when a chart is downloaded
+	// so it is necessary to login before via Helm which stores the registry token in a configuration
+	// file on the system
+	if requiresLogin {
+		registryClient, err = registry.NewClient()
+		if err != nil {
+			return "", err
+		}
+		err = registryClient.Login(url.Hostname(), registry.LoginOptInsecure(false), registry.LoginOptBasicAuth(auth.Username, auth.Password))
+		if err != nil {
+			return "", err
+		}
 	}
 
 	saved, _, err := c.DownloadTo(name, version, path)
 	if err != nil {
 		return "", err
+	}
+
+	// Logout to remove the token configuration file from the system again
+	if requiresLogin {
+		err = registryClient.Logout(url.Hostname())
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return saved, nil

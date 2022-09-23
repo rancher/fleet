@@ -25,10 +25,11 @@ spec:
         - --debug
         - --debug-level
         - {{ quote .Values.debugLevel }}
-        {{- end }}
+        {{- else }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
+        {{- end }}
       serviceAccountName: fleet-agent
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
 {{- if .Values.fleetAgent.nodeSelector }}
@@ -38,7 +39,9 @@ spec:
 {{- if .Values.fleetAgent.tolerations }}
 {{ toYaml .Values.fleetAgent.tolerations | indent 8 }}
 {{- end }}
+{{- if not .Values.debug }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+{{- end }}
