@@ -1,4 +1,4 @@
-package gitrepo_test
+package require_secrets
 
 import (
 	"bytes"
