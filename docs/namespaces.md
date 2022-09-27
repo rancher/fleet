@@ -82,5 +82,5 @@ namespaceSelector:
 
 If the `BundleNamespaceMappings` `bundleSelector` field matches a `Bundles` labels then that `Bundle` target criteria will
 be evaluated against all clusters in all namespaces that match `namespaceSelector`. One can specify labels for the created
-bundles from git by putting labels in the `fleet.yaml` file or on the `metadata.labels` field on the `GitRepo`.
+bundles from git by putting labels in the `fleet.yaml` file.
 
