@@ -2,7 +2,6 @@ package examples_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
@@ -58,7 +57,6 @@ var _ = Describe("BundleDiffs", func() {
 			// make sure resources are cleaned up
 			Eventually(func() bool {
 				_, err := bundleDeploymentStatus("bundle-diffs-test")
-				fmt.Printf("bundleDeploymentStatus: %v\n", err)
 				if err != nil && apierrors.IsNotFound(err) {
 					return true
 				}
