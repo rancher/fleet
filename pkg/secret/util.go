@@ -14,6 +14,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// GetServiceAccountTokenSecret gets or creates a secret for the service
+// account. It waits 2 seconds for the data to be populated with a token.
 func GetServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsController corecontrollers.SecretController) (*corev1.Secret, error) {
 	name := sa.Name + "-token"
 	secret, err := secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
