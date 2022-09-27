@@ -147,6 +147,14 @@ func (h *handler) authorizeAndAssignDefaults(gitrepo *fleet.GitRepo) (*fleet.Git
 	restriction := aggregate(restrictions)
 	gitrepo = gitrepo.DeepCopy()
 
+	gitrepo.Spec.TargetNamespace, err = isAllowed(gitrepo.Spec.TargetNamespace,
+		"",
+		restriction.AllowedTargetNamespaces,
+		false)
+	if err != nil {
+		return nil, fmt.Errorf("disallowed targetNamespace %s: %w", gitrepo.Spec.TargetNamespace, err)
+	}
+
 	gitrepo.Spec.ServiceAccount, err = isAllowed(gitrepo.Spec.ServiceAccount,
 		restriction.DefaultServiceAccount,
 		restriction.AllowedServiceAccounts,
@@ -213,6 +221,7 @@ func aggregate(restrictions []*fleet.GitRepoRestriction) (result fleet.GitRepoRe
 		result.AllowedServiceAccounts = append(result.AllowedServiceAccounts, restriction.AllowedServiceAccounts...)
 		result.AllowedClientSecretNames = append(result.AllowedClientSecretNames, restriction.AllowedClientSecretNames...)
 		result.AllowedRepoPatterns = append(result.AllowedRepoPatterns, restriction.AllowedRepoPatterns...)
+		result.AllowedTargetNamespaces = append(result.AllowedTargetNamespaces, restriction.AllowedTargetNamespaces...)
 	}
 	return
 }

@@ -2545,6 +2545,12 @@ spec:
               type: string
             nullable: true
             type: array
+          allowedTargetNamespaces:
+            items:
+              nullable: true
+              type: string
+            nullable: true
+            type: array
           defaultClientSecretName:
             nullable: true
             type: string
