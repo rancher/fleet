@@ -64,39 +64,61 @@ func Register(ctx context.Context,
 		clusters,
 		"Reconciled",
 		"agent-env-vars",
-		h.OnClusterChange)
+		h.onClusterStatusChange)
 }
 
-func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
-	// Check if the agent environment variables field was updated by hashing its contents into a status field.
-	return h.reconcileAgentEnvVars(cluster, status)
+func (h *handler) onClusterStatusChange(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
+	logrus.Debugf("Reconciling agent settings for cluster %s/%s", cluster.Namespace, cluster.Name)
+
+	status, vars, err := h.reconcileAgentEnvVars(cluster, status)
+	if err != nil {
+		return status, err
+	}
+	status, repo := h.reconcileAgentPrivateRepoURL(cluster, status)
+	if vars || repo {
+		h.namespaces.Enqueue(cluster.Namespace)
+	}
+	return status, nil
 }
 
-func (h *handler) reconcileAgentEnvVars(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
+// reconcileAgentEnvVars checks if the agent environment variables field was
+// updated by hashing its contents into a status field.
+func (h *handler) reconcileAgentEnvVars(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, bool, error) {
+	enqueue := false
+
 	if len(cluster.Spec.AgentEnvVars) < 1 {
 		// Remove the existing hash if the environment variables have been deleted.
 		if status.AgentEnvVarsHash != "" {
 			// We enqueue to ensure that we edit the status after other controllers.
-			h.namespaces.Enqueue(cluster.Namespace)
+			enqueue = true
 			status.AgentEnvVarsHash = ""
 		}
-		return status, nil
+		return status, enqueue, nil
 	}
 
 	hasher := sha256.New224()
 	b, err := json.Marshal(cluster.Spec.AgentEnvVars)
 	if err != nil {
-		return status, err
+		return status, enqueue, err
 	}
 	hasher.Write(b)
 	hash := fmt.Sprintf("%x", hasher.Sum(nil))
 
 	if status.AgentEnvVarsHash != hash {
 		// We enqueue to ensure that we edit the status after other controllers.
-		h.namespaces.Enqueue(cluster.Namespace)
+		enqueue = true
 		status.AgentEnvVarsHash = hash
 	}
-	return status, nil
+
+	return status, enqueue, nil
+}
+
+func (h *handler) reconcileAgentPrivateRepoURL(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, bool) {
+	if status.AgentPrivateRepoURL != cluster.Spec.PrivateRepoURL {
+		status.AgentPrivateRepoURL = cluster.Spec.PrivateRepoURL
+		return status, true
+	}
+	return status, false
 }
 
 func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
@@ -126,7 +148,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 
 	for _, cluster := range clusters {
 		logrus.Infof("Updated agent for cluster %s/%s", cluster.Namespace, cluster.Name)
-		bundle, err := h.getAgentBundle(namespace.Name, cluster)
+		bundle, err := h.newAgentBundle(namespace.Name, cluster)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +162,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 		ApplyObjects(objs...)
 }
 
-func (h *handler) getAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Object, error) {
+func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Object, error) {
 	cfg := config.Get()
 	if cfg.ManageAgent != nil && !*cfg.ManageAgent {
 		return nil, nil
