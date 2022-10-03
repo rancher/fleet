@@ -16,7 +16,6 @@ on:
         default: "false"
   push:
     paths-ignore:
-      - 'docs/**'
       - 'scripts/**'
       - '*.md'
 
