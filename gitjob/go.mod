@@ -4,7 +4,7 @@ go 1.18
 
 replace (
 	github.com/matryer/moq => github.com/rancher/moq v0.0.0-20190404221404-ee5226d43009
-	k8s.io/client-go => k8s.io/client-go v0.24.3
+	k8s.io/client-go => k8s.io/client-go v0.24.5
 )
 
 require (
