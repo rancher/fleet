@@ -12,7 +12,6 @@ on:
         default: "false"
   pull_request:
     paths-ignore:
-      - 'docs/**'
       - 'scripts/**'
       - '*.md'
 

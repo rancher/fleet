@@ -59,7 +59,7 @@ body:
       If applicable, add logs to help explain your problem.
       You can use attachments to add a screenshot of your clusters state, e.g. from [k9s](https://k9scli.io/).
 
-      There is more information on getting logs in the [troubleshooting docs](https://fleet.rancher.io/troubleshooting/#how-do-i).
+      There is more information on getting logs in the [troubleshooting docs](https://fleet.rancher.io/troubleshooting).
 
       Often status fields are valuable information, for example if you have failed git resources, include the output of `kubectl get gitrepo -A -o jsonpath='{.items[*].status}'`.
 
