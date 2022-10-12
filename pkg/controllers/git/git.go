@@ -280,7 +280,18 @@ func mergeConditions(existing, next []genericcondition.GenericCondition) []gener
 	return result
 }
 
+func accpetedLastUpdate(conds []genericcondition.GenericCondition) string {
+	for _, cond := range conds {
+		if cond.Type == "Accepted" {
+			return cond.LastUpdateTime
+		}
+	}
+
+	return ""
+}
+
 func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
+	logrus.Debugf("OnChange GitRepo %s/%s for commit %s last accepted at %s", gitrepo.Namespace, gitrepo.Name, gitrepo.Status.Commit, accpetedLastUpdate(gitrepo.Status.Conditions))
 	status.ObservedGeneration = gitrepo.Generation
 
 	if gitrepo.Spec.Repo == "" {

@@ -176,6 +176,8 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 	}
 
 	if allReady && status.ResourceCounts.Ready != status.ResourceCounts.DesiredReady {
+		logrus.Debugf("Cluster %s/%s is not ready because not all gitrepos are ready: %d/%d", cluster.Namespace, cluster.Name, status.ResourceCounts.Ready, status.ResourceCounts.DesiredReady)
+
 		// Counts from gitrepo are out of sync with bundleDeployment state
 		// just retry in 15 seconds as there no great way to trigger an event that
 		// doesn't cause a loop
