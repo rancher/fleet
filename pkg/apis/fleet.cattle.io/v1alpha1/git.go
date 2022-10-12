@@ -132,6 +132,8 @@ type GitRepoRestriction struct {
 
 	DefaultClientSecretName  string   `json:"defaultClientSecretName,omitempty"`
 	AllowedClientSecretNames []string `json:"allowedClientSecretNames,omitempty"`
+
+	AllowedTargetNamespaces []string `json:"allowedTargetNamespaces,omitempty"`
 }
 
 type GitRepoResource struct {
