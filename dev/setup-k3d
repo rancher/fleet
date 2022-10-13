@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -euxo pipefail
+
+docker_mirror=${docker_mirror-}
+name=${1-upstream}
+i=${2-0}
+
+args=""
+if [ -n "$docker_mirror" ]; then
+  TMP_CONFIG="$(mktemp)"
+  trap "rm -f $TMP_CONFIG" EXIT
+
+  cat << EOF > "$TMP_CONFIG"
+mirrors:
+  "docker.io":
+      endpoint:
+            - $docker_mirror
+EOF
+  args="--registry-config $TMP_CONFIG"
+fi
+
+k3d cluster create "$name" --servers 3 --api-port $(( 36443 + i )) -p "$(( 8080 + i )):80@server:0" -p "$(( 8443 + i )):443@server:0" $args

@@ -1,0 +1,18 @@
+#!/bin/bash
+# Description: install fleet standalone into the current kubectl context
+
+set -euxo pipefail
+
+if [ ! -d ./charts/fleet ]; then
+  echo "please change the current directory to the fleet repo checkout"
+  exit 1
+fi
+
+# single cluster
+helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-crd charts/fleet-crd
+helm -n cattle-fleet-system upgrade --install --create-namespace --wait --reset-values --set debug=true --set debugLevel=99 fleet charts/fleet
+
+# wait for it
+kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
+{ grep -q -m 1 "fleet-agent"; kill $!; } < <(kubectl get deployment -n cattle-fleet-system -w)
+kubectl -n cattle-fleet-system rollout status deploy/fleet-agent

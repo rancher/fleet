@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -euxo pipefail
+
+if [ ! -d ./cmd/fleetagent ]; then
+  echo "please change the current directory to the fleet repo checkout"
+  exit 1
+fi
+
+export GOOS=linux
+export GOARCH="${GOARCH:-amd64}"
+export CGO_ENABLED=0
+
+# fleet agent
+go build -gcflags='all=-N -l' -o "bin/fleet-linux-$GOARCH"
+go build -gcflags='all=-N -l' -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+
+fleet_ctx=$(kubectl config current-context)
+k3d image import rancher/fleet-agent:dev -m direct -c "${fleet_ctx#k3d-}"
+kubectl delete pod -l app=fleet-agent -n cattle-fleet-system
