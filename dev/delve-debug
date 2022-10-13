@@ -1,0 +1,27 @@
+#!/bin/bash
+# Usage: delve-debug fleet-controller
+# see https://github.com/moio/delve-debugger for full version
+
+set -ex
+
+ns=cattle-fleet-system
+app="$1"
+
+if [ -z "$app" ]; then
+  echo "Usage: $0 <app>" >&2
+  exit 1
+fi
+
+procname=${app/-}
+
+#kubectl patch deployments -n cattle-fleet-system fleet-agent --type=merge -p '{"spec":{"replicas":1}}'
+
+pod=$(kubectl get pod -n cattle-fleet-system -l "app=$app"  -o='jsonpath={.items[0].metadata.name}')
+
+kubectl --namespace "$ns" port-forward "pod/$pod" 4000 &
+trap "kill $!" EXIT
+
+echo `tput bold`
+echo 'Please wait for the line "debug layer=debugger continuing" to appear...'
+echo `tput sgr0`
+kubectl --namespace "$ns" debug -it "pod/$pod" --image=ghcr.io/moio/delve-debugger:latest --target="$app" --env="[EXECUTABLE=$procname]"
