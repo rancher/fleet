@@ -2,10 +2,8 @@ package require_secrets
 
 import (
 	"bytes"
-	"html/template"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/go-git/go-git/v5"
 
@@ -57,12 +55,14 @@ var _ = Describe("Git Repo", func() {
 		repo, err = gh.Create(repodir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
 		Expect(err).ToNot(HaveOccurred())
 
-		tmpl := template.Must(template.New("test").Parse(githelper.GitRepoTemplate))
-		var yaml strings.Builder
-		err = tmpl.Execute(&yaml, githelper.GitRepo{Repo: gh.URL, Branch: gh.Branch})
-		Expect(err).ToNot(HaveOccurred())
 		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
-		err = os.WriteFile(gitrepo, []byte(yaml.String()), 0644)
+		err = testenv.Template(gitrepo, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+			Repo   string
+			Branch string
+		}{
+			gh.URL,
+			gh.Branch,
+		})
 		Expect(err).ToNot(HaveOccurred())
 
 		out, err = k.Apply("-f", gitrepo)
