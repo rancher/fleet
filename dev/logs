@@ -1,0 +1,5 @@
+#!/bin/bash
+
+app=${1-fleet-controller}
+
+kubectl logs -n cattle-fleet-system -l "app=$app" -f

@@ -1,0 +1,71 @@
+#!/bin/bash
+# Description: setup fleet in the downstream cluster and register it
+
+set -euxo pipefail
+
+if [ ! -d ./charts/fleet ]; then
+  echo "please change the current directory to the fleet repo checkout"
+  exit 1
+fi
+
+upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
+downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+
+# predefined cluster
+# kubectl apply -f - <<EOF
+# apiVersion: "fleet.cattle.io/v1alpha1"
+# kind: Cluster
+# metadata:
+#   name: second
+#   namespace: fleet-local
+# spec:
+#   clientID: "fake-random"
+# EOF
+
+kubectl config use-context "$upstream_ctx"
+
+kubectl apply -f - <<EOF
+apiVersion: "fleet.cattle.io/v1alpha1"
+kind: ClusterRegistrationToken
+metadata:
+  name: second-token
+  namespace: fleet-local
+spec:
+  ttl: 12h
+EOF
+{ grep -q -m 1 "second-token"; kill $!; } < <(kubectl get clusterregistrationtoken -n fleet-local -w)
+while ! kubectl get clusterregistrationtoken -n fleet-local -o jsonpath='{.status}' second-token | grep -q secretName; do
+  sleep 1
+done
+kubectl wait clusterregistrationtoken -n fleet-local --for=jsonpath='{.status.secretName}'=second-token second-token
+
+token=$(kubectl get secret -n fleet-local second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
+
+ca=""
+serverver=$(kubectl version -ojson 2> /dev/null | jq '.serverVersion.minor' | sed 's/"//g')
+if [ "$serverver" -gt 23 ]; then
+  ca=$(kubectl get secret -n cattle-fleet-system fleet-controller-bootstrap-token -o go-template='{{index .data "ca.crt" | base64decode}}')
+else
+  name=$(kubectl get -n default sa default -o=jsonpath='{.secrets[0].name}')
+  ca=$(kubectl get -n default secret "$name" -o go-template='{{index .data "ca.crt" | base64decode}}')
+fi
+
+# docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'
+url="${url-172.17.0.1.omg.howdoi.website}"
+
+kubectl config use-context "$downstream_ctx"
+helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \
+  --set-string labels.env=dev \
+  --set apiServerCA="$ca" \
+  --set apiServerURL="https://$url:36443" \
+  --set clusterNamespace="fleet-local" \
+  --set token="$token"
+  #--set systemRegistrationNamespace="fleet-clusters-system" \
+  #--set clientID="fake-random" \
+  # --set global.cattle.systemDefaultRegistry=public.ecr.aws/b3e3i8k2 \
+  # --set image.tag=v0.3.9  \
+  # --set agentImage.tag=v0.3.9 \
+  # --set gitjob.gitjob.tag=v0.1.26 \
+  # --set gitjob.tekton.tag=v0.1.5 \
+
+kubectl config use-context "$upstream_ctx"

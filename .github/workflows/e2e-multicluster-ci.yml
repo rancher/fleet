@@ -123,6 +123,8 @@ jobs:
             --set token="$token"
       -
         name: Label Downstream Cluster
+        env:
+          FLEET_E2E_NS: fleet-local
         run: |
           kubectl config use-context k3d-upstream
           { grep -q -m 1 -e "k3d-downstream"; kill $!; } < <(kubectl get clusters.fleet.cattle.io -n fleet-local -w)

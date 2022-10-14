@@ -1,0 +1,25 @@
+#!/bin/sh
+# Warning: do not use this script on a production system!
+
+upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
+downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+
+ctx=$(kubectl config current-context)
+
+kubectl config use-context "$upstream_ctx"
+
+helm uninstall -n cattle-fleet-system fleet
+helm uninstall -n cattle-fleet-system fleet-crd
+
+kubectl delete ns cattle-fleet-system --now
+kubectl delete ns cattle-fleet-clusters-system --now
+kubectl delete ns fleet-local --now
+kubectl delete ns -l "fleet.cattle.io/managed=true"
+
+
+kubectl config use-context "$downstream_ctx"
+helm uninstall -n cattle-fleet-system fleet-agent
+
+kubectl delete ns cattle-fleet-system --now
+
+kubectl config use-context "$ctx"
