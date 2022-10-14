@@ -41,7 +41,7 @@ spec:
   paths:
   - bundle-diffs
 
-  targetNamespace: {{.TargetNamespace}}
+  {{.TargetNamespace}}
 
   targets:
   - name: test

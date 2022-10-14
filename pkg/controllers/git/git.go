@@ -147,6 +147,10 @@ func (h *handler) authorizeAndAssignDefaults(gitrepo *fleet.GitRepo) (*fleet.Git
 	restriction := aggregate(restrictions)
 	gitrepo = gitrepo.DeepCopy()
 
+	if len(restriction.AllowedTargetNamespaces) > 0 && gitrepo.Spec.TargetNamespace == "" {
+		return nil, fmt.Errorf("empty targetNamespace denied, because allowedTargetNamespaces restriction is present")
+	}
+
 	gitrepo.Spec.TargetNamespace, err = isAllowed(gitrepo.Spec.TargetNamespace,
 		"",
 		restriction.AllowedTargetNamespaces,

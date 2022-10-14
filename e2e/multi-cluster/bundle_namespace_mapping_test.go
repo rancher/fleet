@@ -43,18 +43,20 @@ var _ = Describe("Bundle Namespace Mapping", func() {
 		os.RemoveAll(tmpdir)
 	})
 
-	When("creating gitrepo resource in another namespace", func() {
-		Context("downstream namespace is allowed", func() {
+	// the cluster resource in not in the same namespace as the gitrepo
+	// resource, a BundleNamespaceMapping is needed
+	Context("with bundlenamespacemapping and gitreporestriction", func() {
+		When("targetNamespace is included in allow list", func() {
 			BeforeEach(func() {
 				namespace = "project1"
 				asset = "multi-cluster/bundle-namespace-mapping.yaml"
 				data = struct {
 					Namespace       string
 					TargetNamespace string
-				}{namespace, "project1simpleapp"}
+				}{namespace, "targetNamespace: project1simpleapp"}
 			})
 
-			It("deploys to the the downstream cluster", func() {
+			It("deploys to the mapped downstream cluster", func() {
 				Eventually(func() string {
 					out, _ := k.Get("bundledeployments", "-A")
 					return out
@@ -66,14 +68,14 @@ var _ = Describe("Bundle Namespace Mapping", func() {
 			})
 		})
 
-		Context("downstream namespace is denied by gitreporestriction", func() {
+		When("downstream namespace is not included in allow list", func() {
 			BeforeEach(func() {
 				namespace = "project2"
 				asset = "multi-cluster/bundle-namespace-mapping.yaml"
 				data = struct {
 					Namespace       string
 					TargetNamespace string
-				}{namespace, "denythisnamespace"}
+				}{namespace, "targetNamespace: denythisnamespace"}
 			})
 
 			It("denies deployment to downstream cluster", func() {
@@ -83,6 +85,26 @@ var _ = Describe("Bundle Namespace Mapping", func() {
 					)
 					return out
 				}).Should(ContainSubstring("disallowed targetNamespace denythisnamespace"))
+			})
+		})
+
+		When("target namespace is empty", func() {
+			BeforeEach(func() {
+				namespace = "project3"
+				asset = "multi-cluster/bundle-namespace-mapping.yaml"
+				data = struct {
+					Namespace       string
+					TargetNamespace string
+				}{namespace, ""}
+			})
+
+			It("denies deployment to downstream cluster", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace(namespace).Get("gitrepo", "simpleapp",
+						"-o=jsonpath={.status.conditions[*].message}",
+					)
+					return out
+				}).Should(ContainSubstring("empty targetNamespace denied"))
 			})
 		})
 	})
