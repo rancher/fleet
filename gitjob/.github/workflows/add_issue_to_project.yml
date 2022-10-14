@@ -17,4 +17,5 @@ jobs:
         with:
           project-url: https://github.com/orgs/rancher/projects/12
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          labeled: area/fleet
+          labeled: area/fleet, team/fleet
+          operator: OR
