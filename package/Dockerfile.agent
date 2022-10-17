@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/bci-base:15.4.27.11.29
+FROM registry.suse.com/bci/bci-base:15.4.27.11.31
 ARG ARCH
 ENV ARCH=$ARCH
 RUN zypper in --no-recommends -y git bash openssh && groupadd -g 1000 fleet-apply && useradd -u 1000 -g 1000 -m fleet-apply; rm -fr /var/cache/* /var/log/*log
