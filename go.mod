@@ -52,7 +52,7 @@ require (
 	github.com/rancher/wrangler v1.0.1-0.20220623232707-cc833dd0d546
 	github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22
 	github.com/sirupsen/logrus v1.9.0
-	github.com/spf13/cobra v1.5.0
+	github.com/spf13/cobra v1.6.0
 	github.com/stretchr/testify v1.8.0
 	go.mozilla.org/sops/v3 v3.7.3
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
@@ -172,7 +172,7 @@ require (
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jmoiron/sqlx v1.3.5 // indirect
