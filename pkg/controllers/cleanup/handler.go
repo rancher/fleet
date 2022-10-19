@@ -6,6 +6,7 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -96,6 +97,9 @@ func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.N
 	if obj == nil || obj.Labels[fleet.ManagedLabel] != "true" {
 		return obj, nil
 	}
+
+	logrus.Debugf("Cleaning up fleet-managed namespace %s", obj.Name)
+
 	_, err := h.clusters.Get(obj.Annotations[fleet.ClusterNamespaceAnnotation], obj.Annotations[fleet.ClusterAnnotation])
 	if apierrors.IsNotFound(err) {
 		err = h.namespaces.Delete(key, nil)
@@ -112,6 +116,8 @@ func (h *handler) cleanup(ns runtime.Object) error {
 	if meta.GetLabels()[fleet.ManagedLabel] != "true" {
 		return nil
 	}
+
+	logrus.Debugf("Cleaning up fleet-managed resource %s", meta.GetName())
 	err = h.apply.PurgeOrphan(ns)
 	if apierrors.IsNotFound(err) {
 		return nil

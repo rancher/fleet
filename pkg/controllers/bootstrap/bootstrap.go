@@ -60,6 +60,8 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) OnConfig(config *config.Config) error {
+	logrus.Debugf("bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
+
 	var objs []runtime.Object
 
 	if config.Bootstrap.Namespace == "" || config.Bootstrap.Namespace == "-" {
