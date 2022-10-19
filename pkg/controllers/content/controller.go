@@ -2,9 +2,9 @@ package content
 
 import (
 	"context"
-	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kv"
@@ -47,7 +47,7 @@ func (h *handler) purgeOrphaned(ctx context.Context) {
 
 	deleteRefs := make(map[string]*contentRef)
 
-	for range ticker.Context(ctx, time.Minute*5) {
+	for range ticker.Context(ctx, durations.ContentPurgeInterval) {
 		logrus.Debugf("Checking for orphaned content objects")
 		namespaces, err := h.namespaces.List(metav1.ListOptions{})
 		if err != nil {

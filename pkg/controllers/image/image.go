@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/update"
 	"github.com/rancher/wrangler/pkg/condition"
@@ -40,7 +41,7 @@ import (
 var (
 	lock sync.Mutex
 
-	defaultInterval = time.Minute * 15
+	defaultInterval = durations.DefaultImageInterval
 )
 
 const (
