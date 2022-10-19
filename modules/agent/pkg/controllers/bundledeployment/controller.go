@@ -231,13 +231,17 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 		return bd, h.trigger.Clear(key)
 	}
 
+	logrus.Debugf("Triggering for bundledeployment '%s'", key)
+
 	resources, err := h.deployManager.Resources(bd)
 	if err != nil {
 		return bd, err
 	}
 
 	if resources != nil {
+		logrus.Debugf("Adding OnChange for bundledeployment's '%s' resource list", key)
 		return bd, h.trigger.OnChange(key, resources.DefaultNamespace, func() {
+			// enqueue bundledeployment if any resource changes
 			h.bdController.Enqueue(bd.Namespace, bd.Name)
 		}, resources.Objects...)
 	}
