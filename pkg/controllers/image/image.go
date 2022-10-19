@@ -174,6 +174,7 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	if gitrepo == nil || gitrepo.DeletionTimestamp != nil {
 		return status, nil
 	}
+	logrus.Debugf("onChangeGitRepo: gitrepo %s/%s changed, checking for image scans", gitrepo.Namespace, gitrepo.Name)
 
 	imagescans, err := h.imagescans.Cache().List(gitrepo.Namespace, labels.Everything())
 	if err != nil {
@@ -209,6 +210,8 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	if !shouldSync(gitrepo) {
 		return status, nil
 	}
+
+	logrus.Debugf("onChangeGitRepo: gitrepo %s/%s changed, syncing repo for image scans", gitrepo.Namespace, gitrepo.Name)
 
 	lock.Lock()
 	defer lock.Unlock()

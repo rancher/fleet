@@ -64,11 +64,13 @@ func Register(ctx context.Context,
 
 	gitRepos.OnChange(ctx, "gitjob-purge", h.DeleteOnChange)
 	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "Accepted", "gitjobs", h.OnChange, nil)
+	// enqueue gitrepo when gitjob changes
 	relatedresource.Watch(ctx, "gitjobs",
 		relatedresource.OwnerResolver(true, fleet.SchemeGroupVersion.String(), "GitRepo"), gitRepos, gitJobs)
 	relatedresource.Watch(ctx, "gitjobs", resolveGitRepo, gitRepos, bundles)
 }
 
+// resolveGitRepo enqueues a GitRepo event for a bundle change
 func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if bundle, ok := obj.(*fleet.Bundle); ok {
 		repo := bundle.Labels[fleet.RepoLabel]
@@ -234,6 +236,8 @@ func (h *handler) DeleteOnChange(key string, gitrepo *fleet.GitRepo) (*fleet.Git
 	if gitrepo != nil {
 		return gitrepo, nil
 	}
+
+	logrus.Debugf("GitRepo '%s' deleted, deleting bundle, image scane", key)
 
 	ns, name := kv.Split(key, "/")
 	bundles, err := h.bundleCache.List(ns, labels.SelectorFromSet(labels.Set{
