@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/cluster"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
@@ -148,7 +149,7 @@ func newSharedControllerFactory(config *rest.Config, mapper meta.RESTMapper, nam
 	}
 	return controller.NewSharedControllerFactory(cache2.NewSharedCachedFactory(cf, &cache2.SharedCacheFactoryOptions{
 		DefaultNamespace: namespace,
-		DefaultResync:    30 * time.Minute,
+		DefaultResync:    durations.DefaultResyncAgent,
 	}), nil), nil
 }
 

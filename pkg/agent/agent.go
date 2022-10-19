@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
 
@@ -164,7 +165,7 @@ func waitForSecretName(ctx context.Context, tokenName string, client *client.Cli
 		return crt.Status.SecretName, nil
 	}
 
-	timeout := time.After(time.Minute)
+	timeout := time.After(durations.AgentSecretTimeout)
 	for {
 		var event watch.Event
 		select {

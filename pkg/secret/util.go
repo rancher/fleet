@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/rancher/fleet/pkg/durations"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -66,7 +67,7 @@ func createServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsControlle
 	if _, ok := secret.Data[corev1.ServiceAccountTokenKey]; !ok {
 		for {
 			logrus.Debugf("wait for svc account secret to be populated with token %s", secret.Name)
-			time.Sleep(2 * time.Second)
+			time.Sleep(durations.ServiceTokenSleep)
 			secret, err = secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
 			if err != nil {
 				return nil, err
