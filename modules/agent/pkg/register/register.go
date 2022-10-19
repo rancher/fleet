@@ -10,6 +10,7 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	"github.com/rancher/fleet/pkg/registration"
 
@@ -57,7 +58,7 @@ func Register(ctx context.Context, namespace, clusterID string, config *rest.Con
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(time.Minute):
+		case <-time.After(durations.AgentRegistrationRetry):
 		}
 	}
 }
@@ -169,7 +170,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 
 	secretName := registration.SecretName(request.Spec.ClientID, request.Spec.ClientRandom)
 	secretNamespace := string(values(secret.Data)["systemRegistrationNamespace"])
-	timeout := time.After(30 * time.Minute)
+	timeout := time.After(durations.CreateClusterSecretTimeout)
 
 	for {
 		select {
@@ -177,7 +178,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 			return nil, fmt.Errorf("timeout waiting for secret %s/%s", secretNamespace, secretName)
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(2 * time.Second):
+		case <-time.After(durations.ClusterSecretRetry):
 		}
 
 		newSecret, err := fleetK8s.CoreV1().Secrets(secretNamespace).Get(ctx, secretName, metav1.GetOptions{})

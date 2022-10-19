@@ -16,6 +16,7 @@ import (
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/registration"
 	secretutil "github.com/rancher/fleet/pkg/secret"
@@ -38,7 +39,7 @@ const (
 	AgentCredentialSecretType     = "fleet.cattle.io/agent-credential"
 	clusterByClientID             = "clusterByClientID"
 	clusterRegistrationByClientID = "clusterRegistrationByClientID"
-	deleteSecretAfter             = 40 * time.Minute
+	deleteSecretAfter             = durations.ClusterRegistrationDeleteDelay
 )
 
 type handler struct {

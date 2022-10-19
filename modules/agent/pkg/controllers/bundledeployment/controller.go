@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 
@@ -78,7 +79,7 @@ func (h *handler) garbageCollect() {
 		select {
 		case <-h.ctx.Done():
 			return
-		case <-time.After(wait.Jitter(15*time.Minute, 1.0)):
+		case <-time.After(wait.Jitter(durations.GarbageCollect, 1.0)):
 		}
 	}
 }
@@ -325,7 +326,7 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	readyError := readyError(status)
 	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
 	if len(status.ModifiedStatus) > 0 {
-		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, 5*time.Minute)
+		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, durations.MonitorBundleDelay)
 		if shouldRedeploy(bd) {
 			logrus.Infof("Redeploying %s", bd.Name)
 			status.AppliedDeploymentID = ""
