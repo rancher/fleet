@@ -104,6 +104,8 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 	}
 
 	if cluster.Spec.ClientID == "" {
+		logrus.Debugf("Cluster '%s' changed, agent deployed, updating ClientID", cluster.Name)
+
 		cluster = cluster.DeepCopy()
 		cluster.Spec.ClientID, err = randomtoken.Generate()
 		if err != nil {
@@ -175,6 +177,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
+	logrus.Debugf("ClusterStatusHandler cluster '%s/%s' changed, setting up agent", cluster.Namespace, cluster.Name)
 	var (
 		cfg          = config.Get()
 		apiServerURL = string(secret.Data["apiServerURL"])
