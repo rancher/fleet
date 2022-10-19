@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/rancher/fleet/modules/cli/agentmanifest"
 	"github.com/rancher/fleet/modules/cli/pkg/client"
@@ -14,6 +13,7 @@ import (
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/fleet/pkg/connection"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
@@ -32,7 +32,7 @@ import (
 
 var (
 	ImportTokenPrefix = "import-token-"
-	ImportTokenTTL    = 12 * time.Hour
+	ImportTokenTTL    = durations.ClusterImportTokenTTL
 )
 
 type importHandler struct {
@@ -196,7 +196,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	restConfig.Timeout = 15 * time.Second
+	restConfig.Timeout = durations.RestConfigTimeout
 
 	kc, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
@@ -234,7 +234,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				TTL: &metav1.Duration{Duration: ImportTokenTTL},
 			},
 		})
-		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, 2*time.Second)
+		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
 		return status, nil
 	}
 
