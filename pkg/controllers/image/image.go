@@ -28,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/update"
 
@@ -44,7 +45,7 @@ import (
 var (
 	lock sync.Mutex
 
-	defaultInterval = time.Minute * 15
+	defaultInterval = durations.DefaultImageInterval
 )
 
 const (

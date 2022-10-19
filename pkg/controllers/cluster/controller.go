@@ -4,12 +4,12 @@ package cluster
 import (
 	"context"
 	"sort"
-	"time"
 
 	"github.com/sirupsen/logrus"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 
@@ -179,7 +179,7 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 		// Counts from gitrepo are out of sync with bundleDeployment state
 		// just retry in 15 seconds as there no great way to trigger an event that
 		// doesn't cause a loop
-		h.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, 15*time.Second)
+		h.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.ClusterEnqueueDelay)
 	}
 
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)
