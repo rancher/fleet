@@ -6,10 +6,13 @@
 package target
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -330,6 +333,10 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 		return err
 	}
 
+	if err := processValuesTemplate(opts.Helm.Values.Data, clusterLabels); err != nil {
+		return err
+	}
+
 	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, newValues)
 	return nil
 
@@ -563,6 +570,27 @@ func Summary(targets []*Target) fleet.BundleSummary {
 		bundleSummary.DesiredReady++
 	}
 	return bundleSummary
+}
+
+func processValuesTemplate(valuesMap map[string]interface{}, clusterLabels map[string]string) error {
+	var buf bytes.Buffer
+	dataTmpl, err := json.Marshal(&valuesMap)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal json from values %s", err)
+	}
+	valuesTmpl, err := template.New("values").Parse(string(dataTmpl))
+	if err != nil {
+		return fmt.Errorf("Failed to process values %s", err)
+	}
+	err = valuesTmpl.Execute(&buf, clusterLabels)
+	if err != nil {
+		return fmt.Errorf("Failed to execute template %s", err)
+	}
+	err = json.Unmarshal(buf.Bytes(), &valuesMap)
+	if err != nil {
+		return fmt.Errorf("Failed to unmarshal template %s", err)
+	}
+	return nil
 }
 
 func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) error {

@@ -104,3 +104,44 @@ func TestProcessLabelValues(t *testing.T) {
 		t.Fatal("label replacement not performed in third element")
 	}
 }
+
+const bundleYamlTmpl = `namespace: default
+helm:
+  releaseName: labels
+  values:
+    clusterName: '{{ .name }}'
+    envMixed: '{{.name}}-{{.envType}}'
+`
+
+func TestProcessTemplate(t *testing.T) {
+	bundle := &v1alpha1.BundleSpec{}
+
+	clusterLabels := make(map[string]string)
+	clusterLabels["name"] = "local"
+	clusterLabels["envType"] = "dev"
+
+	err := yaml.Unmarshal([]byte(bundleYamlTmpl), bundle)
+	if err != nil {
+		t.Fatalf("error during yaml parsing %v", err)
+	}
+
+	err = processValuesTemplate(bundle.Helm.Values.Data, clusterLabels)
+	if err != nil {
+		t.Fatalf("error during label processing %v", err)
+	}
+
+	clusterName, ok := bundle.Helm.Values.Data["clusterName"]
+	if !ok {
+		t.Fatal("key clusterName not found")
+	}
+	if clusterName != "local" {
+		t.Fatal("unable to assert correct clusterName")
+	}
+	envMixed, ok := bundle.Helm.Values.Data["envMixed"]
+	if !ok {
+		t.Fatal("key envMixed not found")
+	}
+	if envMixed != "local-dev" {
+		t.Fatal("unable to assert correct envMixed")
+	}
+}
