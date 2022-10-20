@@ -44,6 +44,7 @@ func Register(ctx context.Context,
 
 func (h *handler) OnClusterChange(key string, cluster *fleet.Cluster) (*fleet.Cluster, error) {
 	if cluster == nil {
+		logrus.Debugf("Cluster '%s' was deleted, enqueue all cluster groups", key)
 		ns, _ := kv.Split(key, "/")
 		cgs, err := h.clusterGroupsCache.List(ns, labels.Everything())
 		if err != nil {
@@ -54,6 +55,8 @@ func (h *handler) OnClusterChange(key string, cluster *fleet.Cluster) (*fleet.Cl
 		}
 		return cluster, nil
 	}
+
+	logrus.Debugf("Cluster '%s' changed, enqueue matching cluster groups", key)
 
 	cgs, err := h.clusterGroupsCache.List(cluster.Namespace, labels.Everything())
 	if err != nil {
@@ -98,6 +101,8 @@ func (h *handler) OnClusterGroup(clusterGroup *fleet.ClusterGroup, status fleet.
 			return status, err
 		}
 	}
+
+	logrus.Debugf("ClusterGroupStatusHandler for '%s/%s', updating its status summary", clusterGroup.Namespace, clusterGroup.Name)
 
 	status.Summary = fleet.BundleSummary{}
 	status.ResourceCounts = fleet.GitRepoResourceCounts{}

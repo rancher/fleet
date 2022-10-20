@@ -28,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/update"
 
@@ -44,7 +45,7 @@ import (
 var (
 	lock sync.Mutex
 
-	defaultInterval = time.Minute * 15
+	defaultInterval = durations.DefaultImageInterval
 )
 
 const (
@@ -173,6 +174,7 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	if gitrepo == nil || gitrepo.DeletionTimestamp != nil {
 		return status, nil
 	}
+	logrus.Debugf("onChangeGitRepo: gitrepo %s/%s changed, checking for image scans", gitrepo.Namespace, gitrepo.Name)
 
 	imagescans, err := h.imagescans.Cache().List(gitrepo.Namespace, labels.Everything())
 	if err != nil {
@@ -208,6 +210,8 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	if !shouldSync(gitrepo) {
 		return status, nil
 	}
+
+	logrus.Debugf("onChangeGitRepo: gitrepo %s/%s changed, syncing repo for image scans", gitrepo.Namespace, gitrepo.Name)
 
 	lock.Lock()
 	defer lock.Unlock()

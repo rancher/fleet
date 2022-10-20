@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/fleet/pkg/connection"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
@@ -33,7 +33,7 @@ import (
 
 var (
 	ImportTokenPrefix = "import-token-"
-	ImportTokenTTL    = 12 * time.Hour
+	ImportTokenTTL    = durations.ClusterImportTokenTTL
 )
 
 type importHandler struct {
@@ -105,6 +105,8 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 	}
 
 	if cluster.Spec.ClientID == "" {
+		logrus.Debugf("Cluster '%s' changed, agent deployed, updating ClientID", cluster.Name)
+
 		cluster = cluster.DeepCopy()
 		cluster.Spec.ClientID, err = randomtoken.Generate()
 		if err != nil {
@@ -176,6 +178,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
+	logrus.Debugf("ClusterStatusHandler cluster '%s/%s' changed, setting up agent", cluster.Namespace, cluster.Name)
 	var (
 		cfg          = config.Get()
 		apiServerURL = string(secret.Data["apiServerURL"])
@@ -197,7 +200,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	restConfig.Timeout = 15 * time.Second
+	restConfig.Timeout = durations.RestConfigTimeout
 
 	kc, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
@@ -235,7 +238,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				TTL: &metav1.Duration{Duration: ImportTokenTTL},
 			},
 		})
-		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, 2*time.Second)
+		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
 		return status, nil
 	}
 

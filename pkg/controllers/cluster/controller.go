@@ -4,12 +4,12 @@ package cluster
 import (
 	"context"
 	"sort"
-	"time"
 
 	"github.com/sirupsen/logrus"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 
@@ -72,6 +72,7 @@ func Register(ctx context.Context,
 
 func (h *handler) ensureNSDeleted(key string, obj *fleet.Cluster) (*fleet.Cluster, error) {
 	if obj == nil {
+		logrus.Debugf("Cluster %s deleted, enqueue cluster namespace deletion", key)
 		h.namespaces.Enqueue(clusterToNamespace(kv.Split(key, "/")))
 	}
 	return obj, nil
@@ -93,6 +94,7 @@ func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relate
 		if clusterNS == "" || clusterName == "" {
 			return nil, nil
 		}
+		logrus.Debugf("Enqueueing cluster %s/%s for bundledeployment %s/%s", clusterNS, clusterName, namespace, obj.(*fleet.BundleDeployment).Name)
 		return []relatedresource.Key{
 			{
 				Namespace: clusterNS,
@@ -112,6 +114,7 @@ func clusterToNamespace(clusterNamespace, clusterName string) string {
 }
 
 func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
+	logrus.Debugf("OnClusterChanged for cluster status %s, checking cluster registration, updating status from bundledeployments, gitrepos", cluster.Name)
 	if cluster.DeletionTimestamp != nil {
 		clusterRegistrations, err := h.clusterRegistrations.List(cluster.Namespace, metav1.ListOptions{})
 		if err != nil {
@@ -176,12 +179,13 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 	}
 
 	if allReady && status.ResourceCounts.Ready != status.ResourceCounts.DesiredReady {
-		logrus.Debugf("Cluster %s/%s is not ready because not all gitrepos are ready: %d/%d", cluster.Namespace, cluster.Name, status.ResourceCounts.Ready, status.ResourceCounts.DesiredReady)
+		logrus.Debugf("Cluster %s/%s is not ready because not all gitrepos are ready: %d/%d, enqueue cluster again",
+			cluster.Namespace, cluster.Name, status.ResourceCounts.Ready, status.ResourceCounts.DesiredReady)
 
 		// Counts from gitrepo are out of sync with bundleDeployment state
 		// just retry in 15 seconds as there no great way to trigger an event that
 		// doesn't cause a loop
-		h.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, 15*time.Second)
+		h.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.ClusterEnqueueDelay)
 	}
 
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)
