@@ -239,8 +239,9 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 
 	cacheFactory := cache.NewSharedCachedFactory(clientFactory, nil)
 	return controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{
-		DefaultRateLimiter: rateLimit,
-		DefaultWorkers:     50,
+		DefaultRateLimiter:     rateLimit,
+		DefaultWorkers:         50,
+		SyncOnlyChangedObjects: true,
 	}), nil
 }
 
