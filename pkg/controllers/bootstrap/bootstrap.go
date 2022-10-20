@@ -5,14 +5,15 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/rancher/fleet/modules/cli/agentmanifest"
+	"github.com/sirupsen/logrus"
+
+	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
 	secretutil "github.com/rancher/fleet/pkg/secret"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,6 +60,8 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) OnConfig(config *config.Config) error {
+	logrus.Debugf("bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
+
 	var objs []runtime.Object
 
 	if config.Bootstrap.Namespace == "" || config.Bootstrap.Namespace == "-" {
@@ -124,7 +127,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 func getHost(rawConfig clientcmdapi.Config) (string, error) {
 	icc, err := rest.InClusterConfig()
 	if err != nil {
-		return agentmanifest.GetHostFromConfig(rawConfig)
+		return agent.GetHostFromConfig(rawConfig)
 	}
 	return icc.Host, nil
 }
@@ -132,7 +135,7 @@ func getHost(rawConfig clientcmdapi.Config) (string, error) {
 func getCA(rawConfig clientcmdapi.Config) ([]byte, error) {
 	icc, err := rest.InClusterConfig()
 	if err != nil {
-		return agentmanifest.GetCAFromConfig(rawConfig)
+		return agent.GetCAFromConfig(rawConfig)
 	}
 	return os.ReadFile(icc.CAFile)
 }

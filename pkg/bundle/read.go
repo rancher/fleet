@@ -13,7 +13,9 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundleyaml"
+
 	name1 "github.com/rancher/wrangler/pkg/name"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
@@ -29,13 +31,15 @@ type Options struct {
 	Auth            Auth
 }
 
+// Open reads the content, from stdin, or basedir, or a file in basedir. It
+// returns a bundle with the given name
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
 	if baseDir == "" {
 		baseDir = "."
 	}
 
 	if file == "-" {
-		return Read(ctx, name, baseDir, os.Stdin, opts)
+		return mayCompress(ctx, name, baseDir, os.Stdin, opts)
 	}
 
 	var (
@@ -61,7 +65,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 		in = f
 	}
 
-	return Read(ctx, name, baseDir, in, opts)
+	return mayCompress(ctx, name, baseDir, in, opts)
 }
 
 // Try accessing the documented, primary fleet.yaml extension first. If that returns an "IsNotExist" error, then we
@@ -85,7 +89,7 @@ func setupIOReader(baseDir string) (*os.File, error) {
 	return nil, nil
 }
 
-func Read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
+func mayCompress(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
 	if opts == nil {
 		opts = &Options{}
 	}

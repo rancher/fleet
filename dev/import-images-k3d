@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -euxo pipefail
+
+upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
+downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+
+k3d image import rancher/fleet:dev rancher/fleet-agent:dev -m direct -c "${upstream_ctx#k3d-}"
+
+if [ "$upstream_ctx" != "$downstream_ctx" ]; then
+  k3d image import rancher/fleet-agent:dev -m direct -c "${downstream_ctx#k3d-}"
+else
+  echo "not importing agent to any downstream clusters. Set FLEET_E2E_CLUSTER_DOWNSTREAM"
+fi

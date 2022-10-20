@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/google/go-containerregistry/pkg/name"
+
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kube-openapi/pkg/validation/spec"

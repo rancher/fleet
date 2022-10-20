@@ -1,3 +1,4 @@
+// Package target provides a functions to match bundles and clusters and to list the bundledeployments for that match. (fleetcontroller)
 package target
 
 import (
@@ -7,17 +8,20 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
 	"github.com/rancher/fleet/pkg/summary"
+
 	"github.com/rancher/wrangler/pkg/data"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
-	"github.com/sirupsen/logrus"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -66,7 +70,7 @@ func (m *Manager) BundleFromDeployment(bd *fleet.BundleDeployment) (string, stri
 		bd.Labels["fleet.cattle.io/bundle-name"]
 }
 
-func ClusterGroupsToLabelMap(cgs []*fleet.ClusterGroup) map[string]map[string]string {
+func clusterGroupsToLabelMap(cgs []*fleet.ClusterGroup) map[string]map[string]string {
 	result := map[string]map[string]string{}
 	for _, cg := range cgs {
 		result[cg.Name] = cg.Labels
@@ -145,7 +149,7 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, b
 			return nil, nil, err
 		}
 
-		match := bundle.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
+		match := bundle.Match(cluster.Name, clusterGroupsToLabelMap(cgs), cluster.Labels)
 		if match != nil {
 			bundlesToRefresh = append(bundlesToRefresh, app)
 		} else {
@@ -157,7 +161,7 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, b
 }
 
 func (m *Manager) GetBundleDeploymentsForBundleInCluster(app *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(DeploymentLabelsForSelector(app)))
+	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(deploymentLabelsForSelector(app)))
 	if err != nil {
 		return nil, err
 	}
@@ -171,6 +175,9 @@ func (m *Manager) GetBundleDeploymentsForBundleInCluster(app *fleet.Bundle, clus
 	return result, nil
 }
 
+// getNamespacesForBundle returns the namespaces that the bundle should be
+// deployed to. Which is the bundles namespace and every namespace from the
+// bundle's namespace mappings.
 func (m *Manager) getNamespacesForBundle(fleetBundle *fleet.Bundle) ([]string, error) {
 	mappings, err := m.bundleNamespaceMappingCache.List(fleetBundle.Namespace, labels.Everything())
 	if err != nil {
@@ -197,6 +204,7 @@ func (m *Manager) getNamespacesForBundle(fleetBundle *fleet.Bundle) ([]string, e
 	return nses.List(), nil
 }
 
+// Targets returns all targets for a bundle, so we can create bundledeployments for each
 func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error) {
 	bundle, err := bundle.New(fleetBundle)
 	if err != nil {
@@ -229,7 +237,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 				return nil, err
 			}
 
-			match := bundle.Match(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			match := bundle.Match(cluster.Name, clusterGroupsToLabelMap(clusterGroups), cluster.Labels)
 			if match == nil {
 				continue
 			}
@@ -309,7 +317,7 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 }
 
 func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(DeploymentLabelsForSelector(app)))
+	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(deploymentLabelsForSelector(app)))
 	if err != nil {
 		return err
 	}
@@ -326,20 +334,20 @@ func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error 
 	return nil
 }
 
-func DeploymentLabelsForNewBundle(app *fleet.Bundle) map[string]string {
+func deploymentLabelsForNewBundle(app *fleet.Bundle) map[string]string {
 	labels := yaml.CleanAnnotationsForExport(app.Labels)
 	for k, v := range app.Labels {
 		if strings.HasPrefix(k, "fleet.cattle.io/") {
 			labels[k] = v
 		}
 	}
-	for k, v := range DeploymentLabelsForSelector(app) {
+	for k, v := range deploymentLabelsForSelector(app) {
 		labels[k] = v
 	}
 	return labels
 }
 
-func DeploymentLabelsForSelector(app *fleet.Bundle) map[string]string {
+func deploymentLabelsForSelector(app *fleet.Bundle) map[string]string {
 	return map[string]string{
 		"fleet.cattle.io/bundle-name":      app.Name,
 		"fleet.cattle.io/bundle-namespace": app.Namespace,
@@ -363,7 +371,7 @@ func (t *Target) IsPaused() bool {
 
 func (t *Target) AssignNewDeployment() {
 	labels := map[string]string{}
-	for k, v := range DeploymentLabelsForNewBundle(t.Bundle) {
+	for k, v := range deploymentLabelsForNewBundle(t.Bundle) {
 		labels[k] = v
 	}
 	labels[fleet.ManagedLabel] = "true"
@@ -387,7 +395,7 @@ func getRollout(targets []*Target) *fleet.RolloutStrategy {
 	return rollout
 }
 
-func Limit(count int, val ...*intstr.IntOrString) (int, error) {
+func limit(count int, val ...*intstr.IntOrString) (int, error) {
 	if count == 0 {
 		return 1, nil
 	}
@@ -437,12 +445,12 @@ func Limit(count int, val ...*intstr.IntOrString) (int, error) {
 
 func MaxUnavailable(targets []*Target) (int, error) {
 	rollout := getRollout(targets)
-	return Limit(len(targets), rollout.MaxUnavailable)
+	return limit(len(targets), rollout.MaxUnavailable)
 }
 
 func MaxUnavailablePartitions(partitions []Partition, targets []*Target) (int, error) {
 	rollout := getRollout(targets)
-	return Limit(len(partitions), rollout.MaxUnavailablePartitions, &defMaxUnavailablePartitions)
+	return limit(len(partitions), rollout.MaxUnavailablePartitions, &defMaxUnavailablePartitions)
 }
 
 func IsPartitionUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
@@ -450,7 +458,7 @@ func IsPartitionUnavailable(status *fleet.PartitionStatus, targets []*Target) bo
 	// For a partition a target must be available and update to date.
 	status.Unavailable = 0
 	for _, target := range targets {
-		if !UpToDate(target) || IsUnavailable(target.Deployment) {
+		if !upToDate(target) || IsUnavailable(target.Deployment) {
 			status.Unavailable++
 		}
 	}
@@ -458,7 +466,7 @@ func IsPartitionUnavailable(status *fleet.PartitionStatus, targets []*Target) bo
 	return status.Unavailable > status.MaxUnavailable
 }
 
-func UpToDate(target *Target) bool {
+func upToDate(target *Target) bool {
 	if target.Deployment == nil ||
 		target.Deployment.Spec.StagedDeploymentID != target.DeploymentID ||
 		target.Deployment.Spec.DeploymentID != target.DeploymentID ||
@@ -489,21 +497,21 @@ func IsUnavailable(target *fleet.BundleDeployment) bool {
 		!target.Status.Ready
 }
 
-func (t *Target) Modified() []fleet.ModifiedStatus {
+func (t *Target) modified() []fleet.ModifiedStatus {
 	if t.Deployment == nil {
 		return nil
 	}
 	return t.Deployment.Status.ModifiedStatus
 }
 
-func (t *Target) NonReady() []fleet.NonReadyStatus {
+func (t *Target) nonReady() []fleet.NonReadyStatus {
 	if t.Deployment == nil {
 		return nil
 	}
 	return t.Deployment.Status.NonReadyStatus
 }
 
-func (t *Target) State() fleet.BundleState {
+func (t *Target) state() fleet.BundleState {
 	switch {
 	case t.Deployment == nil:
 		return fleet.Pending
@@ -512,7 +520,7 @@ func (t *Target) State() fleet.BundleState {
 	}
 }
 
-func (t *Target) Message() string {
+func (t *Target) message() string {
 	return summary.MessageFromDeployment(t.Deployment)
 }
 
@@ -520,7 +528,7 @@ func Summary(targets []*Target) fleet.BundleSummary {
 	var bundleSummary fleet.BundleSummary
 	for _, currentTarget := range targets {
 		cluster := currentTarget.Cluster.Namespace + "/" + currentTarget.Cluster.Name
-		summary.IncrementState(&bundleSummary, cluster, currentTarget.State(), currentTarget.Message(), currentTarget.Modified(), currentTarget.NonReady())
+		summary.IncrementState(&bundleSummary, cluster, currentTarget.state(), currentTarget.message(), currentTarget.modified(), currentTarget.nonReady())
 		bundleSummary.DesiredReady++
 	}
 	return bundleSummary

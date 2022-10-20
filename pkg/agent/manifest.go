@@ -1,11 +1,15 @@
 package agent
 
 import (
+	"path"
 	"strconv"
+	"strings"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
-	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -21,9 +25,22 @@ const (
 	DefaultName = "fleet-agent"
 )
 
-func Manifest(namespace, agentScope, image, pullPolicy, generation, checkInInterval string, agentEnvVars []corev1.EnvVar) []runtime.Object {
-	if image == "" {
-		image = config.DefaultAgentImage
+type ManifestOptions struct {
+	AgentEnvVars         []corev1.EnvVar
+	AgentImage           string
+	AgentImagePullPolicy string
+	CheckinInterval      string
+	Generation           string
+	PrivateRepoURL       string
+}
+
+// Manifest builds and returns a deployment manifest for the fleet-agent with a
+// cluster role, two service accounts and a network policy
+//
+// This is called by both, import and manageagent.
+func Manifest(namespace string, agentScope string, opts ManifestOptions) []runtime.Object {
+	if opts.AgentImage == "" {
+		opts.AgentImage = config.DefaultAgentImage
 	}
 
 	sa := basic.ServiceAccount(namespace, DefaultName)
@@ -39,7 +56,13 @@ func Manifest(namespace, agentScope, image, pullPolicy, generation, checkInInter
 		},
 	)
 
-	dep := basic.Deployment(namespace, DefaultName, image, pullPolicy, DefaultName, false)
+	// PrivateRepoURL = registry.yourdomain.com:5000
+	// DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
+	image := resolve(opts.PrivateRepoURL, opts.AgentImage)
+
+	// if debug is enabled in controller, enable in agent too
+	debug := logrus.IsLevelEnabled(logrus.DebugLevel)
+	dep := basic.Deployment(namespace, DefaultName, image, opts.AgentImagePullPolicy, DefaultName, false, debug)
 	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
 		corev1.EnvVar{
 			Name:  "AGENT_SCOPE",
@@ -47,17 +70,16 @@ func Manifest(namespace, agentScope, image, pullPolicy, generation, checkInInter
 		},
 		corev1.EnvVar{
 			Name:  "CHECKIN_INTERVAL",
-			Value: checkInInterval,
+			Value: opts.CheckinInterval,
 		},
 		corev1.EnvVar{
 			Name:  "GENERATION",
-			Value: generation,
+			Value: opts.Generation,
 		})
-	if agentEnvVars != nil {
-		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, agentEnvVars...)
+	if opts.AgentEnvVars != nil {
+		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, opts.AgentEnvVars...)
 	}
-	// if debug level logging is enabled in controller, enable in agent too
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+	if debug {
 		dep.Spec.Template.Spec.Containers[0].Command = []string{
 			"fleetagent",
 			"--debug",
@@ -109,4 +131,12 @@ func Manifest(namespace, agentScope, image, pullPolicy, generation, checkInInter
 	objs = append(objs, sa, defaultSa, dep, networkPolicy)
 
 	return objs
+}
+
+func resolve(reg, image string) string {
+	if reg != "" && !strings.HasPrefix(image, reg) {
+		return path.Join(reg, image)
+	}
+
+	return image
 }

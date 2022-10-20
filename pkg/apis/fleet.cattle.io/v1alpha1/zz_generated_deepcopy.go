@@ -1342,6 +1342,11 @@ func (in *GitRepoRestriction) DeepCopyInto(out *GitRepoRestriction) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.AllowedTargetNamespaces != nil {
+		in, out := &in.AllowedTargetNamespaces, &out.AllowedTargetNamespaces
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

@@ -1,8 +1,8 @@
 name: CI AKS
 
 on:
-  # schedule:
-  #   - cron:  '0 0 * * *'
+  schedule:
+    - cron:  '5 10 * * *'
   workflow_dispatch:
     inputs:
       ref:
@@ -11,10 +11,6 @@ on:
         default: "master"
       keep_cluster:
         description: "Keep the cluster afterwards? (empty/yes)"
-        required: false
-        default: ""
-      azure_credentials:
-        description: "AZURE_CREDENTIALS"
         required: false
         default: ""
 
@@ -55,7 +51,7 @@ jobs:
         name: Login to Azure
         uses: azure/login@v1
         with:
-          creds: ${{ github.events.inputs.azure_credentials || secrets.AZURE_CREDENTIALS }}
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
       -
         name: Create AKS cluster
         id: create-cluster
@@ -141,12 +137,15 @@ jobs:
           export KUBECONFIG="$GITHUB_WORKSPACE/kubeconfig-fleet-ci"
           ginkgo e2e/single-cluster
       -
-        name: Fleet Gitrepo Tests
+        name: Fleet Tests Requiring Github Secrets
+        # These tests can't run for PRs, because PRs don't have access to the secrets
         env:
           FLEET_E2E_NS: fleet-local
           GIT_REPO_URL: "git@github.com:fleetrepoci/testaks.git"
           GIT_REPO_HOST: "github.com"
           GIT_REPO_USER: "git"
+          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
+          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
         run: |
           export KUBECONFIG="$GITHUB_WORKSPACE/kubeconfig-fleet-ci"
           export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
@@ -154,7 +153,7 @@ jobs:
           echo "${{ secrets.CI_AKS_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_AKS_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo e2e/gitrepo
+          ginkgo e2e/require-secrets
       -
         name: Delete AKS cluster
         # We always tear down the cluster, to avoid costs. Except when running

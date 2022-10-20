@@ -1,3 +1,6 @@
+// Package git implements a controller that watches for GitRepo objects. (fleetcontrollers)
+//
+// It manages the lifecycle of GitJob resources for GitRepos. It cleans up orphaned bundles and image scans. Also updates the GitRepo and bundle status.
 package git
 
 import (
@@ -8,12 +11,15 @@ import (
 	"sort"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
 	"github.com/rancher/fleet/pkg/display"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
+
 	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
@@ -23,6 +29,7 @@ import (
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	"github.com/rancher/wrangler/pkg/yaml"
+
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -57,11 +64,13 @@ func Register(ctx context.Context,
 
 	gitRepos.OnChange(ctx, "gitjob-purge", h.DeleteOnChange)
 	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "Accepted", "gitjobs", h.OnChange, nil)
+	// enqueue gitrepo when gitjob changes
 	relatedresource.Watch(ctx, "gitjobs",
 		relatedresource.OwnerResolver(true, fleet.SchemeGroupVersion.String(), "GitRepo"), gitRepos, gitJobs)
 	relatedresource.Watch(ctx, "gitjobs", resolveGitRepo, gitRepos, bundles)
 }
 
+// resolveGitRepo enqueues a GitRepo event for a bundle change
 func resolveGitRepo(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if bundle, ok := obj.(*fleet.Bundle); ok {
 		repo := bundle.Labels[fleet.RepoLabel]
@@ -140,6 +149,18 @@ func (h *handler) authorizeAndAssignDefaults(gitrepo *fleet.GitRepo) (*fleet.Git
 	restriction := aggregate(restrictions)
 	gitrepo = gitrepo.DeepCopy()
 
+	if len(restriction.AllowedTargetNamespaces) > 0 && gitrepo.Spec.TargetNamespace == "" {
+		return nil, fmt.Errorf("empty targetNamespace denied, because allowedTargetNamespaces restriction is present")
+	}
+
+	gitrepo.Spec.TargetNamespace, err = isAllowed(gitrepo.Spec.TargetNamespace,
+		"",
+		restriction.AllowedTargetNamespaces,
+		false)
+	if err != nil {
+		return nil, fmt.Errorf("disallowed targetNamespace %s: %w", gitrepo.Spec.TargetNamespace, err)
+	}
+
 	gitrepo.Spec.ServiceAccount, err = isAllowed(gitrepo.Spec.ServiceAccount,
 		restriction.DefaultServiceAccount,
 		restriction.AllowedServiceAccounts,
@@ -206,6 +227,7 @@ func aggregate(restrictions []*fleet.GitRepoRestriction) (result fleet.GitRepoRe
 		result.AllowedServiceAccounts = append(result.AllowedServiceAccounts, restriction.AllowedServiceAccounts...)
 		result.AllowedClientSecretNames = append(result.AllowedClientSecretNames, restriction.AllowedClientSecretNames...)
 		result.AllowedRepoPatterns = append(result.AllowedRepoPatterns, restriction.AllowedRepoPatterns...)
+		result.AllowedTargetNamespaces = append(result.AllowedTargetNamespaces, restriction.AllowedTargetNamespaces...)
 	}
 	return
 }
@@ -214,6 +236,8 @@ func (h *handler) DeleteOnChange(key string, gitrepo *fleet.GitRepo) (*fleet.Git
 	if gitrepo != nil {
 		return gitrepo, nil
 	}
+
+	logrus.Debugf("GitRepo '%s' deleted, deleting bundle, image scane", key)
 
 	ns, name := kv.Split(key, "/")
 	bundles, err := h.bundleCache.List(ns, labels.SelectorFromSet(labels.Set{
@@ -264,7 +288,18 @@ func mergeConditions(existing, next []genericcondition.GenericCondition) []gener
 	return result
 }
 
+func accpetedLastUpdate(conds []genericcondition.GenericCondition) string {
+	for _, cond := range conds {
+		if cond.Type == "Accepted" {
+			return cond.LastUpdateTime
+		}
+	}
+
+	return ""
+}
+
 func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
+	logrus.Debugf("OnChange GitRepo %s/%s for commit %s last accepted at %s", gitrepo.Namespace, gitrepo.Name, gitrepo.Status.Commit, accpetedLastUpdate(gitrepo.Status.Conditions))
 	status.ObservedGeneration = gitrepo.Generation
 
 	if gitrepo.Spec.Repo == "" {
@@ -583,14 +618,25 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
 		"apply",
+	}
+
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+		args = append(args, "--debug", "--debug-level", "9")
+	}
+
+	bundleLabels := labels.Merge(gitrepo.Labels, map[string]string{
+		fleet.RepoLabel: gitrepo.Name,
+	})
+
+	args = append(args,
 		"--targets-file=/run/config/targets.yaml",
-		"--label=" + fleet.RepoLabel + "=" + gitrepo.Name,
+		"--label="+bundleLabels.String(),
 		"--namespace", gitrepo.Namespace,
 		"--service-account", gitrepo.Spec.ServiceAccount,
 		fmt.Sprintf("--sync-generation=%d", gitrepo.Spec.ForceSyncGeneration),
 		fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
 		"--target-namespace", gitrepo.Spec.TargetNamespace,
-	}
+	)
 
 	var env []corev1.EnvVar
 	if gitrepo.Spec.HelmSecretName != "" {
@@ -622,5 +668,6 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 				},
 			})
 	}
-	return append(args, gitrepo.Name), env
+
+	return append(args, "--", gitrepo.Name), env
 }

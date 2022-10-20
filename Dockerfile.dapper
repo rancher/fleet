@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/golang:1.18-16.9
+FROM registry.suse.com/bci/golang:1.18-17.7
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
@@ -6,7 +6,7 @@ ENV ARCH $DAPPER_HOST_ARCH
 RUN zypper -n install git docker vim wget
 RUN curl -sL https://get.helm.sh/helm-v3.9.3-linux-${ARCH}.tar.gz | tar xvzf - -C /usr/local/bin --strip-components=1
 
-ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS
+ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS DEBUG
 ENV DAPPER_SOURCE /go/src/github.com/rancher/fleet/
 ENV DAPPER_OUTPUT ./bin ./dist
 ENV DAPPER_DOCKER_SOCKET true

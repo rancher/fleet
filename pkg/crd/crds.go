@@ -57,12 +57,24 @@ func Objects() (result []runtime.Object, err error) {
 func List() []crd.CRD {
 	return []crd.CRD{
 		newCRD(&fleet.Bundle{}, func(c crd.CRD) crd.CRD {
+			schema := mustSchema(fleet.Bundle{})
+			schema.Properties["spec"].Properties["helm"].Properties["releaseName"] = releaseNameValidation()
+
+			c.GVK.Kind = "Bundle"
 			return c.
+				WithSchemaFromStruct(nil).
+				WithSchema(schema).
 				WithColumn("BundleDeployments-Ready", ".status.display.readyClusters").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.BundleDeployment{}, func(c crd.CRD) crd.CRD {
+			schema := mustSchema(fleet.BundleDeployment{})
+			schema.Properties["spec"].Properties["options"].Properties["helm"].Properties["releaseName"] = releaseNameValidation()
+
+			c.GVK.Kind = "BundleDeployment"
 			return c.
+				WithSchemaFromStruct(nil).
+				WithSchema(schema).
 				WithColumn("Deployed", ".status.display.deployed").
 				WithColumn("Monitored", ".status.display.monitored").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
@@ -168,7 +180,7 @@ func newCRD(obj interface{}, customize func(crd.CRD) crd.CRD) crd.CRD {
 func metadataNameValidation() apiextv1.JSONSchemaProps {
 	prop := apiextv1.JSONSchemaProps{
 		Type:      "string",
-		Pattern:   "^[-a-z0-9]*$",
+		Pattern:   "^[-a-z0-9]+$",
 		MaxLength: &[]int64{63}[0],
 	}
 	return apiextv1.JSONSchemaProps{
@@ -176,6 +188,16 @@ func metadataNameValidation() apiextv1.JSONSchemaProps {
 		Properties: map[string]apiextv1.JSONSchemaProps{"name": prop},
 	}
 
+}
+
+// releaseNameValidation for helm release names according to helm itself
+func releaseNameValidation() apiextv1.JSONSchemaProps {
+	return apiextv1.JSONSchemaProps{
+		Type:      "string",
+		Pattern:   `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`,
+		MaxLength: &[]int64{53}[0],
+		Nullable:  true,
+	}
 }
 
 func mustSchema(obj interface{}) *apiextv1.JSONSchemaProps {

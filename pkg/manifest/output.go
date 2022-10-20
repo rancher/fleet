@@ -8,9 +8,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/rancher/fleet/pkg/content"
 	"go.mozilla.org/sops/v3"
 	"go.mozilla.org/sops/v3/decrypt"
+
+	"github.com/rancher/fleet/pkg/content"
 )
 
 func (m *Manifest) ToTarGZ() (io.Reader, error) {

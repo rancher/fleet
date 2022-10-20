@@ -6,23 +6,24 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
-	"github.com/rancher/fleet/modules/agent/pkg/deployer"
-	"github.com/rancher/fleet/modules/cli/agentmanifest"
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/fleet/modules/cli/pkg/client"
+	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/fleet/pkg/connection"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmdeployer"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/randomtoken"
 	"github.com/rancher/wrangler/pkg/yaml"
-	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -32,7 +33,7 @@ import (
 
 var (
 	ImportTokenPrefix = "import-token-"
-	ImportTokenTTL    = 12 * time.Hour
+	ImportTokenTTL    = durations.ClusterImportTokenTTL
 )
 
 type importHandler struct {
@@ -104,6 +105,8 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 	}
 
 	if cluster.Spec.ClientID == "" {
+		logrus.Debugf("Cluster '%s' changed, agent deployed, updating ClientID", cluster.Name)
+
 		cluster = cluster.DeepCopy()
 		cluster.Spec.ClientID, err = randomtoken.Generate()
 		if err != nil {
@@ -175,6 +178,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
+	logrus.Debugf("ClusterStatusHandler cluster '%s/%s' changed, setting up agent", cluster.Namespace, cluster.Name)
 	var (
 		cfg          = config.Get()
 		apiServerURL = string(secret.Data["apiServerURL"])
@@ -196,7 +200,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	restConfig.Timeout = 15 * time.Second
+	restConfig.Timeout = durations.RestConfigTimeout
 
 	kc, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
@@ -211,7 +215,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	setID := deployer.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
+	setID := helmdeployer.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
 	apply = apply.WithDynamicLookup().WithSetID(setID).WithNoDeleteGVK(fleetns.GVK())
 
 	token, err := i.tokens.Get(cluster.Namespace, ImportTokenPrefix+cluster.Name)
@@ -234,7 +238,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				TTL: &metav1.Duration{Duration: ImportTokenTTL},
 			},
 		})
-		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, 2*time.Second)
+		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
 		return status, nil
 	}
 
@@ -245,14 +249,26 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
-	err = agentmanifest.AgentManifest(i.ctx, agentNamespace, i.systemNamespace, cluster.Spec.AgentNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
-		CA:              apiServerCA,
-		Host:            apiServerURL,
-		ClientID:        cluster.Spec.ClientID,
-		AgentEnvVars:    cluster.Spec.AgentEnvVars,
-		CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
-		Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
-	})
+	err = agent.AgentWithConfig(
+		i.ctx, agentNamespace, i.systemNamespace,
+		cluster.Spec.AgentNamespace,
+		&client.Getter{Namespace: cluster.Namespace},
+		output,
+		token.Name,
+		&agent.Options{
+			CA:   apiServerCA,
+			Host: apiServerURL,
+			ConfigOptions: agent.ConfigOptions{
+				ClientID: cluster.Spec.ClientID,
+				Labels:   cluster.Labels,
+			},
+			ManifestOptions: agent.ManifestOptions{
+				AgentEnvVars:    cluster.Spec.AgentEnvVars,
+				CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
+				Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
+				PrivateRepoURL:  cluster.Spec.PrivateRepoURL,
+			},
+		})
 	if err != nil {
 		return status, err
 	}

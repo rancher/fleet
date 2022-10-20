@@ -1,3 +1,4 @@
+// Package image registers a controller for image scans. (fleetcontroller)
 package image
 
 import (
@@ -24,13 +25,17 @@ import (
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/update"
+
 	"github.com/rancher/wrangler/pkg/condition"
 	corev1controler "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kstatus"
-	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -40,7 +45,7 @@ import (
 var (
 	lock sync.Mutex
 
-	defaultInterval = time.Minute * 15
+	defaultInterval = durations.DefaultImageInterval
 )
 
 const (
@@ -169,6 +174,7 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	if gitrepo == nil || gitrepo.DeletionTimestamp != nil {
 		return status, nil
 	}
+	logrus.Debugf("onChangeGitRepo: gitrepo %s/%s changed, checking for image scans", gitrepo.Namespace, gitrepo.Name)
 
 	imagescans, err := h.imagescans.Cache().List(gitrepo.Namespace, labels.Everything())
 	if err != nil {
@@ -204,6 +210,8 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	if !shouldSync(gitrepo) {
 		return status, nil
 	}
+
+	logrus.Debugf("onChangeGitRepo: gitrepo %s/%s changed, syncing repo for image scans", gitrepo.Namespace, gitrepo.Name)
 
 	lock.Lock()
 	defer lock.Unlock()

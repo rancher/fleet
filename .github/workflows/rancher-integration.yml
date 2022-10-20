@@ -15,8 +15,8 @@ on:
         required: false
         default: "false"
   push:
+    tags: [ 'v*' ]
     paths-ignore:
-      - 'docs/**'
       - 'scripts/**'
       - '*.md'
 

@@ -1,3 +1,4 @@
+// Package bundledeployment deploys bundles, monitors them and cleans up. (fleetagent)
 package bundledeployment
 
 import (
@@ -8,13 +9,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/merr"
-	"github.com/sirupsen/logrus"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -73,7 +78,7 @@ func (h *handler) garbageCollect() {
 		select {
 		case <-h.ctx.Done():
 			return
-		case <-time.After(wait.Jitter(15*time.Minute, 1.0)):
+		case <-time.After(wait.Jitter(durations.GarbageCollect, 1.0)):
 		}
 	}
 }
@@ -155,13 +160,17 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 		return bd, h.trigger.Clear(key)
 	}
 
+	logrus.Debugf("Triggering for bundledeployment '%s'", key)
+
 	resources, err := h.deployManager.Resources(bd)
 	if err != nil {
 		return bd, err
 	}
 
 	if resources != nil {
+		logrus.Debugf("Adding OnChange for bundledeployment's '%s' resource list", key)
 		return bd, h.trigger.OnChange(key, resources.DefaultNamespace, func() {
+			// enqueue bundledeployment if any resource changes
 			h.bdController.Enqueue(bd.Namespace, bd.Name)
 		}, resources.Objects...)
 	}
@@ -208,6 +217,15 @@ func (h *handler) cleanupOldAgent(modifiedStatuses []fleet.ModifiedStatus) error
 	return merr.NewErrors(errs...)
 }
 
+// removePrivateFields removes fields from the status, which won't be marshalled to JSON.
+// They would however trigger a status update in apply
+func removePrivateFields(s1 *fleet.BundleDeploymentStatus) {
+	for id := range s1.NonReadyStatus {
+		s1.NonReadyStatus[id].Summary.Relationships = nil
+		s1.NonReadyStatus[id].Summary.Attributes = nil
+	}
+}
+
 func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
 	if bd.Spec.DeploymentID != status.AppliedDeploymentID {
 		return status, nil
@@ -226,7 +244,7 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	readyError := readyError(status)
 	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
 	if len(status.ModifiedStatus) > 0 {
-		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, 5*time.Minute)
+		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, durations.MonitorBundleDelay)
 		if shouldRedeploy(bd) {
 			logrus.Infof("Redeploying %s", bd.Name)
 			status.AppliedDeploymentID = ""
@@ -242,6 +260,8 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	if readyError != nil {
 		logrus.Errorf("bundle %s: %v", bd.Name, readyError)
 	}
+
+	removePrivateFields(&status)
 	return status, nil
 }
 

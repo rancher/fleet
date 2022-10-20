@@ -3,17 +3,17 @@ package deployer
 import (
 	"encoding/json"
 	"sort"
-	"strings"
 
 	jsonpatch "github.com/evanphx/json-patch"
+
 	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/diff"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/diffnormalize"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/resource"
 	fleetnorm "github.com/rancher/fleet/modules/agent/pkg/deployer/normalizers"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/merr"
-	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/rancher/wrangler/pkg/summary"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -142,10 +142,11 @@ func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) apply.Apply {
 	apply := m.apply
 	return apply.
 		WithIgnorePreviousApplied().
-		WithSetID(GetSetID(bd.Name, m.labelPrefix, m.labelSuffix)).
+		WithSetID(helmdeployer.GetSetID(bd.Name, m.labelPrefix, m.labelSuffix)).
 		WithDefaultNamespace(ns)
 }
 
+// MonitorBundle returns the DeploymentStatus for the given bundledeployment
 func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, error) {
 	var status DeploymentStatus
 
@@ -172,20 +173,6 @@ func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, e
 	}
 
 	return status, nil
-}
-
-func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
-	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
-	if strings.HasPrefix(bundleID, "fleet-agent") {
-		if labelSuffix == "" {
-			return "fleet-agent-bootstrap"
-		}
-		return name.SafeConcatName("fleet-agent-bootstrap", labelSuffix)
-	}
-	if labelSuffix != "" {
-		return name.SafeConcatName(labelPrefix, bundleID, labelSuffix)
-	}
-	return name.SafeConcatName(labelPrefix, bundleID)
 }
 
 func sortKey(f fleet.ModifiedStatus) string {

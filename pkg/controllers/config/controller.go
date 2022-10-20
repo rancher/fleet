@@ -1,10 +1,13 @@
+// Package config reads the initial global configuration. (fleetcontroller)
 package config
 
 import (
 	"context"
 
 	"github.com/rancher/fleet/pkg/config"
+
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+
 	v1 "k8s.io/api/core/v1"
 )
 
