@@ -59,6 +59,14 @@ Fleet clusters are tied directly to native Rancher object types accordingly:
 
 ---
 
+## Local Development Workflow: Fleet Standalone - For Running E2E Tests
+
+Development scripts are provided under `/dev` to make it easier setting up a local development Fleet standalone environment and running the E2E tests against it.These scripts are intended only for local Fleet development, not for production nor any other real world scenario.
+
+Setting up the local development environment and running the E2E tests is described in the [/dev/README.md](/dev/README.md).
+
+---
+
 ## Local Development Workflow: Fleet in Rancher
 
 All steps in this guide assume your current working directory is the root of the repository.
@@ -204,10 +212,11 @@ The following steps can help you do so:
 8. Fork [rancher/rancher](https://github.com/rancher/rancher) and change the charts URL to point to your fork
 9. Start Rancher locally (instructions: [Rancher Wiki](https://github.com/rancher/rancher/wiki/Setting-Up-Rancher-2.0-Development-Environment)) and your fork's chart should be deployed
 
-## Advanced: Standalone Fleet
+## Advanced: Standalone Fleet (Obsolete How-to)
 
-Standalone Fleet is not officially tested by Rancher QA, but we should not break standalone Fleet either.
-If you would like to test standalone Fleet, you can do the following: build and push your `fleet-agent` (`linux-amd64` image by default), install your Fleet charts, and then replace the controller deployment with your local controller build.
+Continous Integration executes most [E2E tests](/e2e/) against Fleet Standalone. For developing purposes we recommend using our [dev scripts](#local-development-workflow-fleet-standalone---for-running-e2e-tests) instead of this how-to. We keep this part only for documental reasons.
+
+Build and push your `fleet-agent` (`linux-amd64` image by default), install your Fleet charts, and then replace the controller deployment with your local controller build.
 
 ```sh
 (
