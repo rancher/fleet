@@ -41,8 +41,9 @@ const (
 )
 
 var (
-	ErrNoRelease = errors.New("failed to find release")
-	DefaultKey   = "values.yaml"
+	ErrNoRelease    = errors.New("failed to find release")
+	ErrNoResourceID = errors.New("no resource ID available")
+	DefaultKey      = "values.yaml"
 )
 
 type postRender struct {
@@ -465,6 +466,13 @@ func (h *Helm) ListDeployments() ([]DeployedBundle, error) {
 }
 
 func (h *Helm) getRelease(bundleID, resourcesID string) (*release.Release, error) {
+
+	// When a bundle is installed a resourcesID is generated. If there is no
+	// resourcesID then there isn't anything to lookup.
+	if resourcesID == "" {
+		return nil, ErrNoResourceID
+	}
+
 	hist := action.NewHistory(&h.globalCfg)
 
 	namespace, name := kv.Split(resourcesID, "/")
