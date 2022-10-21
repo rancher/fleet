@@ -3,6 +3,7 @@ package bundle
 import (
 	"context"
 	"sort"
+	"time"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -94,6 +95,7 @@ func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Clus
 		return nil, nil
 	}
 	logrus.Debugf("OnClusterChange for cluster '%s', checking which bundles to enqueue or cleanup", cluster.Name)
+	start := time.Now()
 
 	bundlesToRefresh, bundlesToCleanup, err := h.targets.BundlesForCluster(cluster)
 	if err != nil {
@@ -116,6 +118,9 @@ func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Clus
 	for _, bundle := range bundlesToRefresh {
 		h.bundles.Enqueue(bundle.Namespace, bundle.Name)
 	}
+
+	elapsed := time.Since(start)
+	logrus.Debugf("OnClusterChange for cluster '%s' took %s", cluster.Name, elapsed)
 
 	return cluster, nil
 }
@@ -161,6 +166,8 @@ func (h *handler) OnPurgeOrphanedImageScan(key string, image *fleet.ImageScan) (
 
 func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus) ([]runtime.Object, fleet.BundleStatus, error) {
 	logrus.Debugf("OnBundleChange for bundle '%s', checking targets, calculating changes, building objects", bundle.Name)
+	start := time.Now()
+
 	targets, err := h.targets.Targets(bundle)
 	if err != nil {
 		return nil, status, err
@@ -176,7 +183,13 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
-	return toRuntimeObjects(targets, bundle), status, nil
+
+	objs := toRuntimeObjects(targets, bundle)
+
+	elapsed := time.Since(start)
+	logrus.Debugf("OnBundleChange for bundle '%s' took %s", bundle.Name, elapsed)
+
+	return objs, status, nil
 }
 
 func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
