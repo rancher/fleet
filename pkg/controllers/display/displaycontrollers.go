@@ -28,17 +28,6 @@ func Register(ctx context.Context,
 	fleetcontrollers.RegisterClusterGroupStatusHandler(ctx, clustergroups, "", "clustergroup-display", h.OnClusterGroupChange)
 	fleetcontrollers.RegisterGitRepoStatusHandler(ctx, gitrepos, "", "gitrepo-display", h.OnRepoChange)
 	fleetcontrollers.RegisterBundleDeploymentStatusHandler(ctx, bundledeployments, "", "bundledeployment-display", h.OnBundleDeploymentChange)
-	fleetcontrollers.RegisterBundleStatusHandler(ctx, bundles, "", "bundle-display", h.OnBundleChange)
-}
-
-func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus) (fleet.BundleStatus, error) {
-	logrus.Debugf("OnBundleChange: bundle %s changed, updating its status.Display", bundle.Name)
-	status.Display.ReadyClusters = fmt.Sprintf("%d/%d",
-		status.Summary.Ready,
-		status.Summary.DesiredReady)
-	status.Display.State = string(summary.GetSummaryState(status.Summary))
-
-	return status, nil
 }
 
 func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
