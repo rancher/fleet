@@ -56,7 +56,7 @@ type BundleNamespaceMapping struct {
 }
 
 type BundleSpec struct {
-	BundleDeploymentOptions
+	BundleDeploymentOptions `json:""` //nolint
 
 	Paused             bool                      `json:"paused,omitempty"`
 	RolloutStrategy    *RolloutStrategy          `json:"rolloutStrategy,omitempty"`
@@ -102,12 +102,12 @@ type BundleTargetRestriction struct {
 }
 
 type BundleTarget struct {
-	BundleDeploymentOptions
-	Name                 string                `json:"name,omitempty"`
-	ClusterName          string                `json:"clusterName,omitempty"`
-	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
-	ClusterGroup         string                `json:"clusterGroup,omitempty"`
-	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
+	BundleDeploymentOptions `json:""`             //nolint
+	Name                    string                `json:"name,omitempty"`
+	ClusterName             string                `json:"clusterName,omitempty"`
+	ClusterSelector         *metav1.LabelSelector `json:"clusterSelector,omitempty"`
+	ClusterGroup            string                `json:"clusterGroup,omitempty"`
+	ClusterGroupSelector    *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 }
 
 type BundleSummary struct {
