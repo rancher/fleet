@@ -32,8 +32,8 @@ func Register(ctx context.Context,
 	fleetcontrollers.RegisterBundleStatusHandler(ctx, bundles, "", "bundle-display", h.OnBundleChange)
 }
 
-func (h *handler) OnBundleChange(_ *fleet.Bundle, status fleet.BundleStatus) (fleet.BundleStatus, error) {
-	logrus.Debugf("OnBundleChange: a bundle changed, updating its status.Display")
+func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus) (fleet.BundleStatus, error) {
+	logrus.Debugf("OnBundleChange: bundle %s changed, updating its status.Display", bundle.Name)
 	status.Display.ReadyClusters = fmt.Sprintf("%d/%d",
 		status.Summary.Ready,
 		status.Summary.DesiredReady)
