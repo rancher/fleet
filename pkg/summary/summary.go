@@ -125,6 +125,9 @@ func MessageFromDeployment(deployment *fleet.BundleDeployment) string {
 	}
 	message := MessageFromCondition("Deployed", deployment.Status.Conditions)
 	if message == "" {
+		message = MessageFromCondition("Installed", deployment.Status.Conditions)
+	}
+	if message == "" {
 		message = MessageFromCondition("Monitored", deployment.Status.Conditions)
 	}
 	return message
