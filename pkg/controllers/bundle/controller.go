@@ -3,6 +3,7 @@ package bundle
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -191,6 +192,12 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	objs := toRuntimeObjects(targets, bundle)
 
 	elapsed := time.Since(start)
+
+	status.Display.ReadyClusters = fmt.Sprintf("%d/%d",
+		status.Summary.Ready,
+		status.Summary.DesiredReady)
+	status.Display.State = string(summary.GetSummaryState(status.Summary))
+
 	logrus.Debugf("OnBundleChange for bundle '%s' took %s", bundle.Name, elapsed)
 
 	return objs, status, nil
