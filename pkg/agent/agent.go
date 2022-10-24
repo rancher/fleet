@@ -89,6 +89,7 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 
 	mo := opts.ManifestOptions
 	mo.AgentImage = cfg.AgentImage
+	mo.SystemDefaultRegistry = cfg.SystemDefaultRegistry
 	mo.AgentImagePullPolicy = cfg.AgentImagePullPolicy
 	mo.CheckinInterval = cfg.AgentCheckinInternal.Duration.String()
 
