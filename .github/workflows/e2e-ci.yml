@@ -12,7 +12,6 @@ on:
         default: "false"
   pull_request:
     paths-ignore:
-      - 'docs/**'
       - 'scripts/**'
       - '*.md'
 
@@ -93,13 +92,11 @@ jobs:
         name: E2E Tests for Examples
         env:
           FLEET_E2E_NS: fleet-local
-          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
-          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
         run: |
           ginkgo e2e/single-cluster
       -
-        name: Fleet Gitrepo Tests
-        # git repo tests can't run for PRs, because PRs don't have access to the secrets
+        name: Fleet Tests Requiring Github Secrets
+        # These tests can't run for PRs, because PRs don't have access to the secrets
         if: github.event_name != 'pull_request'
         env:
           FLEET_E2E_NS: fleet-local
@@ -107,13 +104,15 @@ jobs:
           GIT_REPO_HOST: "github.com"
           GIT_REPO_USER: "git"
           GIT_REPO_BRANCH: ${{ matrix.k3s_version }}
+          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
+          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
         run: |
           export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
           export GIT_SSH_PUBKEY="$GITHUB_WORKSPACE/id_ecdsa.pub"
           echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo e2e/gitrepo
+          ginkgo e2e/require-secrets
       -
         name: Dump Failed Environment
         if: failure()
