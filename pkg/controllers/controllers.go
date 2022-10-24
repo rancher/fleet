@@ -71,8 +71,8 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool) error {
-	appCtx, err := newContext(cfg, disableGitops)
+func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool, syncUnchangedObjects bool) error {
+	appCtx, err := newContext(cfg, disableGitops, syncUnchangedObjects)
 	if err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 	return nil
 }
 
-func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
+func controllerFactory(rest *rest.Config, syncUnchangedObjects bool) (controller.SharedControllerFactory, error) {
 	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(durations.FailureRateLimiterBase, durations.FailureRateLimiterMax)
 	workqueue.DefaultControllerRateLimiter()
 	clientFactory, err := client.NewSharedClientFactory(rest, nil)
@@ -245,18 +245,18 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 	return controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{
 		DefaultRateLimiter:     rateLimit,
 		DefaultWorkers:         50,
-		SyncOnlyChangedObjects: true,
+		SyncOnlyChangedObjects: !syncUnchangedObjects,
 	}), nil
 }
 
-func newContext(cfg clientcmd.ClientConfig, disableGitops bool) (*appContext, error) {
+func newContext(cfg clientcmd.ClientConfig, disableGitops bool, syncUnchangedObjects bool) (*appContext, error) {
 	client, err := cfg.ClientConfig()
 	if err != nil {
 		return nil, err
 	}
 	client.RateLimiter = ratelimit.None
 
-	scf, err := controllerFactory(client)
+	scf, err := controllerFactory(client, syncUnchangedObjects)
 	if err != nil {
 		return nil, err
 	}
