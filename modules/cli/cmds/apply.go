@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -41,6 +42,14 @@ type Apply struct {
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
+	if wfd := os.Getenv("WAIT_FOR_DEBUGGER"); wfd != "" {
+		// When connected with an interactive debugger, change the value of waitForDebugger to false
+		waitForDebugger := true
+		for waitForDebugger {
+			time.Sleep(1 * time.Second)
+		}
+	}
+
 	labels := a.Label
 	if a.Commit == "" {
 		a.Commit = currentCommit()

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"time"
@@ -443,10 +444,8 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 							CreationTimestamp: metav1.Time{Time: time.Unix(0, 0)},
 						},
 						Spec: corev1.PodSpec{
-							Volumes: volumes,
-							SecurityContext: &corev1.PodSecurityContext{
-								RunAsUser: &[]int64{1000}[0],
-							},
+							Volumes:            volumes,
+							SecurityContext:    securityContext(),
 							ServiceAccountName: saName,
 							RestartPolicy:      corev1.RestartPolicyNever,
 							Containers: []corev1.Container{
@@ -672,5 +671,20 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 			})
 	}
 
+	env = append(env, corev1.EnvVar{
+		Name:  "WAIT_FOR_DEBUGGER",
+		Value: os.Getenv("WAIT_FOR_DEBUGGER"),
+	})
+
 	return append(args, "--", gitrepo.Name), env
+}
+
+func securityContext() *corev1.PodSecurityContext {
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+		// avoid security restrictions when debugging, allows debuggers to be attached
+		return nil
+	}
+	return &corev1.PodSecurityContext{
+		RunAsUser: &[]int64{1000}[0],
+	}
 }
