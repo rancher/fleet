@@ -178,12 +178,13 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 	objs := agent.Manifest(
 		agentNamespace, cluster.Spec.AgentNamespace,
 		agent.ManifestOptions{
-			AgentEnvVars:         cluster.Spec.AgentEnvVars,
-			AgentImage:           cfg.AgentImage,
-			AgentImagePullPolicy: cfg.AgentImagePullPolicy,
-			CheckinInterval:      cfg.AgentCheckinInternal.Duration.String(),
-			Generation:           "bundle",
-			PrivateRepoURL:       cluster.Spec.PrivateRepoURL,
+			AgentEnvVars:          cluster.Spec.AgentEnvVars,
+			AgentImage:            cfg.AgentImage,
+			AgentImagePullPolicy:  cfg.AgentImagePullPolicy,
+			CheckinInterval:       cfg.AgentCheckinInternal.Duration.String(),
+			Generation:            "bundle",
+			PrivateRepoURL:        cluster.Spec.PrivateRepoURL,
+			SystemDefaultRegistry: cfg.SystemDefaultRegistry,
 		},
 	)
 	agentYAML, err := yaml.Export(objs...)
