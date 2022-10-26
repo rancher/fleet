@@ -264,7 +264,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			},
 			ManifestOptions: agent.ManifestOptions{
 				AgentEnvVars:    cluster.Spec.AgentEnvVars,
-				CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
+				CheckinInterval: cfg.AgentCheckinInterval.Duration.String(),
 				Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
 				PrivateRepoURL:  cluster.Spec.PrivateRepoURL,
 			},
