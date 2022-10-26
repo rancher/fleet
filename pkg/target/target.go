@@ -101,8 +101,20 @@ func (m *Manager) clusterGroupsForCluster(cluster *fleet.Cluster) (result []*fle
 func (m *Manager) getBundlesInScopeForCluster(cluster *fleet.Cluster) ([]*fleet.Bundle, error) {
 	bundleSet := newBundleSet()
 
-	if err := bundleSet.insert(m.bundleCache.List(cluster.Namespace, labels.Everything())); err != nil {
+	// all bundles in the cluster namespace are in scope
+	// except for agent bundles of other clusters
+	bundles, err := m.bundleCache.List(cluster.Namespace, labels.Everything())
+	if err != nil {
 		return nil, err
+	}
+	for _, b := range bundles {
+		if b.Annotations["objectset.rio.cattle.io/id"] == "fleet-manage-agent" {
+			if b.Name == "fleet-agent-"+cluster.Name {
+				bundleSet.insertSingle(b)
+			}
+		} else {
+			bundleSet.insertSingle(b)
+		}
 	}
 
 	mappings, err := m.bundleNamespaceMappingCache.List("", labels.Everything())
