@@ -181,7 +181,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			AgentEnvVars:          cluster.Spec.AgentEnvVars,
 			AgentImage:            cfg.AgentImage,
 			AgentImagePullPolicy:  cfg.AgentImagePullPolicy,
-			CheckinInterval:       cfg.AgentCheckinInternal.Duration.String(),
+			CheckinInterval:       cfg.AgentCheckinInterval.Duration.String(),
 			Generation:            "bundle",
 			PrivateRepoURL:        cluster.Spec.PrivateRepoURL,
 			SystemDefaultRegistry: cfg.SystemDefaultRegistry,
