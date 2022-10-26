@@ -110,9 +110,13 @@ func (b *bundleSet) insert(bundles []*fleet.Bundle, err error) error {
 		return err
 	}
 	for _, bundle := range bundles {
-		key := bundle.Namespace + "/" + bundle.Name
-		b.bundleMap[key] = bundle
-		b.bundleKeys.Insert(key)
+		b.insertSingle(bundle)
 	}
 	return nil
+}
+
+func (b *bundleSet) insertSingle(bundle *fleet.Bundle) {
+	key := bundle.Namespace + "/" + bundle.Name
+	b.bundleMap[key] = bundle
+	b.bundleKeys.Insert(key)
 }
