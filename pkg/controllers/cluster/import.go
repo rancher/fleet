@@ -253,9 +253,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		Host:            apiServerURL,
 		ClientID:        cluster.Spec.ClientID,
 		AgentEnvVars:    cluster.Spec.AgentEnvVars,
-		CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
+		CheckinInterval: cfg.AgentCheckinInterval.Duration.String(),
 		Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
 	})
+
 	if err != nil {
 		return status, err
 	}
