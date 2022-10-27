@@ -11,9 +11,6 @@ on:
         required: false
         default: "false"
   pull_request:
-    paths-ignore:
-      - 'scripts/**'
-      - '*.md'
 
 env:
   GOARCH: amd64
