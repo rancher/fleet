@@ -275,6 +275,18 @@ To learn more, please refer to the [Istio documentation for Rancher](https://ran
 This section contains information on releasing Fleet.
 **Please note: it may be sparse since it is only intended for maintainers.**
 
+---
+
+### Cherry Picking Bug Fixes To Releases
+
+With releases happening on release branches, there are times where a bug fix needs to be handled on the `master` branch and pulled into a release that happens through a release branch.
+
+All bug fixes should first happen on the `master` branch.
+
+If a bug fix needs to be brought into a release, such as during the release candidate phase, it should be cherry picked from the `master` branch to the release branch via a pull request. The pull request should be prefixed with the major and minor version for the release (e.g., `[0.4]`) to illustrate it's for a release branch.
+
+---
+
 ### Pre-Release
 
 1. Ensure that all modules are at their desired versions in `go.mod`
@@ -297,16 +309,6 @@ This section contains information on releasing Fleet.
 
 1. Pull Fleet images from DockerHub to ensure manifests work as expected
 1. Open a PR in [rancher/charts](https://github.com/rancher/charts) that ensures every Fleet-related chart is using the new RC (branches and number of PRs is dependent on Rancher)
-
----
-
-## Cherry Picking Bug Fixes To Releases
-
-With releases happening on release branches, there are times where a bug fix needs to be handled on the `master` branch and pulled into a release that happens through a release branch.
-
-All bug fixes should first happen on the `master` branch.
-
-If a bug fix needs to be brought into a release, such as during the release candidate phase, it should be cherry picked from the `master` branch to the release branch via a pull request. The pull request should be prefixed with the major and minor version for the release (e.g., `[0.4]`) to illustrate it's for a release branch.
 
 ---
 
