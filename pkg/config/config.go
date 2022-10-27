@@ -37,6 +37,7 @@ var (
 type Config struct {
 	AgentImage                      string            `json:"agentImage,omitempty"`
 	AgentImagePullPolicy            string            `json:"agentImagePullPolicy,omitempty"`
+	SystemDefaultRegistry           string            `json:"systemDefaultRegistry,omitempty"`
 	AgentCheckinInternal            metav1.Duration   `json:"agentCheckinInternal,omitempty"`
 	ManageAgent                     *bool             `json:"manageAgent,omitempty"`
 	Labels                          map[string]string `json:"labels,omitempty"`

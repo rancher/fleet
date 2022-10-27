@@ -26,12 +26,13 @@ const (
 )
 
 type ManifestOptions struct {
-	AgentEnvVars         []corev1.EnvVar
-	AgentImage           string
-	AgentImagePullPolicy string
-	CheckinInterval      string
-	Generation           string
-	PrivateRepoURL       string
+	AgentEnvVars          []corev1.EnvVar
+	AgentImage            string
+	AgentImagePullPolicy  string
+	CheckinInterval       string
+	Generation            string
+	PrivateRepoURL        string
+	SystemDefaultRegistry string
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
@@ -58,7 +59,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 
 	// PrivateRepoURL = registry.yourdomain.com:5000
 	// DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
-	image := resolve(opts.PrivateRepoURL, opts.AgentImage)
+	image := resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
 
 	// if debug is enabled in controller, enable in agent too
 	debug := logrus.IsLevelEnabled(logrus.DebugLevel)
@@ -133,9 +134,12 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	return objs
 }
 
-func resolve(reg, image string) string {
-	if reg != "" && !strings.HasPrefix(image, reg) {
-		return path.Join(reg, image)
+func resolve(global, prefix, image string) string {
+	if global != "" && prefix != "" {
+		image = strings.TrimPrefix(image, global)
+	}
+	if prefix != "" && !strings.HasPrefix(image, prefix) {
+		return path.Join(prefix, image)
 	}
 
 	return image
