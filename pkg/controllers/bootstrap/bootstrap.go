@@ -66,7 +66,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 		return nil
 	}
 
-	secret, err := h.getSecret(config.Bootstrap.Namespace, h.cfg)
+	secret, err := h.buildSecret(config.Bootstrap.Namespace, h.cfg)
 	if err != nil {
 		return err
 	}
@@ -150,6 +150,7 @@ func (h *handler) getToken() (string, error) {
 		return "", err
 	}
 
+	// kubernetes 1.24 doesn't populate sa.Secrets
 	if len(sa.Secrets) == 0 {
 		logrus.Infof("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
 		secret, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
@@ -167,7 +168,7 @@ func (h *handler) getToken() (string, error) {
 	return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
 }
 
-func (h *handler) getSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.Secret, error) {
+func (h *handler) buildSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.Secret, error) {
 	rawConfig, err := cfg.RawConfig()
 	if err != nil {
 		return nil, err

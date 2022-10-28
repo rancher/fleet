@@ -115,6 +115,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 	if token.Spec.TTL != nil {
 		status.Expires = &metav1.Time{Time: token.CreationTimestamp.Add(token.Spec.TTL.Duration)}
 	}
+
+	// e.g.: import-token-local in system-registration-namespace
 	return append([]runtime.Object{
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
