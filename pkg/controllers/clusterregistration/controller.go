@@ -225,6 +225,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		request.Namespace, request.Name, cluster.Namespace, cluster.Name, status.Granted)
 
 	status.ClusterName = cluster.Name
+	// e.g. request- in cluster-registration-namespace
 	return append(objects,
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{

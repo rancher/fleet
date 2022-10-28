@@ -2,13 +2,9 @@
 package basic
 
 import (
-	"github.com/rancher/wrangler/pkg/name"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func ConfigMap(namespace, name string, kvs ...string) *corev1.ConfigMap {
@@ -123,61 +119,3 @@ func ServiceAccount(namespace, name string) *corev1.ServiceAccount {
 	}
 }
 
-func Role(serviceAccount *corev1.ServiceAccount, namespace string, rules ...rbacv1.PolicyRule) []runtime.Object {
-	return []runtime.Object{
-		&rbacv1.Role{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name.SafeConcatName(serviceAccount.Namespace, serviceAccount.Name, "role"),
-				Namespace: namespace,
-			},
-			Rules: rules,
-		},
-		&rbacv1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name.SafeConcatName(serviceAccount.Namespace, serviceAccount.Name, "role", "binding"),
-				Namespace: namespace,
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					APIGroup:  "",
-					Name:      serviceAccount.Name,
-					Namespace: serviceAccount.Namespace,
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: rbacv1.GroupName,
-				Kind:     "Role",
-				Name:     name.SafeConcatName(serviceAccount.Namespace, serviceAccount.Name, "role"),
-			},
-		},
-	}
-}
-
-func ClusterRole(serviceAccount *corev1.ServiceAccount, rules ...rbacv1.PolicyRule) []runtime.Object {
-	return []runtime.Object{
-		&rbacv1.ClusterRole{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name.SafeConcatName(serviceAccount.Namespace, serviceAccount.Name, "role"),
-			},
-			Rules: rules,
-		},
-		&rbacv1.ClusterRoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name.SafeConcatName(serviceAccount.Namespace, serviceAccount.Name, "role", "binding"),
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      serviceAccount.Name,
-					Namespace: serviceAccount.Namespace,
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: rbacv1.GroupName,
-				Kind:     "ClusterRole",
-				Name:     name.SafeConcatName(serviceAccount.Namespace, serviceAccount.Name, "role"),
-			},
-		},
-	}
-}

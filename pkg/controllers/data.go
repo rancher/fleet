@@ -16,6 +16,7 @@ func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appCon
 		WithDynamicLookup().
 		WithNoDeleteGVK(fleetns.GVK()).
 		ApplyObjects(
+			// used by request-* service accounts from agents
 			&rbacv1.ClusterRole{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "fleet-bundle-deployment",
@@ -33,6 +34,7 @@ func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appCon
 					},
 				},
 			},
+			// used by request-* service accounts from agents
 			&rbacv1.ClusterRole{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "fleet-content",

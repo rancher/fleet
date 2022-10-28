@@ -178,7 +178,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
-	logrus.Debugf("ClusterStatusHandler cluster '%s/%s' changed, setting up agent", cluster.Namespace, cluster.Name)
+	logrus.Debugf("ClusterStatusHandler cluster '%s/%s' changed, setting up agent with kubeconfig from %s", cluster.Namespace, cluster.Name, cluster.Spec.KubeConfigSecret)
 	var (
 		cfg          = config.Get()
 		apiServerURL = string(secret.Data["apiServerURL"])
