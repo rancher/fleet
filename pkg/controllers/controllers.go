@@ -92,7 +92,10 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 	}
 
 	clusterregistration.Register(ctx,
-		appCtx.Apply,
+		appCtx.Apply.WithCacheTypes(
+			appCtx.RBAC.ClusterRole(),
+			appCtx.RBAC.ClusterRoleBinding(),
+		),
 		systemNamespace,
 		systemRegistrationNamespace,
 		appCtx.Core.ServiceAccount(),
