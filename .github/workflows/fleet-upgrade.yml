@@ -1,0 +1,127 @@
+name: Upgrade Fleet
+
+on:
+  schedule:
+    - cron: '0 8 */2 * *'
+  workflow_dispatch:
+    inputs:
+      enable_tmate:
+        description: 'Enable debugging via tmate'
+        required: false
+        default: "false"
+  pull_request:
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+  SETUP_GO_VERSION: '^1.19'
+
+jobs:
+  fleet-upgrade-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k3s_version:
+          - v1.22.10-k3s1
+    steps:
+      -
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.SETUP_GO_VERSION }}
+      -
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      -
+        name: Install Ginkgo CLI
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.1
+      -
+        name: Provision k3d Cluster
+        uses: AbsaOSS/k3d-action@v2
+        # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
+        with:
+          cluster-name: "k3s-default"
+          args: >-
+            --agents 3
+            --network "nw01"
+            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
+      -
+        name: Set Up Tmate Debug Session
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 15
+        with:
+          limit-access-to-actor: true
+      -
+        name: Deploy Latest Release
+        run: |
+          ./.github/scripts/deploy-fleet-latest-release.sh
+      -
+        name: Create example workload
+        run: |
+          kubectl apply -n fleet-local -f e2e/assets/bundle-diffs/gitrepo.yaml
+      -
+        name: Build Fleet Binaries
+        run: |
+          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
+
+          go build -o "bin/fleet-linux-$GOARCH"
+          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+      -
+        name: Build Docker Images
+        run: |
+          docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
+          docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+      -
+        name: Import Images Into k3d
+        run: |
+          k3d image import rancher/fleet:dev rancher/fleet-agent:dev
+      -
+        name: Verify Example Workload
+        run: |
+          # we waited long enough by importing the image first
+          kubectl get configmap -n bundle-diffs-example | grep -q -m 1 "app-config"
+      -
+        name: Upgrade to Dev Version
+        run: |
+          ./.github/scripts/deploy-fleet.sh
+      -
+        name: Verify Installation
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
+          ginkgo e2e/installation
+      -
+        name: Dump Failed Environment
+        if: failure()
+        run: |
+          mkdir -p tmp
+          kubectl get -A pod,secret,service,ingress -o json > tmp/cluster.json
+          kubectl get -A gitrepos,clusters,clustergroups,bundles,bundledeployments -o json > tmp/fleet.json
+          kubectl get -A events > tmp/events.log
+          helm list -A > tmp/helm.log
+          kubectl logs -n cattle-fleet-system -l app=fleet-controller > tmp/fleetcontroller.log
+          kubectl logs -n cattle-fleet-system -l app=fleet-agent > tmp/fleetagent.log
+
+          docker logs k3d-k3s-default-server-0 &> tmp/k3s.log
+          docker exec k3d-k3s-default-server-0 sh -c 'cd /var/log/containers; grep -r "." .' > tmp/containers.log
+      -
+        name: Upload Logs
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
+          path: |
+            tmp/*.json
+            tmp/*.log
+          retention-days: 2
+
