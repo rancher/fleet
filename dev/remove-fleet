@@ -16,6 +16,8 @@ kubectl delete ns cattle-fleet-clusters-system --now
 kubectl delete ns fleet-local --now
 kubectl delete ns -l "fleet.cattle.io/managed=true"
 
+kubectl delete clusterrolebinding fleet-agent-get-content cattle-fleet-system-fleet-agent-role-binding
+kubectl delete clusterrole cattle-fleet-system-fleet-agent-role fleet-bundle-deployment fleet-content
 
 kubectl config use-context "$downstream_ctx"
 helm uninstall -n cattle-fleet-system fleet-agent
@@ -23,3 +25,4 @@ helm uninstall -n cattle-fleet-system fleet-agent
 kubectl delete ns cattle-fleet-system --now
 
 kubectl config use-context "$ctx"
+
