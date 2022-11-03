@@ -5,7 +5,7 @@ import "time"
 const (
 	AgentRegistrationRetry         = time.Minute * 1
 	AgentSecretTimeout             = time.Minute * 1
-	ClusterEnqueueDelay            = time.Second * 15
+	DefaultClusterEnqueueDelay     = time.Second * 15
 	ClusterImportTokenTTL          = time.Hour * 12
 	ClusterRegisterDelay           = time.Second * 15
 	ClusterRegistrationDeleteDelay = time.Minute * 40
