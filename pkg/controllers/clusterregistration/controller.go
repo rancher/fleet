@@ -225,6 +225,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		request.Namespace, request.Name, cluster.Namespace, cluster.Name, status.Granted)
 
 	status.ClusterName = cluster.Name
+	// e.g. request- in cluster-registration-namespace
 	return append(objects,
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
@@ -296,7 +297,28 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				Kind:     "Role",
 				Name:     request.Name,
 			},
-		}), status, nil
+		},
+		&rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name.SafeConcatName(request.Name, "content"),
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      saName,
+					Namespace: cluster.Status.Namespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "ClusterRole",
+				Name:     "fleet-content",
+			},
+		},
+	), status, nil
 }
 
 func KeyHash(s string) string {

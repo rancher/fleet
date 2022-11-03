@@ -10,7 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/rancher/fleet/modules/agent/pkg/register"
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
@@ -37,22 +36,6 @@ type Options struct {
 	CA   []byte
 	Host string
 	NoCA bool // unused
-}
-
-func agentToken(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
-	token, err := getToken(ctx, controllerNamespace, tokenName, client)
-	if err != nil {
-		return nil, err
-	}
-
-	if opts.Host != "" {
-		token["apiServerURL"] = []byte(opts.Host)
-	}
-	if len(opts.CA) > 0 {
-		token["apiServerCA"] = opts.CA
-	}
-
-	return tokenObjects(agentNamespace, token), nil
 }
 
 // AgentWithConfig writes the agent manifest to the given writer. It
@@ -105,6 +88,40 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 	return err
 }
 
+func agentToken(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
+	token, err := getToken(ctx, controllerNamespace, tokenName, client)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts.Host != "" {
+		token["apiServerURL"] = []byte(opts.Host)
+	}
+	if len(opts.CA) > 0 {
+		token["apiServerCA"] = opts.CA
+	}
+
+	return []runtime.Object{
+		&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: agentNamespace,
+				Annotations: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
+			},
+		},
+		&v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      config.AgentBootstrapConfigName,
+				Namespace: agentNamespace,
+			},
+			Data: token,
+		},
+	}, nil
+}
+
+// getToken load the import-token-local secret and
+// check system registration namespace is expected
 func getToken(ctx context.Context, controllerNamespace, tokenName string, client *client.Client) (map[string][]byte, error) {
 	secretName, err := waitForSecretName(ctx, tokenName, client)
 	if err != nil {
@@ -226,26 +243,4 @@ func GetHostFromConfig(rawConfig clientcmdapi.Config) (string, error) {
 	}
 
 	return "", ErrNoHostInConfig
-}
-
-func tokenObjects(namespace string, data map[string][]byte) []runtime.Object {
-	objs := []runtime.Object{
-		&v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-				Annotations: map[string]string{
-					fleet.ManagedLabel: "true",
-				},
-			},
-		},
-		&v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      register.BootstrapCredName,
-				Namespace: namespace,
-			},
-			Data: data,
-		},
-	}
-
-	return objs
 }

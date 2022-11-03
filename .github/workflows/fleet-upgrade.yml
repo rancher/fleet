@@ -1,9 +1,8 @@
-name: E2E Fleet
+name: Upgrade Fleet
 
 on:
   schedule:
-    # Run everyday day at 7:00 AM
-    - cron: '0 7 * * *'
+    - cron: '0 8 */2 * *'
   workflow_dispatch:
     inputs:
       enable_tmate:
@@ -15,18 +14,15 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '^1.18'
+  SETUP_GO_VERSION: '^1.19'
 
 jobs:
-  e2e-fleet-test:
+  fleet-upgrade-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         k3s_version:
-          # k3d version list k3s | sed 's/+/-/' | sort -h
-          - v1.24.1-k3s1
           - v1.22.10-k3s1
-          - v1.20.15-k3s1
     steps:
       -
         uses: actions/checkout@v3
@@ -49,6 +45,31 @@ jobs:
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.1
       -
+        name: Provision k3d Cluster
+        uses: AbsaOSS/k3d-action@v2
+        # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
+        with:
+          cluster-name: "k3s-default"
+          args: >-
+            --agents 3
+            --network "nw01"
+            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
+      -
+        name: Set Up Tmate Debug Session
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 15
+        with:
+          limit-access-to-actor: true
+      -
+        name: Deploy Latest Release
+        run: |
+          ./.github/scripts/deploy-fleet-latest-release.sh
+      -
+        name: Create example workload
+        run: |
+          kubectl apply -n fleet-local -f e2e/assets/bundle-diffs/gitrepo.yaml
+      -
         name: Build Fleet Binaries
         run: |
           go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
@@ -61,60 +82,28 @@ jobs:
           docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
           docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
       -
-        name: Provision k3d Cluster
-        uses: AbsaOSS/k3d-action@v2
-        # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
-        with:
-          cluster-name: "k3s-default"
-          args: >-
-            --agents 3
-            --network "nw01"
-            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
-      -
         name: Import Images Into k3d
         run: |
           k3d image import rancher/fleet:dev rancher/fleet-agent:dev
       -
-        name: Set Up Tmate Debug Session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
+        name: Verify Example Workload
+        run: |
+          # we waited long enough by importing the image first
+          kubectl get configmap -n bundle-diffs-example | grep -q -m 1 "app-config"
       -
-        name: Deploy Fleet
+        name: Upgrade to Dev Version
         run: |
           ./.github/scripts/deploy-fleet.sh
       -
-        name: E2E Tests for Examples
+        name: Verify Installation
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo e2e/single-cluster
-      -
-        name: Fleet Tests Requiring Github Secrets
-        # These tests can't run for PRs, because PRs don't have access to the secrets
-        if: github.event_name != 'pull_request'
-        env:
-          FLEET_E2E_NS: fleet-local
-          GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"
-          GIT_REPO_HOST: "github.com"
-          GIT_REPO_USER: "git"
-          GIT_REPO_BRANCH: ${{ matrix.k3s_version }}
-          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
-          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
-        run: |
-          export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
-          export GIT_SSH_PUBKEY="$GITHUB_WORKSPACE/id_ecdsa.pub"
-          echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
-          echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
-
-          ginkgo e2e/require-secrets
+          ginkgo e2e/installation
       -
         name: Dump Failed Environment
         if: failure()
         run: |
-          mkdir -p tmp
           ./.github/scripts/dump-failed-k3ds.sh
       -
         name: Upload Logs
@@ -126,3 +115,4 @@ jobs:
             tmp/*.json
             tmp/*.log
           retention-days: 2
+

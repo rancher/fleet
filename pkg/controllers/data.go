@@ -16,6 +16,7 @@ func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appCon
 		WithDynamicLookup().
 		WithNoDeleteGVK(fleetns.GVK()).
 		ApplyObjects(
+			// used by request-* service accounts from agents
 			&rbacv1.ClusterRole{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "fleet-bundle-deployment",
@@ -33,6 +34,7 @@ func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appCon
 					},
 				},
 			},
+			// used by request-* service accounts from agents
 			&rbacv1.ClusterRole{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "fleet-content",
@@ -53,54 +55,6 @@ func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appCon
 			&corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: systemRegistrationNamespace,
-				},
-			},
-			&rbacv1.Role{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "fleet-agent-get-cred",
-					Namespace: systemRegistrationNamespace,
-				},
-				Rules: []rbacv1.PolicyRule{
-					{
-						Verbs:     []string{"get"},
-						APIGroups: []string{""},
-						Resources: []string{"secrets"},
-					},
-				},
-			},
-			&rbacv1.RoleBinding{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "fleet-agent-get-cred",
-					Namespace: systemRegistrationNamespace,
-				},
-				Subjects: []rbacv1.Subject{
-					{
-						Kind:     "Group",
-						APIGroup: "rbac.authorization.k8s.io",
-						Name:     "system:serviceaccounts",
-					},
-				},
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "Role",
-					Name:     "fleet-agent-get-cred",
-				},
-			},
-			&rbacv1.ClusterRoleBinding{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "fleet-agent-get-content",
-				},
-				Subjects: []rbacv1.Subject{
-					{
-						Kind:     "Group",
-						APIGroup: "rbac.authorization.k8s.io",
-						Name:     "system:serviceaccounts",
-					},
-				},
-				RoleRef: rbacv1.RoleRef{
-					APIGroup: "rbac.authorization.k8s.io",
-					Kind:     "ClusterRole",
-					Name:     "fleet-content",
 				},
 			},
 		)
