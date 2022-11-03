@@ -37,6 +37,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
+
 func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth) ([]fleet.BundleResource, error) {
 	var directories []directory
 
@@ -103,6 +105,11 @@ type Auth struct {
 }
 
 func chartURL(location *fleet.HelmOptions, auth Auth) (string, error) {
+	// repos are not supported in case of OCI Charts
+	if hasOCIURL.MatchString(location.Chart) {
+		return location.Chart, nil
+	}
+
 	if location.Repo == "" {
 		return location.Chart, nil
 	}
@@ -314,11 +321,7 @@ func readContent(ctx context.Context, base, name, version string, auth Auth) (ma
 	// go-getter does not support downloading OCI registry based files yet
 	// until this is implemented we use Helm to download charts from OCI based registries
 	// and provide the downloaded file to go-getter locally
-	hasOCIURL, err := regexp.MatchString(`^oci:\/\/`, name)
-	if err != nil {
-		return nil, err
-	}
-	if hasOCIURL {
+	if hasOCIURL.MatchString(name) {
 		src, err = downloadOCIChart(name, version, temp, auth)
 		if err != nil {
 			return nil, err
