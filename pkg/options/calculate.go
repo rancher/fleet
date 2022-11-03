@@ -67,8 +67,14 @@ func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptio
 		if next.Helm.ValuesFrom != nil {
 			result.Helm.ValuesFrom = append(result.Helm.ValuesFrom, next.Helm.ValuesFrom...)
 		}
+		if next.Helm.Repo != "" {
+			result.Helm.Repo = next.Helm.Repo
+		}
 		if next.Helm.Chart != "" {
 			result.Helm.Chart = next.Helm.Chart
+		}
+		if next.Helm.Version != "" {
+			result.Helm.Version = next.Helm.Version
 		}
 		if next.Helm.ReleaseName != "" {
 			result.Helm.ReleaseName = next.Helm.ReleaseName
