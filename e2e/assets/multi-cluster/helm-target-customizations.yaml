@@ -1,0 +1,14 @@
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: helm-target-customizations
+spec:
+  repo: https://github.com/rancher/fleet-examples
+  branch: add_target_customizations_test
+  paths:
+  - multi-cluster/helm-target-customizations/
+  targets:
+  - name: test
+    clusterSelector:
+      matchLabels:
+        env: test
