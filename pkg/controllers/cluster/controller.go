@@ -5,7 +5,6 @@ import (
 	"context"
 	"os"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -186,13 +185,13 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 			cluster.Namespace, cluster.Name, status.ResourceCounts.Ready, status.ResourceCounts.DesiredReady)
 
 		// Counts from gitrepo are out of sync with bundleDeployment state
-		// just retry in 15 seconds as there no great way to trigger an event that
+		// just retry in a number of seconds as there no great way to trigger an event that
 		// doesn't cause a loop
-		clusterEnqueueDelay := durations.DefaultClusterEnqueueDelay
-		if ced, err := strconv.Atoi(os.Getenv("FLEET_CLUSTER_ENQUEUE_DELAY_SECONDS")); err == nil {
-			clusterEnqueueDelay = time.Duration(ced) * time.Second
+		delay := durations.DefaultClusterEnqueueDelay
+		if customDelay, err := time.ParseDuration(os.Getenv("FLEET_CLUSTER_ENQUEUE_DELAY")); err == nil {
+			delay = customDelay
 		}
-		h.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, clusterEnqueueDelay)
+		h.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, delay)
 	}
 
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)
