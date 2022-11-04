@@ -25,6 +25,14 @@ spec:
         - name: NO_PROXY
           value: {{ .Values.noProxy }}
         {{- end }}
+        {{- if .Values.cpuPprof }}
+        - name: FLEET_CPU_PPROF_DIR
+          value: /tmp/pprof/
+        {{- end }}
+        {{- if .Values.cpuPprof }}
+        - name: FLEET_CPU_PPROF_PERIOD
+          value: {{ quote .Values.cpuPprof.period }}
+        {{- end }}
         image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
         name: fleet-controller
         imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
@@ -41,6 +49,16 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
+        {{- if .Values.cpuPprof }}
+        volumeMounts:
+          - mountPath: /tmp/pprof
+            name: pprof
+        {{- end }}
+      {{- if .Values.cpuPprof }}
+      volumes:
+        - name: pprof {{ toYaml .Values.cpuPprof.volumeConfiguration | nindent 10 }}
+      {{- end }}
+
       serviceAccountName: fleet-controller
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
 {{- if .Values.nodeSelector }}

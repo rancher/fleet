@@ -23,4 +23,5 @@ const (
 	ServiceTokenSleep              = time.Second * 2
 	TokenClusterEnqueueDelay       = time.Second * 2
 	TriggerSleep                   = time.Second * 2
+	DefaultCpuPprofPeriod          = time.Minute
 )
