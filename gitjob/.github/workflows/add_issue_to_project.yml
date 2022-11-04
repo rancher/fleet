@@ -13,7 +13,7 @@ jobs:
     name: Add issue to project Rancher/Fleet
     runs-on: ubuntu-latest
     if: >
-      github.repository == 'rancher/fleet'
+      github.repository == 'rancher/gitjob'
     steps:
       - uses: actions/add-to-project@main
         with:
