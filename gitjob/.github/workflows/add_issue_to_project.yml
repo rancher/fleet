@@ -6,12 +6,14 @@ on:
   issues:
     types:
       - opened
-      - transfered
+      - transferred
 
 jobs:
   add-to-project:
     name: Add issue to project Rancher/Fleet
     runs-on: ubuntu-latest
+    if: >
+      github.repository == 'rancher/fleet'
     steps:
       - uses: actions/add-to-project@main
         with:
