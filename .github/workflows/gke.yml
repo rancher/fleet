@@ -25,6 +25,8 @@ env:
 jobs:
   gke-fleet-examples:
     runs-on: ubuntu-latest
+    if: >
+      github.repository == 'rancher/fleet'
 
     steps:
       -
