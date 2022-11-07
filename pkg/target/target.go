@@ -11,7 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundle"
+	"github.com/rancher/fleet/pkg/bundlematcher"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
@@ -150,7 +150,7 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, b
 	}
 
 	for _, app := range bundles {
-		bundle, err := bundle.New(app)
+		bm, err := bundlematcher.New(app)
 		if err != nil {
 			logrus.Errorf("ignore bad app %s/%s: %v", app.Namespace, app.Name, err)
 			continue
@@ -161,7 +161,7 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, b
 			return nil, nil, err
 		}
 
-		match := bundle.Match(cluster.Name, clusterGroupsToLabelMap(cgs), cluster.Labels)
+		match := bm.Match(cluster.Name, clusterGroupsToLabelMap(cgs), cluster.Labels)
 		if match != nil {
 			bundlesToRefresh = append(bundlesToRefresh, app)
 		} else {
@@ -218,12 +218,12 @@ func (m *Manager) getNamespacesForBundle(fleetBundle *fleet.Bundle) ([]string, e
 
 // Targets returns all targets for a bundle, so we can create bundledeployments for each
 func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error) {
-	bundle, err := bundle.New(fleetBundle)
+	bm, err := bundlematcher.New(fleetBundle)
 	if err != nil {
 		return nil, err
 	}
 
-	manifest, err := manifest.New(&bundle.Definition.Spec)
+	manifest, err := manifest.New(&fleetBundle.Spec)
 	if err != nil {
 		return nil, err
 	}
@@ -249,12 +249,12 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 				return nil, err
 			}
 
-			match := bundle.Match(cluster.Name, clusterGroupsToLabelMap(clusterGroups), cluster.Labels)
-			if match == nil {
+			target := bm.Match(cluster.Name, clusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			if target == nil {
 				continue
 			}
 
-			opts := options.Calculate(&fleetBundle.Spec, match.Target)
+			opts := options.Calculate(&fleetBundle.Spec, target)
 			err = addClusterLabels(&opts, cluster.Labels)
 			if err != nil {
 				return nil, err
@@ -268,7 +268,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 			result = append(result, &Target{
 				ClusterGroups: clusterGroups,
 				Cluster:       cluster,
-				Target:        match.Target,
+				Target:        target,
 				Bundle:        fleetBundle,
 				Options:       opts,
 				DeploymentID:  deploymentID,

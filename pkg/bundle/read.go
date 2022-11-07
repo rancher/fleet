@@ -246,7 +246,10 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		def.Spec.Paused = true
 	}
 
-	return New(def, scans...)
+	return &Bundle{
+		Definition: def,
+		Scans:      scans,
+	}, nil
 }
 
 // propagateHelmChartProperties propagates root Helm chart properties to the child targets.

@@ -11,6 +11,7 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
+	"github.com/rancher/fleet/pkg/bundlematcher"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
@@ -62,33 +63,38 @@ func Match(ctx context.Context, opts *Options) error {
 		}
 	}
 
+	bm, err := bundlematcher.New(b.Definition)
+	if err != nil {
+		return err
+	}
+
 	if opts.Target == "" {
-		m := b.Match(opts.ClusterName, map[string]map[string]string{
+		m := bm.Match(opts.ClusterName, map[string]map[string]string{
 			opts.ClusterGroup: opts.ClusterGroupLabels,
 		}, opts.ClusterLabels)
 		return printMatch(b, m, opts.Output)
 	}
 
-	return printMatch(b, b.MatchForTarget(opts.Target), opts.Output)
+	return printMatch(b, bm.MatchForTarget(opts.Target), opts.Output)
 }
 
-func printMatch(bundle *bundle.Bundle, m *bundle.Match, output io.Writer) error {
-	if m == nil {
+func printMatch(bundle *bundle.Bundle, target *fleet.BundleTarget, output io.Writer) error {
+	if target == nil {
 		return errors.New("no match found")
 	}
-	fmt.Fprintf(os.Stderr, "# Matched: %s\n", m.Target.Name)
+	fmt.Fprintf(os.Stderr, "# Matched: %s\n", target.Name)
 	if output == nil {
 		return nil
 	}
 
-	opts := options.Calculate(&bundle.Definition.Spec, m.Target)
+	opts := options.Calculate(&bundle.Definition.Spec, target)
 
 	manifest, err := manifest.New(&bundle.Definition.Spec)
 	if err != nil {
 		return err
 	}
 
-	objs, err := helmdeployer.Template(m.Bundle.Definition.Name, manifest, opts)
+	objs, err := helmdeployer.Template(bundle.Definition.Name, manifest, opts)
 	if err != nil {
 		return err
 	}

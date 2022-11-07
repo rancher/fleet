@@ -1,29 +1,34 @@
-package bundle
+package bundlematcher
 
 import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/match"
 )
 
-type Match struct {
-	Target *fleet.BundleTarget
-	Bundle *Bundle
+// BundleMatch stores the bundle and the matcher for the bundle
+type BundleMatch struct {
+	bundle  *fleet.Bundle
+	matcher *matcher
 }
 
-func (a *Bundle) MatchForTarget(name string) *Match {
-	for i, target := range a.Definition.Spec.Targets {
+func New(bundle *fleet.Bundle) (*BundleMatch, error) {
+	bm := &BundleMatch{
+		bundle: bundle,
+	}
+	return bm, bm.initMatcher()
+}
+
+func (a *BundleMatch) MatchForTarget(name string) *fleet.BundleTarget {
+	for i, target := range a.bundle.Spec.Targets {
 		if target.Name != name {
 			continue
 		}
-		return &Match{
-			Target: &a.Definition.Spec.Targets[i],
-			Bundle: a,
-		}
+		return &a.bundle.Spec.Targets[i]
 	}
 	return nil
 }
 
-func (a *Bundle) Match(clusterName string, clusterGroups map[string]map[string]string, clusterLabels map[string]string) *Match {
+func (a *BundleMatch) Match(clusterName string, clusterGroups map[string]map[string]string, clusterLabels map[string]string) *fleet.BundleTarget {
 	for clusterGroup, clusterGroupLabels := range clusterGroups {
 		if m := a.matcher.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels); m != nil {
 			return m
@@ -36,7 +41,7 @@ func (a *Bundle) Match(clusterName string, clusterGroups map[string]map[string]s
 }
 
 type targetMatch struct {
-	targetBundle *Match
+	bundleTarget *fleet.BundleTarget
 	criteria     *match.ClusterMatcher
 }
 
@@ -45,28 +50,25 @@ type matcher struct {
 	restrictions []*match.ClusterMatcher
 }
 
-func (a *Bundle) initMatcher() error {
+func (a *BundleMatch) initMatcher() error {
 	var (
 		m = &matcher{}
 	)
 
-	for i, target := range a.Definition.Spec.Targets {
+	for i, target := range a.bundle.Spec.Targets {
 		clusterMatcher, err := match.NewClusterMatcher(target.ClusterName, target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
 		if err != nil {
 			return err
 		}
 		t := targetMatch{
-			targetBundle: &Match{
-				Target: &a.Definition.Spec.Targets[i],
-				Bundle: a,
-			},
-			criteria: clusterMatcher,
+			bundleTarget: &a.bundle.Spec.Targets[i],
+			criteria:     clusterMatcher,
 		}
 
 		m.matches = append(m.matches, t)
 	}
 
-	for _, target := range a.Definition.Spec.TargetRestrictions {
+	for _, target := range a.bundle.Spec.TargetRestrictions {
 		clusterMatcher, err := match.NewClusterMatcher(target.ClusterName, target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
 		if err != nil {
 			return err
@@ -92,14 +94,14 @@ func (m *matcher) isRestricted(clusterName, clusterGroup string, clusterGroupLab
 	return true
 }
 
-func (m *matcher) Match(clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) *Match {
+func (m *matcher) Match(clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) *fleet.BundleTarget {
 	if m.isRestricted(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
 		return nil
 	}
 
 	for _, targetMatch := range m.matches {
 		if targetMatch.criteria.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
-			return targetMatch.targetBundle
+			return targetMatch.bundleTarget
 		}
 	}
 

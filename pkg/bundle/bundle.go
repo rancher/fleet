@@ -8,7 +8,6 @@ import (
 type Bundle struct {
 	Definition *fleet.Bundle
 	Scans      []*fleet.ImageScan
-	matcher    *matcher
 }
 
 func New(bundle *fleet.Bundle, imageScan ...*fleet.ImageScan) (*Bundle, error) {
@@ -16,5 +15,5 @@ func New(bundle *fleet.Bundle, imageScan ...*fleet.ImageScan) (*Bundle, error) {
 		Definition: bundle,
 		Scans:      imageScan,
 	}
-	return a, a.initMatcher()
+	return a, nil
 }
