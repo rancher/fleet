@@ -94,7 +94,9 @@ jobs:
       -
         name: Fleet Tests Requiring Github Secrets
         # These tests can't run for PRs, because PRs don't have access to the secrets
-        if: github.event_name != 'pull_request'
+        if: >
+          github.event_name != 'pull_request' &&
+          github.repository == 'rancher/fleet'
         env:
           FLEET_E2E_NS: fleet-local
           GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"
