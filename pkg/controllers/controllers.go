@@ -77,9 +77,9 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		return err
 	}
 
-	systemRegistrationNamespace := fleetns.RegistrationNamespace(systemNamespace)
+	systemRegistrationNamespace := fleetns.SystemRegistrationNamespace(systemNamespace)
 
-	if err := addData(systemNamespace, systemRegistrationNamespace, appCtx); err != nil {
+	if err := applyBootstrapResources(systemNamespace, systemRegistrationNamespace, appCtx); err != nil {
 		return err
 	}
 

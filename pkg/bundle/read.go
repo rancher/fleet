@@ -123,7 +123,7 @@ func size(bundle *fleet.Bundle) (int, error) {
 	return len(marshalled), nil
 }
 
-type localSpec struct {
+type fleetYAML struct {
 	Name   string            `json:"name,omitempty"`
 	Labels map[string]string `json:"labels,omitempty"`
 	fleet.BundleSpec
@@ -150,7 +150,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		return nil, err
 	}
 
-	bundle := &localSpec{}
+	bundle := &fleetYAML{}
 	if err := yaml.Unmarshal(bytes, bundle); err != nil {
 		return nil, err
 	}

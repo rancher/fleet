@@ -103,7 +103,7 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 	clusterID := name.SafeConcatName(simNamespace, strings.SplitN(string(kubeSystem.UID), "-", 2)[0])
 
 	if _, err = k8s.CoreV1().Secrets(simNamespace).Get(ctx, register.CredName, metav1.GetOptions{}); err != nil {
-		secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, register.BootstrapCredName, metav1.GetOptions{})
+		secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, config.AgentBootstrapConfigName, metav1.GetOptions{})
 		if err != nil {
 			return "", err
 		}

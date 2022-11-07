@@ -33,7 +33,6 @@ import (
 
 var (
 	ImportTokenPrefix = "import-token-"
-	ImportTokenTTL    = durations.ClusterImportTokenTTL
 )
 
 type importHandler struct {
@@ -235,7 +234,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				},
 			},
 			Spec: fleet.ClusterRegistrationTokenSpec{
-				TTL: &metav1.Duration{Duration: ImportTokenTTL},
+				TTL: &metav1.Duration{Duration: durations.ClusterImportTokenTTL},
 			},
 		})
 		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
@@ -313,7 +312,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 
 		// Clean up the leftover clusters namespace if it exists.
 		// We want to keep the DefaultNamespace alive, but not the clusters namespace.
-		err = kc.CoreV1().Namespaces().Delete(i.ctx, fleetns.RegistrationNamespace(config.DefaultNamespace), metav1.DeleteOptions{})
+		err = kc.CoreV1().Namespaces().Delete(i.ctx, fleetns.SystemRegistrationNamespace(config.DefaultNamespace), metav1.DeleteOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
 			return status, err
 		}
