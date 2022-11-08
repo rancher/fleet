@@ -46,8 +46,9 @@ func NewResults(bundle *fleet.Bundle) (*Results, error) {
 	return a, nil
 }
 
-// Open reads the content, from stdin, or basedir, or a file in basedir. It
-// returns a bundle with the given name
+// Open reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
+// Then it reads/downloads all referenced resources. It returns a "Result"
+// struct containing the populated bundle and any existing imagescans.
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Results, error) {
 	if baseDir == "" {
 		baseDir = "."
@@ -151,6 +152,7 @@ type imageScan struct {
 	fleet.ImageScanSpec
 }
 
+// read reads the fleet.yaml from the bundleSpecReader and loads all resources
 func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Results, error) {
 	if opts == nil {
 		opts = &Options{}
@@ -165,13 +167,13 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		return nil, err
 	}
 
-	bundle := &fleetYAML{}
-	if err := yaml.Unmarshal(bytes, bundle); err != nil {
+	fy := &fleetYAML{}
+	if err := yaml.Unmarshal(bytes, fy); err != nil {
 		return nil, err
 	}
 
 	var scans []*fleet.ImageScan
-	for i, scan := range bundle.ImageScans {
+	for i, scan := range fy.ImageScans {
 		if scan.Image == "" {
 			continue
 		}
@@ -187,7 +189,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		})
 	}
 
-	bundle.BundleSpec.Targets = append(bundle.BundleSpec.Targets, bundle.TargetCustomizations...)
+	fy.BundleSpec.Targets = append(fy.BundleSpec.Targets, fy.TargetCustomizations...)
 
 	meta, err := readMetadata(bytes)
 	if err != nil {
@@ -195,54 +197,54 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	meta.Name = name
-	if bundle.Name != "" {
-		meta.Name = bundle.Name
+	if fy.Name != "" {
+		meta.Name = fy.Name
 	}
 
-	setTargetNames(&bundle.BundleSpec)
+	setTargetNames(&fy.BundleSpec)
 
-	propagateHelmChartProperties(&bundle.BundleSpec)
+	propagateHelmChartProperties(&fy.BundleSpec)
 
-	resources, err := readResources(ctx, &bundle.BundleSpec, opts.Compress, baseDir, opts.Auth)
+	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth)
 	if err != nil {
 		return nil, err
 	}
 
-	bundle.Resources = resources
+	fy.Resources = resources
 
-	def := &fleet.Bundle{
+	bundle := &fleet.Bundle{
 		ObjectMeta: meta.ObjectMeta,
-		Spec:       bundle.BundleSpec,
+		Spec:       fy.BundleSpec,
 	}
 
 	for k, v := range opts.Labels {
-		if def.Labels == nil {
-			def.Labels = make(map[string]string)
+		if bundle.Labels == nil {
+			bundle.Labels = make(map[string]string)
 		}
-		def.Labels[k] = v
+		bundle.Labels[k] = v
 	}
 
 	// apply additional labels from spec
-	for k, v := range bundle.Labels {
-		if def.Labels == nil {
-			def.Labels = make(map[string]string)
+	for k, v := range fy.Labels {
+		if bundle.Labels == nil {
+			bundle.Labels = make(map[string]string)
 		}
-		def.Labels[k] = v
+		bundle.Labels[k] = v
 	}
 
 	if opts.ServiceAccount != "" {
-		def.Spec.ServiceAccount = opts.ServiceAccount
+		bundle.Spec.ServiceAccount = opts.ServiceAccount
 	}
 
-	def.Spec.ForceSyncGeneration = opts.SyncGeneration
+	bundle.Spec.ForceSyncGeneration = opts.SyncGeneration
 
-	def, err = appendTargets(def, opts.TargetsFile)
+	bundle, err = appendTargets(bundle, opts.TargetsFile)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(def.Spec.Targets) == 0 {
-		def.Spec.Targets = []fleet.BundleTarget{
+	if len(bundle.Spec.Targets) == 0 {
+		bundle.Spec.Targets = []fleet.BundleTarget{
 			{
 				Name:         "default",
 				ClusterGroup: "default",
@@ -251,18 +253,18 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	if opts.TargetNamespace != "" {
-		def.Spec.TargetNamespace = opts.TargetNamespace
-		for i := range def.Spec.Targets {
-			def.Spec.Targets[i].TargetNamespace = opts.TargetNamespace
+		bundle.Spec.TargetNamespace = opts.TargetNamespace
+		for i := range bundle.Spec.Targets {
+			bundle.Spec.Targets[i].TargetNamespace = opts.TargetNamespace
 		}
 	}
 
 	if opts.Paused {
-		def.Spec.Paused = true
+		bundle.Spec.Paused = true
 	}
 
 	return &Results{
-		Bundle: def,
+		Bundle: bundle,
 		Scans:  scans,
 	}, nil
 }
