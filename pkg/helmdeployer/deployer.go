@@ -171,7 +171,7 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 		options.Kustomize = &fleet.KustomizeOptions{}
 	}
 
-	tar, err := render.ToChart(bundleID, manifest, options)
+	tar, err := render.HelmChart(bundleID, manifest, options)
 	if err != nil {
 		return nil, err
 	}
