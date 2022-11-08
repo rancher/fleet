@@ -189,7 +189,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
 
-	objs := toRuntimeObjects(targets, bundle)
+	objs := bundleDeployments(targets, bundle)
 
 	elapsed := time.Since(start)
 
@@ -211,6 +211,7 @@ func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
 	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
 }
 
+// setResourceKey runs helm template to set up all resource keys in the BundleStatus passed in as argument.
 func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed func(schema.GroupVersionKind) bool, set bool) error {
 	if !set {
 		return nil
@@ -275,11 +276,13 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 	return nil
 }
 
-func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
+// bundleDeployments converts the targets to BundleDeployment resources
+func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
 	for _, target := range targets {
 		if target.Deployment == nil {
 			continue
 		}
+		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
 		dp := &fleet.BundleDeployment{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      target.Deployment.Name,
@@ -295,6 +298,9 @@ func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []
 	return
 }
 
+// calculateChanges calculates the changes to the targets, if a target is
+// without a deployment, a new BundleDeployment is build
+// This func mutates status and allTargets.
 func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
 	// reset
 	status.MaxNew = maxNew
@@ -326,12 +332,14 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 				newTarget(target, status)
 			}
 			if target.Deployment != nil {
+				// NOTE merged options from targets.Targets() are set to be staged
 				target.Deployment.Spec.StagedOptions = target.Options
 				target.Deployment.Spec.StagedDeploymentID = target.DeploymentID
 			}
 		}
 
 		for _, currentTarget := range partition.Targets {
+			// NOTE this will propagate the merged options to the current deployment
 			updateManifest(currentTarget, status, &partition.Status)
 		}
 
@@ -351,6 +359,8 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 	return nil
 }
 
+// updateManifest will update DeploymentID and Options for the target to the
+// staging values, if it's in a deployable state
 func updateManifest(t *target.Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
 	if t.Deployment != nil &&
 		// Not Paused
@@ -363,6 +373,7 @@ func updateManifest(t *target.Target, status *fleet.BundleStatus, partitionStatu
 		(status.Unavailable < status.MaxUnavailable || target.IsUnavailable(t.Deployment)) &&
 		// Partition max unavailable not reached
 		(partitionStatus.Unavailable < partitionStatus.MaxUnavailable || target.IsUnavailable(t.Deployment)) {
+
 		if !target.IsUnavailable(t.Deployment) {
 			// If this was previously available, now increment unavailable count. "Upgrading" is treated as unavailable.
 			status.Unavailable++

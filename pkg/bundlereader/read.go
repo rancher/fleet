@@ -254,6 +254,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 }
 
 // propagateHelmChartProperties propagates root Helm chart properties to the child targets.
+// This is necessary, so we can download the correct chart version for each target.
 func propagateHelmChartProperties(spec *fleet.BundleSpec) {
 	// Check if there is anything to propagate
 	if spec.Helm == nil {

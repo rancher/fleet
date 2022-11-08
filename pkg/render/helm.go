@@ -10,6 +10,8 @@ import (
 	"github.com/rancher/fleet/pkg/patch"
 )
 
+// ToChart applies overlays to "manifest"-style gitrepos and transforms the
+// manifest into a helm chart tgz
 func ToChart(name string, m *manifest.Manifest, options fleet.BundleDeploymentOptions) (io.Reader, error) {
 	var (
 		style = bundlereader.DetermineStyle(m, options)

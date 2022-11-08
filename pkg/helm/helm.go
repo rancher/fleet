@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// Process filters the manifests resources and adds a Chart.yaml if missing
 func Process(name string, m *manifest.Manifest, style bundlereader.Style) (*manifest.Manifest, error) {
 	newManifest := toChart(m, style)
 	if !style.HasChartYAML {
@@ -40,6 +41,8 @@ func move(m *manifest.Manifest, from, to string) (result []fleet.BundleResource)
 	return result
 }
 
+// manifests returns a filtered list of BundleResources
+// It also treats the 'templates/' directory as a special case.
 func manifests(m *manifest.Manifest) (result []fleet.BundleResource) {
 	var ignorePrefix []string
 	for _, resource := range m.Resources {

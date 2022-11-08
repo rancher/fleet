@@ -187,16 +187,17 @@ func (m *Manager) GetBundleDeploymentsForBundleInCluster(app *fleet.Bundle, clus
 	return result, nil
 }
 
-// getNamespacesForBundle returns the namespaces that the bundle should be
-// deployed to. Which is the bundles namespace and every namespace from the
-// bundle's namespace mappings.
-func (m *Manager) getNamespacesForBundle(fleetBundle *fleet.Bundle) ([]string, error) {
-	mappings, err := m.bundleNamespaceMappingCache.List(fleetBundle.Namespace, labels.Everything())
+// getNamespacesForBundle returns the namespaces that bundledeployments could
+// be created in.
+// These are the bundle's namespace, e.g. "fleet-local", and every namespace
+// matched by a bundle namespace mapping resource.
+func (m *Manager) getNamespacesForBundle(bundle *fleet.Bundle) ([]string, error) {
+	mappings, err := m.bundleNamespaceMappingCache.List(bundle.Namespace, labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
-	nses := sets.NewString(fleetBundle.Namespace)
+	nses := sets.NewString(bundle.Namespace)
 	for _, mapping := range mappings {
 		matcher, err := NewBundleMapping(mapping, m.namespaceCache, m.bundleCache)
 		if err != nil {
@@ -216,14 +217,21 @@ func (m *Manager) getNamespacesForBundle(fleetBundle *fleet.Bundle) ([]string, e
 	return nses.List(), nil
 }
 
-// Targets returns all targets for a bundle, so we can create bundledeployments for each
-func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error) {
-	bm, err := bundlematcher.New(fleetBundle)
+// Targets returns all targets for a bundle, so we can create bundledeployments for each.
+// This is done by checking all namespaces for clusters matching the bundle's
+// BundleTarget matchers.
+//
+// But first it builds a "manifest" from the bundle's resources and stores it
+// in the content store.
+// The returned target structs contain merged BundleDeploymentOptions.
+// Finally all existing bundledeployments are added to the targets.
+func (m *Manager) Targets(bundle *fleet.Bundle) (result []*Target, _ error) {
+	bm, err := bundlematcher.New(bundle)
 	if err != nil {
 		return nil, err
 	}
 
-	manifest, err := manifest.New(fleetBundle.Spec.Resources)
+	manifest, err := manifest.New(bundle.Spec.Resources)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +240,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 		return nil, err
 	}
 
-	namespaces, err := m.getNamespacesForBundle(fleetBundle)
+	namespaces, err := m.getNamespacesForBundle(bundle)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +262,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 				continue
 			}
 
-			opts := options.Merge(fleetBundle.Spec.BundleDeploymentOptions, target.BundleDeploymentOptions)
+			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, target.BundleDeploymentOptions)
 			err = addClusterLabels(&opts, cluster.Labels)
 			if err != nil {
 				return nil, err
@@ -268,8 +276,8 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 			result = append(result, &Target{
 				ClusterGroups: clusterGroups,
 				Cluster:       cluster,
-				Target:        target,
-				Bundle:        fleetBundle,
+				Target:        target, // contains the unmerged BundleDeploymentOptions
+				Bundle:        bundle,
 				Options:       opts,
 				DeploymentID:  deploymentID,
 			})
@@ -280,7 +288,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 		return result[i].Cluster.Name < result[j].Cluster.Name
 	})
 
-	return result, m.foldInDeployments(fleetBundle, result)
+	return result, m.foldInDeployments(bundle, result)
 }
 
 func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]string) (err error) {
@@ -328,15 +336,16 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 
 }
 
-func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(deploymentLabelsForSelector(app)))
+// foldInDeployments adds the existing bundledeployments to the targets.
+func (m *Manager) foldInDeployments(bundle *fleet.Bundle, targets []*Target) error {
+	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(deploymentLabelsForSelector(bundle)))
 	if err != nil {
 		return err
 	}
 
 	byNamespace := map[string]*fleet.BundleDeployment{}
-	for _, appDep := range bundleDeployments {
-		byNamespace[appDep.Namespace] = appDep.DeepCopy()
+	for _, bd := range bundleDeployments {
+		byNamespace[bd.Namespace] = bd.DeepCopy()
 	}
 
 	for _, target := range targets {
@@ -346,23 +355,23 @@ func (m *Manager) foldInDeployments(app *fleet.Bundle, targets []*Target) error 
 	return nil
 }
 
-func deploymentLabelsForNewBundle(app *fleet.Bundle) map[string]string {
-	labels := yaml.CleanAnnotationsForExport(app.Labels)
-	for k, v := range app.Labels {
+func deploymentLabelsForNewBundle(bundle *fleet.Bundle) map[string]string {
+	labels := yaml.CleanAnnotationsForExport(bundle.Labels)
+	for k, v := range bundle.Labels {
 		if strings.HasPrefix(k, "fleet.cattle.io/") {
 			labels[k] = v
 		}
 	}
-	for k, v := range deploymentLabelsForSelector(app) {
+	for k, v := range deploymentLabelsForSelector(bundle) {
 		labels[k] = v
 	}
 	return labels
 }
 
-func deploymentLabelsForSelector(app *fleet.Bundle) map[string]string {
+func deploymentLabelsForSelector(bundle *fleet.Bundle) map[string]string {
 	return map[string]string{
-		"fleet.cattle.io/bundle-name":      app.Name,
-		"fleet.cattle.io/bundle-namespace": app.Namespace,
+		"fleet.cattle.io/bundle-name":      bundle.Name,
+		"fleet.cattle.io/bundle-namespace": bundle.Namespace,
 	}
 }
 
@@ -381,6 +390,7 @@ func (t *Target) IsPaused() bool {
 		t.Bundle.Spec.Paused
 }
 
+// AssignNewDeployment builds a new BundleDeployment for the target.
 func (t *Target) AssignNewDeployment() {
 	labels := map[string]string{}
 	for k, v := range deploymentLabelsForNewBundle(t.Bundle) {

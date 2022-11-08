@@ -121,7 +121,8 @@ func (m *Manager) Resources(bd *fleet.BundleDeployment) (*helmdeployer.Resources
 	return resources, nil
 }
 
-// Deploy the bundle deployment, i.e. with helmdeployer
+// Deploy the bundle deployment, i.e. with helmdeployer.
+// This loads the manifest and the contents from the upstream cluster.
 func (m *Manager) Deploy(bd *fleet.BundleDeployment) (string, error) {
 	if bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
 		if ok, err := m.deployer.EnsureInstalled(bd.Name, bd.Status.Release); err != nil {
