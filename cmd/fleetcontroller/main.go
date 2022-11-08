@@ -29,7 +29,7 @@ type FleetManager struct {
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
 	debugConfig.MustSetupDebug()
 	if err := fleetcontroller.Start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops); err != nil {

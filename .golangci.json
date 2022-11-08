@@ -27,12 +27,9 @@
     "disable-all": true,
     "enable": [
       "misspell",
-      "structcheck",
       "govet",
       "staticcheck",
-      "deadcode",
       "errcheck",
-      "varcheck",
       "unparam",
       "ineffassign",
       "nakedret",
