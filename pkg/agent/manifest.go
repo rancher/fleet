@@ -7,10 +7,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/wrangler/pkg/name"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -45,11 +45,11 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 		opts.AgentImage = config.DefaultAgentImage
 	}
 
-	sa := basic.ServiceAccount(namespace, DefaultName)
+	sa := serviceAccount(namespace, DefaultName)
 
 	logrus.Debugf("Building manifest for fleet-agent in namespace %s (sa: %s)", namespace, sa.Name)
 
-	defaultSa := basic.ServiceAccount(namespace, "default")
+	defaultSa := serviceAccount(namespace, "default")
 	defaultSa.AutomountServiceAccountToken = new(bool)
 
 	clusterRole := []runtime.Object{
@@ -90,7 +90,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 
 	// if debug is enabled in controller, enable in agent too
 	debug := logrus.IsLevelEnabled(logrus.DebugLevel)
-	dep := basic.Deployment(namespace, DefaultName, image, opts.AgentImagePullPolicy, DefaultName, false, debug)
+	dep := agentDeployment(namespace, DefaultName, image, opts.AgentImagePullPolicy, DefaultName, false, debug)
 	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
 		corev1.EnvVar{
 			Name:  "AGENT_SCOPE",
@@ -170,4 +170,84 @@ func resolve(global, prefix, image string) string {
 	}
 
 	return image
+}
+
+func agentDeployment(namespace, name, image, imagePullPolicy, serviceAccount string, linuxOnly, debug bool) *appsv1.Deployment {
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": name,
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": name,
+					},
+				},
+				Spec: corev1.PodSpec{
+					ServiceAccountName: serviceAccount,
+					Containers: []corev1.Container{
+						{
+							Name:            name,
+							Image:           image,
+							ImagePullPolicy: corev1.PullPolicy(imagePullPolicy),
+							Env: []corev1.EnvVar{
+								{
+									Name: "NAMESPACE",
+									ValueFrom: &corev1.EnvVarSource{
+										FieldRef: &corev1.ObjectFieldSelector{
+											FieldPath: "metadata.namespace",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	if !debug {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			container.SecurityContext = &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &[]bool{false}[0],
+				ReadOnlyRootFilesystem:   &[]bool{true}[0],
+			}
+		}
+		deployment.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
+			RunAsNonRoot: &[]bool{true}[0],
+			RunAsUser:    &[]int64{1000}[0],
+			RunAsGroup:   &[]int64{1000}[0],
+		}
+	}
+	if linuxOnly {
+		deployment.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
+	}
+	deployment.Spec.Template.Spec.Tolerations = append(deployment.Spec.Template.Spec.Tolerations, corev1.Toleration{
+		Key:      "node.cloudprovider.kubernetes.io/uninitialized",
+		Operator: corev1.TolerationOpEqual,
+		Value:    "true",
+		Effect:   corev1.TaintEffectNoSchedule,
+	}, corev1.Toleration{
+		Key:      "cattle.io/os",
+		Operator: corev1.TolerationOpEqual,
+		Value:    "linux",
+		Effect:   corev1.TaintEffectNoSchedule,
+	})
+	return deployment
+}
+
+func serviceAccount(namespace, name string) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
 }
