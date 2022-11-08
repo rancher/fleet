@@ -14,7 +14,7 @@ import (
 	"strconv"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundleyaml"
+	"github.com/rancher/fleet/pkg/fleetyaml"
 
 	name1 "github.com/rancher/wrangler/pkg/name"
 
@@ -75,14 +75,14 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*flee
 // try the fallback extension. If we receive "IsNotExist" errors for both file extensions, then we return a "nil" file
 // and a "nil" error. If either return a non-"IsNotExist" error, then we return the error immediately.
 func setupIOReader(baseDir string) (*os.File, error) {
-	if file, err := os.Open(bundleyaml.GetFleetYamlPath(baseDir, false)); err != nil && !os.IsNotExist(err) {
+	if file, err := os.Open(fleetyaml.GetFleetYamlPath(baseDir, false)); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	} else if err == nil {
 		// File must be closed in the parent function.
 		return file, nil
 	}
 
-	if file, err := os.Open(bundleyaml.GetFleetYamlPath(baseDir, true)); err != nil && !os.IsNotExist(err) {
+	if file, err := os.Open(fleetyaml.GetFleetYamlPath(baseDir, true)); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	} else if err == nil {
 		// File must be closed in the parent function.

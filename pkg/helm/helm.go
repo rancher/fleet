@@ -8,7 +8,7 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundlereader"
-	"github.com/rancher/fleet/pkg/bundleyaml"
+	"github.com/rancher/fleet/pkg/fleetyaml"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/rawyaml"
 
@@ -43,7 +43,7 @@ func move(m *manifest.Manifest, from, to string) (result []fleet.BundleResource)
 func manifests(m *manifest.Manifest) (result []fleet.BundleResource) {
 	var ignorePrefix []string
 	for _, resource := range m.Resources {
-		if bundleyaml.IsFleetYamlSuffix(resource.Name) ||
+		if fleetyaml.IsFleetYamlSuffix(resource.Name) ||
 			strings.HasSuffix(resource.Name, "/Chart.yaml") {
 			ignorePrefix = append(ignorePrefix, filepath.Dir(resource.Name)+"/")
 		}
@@ -51,7 +51,7 @@ func manifests(m *manifest.Manifest) (result []fleet.BundleResource) {
 
 outer:
 	for _, resource := range m.Resources {
-		if bundleyaml.IsFleetYaml(resource.Name) {
+		if fleetyaml.IsFleetYaml(resource.Name) {
 			continue
 		}
 		if !strings.HasSuffix(resource.Name, ".yaml") &&
