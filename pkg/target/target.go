@@ -223,7 +223,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 		return nil, err
 	}
 
-	manifest, err := manifest.New(&fleetBundle.Spec)
+	manifest, err := manifest.New(fleetBundle.Spec.Resources)
 	if err != nil {
 		return nil, err
 	}

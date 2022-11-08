@@ -216,7 +216,7 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 		return nil
 	}
 	bundleMap := map[fleet.ResourceKey]struct{}{}
-	m, err := manifest.New(&bundle.Spec)
+	m, err := manifest.New(bundle.Spec.Resources)
 	if err != nil {
 		return err
 	}
