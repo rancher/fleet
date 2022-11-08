@@ -222,7 +222,7 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 	}
 
 	for i := range bundle.Spec.Targets {
-		opts := options.Calculate(&bundle.Spec, &bundle.Spec.Targets[i])
+		opts := options.Merge(bundle.Spec.BundleDeploymentOptions, bundle.Spec.Targets[i].BundleDeploymentOptions)
 		objs, err := helmdeployer.Template(bundle.Name, m, opts)
 		if err != nil {
 			return err

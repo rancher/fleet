@@ -82,7 +82,7 @@ func printMatch(bundle *fleet.Bundle, target *fleet.BundleTarget, output io.Writ
 		return nil
 	}
 
-	opts := options.Calculate(&bundle.Spec, target)
+	opts := options.Merge(bundle.Spec.BundleDeploymentOptions, target.BundleDeploymentOptions)
 
 	manifest, err := manifest.New(&bundle.Spec)
 	if err != nil {

@@ -254,7 +254,7 @@ func (m *Manager) Targets(fleetBundle *fleet.Bundle) (result []*Target, _ error)
 				continue
 			}
 
-			opts := options.Calculate(&fleetBundle.Spec, target)
+			opts := options.Merge(fleetBundle.Spec.BundleDeploymentOptions, target.BundleDeploymentOptions)
 			err = addClusterLabels(&opts, cluster.Labels)
 			if err != nil {
 				return nil, err
