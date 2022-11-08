@@ -10,8 +10,8 @@ import (
 	"os"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundle"
 	"github.com/rancher/fleet/pkg/bundlematcher"
+	"github.com/rancher/fleet/pkg/bundlereader"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
@@ -37,12 +37,12 @@ func Match(ctx context.Context, opts *Options) error {
 	}
 
 	var (
-		b   *bundle.Bundle
+		b   *bundlereader.Results
 		err error
 	)
 
 	if opts.BundleFile == "" {
-		b, err = bundle.Open(ctx, "test", opts.BaseDir, opts.BundleSpec, nil)
+		b, err = bundlereader.Open(ctx, "test", opts.BaseDir, opts.BundleSpec, nil)
 		if err != nil {
 			return err
 		}
@@ -57,13 +57,13 @@ func Match(ctx context.Context, opts *Options) error {
 			return err
 		}
 
-		b, err = bundle.New(bundleConfig)
+		b, err = bundlereader.NewResults(bundleConfig)
 		if err != nil {
 			return err
 		}
 	}
 
-	bm, err := bundlematcher.New(b.Definition)
+	bm, err := bundlematcher.New(b.Bundle)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func Match(ctx context.Context, opts *Options) error {
 	return printMatch(b, bm.MatchForTarget(opts.Target), opts.Output)
 }
 
-func printMatch(bundle *bundle.Bundle, target *fleet.BundleTarget, output io.Writer) error {
+func printMatch(bundle *bundlereader.Results, target *fleet.BundleTarget, output io.Writer) error {
 	if target == nil {
 		return errors.New("no match found")
 	}
@@ -87,14 +87,14 @@ func printMatch(bundle *bundle.Bundle, target *fleet.BundleTarget, output io.Wri
 		return nil
 	}
 
-	opts := options.Calculate(&bundle.Definition.Spec, target)
+	opts := options.Calculate(&bundle.Bundle.Spec, target)
 
-	manifest, err := manifest.New(&bundle.Definition.Spec)
+	manifest, err := manifest.New(&bundle.Bundle.Spec)
 	if err != nil {
 		return err
 	}
 
-	objs, err := helmdeployer.Template(bundle.Definition.Name, manifest, opts)
+	objs, err := helmdeployer.Template(bundle.Bundle.Name, manifest, opts)
 	if err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-package bundle
+package bundlereader
 
 import (
 	"bytes"
@@ -20,6 +20,12 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// Results contains the fleet bundle and any existing imagescans
+type Results struct {
+	Bundle *fleet.Bundle
+	Scans  []*fleet.ImageScan
+}
+
 type Options struct {
 	Compress        bool
 	Labels          map[string]string
@@ -31,9 +37,18 @@ type Options struct {
 	Auth            Auth
 }
 
+// NewResults returns the Result struct, e.g. after deserializing the bundle from JSON
+func NewResults(bundle *fleet.Bundle) (*Results, error) {
+	a := &Results{
+		Bundle: bundle,
+		Scans:  nil,
+	}
+	return a, nil
+}
+
 // Open reads the content, from stdin, or basedir, or a file in basedir. It
 // returns a bundle with the given name
-func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
+func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Results, error) {
 	if baseDir == "" {
 		baseDir = "."
 	}
@@ -89,7 +104,7 @@ func setupIOReader(baseDir string) (*os.File, error) {
 	return nil, nil
 }
 
-func mayCompress(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
+func mayCompress(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Results, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -104,7 +119,7 @@ func mayCompress(ctx context.Context, name, baseDir string, bundleSpecReader io.
 		return nil, err
 	}
 
-	if size, err := size(bundle.Definition); err != nil {
+	if size, err := size(bundle.Bundle); err != nil {
 		return nil, err
 	} else if size < 1000000 {
 		return bundle, nil
@@ -136,7 +151,7 @@ type imageScan struct {
 	fleet.ImageScanSpec
 }
 
-func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
+func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Results, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -246,9 +261,9 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		def.Spec.Paused = true
 	}
 
-	return &Bundle{
-		Definition: def,
-		Scans:      scans,
+	return &Results{
+		Bundle: def,
+		Scans:  scans,
 	}, nil
 }
 

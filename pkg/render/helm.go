@@ -4,7 +4,7 @@ import (
 	"io"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundle"
+	"github.com/rancher/fleet/pkg/bundlereader"
 	"github.com/rancher/fleet/pkg/helm"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/patch"
@@ -12,7 +12,7 @@ import (
 
 func ToChart(name string, m *manifest.Manifest, options fleet.BundleDeploymentOptions) (io.Reader, error) {
 	var (
-		style = bundle.DetermineStyle(m, options)
+		style = bundlereader.DetermineStyle(m, options)
 		err   error
 	)
 

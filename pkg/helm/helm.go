@@ -7,7 +7,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundle"
+	"github.com/rancher/fleet/pkg/bundlereader"
 	"github.com/rancher/fleet/pkg/bundleyaml"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/rawyaml"
@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func Process(name string, m *manifest.Manifest, style bundle.Style) (*manifest.Manifest, error) {
+func Process(name string, m *manifest.Manifest, style bundlereader.Style) (*manifest.Manifest, error) {
 	newManifest := toChart(m, style)
 	if !style.HasChartYAML {
 		return addChartYAML(name, m, newManifest)
@@ -75,7 +75,7 @@ outer:
 	return result
 }
 
-func toChart(m *manifest.Manifest, style bundle.Style) *manifest.Manifest {
+func toChart(m *manifest.Manifest, style bundlereader.Style) *manifest.Manifest {
 	var (
 		resources []fleet.BundleResource
 	)

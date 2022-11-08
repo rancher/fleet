@@ -1,4 +1,4 @@
-package bundle
+package bundlereader
 
 import (
 	"context"
