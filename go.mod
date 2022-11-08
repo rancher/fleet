@@ -4,6 +4,7 @@ go 1.18
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
+	github.com/rancher/wrangler => github.com/moio/wrangler v0.0.0-20221108212643-8df82c78249b
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.9.0-rancher1
 	k8s.io/api => k8s.io/api v0.24.5
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.5

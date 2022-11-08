@@ -64,7 +64,7 @@ func Register(ctx context.Context,
 	// This handler is triggered for bundles.OnChange
 	fleetcontrollers.RegisterBundleGeneratingHandler(ctx,
 		bundles,
-		apply.WithCacheTypes(bundleDeployments),
+		apply.WithCacheTypes(bundleDeployments).WithIgnorePreviousApplied(),
 		"Processed",
 		"bundle",
 		h.OnBundleChange,
