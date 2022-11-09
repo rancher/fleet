@@ -1,4 +1,8 @@
-// Package target provides a functions to match bundles and clusters and to list the bundledeployments for that match. (fleetcontroller)
+// Package target provides functionality around building and deploying bundledeployments. (fleetcontroller)
+//
+// Each "Target" represents a bundle, cluster pair and will be transformed into a bundledeployment.
+// The manifest, persisted in the content resource, contains the resources available to
+// these bundledeployments.
 package target
 
 import (
@@ -68,6 +72,12 @@ func New(
 func (m *Manager) BundleFromDeployment(bd *fleet.BundleDeployment) (string, string) {
 	return bd.Labels["fleet.cattle.io/bundle-namespace"],
 		bd.Labels["fleet.cattle.io/bundle-name"]
+}
+
+// StoreManifest stores the manifest as a content resource and returns the name.
+// It copies the resources from the bundle to the content resource.
+func (m *Manager) StoreManifest(manifest *manifest.Manifest) (string, error) {
+	return m.contentStore.Store(manifest)
 }
 
 func clusterGroupsToLabelMap(cgs []*fleet.ClusterGroup) map[string]map[string]string {
@@ -221,22 +231,11 @@ func (m *Manager) getNamespacesForBundle(bundle *fleet.Bundle) ([]string, error)
 // This is done by checking all namespaces for clusters matching the bundle's
 // BundleTarget matchers.
 //
-// But first it builds a "manifest" from the bundle's resources and stores it
-// in the content store.
 // The returned target structs contain merged BundleDeploymentOptions.
 // Finally all existing bundledeployments are added to the targets.
-func (m *Manager) Targets(bundle *fleet.Bundle) (result []*Target, _ error) {
+func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]*Target, error) {
 	bm, err := bundlematcher.New(bundle)
 	if err != nil {
-		return nil, err
-	}
-
-	manifest, err := manifest.New(bundle.Spec.Resources)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := m.contentStore.Store(manifest); err != nil {
 		return nil, err
 	}
 
@@ -245,6 +244,7 @@ func (m *Manager) Targets(bundle *fleet.Bundle) (result []*Target, _ error) {
 		return nil, err
 	}
 
+	var targets []*Target
 	for _, namespace := range namespaces {
 		clusters, err := m.clusters.List(namespace, labels.Everything())
 		if err != nil {
@@ -273,7 +273,7 @@ func (m *Manager) Targets(bundle *fleet.Bundle) (result []*Target, _ error) {
 				return nil, err
 			}
 
-			result = append(result, &Target{
+			targets = append(targets, &Target{
 				ClusterGroups: clusterGroups,
 				Cluster:       cluster,
 				Target:        target, // contains the unmerged BundleDeploymentOptions
@@ -284,11 +284,11 @@ func (m *Manager) Targets(bundle *fleet.Bundle) (result []*Target, _ error) {
 		}
 	}
 
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Cluster.Name < result[j].Cluster.Name
+	sort.Slice(targets, func(i, j int) bool {
+		return targets[i].Cluster.Name < targets[j].Cluster.Name
 	})
 
-	return result, m.foldInDeployments(bundle, result)
+	return targets, m.foldInDeployments(bundle, targets)
 }
 
 func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]string) (err error) {

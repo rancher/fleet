@@ -173,23 +173,38 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	logrus.Debugf("OnBundleChange for bundle '%s', checking targets, calculating changes, building objects", bundle.Name)
 	start := time.Now()
 
-	targets, err := h.targets.Targets(bundle)
+	manifest, err := manifest.New(bundle.Spec.Resources)
 	if err != nil {
 		return nil, status, err
 	}
 
-	if err := h.calculateChanges(&status, targets); err != nil {
+	// this does not need to happen after merging the
+	// BundleDeploymentOptions, since 'fleet apply' already put the right
+	// resources into bundle.Spec.Resources
+	if _, err := h.targets.StoreManifest(manifest); err != nil {
 		return nil, status, err
 	}
 
-	if err := setResourceKey(&status, bundle, h.isNamespaced, status.ObservedGeneration != bundle.Generation); err != nil {
+	matchedTargets, err := h.targets.Targets(bundle, manifest)
+	if err != nil {
 		return nil, status, err
+	}
+
+	// NOTE this mutates allTargets and adds new deployments
+	if err := h.calculateChanges(&status, matchedTargets); err != nil {
+		return nil, status, err
+	}
+
+	if status.ObservedGeneration != bundle.Generation {
+		if err := setResourceKey(&status, bundle, manifest, h.isNamespaced); err != nil {
+			return nil, status, err
+		}
 	}
 
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
 
-	objs := bundleDeployments(targets, bundle)
+	objs := bundleDeployments(matchedTargets, bundle)
 
 	elapsed := time.Since(start)
 
@@ -212,19 +227,11 @@ func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
 }
 
 // setResourceKey runs helm template to set up all resource keys in the BundleStatus passed in as argument.
-func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed func(schema.GroupVersionKind) bool, set bool) error {
-	if !set {
-		return nil
-	}
+func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *manifest.Manifest, isNSed func(schema.GroupVersionKind) bool) error {
 	bundleMap := map[fleet.ResourceKey]struct{}{}
-	m, err := manifest.New(bundle.Spec.Resources)
-	if err != nil {
-		return err
-	}
-
 	for i := range bundle.Spec.Targets {
 		opts := options.Merge(bundle.Spec.BundleDeploymentOptions, bundle.Spec.Targets[i].BundleDeploymentOptions)
-		objs, err := helmdeployer.Template(bundle.Name, m, opts)
+		objs, err := helmdeployer.Template(bundle.Name, manifest, opts)
 		if err != nil {
 			return err
 		}
@@ -250,6 +257,7 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 			bundleMap[key] = struct{}{}
 		}
 	}
+
 	keys := []fleet.ResourceKey{}
 	for k := range bundleMap {
 		keys = append(keys, k)
