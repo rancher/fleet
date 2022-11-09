@@ -157,13 +157,13 @@ func pruneBundlesNotFoundInRepo(client *client.Getter, repoName string, gitRepoB
 
 // readBundle reads bundle data from a source and returns a bundle with the
 // given name, or the name from the raw source file
-func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bundlereader.Results, error) {
+func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if opts.BundleReader != nil {
-		var bundleResource fleet.Bundle
-		if err := json.NewDecoder(opts.BundleReader).Decode(&bundleResource); err != nil {
-			return nil, err
+		var bundle *fleet.Bundle
+		if err := json.NewDecoder(opts.BundleReader).Decode(bundle); err != nil {
+			return nil, nil, err
 		}
-		return bundlereader.NewResults(&bundleResource)
+		return bundle, nil, nil
 	}
 
 	return bundlereader.Open(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
@@ -228,12 +228,12 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	if opts == nil {
 		opts = &Options{}
 	}
-	br, err := readBundle(ctx, createName(name, baseDir), baseDir, opts)
+	bundle, scans, err := readBundle(ctx, createName(name, baseDir), baseDir, opts)
 	if err != nil {
 		return err
 	}
 
-	def := br.Bundle.DeepCopy()
+	def := bundle.DeepCopy()
 	def.Namespace = client.Namespace
 
 	if len(def.Spec.Resources) == 0 {
@@ -242,7 +242,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	gitRepoBundlesMap[def.Name] = true
 
 	objects := []runtime.Object{def}
-	for _, scan := range br.Scans {
+	for _, scan := range scans {
 		objects = append(objects, scan)
 	}
 
@@ -252,7 +252,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	}
 
 	if opts.Output == nil {
-		err = save(client, def, br.Scans...)
+		err = save(client, def, scans...)
 	} else {
 		_, err = opts.Output.Write(b)
 	}

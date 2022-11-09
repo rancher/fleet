@@ -1,3 +1,5 @@
+// Package bundlereader creates a bundle from a source and adds all the
+// referenced resources, as well as image scans.
 package bundlereader
 
 import (
@@ -20,12 +22,6 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// Results contains the fleet bundle and any existing imagescans
-type Results struct {
-	Bundle *fleet.Bundle
-	Scans  []*fleet.ImageScan
-}
-
 type Options struct {
 	Compress        bool
 	Labels          map[string]string
@@ -37,19 +33,10 @@ type Options struct {
 	Auth            Auth
 }
 
-// NewResults returns the Result struct, e.g. after deserializing the bundle from JSON
-func NewResults(bundle *fleet.Bundle) (*Results, error) {
-	a := &Results{
-		Bundle: bundle,
-		Scans:  nil,
-	}
-	return a, nil
-}
-
 // Open reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
-// Then it reads/downloads all referenced resources. It returns a "Result"
-// struct containing the populated bundle and any existing imagescans.
-func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Results, error) {
+// Then it reads/downloads all referenced resources. It returns the populated
+// bundle and any existing imagescans.
+func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if baseDir == "" {
 		baseDir = "."
 	}
@@ -64,7 +51,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Resu
 
 	if file == "" {
 		if file, err := setupIOReader(baseDir); err != nil {
-			return nil, err
+			return nil, nil, err
 		} else if file != nil {
 			in = file
 			defer file.Close()
@@ -75,7 +62,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Resu
 	} else {
 		f, err := os.Open(filepath.Join(baseDir, file))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		defer f.Close()
 		in = f
@@ -105,25 +92,25 @@ func setupIOReader(baseDir string) (*os.File, error) {
 	return nil, nil
 }
 
-func mayCompress(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Results, error) {
+func mayCompress(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
 
 	data, err := io.ReadAll(bundleSpecReader)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	bundle, err := read(ctx, name, baseDir, bytes.NewBuffer(data), opts)
+	bundle, scans, err := read(ctx, name, baseDir, bytes.NewBuffer(data), opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if size, err := size(bundle.Bundle); err != nil {
-		return nil, err
+	if size, err := size(bundle); err != nil {
+		return nil, nil, err
 	} else if size < 1000000 {
-		return bundle, nil
+		return bundle, scans, nil
 	}
 
 	newOpts := *opts
@@ -153,7 +140,7 @@ type imageScan struct {
 }
 
 // read reads the fleet.yaml from the bundleSpecReader and loads all resources
-func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Results, error) {
+func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -164,12 +151,12 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	bytes, err := io.ReadAll(bundleSpecReader)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fy := &fleetYAML{}
 	if err := yaml.Unmarshal(bytes, fy); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var scans []*fleet.ImageScan
@@ -178,7 +165,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 			continue
 		}
 		if scan.TagName == "" {
-			return nil, errors.New("the name of scan is required")
+			return nil, nil, errors.New("the name of scan is required")
 		}
 
 		scans = append(scans, &fleet.ImageScan{
@@ -193,7 +180,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	meta, err := readMetadata(bytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	meta.Name = name
@@ -207,7 +194,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fy.Resources = resources
@@ -240,7 +227,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	bundle, err = appendTargets(bundle, opts.TargetsFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if len(bundle.Spec.Targets) == 0 {
@@ -263,10 +250,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		bundle.Spec.Paused = true
 	}
 
-	return &Results{
-		Bundle: bundle,
-		Scans:  scans,
-	}, nil
+	return bundle, scans, nil
 }
 
 // propagateHelmChartProperties propagates root Helm chart properties to the child targets.
