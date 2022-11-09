@@ -228,7 +228,10 @@ func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
 
 // setResourceKey runs helm template to set up all resource keys in the BundleStatus passed in as argument.
 func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *manifest.Manifest, isNSed func(schema.GroupVersionKind) bool) error {
-	bundleMap := map[fleet.ResourceKey]struct{}{}
+	seen := map[fleet.ResourceKey]struct{}{}
+
+	// iterate over the defined targets, from "targets.yaml", not the
+	// actually matched targets to avoid duplicates
 	for i := range bundle.Spec.Targets {
 		opts := options.Merge(bundle.Spec.BundleDeploymentOptions, bundle.Spec.Targets[i].BundleDeploymentOptions)
 		objs, err := helmdeployer.Template(bundle.Name, manifest, opts)
@@ -254,12 +257,12 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *
 				}
 			}
 			key.APIVersion, key.Kind = gvk.ToAPIVersionAndKind()
-			bundleMap[key] = struct{}{}
+			seen[key] = struct{}{}
 		}
 	}
 
 	keys := []fleet.ResourceKey{}
-	for k := range bundleMap {
+	for k := range seen {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
@@ -348,7 +351,7 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 
 		for _, currentTarget := range partition.Targets {
 			// NOTE this will propagate the merged options to the current deployment
-			updateManifest(currentTarget, status, &partition.Status)
+			updateTarget(currentTarget, status, &partition.Status)
 		}
 
 		if target.IsPartitionUnavailable(&partition.Status, partition.Targets) {
@@ -367,9 +370,9 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 	return nil
 }
 
-// updateManifest will update DeploymentID and Options for the target to the
+// updateTarget will update DeploymentID and Options for the target to the
 // staging values, if it's in a deployable state
-func updateManifest(t *target.Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
+func updateTarget(t *target.Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
 	if t.Deployment != nil &&
 		// Not Paused
 		!t.IsPaused() &&
