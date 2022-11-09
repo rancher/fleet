@@ -108,6 +108,8 @@ func targetsOrDefault(targets []fleet.GitTarget) []fleet.GitTarget {
 	return targets
 }
 
+// getConfig builds a config map, containing the GitTarget cluster matchers, converted to BundleTargets.
+// The BundleTargets are duplicated into TargetRestrictions.
 func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 	spec := &fleet.BundleSpec{}
 	for _, target := range targetsOrDefault(repo.Spec.Targets) {
