@@ -147,7 +147,7 @@ func getToken(ctx context.Context, controllerNamespace, tokenName string, client
 		return nil, fmt.Errorf("failed to find token in values")
 	}
 
-	expectedNamespace := fleetns.RegistrationNamespace(controllerNamespace)
+	expectedNamespace := fleetns.SystemRegistrationNamespace(controllerNamespace)
 	actualNamespace := data["systemRegistrationNamespace"]
 	if actualNamespace != expectedNamespace {
 		return nil, fmt.Errorf("registration namespace (%s) from secret (%s/%s) does not match expected: %s", actualNamespace, secret.Namespace, secret.Name, expectedNamespace)

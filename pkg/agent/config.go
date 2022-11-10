@@ -4,9 +4,10 @@ import (
 	"context"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
-	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -44,7 +45,11 @@ func configObjects(controllerNamespace string, clusterLabels map[string]string, 
 	}
 	cm.Name = "fleet-agent"
 	return []runtime.Object{
-		basic.Namespace(controllerNamespace),
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: controllerNamespace,
+			},
+		},
 		cm,
 	}, nil
 }

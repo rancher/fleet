@@ -1,4 +1,6 @@
-package bundle
+// Package bundlereader creates a bundle from a source and adds all the
+// referenced resources, as well as image scans.
+package bundlereader
 
 import (
 	"bytes"
@@ -12,7 +14,7 @@ import (
 	"strconv"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundleyaml"
+	"github.com/rancher/fleet/pkg/fleetyaml"
 
 	name1 "github.com/rancher/wrangler/pkg/name"
 
@@ -31,9 +33,10 @@ type Options struct {
 	Auth            Auth
 }
 
-// Open reads the content, from stdin, or basedir, or a file in basedir. It
-// returns a bundle with the given name
-func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bundle, error) {
+// Open reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
+// Then it reads/downloads all referenced resources. It returns the populated
+// bundle and any existing imagescans.
+func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if baseDir == "" {
 		baseDir = "."
 	}
@@ -48,7 +51,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 
 	if file == "" {
 		if file, err := setupIOReader(baseDir); err != nil {
-			return nil, err
+			return nil, nil, err
 		} else if file != nil {
 			in = file
 			defer file.Close()
@@ -59,7 +62,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 	} else {
 		f, err := os.Open(filepath.Join(baseDir, file))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		defer f.Close()
 		in = f
@@ -72,14 +75,14 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*Bund
 // try the fallback extension. If we receive "IsNotExist" errors for both file extensions, then we return a "nil" file
 // and a "nil" error. If either return a non-"IsNotExist" error, then we return the error immediately.
 func setupIOReader(baseDir string) (*os.File, error) {
-	if file, err := os.Open(bundleyaml.GetFleetYamlPath(baseDir, false)); err != nil && !os.IsNotExist(err) {
+	if file, err := os.Open(fleetyaml.GetFleetYamlPath(baseDir, false)); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	} else if err == nil {
 		// File must be closed in the parent function.
 		return file, nil
 	}
 
-	if file, err := os.Open(bundleyaml.GetFleetYamlPath(baseDir, true)); err != nil && !os.IsNotExist(err) {
+	if file, err := os.Open(fleetyaml.GetFleetYamlPath(baseDir, true)); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	} else if err == nil {
 		// File must be closed in the parent function.
@@ -89,25 +92,25 @@ func setupIOReader(baseDir string) (*os.File, error) {
 	return nil, nil
 }
 
-func mayCompress(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
+func mayCompress(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
 
 	data, err := io.ReadAll(bundleSpecReader)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	bundle, err := read(ctx, name, baseDir, bytes.NewBuffer(data), opts)
+	bundle, scans, err := read(ctx, name, baseDir, bytes.NewBuffer(data), opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if size, err := size(bundle.Definition); err != nil {
-		return nil, err
+	if size, err := size(bundle); err != nil {
+		return nil, nil, err
 	} else if size < 1000000 {
-		return bundle, nil
+		return bundle, scans, nil
 	}
 
 	newOpts := *opts
@@ -123,7 +126,7 @@ func size(bundle *fleet.Bundle) (int, error) {
 	return len(marshalled), nil
 }
 
-type localSpec struct {
+type fleetYAML struct {
 	Name   string            `json:"name,omitempty"`
 	Labels map[string]string `json:"labels,omitempty"`
 	fleet.BundleSpec
@@ -136,7 +139,8 @@ type imageScan struct {
 	fleet.ImageScanSpec
 }
 
-func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*Bundle, error) {
+// read reads the fleet.yaml from the bundleSpecReader and loads all resources
+func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -147,21 +151,21 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	bytes, err := io.ReadAll(bundleSpecReader)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	bundle := &localSpec{}
-	if err := yaml.Unmarshal(bytes, bundle); err != nil {
-		return nil, err
+	fy := &fleetYAML{}
+	if err := yaml.Unmarshal(bytes, fy); err != nil {
+		return nil, nil, err
 	}
 
 	var scans []*fleet.ImageScan
-	for i, scan := range bundle.ImageScans {
+	for i, scan := range fy.ImageScans {
 		if scan.Image == "" {
 			continue
 		}
 		if scan.TagName == "" {
-			return nil, errors.New("the name of scan is required")
+			return nil, nil, errors.New("the name of scan is required")
 		}
 
 		scans = append(scans, &fleet.ImageScan{
@@ -172,62 +176,62 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		})
 	}
 
-	bundle.BundleSpec.Targets = append(bundle.BundleSpec.Targets, bundle.TargetCustomizations...)
+	fy.BundleSpec.Targets = append(fy.BundleSpec.Targets, fy.TargetCustomizations...)
 
 	meta, err := readMetadata(bytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	meta.Name = name
-	if bundle.Name != "" {
-		meta.Name = bundle.Name
+	if fy.Name != "" {
+		meta.Name = fy.Name
 	}
 
-	setTargetNames(&bundle.BundleSpec)
+	setTargetNames(&fy.BundleSpec)
 
-	propagateHelmChartProperties(&bundle.BundleSpec)
+	propagateHelmChartProperties(&fy.BundleSpec)
 
-	resources, err := readResources(ctx, &bundle.BundleSpec, opts.Compress, baseDir, opts.Auth)
+	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	bundle.Resources = resources
+	fy.Resources = resources
 
-	def := &fleet.Bundle{
+	bundle := &fleet.Bundle{
 		ObjectMeta: meta.ObjectMeta,
-		Spec:       bundle.BundleSpec,
+		Spec:       fy.BundleSpec,
 	}
 
 	for k, v := range opts.Labels {
-		if def.Labels == nil {
-			def.Labels = make(map[string]string)
+		if bundle.Labels == nil {
+			bundle.Labels = make(map[string]string)
 		}
-		def.Labels[k] = v
+		bundle.Labels[k] = v
 	}
 
 	// apply additional labels from spec
-	for k, v := range bundle.Labels {
-		if def.Labels == nil {
-			def.Labels = make(map[string]string)
+	for k, v := range fy.Labels {
+		if bundle.Labels == nil {
+			bundle.Labels = make(map[string]string)
 		}
-		def.Labels[k] = v
+		bundle.Labels[k] = v
 	}
 
 	if opts.ServiceAccount != "" {
-		def.Spec.ServiceAccount = opts.ServiceAccount
+		bundle.Spec.ServiceAccount = opts.ServiceAccount
 	}
 
-	def.Spec.ForceSyncGeneration = opts.SyncGeneration
+	bundle.Spec.ForceSyncGeneration = opts.SyncGeneration
 
-	def, err = appendTargets(def, opts.TargetsFile)
+	bundle, err = appendTargets(bundle, opts.TargetsFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if len(def.Spec.Targets) == 0 {
-		def.Spec.Targets = []fleet.BundleTarget{
+	if len(bundle.Spec.Targets) == 0 {
+		bundle.Spec.Targets = []fleet.BundleTarget{
 			{
 				Name:         "default",
 				ClusterGroup: "default",
@@ -236,20 +240,21 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	if opts.TargetNamespace != "" {
-		def.Spec.TargetNamespace = opts.TargetNamespace
-		for i := range def.Spec.Targets {
-			def.Spec.Targets[i].TargetNamespace = opts.TargetNamespace
+		bundle.Spec.TargetNamespace = opts.TargetNamespace
+		for i := range bundle.Spec.Targets {
+			bundle.Spec.Targets[i].TargetNamespace = opts.TargetNamespace
 		}
 	}
 
 	if opts.Paused {
-		def.Spec.Paused = true
+		bundle.Spec.Paused = true
 	}
 
-	return New(def, scans...)
+	return bundle, scans, nil
 }
 
 // propagateHelmChartProperties propagates root Helm chart properties to the child targets.
+// This is necessary, so we can download the correct chart version for each target.
 func propagateHelmChartProperties(spec *fleet.BundleSpec) {
 	// Check if there is anything to propagate
 	if spec.Helm == nil {

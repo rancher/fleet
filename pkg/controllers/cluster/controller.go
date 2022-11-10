@@ -75,7 +75,7 @@ func Register(ctx context.Context,
 func (h *handler) ensureNSDeleted(key string, obj *fleet.Cluster) (*fleet.Cluster, error) {
 	if obj == nil {
 		logrus.Debugf("Cluster %s deleted, enqueue cluster namespace deletion", key)
-		h.namespaces.Enqueue(clusterToNamespace(kv.Split(key, "/")))
+		h.namespaces.Enqueue(clusterNamespace(kv.Split(key, "/")))
 	}
 	return obj, nil
 }
@@ -106,9 +106,10 @@ func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relate
 	}
 }
 
-// clusterToNamespace returns the namespace name for a given cluster name, e.g.:
-// cluster-fleet-local-cluster-294db1acfa77-d9ccf852678f
-func clusterToNamespace(clusterNamespace, clusterName string) string {
+// clusterNamespace returns the cluster namespace name
+// for a given cluster name, e.g.:
+// "cluster-fleet-local-cluster-294db1acfa77-d9ccf852678f"
+func clusterNamespace(clusterNamespace, clusterName string) string {
 	return name.SafeConcatName("cluster",
 		clusterNamespace,
 		clusterName,
@@ -136,7 +137,7 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 	}
 
 	if status.Namespace == "" {
-		status.Namespace = clusterToNamespace(cluster.Namespace, cluster.Name)
+		status.Namespace = clusterNamespace(cluster.Namespace, cluster.Name)
 	}
 
 	bundleDeployments, err := h.bundleDeployment.List(status.Namespace, labels.Everything())

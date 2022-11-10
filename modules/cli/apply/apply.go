@@ -16,8 +16,8 @@ import (
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundle"
-	"github.com/rancher/fleet/pkg/bundleyaml"
+	"github.com/rancher/fleet/pkg/bundlereader"
+	"github.com/rancher/fleet/pkg/fleetyaml"
 
 	name2 "github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
@@ -47,7 +47,7 @@ type Options struct {
 	Paused          bool
 	Labels          map[string]string
 	SyncGeneration  int64
-	Auth            bundle.Auth
+	Auth            bundlereader.Auth
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -97,7 +97,7 @@ func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs
 					if !info.IsDir() {
 						return nil
 					}
-					if !bundleyaml.FoundFleetYamlInDirectory(path) {
+					if !fleetyaml.FoundFleetYamlInDirectory(path) {
 						return nil
 					}
 				}
@@ -155,18 +155,18 @@ func pruneBundlesNotFoundInRepo(client *client.Getter, repoName string, gitRepoB
 	return err
 }
 
-// readBundle reads bundle data from a source and return a bundle with the
+// readBundle reads bundle data from a source and returns a bundle with the
 // given name, or the name from the raw source file
-func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bundle.Bundle, error) {
+func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if opts.BundleReader != nil {
-		var bundleResource fleet.Bundle
-		if err := json.NewDecoder(opts.BundleReader).Decode(&bundleResource); err != nil {
-			return nil, err
+		var bundle *fleet.Bundle
+		if err := json.NewDecoder(opts.BundleReader).Decode(bundle); err != nil {
+			return nil, nil, err
 		}
-		return bundle.New(&bundleResource)
+		return bundle, nil, nil
 	}
 
-	return bundle.Open(ctx, name, baseDir, opts.BundleFile, &bundle.Options{
+	return bundlereader.Open(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
 		Compress:        opts.Compress,
 		Labels:          opts.Labels,
 		ServiceAccount:  opts.ServiceAccount,
@@ -228,12 +228,12 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	if opts == nil {
 		opts = &Options{}
 	}
-	bundle, err := readBundle(ctx, createName(name, baseDir), baseDir, opts)
+	bundle, scans, err := readBundle(ctx, createName(name, baseDir), baseDir, opts)
 	if err != nil {
 		return err
 	}
 
-	def := bundle.Definition.DeepCopy()
+	def := bundle.DeepCopy()
 	def.Namespace = client.Namespace
 
 	if len(def.Spec.Resources) == 0 {
@@ -242,7 +242,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	gitRepoBundlesMap[def.Name] = true
 
 	objects := []runtime.Object{def}
-	for _, scan := range bundle.Scans {
+	for _, scan := range scans {
 		objects = append(objects, scan)
 	}
 
@@ -252,7 +252,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	}
 
 	if opts.Output == nil {
-		err = save(client, def, bundle.Scans...)
+		err = save(client, def, scans...)
 	} else {
 		_, err = opts.Output.Write(b)
 	}

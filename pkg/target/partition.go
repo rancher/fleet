@@ -13,6 +13,7 @@ type Partition struct {
 	Targets []*Target
 }
 
+// Partitions distributes targets into partitions based on the rollout strategy
 func Partitions(targets []*Target) ([]Partition, error) {
 	rollout := getRollout(targets)
 	if len(rollout.Partitions) == 0 {

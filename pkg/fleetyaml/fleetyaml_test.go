@@ -1,7 +1,7 @@
 //go:build !windows
 // +build !windows
 
-package bundleyaml
+package fleetyaml
 
 import (
 	"path/filepath"

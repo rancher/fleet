@@ -1,4 +1,7 @@
 // Package match is used to test matching a bundles to a target on the command line. (fleetapply)
+//
+// It's not used by fleet, but it is available in the fleet CLI as "test" sub
+// command. The tests in fleet-examples use it.
 package match
 
 import (
@@ -10,7 +13,8 @@ import (
 	"os"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundle"
+	"github.com/rancher/fleet/pkg/bundlematcher"
+	"github.com/rancher/fleet/pkg/bundlereader"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
@@ -36,12 +40,12 @@ func Match(ctx context.Context, opts *Options) error {
 	}
 
 	var (
-		b   *bundle.Bundle
-		err error
+		bundle *fleet.Bundle
+		err    error
 	)
 
 	if opts.BundleFile == "" {
-		b, err = bundle.Open(ctx, "test", opts.BaseDir, opts.BundleSpec, nil)
+		bundle, _, err = bundlereader.Open(ctx, "test", opts.BaseDir, opts.BundleSpec, nil)
 		if err != nil {
 			return err
 		}
@@ -51,44 +55,44 @@ func Match(ctx context.Context, opts *Options) error {
 			return err
 		}
 
-		bundleConfig := &fleet.Bundle{}
-		if err := yaml.Unmarshal(data, bundleConfig); err != nil {
-			return err
-		}
-
-		b, err = bundle.New(bundleConfig)
-		if err != nil {
+		bundle = &fleet.Bundle{}
+		if err := yaml.Unmarshal(data, bundle); err != nil {
 			return err
 		}
 	}
 
-	if opts.Target == "" {
-		m := b.Match(opts.ClusterName, map[string]map[string]string{
-			opts.ClusterGroup: opts.ClusterGroupLabels,
-		}, opts.ClusterLabels)
-		return printMatch(b, m, opts.Output)
-	}
-
-	return printMatch(b, b.MatchForTarget(opts.Target), opts.Output)
-}
-
-func printMatch(bundle *bundle.Bundle, m *bundle.Match, output io.Writer) error {
-	if m == nil {
-		return errors.New("no match found")
-	}
-	fmt.Fprintf(os.Stderr, "# Matched: %s\n", m.Target.Name)
-	if output == nil {
-		return nil
-	}
-
-	opts := options.Calculate(&bundle.Definition.Spec, m.Target)
-
-	manifest, err := manifest.New(&bundle.Definition.Spec)
+	bm, err := bundlematcher.New(bundle)
 	if err != nil {
 		return err
 	}
 
-	objs, err := helmdeployer.Template(m.Bundle.Definition.Name, manifest, opts)
+	if opts.Target == "" {
+		m := bm.Match(opts.ClusterName, map[string]map[string]string{
+			opts.ClusterGroup: opts.ClusterGroupLabels,
+		}, opts.ClusterLabels)
+		return printMatch(bundle, m, opts.Output)
+	}
+
+	return printMatch(bundle, bm.MatchForTarget(opts.Target), opts.Output)
+}
+
+func printMatch(bundle *fleet.Bundle, target *fleet.BundleTarget, output io.Writer) error {
+	if target == nil {
+		return errors.New("no match found")
+	}
+	fmt.Fprintf(os.Stderr, "# Matched: %s\n", target.Name)
+	if output == nil {
+		return nil
+	}
+
+	opts := options.Merge(bundle.Spec.BundleDeploymentOptions, target.BundleDeploymentOptions)
+
+	manifest, err := manifest.New(bundle.Spec.Resources)
+	if err != nil {
+		return err
+	}
+
+	objs, err := helmdeployer.Template(bundle.Name, manifest, opts)
 	if err != nil {
 		return err
 	}

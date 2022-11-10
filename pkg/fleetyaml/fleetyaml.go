@@ -1,4 +1,6 @@
-package bundleyaml
+// Package fleetyaml provides utilities for working with fleet.yaml files,
+// which are the central yaml files for bundles.
+package fleetyaml
 
 import (
 	"os"

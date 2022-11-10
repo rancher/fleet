@@ -173,23 +173,38 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	logrus.Debugf("OnBundleChange for bundle '%s', checking targets, calculating changes, building objects", bundle.Name)
 	start := time.Now()
 
-	targets, err := h.targets.Targets(bundle)
+	manifest, err := manifest.New(bundle.Spec.Resources)
 	if err != nil {
 		return nil, status, err
 	}
 
-	if err := h.calculateChanges(&status, targets); err != nil {
+	// this does not need to happen after merging the
+	// BundleDeploymentOptions, since 'fleet apply' already put the right
+	// resources into bundle.Spec.Resources
+	if _, err := h.targets.StoreManifest(manifest); err != nil {
 		return nil, status, err
 	}
 
-	if err := setResourceKey(&status, bundle, h.isNamespaced, status.ObservedGeneration != bundle.Generation); err != nil {
+	matchedTargets, err := h.targets.Targets(bundle, manifest)
+	if err != nil {
 		return nil, status, err
+	}
+
+	// NOTE this mutates allTargets and adds new deployments
+	if err := h.calculateChanges(&status, matchedTargets); err != nil {
+		return nil, status, err
+	}
+
+	if status.ObservedGeneration != bundle.Generation {
+		if err := setResourceKey(&status, bundle, manifest, h.isNamespaced); err != nil {
+			return nil, status, err
+		}
 	}
 
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
 
-	objs := toRuntimeObjects(targets, bundle)
+	objs := bundleDeployments(matchedTargets, bundle)
 
 	elapsed := time.Since(start)
 
@@ -211,19 +226,12 @@ func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
 	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
 }
 
-func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed func(schema.GroupVersionKind) bool, set bool) error {
-	if !set {
-		return nil
-	}
+// setResourceKey runs helm template to set up all resource keys in the BundleStatus passed in as argument.
+func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *manifest.Manifest, isNSed func(schema.GroupVersionKind) bool) error {
 	bundleMap := map[fleet.ResourceKey]struct{}{}
-	m, err := manifest.New(&bundle.Spec)
-	if err != nil {
-		return err
-	}
-
 	for i := range bundle.Spec.Targets {
-		opts := options.Calculate(&bundle.Spec, &bundle.Spec.Targets[i])
-		objs, err := helmdeployer.Template(bundle.Name, m, opts)
+		opts := options.Merge(bundle.Spec.BundleDeploymentOptions, bundle.Spec.Targets[i].BundleDeploymentOptions)
+		objs, err := helmdeployer.Template(bundle.Name, manifest, opts)
 		if err != nil {
 			return err
 		}
@@ -249,6 +257,7 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 			bundleMap[key] = struct{}{}
 		}
 	}
+
 	keys := []fleet.ResourceKey{}
 	for k := range bundleMap {
 		keys = append(keys, k)
@@ -275,11 +284,13 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, isNSed fun
 	return nil
 }
 
-func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
+// bundleDeployments converts the targets to BundleDeployment resources
+func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
 	for _, target := range targets {
 		if target.Deployment == nil {
 			continue
 		}
+		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
 		dp := &fleet.BundleDeployment{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      target.Deployment.Name,
@@ -295,6 +306,9 @@ func toRuntimeObjects(targets []*target.Target, bundle *fleet.Bundle) (result []
 	return
 }
 
+// calculateChanges calculates the changes to the targets, if a target is
+// without a deployment, a new BundleDeployment is build
+// This func mutates status and allTargets.
 func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
 	// reset
 	status.MaxNew = maxNew
@@ -326,12 +340,14 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 				newTarget(target, status)
 			}
 			if target.Deployment != nil {
+				// NOTE merged options from targets.Targets() are set to be staged
 				target.Deployment.Spec.StagedOptions = target.Options
 				target.Deployment.Spec.StagedDeploymentID = target.DeploymentID
 			}
 		}
 
 		for _, currentTarget := range partition.Targets {
+			// NOTE this will propagate the merged options to the current deployment
 			updateManifest(currentTarget, status, &partition.Status)
 		}
 
@@ -351,6 +367,8 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 	return nil
 }
 
+// updateManifest will update DeploymentID and Options for the target to the
+// staging values, if it's in a deployable state
 func updateManifest(t *target.Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
 	if t.Deployment != nil &&
 		// Not Paused
@@ -363,6 +381,7 @@ func updateManifest(t *target.Target, status *fleet.BundleStatus, partitionStatu
 		(status.Unavailable < status.MaxUnavailable || target.IsUnavailable(t.Deployment)) &&
 		// Partition max unavailable not reached
 		(partitionStatus.Unavailable < partitionStatus.MaxUnavailable || target.IsUnavailable(t.Deployment)) {
+
 		if !target.IsUnavailable(t.Deployment) {
 			// If this was previously available, now increment unavailable count. "Upgrading" is treated as unavailable.
 			status.Unavailable++

@@ -9,8 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func addData(systemNamespace, systemRegistrationNamespace string, appCtx *appContext) error {
-
+func applyBootstrapResources(systemNamespace, systemRegistrationNamespace string, appCtx *appContext) error {
 	return appCtx.Apply.
 		WithSetID("fleet-bootstrap-data").
 		WithDynamicLookup().

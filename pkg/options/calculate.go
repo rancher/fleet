@@ -1,3 +1,4 @@
+// Package options merges the BundleDeploymentOptions
 package options
 
 import (
@@ -10,6 +11,7 @@ import (
 	"github.com/rancher/wrangler/pkg/data"
 )
 
+// DeploymentID hashes the options to a string
 func DeploymentID(manifest *manifest.Manifest, opts fleet.BundleDeploymentOptions) (string, error) {
 	_, digest, err := manifest.Content()
 	if err != nil {
@@ -24,11 +26,8 @@ func DeploymentID(manifest *manifest.Manifest, opts fleet.BundleDeploymentOption
 	return digest + ":" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func Calculate(spec *fleet.BundleSpec, target *fleet.BundleTarget) fleet.BundleDeploymentOptions {
-	return merge(spec.BundleDeploymentOptions, target.BundleDeploymentOptions)
-}
-
-func merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptions {
+// Merge overrides the 'base' options with the 'next' options, if 'next' is present.
+func Merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptions { // nolint: gocyclo // business logic
 	result := *base.DeepCopy()
 	if next.DefaultNamespace != "" {
 		result.DefaultNamespace = next.DefaultNamespace
