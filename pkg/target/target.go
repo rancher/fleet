@@ -276,7 +276,6 @@ func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]
 			targets = append(targets, &Target{
 				ClusterGroups: clusterGroups,
 				Cluster:       cluster,
-				Target:        target, // contains the unmerged BundleDeploymentOptions
 				Bundle:        bundle,
 				Options:       opts,
 				DeploymentID:  deploymentID,
@@ -380,7 +379,6 @@ type Target struct {
 	ClusterGroups []*fleet.ClusterGroup
 	Cluster       *fleet.Cluster
 	Bundle        *fleet.Bundle
-	Target        *fleet.BundleTarget
 	Options       fleet.BundleDeploymentOptions
 	DeploymentID  string
 }
