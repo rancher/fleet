@@ -63,6 +63,7 @@ func Register(ctx context.Context,
 	}
 
 	gitRepos.OnChange(ctx, "gitjob-purge", h.DeleteOnChange)
+	// this will update the lastUpdateTime of the Accepted condition
 	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "Accepted", "gitjobs", h.OnChange, nil)
 	// enqueue gitrepo when gitjob changes
 	relatedresource.Watch(ctx, "gitjobs",

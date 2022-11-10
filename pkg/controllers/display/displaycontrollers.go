@@ -25,6 +25,7 @@ func Register(ctx context.Context,
 	bundles fleetcontrollers.BundleController) {
 	h := &handler{}
 
+	// NOTE these handlers have an empty "condition", so they won't update lastUpdateTime in the status
 	fleetcontrollers.RegisterClusterStatusHandler(ctx, clusters, "", "cluster-display", h.OnClusterChange)
 	fleetcontrollers.RegisterClusterGroupStatusHandler(ctx, clustergroups, "", "clustergroup-display", h.OnClusterGroupChange)
 	fleetcontrollers.RegisterGitRepoStatusHandler(ctx, gitrepos, "", "gitrepo-display", h.OnRepoChange)
