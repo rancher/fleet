@@ -82,6 +82,7 @@ func GetSummaryState(summary fleet.BundleSummary) fleet.BundleState {
 	return state
 }
 
+// GetDeploymentState calculates a fleet.BundleState from bundleDeployment (pure function)
 func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleState {
 	switch {
 	case bundleDeployment.Status.AppliedDeploymentID != bundleDeployment.Spec.DeploymentID:
@@ -100,6 +101,8 @@ func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleSt
 	}
 }
 
+// SetReadyConditions expects a status object as obj and updates its ready conditions according to summary
+// as per ReadyMessage
 func SetReadyConditions(obj interface{}, referencedKind string, summary fleet.BundleSummary) {
 	if reflect.ValueOf(obj).Kind() != reflect.Ptr {
 		panic("obj passed must be a pointer")
@@ -119,6 +122,7 @@ func MessageFromCondition(conditionType string, conds []genericcondition.Generic
 	return ""
 }
 
+// MessageFromDeployment returns a relevant message from the deployment conditions (pure function)
 func MessageFromDeployment(deployment *fleet.BundleDeployment) string {
 	if deployment == nil {
 		return ""

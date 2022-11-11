@@ -26,7 +26,7 @@ func DeploymentID(manifest *manifest.Manifest, opts fleet.BundleDeploymentOption
 	return digest + ":" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// Merge overrides the 'base' options with the 'next' options, if 'next' is present.
+// Merge overrides the 'base' options with the 'next' options, if 'next' is present (pure function)
 func Merge(base, next fleet.BundleDeploymentOptions) fleet.BundleDeploymentOptions { // nolint: gocyclo // business logic
 	result := *base.DeepCopy()
 	if next.DefaultNamespace != "" {
