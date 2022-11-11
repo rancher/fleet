@@ -354,7 +354,7 @@ func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets 
 			updateTarget(currentTarget, status, &partition.Status)
 		}
 
-		if target.IsPartitionUnavailable(&partition.Status, partition.Targets) {
+		if target.UpdateStatusUnavailable(&partition.Status, partition.Targets) {
 			status.UnavailablePartitions++
 		}
 
