@@ -7,6 +7,8 @@ import (
 	"sort"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+
 	"github.com/sirupsen/logrus"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -190,7 +192,8 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 		return nil, status, err
 	}
 
-	if err := h.updateStatusAndTargets(&status, matchedTargets); err != nil {
+	changedBundleDeployments, err := h.updateStatusAndTargets(&status, matchedTargets)
+	if err != nil {
 		return nil, status, err
 	}
 
@@ -203,7 +206,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	summary.SetReadyConditions(&status, "Cluster", status.Summary)
 	status.ObservedGeneration = bundle.Generation
 
-	objs := bundleDeployments(matchedTargets, bundle)
+	objs := bundleDeploymentsForApply(changedBundleDeployments, bundle)
 
 	elapsed := time.Since(start)
 
@@ -286,24 +289,21 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *
 	return nil
 }
 
-// bundleDeployments copies BundleDeployments out of targets and into a new slice of runtime.Object
+// bundleDeploymentsForApply copies BundleDeployments out of targets and into a new slice of runtime.Object
 // discarding Status, and replacing DependsOn with the bundle's DependsOn (pure function)
-func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
-	for _, target := range targets {
-		if target.Deployment == nil {
-			continue
-		}
+func bundleDeploymentsForApply(bundleDeployments []*fleet.BundleDeployment, bundle *fleet.Bundle) (result []runtime.Object) {
+	for _, bundleDeployment := range bundleDeployments {
 		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
-		dp := &fleet.BundleDeployment{
+		newBundleDeployment := &fleet.BundleDeployment{
 			ObjectMeta: v1.ObjectMeta{
-				Name:      target.Deployment.Name,
-				Namespace: target.Deployment.Namespace,
-				Labels:    target.Deployment.Labels,
+				Name:      bundleDeployment.Name,
+				Namespace: bundleDeployment.Namespace,
+				Labels:    bundleDeployment.Labels,
 			},
-			Spec: target.Deployment.Spec,
+			Spec: bundleDeployment.Spec,
 		}
-		dp.Spec.DependsOn = bundle.Spec.DependsOn
-		result = append(result, dp)
+		newBundleDeployment.Spec.DependsOn = bundle.Spec.DependsOn
+		result = append(result, newBundleDeployment)
 	}
 
 	return
@@ -312,7 +312,8 @@ func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result [
 // updateStatusAndTargets recomputes status, including partitions, from data in allTargets
 // it creates Deployments in allTargets if they are missing
 // it updates Deployments in allTargets if they are out of sync (DeploymentID != StagedDeploymentID)
-func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
+// any changed Deployment is returned
+func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets []*target.Target) (result []*fleet.BundleDeployment, err error) {
 	// reset
 	status.MaxNew = maxNew
 	status.Summary = fleet.BundleSummary{}
@@ -323,18 +324,18 @@ func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets 
 	status.Unavailable = target.Unavailable(allTargets)
 	status.MaxUnavailable, err = target.MaxUnavailable(allTargets)
 	if err != nil {
-		return err
+		return result, err
 	}
 
 	partitions, err := target.Partitions(allTargets)
 	if err != nil {
-		return err
+		return result, err
 	}
 
 	status.UnavailablePartitions = 0
 	status.MaxUnavailablePartitions, err = target.MaxUnavailablePartitions(partitions, allTargets)
 	if err != nil {
-		return err
+		return result, err
 	}
 
 	for _, partition := range partitions {
@@ -344,14 +345,22 @@ func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets 
 			}
 			if target.Deployment != nil {
 				// NOTE merged options from targets.Targets() are set to be staged
-				target.Deployment.Spec.StagedOptions = target.Options
-				target.Deployment.Spec.StagedDeploymentID = target.DeploymentID
+				if !equality.Semantic.DeepEqual(target.Deployment.Spec.StagedOptions, target.Options) ||
+					equality.Semantic.DeepEqual(target.Deployment.Spec.StagedDeploymentID, target.DeploymentID) {
+
+					target.Deployment.Spec.StagedOptions = target.Options
+					target.Deployment.Spec.StagedDeploymentID = target.DeploymentID
+
+					result = append(result, target.Deployment)
+				}
 			}
 		}
 
 		for _, currentTarget := range partition.Targets {
 			// NOTE this will propagate the merged options to the current deployment
-			updateTarget(currentTarget, status, &partition.Status)
+			if updateTarget(currentTarget, status, &partition.Status) {
+				result = append(result, currentTarget.Deployment)
+			}
 		}
 
 		if target.UpdateStatusUnavailable(&partition.Status, partition.Targets) {
@@ -367,12 +376,13 @@ func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets 
 		status.PartitionStatus = append(status.PartitionStatus, partition.Status)
 	}
 
-	return nil
+	return result, nil
 }
 
 // updateTarget will update DeploymentID and Options for the target to the
 // staging values, if it's in a deployable state
-func updateTarget(t *target.Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
+// returns true if the deployment was updated
+func updateTarget(t *target.Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) bool {
 	if t.Deployment != nil &&
 		// Not Paused
 		!t.IsPaused() &&
@@ -392,7 +402,9 @@ func updateTarget(t *target.Target, status *fleet.BundleStatus, partitionStatus 
 		}
 		t.Deployment.Spec.DeploymentID = t.Deployment.Spec.StagedDeploymentID
 		t.Deployment.Spec.Options = t.Deployment.Spec.StagedOptions
+		return true
 	}
+	return false
 }
 
 // resetDeployment resets target's Deployment with a new one and updates status accordingly
