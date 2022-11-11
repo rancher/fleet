@@ -402,5 +402,5 @@ func resetDeployment(target *target.Target, status *fleet.BundleStatus) {
 	}
 
 	status.NewlyCreated++
-	target.AssignNewDeployment()
+	target.ResetDeployment()
 }

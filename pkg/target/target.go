@@ -388,8 +388,8 @@ func (t *Target) IsPaused() bool {
 		t.Bundle.Spec.Paused
 }
 
-// AssignNewDeployment builds a new BundleDeployment for the target.
-func (t *Target) AssignNewDeployment() {
+// ResetDeployment replaces the BundleDeployment for the target with a new one
+func (t *Target) ResetDeployment() {
 	labels := map[string]string{}
 	for k, v := range deploymentLabelsForNewBundle(t.Bundle) {
 		labels[k] = v
