@@ -344,7 +344,7 @@ func (m *Manager) foldInDeployments(bundle *fleet.Bundle, targets []*Target) err
 
 	byNamespace := map[string]*fleet.BundleDeployment{}
 	for _, bd := range bundleDeployments {
-		byNamespace[bd.Namespace] = bd.DeepCopy()
+		byNamespace[bd.Namespace] = bd
 	}
 
 	for _, target := range targets {
@@ -388,8 +388,8 @@ func (t *Target) IsPaused() bool {
 		t.Bundle.Spec.Paused
 }
 
-// AssignNewDeployment builds a new BundleDeployment for the target.
-func (t *Target) AssignNewDeployment() {
+// ResetDeployment replaces the BundleDeployment for the target with a new one
+func (t *Target) ResetDeployment() {
 	labels := map[string]string{}
 	for k, v := range deploymentLabelsForNewBundle(t.Bundle) {
 		labels[k] = v
@@ -404,6 +404,7 @@ func (t *Target) AssignNewDeployment() {
 	}
 }
 
+// getRollout returns the rollout strategy for the specified targets (pure function)
 func getRollout(targets []*Target) *fleet.RolloutStrategy {
 	var rollout *fleet.RolloutStrategy
 	if len(targets) > 0 {
@@ -463,17 +464,21 @@ func limit(count int, val ...*intstr.IntOrString) (int, error) {
 	return i, nil
 }
 
+// MaxUnavailable returns the maximum number of unavailable deployments given the targets rollout strategy (pure function)
 func MaxUnavailable(targets []*Target) (int, error) {
 	rollout := getRollout(targets)
 	return limit(len(targets), rollout.MaxUnavailable)
 }
 
+// MaxUnavailablePartitions returns the maximum number of unavailable partitions given the targets and partitions (pure function)
 func MaxUnavailablePartitions(partitions []Partition, targets []*Target) (int, error) {
 	rollout := getRollout(targets)
 	return limit(len(partitions), rollout.MaxUnavailablePartitions, &defMaxUnavailablePartitions)
 }
 
-func IsPartitionUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
+// UpdateStatusUnavailable recomputes and sets the status.Unavailable counter and returns true if the partition
+// is unavailable, eg. there are more unavailable targets than the maximum set (does not mutate targets)
+func UpdateStatusUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
 	// Unavailable for a partition is stricter than unavailable for a target.
 	// For a partition a target must be available and update to date.
 	status.Unavailable = 0
@@ -486,6 +491,7 @@ func IsPartitionUnavailable(status *fleet.PartitionStatus, targets []*Target) bo
 	return status.Unavailable > status.MaxUnavailable
 }
 
+// upToDate returns true if the target is up to date (pure function)
 func upToDate(target *Target) bool {
 	if target.Deployment == nil ||
 		target.Deployment.Spec.StagedDeploymentID != target.DeploymentID ||
@@ -497,6 +503,7 @@ func upToDate(target *Target) bool {
 	return true
 }
 
+// Unavailable counts the number of targets that are not available (pure function)
 func Unavailable(targets []*Target) (count int) {
 	for _, target := range targets {
 		if target.Deployment == nil {
@@ -509,6 +516,7 @@ func Unavailable(targets []*Target) (count int) {
 	return
 }
 
+// IsUnavailable checks if target is not available (pure function)
 func IsUnavailable(target *fleet.BundleDeployment) bool {
 	if target == nil {
 		return false
@@ -531,6 +539,7 @@ func (t *Target) nonReady() []fleet.NonReadyStatus {
 	return t.Deployment.Status.NonReadyStatus
 }
 
+// state calculates a fleet.BundleState from t (pure function)
 func (t *Target) state() fleet.BundleState {
 	switch {
 	case t.Deployment == nil:
@@ -540,10 +549,12 @@ func (t *Target) state() fleet.BundleState {
 	}
 }
 
+// message returns a relevant message from the target (pure function)
 func (t *Target) message() string {
 	return summary.MessageFromDeployment(t.Deployment)
 }
 
+// Summary calculates a fleet.BundleSummary from targets (pure function)
 func Summary(targets []*Target) fleet.BundleSummary {
 	var bundleSummary fleet.BundleSummary
 	for _, currentTarget := range targets {

@@ -190,8 +190,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 		return nil, status, err
 	}
 
-	// NOTE this mutates allTargets and adds new deployments
-	if err := h.calculateChanges(&status, matchedTargets); err != nil {
+	if err := h.updateStatusAndTargets(&status, matchedTargets); err != nil {
 		return nil, status, err
 	}
 
@@ -226,7 +225,7 @@ func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
 	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
 }
 
-// setResourceKey runs helm template to set up all resource keys in the BundleStatus passed in as argument.
+// setResourceKey updates status.ResourceKey from the bundle, by running helm template (does not mutate bundle)
 func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *manifest.Manifest, isNSed func(schema.GroupVersionKind) bool) error {
 	seen := map[fleet.ResourceKey]struct{}{}
 
@@ -287,7 +286,8 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *
 	return nil
 }
 
-// bundleDeployments converts the targets to BundleDeployment resources
+// bundleDeployments copies BundleDeployments out of targets and into a new slice of runtime.Object
+// discarding Status, and replacing DependsOn with the bundle's DependsOn (pure function)
 func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
 	for _, target := range targets {
 		if target.Deployment == nil {
@@ -309,10 +309,10 @@ func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result [
 	return
 }
 
-// calculateChanges calculates the changes to the targets, if a target is
-// without a deployment, a new BundleDeployment is build
-// This func mutates status and allTargets.
-func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
+// updateStatusAndTargets recomputes status, including partitions, from data in allTargets
+// it creates Deployments in allTargets if they are missing
+// it updates Deployments in allTargets if they are out of sync (DeploymentID != StagedDeploymentID)
+func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
 	// reset
 	status.MaxNew = maxNew
 	status.Summary = fleet.BundleSummary{}
@@ -340,7 +340,7 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 	for _, partition := range partitions {
 		for _, target := range partition.Targets {
 			if target.Deployment == nil {
-				newTarget(target, status)
+				resetDeployment(target, status)
 			}
 			if target.Deployment != nil {
 				// NOTE merged options from targets.Targets() are set to be staged
@@ -354,7 +354,7 @@ func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*tar
 			updateTarget(currentTarget, status, &partition.Status)
 		}
 
-		if target.IsPartitionUnavailable(&partition.Status, partition.Targets) {
+		if target.UpdateStatusUnavailable(&partition.Status, partition.Targets) {
 			status.UnavailablePartitions++
 		}
 
@@ -395,11 +395,12 @@ func updateTarget(t *target.Target, status *fleet.BundleStatus, partitionStatus 
 	}
 }
 
-func newTarget(target *target.Target, status *fleet.BundleStatus) {
+// resetDeployment resets target's Deployment with a new one and updates status accordingly
+func resetDeployment(target *target.Target, status *fleet.BundleStatus) {
 	if status.NewlyCreated >= status.MaxNew {
 		return
 	}
 
 	status.NewlyCreated++
-	target.AssignNewDeployment()
+	target.ResetDeployment()
 }
