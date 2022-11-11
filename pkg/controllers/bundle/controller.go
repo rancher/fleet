@@ -340,7 +340,7 @@ func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets 
 	for _, partition := range partitions {
 		for _, target := range partition.Targets {
 			if target.Deployment == nil {
-				newTarget(target, status)
+				resetDeployment(target, status)
 			}
 			if target.Deployment != nil {
 				// NOTE merged options from targets.Targets() are set to be staged
@@ -395,8 +395,8 @@ func updateTarget(t *target.Target, status *fleet.BundleStatus, partitionStatus 
 	}
 }
 
-// newTarget resets target's Deployment with a new one and updates status accordingly
-func newTarget(target *target.Target, status *fleet.BundleStatus) {
+// resetDeployment resets target's Deployment with a new one and updates status accordingly
+func resetDeployment(target *target.Target, status *fleet.BundleStatus) {
 	if status.NewlyCreated >= status.MaxNew {
 		return
 	}
