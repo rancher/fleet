@@ -404,6 +404,7 @@ func (t *Target) AssignNewDeployment() {
 	}
 }
 
+// getRollout returns the rollout strategy for the specified targets (pure function)
 func getRollout(targets []*Target) *fleet.RolloutStrategy {
 	var rollout *fleet.RolloutStrategy
 	if len(targets) > 0 {
@@ -463,11 +464,13 @@ func limit(count int, val ...*intstr.IntOrString) (int, error) {
 	return i, nil
 }
 
+// MaxUnavailable returns the maximum number of unavailable deployments given the targets rollout strategy (pure function)
 func MaxUnavailable(targets []*Target) (int, error) {
 	rollout := getRollout(targets)
 	return limit(len(targets), rollout.MaxUnavailable)
 }
 
+// MaxUnavailablePartitions returns the maximum number of unavailable partitions given the targets and partitions (pure function)
 func MaxUnavailablePartitions(partitions []Partition, targets []*Target) (int, error) {
 	rollout := getRollout(targets)
 	return limit(len(partitions), rollout.MaxUnavailablePartitions, &defMaxUnavailablePartitions)
@@ -486,6 +489,7 @@ func IsPartitionUnavailable(status *fleet.PartitionStatus, targets []*Target) bo
 	return status.Unavailable > status.MaxUnavailable
 }
 
+// upToDate returns true if the target is up to date (pure function)
 func upToDate(target *Target) bool {
 	if target.Deployment == nil ||
 		target.Deployment.Spec.StagedDeploymentID != target.DeploymentID ||
@@ -497,6 +501,7 @@ func upToDate(target *Target) bool {
 	return true
 }
 
+// Unavailable counts the number of targets that are not available (pure function)
 func Unavailable(targets []*Target) (count int) {
 	for _, target := range targets {
 		if target.Deployment == nil {
@@ -509,6 +514,7 @@ func Unavailable(targets []*Target) (count int) {
 	return
 }
 
+// IsUnavailable checks if target is not available (pure function)
 func IsUnavailable(target *fleet.BundleDeployment) bool {
 	if target == nil {
 		return false
@@ -531,6 +537,7 @@ func (t *Target) nonReady() []fleet.NonReadyStatus {
 	return t.Deployment.Status.NonReadyStatus
 }
 
+// state calculates a fleet.BundleState from t (pure function)
 func (t *Target) state() fleet.BundleState {
 	switch {
 	case t.Deployment == nil:
@@ -540,10 +547,12 @@ func (t *Target) state() fleet.BundleState {
 	}
 }
 
+// message returns a relevant message from the target (pure function)
 func (t *Target) message() string {
 	return summary.MessageFromDeployment(t.Deployment)
 }
 
+// Summary calculates a fleet.BundleSummary from targets (pure function)
 func Summary(targets []*Target) fleet.BundleSummary {
 	var bundleSummary fleet.BundleSummary
 	for _, currentTarget := range targets {

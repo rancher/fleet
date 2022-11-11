@@ -226,7 +226,7 @@ func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
 	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
 }
 
-// setResourceKey runs helm template to set up all resource keys in the BundleStatus passed in as argument.
+// setResourceKey updates status.ResourceKey from the bundle, by running helm template (does not mutate bundle)
 func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *manifest.Manifest, isNSed func(schema.GroupVersionKind) bool) error {
 	seen := map[fleet.ResourceKey]struct{}{}
 
@@ -287,7 +287,8 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *
 	return nil
 }
 
-// bundleDeployments converts the targets to BundleDeployment resources
+// bundleDeployments copies BundleDeployments out of targets and into a new slice of runtime.Object
+// discarding Status, and replacing DependsOn with the bundle's DependsOn (pure function)
 func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
 	for _, target := range targets {
 		if target.Deployment == nil {
@@ -309,9 +310,9 @@ func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result [
 	return
 }
 
-// calculateChanges calculates the changes to the targets, if a target is
-// without a deployment, a new BundleDeployment is build
-// This func mutates status and allTargets.
+// calculateChanges recomputes status, including partitions, from data in allTargets
+// it creates Deployments in allTargets if they are missing
+// it updates Deployments in allTargets if they are out of sync (DeploymentID != StagedDeploymentID)
 func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
 	// reset
 	status.MaxNew = maxNew
@@ -395,6 +396,7 @@ func updateTarget(t *target.Target, status *fleet.BundleStatus, partitionStatus 
 	}
 }
 
+// newTarget resets target's Deployment with a new one and updates status accordingly
 func newTarget(target *target.Target, status *fleet.BundleStatus) {
 	if status.NewlyCreated >= status.MaxNew {
 		return
