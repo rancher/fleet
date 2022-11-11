@@ -190,8 +190,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 		return nil, status, err
 	}
 
-	// NOTE this mutates allTargets and adds new deployments
-	if err := h.calculateChanges(&status, matchedTargets); err != nil {
+	if err := h.updateStatusAndTargets(&status, matchedTargets); err != nil {
 		return nil, status, err
 	}
 
@@ -310,10 +309,10 @@ func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result [
 	return
 }
 
-// calculateChanges recomputes status, including partitions, from data in allTargets
+// updateStatusAndTargets recomputes status, including partitions, from data in allTargets
 // it creates Deployments in allTargets if they are missing
 // it updates Deployments in allTargets if they are out of sync (DeploymentID != StagedDeploymentID)
-func (h *handler) calculateChanges(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
+func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets []*target.Target) (err error) {
 	// reset
 	status.MaxNew = maxNew
 	status.Summary = fleet.BundleSummary{}
