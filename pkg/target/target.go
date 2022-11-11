@@ -476,7 +476,7 @@ func MaxUnavailablePartitions(partitions []Partition, targets []*Target) (int, e
 	return limit(len(partitions), rollout.MaxUnavailablePartitions, &defMaxUnavailablePartitions)
 }
 
-// UpdateStatusUnavailable recomputes and sets the status.Unavailable counter and returns true iff the partition
+// UpdateStatusUnavailable recomputes and sets the status.Unavailable counter and returns true if the partition
 // is unavailable, eg. there are more unavailable targets than the maximum set (does not mutate targets)
 func UpdateStatusUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
 	// Unavailable for a partition is stricter than unavailable for a target.
