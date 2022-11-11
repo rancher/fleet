@@ -344,7 +344,7 @@ func (m *Manager) foldInDeployments(bundle *fleet.Bundle, targets []*Target) err
 
 	byNamespace := map[string]*fleet.BundleDeployment{}
 	for _, bd := range bundleDeployments {
-		byNamespace[bd.Namespace] = bd.DeepCopy()
+		byNamespace[bd.Namespace] = bd
 	}
 
 	for _, target := range targets {
