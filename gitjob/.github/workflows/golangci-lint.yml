@@ -8,11 +8,6 @@ on:
     branches:
       - master
   pull_request:
-    paths-ignore:
-    - 'docs/**'
-    - 'charts/**'
-    - 'scripts/**'
-    - '*.md'
 
 jobs:
   golangci:
@@ -37,7 +32,7 @@ jobs:
         uses: golangci/golangci-lint-action@v3.3.0
         with:
           # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
-          version: v1.46
+          version: v1.48
 
           args: --timeout=10m --config=.golangci.json
 
