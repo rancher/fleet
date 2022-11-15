@@ -94,6 +94,8 @@ func agentDeployed(cluster *fleet.Cluster) bool {
 	return *cluster.Status.AgentDeployedGeneration == cluster.Spec.RedeployAgentGeneration
 }
 
+// OnChange is triggered for manager initiated deployments and the local agent,
+// where KubeConfigSecret is configured
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
 	if cluster == nil {
 		return cluster, nil
@@ -104,7 +106,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 	}
 
 	if cluster.Spec.ClientID == "" {
-		logrus.Debugf("Cluster '%s' changed, agent deployed, updating ClientID", cluster.Name)
+		logrus.Debugf("Cluster import for '%s/%s'. Agent found, updating ClientID", cluster.Namespace, cluster.Name)
 
 		cluster = cluster.DeepCopy()
 		cluster.Spec.ClientID, err = randomtoken.Generate()
@@ -166,6 +168,7 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 	return nil
 }
 
+// importCluster is triggered for manager initiated deployments and the local agent,
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
 	if cluster.Spec.KubeConfigSecret == "" ||
 		agentDeployed(cluster) ||
@@ -177,7 +180,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
-	logrus.Debugf("ClusterStatusHandler cluster '%s/%s' changed, setting up agent with kubeconfig from %s", cluster.Namespace, cluster.Name, cluster.Spec.KubeConfigSecret)
+	logrus.Debugf("Cluster import for '%s/%s'. Setting up agent with kubeconfig from secret '%s'", cluster.Namespace, cluster.Name, cluster.Spec.KubeConfigSecret)
 	var (
 		cfg          = config.Get()
 		apiServerURL = string(secret.Data["apiServerURL"])
@@ -296,7 +299,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err := apply.ApplyObjects(obj...); err != nil {
 		return status, err
 	}
-	logrus.Infof("Deployed new agent for cluster %s/%s", cluster.Namespace, cluster.Name)
+	logrus.Infof("Cluster import for '%s/%s'. Deployed new agent", cluster.Namespace, cluster.Name)
 
 	if i.systemNamespace != config.DefaultNamespace {
 		// Clean up the leftover agent if it exists.

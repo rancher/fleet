@@ -55,7 +55,7 @@ type Bootstrap struct {
 	Namespace      string `json:"namespace,omitempty"`
 	AgentNamespace string `json:"agentNamespace,omitempty"`
 	Repo           string `json:"repo,omitempty"`
-	Secret         string `json:"secret,omitempty"`
+	Secret         string `json:"secret,omitempty"` // gitrepo.ClientSecretName for agent from repo
 	Paths          string `json:"paths,omitempty"`
 	Branch         string `json:"branch,omitempty"`
 }
