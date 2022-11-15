@@ -56,7 +56,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	<-cmd.Context().Done()
-	return cmd.Context().Err()
+	return nil
 }
 
 func main() {
