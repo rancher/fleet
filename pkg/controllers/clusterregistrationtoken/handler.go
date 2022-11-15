@@ -73,6 +73,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		return nil, status, nil
 	}
 
+	logrus.Debugf("Cluster registration token '%s/%s', creating import service account, roles and secret", token.Namespace, token.Name)
+
 	var (
 		saName  = name.SafeConcatName(token.Name, string(token.UID))
 		secrets []runtime.Object

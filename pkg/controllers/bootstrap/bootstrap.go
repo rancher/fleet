@@ -60,7 +60,7 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) OnConfig(config *config.Config) error {
-	logrus.Debugf("bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
+	logrus.Debugf("Bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
 
 	var objs []runtime.Object
 
@@ -102,6 +102,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 		},
 	})
 
+	// in case the agent is to be deployed from git
 	if config.Bootstrap.Repo != "" {
 		var paths []string
 		if len(config.Bootstrap.Paths) > 0 {

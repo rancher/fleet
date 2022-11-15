@@ -221,8 +221,11 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		}
 	}
 
-	logrus.Infof("Cluster registration %s/%s, cluster %s/%s granted [%v]",
+	logrus.Infof("Cluster registration request '%s/%s', cluster '%s/%s' granted [%v], creating cluster and request service account",
 		request.Namespace, request.Name, cluster.Namespace, cluster.Name, status.Granted)
+	if status.Granted {
+		logrus.Debugf("Cluster registration request '%s/%s', creating registration secret", request.Namespace, request.Name)
+	}
 
 	status.ClusterName = cluster.Name
 	// e.g. request- in the cluster namespace
@@ -347,6 +350,8 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		return cluster, err
 	}
 
+	// need to create the cluster for agent initiated registration, local
+	// and managed clusters would already exist
 	labels := map[string]string{}
 	if !config.Get().IgnoreClusterRegistrationLabels {
 		for k, v := range request.Spec.ClusterLabels {
