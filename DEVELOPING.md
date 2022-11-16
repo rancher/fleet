@@ -285,6 +285,8 @@ All bug fixes should first happen on the `master` branch.
 
 If a bug fix needs to be brought into a release, such as during the release candidate phase, it should be cherry picked from the `master` branch to the release branch via a pull request. The pull request should be prefixed with the major and minor version for the release (e.g., `[0.4]`) to illustrate it's for a release branch.
 
+After merge verify that the Github Action test runs for the release branch were successful.
+
 ---
 
 ### Pre-Release
