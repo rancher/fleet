@@ -15,6 +15,9 @@ on:
       - 'docs/**'
       - 'scripts/**'
       - '*.md'
+  push:
+    branches:
+    - 'release/*"'
 
 env:
   GOARCH: amd64
