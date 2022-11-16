@@ -598,7 +598,6 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 		fmt.Sprintf("--sync-generation=%d", gitrepo.Spec.ForceSyncGeneration),
 		fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
 		"--target-namespace", gitrepo.Spec.TargetNamespace,
-		"--",
 	)
 
 	var env []corev1.EnvVar
@@ -632,5 +631,5 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 			})
 	}
 
-	return append(args, gitrepo.Name), env
+	return append(args, "--", gitrepo.Name), env
 }
