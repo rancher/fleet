@@ -133,7 +133,7 @@ var _ = Describe("Multi Cluster Examples", func() {
 			})
 
 			It("can replace the chart version and url", func() {
-				expectedVersion := "0.0.36"
+				expectedVersion := "6.5.0"
 
 				// Verify bundledeployment changes
 				Eventually(func() string {
@@ -144,13 +144,13 @@ var _ = Describe("Multi Cluster Examples", func() {
 				Eventually(func() string {
 					out, _ := helmRepo("helm-target-customizations")
 					return out
-				}).Should(ContainSubstring("https://charts.truecharts.org///"))
+				}).Should(ContainSubstring("https://oauth2-proxy.github.io/manifests///"))
 
 				// Verify actual deployment downstream
 				Eventually(func() string {
-					out, _ := kd.Get("deployments", "-A", "-l", "helm.sh/chart=radicale-"+expectedVersion)
+					out, _ := kd.Get("deployments", "-A", "-l", "helm.sh/chart=oauth2-proxy-"+expectedVersion)
 					return out
-				}).Should(ContainSubstring("radicale"))
+				}).Should(ContainSubstring("oauth2-proxy"))
 			})
 		})
 	})
