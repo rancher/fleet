@@ -4,7 +4,7 @@ metadata:
   name: helm-target-customizations
 spec:
   repo: https://github.com/rancher/fleet-examples
-  branch: add_target_customizations_test
+  branch: add_target_customizations_test2
   paths:
   - multi-cluster/helm-target-customizations/
   targets:
