@@ -4,7 +4,7 @@ metadata:
   name: long-name-test
 spec:
   repo: https://github.com/rancher/fleet-examples
-  branch: experiment-bundle-names
+  branch: test-bundle-names
   paths:
   - shortpath
     # collision strip chars:
