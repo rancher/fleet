@@ -11,9 +11,9 @@ on:
         required: false
         default: "false"
   pull_request:
-    paths-ignore:
-      - 'scripts/**'
-      - '*.md'
+  push:
+    branches:
+    - 'release/*"'
 
 env:
   GOARCH: amd64
