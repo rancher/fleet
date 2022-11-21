@@ -544,7 +544,8 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 			if labelPresent {
 				valuesMap[key] = labelVal
 			} else {
-				return fmt.Errorf("invalid_label_reference %s in key %s", valStr, key)
+				valuesMap[key] = ""
+				logrus.Infof("invalid_label_reference %s in key %s", valStr, key)
 			}
 		}
 
