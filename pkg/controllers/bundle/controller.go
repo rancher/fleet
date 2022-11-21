@@ -235,7 +235,8 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *
 		opts := options.Merge(bundle.Spec.BundleDeploymentOptions, bundle.Spec.Targets[i].BundleDeploymentOptions)
 		objs, err := helmdeployer.Template(bundle.Name, manifest, opts)
 		if err != nil {
-			return err
+			logrus.Infof("While calculating status.ResourceKey, error running helm template for bundle %s with target options from %s: %v", bundle.Name, bundle.Spec.Targets[i].Name, err)
+			continue
 		}
 
 		for _, obj := range objs {

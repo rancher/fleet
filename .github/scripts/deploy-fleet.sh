@@ -28,3 +28,6 @@ helm upgrade --install fleet charts/fleet \
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
 { grep -E -q -m 1 "fleet-agent-local.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-local -w)
 kubectl -n cattle-fleet-system rollout status deploy/fleet-agent
+
+# label local cluster
+kubectl patch clusters.fleet.cattle.io -n fleet-local local --type=json -p '[{"op": "add", "path": "/metadata/labels/management.cattle.io~1cluster-display-name", "value": "local" }]'
