@@ -19,6 +19,8 @@ kubectl config use-context k3d-upstream
 
 until helm -n cattle-fleet-system status fleet-crd  | grep -q "STATUS: deployed"; do echo waiting for original fleet-crd chart to be deployed; sleep 1; done
 
+# avoid a downgrade by rancher
+sed -i 's/^version: 0/version: 9000/' charts/fleet-crd/Chart.yaml
 helm upgrade fleet-crd charts/fleet-crd  --wait -n cattle-fleet-system
 
 until helm -n cattle-fleet-system status fleet | grep -q "STATUS: deployed"; do echo waiting for original fleet chart to be deployed; sleep 3; done
@@ -40,7 +42,7 @@ helm list -A
 
 # wait for fleet agent bundle for downstream cluster
 sleep 5
-{ grep -E -q -m 1 "fleet-agent-cluster.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-local -w)
+{ grep -E -q -m 1 "fleet-agent-c.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-default -w)
 
 kubectl config use-context k3d-downstream
 kubectl -n cattle-fleet-system rollout status deploy/fleet-agent
