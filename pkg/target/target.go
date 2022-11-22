@@ -576,7 +576,7 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 				valuesMap[key] = labelVal
 			} else {
 				valuesMap[key] = ""
-				logrus.Infof("invalid_label_reference %s in key %s", valStr, key)
+				logrus.Infof("Cluster label '%s' for key '%s' is missing from some clusters, setting value to empty string for these clusters.", valStr, key)
 			}
 		}
 
