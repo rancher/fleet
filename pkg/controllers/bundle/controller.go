@@ -179,10 +179,12 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	}
 
 	if err := h.calculateChanges(&status, targets); err != nil {
+		updateDisplay(&status)
 		return nil, status, err
 	}
 
 	if err := setResourceKey(&status, bundle, h.isNamespaced, status.ObservedGeneration != bundle.Generation); err != nil {
+		updateDisplay(&status)
 		return nil, status, err
 	}
 
@@ -193,10 +195,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 
 	elapsed := time.Since(start)
 
-	status.Display.ReadyClusters = fmt.Sprintf("%d/%d",
-		status.Summary.Ready,
-		status.Summary.DesiredReady)
-	status.Display.State = string(summary.GetSummaryState(status.Summary))
+	updateDisplay(&status)
 
 	logrus.Debugf("OnBundleChange for bundle '%s' took %s", bundle.Name, elapsed)
 
@@ -380,4 +379,11 @@ func newTarget(target *target.Target, status *fleet.BundleStatus) {
 
 	status.NewlyCreated++
 	target.AssignNewDeployment()
+}
+
+func updateDisplay(status *fleet.BundleStatus) {
+	status.Display.ReadyClusters = fmt.Sprintf("%d/%d",
+		status.Summary.Ready,
+		status.Summary.DesiredReady)
+	status.Display.State = string(summary.GetSummaryState(status.Summary))
 }
