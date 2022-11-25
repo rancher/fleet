@@ -17,6 +17,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS
+          value: {{ quote .Values.propagateDebugSettingsToAgents }}
         {{- if .Values.proxy }}
         - name: HTTP_PROXY
           value: {{ .Values.proxy }}
