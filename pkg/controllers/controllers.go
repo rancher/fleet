@@ -218,8 +218,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Cluster(),
 		appCtx.ClusterGroup(),
 		appCtx.GitRepo(),
-		appCtx.BundleDeployment(),
-		appCtx.Bundle())
+		appCtx.BundleDeployment())
 
 	image.Register(ctx,
 		appCtx.Core,
