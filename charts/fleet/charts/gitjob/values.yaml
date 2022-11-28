@@ -1,10 +1,10 @@
 gitjob:
   repository: rancher/gitjob
-  tag: v0.1.32
+  tag: v0.1.33
 
 tekton:
   repository: rancher/tekton-utils
-  tag: v0.1.7
+  tag: v0.1.8
 
 global:
   cattle:
@@ -16,14 +16,16 @@ global:
 # comma separated list of domains or ip addresses that will not use the proxy
 noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 
-## Node labels for pod assignment
-## Ref: https://kubernetes.io/docs/user-guide/node-selection/
-##
-nodeSelector: {}
-## List of node taints to tolerate (requires Kubernetes >= 1.6)
-tolerations: []
+nodeSelector:
+  kubernetes.io/os: linux
 
-## PriorityClassName assigned to deployment.
+tolerations:
+  - key: cattle.io/os
+    operator: "Equal"
+    value: "linux"
+    effect: NoSchedule
+
+# PriorityClassName assigned to deployment.
 priorityClassName: ""
 
 debug: false
