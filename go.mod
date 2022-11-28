@@ -68,7 +68,7 @@ require (
 	k8s.io/kubernetes v1.24.5
 	sigs.k8s.io/cli-utils v0.33.0
 	sigs.k8s.io/kustomize/api v0.12.1
-	sigs.k8s.io/kustomize/kyaml v0.13.9
+	sigs.k8s.io/kustomize/kyaml v0.13.10
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -129,7 +129,7 @@ require (
 	github.com/go-gorp/gorp/v3 v3.0.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
-	github.com/go-openapi/swag v0.21.1 // indirect
+	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
