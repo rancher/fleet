@@ -35,14 +35,14 @@ spec:
             - name: NO_PROXY
               value: {{ .Values.noProxy }}
           {{- end }}
-      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
-{{- if .Values.nodeSelector }}
-{{ toYaml .Values.nodeSelector | indent 8 }}
-{{- end }}
-      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
-{{- if .Values.tolerations }}
-{{ toYaml .Values.tolerations | indent 8 }}
-{{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if .Values.priorityClassName }}
       priorityClassName: "{{.Values.priorityClassName}}"
       {{- end }}
