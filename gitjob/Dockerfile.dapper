@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/golang:1.18-18.31
+FROM registry.suse.com/bci/golang:1.19-18.38
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
