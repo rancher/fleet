@@ -76,6 +76,7 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 			commit, err := git.LatestCommit(obj, h.secrets)
 			if err != nil {
 				kstatus.SetError(obj, err.Error())
+				h.gitjobs.EnqueueAfter(obj.Namespace, obj.Name, time.Duration(interval)*time.Second)
 				return nil, obj.Status, nil
 			} else if !kstatus.Stalled.IsTrue(obj) {
 				kstatus.SetActive(obj)
