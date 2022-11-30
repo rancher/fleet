@@ -8,3 +8,6 @@
 *.DS_Store
 /fleet
 /.vscode
+docs/fleet-agent/
+docs/fleet-cli/
+docs/fleet-controller/
