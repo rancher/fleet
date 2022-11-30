@@ -2,13 +2,13 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: {{.Namespace}}
+  name: {{.ProjectNamespace}}
 ---
 kind: GitRepoRestriction
 apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: restriction
-  namespace: {{.Namespace}}
+  namespace: {{.ProjectNamespace}}
 
 allowedTargetNamespaces:
   - project1simpleapp
@@ -17,7 +17,7 @@ kind: BundleNamespaceMapping
 apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: mapping
-  namespace: {{.Namespace}}
+  namespace: {{.ProjectNamespace}}
 
 bundleSelector:
   matchLabels:
@@ -25,13 +25,13 @@ bundleSelector:
 
 namespaceSelector:
   matchLabels:
-    kubernetes.io/metadata.name: fleet-local
+    kubernetes.io/metadata.name: {{.ClusterNamespace}}
 ---
 kind: GitRepo
 apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: simpleapp
-  namespace: {{.Namespace}}
+  namespace: {{.ProjectNamespace}}
   labels:
     team: one
 
