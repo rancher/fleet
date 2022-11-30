@@ -33,6 +33,10 @@ spec:
         - name: FLEET_CPU_PPROF_PERIOD
           value: {{ quote .Values.cpuPprof.period }}
         {{- end }}
+        {{- if .Values.debug }}
+        - name: CATTLE_DEV_MODE
+          value: "true"
+        {{- end }}
         image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
         name: fleet-controller
         imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
