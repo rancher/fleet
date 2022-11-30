@@ -42,7 +42,10 @@ var (
 	defMaxUnavailablePartitions = intstr.FromInt(0)
 )
 
-const maxTemplateRecursionDepth = 50
+const (
+	maxTemplateRecursionDepth = 50
+	clusterLabelPrefix        = "global.fleet.clusterLabels."
+)
 
 type Manager struct {
 	clusters                    fleetcontrollers.ClusterCache
@@ -321,7 +324,7 @@ func preprocessHelmValues(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cl
 		return nil
 	}
 
-	if err := processLabelValues(opts.Helm.Values.Data, clusterLabels); err != nil {
+	if err := processLabelValues(opts.Helm.Values.Data, clusterLabels, 0); err != nil {
 		return err
 	}
 
@@ -661,12 +664,15 @@ func templateSubstitutions(src interface{}, templateContext map[string]interface
 	}
 }
 
-func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) error {
-	prefix := "global.fleet.clusterLabels."
+func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string, recursionDepth int) error {
+	if recursionDepth > maxTemplateRecursionDepth {
+		return fmt.Errorf("maximum recursion depth of %v exceeded for cluster label prefix processing, too many nested values", maxTemplateRecursionDepth)
+	}
+
 	for key, val := range valuesMap {
 		valStr, ok := val.(string)
-		if ok && strings.HasPrefix(valStr, prefix) {
-			label := strings.TrimPrefix(valStr, prefix)
+		if ok && strings.HasPrefix(valStr, clusterLabelPrefix) {
+			label := strings.TrimPrefix(valStr, clusterLabelPrefix)
 			labelVal, labelPresent := clusterLabels[label]
 			if labelPresent {
 				valuesMap[key] = labelVal
@@ -677,7 +683,7 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 		}
 
 		if valMap, ok := val.(map[string]interface{}); ok {
-			err := processLabelValues(valMap, clusterLabels)
+			err := processLabelValues(valMap, clusterLabels, recursionDepth+1)
 			if err != nil {
 				return err
 			}
@@ -686,7 +692,7 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 		if valArr, ok := val.([]interface{}); ok {
 			for _, item := range valArr {
 				if itemMap, ok := item.(map[string]interface{}); ok {
-					err := processLabelValues(itemMap, clusterLabels)
+					err := processLabelValues(itemMap, clusterLabels, recursionDepth+1)
 					if err != nil {
 						return err
 					}
