@@ -11,3 +11,4 @@
 docs/fleet-agent/
 docs/fleet-cli/
 docs/fleet-controller/
+^fleet$
