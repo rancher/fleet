@@ -45,7 +45,7 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.1
       -
         name: Authenticate to GCP
-        uses: 'google-github-actions/auth@v0'
+        uses: 'google-github-actions/auth@v1'
         with:
           credentials_json: '${{ secrets.CI_GOOGLE_CREDENTIALS }}'
       -
