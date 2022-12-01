@@ -51,9 +51,10 @@ var _ = Describe("Bundle Namespace Mapping", func() {
 				namespace = "project1"
 				asset = "multi-cluster/bundle-namespace-mapping.yaml"
 				data = struct {
-					Namespace       string
-					TargetNamespace string
-				}{namespace, "targetNamespace: project1simpleapp"}
+					ProjectNamespace string
+					ClusterNamespace string
+					TargetNamespace  string
+				}{namespace, env.Namespace, "targetNamespace: project1simpleapp"}
 			})
 
 			It("deploys to the mapped downstream cluster", func() {
@@ -73,9 +74,10 @@ var _ = Describe("Bundle Namespace Mapping", func() {
 				namespace = "project2"
 				asset = "multi-cluster/bundle-namespace-mapping.yaml"
 				data = struct {
-					Namespace       string
-					TargetNamespace string
-				}{namespace, "targetNamespace: denythisnamespace"}
+					ProjectNamespace string
+					ClusterNamespace string
+					TargetNamespace  string
+				}{namespace, env.Namespace, "targetNamespace: denythisnamespace"}
 			})
 
 			It("denies deployment to downstream cluster", func() {
@@ -93,9 +95,10 @@ var _ = Describe("Bundle Namespace Mapping", func() {
 				namespace = "project3"
 				asset = "multi-cluster/bundle-namespace-mapping.yaml"
 				data = struct {
-					Namespace       string
-					TargetNamespace string
-				}{namespace, ""}
+					ProjectNamespace string
+					ClusterNamespace string
+					TargetNamespace  string
+				}{namespace, env.Namespace, ""}
 			})
 
 			It("denies deployment to downstream cluster", func() {

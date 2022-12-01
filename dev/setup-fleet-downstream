@@ -55,7 +55,7 @@ url="${url-172.17.0.1.omg.howdoi.website}"
 
 kubectl config use-context "$downstream_ctx"
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \
-  --set-string labels.env=dev \
+  --set-string labels.env=test \
   --set apiServerCA="$ca" \
   --set apiServerURL="https://$url:36443" \
   --set clusterNamespace="fleet-local" \
