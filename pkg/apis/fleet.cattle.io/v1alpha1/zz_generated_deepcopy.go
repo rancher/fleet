@@ -1011,6 +1011,13 @@ func (in *ClusterSpec) DeepCopyInto(out *ClusterSpec) {
 		in, out := &in.TemplateValues, &out.TemplateValues
 		*out = (*in).DeepCopy()
 	}
+	if in.AgentTolerations != nil {
+		in, out := &in.AgentTolerations, &out.AgentTolerations
+		*out = make([]corev1.Toleration, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	return
 }
 

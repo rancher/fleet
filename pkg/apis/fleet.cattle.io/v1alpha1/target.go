@@ -73,6 +73,9 @@ type ClusterSpec struct {
 
 	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating
 	TemplateValues *GenericMap `json:"templateValues,omitempty"`
+
+	// AgentTolerations defines an extra set of Tolerations to be added to the Agent deployment
+	AgentTolerations []v1.Toleration `json:"agentTolerations,omitempty"`
 }
 
 type ClusterStatus struct {

@@ -30,6 +30,7 @@ type ManifestOptions struct {
 	AgentEnvVars          []corev1.EnvVar
 	AgentImage            string
 	AgentImagePullPolicy  string
+	AgentTolerations      []corev1.Toleration
 	CheckinInterval       string
 	Generation            string
 	PrivateRepoURL        string
@@ -91,6 +92,10 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	// if debug is enabled in controller, enable in agent too
 	debug := logrus.IsLevelEnabled(logrus.DebugLevel)
 	dep := agentDeployment(namespace, DefaultName, image, opts.AgentImagePullPolicy, DefaultName, false, debug)
+
+	// additional tolerations
+	dep.Spec.Template.Spec.Tolerations = append(dep.Spec.Template.Spec.Tolerations, opts.AgentTolerations...)
+
 	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
 		corev1.EnvVar{
 			Name:  "AGENT_SCOPE",
@@ -240,6 +245,7 @@ func agentDeployment(namespace, name, image, imagePullPolicy, serviceAccount str
 		Value:    "linux",
 		Effect:   corev1.TaintEffectNoSchedule,
 	})
+
 	return deployment
 }
 
