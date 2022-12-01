@@ -33,8 +33,8 @@ replace (
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.1.1
-	github.com/Masterminds/sprig/v3 v3.2.2
+	github.com/Masterminds/semver/v3 v3.2.0
+	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/cheggaaa/pb v1.0.29
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v5.6.0+incompatible
@@ -171,7 +171,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.5.2 // indirect
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87 // indirect
 	github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef // indirect
-	github.com/huandu/xstrings v1.3.2 // indirect
+	github.com/huandu/xstrings v1.3.3 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
@@ -233,7 +233,7 @@ require (
 	go.opencensus.io v0.23.0 // indirect
 	go.starlark.net v0.0.0-20220328144851-d1966c6b9fcd // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/crypto v0.3.0 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/net v0.2.0 // indirect
 	golang.org/x/oauth2 v0.1.0 // indirect
