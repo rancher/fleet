@@ -1,6 +1,6 @@
 module github.com/rancher/fleet/pkg/apis
 
-go 1.18
+go 1.19
 
 require (
 	github.com/rancher/wrangler v1.0.0
