@@ -46,7 +46,7 @@ func TestProcessLabelValues(t *testing.T) {
 		t.Fatalf("error during yaml parsing %v", err)
 	}
 
-	err = processLabelValues(bundle.Helm.Values.Data, clusterLabels)
+	err = processLabelValues(bundle.Helm.Values.Data, clusterLabels, 0)
 	if err != nil {
 		t.Fatalf("error during label processing %v", err)
 	}
