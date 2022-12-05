@@ -117,15 +117,17 @@ helm:
     clusterNamespace: "{{ .ClusterNamespace }}"
     fleetClusterName: "{{ .ClusterName }}"
     reallyLongClusterName: kubernets.io/cluster/{{ index .ClusterLabels "really-long-label-name-with-many-many-characters-in-it" }}
+    missingLabel: |-
+      {{ if hasKey .ClusterLabels "missing" }}{{ .ClusterLabels.missing }}{{ else }}missing{{ end}}
     customStruct:
-      - name: "{{ .Values.topLevel }}"
+      - name: "{{ .ClusterValues.topLevel }}"
         key1: value1
         key2: value2
-      - element2: "{{ .Values.nested.secondTier.thirdTier }}"
+      - element2: "{{ .ClusterValues.nested.secondTier.thirdTier }}"
       - "element3_{{ .ClusterLabels.envType }}": "{{ .ClusterLabels.name }}"
     funcs:
-      upper: "{{ .Values.topLevel | upper }}_test"
-      join: '{{ .Values.list | join "," }}'
+      upper: "{{ .ClusterValues.topLevel | upper }}_test"
+      join: '{{ .ClusterValues.list | join "," }}'
 diff:
   comparePatches:
   - apiVersion: networking.k8s.io/v1
@@ -138,7 +140,6 @@ diff:
 `
 
 func TestProcessTemplateValues(t *testing.T) {
-
 	templateValues := map[string]interface{}{
 		"topLevel": "foo",
 		"nested": map[string]interface{}{
@@ -153,13 +154,13 @@ func TestProcessTemplateValues(t *testing.T) {
 		},
 	}
 
-	clusterLabels := map[string]string{
+	clusterLabels := map[string]interface{}{
 		"name":    "local",
 		"envType": "dev",
 		"really-long-label-name-with-many-many-characters-in-it": "foobar",
 	}
 
-	clusterAnnotations := map[string]string{
+	clusterAnnotations := map[string]interface{}{
 		"testAnnotation": "test",
 	}
 
@@ -168,7 +169,7 @@ func TestProcessTemplateValues(t *testing.T) {
 		"ClusterName":        "my-cluster",
 		"ClusterLabels":      clusterLabels,
 		"ClusterAnnotations": clusterAnnotations,
-		"Values":             templateValues,
+		"ClusterValues":      templateValues,
 	}
 
 	bundle := &v1alpha1.BundleSpec{}
@@ -225,6 +226,15 @@ func TestProcessTemplateValues(t *testing.T) {
 
 	if reallyLongClusterName != "kubernets.io/cluster/foobar" {
 		t.Fatal("unable to assert correct value reallyLongClusterName")
+	}
+
+	missingLabel, ok := templatedValues["missingLabel"]
+	if !ok {
+		t.Fatal("key missingLabel not found")
+	}
+
+	if missingLabel != "missing" {
+		t.Fatal("unable to assert correct value missingLabel: ", missingLabel)
 	}
 
 	customStruct, ok := templatedValues["customStruct"].([]interface{})

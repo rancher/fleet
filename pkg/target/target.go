@@ -338,8 +338,8 @@ func preprocessHelmValues(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cl
 		values := map[string]interface{}{
 			"ClusterNamespace":   cluster.Namespace,
 			"ClusterName":        cluster.Name,
-			"ClusterLabels":      clusterLabels,
-			"ClusterAnnotations": clusterAnnotations,
+			"ClusterLabels":      toDict(clusterLabels),
+			"ClusterAnnotations": toDict(clusterAnnotations),
 			"ClusterValues":      templateValues,
 		}
 
@@ -352,6 +352,15 @@ func preprocessHelmValues(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cl
 
 	return nil
 
+}
+
+// sprig dictionary functions like "default" and "hasKey" expect map[string]interface{}
+func toDict(values map[string]string) map[string]interface{} {
+	dict := make(map[string]interface{}, len(values))
+	for k, v := range values {
+		dict[k] = v
+	}
+	return dict
 }
 
 // foldInDeployments adds the existing bundledeployments to the targets.
