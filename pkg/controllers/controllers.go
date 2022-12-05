@@ -212,7 +212,8 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.ClientConfig,
 		appCtx.Core.ServiceAccount().Cache(),
 		appCtx.Core.Secret(),
-		appCtx.Core.Secret().Cache())
+		appCtx.Core.Secret().Cache(),
+		appCtx.Cluster().Cache())
 
 	display.Register(ctx,
 		appCtx.Cluster(),

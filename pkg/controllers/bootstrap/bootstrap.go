@@ -10,10 +10,13 @@ import (
 	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
 	secretutil "github.com/rancher/fleet/pkg/secret"
+
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +40,7 @@ type handler struct {
 	serviceAccountCache corecontrollers.ServiceAccountCache
 	secretsCache        corecontrollers.SecretCache
 	secretsController   corecontrollers.SecretController
+	clusters            fleetcontrollers.ClusterCache
 	cfg                 clientcmd.ClientConfig
 }
 
@@ -47,12 +51,14 @@ func Register(ctx context.Context,
 	serviceAccountCache corecontrollers.ServiceAccountCache,
 	secretsController corecontrollers.SecretController,
 	secretsCache corecontrollers.SecretCache,
+	clusterCache fleetcontrollers.ClusterCache,
 ) {
 	h := handler{
 		systemNamespace:     systemNamespace,
 		serviceAccountCache: serviceAccountCache,
 		secretsCache:        secretsCache,
 		secretsController:   secretsController,
+		clusters:            clusterCache,
 		apply:               apply.WithSetID("fleet-bootstrap"),
 		cfg:                 cfg,
 	}
@@ -60,9 +66,7 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) OnConfig(config *config.Config) error {
-	logrus.Debugf("Bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
-
-	var objs []runtime.Object
+	logrus.Debug("ConfigMap fleet-controller changed")
 
 	if config.Bootstrap.Namespace == "" || config.Bootstrap.Namespace == "-" {
 		return nil
@@ -72,35 +76,54 @@ func (h *handler) OnConfig(config *config.Config) error {
 	if err != nil {
 		return err
 	}
-	objs = append(objs, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: config.Bootstrap.Namespace,
-		},
-	}, secret, &fleet.Cluster{
+
+	logrus.Debugf("ConfigMap fleet-controller changed, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
+	cluster := &fleet.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "local",
 			Namespace: config.Bootstrap.Namespace,
-			Labels: map[string]string{
-				"name": "local",
+		},
+	}
+	if existing, err := h.clusters.Get(cluster.Namespace, cluster.Name); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	} else if existing != nil {
+		logrus.Debugf("Found existing local cluster, upserting instead of replacing it. Existing labels: %v", existing.Labels)
+		cluster.Annotations = existing.Annotations
+		cluster.Labels = existing.Labels
+		cluster.Spec = *existing.Spec.DeepCopy()
+		cluster.Spec.ClientID = ""
+		cluster.Status = fleet.ClusterStatus{}
+	}
+
+	if cluster.Labels == nil {
+		cluster.Labels = map[string]string{}
+	}
+	cluster.Labels["name"] = "local"
+	cluster.Spec.KubeConfigSecret = secret.Name
+	cluster.Spec.AgentNamespace = config.Bootstrap.AgentNamespace
+
+	var objs = []runtime.Object{
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: config.Bootstrap.Namespace,
 			},
 		},
-		Spec: fleet.ClusterSpec{
-			KubeConfigSecret: secret.Name,
-			AgentNamespace:   config.Bootstrap.AgentNamespace,
-		},
-	}, &fleet.ClusterGroup{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "default",
-			Namespace: config.Bootstrap.Namespace,
-		},
-		Spec: fleet.ClusterGroupSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"name": "local",
+		secret,
+		cluster,
+		&fleet.ClusterGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "default",
+				Namespace: config.Bootstrap.Namespace,
+			},
+			Spec: fleet.ClusterGroupSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"name": "local",
+					},
 				},
 			},
 		},
-	})
+	}
 
 	// in case the agent is to be deployed from git
 	if config.Bootstrap.Repo != "" {
