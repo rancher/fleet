@@ -1,8 +1,6 @@
 package target
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -119,6 +117,7 @@ helm:
     reallyLongClusterName: kubernets.io/cluster/{{ index .ClusterLabels "really-long-label-name-with-many-many-characters-in-it" }}
     missingLabel: |-
       {{ if hasKey .ClusterLabels "missing" }}{{ .ClusterLabels.missing }}{{ else }}missing{{ end}}
+    #list: {{ list 1 2 3 }}
     customStruct:
       - name: "{{ .ClusterValues.topLevel }}"
         key1: value1
@@ -457,35 +456,6 @@ func TestDisablePreProcessFlagMissing(t *testing.T) {
 		if field != expectedValue {
 			t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", key, field, expectedValue)
 		}
-	}
-
-}
-
-func TestRecursionDepthForTemplating(t *testing.T) {
-	var bundleYaml = `namespace: default
-helm:
-  releaseName: labels
-  values:`
-	for i := 1; i <= maxTemplateRecursionDepth+1; i++ {
-		indent := " "
-		offset := strings.Repeat(indent, 2)
-		line := fmt.Sprintf("\n%s%s\"%d\":", offset, strings.Repeat(indent, i), i)
-		bundleYaml = bundleYaml + line
-	}
-	bundleYaml = bundleYaml + " final_value"
-
-	cluster, bundle, err := getClusterAndBundle(bundleYaml)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	err = preprocessHelmValues(bundle, cluster)
-	if err == nil {
-		t.Fatal("expected preprocessHelmValues to return an error, it did not.")
-	}
-
-	if !strings.HasPrefix(err.Error(), "maximum recursion depth") {
-		t.Fatalf("expected error to be about recursion, instead got: %v", err)
 	}
 
 }
