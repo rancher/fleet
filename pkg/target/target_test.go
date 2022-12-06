@@ -110,23 +110,28 @@ const bundleYamlWithTemplate = `namespace: default
 helm:
   releaseName: labels
   values:
-    clusterName: "{{ .ClusterLabels.name }}"
-    fromAnnotation: "{{ .ClusterAnnotations.testAnnotation }}"
-    clusterNamespace: "{{ .ClusterNamespace }}"
-    fleetClusterName: "{{ .ClusterName }}"
-    reallyLongClusterName: kubernets.io/cluster/{{ index .ClusterLabels "really-long-label-name-with-many-many-characters-in-it" }}
+    clusterName: "${ .ClusterLabels.name }"
+    fromAnnotation: "${ .ClusterAnnotations.testAnnotation }"
+    clusterNamespace: "${ .ClusterNamespace }"
+    fleetClusterName: "${ .ClusterName }"
+    reallyLongClusterName: kubernets.io/cluster/${ index .ClusterLabels "really-long-label-name-with-many-many-characters-in-it" }
     missingLabel: |-
-      {{ if hasKey .ClusterLabels "missing" }}{{ .ClusterLabels.missing }}{{ else }}missing{{ end}}
-    #list: {{ list 1 2 3 }}
+      ${ if hasKey .ClusterLabels "missing" }${ .ClusterLabels.missing }${ else }missing${ end}
+    list: ${ list 1 2 3 | toJson }
+    listb: |-
+      ${- range $key, $val := .ClusterLabels }
+      - name: ${ $key }
+        value: ${ $val | quote }
+      ${- end}
     customStruct:
-      - name: "{{ .ClusterValues.topLevel }}"
+      - name: "${ .ClusterValues.topLevel }"
         key1: value1
         key2: value2
-      - element2: "{{ .ClusterValues.nested.secondTier.thirdTier }}"
-      - "element3_{{ .ClusterLabels.envType }}": "{{ .ClusterLabels.name }}"
+      - element2: "${ .ClusterValues.nested.secondTier.thirdTier }"
+      - "element3_${ .ClusterLabels.envType }": "${ .ClusterLabels.name }"
     funcs:
-      upper: "{{ .ClusterValues.topLevel | upper }}_test"
-      join: '{{ .ClusterValues.list | join "," }}'
+      upper: "${ .ClusterValues.topLevel | upper }_test"
+      join: '${ .ClusterValues.list | join "," }'
 diff:
   comparePatches:
   - apiVersion: networking.k8s.io/v1
@@ -341,10 +346,10 @@ helm:
   disablePreprocess: true
   releaseName: labels
   values:
-    clusterName: "{{ .ClusterName }}"
-    clusterContext: "{{ .Values.someKey }}"
-    templateFn: '{{ index .ClusterLabels "testLabel" }}'
-    syntaxError: "{{ non_existent_function }}"
+    clusterName: "${ .ClusterName }"
+    clusterContext: "${ .Values.someKey }"
+    templateFn: '${ index .ClusterLabels "testLabel" }'
+    syntaxError: "${ non_existent_function }"
 `
 
 func TestDisablePreProcessFlagEnabled(t *testing.T) {
@@ -366,19 +371,19 @@ func TestDisablePreProcessFlagEnabled(t *testing.T) {
 	}{
 		{
 			Key:           "clusterName",
-			ExpectedValue: "{{ .ClusterName }}",
+			ExpectedValue: "${ .ClusterName }",
 		},
 		{
 			Key:           "clusterContext",
-			ExpectedValue: "{{ .Values.someKey }}",
+			ExpectedValue: "${ .Values.someKey }",
 		},
 		{
 			Key:           "templateFn",
-			ExpectedValue: "{{ index .ClusterLabels \"testLabel\" }}",
+			ExpectedValue: "${ index .ClusterLabels \"testLabel\" }",
 		},
 		{
 			Key:           "syntaxError",
-			ExpectedValue: "{{ non_existent_function }}",
+			ExpectedValue: "${ non_existent_function }",
 		},
 	} {
 		if field, ok := valuesObj[testCase.Key]; !ok {
@@ -398,7 +403,7 @@ helm:
   disablePreprocess: false
   releaseName: labels
   values:
-    clusterName: "{{ .ClusterName }}"
+    clusterName: "${ .ClusterName }"
 `
 
 func TestDisablePreProcessFlagDisabled(t *testing.T) {
@@ -431,7 +436,7 @@ const bundleYamlWithDisablePreProcessMissing = `namespace: default
 helm:
   releaseName: labels
   values:
-    clusterName: "{{ .ClusterName }}"
+    clusterName: "${ .ClusterName }"
 `
 
 func TestDisablePreProcessFlagMissing(t *testing.T) {

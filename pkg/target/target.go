@@ -611,7 +611,7 @@ func processTemplateValues(helmValues map[string]interface{}, templateContext ma
 		return nil, fmt.Errorf("failed to unmarshal helm values template: %w", err)
 	}
 
-	tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error")
+	tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
 	tmpl, err = tmpl.Parse(string(data))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse helm values template: %w", err)
@@ -624,7 +624,7 @@ func processTemplateValues(helmValues map[string]interface{}, templateContext ma
 	}
 
 	var renderedValues map[string]interface{}
-	err = yaml.Unmarshal(b.Bytes(), &renderedValues)
+	err = kyaml.Unmarshal(b.Bytes(), &renderedValues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to interpret rendered template as helm values: %#v, %v", renderedValues, err)
 	}
