@@ -1,8 +1,6 @@
 package target
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -112,20 +110,28 @@ const bundleYamlWithTemplate = `namespace: default
 helm:
   releaseName: labels
   values:
-    clusterName: "{{ .ClusterLabels.name }}"
-    fromAnnotation: "{{ .ClusterAnnotations.testAnnotation }}"
-    clusterNamespace: "{{ .ClusterNamespace }}"
-    fleetClusterName: "{{ .ClusterName }}"
-    reallyLongClusterName: kubernets.io/cluster/{{ index .ClusterLabels "really-long-label-name-with-many-many-characters-in-it" }}
+    clusterName: "${ .ClusterLabels.name }"
+    fromAnnotation: "${ .ClusterAnnotations.testAnnotation }"
+    clusterNamespace: "${ .ClusterNamespace }"
+    fleetClusterName: "${ .ClusterName }"
+    reallyLongClusterName: kubernets.io/cluster/${ index .ClusterLabels "really-long-label-name-with-many-many-characters-in-it" }
+    missingLabel: |-
+      ${ if hasKey .ClusterLabels "missing" }${ .ClusterLabels.missing }${ else }missing${ end}
+    list: ${ list 1 2 3 | toJson }
+    listb: |-
+      ${- range $key, $val := .ClusterLabels }
+      - name: ${ $key }
+        value: ${ $val | quote }
+      ${- end}
     customStruct:
-      - name: "{{ .Values.topLevel }}"
+      - name: "${ .ClusterValues.topLevel }"
         key1: value1
         key2: value2
-      - element2: "{{ .Values.nested.secondTier.thirdTier }}"
-      - "element3_{{ .ClusterLabels.envType }}": "{{ .ClusterLabels.name }}"
+      - element2: "${ .ClusterValues.nested.secondTier.thirdTier }"
+      - "element3_${ .ClusterLabels.envType }": "${ .ClusterLabels.name }"
     funcs:
-      upper: "{{ .Values.topLevel | upper }}_test"
-      join: '{{ .Values.list | join "," }}'
+      upper: "${ .ClusterValues.topLevel | upper }_test"
+      join: '${ .ClusterValues.list | join "," }'
 diff:
   comparePatches:
   - apiVersion: networking.k8s.io/v1
@@ -138,7 +144,6 @@ diff:
 `
 
 func TestProcessTemplateValues(t *testing.T) {
-
 	templateValues := map[string]interface{}{
 		"topLevel": "foo",
 		"nested": map[string]interface{}{
@@ -153,13 +158,13 @@ func TestProcessTemplateValues(t *testing.T) {
 		},
 	}
 
-	clusterLabels := map[string]string{
+	clusterLabels := map[string]interface{}{
 		"name":    "local",
 		"envType": "dev",
 		"really-long-label-name-with-many-many-characters-in-it": "foobar",
 	}
 
-	clusterAnnotations := map[string]string{
+	clusterAnnotations := map[string]interface{}{
 		"testAnnotation": "test",
 	}
 
@@ -168,7 +173,7 @@ func TestProcessTemplateValues(t *testing.T) {
 		"ClusterName":        "my-cluster",
 		"ClusterLabels":      clusterLabels,
 		"ClusterAnnotations": clusterAnnotations,
-		"Values":             templateValues,
+		"ClusterValues":      templateValues,
 	}
 
 	bundle := &v1alpha1.BundleSpec{}
@@ -225,6 +230,15 @@ func TestProcessTemplateValues(t *testing.T) {
 
 	if reallyLongClusterName != "kubernets.io/cluster/foobar" {
 		t.Fatal("unable to assert correct value reallyLongClusterName")
+	}
+
+	missingLabel, ok := templatedValues["missingLabel"]
+	if !ok {
+		t.Fatal("key missingLabel not found")
+	}
+
+	if missingLabel != "missing" {
+		t.Fatal("unable to assert correct value missingLabel: ", missingLabel)
 	}
 
 	customStruct, ok := templatedValues["customStruct"].([]interface{})
@@ -332,10 +346,10 @@ helm:
   disablePreprocess: true
   releaseName: labels
   values:
-    clusterName: "{{ .ClusterName }}"
-    clusterContext: "{{ .Values.someKey }}"
-    templateFn: '{{ index .ClusterLabels "testLabel" }}'
-    syntaxError: "{{ non_existent_function }}"
+    clusterName: "${ .ClusterName }"
+    clusterContext: "${ .Values.someKey }"
+    templateFn: '${ index .ClusterLabels "testLabel" }'
+    syntaxError: "${ non_existent_function }"
 `
 
 func TestDisablePreProcessFlagEnabled(t *testing.T) {
@@ -357,19 +371,19 @@ func TestDisablePreProcessFlagEnabled(t *testing.T) {
 	}{
 		{
 			Key:           "clusterName",
-			ExpectedValue: "{{ .ClusterName }}",
+			ExpectedValue: "${ .ClusterName }",
 		},
 		{
 			Key:           "clusterContext",
-			ExpectedValue: "{{ .Values.someKey }}",
+			ExpectedValue: "${ .Values.someKey }",
 		},
 		{
 			Key:           "templateFn",
-			ExpectedValue: "{{ index .ClusterLabels \"testLabel\" }}",
+			ExpectedValue: "${ index .ClusterLabels \"testLabel\" }",
 		},
 		{
 			Key:           "syntaxError",
-			ExpectedValue: "{{ non_existent_function }}",
+			ExpectedValue: "${ non_existent_function }",
 		},
 	} {
 		if field, ok := valuesObj[testCase.Key]; !ok {
@@ -389,7 +403,7 @@ helm:
   disablePreprocess: false
   releaseName: labels
   values:
-    clusterName: "{{ .ClusterName }}"
+    clusterName: "${ .ClusterName }"
 `
 
 func TestDisablePreProcessFlagDisabled(t *testing.T) {
@@ -422,7 +436,7 @@ const bundleYamlWithDisablePreProcessMissing = `namespace: default
 helm:
   releaseName: labels
   values:
-    clusterName: "{{ .ClusterName }}"
+    clusterName: "${ .ClusterName }"
 `
 
 func TestDisablePreProcessFlagMissing(t *testing.T) {
@@ -447,35 +461,6 @@ func TestDisablePreProcessFlagMissing(t *testing.T) {
 		if field != expectedValue {
 			t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", key, field, expectedValue)
 		}
-	}
-
-}
-
-func TestRecursionDepthForTemplating(t *testing.T) {
-	var bundleYaml = `namespace: default
-helm:
-  releaseName: labels
-  values:`
-	for i := 1; i <= maxTemplateRecursionDepth+1; i++ {
-		indent := " "
-		offset := strings.Repeat(indent, 2)
-		line := fmt.Sprintf("\n%s%s\"%d\":", offset, strings.Repeat(indent, i), i)
-		bundleYaml = bundleYaml + line
-	}
-	bundleYaml = bundleYaml + " final_value"
-
-	cluster, bundle, err := getClusterAndBundle(bundleYaml)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
-
-	err = preprocessHelmValues(bundle, cluster)
-	if err == nil {
-		t.Fatal("expected preprocessHelmValues to return an error, it did not.")
-	}
-
-	if !strings.HasPrefix(err.Error(), "maximum recursion depth") {
-		t.Fatalf("expected error to be about recursion, instead got: %v", err)
 	}
 
 }
