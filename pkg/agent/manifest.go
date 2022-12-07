@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -88,8 +89,9 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	// DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
 	image := resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
 
-	// if debug is enabled in controller, enable in agent too
-	debug := logrus.IsLevelEnabled(logrus.DebugLevel)
+	// if debug is enabled in controller, enable in agents too (unless otherwise specified)
+	propagateDebug, _ := strconv.ParseBool(os.Getenv("FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS"))
+	debug := logrus.IsLevelEnabled(logrus.DebugLevel) && propagateDebug
 	dep := agentDeployment(namespace, DefaultName, image, opts.AgentImagePullPolicy, DefaultName, false, debug)
 	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
 		corev1.EnvVar{
