@@ -608,9 +608,13 @@ func tplFuncMap() template.FuncMap {
 func processTemplateValues(helmValues map[string]interface{}, templateContext map[string]interface{}) (map[string]interface{}, error) {
 	data, err := kyaml.Marshal(helmValues)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal helm values template: %w", err)
+		return nil, fmt.Errorf("failed to marshal helm values section into a template: %w", err)
 	}
 
+	// fleet.yaml must be valid yaml, however '{}[]' are YAML control
+	// characters and will be interpreted as JSON data structures. This
+	// causes issues when parsing the fleet.yaml so we change the delims
+	// for templating to '${ }'
 	tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
 	tmpl, err = tmpl.Parse(string(data))
 	if err != nil {
