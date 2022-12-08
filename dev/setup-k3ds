@@ -2,9 +2,9 @@
 
 set -euxo pipefail
 
+args=${k3d_args-}
 docker_mirror=${docker_mirror-}
 
-args=""
 if [ -n "$docker_mirror" ]; then
   TMP_CONFIG="$(mktemp)"
   trap "rm -f $TMP_CONFIG" EXIT
@@ -15,10 +15,11 @@ mirrors:
       endpoint:
             - $docker_mirror
 EOF
-  args="--registry-config $TMP_CONFIG"
+  args="$args --registry-config $TMP_CONFIG"
 fi
 
 # k3d version list k3s
+# https://hub.docker.com/r/rancher/k3s/tags
 #args="$args -i docker.io/rancher/k3s:v1.22.15-k3s1"
 
 k3d cluster create upstream --servers 3 --api-port 36443 -p '80:80@server:0' -p '443:443@server:0' $args

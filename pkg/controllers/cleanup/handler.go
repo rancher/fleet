@@ -100,6 +100,7 @@ func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.N
 
 	logrus.Debugf("Cleaning up fleet-managed namespace %s", obj.Name)
 
+	// NOTE no cluster has this annotation - is this dead code?
 	_, err := h.clusters.Get(obj.Annotations[fleet.ClusterNamespaceAnnotation], obj.Annotations[fleet.ClusterAnnotation])
 	if apierrors.IsNotFound(err) {
 		err = h.namespaces.Delete(key, nil)
@@ -108,8 +109,8 @@ func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.N
 	return obj, err
 }
 
-func (h *handler) cleanup(ns runtime.Object) error {
-	meta, err := meta.Accessor(ns)
+func (h *handler) cleanup(obj runtime.Object) error {
+	meta, err := meta.Accessor(obj)
 	if err != nil {
 		return err
 	}
@@ -118,7 +119,7 @@ func (h *handler) cleanup(ns runtime.Object) error {
 	}
 
 	logrus.Debugf("Cleaning up fleet-managed resource %s", meta.GetName())
-	err = h.apply.PurgeOrphan(ns)
+	err = h.apply.PurgeOrphan(obj)
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
