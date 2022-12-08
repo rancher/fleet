@@ -110,6 +110,19 @@ var _ = Describe("Single Cluster Examples", func() {
 			})
 		})
 
+		Context("containing no kustomized helm chart but uses an invalid name for kustomize", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/helm-kustomize-disabled.yaml"
+			})
+
+			It("deploys the helm chart", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace("helm-kustomize-disabled").Get("configmap")
+					return out
+				}).Should(ContainSubstring("helm-kustomize-disabled"))
+			})
+		})
+
 		Context("containing multiple helm charts", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/helm-multi-chart.yaml"
