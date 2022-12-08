@@ -17,6 +17,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS
+          value: {{ quote .Values.propagateDebugSettingsToAgents }}
         {{- if .Values.proxy }}
         - name: HTTP_PROXY
           value: {{ .Values.proxy }}
@@ -24,6 +26,18 @@ spec:
           value: {{ .Values.proxy }}
         - name: NO_PROXY
           value: {{ .Values.noProxy }}
+        {{- end }}
+        {{- if .Values.cpuPprof }}
+        - name: FLEET_CPU_PPROF_DIR
+          value: /tmp/pprof/
+        {{- end }}
+        {{- if .Values.cpuPprof }}
+        - name: FLEET_CPU_PPROF_PERIOD
+          value: {{ quote .Values.cpuPprof.period }}
+        {{- end }}
+        {{- if .Values.debug }}
+        - name: CATTLE_DEV_MODE
+          value: "true"
         {{- end }}
         image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
         name: fleet-controller
@@ -34,10 +48,24 @@ spec:
         - --debug
         - --debug-level
         - {{ quote .Values.debugLevel }}
+        {{- else }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
         {{- end }}
         {{- if not .Values.gitops.enabled }}
         - --disable-gitops
         {{- end }}
+        {{- if .Values.cpuPprof }}
+        volumeMounts:
+          - mountPath: /tmp/pprof
+            name: pprof
+        {{- end }}
+      {{- if .Values.cpuPprof }}
+      volumes:
+        - name: pprof {{ toYaml .Values.cpuPprof.volumeConfiguration | nindent 10 }}
+      {{- end }}
+
       serviceAccountName: fleet-controller
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
 {{- if .Values.nodeSelector }}
@@ -46,4 +74,14 @@ spec:
       tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
 {{- if .Values.tolerations }}
 {{ toYaml .Values.tolerations | indent 8 }}
+{{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: "{{.Values.priorityClassName}}"
+      {{- end }}
+
+{{- if not .Values.debug }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
 {{- end }}

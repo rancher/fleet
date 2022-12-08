@@ -1,8 +1,9 @@
 package normalizers
 
 import (
-	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/sirupsen/logrus"
+
+	"github.com/rancher/wrangler/pkg/objectset"
 	adregv1 "k8s.io/api/admissionregistration/v1"
 	adregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

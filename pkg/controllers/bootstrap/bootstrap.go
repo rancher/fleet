@@ -5,14 +5,15 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/rancher/fleet/modules/cli/agentmanifest"
+	"github.com/sirupsen/logrus"
+
+	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
 	secretutil "github.com/rancher/fleet/pkg/secret"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,13 +60,15 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) OnConfig(config *config.Config) error {
+	logrus.Debugf("Bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
+
 	var objs []runtime.Object
 
 	if config.Bootstrap.Namespace == "" || config.Bootstrap.Namespace == "-" {
 		return nil
 	}
 
-	secret, err := h.getSecret(config.Bootstrap.Namespace, h.cfg)
+	secret, err := h.buildSecret(config.Bootstrap.Namespace, h.cfg)
 	if err != nil {
 		return err
 	}
@@ -99,6 +102,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 		},
 	})
 
+	// in case the agent is to be deployed from git
 	if config.Bootstrap.Repo != "" {
 		var paths []string
 		if len(config.Bootstrap.Paths) > 0 {
@@ -124,7 +128,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 func getHost(rawConfig clientcmdapi.Config) (string, error) {
 	icc, err := rest.InClusterConfig()
 	if err != nil {
-		return agentmanifest.GetHostFromConfig(rawConfig)
+		return agent.GetHostFromConfig(rawConfig)
 	}
 	return icc.Host, nil
 }
@@ -132,7 +136,7 @@ func getHost(rawConfig clientcmdapi.Config) (string, error) {
 func getCA(rawConfig clientcmdapi.Config) ([]byte, error) {
 	icc, err := rest.InClusterConfig()
 	if err != nil {
-		return agentmanifest.GetCAFromConfig(rawConfig)
+		return agent.GetCAFromConfig(rawConfig)
 	}
 	return os.ReadFile(icc.CAFile)
 }
@@ -149,6 +153,7 @@ func (h *handler) getToken() (string, error) {
 		return "", err
 	}
 
+	// kubernetes 1.24 doesn't populate sa.Secrets
 	if len(sa.Secrets) == 0 {
 		logrus.Infof("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
 		secret, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
@@ -166,7 +171,7 @@ func (h *handler) getToken() (string, error) {
 	return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
 }
 
-func (h *handler) getSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.Secret, error) {
+func (h *handler) buildSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.Secret, error) {
 	rawConfig, err := cfg.RawConfig()
 	if err != nil {
 		return nil, err

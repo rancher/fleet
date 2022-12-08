@@ -1,0 +1,50 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{.ProjectNamespace}}
+---
+kind: GitRepoRestriction
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: restriction
+  namespace: {{.ProjectNamespace}}
+
+allowedTargetNamespaces:
+  - project1simpleapp
+---
+kind: BundleNamespaceMapping
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: mapping
+  namespace: {{.ProjectNamespace}}
+
+bundleSelector:
+  matchLabels:
+    team: one
+
+namespaceSelector:
+  matchLabels:
+    kubernetes.io/metadata.name: {{.ClusterNamespace}}
+---
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: simpleapp
+  namespace: {{.ProjectNamespace}}
+  labels:
+    team: one
+
+spec:
+  repo: https://github.com/rancher/fleet-examples
+  branch: master
+  paths:
+  - bundle-diffs
+
+  {{.TargetNamespace}}
+
+  targets:
+  - name: test
+    clusterSelector:
+      matchLabels:
+        env: test

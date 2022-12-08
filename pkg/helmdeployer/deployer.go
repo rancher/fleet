@@ -8,7 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rancher/fleet/modules/agent/pkg/deployer"
+	"github.com/sirupsen/logrus"
+	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/kube"
+	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage/driver"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/kustomize"
 	"github.com/rancher/fleet/pkg/manifest"
@@ -19,15 +26,9 @@ import (
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
-	"github.com/sirupsen/logrus"
-	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/kube"
-	"helm.sh/helm/v3/pkg/release"
-	"helm.sh/helm/v3/pkg/storage/driver"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
@@ -40,8 +41,9 @@ const (
 )
 
 var (
-	ErrNoRelease = errors.New("failed to find release")
-	DefaultKey   = "values.yaml"
+	ErrNoRelease    = errors.New("failed to find release")
+	ErrNoResourceID = errors.New("no resource ID available")
+	DefaultKey      = "values.yaml"
 )
 
 type postRender struct {
@@ -54,7 +56,7 @@ type postRender struct {
 	opts        fleet.BundleDeploymentOptions
 }
 
-type helm struct {
+type Helm struct {
 	agentNamespace      string
 	serviceAccountCache corecontrollers.ServiceAccountCache
 	configmapCache      corecontrollers.ConfigMapCache
@@ -68,9 +70,22 @@ type helm struct {
 	labelSuffix         string
 }
 
+type Resources struct {
+	ID               string           `json:"id,omitempty"`
+	DefaultNamespace string           `json:"defaultNamespace,omitempty"`
+	Objects          []runtime.Object `json:"objects,omitempty"`
+}
+
+type DeployedBundle struct {
+	// BundleID is the bundle.Name
+	BundleID string
+	// ReleaseName is actually in the form "namespace/release name"
+	ReleaseName string
+}
+
 func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
-	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache) (deployer.Deployer, error) {
-	h := &helm{
+	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache) (*Helm, error) {
+	h := &Helm{
 		getter:              getter,
 		defaultNamespace:    defaultNamespace,
 		agentNamespace:      namespace,
@@ -113,7 +128,8 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 	}
 	objs = append(objs, yamlObjs...)
 
-	labels, annotations, err := apply.GetLabelsAndAnnotations(p.GetSetID(), nil)
+	setID := GetSetID(p.bundleID, p.labelPrefix, p.labelSuffix)
+	labels, annotations, err := apply.GetLabelsAndAnnotations(setID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -147,11 +163,7 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 	return bytes.NewBuffer(data), err
 }
 
-func (p *postRender) GetSetID() string {
-	return deployer.GetSetID(p.bundleID, p.labelPrefix, p.labelSuffix)
-}
-
-func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*deployer.Resources, error) {
+func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*Resources, error) {
 	if options.Helm == nil {
 		options.Helm = &fleet.HelmOptions{}
 	}
@@ -159,7 +171,7 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 		options.Kustomize = &fleet.KustomizeOptions{}
 	}
 
-	tar, err := render.ToChart(bundleID, manifest, options)
+	tar, err := render.HelmChart(bundleID, manifest, options)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +205,7 @@ func (h *helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	return releaseToResources(release)
 }
 
-func (h *helm) mustUninstall(cfg *action.Configuration, releaseName string) (bool, error) {
+func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (bool, error) {
 	r, err := cfg.Releases.Last(releaseName)
 	if err != nil {
 		return false, nil
@@ -201,7 +213,7 @@ func (h *helm) mustUninstall(cfg *action.Configuration, releaseName string) (boo
 	return r.Info.Status == release.StatusUninstalling, err
 }
 
-func (h *helm) mustInstall(cfg *action.Configuration, releaseName string) (bool, error) {
+func (h *Helm) mustInstall(cfg *action.Configuration, releaseName string) (bool, error) {
 	_, err := cfg.Releases.Deployed(releaseName)
 	if err != nil && strings.Contains(err.Error(), "has no deployed releases") {
 		return true, nil
@@ -209,7 +221,7 @@ func (h *helm) mustInstall(cfg *action.Configuration, releaseName string) (bool,
 	return false, err
 }
 
-func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (time.Duration, string, string) {
+func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (time.Duration, string, string) {
 	if options.Helm == nil {
 		options.Helm = &fleet.HelmOptions{}
 	}
@@ -228,15 +240,17 @@ func (h *helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 	}
 
 	// releaseName has a limit of 53 in helm https://github.com/helm/helm/blob/main/pkg/action/install.go#L58
+	// apply already makes sure that the bundle.Name is not longer than 53 characters
 	releaseName := name.Limit(bundleID, 53)
 	if options.Helm != nil && options.Helm.ReleaseName != "" {
+		// JSON schema validation makes sure that the option is valid
 		releaseName = options.Helm.ReleaseName
 	}
 
 	return timeout, options.DefaultNamespace, releaseName
 }
 
-func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
+func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
 	var (
 		cfg    action.Configuration
 		getter = h.getter
@@ -268,7 +282,7 @@ func (h *helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 	return cfg, err
 }
 
-func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
+func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
 	values, err := h.getValues(options, defaultNamespace)
@@ -359,7 +373,7 @@ func (h *helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	return u.Run(releaseName, chart, values)
 }
 
-func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
+func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
 	if options.Helm == nil {
 		return nil, nil
 	}
@@ -419,7 +433,9 @@ func (h *helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 	return values, nil
 }
 
-func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
+// ListDeployments returns a list of bundles by listing all helm relases via
+// helm's storage driver (secrets)
+func (h *Helm) ListDeployments() ([]DeployedBundle, error) {
 	list := action.NewList(&h.globalCfg)
 	list.All = true
 	releases, err := list.Run()
@@ -428,7 +444,7 @@ func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
 	}
 
 	var (
-		result []deployer.DeployedBundle
+		result []DeployedBundle
 	)
 
 	for _, release := range releases {
@@ -440,7 +456,7 @@ func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
 		if ns != "" && ns != h.agentNamespace {
 			continue
 		}
-		result = append(result, deployer.DeployedBundle{
+		result = append(result, DeployedBundle{
 			BundleID:    d,
 			ReleaseName: release.Namespace + "/" + release.Name,
 		})
@@ -449,7 +465,14 @@ func (h *helm) ListDeployments() ([]deployer.DeployedBundle, error) {
 	return result, nil
 }
 
-func (h *helm) getRelease(bundleID, resourcesID string) (*release.Release, error) {
+func (h *Helm) getRelease(bundleID, resourcesID string) (*release.Release, error) {
+
+	// When a bundle is installed a resourcesID is generated. If there is no
+	// resourcesID then there isn't anything to lookup.
+	if resourcesID == "" {
+		return nil, ErrNoResourceID
+	}
+
 	hist := action.NewHistory(&h.globalCfg)
 
 	namespace, name := kv.Split(resourcesID, "/")
@@ -476,7 +499,7 @@ func (h *helm) getRelease(bundleID, resourcesID string) (*release.Release, error
 	return nil, ErrNoRelease
 }
 
-func (h *helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
+func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
 	if _, err := h.getRelease(bundleID, resourcesID); err == ErrNoRelease {
 		return false, nil
 	} else if err != nil {
@@ -485,17 +508,20 @@ func (h *helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
 	return true, nil
 }
 
-func (h *helm) Resources(bundleID, resourcesID string) (*deployer.Resources, error) {
+func (h *Helm) Resources(bundleID, resourcesID string) (*Resources, error) {
 	release, err := h.getRelease(bundleID, resourcesID)
 	if err == ErrNoRelease {
-		return &deployer.Resources{}, nil
+		return &Resources{}, nil
 	} else if err != nil {
 		return nil, err
 	}
 	return releaseToResources(release)
 }
 
-func (h *helm) Delete(bundleID, releaseName string) error {
+// Delete the release for the given bundleID. releaseName is a key in the
+// format "namespace/name". If releaseName is empty, search for a matching
+// release.
+func (h *Helm) Delete(bundleID, releaseName string) error {
 	if releaseName == "" {
 		deployments, err := h.ListDeployments()
 		if err != nil {
@@ -515,7 +541,7 @@ func (h *helm) Delete(bundleID, releaseName string) error {
 	return h.deleteByRelease(bundleID, releaseName)
 }
 
-func (h *helm) deleteByRelease(bundleID, releaseName string) error {
+func (h *Helm) deleteByRelease(bundleID, releaseName string) error {
 	releaseNamespace, releaseName := kv.Split(releaseName, "/")
 	rels, err := h.globalCfg.Releases.List(func(r *release.Release) bool {
 		return r.Namespace == releaseNamespace &&
@@ -555,7 +581,7 @@ func (h *helm) deleteByRelease(bundleID, releaseName string) error {
 	return err
 }
 
-func (h *helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
+func (h *Helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
 	timeout, _, releaseName := h.getOpts(bundleID, options)
 
 	r, err := h.globalCfg.Releases.Last(releaseName)
@@ -680,15 +706,30 @@ func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
 	return dest
 }
 
-func releaseToResources(release *release.Release) (*deployer.Resources, error) {
+func releaseToResources(release *release.Release) (*Resources, error) {
 	var (
 		err error
 	)
-	resources := &deployer.Resources{
+	resources := &Resources{
 		DefaultNamespace: release.Namespace,
 		ID:               fmt.Sprintf("%s/%s:%d", release.Namespace, release.Name, release.Version),
 	}
 
 	resources.Objects, err = yaml.ToObjects(bytes.NewBufferString(release.Manifest))
 	return resources, err
+}
+
+// GetSetID constructs a identifier from the provided args, bundleID "fleet-agent" is special
+func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
+	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
+	if strings.HasPrefix(bundleID, "fleet-agent") {
+		if labelSuffix == "" {
+			return "fleet-agent-bootstrap"
+		}
+		return name.SafeConcatName("fleet-agent-bootstrap", labelSuffix)
+	}
+	if labelSuffix != "" {
+		return name.SafeConcatName(labelPrefix, bundleID, labelSuffix)
+	}
+	return name.SafeConcatName(labelPrefix, bundleID)
 }

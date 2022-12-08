@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/rancher/wrangler/pkg/yaml"
 	"helm.sh/helm/v3/pkg/chart"
+
+	"github.com/rancher/wrangler/pkg/yaml"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 

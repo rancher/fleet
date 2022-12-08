@@ -1,0 +1,54 @@
+#!/bin/bash
+
+set -euxo pipefail
+
+if [ ! -d ./.github/scripts ]; then
+  echo "please change the current directory to the fleet repo checkout"
+  exit 1
+fi
+
+url="${url-172.18.0.1.omg.howdoi.website}"
+upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
+downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+
+# helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+# helm repo update rancher-latest
+helm repo update
+
+version="${1-}"
+if [ -z "$version" ]; then
+  version=$(curl -s https://api.github.com/repos/rancher/rancher/releases | jq -r "sort_by(.tag_name) | [ .[] | select(.draft | not) ] | .[-1].tag_name")
+fi
+
+kubectl config use-context "$upstream_ctx"
+
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
+kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
+
+# set CATTLE_SERVER_URL and CATTLE_BOOTSTRAP_PASSWORD to get rancher out of "bootstrap" mode
+helm upgrade rancher rancher-latest/rancher --version "$version" \
+  --devel \
+  --install --wait \
+  --create-namespace \
+  --namespace cattle-system \
+  --set hostname="$url" \
+  --set bootstrapPassword=admin \
+  --set "extraEnv[0].name=CATTLE_SERVER_URL" \
+  --set "extraEnv[0].value=https://$url" \
+  --set "extraEnv[1].name=CATTLE_BOOTSTRAP_PASSWORD" \
+  --set "extraEnv[1].value=rancherpassword"
+
+# wait for deployment of rancher
+kubectl -n cattle-system rollout status deploy/rancher
+
+# wait for rancher to create fleet namespace, deployment and controller
+{ grep -q -m 1 "fleet"; kill $!; } < <(kubectl get deployments -n cattle-fleet-system -w)
+kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
+
+./.github/scripts/wait-for-loadbalancer.sh
+
+export cluster_downstream="$downstream_ctx"
+./.github/scripts/register-downstream-clusters.sh "$url"
+
+kubectl config use-context "$upstream_ctx"
+./.github/scripts/label-downstream-cluster.sh

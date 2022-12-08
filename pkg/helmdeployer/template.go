@@ -13,11 +13,13 @@ import (
 	kubefake "helm.sh/helm/v3/pkg/kube/fake"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
+
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+// Template runs helm template and returns the resources as a list of objects, without applying them.
 func Template(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) ([]runtime.Object, error) {
-	h := &helm{
+	h := &Helm{
 		globalCfg:    action.Configuration{},
 		useGlobalCfg: true,
 		template:     true,

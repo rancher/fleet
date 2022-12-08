@@ -4,16 +4,14 @@ on:
   schedule:
     - cron:  '0 5 * * *'
   pull_request:
-    paths-ignore:
-    - 'docs/**'
-    - 'charts/**'
-    - 'scripts/**'
-    - '*.md'
+  push:
+    branches:
+    - 'release/*"'
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '^1.18'
+  SETUP_GO_VERSION: '^1.19'
 
 jobs:
   unit-test:

@@ -6,11 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"sync"
 )
-
-// use a mutex to workaround context being a global config
-var mu sync.Mutex
 
 type Command struct {
 	cnt    string
@@ -63,13 +59,13 @@ func (c Command) Create(args ...string) (string, error) {
 	return c.Run(append([]string{"create"}, args...)...)
 }
 
+func (c Command) Patch(args ...string) (string, error) {
+	return c.Run(append([]string{"patch"}, args...)...)
+}
+
 func (c Command) Run(args ...string) (string, error) {
 	if c.cnt != "" {
-		mu.Lock()
-		defer mu.Unlock()
-		if out, err := c.exec("kubectl", "config", "use-context", c.cnt); err != nil {
-			return out, err
-		}
+		args = append([]string{"--context", c.cnt}, args...)
 	}
 
 	if c.ns != "" {

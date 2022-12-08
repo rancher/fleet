@@ -1,7 +1,7 @@
 name: golangci-lint
 
 env:
-  SETUP_GO_VERSION: '^1.18'
+  SETUP_GO_VERSION: '^1.19'
 
 on:
   schedule:
@@ -28,7 +28,7 @@ jobs:
           export PATH=$PATH:/home/runner/go/bin/
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.2.0
+        uses: golangci/golangci-lint-action@v3.3.1
         with:
           # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
           version: v1.48

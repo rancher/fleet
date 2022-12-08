@@ -1,3 +1,4 @@
+// Package simulator simulates multiple agents on the same cluster. (fleetagent)
 package simulator
 
 import (
@@ -5,15 +6,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/fleet/modules/agent/pkg/agent"
-	"github.com/rancher/fleet/modules/agent/pkg/register"
-	"github.com/rancher/fleet/pkg/config"
-	"github.com/rancher/wrangler/pkg/kubeconfig"
-	"github.com/rancher/wrangler/pkg/name"
-	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+
+	"github.com/rancher/fleet/modules/agent/pkg/agent"
+	"github.com/rancher/fleet/modules/agent/pkg/register"
+	"github.com/rancher/fleet/pkg/config"
+
+	"github.com/rancher/wrangler/pkg/kubeconfig"
+	"github.com/rancher/wrangler/pkg/name"
+	"github.com/rancher/wrangler/pkg/ratelimit"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -99,7 +103,7 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 	clusterID := name.SafeConcatName(simNamespace, strings.SplitN(string(kubeSystem.UID), "-", 2)[0])
 
 	if _, err = k8s.CoreV1().Secrets(simNamespace).Get(ctx, register.CredName, metav1.GetOptions{}); err != nil {
-		secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, register.BootstrapCredName, metav1.GetOptions{})
+		secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, config.AgentBootstrapConfigName, metav1.GetOptions{})
 		if err != nil {
 			return "", err
 		}

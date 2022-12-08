@@ -24,7 +24,7 @@ steps:
       from_secret: FOSSA_API_KEY
   commands:
     - zypper -n install curl unzip
-    - "curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/spectrometer/master/install.sh | sh"
+    - "curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash"
     - fossa analyze
     - fossa test
   when:

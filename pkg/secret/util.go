@@ -1,16 +1,22 @@
+// Package secret gets or creates service account secrets for cluster registration. (fleetcontroller)
 package secret
 
 import (
 	"fmt"
 	"time"
 
-	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
+
+	"github.com/rancher/fleet/pkg/durations"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// GetServiceAccountTokenSecret gets or creates a secret for the service
+// account. It waits 2 seconds for the data to be populated with a token.
 func GetServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsController corecontrollers.SecretController) (*corev1.Secret, error) {
 	name := sa.Name + "-token"
 	secret, err := secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
@@ -61,7 +67,7 @@ func createServiceAccountTokenSecret(sa *corev1.ServiceAccount, secretsControlle
 	if _, ok := secret.Data[corev1.ServiceAccountTokenKey]; !ok {
 		for {
 			logrus.Debugf("wait for svc account secret to be populated with token %s", secret.Name)
-			time.Sleep(2 * time.Second)
+			time.Sleep(durations.ServiceTokenSleep)
 			secret, err = secretsController.Get(sa.Namespace, name, metav1.GetOptions{})
 			if err != nil {
 				return nil, err

@@ -11,15 +11,14 @@ on:
         required: false
         default: "false"
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'scripts/**'
-      - '*.md'
+  push:
+    branches:
+    - 'release/*"'
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '^1.18'
+  SETUP_GO_VERSION: '^1.19'
 
 jobs:
   e2e-fleet-test:
@@ -96,36 +95,32 @@ jobs:
         run: |
           ginkgo e2e/single-cluster
       -
-        name: Fleet Gitrepo Tests
-        # git repo tests can't run for PRs, because PRs don't have access to the secrets
-        if: github.event_name != 'pull_request'
+        name: Fleet Tests Requiring Github Secrets
+        # These tests can't run for PRs, because PRs don't have access to the secrets
+        if: >
+          github.event_name != 'pull_request' &&
+          github.repository == 'rancher/fleet'
         env:
           FLEET_E2E_NS: fleet-local
           GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"
           GIT_REPO_HOST: "github.com"
           GIT_REPO_USER: "git"
           GIT_REPO_BRANCH: ${{ matrix.k3s_version }}
+          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
+          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
         run: |
           export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
           export GIT_SSH_PUBKEY="$GITHUB_WORKSPACE/id_ecdsa.pub"
           echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo e2e/gitrepo
+          ginkgo e2e/require-secrets
       -
         name: Dump Failed Environment
         if: failure()
         run: |
           mkdir -p tmp
-          kubectl get -A pod,secret,service,ingress -o json > tmp/cluster.json
-          kubectl get -A gitrepos,clusters,clustergroups,bundles,bundledeployments -o json > tmp/fleet.json
-          kubectl get -A events > tmp/events.log
-          helm list -A > tmp/helm.log
-          kubectl logs -n cattle-fleet-system -l app=fleet-controller > tmp/fleetcontroller.log
-          kubectl logs -n cattle-fleet-system -l app=fleet-agent > tmp/fleetagent.log
-
-          docker logs k3d-k3s-default-server-0 &> tmp/k3s.log
-          docker exec k3d-k3s-default-server-0 sh -c 'cd /var/log/containers; grep -r "." .' > tmp/containers.log
+          ./.github/scripts/dump-failed-k3ds.sh
       -
         name: Upload Logs
         uses: actions/upload-artifact@v3

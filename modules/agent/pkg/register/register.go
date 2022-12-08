@@ -6,15 +6,19 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	"github.com/rancher/fleet/pkg/registration"
+
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/randomtoken"
 	"github.com/rancher/wrangler/pkg/ratelimit"
-	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +31,6 @@ import (
 
 const (
 	CredName            = "fleet-agent"
-	BootstrapCredName   = "fleet-agent-bootstrap"
 	Kubeconfig          = "kubeconfig"
 	Token               = "token"
 	Values              = "values"
@@ -54,40 +57,36 @@ func Register(ctx context.Context, namespace, clusterID string, config *rest.Con
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(time.Minute):
+		case <-time.After(durations.AgentRegistrationRetry):
 		}
 	}
 }
 
-func runRegistration(ctx context.Context, k8s corecontrollers.Interface, namespace, clusterID string) (*corev1.Secret, error) {
-	secret, err := k8s.Secret().Get(namespace, BootstrapCredName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, BootstrapCredName, err)
-	}
-	return createClusterSecret(ctx, clusterID, k8s, secret)
-}
-
-func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.Config) (*AgentInfo, error) {
-	config = rest.CopyConfig(config)
-	config.RateLimiter = ratelimit.None
-	k8s, err := core.NewFactoryFromConfig(config)
+// tryRegister makes sure the secret cattle-fleet-system/fleet-agent is
+// populated and the contained kubeconfig is working
+func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Config) (*AgentInfo, error) {
+	cfg = rest.CopyConfig(cfg)
+	cfg.RateLimiter = ratelimit.None
+	k8s, err := core.NewFactoryFromConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	secret, err := k8s.Core().V1().Secret().Get(namespace, CredName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		// fallback to local cattle-fleet-system/fleet-agent-bootstrap
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace, clusterID)
 		if err != nil {
-			return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, BootstrapCredName, err)
+			return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, config.AgentBootstrapConfigName, err)
 		}
 	} else if err != nil {
 		return nil, err
 	} else if err := testClientConfig(secret.Data[Kubeconfig]); err != nil {
+		// skip testClientConfig check if previous error, or IsNotFound fallback succeeded
 		logrus.Errorf("Current credential failed, failing back to reregistering: %v", err)
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace, clusterID)
 		if err != nil {
-			return nil, fmt.Errorf("looking up secret %s/%s or %s/%s: %w", namespace, BootstrapCredName, namespace, CredName, err)
+			return nil, fmt.Errorf("looking up secret %s/%s or %s/%s: %w", namespace, config.AgentBootstrapConfigName, namespace, CredName, err)
 		}
 	}
 
@@ -97,7 +96,7 @@ func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.
 	}
 
 	// delete the bootstrap cred
-	_ = k8s.Core().V1().Secret().Delete(namespace, BootstrapCredName, nil)
+	_ = k8s.Core().V1().Secret().Delete(namespace, config.AgentBootstrapConfigName, nil)
 	return &AgentInfo{
 		ClusterNamespace: string(secret.Data[ClusterNamespace]),
 		ClusterName:      string(secret.Data[ClusterName]),
@@ -105,6 +104,21 @@ func tryRegister(ctx context.Context, namespace, clusterID string, config *rest.
 	}, nil
 }
 
+func runRegistration(ctx context.Context, k8s corecontrollers.Interface, namespace, clusterID string) (*corev1.Secret, error) {
+	// read cattle-fleet-system/fleet-agent-bootstrap
+	secret, err := k8s.Secret().Get(namespace, config.AgentBootstrapConfigName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, config.AgentBootstrapConfigName, err)
+	}
+	return createClusterSecret(ctx, clusterID, k8s, secret)
+}
+
+// createClusterSecret uses the provided fleet-agent-bootstrap token to build a
+// kubeconfig and create a ClusterRegistration.
+// Then goes into a loop, waiting for the registration secret "clientID" to
+// appear in the systemRegistrationNamespace.
+// Finally uses the client from the config (service account: fleet-agent), to
+// update the "fleet-agent" secret from the registration secret.
 func createClusterSecret(ctx context.Context, clusterID string, k8s corecontrollers.Interface, secret *corev1.Secret) (*corev1.Secret, error) {
 	clientConfig := createClientConfigFromSecret(secret)
 
@@ -166,7 +180,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 
 	secretName := registration.SecretName(request.Spec.ClientID, request.Spec.ClientRandom)
 	secretNamespace := string(values(secret.Data)["systemRegistrationNamespace"])
-	timeout := time.After(30 * time.Minute)
+	timeout := time.After(durations.CreateClusterSecretTimeout)
 
 	for {
 		select {
@@ -174,7 +188,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 			return nil, fmt.Errorf("timeout waiting for secret %s/%s", secretNamespace, secretName)
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(2 * time.Second):
+		case <-time.After(durations.ClusterSecretRetry):
 		}
 
 		newSecret, err := fleetK8s.CoreV1().Secrets(secretNamespace).Get(ctx, secretName, metav1.GetOptions{})

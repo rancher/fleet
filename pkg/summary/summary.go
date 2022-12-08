@@ -1,3 +1,4 @@
+// Package summary provides a summary of a bundle's state. (fleetcontroller)
 package summary
 
 import (
@@ -6,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rancher/wrangler/pkg/genericcondition"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
 	"github.com/rancher/wrangler/pkg/condition"
+	"github.com/rancher/wrangler/pkg/genericcondition"
 )
 
 func IncrementState(summary *fleet.BundleSummary, name string, state fleet.BundleState, message string, modified []fleet.ModifiedStatus, nonReady []fleet.NonReadyStatus) {
@@ -81,6 +82,7 @@ func GetSummaryState(summary fleet.BundleSummary) fleet.BundleState {
 	return state
 }
 
+// GetDeploymentState calculates a fleet.BundleState from bundleDeployment (pure function)
 func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleState {
 	switch {
 	case bundleDeployment.Status.AppliedDeploymentID != bundleDeployment.Spec.DeploymentID:
@@ -99,6 +101,8 @@ func GetDeploymentState(bundleDeployment *fleet.BundleDeployment) fleet.BundleSt
 	}
 }
 
+// SetReadyConditions expects a status object as obj and updates its ready conditions according to summary
+// as per ReadyMessage
 func SetReadyConditions(obj interface{}, referencedKind string, summary fleet.BundleSummary) {
 	if reflect.ValueOf(obj).Kind() != reflect.Ptr {
 		panic("obj passed must be a pointer")
@@ -118,11 +122,15 @@ func MessageFromCondition(conditionType string, conds []genericcondition.Generic
 	return ""
 }
 
+// MessageFromDeployment returns a relevant message from the deployment conditions (pure function)
 func MessageFromDeployment(deployment *fleet.BundleDeployment) string {
 	if deployment == nil {
 		return ""
 	}
 	message := MessageFromCondition("Deployed", deployment.Status.Conditions)
+	if message == "" {
+		message = MessageFromCondition("Installed", deployment.Status.Conditions)
+	}
 	if message == "" {
 		message = MessageFromCondition("Monitored", deployment.Status.Conditions)
 	}

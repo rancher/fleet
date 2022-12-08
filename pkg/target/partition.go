@@ -13,6 +13,7 @@ type Partition struct {
 	Targets []*Target
 }
 
+// Partitions distributes targets into partitions based on the rollout strategy (pure function)
 func Partitions(targets []*Target) ([]Partition, error) {
 	rollout := getRollout(targets)
 	if len(rollout.Partitions) == 0 {
@@ -22,6 +23,7 @@ func Partitions(targets []*Target) ([]Partition, error) {
 	return manualPartition(rollout, targets)
 }
 
+// manualPartition computes a slice of Partition given some targets and rollout strategy that already has partitions (pure function)
 func manualPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Partition, error) {
 	var (
 		partitions []Partition
@@ -53,8 +55,9 @@ func manualPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Parti
 	return partitions, nil
 }
 
+// appendPartition appends a new partition to partitions with partitionTargets as targets (does not mutate partitionTargets)
 func appendPartition(partitions []Partition, name string, partitionTargets []*Target, maxUnavailable ...*intstr.IntOrString) ([]Partition, error) {
-	maxUnavailableValue, err := Limit(len(partitionTargets), maxUnavailable...)
+	maxUnavailableValue, err := limit(len(partitionTargets), maxUnavailable...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +73,7 @@ func appendPartition(partitions []Partition, name string, partitionTargets []*Ta
 	}), nil
 }
 
+// autoPartition computes a slice of Partition given some targets and rollout strategy (pure function)
 func autoPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Partition, error) {
 	// if auto is disabled
 	if rollout.AutoPartitionSize != nil && rollout.AutoPartitionSize.Type == intstr.Int &&
@@ -82,7 +86,7 @@ func autoPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Partiti
 		return appendPartition(nil, "All", targets, rollout.MaxUnavailable)
 	}
 
-	maxSize, err := Limit(len(targets), rollout.AutoPartitionSize, &defAutoPartitionSize)
+	maxSize, err := limit(len(targets), rollout.AutoPartitionSize, &defAutoPartitionSize)
 	if err != nil {
 		return nil, err
 	}

@@ -1,3 +1,6 @@
+// Package manifest manages content resources, which contain all the resources for a deployed bundle.
+//
+// Content resources are not namespaced.
 package manifest
 
 import (
@@ -17,14 +20,14 @@ type Manifest struct {
 	digest    string
 }
 
-func New(spec *fleet.BundleSpec) (*Manifest, error) {
+func New(resources []fleet.BundleResource) (*Manifest, error) {
 	m := &Manifest{
-		Resources: spec.Resources,
+		Resources: resources,
 	}
 	return m, nil
 }
 
-func ReadManifest(data []byte, digest string) (*Manifest, error) {
+func readManifest(data []byte, digest string) (*Manifest, error) {
 	if digest != "" {
 		if _, err := sha256Matches(bytes.NewReader(data), digest); err != nil {
 			return nil, err

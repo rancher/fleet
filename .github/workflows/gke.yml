@@ -16,7 +16,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '^1.18'
+  SETUP_GO_VERSION: '^1.19'
   GINKGO_NODES: 1
   FLAKE_ATTEMPTS: 1
   GKE_ZONE: 'europe-west1-b'
@@ -25,6 +25,8 @@ env:
 jobs:
   gke-fleet-examples:
     runs-on: ubuntu-latest
+    if: >
+      github.repository == 'rancher/fleet'
 
     steps:
       -
@@ -43,12 +45,12 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.1
       -
         name: Authenticate to GCP
-        uses: 'google-github-actions/auth@v0'
+        uses: 'google-github-actions/auth@v1'
         with:
           credentials_json: '${{ secrets.CI_GOOGLE_CREDENTIALS }}'
       -
         name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1
       -
         name: Install gcloud kubectl version
         run: gcloud components install kubectl
@@ -65,12 +67,13 @@ jobs:
           --machine-type ${{ env.GKE_MACHINE_TYPE }} \
           --no-enable-cloud-logging \
           --no-enable-cloud-monitoring  \
+          --network fleet-ci \
           --zone ${{ env.GKE_ZONE }}
       -
         name: Get kubeconfig file from GKE
         run: |
           id="${{ steps.create-cluster.outputs.ID }}"
-          gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }} --network fleet-ci
+          gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }}
       -
         name: Build fleet binaries
         run: |
@@ -134,19 +137,22 @@ jobs:
         run: |
           ginkgo e2e/single-cluster
       -
-        name: Fleet Gitrepo Tests
+        name: Fleet Tests Requiring Github Secrets
+        # These tests can't run for PRs, because PRs don't have access to the secrets
         env:
           FLEET_E2E_NS: fleet-local
           GIT_REPO_URL: "git@github.com:fleetrepoci/testgke.git"
           GIT_REPO_HOST: "github.com"
           GIT_REPO_USER: "git"
+          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
+          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
         run: |
           export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
           export GIT_SSH_PUBKEY="$GITHUB_WORKSPACE/id_ecdsa.pub"
           echo "${{ secrets.CI_GKE_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_GKE_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo e2e/gitrepo
+          ginkgo e2e/require-secrets
       -
         name: Delete GKE cluster
         if: ${{ always() && github.event.inputs.keep_cluster != 'yes' }}

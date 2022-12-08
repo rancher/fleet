@@ -7,9 +7,15 @@ cd $(dirname $0)/..
 
 mkdir -p bin
 
+if [ -n "${DEBUG}" ]; then
+  GCFLAGS="-N -l"
+fi
+
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.Version=$VERSION"
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.GitCommit=$COMMIT $LINKFLAGS"
-LINKFLAGS="-s -w $LINKFLAGS"
+if [ -z "${DEBUG}" ]; then
+  LINKFLAGS="-s -w $LINKFLAGS"
+fi
 OTHER_LINKFLAGS="-extldflags -static"
 
 function build-binaries() {
@@ -22,10 +28,10 @@ function build-binaries() {
     if [ $1 = "windows" ]; then
         TEMP_SUFFIX=".exe"
     fi
-    GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleet-${1}-${2}${TEMP_SUFFIX}
+    GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleet-${1}-${2}${TEMP_SUFFIX}
     if ! [ $1 = "darwin" ]; then
-        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleetcontroller-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetcontroller
-        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleetagent-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetagent
+        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetcontroller-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetcontroller
+        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetagent-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetagent
     fi
 }
 

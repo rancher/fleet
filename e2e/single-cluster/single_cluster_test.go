@@ -1,6 +1,7 @@
 package examples_test
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/rancher/fleet/e2e/testenv"
@@ -10,7 +11,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("SingleCluster", func() {
+// These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/single-cluster
+var _ = Describe("Single Cluster Examples", func() {
 	var (
 		asset string
 		k     kubectl.Command
@@ -40,6 +42,30 @@ var _ = Describe("SingleCluster", func() {
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-helm-example").Get("pods")
+					return out
+				}).Should(ContainSubstring("frontend-"))
+
+				By("Checking that labels from gitrepo are present on the bundle", func() {
+					out, err := k.Namespace("fleet-local").Get("bundle", "helm-single-cluster-helm",
+						`-o=jsonpath={.metadata.labels}`)
+					Expect(err).ToNot(HaveOccurred())
+
+					labels := &map[string]string{}
+					err = json.Unmarshal([]byte(out), labels)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(*labels).To(HaveKeyWithValue("test", "me"))
+				})
+			})
+		})
+
+		Context("containing a public oci based helm chart", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/helm-oci.yaml"
+			})
+
+			It("deploys the helm chart", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace("fleet-helm-oci-example").Get("pods")
 					return out
 				}).Should(ContainSubstring("frontend-"))
 			})
@@ -95,7 +121,7 @@ var _ = Describe("SingleCluster", func() {
 					return out
 				}).Should(SatisfyAll(
 					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
-					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
+					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-mo-"),
 				))
 
 				Eventually(func() string {
@@ -103,7 +129,7 @@ var _ = Describe("SingleCluster", func() {
 					return out
 				}).Should(SatisfyAll(
 					ContainSubstring("helm-single-cluster-helm-multi-chart-guestbook"),
-					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-monitoring"),
+					ContainSubstring("helm-single-cluster-helm-multi-chart-rancher-mo-"),
 				))
 
 				Eventually(func() string {
@@ -161,7 +187,7 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-local").Get("bundles")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(
+				}).Should(SatisfyAll(
 					ContainSubstring("multiple-paths-single-cluster-manifests"),
 					ContainSubstring("multiple-paths-single-cluster-helm"),
 				))
@@ -174,7 +200,7 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Get("bundledeployments", "-A")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(
+				}).Should(SatisfyAll(
 					ContainSubstring("multiple-paths-single-cluster-manifests"),
 					ContainSubstring("multiple-paths-single-cluster-helm"),
 				))
@@ -182,12 +208,12 @@ var _ = Describe("SingleCluster", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-manifest-example").Get("deployments")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+				}).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
 
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-helm-example").Get("deployments")
 					return out
-				}, testenv.Timeout).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+				}).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
 			})
 		})
 	})

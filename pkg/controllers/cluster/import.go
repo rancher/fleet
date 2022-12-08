@@ -6,23 +6,24 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
-	"github.com/rancher/fleet/modules/agent/pkg/deployer"
-	"github.com/rancher/fleet/modules/cli/agentmanifest"
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/fleet/modules/cli/pkg/client"
+	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/fleet/pkg/connection"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/helmdeployer"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/randomtoken"
 	"github.com/rancher/wrangler/pkg/yaml"
-	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -32,7 +33,6 @@ import (
 
 var (
 	ImportTokenPrefix = "import-token-"
-	ImportTokenTTL    = 12 * time.Hour
 )
 
 type importHandler struct {
@@ -94,6 +94,8 @@ func agentDeployed(cluster *fleet.Cluster) bool {
 	return *cluster.Status.AgentDeployedGeneration == cluster.Spec.RedeployAgentGeneration
 }
 
+// OnChange is triggered for manager initiated deployments and the local agent,
+// where KubeConfigSecret is configured
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
 	if cluster == nil {
 		return cluster, nil
@@ -104,6 +106,8 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 	}
 
 	if cluster.Spec.ClientID == "" {
+		logrus.Debugf("Cluster import for '%s/%s'. Agent found, updating ClientID", cluster.Namespace, cluster.Name)
+
 		cluster = cluster.DeepCopy()
 		cluster.Spec.ClientID, err = randomtoken.Generate()
 		if err != nil {
@@ -164,6 +168,7 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 	return nil
 }
 
+// importCluster is triggered for manager initiated deployments and the local agent,
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
 	if cluster.Spec.KubeConfigSecret == "" ||
 		agentDeployed(cluster) ||
@@ -175,6 +180,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
+	logrus.Debugf("Cluster import for '%s/%s'. Setting up agent with kubeconfig from secret '%s'", cluster.Namespace, cluster.Name, cluster.Spec.KubeConfigSecret)
 	var (
 		cfg          = config.Get()
 		apiServerURL = string(secret.Data["apiServerURL"])
@@ -196,7 +202,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	restConfig.Timeout = 15 * time.Second
+	restConfig.Timeout = durations.RestConfigTimeout
 
 	kc, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
@@ -211,7 +217,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	setID := deployer.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
+	setID := helmdeployer.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
 	apply = apply.WithDynamicLookup().WithSetID(setID).WithNoDeleteGVK(fleetns.GVK())
 
 	token, err := i.tokens.Get(cluster.Namespace, ImportTokenPrefix+cluster.Name)
@@ -231,10 +237,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				},
 			},
 			Spec: fleet.ClusterRegistrationTokenSpec{
-				TTL: &metav1.Duration{Duration: ImportTokenTTL},
+				TTL: &metav1.Duration{Duration: durations.ClusterImportTokenTTL},
 			},
 		})
-		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, 2*time.Second)
+		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
 		return status, nil
 	}
 
@@ -245,14 +251,26 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
-	err = agentmanifest.AgentManifest(i.ctx, agentNamespace, i.systemNamespace, cluster.Spec.AgentNamespace, &client.Getter{Namespace: cluster.Namespace}, output, token.Name, &agentmanifest.Options{
-		CA:              apiServerCA,
-		Host:            apiServerURL,
-		ClientID:        cluster.Spec.ClientID,
-		AgentEnvVars:    cluster.Spec.AgentEnvVars,
-		CheckinInterval: cfg.AgentCheckinInternal.Duration.String(),
-		Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
-	})
+	err = agent.AgentWithConfig(
+		i.ctx, agentNamespace, i.systemNamespace,
+		cluster.Spec.AgentNamespace,
+		&client.Getter{Namespace: cluster.Namespace},
+		output,
+		token.Name,
+		&agent.Options{
+			CA:   apiServerCA,
+			Host: apiServerURL,
+			ConfigOptions: agent.ConfigOptions{
+				ClientID: cluster.Spec.ClientID,
+				Labels:   cluster.Labels,
+			},
+			ManifestOptions: agent.ManifestOptions{
+				AgentEnvVars:    cluster.Spec.AgentEnvVars,
+				CheckinInterval: cfg.AgentCheckinInterval.Duration.String(),
+				Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
+				PrivateRepoURL:  cluster.Spec.PrivateRepoURL,
+			},
+		})
 	if err != nil {
 		return status, err
 	}
@@ -281,7 +299,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err := apply.ApplyObjects(obj...); err != nil {
 		return status, err
 	}
-	logrus.Infof("Deployed new agent for cluster %s/%s", cluster.Namespace, cluster.Name)
+	logrus.Infof("Cluster import for '%s/%s'. Deployed new agent", cluster.Namespace, cluster.Name)
 
 	if i.systemNamespace != config.DefaultNamespace {
 		// Clean up the leftover agent if it exists.
@@ -297,7 +315,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 
 		// Clean up the leftover clusters namespace if it exists.
 		// We want to keep the DefaultNamespace alive, but not the clusters namespace.
-		err = kc.CoreV1().Namespaces().Delete(i.ctx, fleetns.RegistrationNamespace(config.DefaultNamespace), metav1.DeleteOptions{})
+		err = kc.CoreV1().Namespaces().Delete(i.ctx, fleetns.SystemRegistrationNamespace(config.DefaultNamespace), metav1.DeleteOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {
 			return status, err
 		}

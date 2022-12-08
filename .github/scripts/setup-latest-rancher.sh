@@ -21,8 +21,10 @@ helm upgrade rancher rancher-latest/rancher \
   --set "extraEnv[0].value=https://$url" \
   --set "extraEnv[1].name=CATTLE_BOOTSTRAP_PASSWORD" \
   --set "extraEnv[1].value=rancherpassword"
+
 # wait for deployment of rancher
 kubectl -n cattle-system rollout status deploy/rancher
+
 # wait for rancher to create fleet namespace, deployment and controller
 { grep -q -m 1 "fleet"; kill $!; } < <(kubectl get deployments -n cattle-fleet-system -w)
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller

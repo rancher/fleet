@@ -1007,6 +1007,10 @@ func (in *ClusterSpec) DeepCopyInto(out *ClusterSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.TemplateValues != nil {
+		in, out := &in.TemplateValues, &out.TemplateValues
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 
@@ -1339,6 +1343,11 @@ func (in *GitRepoRestriction) DeepCopyInto(out *GitRepoRestriction) {
 	}
 	if in.AllowedClientSecretNames != nil {
 		in, out := &in.AllowedClientSecretNames, &out.AllowedClientSecretNames
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.AllowedTargetNamespaces != nil {
+		in, out := &in.AllowedTargetNamespaces, &out.AllowedTargetNamespaces
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
