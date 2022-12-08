@@ -114,12 +114,26 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 		data = nil
 	}
 
-	newObjs, processed, err := kustomize.Process(p.manifest, data, p.opts.Kustomize.Dir)
-	if err != nil {
-		return nil, err
+	// Kustomize applies some restrictions fleet does not have, like a regular expression, which checks for valid file
+	// names. If no instructions for kustomize are found in the manifests, then kustomize shouldn't be called at all
+	// to prevent causing issues with these restrictions.
+	kustomizable := false
+	for _, resource := range p.manifest.Resources {
+		if strings.HasSuffix(resource.Name, "kustomization.yaml") ||
+			strings.HasSuffix(resource.Name, "kustomization.yml") ||
+			strings.HasSuffix(resource.Name, "Kustomization") {
+			kustomizable = true
+			break
+		}
 	}
-	if processed {
-		objs = newObjs
+	if kustomizable {
+		newObjs, processed, err := kustomize.Process(p.manifest, data, p.opts.Kustomize.Dir)
+		if err != nil {
+			return nil, err
+		}
+		if processed {
+			objs = newObjs
+		}
 	}
 
 	yamlObjs, err := rawyaml.ToObjects(p.chart)
