@@ -1,0 +1,65 @@
+title: Bump Fleet version in installation documentation
+
+scms:
+  fleet:
+    kind: github
+    spec:
+      user: fleet-bot
+      email: fleet@olblak.com
+      owner: rancher
+      repository: fleet
+      token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
+      username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
+      branch: master
+
+sources:
+  fleet:
+    name: Get latest Fleet version
+    kind: githubrelease
+    spec:
+      owner: rancher
+      repository: fleet
+      token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
+      username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
+      versionfilter:
+        kind: semver
+        # We want to ignore pre-release version
+        # According the library documentation used by updatecli
+        # https://github.com/Masterminds/semver#working-with-prerelease-versions
+        # the following rule, should do the trick
+        pattern: ">0.1"
+    # The assets name do not contains the 'v' prefix before the version
+    transformers:
+      - trimprefix: v
+
+targets:
+  download-crd-url:
+    name: 'Update Fleet CRD asset URL'
+    kind: file
+    spec:
+      file: README.md
+      matchpattern: 'https://github.com/rancher/fleet/releases/download/(.*)/fleet-crd-(.*).tgz'
+      replacepattern: 'https://github.com/rancher/fleet/releases/download/v{{ source "fleet" }}/fleet-crd-{{ source "fleet" }}.tgz'
+    scmid: fleet
+    sourceid: fleet
+  download-url:
+    name: 'Update Fleet asset URL'
+    kind: file
+    spec:
+      file: README.md
+      matchpattern: 'https://github.com/rancher/fleet/releases/download/(.*)/fleet-(.*).tgz'
+      replacepattern: 'https://github.com/rancher/fleet/releases/download/v{{ source "fleet" }}/fleet-{{ source "fleet" }}.tgz'
+    scmid: fleet
+    sourceid: fleet
+
+pullrequests:
+  default:
+    title: '[updatecli] Bump Fleet version used within installation documentation to {{ source "fleet" }}'
+    kind: github
+    scmid: fleet
+    spec:
+      automerge: false
+      mergemethod: squash
+      labels:
+        - dependencies
+
