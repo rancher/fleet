@@ -31,5 +31,5 @@ func (l *lookup) Get(id string) (*Manifest, error) {
 		return nil, err
 	}
 
-	return ReadManifest(bytes, id)
+	return readManifest(bytes, id)
 }

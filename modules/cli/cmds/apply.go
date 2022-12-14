@@ -3,22 +3,24 @@ package cmds
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rancher/fleet/modules/cli/apply"
 	"github.com/rancher/fleet/modules/cli/pkg/writer"
 	command "github.com/rancher/wrangler-cli"
-	"github.com/spf13/cobra"
 )
 
 func NewApply() *cobra.Command {
-	return command.Command(&Apply{}, cobra.Command{
+	cmd := command.Command(&Apply{}, cobra.Command{
 		Use:   "apply [flags] BUNDLE_NAME PATH...",
 		Short: "Render a bundle into a Kubernetes resource and apply it in the Fleet Manager",
 	})
+	command.AddDebug(cmd, &Debug)
+	return cmd
 }
 
 type Apply struct {
@@ -64,7 +66,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if a.Username != "" && a.PasswordFile != "" {
-		password, err := ioutil.ReadFile(a.PasswordFile)
+		password, err := os.ReadFile(a.PasswordFile)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -73,14 +75,14 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		opts.Auth.Password = string(password)
 	}
 	if a.CACertsFile != "" {
-		cabundle, err := ioutil.ReadFile(a.CACertsFile)
+		cabundle, err := os.ReadFile(a.CACertsFile)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		opts.Auth.CABundle = cabundle
 	}
 	if a.SSHPrivateKeyFile != "" {
-		privateKey, err := ioutil.ReadFile(a.SSHPrivateKeyFile)
+		privateKey, err := os.ReadFile(a.SSHPrivateKeyFile)
 		if err != nil && !os.IsNotExist(err) {
 			return err
 		}

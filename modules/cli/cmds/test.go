@@ -3,16 +3,19 @@ package cmds
 import (
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rancher/fleet/modules/cli/match"
 	command "github.com/rancher/wrangler-cli"
-	"github.com/spf13/cobra"
 )
 
 func NewTest() *cobra.Command {
-	return command.Command(&Test{}, cobra.Command{
+	cmd := command.Command(&Test{}, cobra.Command{
 		Args:  cobra.MaximumNArgs(1),
 		Short: "Match a bundle to a target and render the output",
 	})
+	command.AddDebug(cmd, &Debug)
+	return cmd
 }
 
 type Test struct {

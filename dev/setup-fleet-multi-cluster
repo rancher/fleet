@@ -1,0 +1,20 @@
+#!/bin/bash
+# Description: install fleet into upstream and downstream cluster
+
+set -euxo pipefail
+
+if [ ! -d ./charts/fleet ]; then
+  echo "please change the current directory to the fleet repo checkout"
+  exit 1
+fi
+
+upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
+
+kubectl config use-context "$upstream_ctx"
+
+dev/setup-fleet
+dev/setup-fleet-downstream
+
+kubectl config use-context "$upstream_ctx"
+
+.github/scripts/label-downstream-cluster.sh

@@ -1,3 +1,4 @@
+// Package cluster updates the cluster.fleet.cattle.io status in the upstream cluster with the current node status. (fleetagent)
 package cluster
 
 import (
@@ -6,22 +7,20 @@ import (
 	"sort"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/sirupsen/logrus"
 
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
+	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/ticker"
 
-	"k8s.io/apimachinery/pkg/types"
-
-	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	"k8s.io/apimachinery/pkg/api/equality"
-
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type handler struct {
@@ -50,14 +49,14 @@ func Register(ctx context.Context,
 	}
 
 	go func() {
-		time.Sleep(15 * time.Second)
+		time.Sleep(durations.ClusterRegisterDelay)
 		if err := h.Update(); err != nil {
 			logrus.Errorf("failed to report cluster node status: %v", err)
 		}
 	}()
 	go func() {
 		if checkinInterval == 0 {
-			checkinInterval = 15 * time.Minute
+			checkinInterval = durations.DefaultClusterCheckInterval
 		}
 		for range ticker.Context(ctx, checkinInterval) {
 			if err := h.Update(); err != nil {
@@ -67,6 +66,7 @@ func Register(ctx context.Context,
 	}()
 }
 
+// Update the cluster.fleet.cattle.io status in the upstream cluster with the current node status
 func (h *handler) Update() error {
 	nodes, err := h.nodes.List(labels.Everything())
 	if err != nil {

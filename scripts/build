@@ -7,18 +7,19 @@ cd $(dirname $0)/..
 
 mkdir -p bin
 
+if [ -n "${DEBUG}" ]; then
+  GCFLAGS="-N -l"
+fi
+
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.Version=$VERSION"
 LINKFLAGS="-X github.com/rancher/fleet/pkg/version.GitCommit=$COMMIT $LINKFLAGS"
-LINKFLAGS="-s -w $LINKFLAGS"
+if [ -z "${DEBUG}" ]; then
+  LINKFLAGS="-s -w $LINKFLAGS"
+fi
 OTHER_LINKFLAGS="-extldflags -static"
 
 function build-binaries() {
     printf "Building for ${1}-${2} ...\n"
-    TEMP_GOARM=""
-    if [ $1 = "arm" ]; then
-        # The whitespace is intentional.
-        TEMP_GOARM=" GOARM=7"
-    fi
     TEMP_LINKFLAGS=$LINKFLAGS
     if [ $1 = "linux" ]; then
         TEMP_LINKFLAGS="$LINKFLAGS $OTHER_LINKFLAGS"
@@ -27,10 +28,10 @@ function build-binaries() {
     if [ $1 = "windows" ]; then
         TEMP_SUFFIX=".exe"
     fi
-    GOOS=${1} GOARCH=${2}${TEMP_GOARCH} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleet-${1}-${2}${TEMP_SUFFIX}
+    GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleet-${1}-${2}${TEMP_SUFFIX}
     if ! [ $1 = "darwin" ]; then
-        GOOS=${1} GOARCH=${2}${TEMP_GOARM} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleetcontroller-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetcontroller
-        GOOS=${1} GOARCH=${2}${TEMP_GOARM} CGO_ENABLED=0 go build -ldflags "$TEMP_LINKFLAGS" -o bin/fleetagent-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetagent
+        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetcontroller-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetcontroller
+        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetagent-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetagent
     fi
 }
 
@@ -39,7 +40,7 @@ if [ "$CROSS" = "true" ]; then
     if [ -z "$LOCAL" ]; then
         LOCAL="false"
     fi
-    OS_ARCH=( "linux amd64" "linux arm" "linux arm64" "darwin amd64" "windows amd64" )
+    OS_ARCH=( "linux amd64" "linux arm64" "linux s390x" "darwin amd64" "windows amd64" )
     for i in "${OS_ARCH[@]}"; do
         set -- $i
         build-binaries ${1} ${2}

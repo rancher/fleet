@@ -19,12 +19,29 @@ spec:
               fieldPath: metadata.namespace
         image: '{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}'
         name: fleet-agent
+        command:
+        - fleetagent
+        {{- if .Values.debug }}
+        - --debug
+        - --debug-level
+        - {{ quote .Values.debugLevel }}
+        {{- else }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        {{- end }}
       serviceAccountName: fleet-agent
-      {{- with .Values.fleetAgent.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.fleetAgent.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
+{{- if .Values.fleetAgent.nodeSelector }}
+{{ toYaml .Values.fleetAgent.nodeSelector | indent 8 }}
+{{- end }}
+      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
+{{- if .Values.fleetAgent.tolerations }}
+{{ toYaml .Values.fleetAgent.tolerations | indent 8 }}
+{{- end }}
+{{- if not .Values.debug }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+{{- end }}

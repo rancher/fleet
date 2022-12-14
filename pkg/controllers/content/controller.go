@@ -1,15 +1,19 @@
+// Package content purges orphaned content objects by inspecting bundledeployments in all namespaces. Runs every 5 minutes. (fleetcontroller)
 package content
 
 import (
 	"context"
-	"time"
+
+	"github.com/sirupsen/logrus"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/ticker"
-	"github.com/sirupsen/logrus"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -21,7 +25,6 @@ type handler struct {
 }
 
 type contentRef struct {
-	deleteCandidate bool
 	safeToDelete    bool
 	markForDeletion bool
 	bundleCount     int
@@ -48,7 +51,7 @@ func (h *handler) purgeOrphaned(ctx context.Context) {
 
 	deleteRefs := make(map[string]*contentRef)
 
-	for range ticker.Context(ctx, time.Minute*5) {
+	for range ticker.Context(ctx, durations.ContentPurgeInterval) {
 		logrus.Debugf("Checking for orphaned content objects")
 		namespaces, err := h.namespaces.List(metav1.ListOptions{})
 		if err != nil {

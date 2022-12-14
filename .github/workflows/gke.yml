@@ -1,0 +1,161 @@
+name: CI GKE
+
+on:
+  schedule:
+    - cron:  '0 1 * * *'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "checkout git branch/tag"
+        required: true
+        default: "master"
+      keep_cluster:
+        description: "Keep the cluster afterwards? (empty/yes)"
+        required: false
+        default: ""
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+  SETUP_GO_VERSION: '^1.19'
+  GINKGO_NODES: 1
+  FLAKE_ATTEMPTS: 1
+  GKE_ZONE: 'europe-west1-b'
+  GKE_MACHINE_TYPE: 'n2-standard-4'
+
+jobs:
+  gke-fleet-examples:
+    runs-on: ubuntu-latest
+    if: >
+      github.repository == 'rancher/fleet'
+
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      -
+        name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.SETUP_GO_VERSION }}
+      -
+        name: Setup Ginkgo Test Framework
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.1
+      -
+        name: Authenticate to GCP
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.CI_GOOGLE_CREDENTIALS }}'
+      -
+        name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+      -
+        name: Install gcloud kubectl version
+        run: gcloud components install kubectl
+      -
+        # needs a project and a network
+        name: Create GKE cluster
+        id: create-cluster
+        run: |
+          id=$RANDOM
+          echo '::set-output name=ID::'$id
+          gcloud container clusters create fleetci$id \
+          --disk-size 100 \
+          --num-nodes=1 \
+          --machine-type ${{ env.GKE_MACHINE_TYPE }} \
+          --no-enable-cloud-logging \
+          --no-enable-cloud-monitoring  \
+          --network fleet-ci \
+          --zone ${{ env.GKE_ZONE }}
+      -
+        name: Get kubeconfig file from GKE
+        run: |
+          id="${{ steps.create-cluster.outputs.ID }}"
+          gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }}
+      -
+        name: Build fleet binaries
+        run: |
+          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
+
+          go build -o "bin/fleet-linux-$GOARCH"
+          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      -
+        name: Get UUID
+        id: uuid
+        run: echo "::set-output name=uuid::$(uuidgen)"
+      -
+        id: meta-fleet
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ttl.sh/rancher/fleet-${{ steps.uuid.outputs.uuid }}
+          tags: type=raw,value=1h
+      -
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: package/Dockerfile
+          build-args: |
+            ARCH=${{ env.GOARCH }}
+          push: true
+          tags: ${{ steps.meta-fleet.outputs.tags }}
+          labels: ${{ steps.meta-fleet.outputs.labels }}
+      -
+        id: meta-fleet-agent
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ttl.sh/rancher/fleet-agent-${{ steps.uuid.outputs.uuid }}
+          tags: type=raw,value=1h
+      -
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: package/Dockerfile.agent
+          build-args: |
+            ARCH=${{ env.GOARCH }}
+          push: true
+          tags: ${{ steps.meta-fleet-agent.outputs.tags }}
+          labels: ${{ steps.meta-fleet-agent.outputs.labels }}
+      -
+        name: Deploy Fleet
+        run: |
+          echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
+          ./.github/scripts/deploy-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}
+      -
+        name: Fleet Examples Tests
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
+          ginkgo e2e/single-cluster
+      -
+        name: Fleet Tests Requiring Github Secrets
+        # These tests can't run for PRs, because PRs don't have access to the secrets
+        env:
+          FLEET_E2E_NS: fleet-local
+          GIT_REPO_URL: "git@github.com:fleetrepoci/testgke.git"
+          GIT_REPO_HOST: "github.com"
+          GIT_REPO_USER: "git"
+          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
+          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
+        run: |
+          export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
+          export GIT_SSH_PUBKEY="$GITHUB_WORKSPACE/id_ecdsa.pub"
+          echo "${{ secrets.CI_GKE_SSH_KEY }}" > "$GIT_SSH_KEY"
+          echo "${{ secrets.CI_GKE_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
+
+          ginkgo e2e/require-secrets
+      -
+        name: Delete GKE cluster
+        if: ${{ always() && github.event.inputs.keep_cluster != 'yes' }}
+        run: |
+          id="${{ steps.create-cluster.outputs.ID }}"
+          gcloud container clusters delete fleetci$id --zone ${{ env.GKE_ZONE }} --quiet

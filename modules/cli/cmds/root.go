@@ -1,10 +1,13 @@
+// Package cmds sets up the CLI commands for the fleet apply binary. (fleetapply)
 package cmds
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	"github.com/rancher/fleet/pkg/version"
+
 	command "github.com/rancher/wrangler-cli"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -30,8 +33,8 @@ func App() *cobra.Command {
 }
 
 type Fleet struct {
-	SystemNamespace string `usage:"System namespace of the controller" default:"fleet-system"`
-	Namespace       string `usage:"namespace" env:"NAMESPACE" default:"fleet-local" short:"n" env:"NAMESPACE"`
+	SystemNamespace string `usage:"System namespace of the controller" default:"cattle-fleet-system"`
+	Namespace       string `usage:"namespace" env:"NAMESPACE" default:"fleet-local" short:"n"`
 	Kubeconfig      string `usage:"kubeconfig for authentication" short:"k"`
 	Context         string `usage:"kubeconfig context for authentication"`
 }

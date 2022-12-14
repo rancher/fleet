@@ -11,7 +11,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-func (h *helm) getServiceAccount(name string) (string, string, error) {
+func (h *Helm) getServiceAccount(name string) (string, string, error) {
 	currentName := name
 	if currentName == "" {
 		currentName = DefaultServiceAccount

@@ -1,12 +1,14 @@
 ---
+
 kind: pipeline
+type: docker
 name: linux-amd64
 platform:
   os: linux
   arch: amd64
 steps:
 - name: build
-  image: rancher/dapper:v0.5.5
+  image: rancher/dapper:v0.5.8
   environment:
     CROSS: "windows"
   commands:
@@ -14,6 +16,26 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
+- name: fossa
+  image: registry.suse.com/suse/sle15:15.3
+  failure: ignore
+  environment:
+    FOSSA_API_KEY:
+      from_secret: FOSSA_API_KEY
+  commands:
+    - zypper -n install curl unzip
+    - "curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash"
+    - fossa analyze
+    - fossa test
+  when:
+    instance:
+      - drone-publish.rancher.io
+    ref:
+      include:
+        - "refs/heads/master"
+    event:
+      - push
+      - tag
 - name: github_binary_release
   image: plugins/github-release
   settings:
@@ -106,15 +128,18 @@ volumes:
 - name: docker
   host:
     path: /var/run/docker.sock
+
 ---
+
 kind: pipeline
+type: docker
 name: linux-arm64
 platform:
   os: linux
   arch: arm64
 steps:
 - name: build
-  image: rancher/dapper:v0.5.5
+  image: rancher/dapper:v0.5.8
   commands:
   - dapper build
   volumes:
@@ -184,30 +209,35 @@ volumes:
 - name: docker
   host:
     path: /var/run/docker.sock
+
 ---
+
 kind: pipeline
-name: linux-arm
+type: docker
+name: linux-s390x
 platform:
   os: linux
-  arch: arm
+  arch: amd64
+# Hack needed for s390x: https://gist.github.com/colstrom/c2f359f72658aaabb44150ac20b16d7c#gistcomment-3858388
+node:
+  arch: s390x
 steps:
-# Update this tag once dapper arm v7 works on drone.
 - name: build
-  image: rancher/dapper:v0.4.1
+  image: rancher/dapper:v0.5.8
   commands:
   - dapper build
   volumes:
   - name: docker
     path: /var/run/docker.sock
 - name: github_binary_release
-  image: plugins/github-release
+  image: rancher/drone-images:github-release-s390x
   settings:
     api_key:
       from_secret: github_token
     prerelease: true
     checksum:
     - sha256
-    checksum_file: CHECKSUMsum-arm.txt
+    checksum_file: CHECKSUMsum-s390x.txt
     checksum_flatten: true
     files:
     - "dist/artifacts/*"
@@ -220,17 +250,20 @@ steps:
     event:
     - tag
 - name: docker-publish-agent
-  image: plugins/docker
+  image: rancher/drone-images:docker-s390x
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
   settings:
     dockerfile: package/Dockerfile.agent
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-linux-arm"
+    tag: "${DRONE_TAG}-linux-s390x"
     username:
       from_secret: docker_username
     build_args:
-      - "ARCH=arm"
+      - "ARCH=s390x"
   when:
     instance:
     - drone-publish.rancher.io
@@ -240,17 +273,20 @@ steps:
     event:
     - tag
 - name: docker-publish
-  image: plugins/docker
+  image: rancher/drone-images:docker-s390x
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
   settings:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
     repo: "rancher/fleet"
-    tag: "${DRONE_TAG}-linux-arm"
+    tag: "${DRONE_TAG}-linux-s390x"
     username:
       from_secret: docker_username
     build_args:
-      - "ARCH=arm"
+      - "ARCH=s390x"
   when:
     instance:
     - drone-publish.rancher.io
@@ -263,8 +299,11 @@ volumes:
 - name: docker
   host:
     path: /var/run/docker.sock
+
 ---
+
 kind: pipeline
+type: docker
 name: windows-1809
 platform:
   os: windows
@@ -304,104 +343,62 @@ volumes:
       path: \\\\.\\pipe\\docker_engine
 depends_on:
 - linux-amd64
+
 ---
+
 kind: pipeline
-name: windows-2004
+type: docker
+name: windows-2022
 platform:
   os: windows
   arch: amd64
-  version: 2004
+  version: 2022
 # remove this and use upstream images when https://github.com/drone/drone-git/pull/25 is merged
 clone:
   disable: true
 steps:
-- name: clone
-  image: luthermonson/drone-git:windows-2004-amd64
-  settings:
-    depth: 1
-- name: docker-publish-agent
-  image: luthermonson/drone-docker:2004
-  settings:
-    dockerfile: package/Dockerfile-windows.agent
-    password:
-      from_secret: docker_password
-    repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-windows-2004"
-    username:
-      from_secret: docker_username
-    build_args:
-      - "SERVERCORE_VERSION=2004"
-      - "RELEASES=releases.rancher.com"
-      - "VERSION=${DRONE_TAG}"
-    context: package/
-    custom_dns: 1.1.1.1
-  volumes:
-    - name: docker
-      path: \\\\.\\pipe\\docker_engine
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
+  - name: clone
+    image: rancher/drone-images:git-amd64-ltsc2022
+    settings:
+      depth: 1
+  - name: docker-publish-agent
+    image: rancher/drone-images:docker-amd64-ltsc2022
+    settings:
+      dockerfile: package/Dockerfile-windows.agent
+      password:
+        from_secret: docker_password
+      repo: "rancher/fleet-agent"
+      tag: "${DRONE_TAG}-windows-ltsc2022"
+      username:
+        from_secret: docker_username
+      build_args:
+        - "SERVERCORE_VERSION=ltsc2022"
+        - "RELEASES=releases.rancher.com"
+        - "VERSION=${DRONE_TAG}"
+      context: package/
+      custom_dns: 1.1.1.1
+    volumes:
+      - name: docker
+        path: \\\\.\\pipe\\docker_engine
+    when:
+      instance:
+        - drone-publish.rancher.io
+      ref:
+        - refs/head/master
+        - refs/tags/*
+      event:
+        - tag
 volumes:
   - name: docker
     host:
       path: \\\\.\\pipe\\docker_engine
 depends_on:
-- linux-amd64
+  - linux-amd64
+
 ---
+
 kind: pipeline
-name: windows-20H2
-platform:
-  os: windows
-  arch: amd64
-  version: 20H2
-# remove this and use upstream images when https://github.com/drone/drone-git/pull/25 is merged
-clone:
-  disable: true
-steps:
-- name: clone
-  image: luthermonson/drone-git:windows-20H2-amd64
-  settings:
-    depth: 1
-- name: docker-publish-agent
-  image: luthermonson/drone-docker:20H2
-  settings:
-    dockerfile: package/Dockerfile-windows.agent
-    password:
-      from_secret: docker_password
-    repo: "rancher/fleet-agent"
-    tag: "${DRONE_TAG}-windows-20H2"
-    username:
-      from_secret: docker_username
-    build_args:
-      - "SERVERCORE_VERSION=20H2"
-      - "RELEASES=releases.rancher.com"
-      - "VERSION=${DRONE_TAG}"
-    context: package/
-    custom_dns: 1.1.1.1
-  volumes:
-    - name: docker
-      path: \\\\.\\pipe\\docker_engine
-  when:
-    instance:
-    - drone-publish.rancher.io
-    ref:
-    - refs/head/master
-    - refs/tags/*
-    event:
-    - tag
-volumes:
-  - name: docker
-    host:
-      path: \\\\.\\pipe\\docker_engine
-depends_on:
-- linux-amd64
----
-kind: pipeline
+type: docker
 name: manifest
 platform:
   os: linux
@@ -442,32 +439,6 @@ steps:
 depends_on:
 - linux-amd64
 - linux-arm64
-- linux-arm
 - windows-1809
-- windows-2004
-- windows-20H2
----
-kind: pipeline
-name: gorelease
-steps:
-  - name: fetch
-    image: docker:git
-    commands:
-      - git fetch --tags
-  - name: release
-    image: golang
-    environment:
-      GITHUB_TOKEN:
-        from_secret: github_token
-    commands:
-      - curl -sL https://git.io/goreleaser | bash
-    when:
-      instance:
-        - drone-publish.rancher.io
-      ref:
-        - refs/head/master
-        - refs/tags/*
-      event:
-        - tag
-depends_on:
-- manifest
+- windows-2022
+- linux-s390x

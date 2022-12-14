@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -euxo pipefail
+
+if [ ! -d ./.github/scripts ]; then
+  echo "please change the current directory to the fleet repo checkout"
+  exit 1
+fi
+
+dev/import-images-k3d
+./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh

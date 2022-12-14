@@ -1,3 +1,4 @@
+// Package display provides controllers that update the status fields on several resources. (fleetcontroller)
 package display
 
 import (
@@ -8,6 +9,8 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/wrangler/pkg/genericcondition"
 )
 
@@ -18,27 +21,18 @@ func Register(ctx context.Context,
 	clusters fleetcontrollers.ClusterController,
 	clustergroups fleetcontrollers.ClusterGroupController,
 	gitrepos fleetcontrollers.GitRepoController,
-	bundledeployments fleetcontrollers.BundleDeploymentController,
-	bundles fleetcontrollers.BundleController) {
+	bundledeployments fleetcontrollers.BundleDeploymentController) {
 	h := &handler{}
 
+	// NOTE these handlers have an empty "condition", so they won't update lastUpdateTime in the status
 	fleetcontrollers.RegisterClusterStatusHandler(ctx, clusters, "", "cluster-display", h.OnClusterChange)
 	fleetcontrollers.RegisterClusterGroupStatusHandler(ctx, clustergroups, "", "clustergroup-display", h.OnClusterGroupChange)
 	fleetcontrollers.RegisterGitRepoStatusHandler(ctx, gitrepos, "", "gitrepo-display", h.OnRepoChange)
 	fleetcontrollers.RegisterBundleDeploymentStatusHandler(ctx, bundledeployments, "", "bundledeployment-display", h.OnBundleDeploymentChange)
-	fleetcontrollers.RegisterBundleStatusHandler(ctx, bundles, "", "bundle-display", h.OnBundleChange)
-}
-
-func (h *handler) OnBundleChange(_ *fleet.Bundle, status fleet.BundleStatus) (fleet.BundleStatus, error) {
-	status.Display.ReadyClusters = fmt.Sprintf("%d/%d",
-		status.Summary.Ready,
-		status.Summary.DesiredReady)
-	status.Display.State = string(summary.GetSummaryState(status.Summary))
-
-	return status, nil
 }
 
 func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
+	logrus.Debugf("OnClusterChange: cluster '%s' changed, updating its status.Display", cluster.Name)
 	status.Display.ReadyBundles = fmt.Sprintf("%d/%d",
 		cluster.Status.Summary.Ready,
 		cluster.Status.Summary.DesiredReady)
@@ -62,6 +56,7 @@ func (h *handler) OnClusterChange(cluster *fleet.Cluster, status fleet.ClusterSt
 }
 
 func (h *handler) OnClusterGroupChange(cluster *fleet.ClusterGroup, status fleet.ClusterGroupStatus) (fleet.ClusterGroupStatus, error) {
+	logrus.Debugf("OnClusterGroupChange: cluster group '%s' changed, updating its status.Display", cluster.Name)
 	status.Display.ReadyBundles = fmt.Sprintf("%d/%d",
 		cluster.Status.Summary.Ready,
 		cluster.Status.Summary.DesiredReady)
@@ -84,6 +79,7 @@ func (h *handler) OnClusterGroupChange(cluster *fleet.ClusterGroup, status fleet
 }
 
 func (h *handler) OnRepoChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (fleet.GitRepoStatus, error) {
+	logrus.Debugf("OnRepoChange: git repo '%s' changed, updating its status.Display", gitrepo.Name)
 	status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)
@@ -95,6 +91,7 @@ func (h *handler) OnBundleDeploymentChange(bundleDeployment *fleet.BundleDeploym
 		deployed, monitored string
 	)
 
+	logrus.Debugf("OnBundleDeploymentChange: bundle deployment '%s' changed, updating its status.Display", bundleDeployment.Name)
 	for _, cond := range status.Conditions {
 		switch cond.Type {
 		case "Deployed":

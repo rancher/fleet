@@ -1,3 +1,7 @@
+// Package clusterregistration implements manager-initiated and agent-initiated registration. (fleetcontroller)
+//
+// Add or import downstream clusters / agents to Fleet and keep information
+// from their registration (e.g. local cluster kubeconfig) up-to-date.
 package clusterregistration
 
 import (
@@ -7,18 +11,23 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/registration"
+	secretutil "github.com/rancher/fleet/pkg/secret"
+
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
-	"github.com/sirupsen/logrus"
+
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,7 +39,7 @@ const (
 	AgentCredentialSecretType     = "fleet.cattle.io/agent-credential"
 	clusterByClientID             = "clusterByClientID"
 	clusterRegistrationByClientID = "clusterRegistrationByClientID"
-	deleteSecretAfter             = 40 * time.Minute
+	deleteSecretAfter             = durations.ClusterRegistrationDeleteDelay
 )
 
 type handler struct {
@@ -98,7 +107,7 @@ func saToClusterRegistration(namespace, name string, obj runtime.Object) ([]rela
 	if sa, ok := obj.(*v1.ServiceAccount); ok {
 		ns := sa.Annotations[fleet.ClusterRegistrationNamespaceAnnotation]
 		name := sa.Annotations[fleet.ClusterRegistrationAnnotation]
-		if ns != "" && name != "" && len(sa.Secrets) > 0 {
+		if ns != "" && name != "" {
 			return []relatedresource.Key{{
 				Namespace: ns,
 				Name:      name,
@@ -130,13 +139,16 @@ func (h *handler) OnCluster(key string, cluster *fleet.Cluster) (*fleet.Cluster,
 }
 
 func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster, req *fleet.ClusterRegistration) (*v1.Secret, error) {
-	if len(sa.Secrets) == 0 {
-		return nil, nil
-	}
-	secret, err := h.secretsCache.Get(sa.Namespace, sa.Secrets[0].Name)
-	if apierrors.IsNotFound(err) {
-		// secrets can be slow to propagate to the cache
-		secret, err = h.secrets.Get(sa.Namespace, sa.Secrets[0].Name, metav1.GetOptions{})
+	var secret *v1.Secret
+	var err error
+	if len(sa.Secrets) != 0 {
+		secret, err = h.secretsCache.Get(sa.Namespace, sa.Secrets[0].Name)
+		if apierrors.IsNotFound(err) {
+			// secrets can be slow to propagate to the cache
+			secret, err = h.secrets.Get(sa.Namespace, sa.Secrets[0].Name, metav1.GetOptions{})
+		}
+	} else {
+		secret, err = secretutil.GetServiceAccountTokenSecret(sa, h.secrets)
 	}
 	if err != nil || secret == nil {
 		return nil, err
@@ -169,7 +181,7 @@ func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, err
 		return secret, nil
 	}
 
-	if time.Now().Sub(secret.CreationTimestamp.Time) > deleteSecretAfter {
+	if time.Since(secret.CreationTimestamp.Time) > deleteSecretAfter {
 		logrus.Infof("Deleting expired registration secret %s/%s", secret.Namespace, secret.Name)
 		return secret, h.secrets.Delete(secret.Namespace, secret.Name, nil)
 	}
@@ -209,10 +221,14 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		}
 	}
 
-	logrus.Infof("Cluster registration %s/%s, cluster %s/%s granted [%v]",
+	logrus.Infof("Cluster registration request '%s/%s', cluster '%s/%s' granted [%v], creating cluster and request service account",
 		request.Namespace, request.Name, cluster.Namespace, cluster.Name, status.Granted)
+	if status.Granted {
+		logrus.Debugf("Cluster registration request '%s/%s', creating registration secret", request.Namespace, request.Name)
+	}
 
 	status.ClusterName = cluster.Name
+	// e.g. request- in the cluster namespace
 	return append(objects,
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
@@ -284,7 +300,28 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				Kind:     "Role",
 				Name:     request.Name,
 			},
-		}), status, nil
+		},
+		&rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name.SafeConcatName(request.Name, "content"),
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      saName,
+					Namespace: cluster.Status.Namespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "ClusterRole",
+				Name:     "fleet-content",
+			},
+		},
+	), status, nil
 }
 
 func KeyHash(s string) string {
@@ -313,6 +350,8 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		return cluster, err
 	}
 
+	// need to create the cluster for agent initiated registration, local
+	// and managed clusters would already exist
 	labels := map[string]string{}
 	if !config.Get().IgnoreClusterRegistrationLabels {
 		for k, v := range request.Spec.ClusterLabels {

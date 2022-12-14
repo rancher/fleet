@@ -1,7 +1,7 @@
 package normalizers
 
 import (
-	"github.com/argoproj/gitops-engine/pkg/diff"
+	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/diff"
 	"github.com/rancher/wrangler/pkg/objectset"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -31,8 +31,7 @@ func New(lives objectset.ObjectByGVK, additions ...diff.Normalizer) Norm {
 		},
 	}
 
-	for _, a := range additions {
-		n.normalizers = append(n.normalizers, a)
-	}
+	n.normalizers = append(n.normalizers, additions...)
+
 	return n
 }

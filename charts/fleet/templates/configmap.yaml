@@ -5,6 +5,7 @@ metadata:
 data:
   config: |
     {
+      "systemDefaultRegistry": "{{ template "system_default_registry" . }}",
       "agentImage": "{{ template "system_default_registry" . }}{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}",
       "agentImagePullPolicy": "{{ .Values.agentImage.imagePullPolicy }}",
       "apiServerURL": "{{.Values.apiServerURL}}",
@@ -17,6 +18,7 @@ data:
         "secret": "{{.Values.bootstrap.secret}}",
         "branch":  "{{.Values.bootstrap.branch}}",
         "namespace": "{{.Values.bootstrap.namespace}}",
+        "agentNamespace": "{{.Values.bootstrap.agentNamespace}}",
       },
       "webhookReceiverURL": "{{.Values.webhookReceiverURL}}",
       "githubURLPrefix": "{{.Values.githubURLPrefix}}"

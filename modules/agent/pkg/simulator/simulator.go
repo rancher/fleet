@@ -1,3 +1,4 @@
+// Package simulator simulates multiple agents on the same cluster. (fleetagent)
 package simulator
 
 import (
@@ -5,15 +6,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/fleet/modules/agent/pkg/agent"
-	"github.com/rancher/fleet/modules/agent/pkg/register"
-	"github.com/rancher/fleet/pkg/config"
-	"github.com/rancher/wrangler/pkg/kubeconfig"
-	"github.com/rancher/wrangler/pkg/name"
-	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+
+	"github.com/rancher/fleet/modules/agent/pkg/agent"
+	"github.com/rancher/fleet/modules/agent/pkg/register"
+	"github.com/rancher/fleet/pkg/config"
+
+	"github.com/rancher/wrangler/pkg/kubeconfig"
+	"github.com/rancher/wrangler/pkg/name"
+	"github.com/rancher/wrangler/pkg/ratelimit"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,7 +80,7 @@ func simulateAgent(ctx context.Context, i int, kubeConfig, namespace, defaultNam
 	opts.DefaultNamespace = simDefaultNamespace
 	opts.ClusterID = clusterID
 	opts.NoLeaderElect = true
-	return agent.Start(ctx, kubeConfig, simNamespace, &opts)
+	return agent.Start(ctx, kubeConfig, simNamespace, simNamespace, &opts)
 }
 
 func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace string) (string, error) {
@@ -99,7 +103,7 @@ func setupNamespace(ctx context.Context, kubeConfig, namespace, simNamespace str
 	clusterID := name.SafeConcatName(simNamespace, strings.SplitN(string(kubeSystem.UID), "-", 2)[0])
 
 	if _, err = k8s.CoreV1().Secrets(simNamespace).Get(ctx, register.CredName, metav1.GetOptions{}); err != nil {
-		secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, register.BootstrapCredName, metav1.GetOptions{})
+		secret, err := k8s.CoreV1().Secrets(namespace).Get(ctx, config.AgentBootstrapConfigName, metav1.GetOptions{})
 		if err != nil {
 			return "", err
 		}
@@ -159,7 +163,6 @@ func injectConfig(cm *corev1.ConfigMap, simNamespace string) (*corev1.ConfigMap,
 	if err != nil {
 		return nil, err
 	}
-	cfg.IgnoreAgentNamespaceCheck = true
 	if cfg.Labels == nil {
 		cfg.Labels = map[string]string{}
 	}

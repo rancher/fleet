@@ -31,6 +31,9 @@ noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 bootstrap:
   # The namespace that will be autocreated and the local cluster will be registered in
   namespace: fleet-local
+  # The namespace where the fleet agent for the local cluster will be ran, if empty
+  # this will default to cattle-fleet-system
+  agentNamespace: ""
   # A repo to add at install time that will deploy to the local cluster. This allows
   # one to fully bootstrap fleet, it's configuration and all it's downstream clusters
   # in one shot.
@@ -43,14 +46,28 @@ global:
   cattle:
     systemDefaultRegistry: ""
 
-nodeSelector:
-  kubernetes.io/os: linux
+## Node labels for pod assignment
+## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+##
+nodeSelector: {}
+## List of node taints to tolerate (requires Kubernetes >= 1.6)
+tolerations: []
 
-tolerations:
-  - key: cattle.io/os
-    operator: "Equal"
-    value: "linux"
-    effect: NoSchedule
+## PriorityClassName assigned to deployment.
+priorityClassName: ""
 
 gitops:
   enabled: true
+
+debug: false
+debugLevel: 0
+propagateDebugSettingsToAgents: true
+
+## Optional CPU pprof configuration. Profiles are collected continuously and saved every period
+## Any valid volume configuration can be provided, the example below uses hostPath
+#cpuPprof:
+#  period: "60s"
+#  volumeConfiguration:
+#    hostPath:
+#      path: /tmp/pprof
+#      type: DirectoryOrCreate

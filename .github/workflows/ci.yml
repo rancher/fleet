@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  schedule:
+    - cron:  '0 5 * * *'
+  pull_request:
+  push:
+    branches:
+    - 'release/*"'
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+  SETUP_GO_VERSION: '^1.19'
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      -
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.SETUP_GO_VERSION }}
+      -
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      -
+        name: unit-test
+        run: go test -shuffle=on $(go list ./... | grep -v /e2e)

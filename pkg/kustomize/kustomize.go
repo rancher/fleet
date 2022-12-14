@@ -5,14 +5,15 @@ import (
 
 	"github.com/rancher/fleet/pkg/content"
 	"github.com/rancher/fleet/pkg/manifest"
+
 	"github.com/rancher/wrangler/pkg/data/convert"
 	"github.com/rancher/wrangler/pkg/slice"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/kustomize/api/filesys"
-	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/types"
+	"sigs.k8s.io/kustomize/kyaml/filesys"
 	"sigs.k8s.io/yaml"
 )
 
@@ -92,18 +93,22 @@ func toFilesystem(m *manifest.Manifest, dir string, manifestsContent []byte) (fi
 }
 
 func kustomize(fs filesys.FileSystem, dir string) (result []runtime.Object, err error) {
-	pcfg := konfig.DisabledPluginConfig()
-	kust := krusty.MakeKustomizer(fs, &krusty.Options{
+	pcfg := types.DisabledPluginConfig()
+	kust := krusty.MakeKustomizer(&krusty.Options{
 		LoadRestrictions: types.LoadRestrictionsRootOnly,
 		PluginConfig:     pcfg,
 	})
-	resMap, err := kust.Run(dir)
+	resMap, err := kust.Run(fs, dir)
 	if err != nil {
 		return nil, err
 	}
 	for _, m := range resMap.Resources() {
+		mm, err := m.Map()
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, &unstructured.Unstructured{
-			Object: m.Map(),
+			Object: mm,
 		})
 	}
 	return

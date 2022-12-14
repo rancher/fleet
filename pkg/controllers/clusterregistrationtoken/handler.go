@@ -1,25 +1,31 @@
+// Package clusterregistrationtoken provides a controller for ClusterRegistrationToken. (fleetcontroller)
+//
+// It creates a service account and role binding for the token.
 package clusterregistrationtoken
 
 import (
 	"context"
 	"time"
 
-	"github.com/rancher/fleet/pkg/config"
-
-	yaml "sigs.k8s.io/yaml"
+	"github.com/sirupsen/logrus"
 
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	secretutil "github.com/rancher/fleet/pkg/secret"
+
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/relatedresource"
+
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	yaml "sigs.k8s.io/yaml"
 )
 
 type handler struct {
@@ -28,6 +34,7 @@ type handler struct {
 	clusterRegistrationTokens   fleetcontrollers.ClusterRegistrationTokenController
 	serviceAccountCache         corecontrollers.ServiceAccountCache
 	secretsCache                corecontrollers.SecretCache
+	secretsController           corecontrollers.SecretController
 }
 
 func Register(ctx context.Context,
@@ -37,6 +44,7 @@ func Register(ctx context.Context,
 	clusterGroupToken fleetcontrollers.ClusterRegistrationTokenController,
 	serviceAccounts corecontrollers.ServiceAccountController,
 	secretsCache corecontrollers.SecretCache,
+	secretsController corecontrollers.SecretController,
 ) {
 	h := &handler{
 		systemNamespace:             systemNamespace,
@@ -44,6 +52,7 @@ func Register(ctx context.Context,
 		clusterRegistrationTokens:   clusterGroupToken,
 		serviceAccountCache:         serviceAccounts.Cache(),
 		secretsCache:                secretsCache,
+		secretsController:           secretsController,
 	}
 
 	fleetcontrollers.RegisterClusterRegistrationTokenGeneratingHandler(ctx,
@@ -64,14 +73,16 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		return nil, status, nil
 	}
 
+	logrus.Debugf("Cluster registration token '%s/%s', creating import service account, roles and secret", token.Namespace, token.Name)
+
 	var (
 		saName  = name.SafeConcatName(token.Name, string(token.UID))
 		secrets []runtime.Object
 	)
 	status.SecretName = ""
-
 	sa, err := h.serviceAccountCache.Get(token.Namespace, saName)
 	if apierror.IsNotFound(err) {
+		logrus.Infof("ClusterRegistrationToken SA does not exist %v", saName)
 		// secret doesn't exist
 	} else if err != nil {
 		return nil, status, err
@@ -81,12 +92,43 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		if err != nil {
 			return nil, status, err
 		}
+	} else if len(sa.Secrets) == 0 {
+		// Kubernetes 1.24 doesn't populate serviceAccount.Secrets:
+		// "This field should not be used to find auto-generated
+		// service account token secrets for use outside of pods."
+		secretCreated, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
+		if err != nil {
+			return nil, status, err
+		}
+
+		if string(secretCreated.Data["token"]) == "" {
+			logrus.Debugf("ClusterRegistrationToken SA does not have a secret %s/%s", token.Namespace, saName)
+
+			secretReloaded, err := h.secretsCache.Get(token.Namespace, secretCreated.Name)
+			if err != nil {
+				return nil, status, err
+			}
+
+			if string(secretReloaded.Data["token"]) == "" {
+				// it can take some time for the secret to be populated, try later
+				h.clusterRegistrationTokens.Enqueue(token.Namespace, token.Name)
+				return nil, status, err
+			}
+		}
+
+		status.SecretName = token.Name
+		secrets, err = h.getValuesYAMLSecret(token, secretCreated.Name)
+		if err != nil {
+			return nil, status, err
+		}
 	}
 
 	status.Expires = nil
 	if token.Spec.TTL != nil {
 		status.Expires = &metav1.Time{Time: token.CreationTimestamp.Add(token.Spec.TTL.Duration)}
 	}
+
+	// e.g.: import-token-local in system-registration-namespace
 	return append([]runtime.Object{
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
@@ -132,6 +174,37 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 				APIGroup: rbacv1.GroupName,
 				Kind:     "Role",
 				Name:     name.SafeConcatName(saName, "role"),
+			},
+		},
+		&rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name.SafeConcatName(saName, "creds"),
+				Namespace: h.systemRegistrationNamespace,
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"secrets"},
+				},
+			},
+		},
+		&rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name.SafeConcatName(saName, "creds"),
+				Namespace: h.systemRegistrationNamespace,
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      saName,
+					Namespace: token.Namespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     name.SafeConcatName(saName, "creds"),
 			},
 		},
 	}, secrets...), status, nil
@@ -195,6 +268,6 @@ func (h *handler) deleteExpired(token *fleet.ClusterRegistrationToken) (bool, er
 		return true, h.clusterRegistrationTokens.Delete(token.Namespace, token.Name, nil)
 	}
 
-	h.clusterRegistrationTokens.EnqueueAfter(token.Namespace, token.Name, expire.Sub(time.Now()))
+	h.clusterRegistrationTokens.EnqueueAfter(token.Namespace, token.Name, time.Until(expire))
 	return false, nil
 }

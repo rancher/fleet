@@ -2,18 +2,20 @@ package bootstrap
 
 import (
 	"context"
-	"fmt"
-	"io/ioutil"
+	"os"
 	"regexp"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/fleet/modules/cli/agentmanifest"
+	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
+	fleetns "github.com/rancher/fleet/pkg/namespace"
+	secretutil "github.com/rancher/fleet/pkg/secret"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -26,7 +28,7 @@ const (
 )
 
 var (
-	splitter = regexp.MustCompile("\\s*,\\s*")
+	splitter = regexp.MustCompile(`\s*,\s*`)
 )
 
 type handler struct {
@@ -34,6 +36,7 @@ type handler struct {
 	systemNamespace     string
 	serviceAccountCache corecontrollers.ServiceAccountCache
 	secretsCache        corecontrollers.SecretCache
+	secretsController   corecontrollers.SecretController
 	cfg                 clientcmd.ClientConfig
 }
 
@@ -42,12 +45,14 @@ func Register(ctx context.Context,
 	apply apply.Apply,
 	cfg clientcmd.ClientConfig,
 	serviceAccountCache corecontrollers.ServiceAccountCache,
+	secretsController corecontrollers.SecretController,
 	secretsCache corecontrollers.SecretCache,
 ) {
 	h := handler{
 		systemNamespace:     systemNamespace,
 		serviceAccountCache: serviceAccountCache,
 		secretsCache:        secretsCache,
+		secretsController:   secretsController,
 		apply:               apply.WithSetID("fleet-bootstrap"),
 		cfg:                 cfg,
 	}
@@ -55,17 +60,18 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) OnConfig(config *config.Config) error {
+	logrus.Debugf("Bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
+
 	var objs []runtime.Object
 
 	if config.Bootstrap.Namespace == "" || config.Bootstrap.Namespace == "-" {
 		return nil
 	}
 
-	secret, err := h.getSecret(config.Bootstrap.Namespace, h.cfg)
+	secret, err := h.buildSecret(config.Bootstrap.Namespace, h.cfg)
 	if err != nil {
 		return err
 	}
-
 	objs = append(objs, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: config.Bootstrap.Namespace,
@@ -80,6 +86,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 		},
 		Spec: fleet.ClusterSpec{
 			KubeConfigSecret: secret.Name,
+			AgentNamespace:   config.Bootstrap.AgentNamespace,
 		},
 	}, &fleet.ClusterGroup{
 		ObjectMeta: metav1.ObjectMeta{
@@ -95,6 +102,7 @@ func (h *handler) OnConfig(config *config.Config) error {
 		},
 	})
 
+	// in case the agent is to be deployed from git
 	if config.Bootstrap.Repo != "" {
 		var paths []string
 		if len(config.Bootstrap.Paths) > 0 {
@@ -114,13 +122,13 @@ func (h *handler) OnConfig(config *config.Config) error {
 		})
 	}
 
-	return h.apply.ApplyObjects(objs...)
+	return h.apply.WithNoDeleteGVK(fleetns.GVK()).ApplyObjects(objs...)
 }
 
 func getHost(rawConfig clientcmdapi.Config) (string, error) {
 	icc, err := rest.InClusterConfig()
 	if err != nil {
-		return agentmanifest.GetHostFromConfig(rawConfig)
+		return agent.GetHostFromConfig(rawConfig)
 	}
 	return icc.Host, nil
 }
@@ -128,9 +136,9 @@ func getHost(rawConfig clientcmdapi.Config) (string, error) {
 func getCA(rawConfig clientcmdapi.Config) ([]byte, error) {
 	icc, err := rest.InClusterConfig()
 	if err != nil {
-		return agentmanifest.GetCAFromConfig(rawConfig)
+		return agent.GetCAFromConfig(rawConfig)
 	}
-	return ioutil.ReadFile(icc.TLSClientConfig.CAFile)
+	return os.ReadFile(icc.CAFile)
 }
 
 func (h *handler) getToken() (string, error) {
@@ -145,8 +153,14 @@ func (h *handler) getToken() (string, error) {
 		return "", err
 	}
 
+	// kubernetes 1.24 doesn't populate sa.Secrets
 	if len(sa.Secrets) == 0 {
-		return "", fmt.Errorf("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
+		logrus.Infof("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
+		secret, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
+		if err != nil {
+			return "", err
+		}
+		return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
 	}
 
 	secret, err := h.secretsCache.Get(h.systemNamespace, sa.Secrets[0].Name)
@@ -157,7 +171,7 @@ func (h *handler) getToken() (string, error) {
 	return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
 }
 
-func (h *handler) getSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.Secret, error) {
+func (h *handler) buildSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.Secret, error) {
 	rawConfig, err := cfg.RawConfig()
 	if err != nil {
 		return nil, err

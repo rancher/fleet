@@ -8,7 +8,9 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/crd"
+	"github.com/rancher/wrangler/pkg/schemas/openapi"
 	"github.com/rancher/wrangler/pkg/yaml"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
@@ -32,7 +34,6 @@ func Print(out io.Writer) error {
 	if err != nil {
 		return err
 	}
-
 	data, err := yaml.Export(obj...)
 	if err != nil {
 		return err
@@ -56,12 +57,24 @@ func Objects() (result []runtime.Object, err error) {
 func List() []crd.CRD {
 	return []crd.CRD{
 		newCRD(&fleet.Bundle{}, func(c crd.CRD) crd.CRD {
+			schema := mustSchema(fleet.Bundle{})
+			schema.Properties["spec"].Properties["helm"].Properties["releaseName"] = releaseNameValidation()
+
+			c.GVK.Kind = "Bundle"
 			return c.
+				WithSchemaFromStruct(nil).
+				WithSchema(schema).
 				WithColumn("BundleDeployments-Ready", ".status.display.readyClusters").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.BundleDeployment{}, func(c crd.CRD) crd.CRD {
+			schema := mustSchema(fleet.BundleDeployment{})
+			schema.Properties["spec"].Properties["options"].Properties["helm"].Properties["releaseName"] = releaseNameValidation()
+
+			c.GVK.Kind = "BundleDeployment"
 			return c.
+				WithSchemaFromStruct(nil).
+				WithSchema(schema).
 				WithColumn("Deployed", ".status.display.deployed").
 				WithColumn("Monitored", ".status.display.monitored").
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
@@ -77,7 +90,13 @@ func List() []crd.CRD {
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.Cluster{}, func(c crd.CRD) crd.CRD {
+			schema := mustSchema(fleet.Cluster{})
+			schema.Properties["metadata"] = metadataNameValidation()
+
+			c.GVK.Kind = "Cluster"
 			return c.
+				WithSchemaFromStruct(nil).
+				WithSchema(schema).
 				WithColumn("Bundles-Ready", ".status.display.readyBundles").
 				WithColumn("Nodes-Ready", ".status.display.readyNodes").
 				WithColumn("Sample-Node", ".status.display.sampleNode").
@@ -85,7 +104,13 @@ func List() []crd.CRD {
 				WithColumn("Status", ".status.conditions[?(@.type==\"Ready\")].message")
 		}),
 		newCRD(&fleet.ClusterRegistrationToken{}, func(c crd.CRD) crd.CRD {
+			schema := mustSchema(fleet.ClusterRegistrationToken{})
+			schema.Properties["metadata"] = metadataNameValidation()
+
+			c.GVK.Kind = "ClusterRegistrationToken"
 			return c.
+				WithSchemaFromStruct(nil).
+				WithSchema(schema).
 				WithColumn("Secret-Name", ".status.secretName")
 		}),
 		newCRD(&fleet.GitRepo{}, func(c crd.CRD) crd.CRD {
@@ -141,4 +166,44 @@ func newCRD(obj interface{}, customize func(crd.CRD) crd.CRD) crd.CRD {
 		crd = customize(crd)
 	}
 	return crd
+}
+
+// metadataNameValidation returns a schema that validates the metadata.name field
+// metadata:
+//
+//	properties:
+//	  name:
+//	    type: string
+//	    pattern: "^[-a-z0-9]*$"
+//	    maxLength: 63
+//	type: object
+func metadataNameValidation() apiextv1.JSONSchemaProps {
+	prop := apiextv1.JSONSchemaProps{
+		Type:      "string",
+		Pattern:   "^[-a-z0-9]+$",
+		MaxLength: &[]int64{63}[0],
+	}
+	return apiextv1.JSONSchemaProps{
+		Type:       "object",
+		Properties: map[string]apiextv1.JSONSchemaProps{"name": prop},
+	}
+
+}
+
+// releaseNameValidation for helm release names according to helm itself
+func releaseNameValidation() apiextv1.JSONSchemaProps {
+	return apiextv1.JSONSchemaProps{
+		Type:      "string",
+		Pattern:   `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`,
+		MaxLength: &[]int64{53}[0],
+		Nullable:  true,
+	}
+}
+
+func mustSchema(obj interface{}) *apiextv1.JSONSchemaProps {
+	result, err := openapi.ToOpenAPIFromStruct(obj)
+	if err != nil {
+		panic(err)
+	}
+	return result
 }

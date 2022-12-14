@@ -6,11 +6,6 @@ manifests:
       architecture: amd64
       os: linux
   -
-    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-linux-arm
-    platform:
-      architecture: arm
-      os: linux
-  -
     image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-linux-arm64
     platform:
       architecture: arm64
@@ -22,14 +17,13 @@ manifests:
       os: windows
       version: 1809
   -
-    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-2004
+    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-ltsc2022
     platform:
       architecture: amd64
       os: windows
-      version: 2004
+      version: ltsc2022
   -
-    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-windows-20H2
+    image: rancher/fleet-agent:{{#if build.tag}}{{build.tag}}{{else}}{{replace "release/" "" build.branch }}-head{{/if}}-linux-s390x
     platform:
-      architecture: amd64
-      os: windows
-      version: 20H2
+      architecture: s390x
+      os: linux

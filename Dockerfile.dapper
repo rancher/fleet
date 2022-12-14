@@ -1,16 +1,12 @@
-FROM golang:1.16.4
+FROM registry.suse.com/bci/golang:1.19-18.46
 
 ARG DAPPER_HOST_ARCH
 ENV ARCH $DAPPER_HOST_ARCH
 
-RUN apt update && \
-    apt install -y bash git gcc docker.io vim less file curl wget ca-certificates
-RUN if [ "${ARCH}" = "amd64" ]; then \
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.30.0; \
-    fi
-RUN curl -sL https://get.helm.sh/helm-v3.3.0-linux-${ARCH}.tar.gz | tar xvzf - -C /usr/local/bin --strip-components=1
+RUN zypper -n install git docker vim wget
+RUN curl -sL https://get.helm.sh/helm-v3.9.3-linux-${ARCH}.tar.gz | tar xvzf - -C /usr/local/bin --strip-components=1
 
-ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS
+ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS DEBUG
 ENV DAPPER_SOURCE /go/src/github.com/rancher/fleet/
 ENV DAPPER_OUTPUT ./bin ./dist
 ENV DAPPER_DOCKER_SOCKET true

@@ -25,33 +25,39 @@ clientID: ""
 clusterNamespace: ""
 
 # The namespace containing the clusters registration secrets
-systemRegistrationNamespace: fleet-clusters-system
+systemRegistrationNamespace: cattle-fleet-clusters-system
 
 # Please do not change the below setting unless you really know what you are doing
 internal:
-  systemNamespace: fleet-system
+  systemNamespace: cattle-fleet-system
   managedReleaseName: fleet-agent
 
 # The nodeSelector and tolerations for the agent deployment
 fleetAgent:
+  ## Node labels for pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
   nodeSelector: {}
+  ## List of node taints to tolerate (requires Kubernetes >= 1.6)
   tolerations: []
 kubectl:
-  nodeSelector:
-    kubernetes.io/os: linux
+  ## Node labels for pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+  ## List of node taints to tolerate (requires Kubernetes >= 1.6)
   tolerations:
-    - key: cattle.io/os
-      operator: "Equal"
-      value: "linux"
-      effect: NoSchedule
-    - key: node.cloudprovider.kubernetes.io/uninitialized
-      operator: "Equal"
-      value: "true"
-      effect: NoSchedule
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    operator: "Equal"
+    value: "true"
+    effect: NoSchedule
 
 global:
   cattle:
     systemDefaultRegistry: ""
   kubectl:
     repository: rancher/kubectl
-    tag: v1.20.2
+    tag: v1.21.5
+
+debug: false
+debugLevel: 0

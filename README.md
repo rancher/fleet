@@ -2,6 +2,11 @@
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Francher%2Ffleet.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Francher%2Ffleet?ref=badge_shield)
 
 
+[![Unit](https://github.com/rancher/fleet/actions/workflows/ci.yml/badge.svg)](https://github.com/rancher/fleet/actions/workflows/ci.yml)
+[![E2E Examples](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml)
+[![E2E Multi-Cluster Examples](https://github.com/rancher/fleet/actions/workflows/e2e-multicluster-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-multicluster-ci.yml)
+[![golangci-lint](https://github.com/rancher/fleet/actions/workflows/golangci-lint.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/golangci-lint.yml)
+
 ![](./docs/arch.png)
 
 Fleet is GitOps at scale. Fleet is designed to manage up to a million clusters. It's also lightweight
@@ -29,10 +34,10 @@ brew install helm
 Install the Fleet Helm charts (there's two because we separate out CRDs for ultimate flexibility.)
 
 ```shell
-VERSION=0.3.5
-helm -n fleet-system install --create-namespace --wait \
+VERSION=0.3.9
+helm -n cattle-fleet-system install --create-namespace --wait \
     fleet-crd https://github.com/rancher/fleet/releases/download/v${VERSION}/fleet-crd-${VERSION}.tgz
-helm -n fleet-system install --create-namespace --wait \
+helm -n cattle-fleet-system install --create-namespace --wait \
     fleet https://github.com/rancher/fleet/releases/download/v${VERSION}/fleet-${VERSION}.tgz
 ```
 
@@ -51,7 +56,9 @@ metadata:
   namespace: fleet-local
 spec:
   # Everything from this repo will be ran in this cluster. You trust me right?
-  repo: "https://github.com/rancher/fleet-examples/tree/master/simple"
+  repo: "https://github.com/rancher/fleet-examples"
+  paths:
+  - simple
 EOF
 
 kubectl apply -f example.yaml
@@ -77,6 +84,8 @@ frontend   3/3     3            3           116m
 
 Enjoy and read the [docs](https://fleet.rancher.io/).
 
-
 ## License
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Francher%2Ffleet.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Francher%2Ffleet?ref=badge_large)
+
+For developer and maintainer documentation, see [DEVELOPING.md](./DEVELOPING.md).=======
+

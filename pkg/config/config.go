@@ -6,7 +6,9 @@ import (
 	"sync"
 
 	"github.com/rancher/fleet/pkg/version"
+
 	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,10 +16,14 @@ import (
 )
 
 const (
-	ManagerConfigName = "fleet-controller"
-	AgentConfigName   = "fleet-agent"
-	Key               = "config"
-	DefaultNamespace  = "fleet-system"
+	ManagerConfigName        = "fleet-controller"
+	AgentConfigName          = "fleet-agent"
+	AgentBootstrapConfigName = "fleet-agent-bootstrap"
+	Key                      = "config"
+
+	// DefaultNamespace is the default for the system namespace, which
+	// contains the manager and agent
+	DefaultNamespace = "cattle-fleet-system"
 )
 
 var (
@@ -34,7 +40,8 @@ var (
 type Config struct {
 	AgentImage                      string            `json:"agentImage,omitempty"`
 	AgentImagePullPolicy            string            `json:"agentImagePullPolicy,omitempty"`
-	AgentCheckinInternal            metav1.Duration   `json:"agentCheckinInternal,omitempty"`
+	SystemDefaultRegistry           string            `json:"systemDefaultRegistry,omitempty"`
+	AgentCheckinInterval            metav1.Duration   `json:"agentCheckinInterval,omitempty"`
 	ManageAgent                     *bool             `json:"manageAgent,omitempty"`
 	Labels                          map[string]string `json:"labels,omitempty"`
 	ClientID                        string            `json:"clientID,omitempty"`
@@ -42,15 +49,15 @@ type Config struct {
 	APIServerCA                     []byte            `json:"apiServerCA,omitempty"`
 	Bootstrap                       Bootstrap         `json:"bootstrap,omitempty"`
 	IgnoreClusterRegistrationLabels bool              `json:"ignoreClusterRegistrationLabels,omitempty"`
-	IgnoreAgentNamespaceCheck       bool              `json:"ignoreAgentNamespaceCheck,omitempty"`
 }
 
 type Bootstrap struct {
-	Namespace string `json:"namespace,omitempty"`
-	Repo      string `json:"repo,omitempty"`
-	Secret    string `json:"secret,omitempty"`
-	Paths     string `json:"paths,omitempty"`
-	Branch    string `json:"branch,omitempty"`
+	Namespace      string `json:"namespace,omitempty"`
+	AgentNamespace string `json:"agentNamespace,omitempty"`
+	Repo           string `json:"repo,omitempty"`
+	Secret         string `json:"secret,omitempty"` // gitrepo.ClientSecretName for agent from repo
+	Paths          string `json:"paths,omitempty"`
+	Branch         string `json:"branch,omitempty"`
 }
 
 func OnChange(ctx context.Context, f func(*Config) error) {

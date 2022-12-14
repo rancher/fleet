@@ -67,7 +67,8 @@ type BundleSpec struct {
 }
 
 type BundleRef struct {
-	Name string `json:"name,omitempty"`
+	Name     string                `json:"name,omitempty"`
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
 type BundleResource struct {
@@ -130,9 +131,10 @@ type NonReadyResource struct {
 }
 
 var (
-	BundleConditionReady              = "Ready"
-	BundleDeploymentConditionReady    = "Ready"
-	BundleDeploymentConditionDeployed = "Deployed"
+	BundleConditionReady               = "Ready"
+	BundleDeploymentConditionReady     = "Ready"
+	BundleDeploymentConditionInstalled = "Installed"
+	BundleDeploymentConditionDeployed  = "Deployed"
 )
 
 type BundleStatus struct {
@@ -232,6 +234,12 @@ type HelmOptions struct {
 	TakeOwnership  bool         `json:"takeOwnership,omitempty"`
 	MaxHistory     int          `json:"maxHistory,omitempty"`
 	ValuesFiles    []string     `json:"valuesFiles,omitempty"`
+
+	// Atomic sets the --atomic flag when Helm is performing an upgrade
+	Atomic bool `json:"atomic,omitempty"`
+
+	// DisablePreProcess disables template processing in values
+	DisablePreProcess bool `json:"disablePreProcess,omitempty"`
 }
 
 // Define helm values that can come from configmap, secret or external. Credit: https://github.com/fluxcd/helm-operator/blob/0cfea875b5d44bea995abe7324819432070dfbdc/pkg/apis/helm.fluxcd.io/v1/types_helmrelease.go#L439

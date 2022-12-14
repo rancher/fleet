@@ -1,9 +1,10 @@
+// Package controllers sets up the controllers for the fleet-controller. (fleetcontroller)
 package controllers
 
 import (
 	"context"
-	"strings"
-	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/pkg/controllers/bootstrap"
 	"github.com/rancher/fleet/pkg/controllers/bundle"
@@ -18,10 +19,13 @@ import (
 	"github.com/rancher/fleet/pkg/controllers/git"
 	"github.com/rancher/fleet/pkg/controllers/image"
 	"github.com/rancher/fleet/pkg/controllers/manageagent"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
+	fleetns "github.com/rancher/fleet/pkg/namespace"
 	"github.com/rancher/fleet/pkg/target"
+
 	"github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io"
 	gitcontrollers "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/cache"
@@ -37,7 +41,7 @@ import (
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/start"
-	"github.com/sirupsen/logrus"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	memory "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/kubernetes"
@@ -67,23 +71,15 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func registrationNamespace(systemNamespace string) string {
-	systemRegistrationNamespace := strings.ReplaceAll(systemNamespace, "-system", "-clusters-system")
-	if systemRegistrationNamespace == systemNamespace {
-		return systemNamespace + "-clusters-system"
-	}
-	return systemRegistrationNamespace
-}
-
 func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool) error {
 	appCtx, err := newContext(cfg, disableGitops)
 	if err != nil {
 		return err
 	}
 
-	systemRegistrationNamespace := registrationNamespace(systemNamespace)
+	systemRegistrationNamespace := fleetns.SystemRegistrationNamespace(systemNamespace)
 
-	if err := addData(systemNamespace, systemRegistrationNamespace, appCtx); err != nil {
+	if err := applyBootstrapResources(systemNamespace, systemRegistrationNamespace, appCtx); err != nil {
 		return err
 	}
 
@@ -96,7 +92,10 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 	}
 
 	clusterregistration.Register(ctx,
-		appCtx.Apply,
+		appCtx.Apply.WithCacheTypes(
+			appCtx.RBAC.ClusterRole(),
+			appCtx.RBAC.ClusterRoleBinding(),
+		),
 		systemNamespace,
 		systemRegistrationNamespace,
 		appCtx.Core.ServiceAccount(),
@@ -111,13 +110,16 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.ClusterGroup().Cache(),
 		appCtx.Cluster(),
 		appCtx.GitRepo().Cache(),
-		appCtx.Core.Namespace())
+		appCtx.Core.Namespace(),
+		appCtx.ClusterRegistration())
 
 	cluster.RegisterImport(ctx,
 		systemNamespace,
 		appCtx.Core.Secret().Cache(),
 		appCtx.Cluster(),
-		appCtx.ClusterRegistrationToken())
+		appCtx.ClusterRegistrationToken(),
+		appCtx.Bundle(),
+		appCtx.Core.Namespace())
 
 	bundle.Register(ctx,
 		appCtx.Apply,
@@ -148,7 +150,8 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.RBAC.RoleBinding()),
 		appCtx.ClusterRegistrationToken(),
 		appCtx.Core.ServiceAccount(),
-		appCtx.Core.Secret().Cache())
+		appCtx.Core.Secret().Cache(),
+		appCtx.Core.Secret())
 
 	cleanup.Register(ctx,
 		appCtx.Apply.WithCacheTypes(
@@ -208,14 +211,14 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.Core.Secret()),
 		appCtx.ClientConfig,
 		appCtx.Core.ServiceAccount().Cache(),
+		appCtx.Core.Secret(),
 		appCtx.Core.Secret().Cache())
 
 	display.Register(ctx,
 		appCtx.Cluster(),
 		appCtx.ClusterGroup(),
 		appCtx.GitRepo(),
-		appCtx.BundleDeployment(),
-		appCtx.Bundle())
+		appCtx.BundleDeployment())
 
 	image.Register(ctx,
 		appCtx.Core,
@@ -233,7 +236,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 }
 
 func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
-	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond, 60*time.Second)
+	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(durations.FailureRateLimiterBase, durations.FailureRateLimiterMax)
 	workqueue.DefaultControllerRateLimiter()
 	clientFactory, err := client.NewSharedClientFactory(rest, nil)
 	if err != nil {
@@ -242,8 +245,9 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 
 	cacheFactory := cache.NewSharedCachedFactory(clientFactory, nil)
 	return controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{
-		DefaultRateLimiter: rateLimit,
-		DefaultWorkers:     50,
+		DefaultRateLimiter:     rateLimit,
+		DefaultWorkers:         50,
+		SyncOnlyChangedObjects: true,
 	}), nil
 }
 

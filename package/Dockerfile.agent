@@ -1,8 +1,18 @@
-FROM alpine:3.12.3
-ARG ARCH
-ENV ARCH=$ARCH
-RUN apk add -U --no-cache git bash openssh && adduser -u 1000 -D fleet-apply
-COPY bin/fleetagent-linux-$ARCH /usr/bin/fleetagent
-COPY bin/fleet-linux-$ARCH /usr/bin/fleet
+ARG BUILD_ENV=dapper
+
+FROM registry.suse.com/bci/bci-base:15.4.27.14.21 AS base
+RUN zypper in --no-recommends -y git bash openssh && groupadd -g 1000 fleet-apply && useradd -u 1000 -g 1000 -m fleet-apply; rm -fr /var/cache/* /var/log/*log
 COPY package/log.sh /usr/bin/
+
+FROM base AS copy_dapper
+ONBUILD ARG ARCH
+ONBUILD COPY bin/fleetagent-linux-$ARCH /usr/bin/fleetagent
+ONBUILD COPY bin/fleet-linux-$ARCH /usr/bin/fleet
+
+FROM base AS copy_buildx
+ONBUILD ARG TARGETARCH
+ONBUILD COPY bin/fleetagent-linux-$TARGETARCH /usr/bin/fleetagent
+ONBUILD COPY bin/fleet-linux-$TARGETARCH /usr/bin/fleet
+
+FROM copy_${BUILD_ENV}
 CMD ["fleetagent"]

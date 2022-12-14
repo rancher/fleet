@@ -1,3 +1,4 @@
+// Package cleanup provides a controller that cleans up resources that are no longer needed. (fleetcontroller)
 package cleanup
 
 import (
@@ -5,9 +6,12 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/sirupsen/logrus"
+
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -93,6 +97,10 @@ func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.N
 	if obj == nil || obj.Labels[fleet.ManagedLabel] != "true" {
 		return obj, nil
 	}
+
+	logrus.Debugf("Cleaning up fleet-managed namespace %s", obj.Name)
+
+	// NOTE no cluster has this annotation - is this dead code?
 	_, err := h.clusters.Get(obj.Annotations[fleet.ClusterNamespaceAnnotation], obj.Annotations[fleet.ClusterAnnotation])
 	if apierrors.IsNotFound(err) {
 		err = h.namespaces.Delete(key, nil)
@@ -101,15 +109,17 @@ func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.N
 	return obj, err
 }
 
-func (h *handler) cleanup(ns runtime.Object) error {
-	meta, err := meta.Accessor(ns)
+func (h *handler) cleanup(obj runtime.Object) error {
+	meta, err := meta.Accessor(obj)
 	if err != nil {
 		return err
 	}
 	if meta.GetLabels()[fleet.ManagedLabel] != "true" {
 		return nil
 	}
-	err = h.apply.PurgeOrphan(ns)
+
+	logrus.Debugf("Cleaning up fleet-managed resource %s", meta.GetName())
+	err = h.apply.PurgeOrphan(obj)
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
