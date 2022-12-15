@@ -33,7 +33,7 @@ import (
 	"github.com/rancher/fleet/pkg/update"
 
 	"github.com/rancher/wrangler/pkg/condition"
-	corev1controler "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kstatus"
 
 	corev1 "k8s.io/api/core/v1"
@@ -61,7 +61,7 @@ const (
 	imageSyncCond = "ImageSynced"
 )
 
-func Register(ctx context.Context, core corev1controler.Interface, gitRepos fleetcontrollers.GitRepoController, images fleetcontrollers.ImageScanController) {
+func Register(ctx context.Context, core corev1controller.Interface, gitRepos fleetcontrollers.GitRepoController, images fleetcontrollers.ImageScanController) {
 	h := handler{
 		ctx:         ctx,
 		secretCache: core.Secret().Cache(),
@@ -76,7 +76,7 @@ func Register(ctx context.Context, core corev1controler.Interface, gitRepos flee
 
 type handler struct {
 	ctx         context.Context
-	secretCache corev1controler.SecretCache
+	secretCache corev1controller.SecretCache
 	gitrepos    fleetcontrollers.GitRepoController
 	imagescans  fleetcontrollers.ImageScanController
 }
@@ -437,7 +437,7 @@ func latestTag(policy v1alpha1.ImagePolicyChoice, versions []string) (string, er
 }
 
 func semverLatest(r string, versions []string) (string, error) {
-	contraints, err := semver.NewConstraint(r)
+	constraints, err := semver.NewConstraint(r)
 	if err != nil {
 		return "", err
 	}
@@ -445,7 +445,7 @@ func semverLatest(r string, versions []string) (string, error) {
 	for _, version := range versions {
 		if ver, err := semver.NewVersion(version); err == nil {
 			if latestVersion == nil || ver.GreaterThan(latestVersion) {
-				if contraints.Check(ver) {
+				if constraints.Check(ver) {
 					latestVersion = ver
 				}
 			}

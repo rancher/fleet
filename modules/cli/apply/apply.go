@@ -67,7 +67,7 @@ func globDirs(baseDir string) (result []string, err error) {
 }
 
 // Apply creates bundles from the baseDirs, their names are prefixed with
-// repoName. Depending on opts.Outpus the bundles are created in the cluster or
+// repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
 func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs []string, opts *Options) error {
 	if opts == nil {

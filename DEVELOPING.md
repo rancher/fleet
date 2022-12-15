@@ -114,7 +114,7 @@ The following steps can help you do so:
 
 ## Advanced: Standalone Fleet (Obsolete How-to)
 
-Continous Integration executes most [E2E tests](/e2e/) against Fleet Standalone. For developing purposes we recommend using our [dev scripts](#local-development-workflow-fleet-standalone---for-running-e2e-tests) instead of this how-to. We keep this part only for documental reasons.
+Continuous Integration executes most [E2E tests](/e2e/) against Fleet Standalone. For developing purposes we recommend using our [dev scripts](#local-development-workflow-fleet-standalone---for-running-e2e-tests) instead of this how-to. We keep this part only for documental reasons.
 
 Build and push your `fleet-agent` (`linux-amd64` image by default), install your Fleet charts, and then replace the controller deployment with your local controller build.
 
