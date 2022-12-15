@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -229,6 +230,14 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 		return status, err
 	}
 
+	// Remove SSH known_hosts tmpdir unless it was provided by the user
+	if os.Getenv("SSH_KNOWN_HOSTS") != "" {
+		tmpdir := filepath.Dir(os.Getenv("SSH_KNOWN_HOSTS"))
+		if strings.HasPrefix(tmpdir, "/tmp/"+fmt.Sprintf("ssh-%s-%s-", gitrepo.Namespace, gitrepo.Name)) {
+			defer os.RemoveAll(tmpdir)
+		}
+	}
+
 	repo, err := gogit.PlainClone(tmp, false, &gogit.CloneOptions{
 		URL:           gitrepo.Spec.Repo,
 		Auth:          auth,
@@ -276,6 +285,32 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	status.LastSyncedImageScanTime = metav1.NewTime(time.Now())
 	h.gitrepos.EnqueueAfter(gitrepo.Namespace, gitrepo.Name, interval.Duration)
 	return status, err
+}
+
+func setupKnownHosts(gitrepo *v1alpha1.GitRepo, data []byte) error {
+	tmpdir, err := os.MkdirTemp("", fmt.Sprintf("ssh-%s-%s-", gitrepo.Namespace, gitrepo.Name))
+	if err != nil {
+		return err
+	}
+
+	known := path.Join(tmpdir, "known_hosts")
+	err = os.Setenv("SSH_KNOWN_HOSTS", known)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Create(known)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Write(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func shouldSync(gitrepo *v1alpha1.GitRepo) bool {
@@ -352,6 +387,16 @@ func (h handler) auth(gitrepo *v1alpha1.GitRepo) (transport.AuthMethod, error) {
 			Password: string(secret.Data[corev1.BasicAuthPasswordKey]),
 		}, nil
 	case corev1.SecretTypeSSHAuth:
+		knownHosts := secret.Data["known_hosts"]
+		if knownHosts == nil {
+			logrus.Infof("The git secret `%s` does not have a known_hosts field, so no host key verification possible!", gitrepo.Spec.ClientSecretName)
+		} else {
+			err := setupKnownHosts(gitrepo, knownHosts)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		publicKey, err := ssh.NewPublicKeys("git", secret.Data[corev1.SSHAuthPrivateKey], "")
 		if err != nil {
 			return nil, err
