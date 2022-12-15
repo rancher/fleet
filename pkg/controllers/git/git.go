@@ -169,7 +169,7 @@ func (h *handler) authorizeAndAssignDefaults(gitrepo *fleet.GitRepo) (*fleet.Git
 		restriction.AllowedServiceAccounts,
 		false)
 	if err != nil {
-		return nil, fmt.Errorf("disallowed serviceAcount %s: %w", gitrepo.Spec.ServiceAccount, err)
+		return nil, fmt.Errorf("disallowed serviceAccount %s: %w", gitrepo.Spec.ServiceAccount, err)
 	}
 
 	gitrepo.Spec.Repo, err = isAllowed(gitrepo.Spec.Repo,
@@ -291,7 +291,7 @@ func mergeConditions(existing, next []genericcondition.GenericCondition) []gener
 	return result
 }
 
-func accpetedLastUpdate(conds []genericcondition.GenericCondition) string {
+func acceptedLastUpdate(conds []genericcondition.GenericCondition) string {
 	for _, cond := range conds {
 		if cond.Type == "Accepted" {
 			return cond.LastUpdateTime
@@ -302,7 +302,7 @@ func accpetedLastUpdate(conds []genericcondition.GenericCondition) string {
 }
 
 func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) ([]runtime.Object, fleet.GitRepoStatus, error) {
-	logrus.Debugf("OnChange GitRepo %s/%s for commit %s last accepted at %s", gitrepo.Namespace, gitrepo.Name, gitrepo.Status.Commit, accpetedLastUpdate(gitrepo.Status.Conditions))
+	logrus.Debugf("OnChange GitRepo %s/%s for commit %s last accepted at %s", gitrepo.Namespace, gitrepo.Name, gitrepo.Status.Commit, acceptedLastUpdate(gitrepo.Status.Conditions))
 	status.ObservedGeneration = gitrepo.Generation
 
 	if gitrepo.Spec.Repo == "" {
