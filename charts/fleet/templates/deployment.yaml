@@ -56,13 +56,17 @@ spec:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
         {{- end }}
-        {{- if .Values.cpuPprof }}
         volumeMounts:
+          - mountPath: /tmp
+            name: tmp
+        {{- if .Values.cpuPprof }}
           - mountPath: /tmp/pprof
             name: pprof
         {{- end }}
-      {{- if .Values.cpuPprof }}
       volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- if .Values.cpuPprof }}
         - name: pprof {{ toYaml .Values.cpuPprof.volumeConfiguration | nindent 10 }}
       {{- end }}
 
