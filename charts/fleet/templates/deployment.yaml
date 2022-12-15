@@ -42,6 +42,12 @@ spec:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
         {{- end }}
+        volumeMounts:
+          - mountPath: /tmp
+            name: tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
       serviceAccountName: fleet-controller
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
 {{- if .Values.nodeSelector }}
