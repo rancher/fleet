@@ -1,4 +1,6 @@
 # Introduction
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Francher%2Ffleet.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Francher%2Ffleet?ref=badge_shield)
+
 
 [![Unit](https://github.com/rancher/fleet/actions/workflows/ci.yml/badge.svg)](https://github.com/rancher/fleet/actions/workflows/ci.yml)
 [![E2E Examples](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml)
@@ -82,6 +84,8 @@ frontend   3/3     3            3           116m
 
 Enjoy and read the [docs](https://fleet.rancher.io/).
 
----
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Francher%2Ffleet.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Francher%2Ffleet?ref=badge_large)
 
-For developer and maintainer documentation, see [DEVELOPING.md](./DEVELOPING.md).
+For developer and maintainer documentation, see [DEVELOPING.md](./DEVELOPING.md).=======
+
