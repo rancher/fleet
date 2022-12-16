@@ -11,12 +11,12 @@ import (
 )
 
 type BundleMapping struct {
-	namespace        string
-	namspaceSelector labels.Selector
-	bundleSelector   labels.Selector
-	namespaces       corecontrollers.NamespaceCache
-	bundles          fleetcontrollers.BundleCache
-	noMatch          bool
+	namespace         string
+	namespaceSelector labels.Selector
+	bundleSelector    labels.Selector
+	namespaces        corecontrollers.NamespaceCache
+	bundles           fleetcontrollers.BundleCache
+	noMatch           bool
 }
 
 func NewBundleMapping(mapping *fleet.BundleNamespaceMapping,
@@ -41,7 +41,7 @@ func NewBundleMapping(mapping *fleet.BundleNamespaceMapping,
 		return nil, err
 	}
 
-	result.namspaceSelector, err = metav1.LabelSelectorAsSelector(mapping.NamespaceSelector)
+	result.namespaceSelector, err = metav1.LabelSelectorAsSelector(mapping.NamespaceSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (b *BundleMapping) MatchesNamespace(namespace string) bool {
 	if err != nil {
 		return false
 	}
-	return b.namspaceSelector.Matches(labels.Set(ns.Labels))
+	return b.namespaceSelector.Matches(labels.Set(ns.Labels))
 }
 
 func (b *BundleMapping) Matches(fleetBundle *fleet.Bundle) bool {
@@ -81,7 +81,7 @@ func (b *BundleMapping) Namespaces() ([]*corev1.Namespace, error) {
 	if b.noMatch {
 		return nil, nil
 	}
-	return b.namespaces.List(b.namspaceSelector)
+	return b.namespaces.List(b.namespaceSelector)
 }
 
 type bundleSet struct {

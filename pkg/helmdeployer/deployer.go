@@ -433,7 +433,7 @@ func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 	return values, nil
 }
 
-// ListDeployments returns a list of bundles by listing all helm relases via
+// ListDeployments returns a list of bundles by listing all helm releases via
 // helm's storage driver (secrets)
 func (h *Helm) ListDeployments() ([]DeployedBundle, error) {
 	list := action.NewList(&h.globalCfg)
