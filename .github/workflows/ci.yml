@@ -37,4 +37,4 @@ jobs:
             ${{ runner.os }}-go-
       -
         name: unit-test
-        run: go test -shuffle=on $(go list ./... | grep -v /e2e)
+        run: go test -shuffle=on $(go list ./... | grep -v -e /e2e -e /integrationtests)
