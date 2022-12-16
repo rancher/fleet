@@ -2,6 +2,14 @@ package agent
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
+	gen "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
@@ -9,14 +17,11 @@ import (
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
-	gen "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
@@ -25,11 +30,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"testing"
 )
 
 var testEnv *envtest.Environment
@@ -103,6 +105,8 @@ func registerBundleDeploymentController(cfg *rest.Config) {
 
 	helmDeployer, err := helmdeployer.NewHelm(DeploymentsNamespace, DeploymentsNamespace, DeploymentsNamespace, DeploymentsNamespace, &restClientGetter,
 		coreFactory.Core().V1().ServiceAccount().Cache(), coreFactory.Core().V1().ConfigMap().Cache(), coreFactory.Core().V1().Secret().Cache())
+	Expect(err).ToNot(HaveOccurred())
+
 	wranglerApply, err := apply.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
