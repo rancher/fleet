@@ -162,18 +162,12 @@ jobs:
         env:
           url: "172.18.0.1.omg.howdoi.website"
         run: |
-          kubectl config use-context k3d-upstream
-          kubectl cluster-info
-
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
 
           # wait for cluster to settle
           sleep 30
-      -
-        name: Label downstream cluster
-        run: |
-          kubectl config use-context k3d-upstream
+
           ./.github/scripts/label-downstream-cluster.sh
       -
         name: Deploy development fleet

@@ -2,8 +2,10 @@
 
 set -euxo pipefail
 
+
 url="${url-172.18.0.1.omg.howdoi.website}"
 cluster_downstream="${cluster_downstream-k3d-downstream}"
+ctx=$(kubectl config current-context)
 
 # hardcoded token, cluster is ephemeral and private
 token="token-ci:zfllcbdr4677rkj4hmlr8rsmljg87l7874882928khlfs2pmmcq7l5"
@@ -48,3 +50,5 @@ rancher cluster import second
 rancher cluster import second | grep curl | sh
 
 until rancher cluster list | grep second | grep -q active; do echo waiting for cluster registration; sleep 5; done
+
+kubectl config use-context "$ctx"

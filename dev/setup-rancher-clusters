@@ -50,5 +50,4 @@ kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
 export cluster_downstream="$downstream_ctx"
 ./.github/scripts/register-downstream-clusters.sh "$url"
 
-kubectl config use-context "$upstream_ctx"
 ./.github/scripts/label-downstream-cluster.sh
