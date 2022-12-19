@@ -23,7 +23,7 @@ var _ = Describe("Bundle Namespace Mapping", func() {
 	)
 
 	BeforeEach(func() {
-		k = env.Kubectl.Context(env.Fleet)
+		k = env.Kubectl.Context(env.Upstream)
 		kd = env.Kubectl.Context(env.Downstream)
 	})
 

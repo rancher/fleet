@@ -3,7 +3,7 @@
 set -euxo pipefail
 
 url="${url-172.18.0.1.omg.howdoi.website}"
-cluster="${cluster-k3d-k3s-default}"
+cluster="${cluster-k3d-upstream}"
 
 kubectl config use-context "$cluster"
 kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml

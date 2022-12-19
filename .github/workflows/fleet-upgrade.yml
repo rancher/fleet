@@ -1,3 +1,4 @@
+# Upgrade from latest released fleet to dev version
 name: Upgrade Fleet
 
 on:
@@ -49,7 +50,7 @@ jobs:
         uses: AbsaOSS/k3d-action@v2
         # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
         with:
-          cluster-name: "k3s-default"
+          cluster-name: "upstream"
           args: >-
             --agents 3
             --network "nw01"
@@ -84,7 +85,7 @@ jobs:
       -
         name: Import Images Into k3d
         run: |
-          k3d image import rancher/fleet:dev rancher/fleet-agent:dev
+          k3d image import rancher/fleet:dev rancher/fleet-agent:dev -c upstream
       -
         name: Verify Example Workload
         run: |
@@ -115,4 +116,3 @@ jobs:
             tmp/*.json
             tmp/*.log
           retention-days: 2
-
