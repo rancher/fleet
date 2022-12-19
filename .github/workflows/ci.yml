@@ -37,4 +37,10 @@ jobs:
             ${{ runner.os }}-go-
       -
         name: unit-test
-        run: go test -shuffle=on $(go list ./... | grep -v /e2e)
+        run: go test -shuffle=on $(go list ./... | grep -v -e /e2e -e /integrationtests)
+      -
+        name: integration-tests
+        env:
+          SETUP_ENVTEST_VER: v0.0.0-20221214170741-69f093833822
+          ENVTEST_K8S_VERSION: 1.25
+        run: ./.github/scripts/run-integration-tests.sh
