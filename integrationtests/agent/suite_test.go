@@ -132,11 +132,11 @@ func registerBundleDeploymentController(cfg *rest.Config) {
 }
 
 func createResources() (map[string][]v1alpha1.BundleResource, error) {
-	v1, err := os.ReadFile("assets/deployment-v1.yaml")
+	v1, err := os.ReadFile(assetsPath + "/deployment-v1.yaml")
 	if err != nil {
 		return nil, err
 	}
-	v2, err := os.ReadFile("assets/deployment-v2.yaml")
+	v2, err := os.ReadFile(assetsPath + "/deployment-v2.yaml")
 	if err != nil {
 		return nil, err
 	}

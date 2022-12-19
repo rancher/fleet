@@ -22,7 +22,7 @@ const (
 var _ = Describe("BundleDeployment status", Ordered, func() {
 	When("New bundle deployment is created", func() {
 		BeforeAll(func() {
-			// this BundleDeployment will create a deployment with the resources from assets/deployment.yaml
+			// this BundleDeployment will create a deployment with the resources from assets/deployment-v1.yaml
 			createBundleDeploymentV1()
 		})
 
