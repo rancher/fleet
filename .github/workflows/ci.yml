@@ -38,3 +38,7 @@ jobs:
       -
         name: unit-test
         run: go test -shuffle=on $(go list ./... | grep -v -e /e2e -e /integrationtests)
+      -
+        name: integration-tests
+        run: |
+          ./.github/scripts/run-integration-tests.sh
