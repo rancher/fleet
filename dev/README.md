@@ -81,7 +81,7 @@ change in an incompatible way anyday.
 ## Run integration tests
 
 ```
-make integration-test
+./dev/run-integration-tests.sh
 ```
 
 This will download and prepare setup-envtest, then it will execute all the integration tests.
