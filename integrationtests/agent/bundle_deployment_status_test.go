@@ -1,8 +1,6 @@
 package agent
 
 import (
-	"time"
-
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/genericcondition"
 
@@ -17,7 +15,6 @@ import (
 
 const (
 	bundle           = "bundle"
-	timeout          = 5 * time.Second
 	svcName          = "svc-test"
 	svcFinalizerName = "svc-finalizer"
 )
@@ -40,7 +37,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		})
 
 		It("BundleDeployment will eventually be ready and non modified", func() {
-			Eventually(isBundleDeploymentReadyAndNotModified).WithTimeout(timeout).Should(BeTrue())
+			Eventually(isBundleDeploymentReadyAndNotModified).Should(BeTrue())
 		})
 
 		It("Resources from BundleDeployment are present in the cluster", func() {
@@ -70,7 +67,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					}
 					return isNotReadyAndModified(modifiedStatus, "service.v1 fleet-integration-tests/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}")
-				}).WithTimeout(timeout).Should(BeTrue())
+				}).Should(BeTrue())
 			})
 
 			It("Modify service to have its original value", func() {
@@ -82,7 +79,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
-				Eventually(isBundleDeploymentReadyAndNotModified).WithTimeout(timeout).Should(BeTrue())
+				Eventually(isBundleDeploymentReadyAndNotModified).Should(BeTrue())
 			})
 		})
 		Context("Upgrading to a release that will leave an orphan resource", func() {
@@ -102,7 +99,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Patch:      "",
 					}
 					return isNotReadyAndModified(modifiedStatus, "service.v1 fleet-integration-tests/svc-finalizer extra")
-				}).WithTimeout(timeout).Should(BeTrue())
+				}).Should(BeTrue())
 			})
 
 			It("Remove finalizer", func() {
@@ -114,7 +111,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
-				Eventually(isBundleDeploymentReadyAndNotModified).WithTimeout(timeout).Should(BeTrue())
+				Eventually(isBundleDeploymentReadyAndNotModified).Should(BeTrue())
 			})
 		})
 		Context("Delete a resource in the release", func() {
@@ -137,7 +134,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Patch:      "",
 					}
 					return isNotReadyAndModified(modifiedStatus, "service.v1 fleet-integration-tests/svc-test missing")
-				}).WithTimeout(timeout).Should(BeTrue())
+				}).Should(BeTrue())
 			})
 		})
 	})

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
@@ -42,6 +43,8 @@ var k8sClient client.Client
 
 const (
 	DeploymentsNamespace = "fleet-integration-tests"
+	assetsPath           = "assets"
+	timeout              = 5 * time.Second
 )
 
 func TestFleet(t *testing.T) {
@@ -50,6 +53,7 @@ func TestFleet(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	SetDefaultEventuallyTimeout(timeout)
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	testEnv = &envtest.Environment{
