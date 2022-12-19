@@ -30,6 +30,9 @@ spec:
         imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
         command:
         - fleetcontroller
+        {{- if not .Values.gitops.enabled }}
+        - --disable-gitops
+        {{- end }}
         {{- if .Values.debug }}
         - --debug
         - --debug-level
@@ -38,9 +41,6 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
-        {{- end }}
-        {{- if not .Values.gitops.enabled }}
-        - --disable-gitops
         {{- end }}
       serviceAccountName: fleet-controller
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
