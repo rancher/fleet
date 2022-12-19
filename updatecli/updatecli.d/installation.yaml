@@ -38,7 +38,7 @@ targets:
     kind: file
     spec:
       file: README.md
-      matchpattern: 'https://github.com/rancher/fleet/releases/download/(.*)/fleet-crd-(.*).tgz'
+      matchpattern: 'https://github.com/rancher/fleet/releases/download/(.*)/fleet-crd-(\d)(.*).tgz'
       replacepattern: 'https://github.com/rancher/fleet/releases/download/v{{ source "fleet" }}/fleet-crd-{{ source "fleet" }}.tgz'
     scmid: fleet
     sourceid: fleet
@@ -47,7 +47,7 @@ targets:
     kind: file
     spec:
       file: README.md
-      matchpattern: 'https://github.com/rancher/fleet/releases/download/(.*)/fleet-(.*).tgz'
+      matchpattern: 'https://github.com/rancher/fleet/releases/download/(.*)/fleet-(\d)(.*).tgz'
       replacepattern: 'https://github.com/rancher/fleet/releases/download/v{{ source "fleet" }}/fleet-{{ source "fleet" }}.tgz'
     scmid: fleet
     sourceid: fleet
