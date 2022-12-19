@@ -19,6 +19,24 @@ var _ = Describe("Multi Cluster Examples", func() {
 		kd    kubectl.Command
 	)
 
+	helmVersion := func(repo string) (string, error) {
+		out, err := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/repo-name="+repo, "-o=jsonpath={.items[*].spec.options.helm.version}")
+		if err != nil {
+			return "", err
+		}
+
+		return out, nil
+	}
+
+	helmRepo := func(repo string) (string, error) {
+		out, err := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/repo-name="+repo, "-o=jsonpath={.items[*].spec.options.helm.repo}")
+		if err != nil {
+			return "", err
+		}
+
+		return out, nil
+	}
+
 	BeforeEach(func() {
 		k = env.Kubectl.Context(env.Fleet).Namespace(env.Namespace)
 		kd = env.Kubectl.Context(env.Downstream)
@@ -109,5 +127,31 @@ var _ = Describe("Multi Cluster Examples", func() {
 			})
 		})
 
+		Context("containing an external helm chart with targetCustomizations", func() {
+			BeforeEach(func() {
+				asset = "multi-cluster/helm-target-customizations.yaml"
+			})
+
+			It("can replace the chart version and url", func() {
+				expectedVersion := "6.5.0"
+
+				// Verify bundledeployment changes
+				Eventually(func() string {
+					out, _ := helmVersion("helm-target-customizations")
+					return out
+				}).Should(ContainSubstring(expectedVersion))
+
+				Eventually(func() string {
+					out, _ := helmRepo("helm-target-customizations")
+					return out
+				}).Should(ContainSubstring("https://oauth2-proxy.github.io/manifests///"))
+
+				// Verify actual deployment downstream
+				Eventually(func() string {
+					out, _ := kd.Get("deployments", "-A", "-l", "helm.sh/chart=oauth2-proxy-"+expectedVersion)
+					return out
+				}).Should(ContainSubstring("oauth2-proxy"))
+			})
+		})
 	})
 })

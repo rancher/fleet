@@ -184,6 +184,8 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	setTargetNames(&bundle.BundleSpec)
 
+	propagateHelmChartProperties(&bundle.BundleSpec)
+
 	resources, err := readResources(ctx, &bundle.BundleSpec, opts.Compress, baseDir, opts.Auth)
 	if err != nil {
 		return nil, err
@@ -243,6 +245,29 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 	}
 
 	return New(def, scans...)
+}
+
+// propagateHelmChartProperties propagates root Helm chart properties to the child targets.
+func propagateHelmChartProperties(spec *fleet.BundleSpec) {
+	// Check if there is anything to propagate
+	if spec.Helm == nil {
+		return
+	}
+	for _, target := range spec.Targets {
+		if target.Helm == nil {
+			// This target has nothing to propagate to
+			continue
+		}
+		if target.Helm.Repo == "" {
+			target.Helm.Repo = spec.Helm.Repo
+		}
+		if target.Helm.Chart == "" {
+			target.Helm.Chart = spec.Helm.Chart
+		}
+		if target.Helm.Version == "" {
+			target.Helm.Version = spec.Helm.Version
+		}
+	}
 }
 
 func appendTargets(def *fleet.Bundle, targetsFile string) (*fleet.Bundle, error) {
