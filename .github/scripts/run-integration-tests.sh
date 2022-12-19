@@ -2,8 +2,8 @@
 
 set -euxo pipefail
 
-SETUP_ENVTEST_VER=v0.0.0-20221214170741-69f093833822
-ENVTEST_K8S_VERSION=1.25
+SETUP_ENVTEST_VER=${SETUP_ENVTEST_VER-v0.0.0-20221214170741-69f093833822}
+ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION-1.25}
 
 # install and prepare setup-envtest
 if ! command -v setup-envtest &> /dev/null
