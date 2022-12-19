@@ -3,14 +3,14 @@ package agent
 import (
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/genericcondition"
+
+	"github.com/google/go-cmp/cmp"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -28,22 +28,27 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			// this BundleDeployment will create a deployment with the resources from assets/deployment.yaml
 			createBundleDeploymentV1()
 		})
+
 		AfterAll(func() {
 			Expect(controller.Delete(DeploymentsNamespace, bundle, nil)).NotTo(HaveOccurred())
 		})
+
 		It("BundleDeployment is not ready", func() {
 			bd, err := controller.Get(DeploymentsNamespace, bundle, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Ready).To(BeFalse())
 		})
+
 		It("BundleDeployment will eventually be ready and non modified", func() {
 			Eventually(isBundleDeploymentReadyAndNotModified).WithTimeout(timeout).Should(BeTrue())
 		})
+
 		It("Resources from BundleDeployment are present in the cluster", func() {
 			svc, err := getServiceFromBundleDeploymentRelease(svcName)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(svc).To(Not(BeNil()))
 		})
+
 		Context("A release resource is modified", func() {
 			It("Modify service", func() {
 				svc, err := getServiceFromBundleDeploymentRelease(svcName)
@@ -52,6 +57,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				patch.Spec.Selector = map[string]string{"foo": "bar"}
 				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).NotTo(HaveOccurred())
 			})
+
 			It("BundleDeployment status will not be Ready, and will contain the error message", func() {
 				Eventually(func() bool {
 					modifiedStatus := v1alpha1.ModifiedStatus{
@@ -66,6 +72,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 					return isNotReadyAndModified(modifiedStatus, "service.v1 fleet-integration-tests/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}")
 				}).WithTimeout(timeout).Should(BeTrue())
 			})
+
 			It("Modify service to have its original value", func() {
 				svc, err := getServiceFromBundleDeploymentRelease(svcName)
 				Expect(err).NotTo(HaveOccurred())
@@ -73,6 +80,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				patch.Spec.Selector = map[string]string{"app.kubernetes.io/name": "MyApp"}
 				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
 			})
+
 			It("BundleDeployment will eventually be ready and non modified", func() {
 				Eventually(isBundleDeploymentReadyAndNotModified).WithTimeout(timeout).Should(BeTrue())
 			})
@@ -81,6 +89,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			It("Upgrade BundleDeployment to a release that deletes the svc with a finalizer", func() {
 				upgradeBundleDeploymentToV2()
 			})
+
 			It("BundleDeployment status will eventually be extra", func() {
 				Eventually(func() bool {
 					modifiedStatus := v1alpha1.ModifiedStatus{
@@ -95,6 +104,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 					return isNotReadyAndModified(modifiedStatus, "service.v1 fleet-integration-tests/svc-finalizer extra")
 				}).WithTimeout(timeout).Should(BeTrue())
 			})
+
 			It("Remove finalizer", func() {
 				svc, err := getServiceFromBundleDeploymentRelease(svcFinalizerName)
 				Expect(err).NotTo(HaveOccurred())
@@ -102,6 +112,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				patch.Finalizers = nil
 				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
 			})
+
 			It("BundleDeployment will eventually be ready and non modified", func() {
 				Eventually(isBundleDeploymentReadyAndNotModified).WithTimeout(timeout).Should(BeTrue())
 			})
@@ -113,6 +124,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				err = k8sClient.Delete(ctx, &svc)
 				Expect(err).NotTo(HaveOccurred())
 			})
+
 			It("BundleDeployment status will eventually be missing", func() {
 				Eventually(func() bool {
 					modifiedStatus := v1alpha1.ModifiedStatus{
