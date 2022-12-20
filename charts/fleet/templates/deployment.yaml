@@ -46,7 +46,7 @@ spec:
         - fleetcontroller
         {{- if not .Values.gitops.enabled }}
         - --disable-gitops
-        {{- end }}        
+        {{- end }}
         {{- if .Values.debug }}
         - --debug
         - --debug-level
