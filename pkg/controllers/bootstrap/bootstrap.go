@@ -102,7 +102,9 @@ func (h *handler) OnConfig(config *config.Config) error {
 		},
 	})
 
-	// in case the agent is to be deployed from git
+	// A repo to add at install time that will deploy to the local cluster. This allows
+	// one to fully bootstrap fleet, its configuration and all its downstream clusters
+	// in one shot.
 	if config.Bootstrap.Repo != "" {
 		var paths []string
 		if len(config.Bootstrap.Paths) > 0 {
