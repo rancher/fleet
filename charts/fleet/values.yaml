@@ -29,7 +29,6 @@ ignoreClusterRegistrationLabels: false
 noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 
 bootstrap:
-  enabled: true
   # The namespace that will be autocreated and the local cluster will be registered in
   namespace: fleet-local
   # The namespace where the fleet agent for the local cluster will be ran, if empty
@@ -42,7 +41,6 @@ bootstrap:
   secret: ""
   branch: master
   paths: ""
-
 
 global:
   cattle:

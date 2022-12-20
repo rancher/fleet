@@ -64,14 +64,15 @@ type appContext struct {
 	Apply         apply.Apply
 	ClientConfig  clientcmd.ClientConfig
 	starters      []start.Starter
+	DisableGitops bool
 }
 
 func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool, disableBootstrap bool) error {
-	appCtx, err := newContext(cfg)
+func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool) error {
+	appCtx, err := newContext(cfg, disableGitops)
 	if err != nil {
 		return err
 	}
@@ -183,7 +184,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Cluster(),
 		appCtx.Bundle())
 
-	if !disableGitops {
+	if !appCtx.DisableGitops {
 		git.Register(ctx,
 			appCtx.Apply.WithCacheTypes(
 				appCtx.RBAC.Role(),
@@ -200,20 +201,18 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.Core.Secret().Cache())
 	}
 
-	if !disableBootstrap {
-		bootstrap.Register(ctx,
-			systemNamespace,
-			appCtx.Apply.WithCacheTypes(
-				appCtx.GitRepo(),
-				appCtx.Cluster(),
-				appCtx.ClusterGroup(),
-				appCtx.Core.Namespace(),
-				appCtx.Core.Secret()),
-			appCtx.ClientConfig,
-			appCtx.Core.ServiceAccount().Cache(),
-			appCtx.Core.Secret(),
-			appCtx.Core.Secret().Cache())
-	}
+	bootstrap.Register(ctx,
+		systemNamespace,
+		appCtx.Apply.WithCacheTypes(
+			appCtx.GitRepo(),
+			appCtx.Cluster(),
+			appCtx.ClusterGroup(),
+			appCtx.Core.Namespace(),
+			appCtx.Core.Secret()),
+		appCtx.ClientConfig,
+		appCtx.Core.ServiceAccount().Cache(),
+		appCtx.Core.Secret(),
+		appCtx.Core.Secret().Cache())
 
 	display.Register(ctx,
 		appCtx.Cluster(),
@@ -252,7 +251,7 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 	}), nil
 }
 
-func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
+func newContext(cfg clientcmd.ClientConfig, disableGitops bool) (*appContext, error) {
 	client, err := cfg.ClientConfig()
 	if err != nil {
 		return nil, err
@@ -345,5 +344,6 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 			rbac,
 			git,
 		},
+		DisableGitops: disableGitops,
 	}, nil
 }

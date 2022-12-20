@@ -47,9 +47,6 @@ spec:
         {{- if not .Values.gitops.enabled }}
         - --disable-gitops
         {{- end }}
-        {{- if not .Values.bootstrap.enabled }}
-        - --disable-bootstrap
-        {{- end }}
         {{- if .Values.debug }}
         - --debug
         - --debug-level
