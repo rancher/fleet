@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -140,6 +141,28 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 		})
 	})
+	When("simulate operator dynamic resource creation", func() {
+		BeforeAll(func() {
+			createBundleDeploymentV1()
+			// It is possible that some operators copy the objectset.rio.cattle.io/hash label into a dynamically created objects.
+			// https://github.com/rancher/fleet/issues/1141
+			simulateOperatorOrphanResourceCreation()
+		})
+
+		AfterAll(func() {
+			Expect(controller.Delete(DeploymentsNamespace, bundle, nil)).NotTo(HaveOccurred())
+		})
+
+		It("BundleDeployment will eventually be ready and non modified", func() {
+			Eventually(isBundleDeploymentReadyAndNotModified).Should(BeTrue())
+		})
+
+		It("Resources from BundleDeployment are present in the cluster", func() {
+			svc, err := getServiceFromBundleDeploymentRelease(svcName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(svc).To(Not(BeNil()))
+		})
+	})
 })
 
 func isNotReadyAndModified(modifiedStatus v1alpha1.ModifiedStatus, message string) bool {
@@ -205,4 +228,22 @@ func checkCondition(conditions []genericcondition.GenericCondition, conditionTyp
 	}
 
 	return false
+}
+
+func simulateOperatorOrphanResourceCreation() {
+	newSvc := corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "svc-new",
+			Namespace: DeploymentsNamespace,
+			Labels:    map[string]string{"objectset.rio.cattle.io/hash": "108df84396abb3afdcdcf511abdd40c2cb8d5beb"},
+		},
+		Spec: corev1.ServiceSpec{Ports: []corev1.ServicePort{{
+			Protocol:   "TCP",
+			Port:       2,
+			TargetPort: intstr.FromInt(1),
+		}}},
+	}
+
+	err := k8sClient.Create(ctx, &newSvc)
+	Expect(err).NotTo(HaveOccurred())
 }

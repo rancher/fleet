@@ -16,6 +16,8 @@ import (
 	"github.com/rancher/wrangler/pkg/merr"
 	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/rancher/wrangler/pkg/summary"
+
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -154,6 +156,10 @@ func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, e
 	if err != nil {
 		return status, err
 	}
+	resourcesPreviuosRelease, err := m.deployer.ResourcesFromPreviousReleaseVersion(bd.Name, bd.Status.Release)
+	if err != nil {
+		return status, err
+	}
 
 	plan, err := m.plan(bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
@@ -161,7 +167,7 @@ func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, e
 	}
 
 	status.NonReadyStatus = nonReady(plan)
-	status.ModifiedStatus = modified(plan)
+	status.ModifiedStatus = modified(plan, resourcesPreviuosRelease)
 	status.Ready = false
 	status.NonModified = false
 
@@ -179,7 +185,7 @@ func sortKey(f fleet.ModifiedStatus) string {
 	return f.APIVersion + "/" + f.Kind + "/" + f.Namespace + "/" + f.Name
 }
 
-func modified(plan apply.Plan) (result []fleet.ModifiedStatus) {
+func modified(plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
 	defer func() {
 		sort.Slice(result, func(i, j int) bool {
 			return sortKey(result[i]) < sortKey(result[j])
@@ -209,13 +215,19 @@ func modified(plan apply.Plan) (result []fleet.ModifiedStatus) {
 			}
 
 			apiVersion, kind := gvk.ToAPIVersionAndKind()
-			result = append(result, fleet.ModifiedStatus{
-				Kind:       kind,
-				APIVersion: apiVersion,
-				Namespace:  key.Namespace,
-				Name:       key.Name,
-				Delete:     true,
-			})
+			// Check if resource was in a previous release. It is possible that some operators copy the
+			// objectset.rio.cattle.io/hash label into a dynamically created objects. We need to skip these resources
+			// because they are not part of the release, and they would appear as orphaned.
+			// https://github.com/rancher/fleet/issues/1141
+			if isResourceInPreviousRelease(key, kind, resourcesPreviousRelease.Objects) {
+				result = append(result, fleet.ModifiedStatus{
+					Kind:       kind,
+					APIVersion: apiVersion,
+					Namespace:  key.Namespace,
+					Name:       key.Name,
+					Delete:     true,
+				})
+			}
 		}
 	}
 
@@ -237,6 +249,17 @@ func modified(plan apply.Plan) (result []fleet.ModifiedStatus) {
 	}
 
 	return result
+}
+
+func isResourceInPreviousRelease(key objectset.ObjectKey, kind string, objsPreviousRelease []runtime.Object) bool {
+	for _, obj := range objsPreviousRelease {
+		metadata, _ := meta.Accessor(obj)
+		if obj.GetObjectKind().GroupVersionKind().Kind == kind && metadata.GetName() == key.Name {
+			return true
+		}
+	}
+
+	return false
 }
 
 func nonReady(plan apply.Plan) (result []fleet.NonReadyStatus) {
