@@ -214,6 +214,8 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 
 	logrus.Debugf("onChangeGitRepo: gitrepo %s/%s changed, syncing repo for image scans", gitrepo.Namespace, gitrepo.Name)
 
+	// This lock is required to prevent conflicts while using the environment variable SSH_KNOWN_HOSTS.
+	// It was added before the SSH support so there might be other potential conflicts without it.
 	lock.Lock()
 	defer lock.Unlock()
 	// todo: maybe we should preserve the dir
