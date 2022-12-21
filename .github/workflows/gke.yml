@@ -53,7 +53,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
         with:
           install_components: 'gke-gcloud-auth-plugin'
-
       -
         name: Install gcloud kubectl version
         run: gcloud components install kubectl
@@ -74,6 +73,8 @@ jobs:
           --zone ${{ env.GKE_ZONE }}
       -
         name: Get kubeconfig file from GKE
+        env:
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
         run: |
           id="${{ steps.create-cluster.outputs.ID }}"
           gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }}
