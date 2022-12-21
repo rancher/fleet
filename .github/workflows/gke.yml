@@ -51,6 +51,9 @@ jobs:
       -
         name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
+
       -
         name: Install gcloud kubectl version
         run: gcloud components install kubectl
