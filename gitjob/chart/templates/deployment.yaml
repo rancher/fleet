@@ -35,6 +35,10 @@ spec:
             - name: NO_PROXY
               value: {{ .Values.noProxy }}
           {{- end }}
+          {{- if .Values.debug }}
+            - name: CATTLE_DEV_MODE
+              value: "true"
+          {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
