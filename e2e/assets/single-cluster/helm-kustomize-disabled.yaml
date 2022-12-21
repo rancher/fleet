@@ -1,0 +1,14 @@
+# Kustomize is supposed to be disabled if no configuration file for Kustomize
+# exists that would need to be honored. This prevents issues with file and
+# archive names, which are restricted in Kustomize but helm has no issues with
+# them (like a plus in the filename). In fact, helm even creates file names with
+# a plus symbol if the version in Chart.yaml contains it.
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: helm-kustomize-disabled
+spec:
+  repo: https://github.com/rancher/fleet-examples
+  branch: test-helm-kustomize-disabled
+  paths:
+    - config-chart
