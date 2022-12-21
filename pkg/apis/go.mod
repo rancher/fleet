@@ -3,9 +3,9 @@ module github.com/rancher/fleet/pkg/apis
 go 1.19
 
 require (
-	github.com/rancher/wrangler v1.0.0
-	k8s.io/api v0.24.5
-	k8s.io/apimachinery v0.24.5
+	github.com/rancher/wrangler v1.0.1-0.20221202234327-1cafffeaa9a1
+	k8s.io/api v0.25.4
+	k8s.io/apimachinery v0.25.4
 )
 
 require (
