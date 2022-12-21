@@ -4,12 +4,8 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"time"
-
-	"go.mozilla.org/sops/v3"
-	"go.mozilla.org/sops/v3/decrypt"
 
 	"github.com/rancher/fleet/pkg/content"
 )
@@ -21,11 +17,6 @@ func (m *Manifest) ToTarGZ() (io.Reader, error) {
 
 	for _, resource := range m.Resources {
 		bytes, err := content.Decode(resource.Content, resource.Encoding)
-		if err != nil {
-			return nil, err
-		}
-
-		bytes, err = decryptSOPS(bytes)
 		if err != nil {
 			return nil, err
 		}
@@ -50,18 +41,4 @@ func (m *Manifest) ToTarGZ() (io.Reader, error) {
 	}
 
 	return buf, gz.Close()
-}
-
-func decryptSOPS(data []byte) ([]byte, error) {
-	if !bytes.Contains(data, []byte("sops:")) {
-		return data, nil
-	}
-
-	clearText, err := decrypt.Data(data, "yaml")
-	if err == sops.MetadataNotFound {
-		return data, nil
-	} else if err != nil {
-		return data, fmt.Errorf("failed to decrypt with sops: %w", err)
-	}
-	return clearText, nil
 }
