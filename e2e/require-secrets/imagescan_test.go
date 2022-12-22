@@ -23,23 +23,18 @@ var _ = Describe("Image Scan", func() {
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		gh = githelper.New()
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
 
-		known := path.Join(tmpdir, "known_hosts")
-		os.Setenv("SSH_KNOWN_HOSTS", known)
-		out, err := gh.UpdateKnownHosts(known)
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		out, err = k.Create(
+		out, err := k.Create(
 			"secret", "generic", "git-auth", "--type", "kubernetes.io/ssh-auth",
 			"--from-file=ssh-privatekey="+gh.SSHKey,
 			"--from-file=ssh-publickey="+gh.SSHPubKey,
-			"--from-file=known_hosts="+known,
+			"--from-file=known_hosts="+knownHostsPath,
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		os.Setenv("GIT_REPO_BRANCH", "imagescan")
 
+		tmpdir, _ = os.MkdirTemp("", "fleet-")
 		repodir = path.Join(tmpdir, "repo")
 		_, err = gh.Create(repodir, testenv.AssetPath("imagescan/repo"), "examples")
 		Expect(err).ToNot(HaveOccurred())
