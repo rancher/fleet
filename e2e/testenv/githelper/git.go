@@ -21,7 +21,6 @@ type Git struct {
 	User      string
 	SSHKey    string
 	SSHPubKey string
-	Host      string
 	Branch    string
 }
 
@@ -31,7 +30,6 @@ func New() *Git {
 		SSHKey:    os.Getenv("GIT_SSH_KEY"),
 		SSHPubKey: os.Getenv("GIT_SSH_PUBKEY"),
 		URL:       os.Getenv("GIT_REPO_URL"),
-		Host:      os.Getenv("GIT_REPO_HOST"),
 		Branch:    os.Getenv("GIT_REPO_BRANCH"),
 	}
 	if g.Branch == "" {
@@ -51,14 +49,14 @@ func author() *object.Signature {
 }
 
 func (g *Git) check() {
-	if g.User == "" || g.SSHKey == "" || g.URL == "" || g.Host == "" || g.SSHPubKey == "" {
+	if g.User == "" || g.SSHKey == "" || g.URL == "" || g.SSHPubKey == "" {
 		panic("GIT_REPO_USER, GIT_SSH_KEY, GIT_SSH_PUBKEY, GIT_REPO_URL, GIT_REPO_HOST must be set")
 	}
 }
 
-// UpdateKnownHosts works around https://github.com/go-git/go-git/issues/411
-func (g *Git) UpdateKnownHosts(path string) (string, error) {
-	cmd := exec.Command("/bin/sh", "-c", "ssh-keyscan "+g.Host+" >> "+path) //nolint:gosec // test code should never receive user input
+// CreateKnownHosts works around https://github.com/go-git/go-git/issues/411
+func CreateKnownHosts(path string, host string) (string, error) {
+	cmd := exec.Command("/bin/sh", "-c", "ssh-keyscan "+host+" >> "+path) //nolint:gosec // test code should never receive user input
 
 	var b bytes.Buffer
 	cmd.Stdout = &b

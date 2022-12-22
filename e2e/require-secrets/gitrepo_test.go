@@ -37,7 +37,6 @@ var _ = Describe("Git Repo", func() {
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		gh = githelper.New()
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
 
 		out, err := k.Create(
 			"secret", "generic", "git-auth", "--type", "kubernetes.io/ssh-auth",
@@ -46,11 +45,7 @@ var _ = Describe("Git Repo", func() {
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		known := path.Join(tmpdir, "known_hosts")
-		os.Setenv("SSH_KNOWN_HOSTS", known)
-		out, err = gh.UpdateKnownHosts(known)
-		Expect(err).ToNot(HaveOccurred(), out)
-
+		tmpdir, _ = os.MkdirTemp("", "fleet-")
 		repodir = path.Join(tmpdir, "repo")
 		repo, err = gh.Create(repodir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
 		Expect(err).ToNot(HaveOccurred())
