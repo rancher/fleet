@@ -23,6 +23,7 @@ var _ = Describe("Image Scan", func() {
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		gh = githelper.New()
+		gh.Branch = "imagescan"
 
 		out, err := k.Create(
 			"secret", "generic", "git-auth", "--type", "kubernetes.io/ssh-auth",
@@ -31,8 +32,6 @@ var _ = Describe("Image Scan", func() {
 			"--from-file=known_hosts="+knownHostsPath,
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
-
-		os.Setenv("GIT_REPO_BRANCH", "imagescan")
 
 		tmpdir, _ = os.MkdirTemp("", "fleet-")
 		repodir = path.Join(tmpdir, "repo")
