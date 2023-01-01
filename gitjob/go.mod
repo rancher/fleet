@@ -8,7 +8,7 @@ replace (
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.1.1
+	github.com/Masterminds/semver/v3 v3.2.0
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/gorilla/mux v1.8.0
 	github.com/onsi/ginkgo/v2 v2.6.1
