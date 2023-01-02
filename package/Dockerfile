@@ -1,6 +1,6 @@
 ARG BUILD_ENV=dapper
 
-FROM registry.suse.com/bci/bci-base:15.4.27.14.23 AS base
+FROM registry.suse.com/bci/bci-base:15.4.27.14.26 AS base
 USER 1000
 
 FROM base AS copy_dapper
