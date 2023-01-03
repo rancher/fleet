@@ -33,7 +33,7 @@ var _ = BeforeSuite(func() {
 	// shared between parallel test runs
 	khDir, _ = os.MkdirTemp("", "fleet-")
 
-	knownHostsPath := path.Join(khDir, "known_hosts")
+	knownHostsPath = path.Join(khDir, "known_hosts")
 	os.Setenv("SSH_KNOWN_HOSTS", knownHostsPath)
 	out, err := githelper.CreateKnownHosts(knownHostsPath, os.Getenv("GIT_REPO_HOST"))
 	Expect(err).ToNot(HaveOccurred(), out)
