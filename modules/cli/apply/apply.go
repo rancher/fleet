@@ -37,17 +37,18 @@ var (
 )
 
 type Options struct {
-	BundleFile      string
-	TargetsFile     string
-	Compress        bool
-	BundleReader    io.Reader
-	Output          io.Writer
-	ServiceAccount  string
-	TargetNamespace string
-	Paused          bool
-	Labels          map[string]string
-	SyncGeneration  int64
-	Auth            bundlereader.Auth
+	BundleFile       string
+	TargetsFile      string
+	Compress         bool
+	BundleReader     io.Reader
+	Output           io.Writer
+	ServiceAccount   string
+	TargetNamespace  string
+	Paused           bool
+	Labels           map[string]string
+	SyncGeneration   int64
+	Auth             bundlereader.Auth
+	HelmRepoUrlRegex string
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -167,14 +168,15 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 	}
 
 	return bundlereader.Open(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
-		Compress:        opts.Compress,
-		Labels:          opts.Labels,
-		ServiceAccount:  opts.ServiceAccount,
-		TargetsFile:     opts.TargetsFile,
-		TargetNamespace: opts.TargetNamespace,
-		Paused:          opts.Paused,
-		SyncGeneration:  opts.SyncGeneration,
-		Auth:            opts.Auth,
+		Compress:         opts.Compress,
+		Labels:           opts.Labels,
+		ServiceAccount:   opts.ServiceAccount,
+		TargetsFile:      opts.TargetsFile,
+		TargetNamespace:  opts.TargetNamespace,
+		Paused:           opts.Paused,
+		SyncGeneration:   opts.SyncGeneration,
+		Auth:             opts.Auth,
+		HelmRepoUrlRegex: opts.HelmRepoUrlRegex,
 	})
 }
 

@@ -38,6 +38,7 @@ type Apply struct {
 	PasswordFile      string            `usage:"Path of file containing basic auth password for helm repo"`
 	CACertsFile       string            `usage:"Path of custom cacerts for helm repo" name:"cacerts-file"`
 	SSHPrivateKeyFile string            `usage:"Path of ssh-private-key for helm repo" name:"ssh-privatekey-file"`
+	HelmRepoUrlRegex  string            `usage:"Helm credentials will be used if the helm repo matches this regex. Credentials will always be used if this is empty or not provided" name:"helm-repo-url-regex"`
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
@@ -54,15 +55,16 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 
 	name := ""
 	opts := &apply.Options{
-		BundleFile:      a.BundleFile,
-		Output:          writer.NewDefaultNone(a.Output),
-		Compress:        a.Compress,
-		ServiceAccount:  a.ServiceAccount,
-		Labels:          a.Label,
-		TargetsFile:     a.TargetsFile,
-		TargetNamespace: a.TargetNamespace,
-		Paused:          a.Paused,
-		SyncGeneration:  int64(a.SyncGeneration),
+		BundleFile:       a.BundleFile,
+		Output:           writer.NewDefaultNone(a.Output),
+		Compress:         a.Compress,
+		ServiceAccount:   a.ServiceAccount,
+		Labels:           a.Label,
+		TargetsFile:      a.TargetsFile,
+		TargetNamespace:  a.TargetNamespace,
+		Paused:           a.Paused,
+		SyncGeneration:   int64(a.SyncGeneration),
+		HelmRepoUrlRegex: a.HelmRepoUrlRegex,
 	}
 
 	if a.Username != "" && a.PasswordFile != "" {

@@ -23,14 +23,15 @@ import (
 )
 
 type Options struct {
-	Compress        bool
-	Labels          map[string]string
-	ServiceAccount  string
-	TargetsFile     string
-	TargetNamespace string
-	Paused          bool
-	SyncGeneration  int64
-	Auth            Auth
+	Compress         bool
+	Labels           map[string]string
+	ServiceAccount   string
+	TargetsFile      string
+	TargetNamespace  string
+	Paused           bool
+	SyncGeneration   int64
+	Auth             Auth
+	HelmRepoUrlRegex string
 }
 
 // Open reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
@@ -192,7 +193,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	propagateHelmChartProperties(&fy.BundleSpec)
 
-	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth)
+	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth, opts.HelmRepoUrlRegex)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -651,6 +651,9 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 			"--ssh-privatekey-file",
 			"/etc/fleet/helm/ssh-privatekey",
 		}
+		if gitrepo.Spec.HelmRepoUrlRegex != "" {
+			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoUrlRegex)
+		}
 		args = append(args, helmArgs...)
 		env = append(env,
 			// for ssh go-getter, make sure we always accept new host key

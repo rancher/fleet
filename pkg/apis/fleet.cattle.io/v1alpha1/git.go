@@ -43,6 +43,10 @@ type GitRepoSpec struct {
 	// HelmSecretName contains the auth secret for private helm repository
 	HelmSecretName string `json:"helmSecretName,omitempty"`
 
+	// HelmRepoUrlRegex Helm credentials will be used if the helm repo matches this regex
+	// Credentials will always be used if this is empty or not provided
+	HelmRepoUrlRegex string `json:"helmRepoUrlRegex,omitempty"`
+
 	// CABundle is a PEM encoded CA bundle which will be used to validate the repo's certificate.
 	CABundle []byte `json:"caBundle,omitempty"`
 
