@@ -1,0 +1,4 @@
+helm:
+  releaseName: testrepo
+  chart: testrepo
+  repo: http://localhost:3000
