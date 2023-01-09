@@ -14,8 +14,6 @@ var (
 	ClusterRegistrationAnnotation          = "fleet.cattle.io/cluster-registration"
 	ClusterRegistrationNamespaceAnnotation = "fleet.cattle.io/cluster-registration-namespace"
 	ManagedLabel                           = "fleet.cattle.io/managed"
-
-	BootstrapToken = "fleet.cattle.io/bootstrap-token"
 )
 
 // +genclient
