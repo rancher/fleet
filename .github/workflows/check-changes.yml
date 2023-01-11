@@ -1,0 +1,20 @@
+name: Check for unallowed changes
+
+on:
+  pull_request:
+
+env:
+  BRANCH: master
+
+jobs:
+  gitjob-changes:
+    runs-on: ubuntu-latest
+
+    steps:
+      -
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        name: check-for-gitjob-changes
+        run: ./.github/scripts/check-for-gitjob-changes.sh
