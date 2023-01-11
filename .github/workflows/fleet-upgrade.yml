@@ -100,7 +100,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo e2e/installation
+          ginkgo --label-filter="!multi-cluster" e2e/installation
       -
         name: Dump Failed Environment
         if: failure()

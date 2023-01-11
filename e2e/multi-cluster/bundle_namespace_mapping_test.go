@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Bundle Namespace Mapping", func() {
+var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 	var (
 		k  kubectl.Command
 		kd kubectl.Command
