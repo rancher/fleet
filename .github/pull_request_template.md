@@ -4,6 +4,8 @@ Fix #XXX
 <!-- Describe the changes introduced by this pull request -->
 
 <!--
+  Please provide a unit or e2e test if possible.
+
   To simplify the reviewing process of this pullrequest,
   please explain how it should be tested.
   The following is just an exammple
