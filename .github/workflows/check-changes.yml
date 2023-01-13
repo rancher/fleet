@@ -1,0 +1,39 @@
+name: Check for unallowed changes
+
+on:
+  pull_request:
+
+env:
+  BRANCH: master
+  GOARCH: amd64
+  CGO_ENABLED: 0
+  SETUP_GO_VERSION: '^1.19'
+
+jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+
+    steps:
+      -
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      -
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.SETUP_GO_VERSION }}
+      -
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      -
+        name: gitjob
+        run: ./.github/scripts/check-for-gitjob-changes.sh
+      -
+        name: generate.go
+        run: ./.github/scripts/check-for-auto-generated-changes.sh
