@@ -3,15 +3,21 @@
 set -euxo pipefail
 
 url="${url-172.18.0.1.omg.howdoi.website}"
-cluster="${cluster-k3d-upstream}"
+fleetns="${fleetns-cattle-fleet-system}"
+upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
+version="${1-v2.7.0}"
 
-kubectl config use-context "$cluster"
+helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+helm repo update rancher-latest
+
+kubectl config use-context "$upstream_ctx"
+
 kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5.4/cert-manager.yaml
 kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
 
-helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
 # set CATTLE_SERVER_URL and CATTLE_BOOTSTRAP_PASSWORD to get rancher out of "bootstrap" mode
-helm upgrade rancher rancher-latest/rancher \
+helm upgrade rancher rancher-latest/rancher --version "$version" \
+  --devel \
   --install --wait \
   --create-namespace \
   --namespace cattle-system \
@@ -26,7 +32,5 @@ helm upgrade rancher rancher-latest/rancher \
 kubectl -n cattle-system rollout status deploy/rancher
 
 # wait for rancher to create fleet namespace, deployment and controller
-{ grep -q -m 1 "fleet"; kill $!; } < <(kubectl get deployments -n cattle-fleet-system -w)
-kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
-
-helm list -A
+{ grep -q -m 1 "fleet"; kill $!; } < <(kubectl get deployments -n "$fleetns" -w)
+kubectl -n "$fleetns" rollout status deploy/fleet-controller
