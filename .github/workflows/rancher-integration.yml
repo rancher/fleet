@@ -1,3 +1,4 @@
+# Upgrade fleet in latest Rancher to dev version and run MC tests
 name: E2E Rancher Fleet
 
 on:
@@ -154,7 +155,6 @@ jobs:
         name: Set up latest Rancher
         env:
           url: "172.18.0.1.omg.howdoi.website"
-          cluster: "k3d-upstream"
         run: |
           ./.github/scripts/setup-latest-rancher.sh
       -
@@ -162,18 +162,12 @@ jobs:
         env:
           url: "172.18.0.1.omg.howdoi.website"
         run: |
-          kubectl config use-context k3d-upstream
-          kubectl cluster-info
-
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
 
           # wait for cluster to settle
           sleep 30
-      -
-        name: Label downstream cluster
-        run: |
-          kubectl config use-context k3d-upstream
+
           ./.github/scripts/label-downstream-cluster.sh
       -
         name: Deploy development fleet
@@ -182,9 +176,6 @@ jobs:
           ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}
       -
         name: E2E tests for examples
-        env:
-          FLEET_E2E_CLUSTER: k3d-upstream
-          FLEET_E2E_CLUSTER_DOWNSTREAM: k3d-downstream
         run: |
           kubectl config use-context k3d-upstream
           ginkgo e2e/multi-cluster

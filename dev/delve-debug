@@ -16,7 +16,7 @@ procname=${app/-}
 
 #kubectl patch deployments -n cattle-fleet-system fleet-agent --type=merge -p '{"spec":{"replicas":1}}'
 
-pod=$(kubectl get pod -n cattle-fleet-system -l "app=$app"  -o='jsonpath={.items[0].metadata.name}')
+pod=$(kubectl get pod -n "$ns" -l "app=$app"  -o='jsonpath={.items[0].metadata.name}')
 
 kubectl --namespace "$ns" port-forward "pod/$pod" 4000 &
 trap "kill $!" EXIT

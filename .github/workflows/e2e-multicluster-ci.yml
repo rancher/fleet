@@ -127,8 +127,6 @@ jobs:
         name: E2E tests for Examples
         env:
           FLEET_E2E_NS: fleet-local
-          FLEET_E2E_CLUSTER: k3d-upstream
-          FLEET_E2E_CLUSTER_DOWNSTREAM: k3d-downstream
         run: |
           kubectl config use-context k3d-upstream
           ginkgo e2e/multi-cluster

@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Bundle Namespace Mapping", func() {
+var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 	var (
 		k  kubectl.Command
 		kd kubectl.Command
@@ -23,7 +23,7 @@ var _ = Describe("Bundle Namespace Mapping", func() {
 	)
 
 	BeforeEach(func() {
-		k = env.Kubectl.Context(env.Fleet)
+		k = env.Kubectl.Context(env.Upstream)
 		kd = env.Kubectl.Context(env.Downstream)
 	})
 

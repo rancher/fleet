@@ -2,8 +2,10 @@
 
 set -euxo pipefail
 
+
 url="${url-172.18.0.1.omg.howdoi.website}"
 cluster_downstream="${cluster_downstream-k3d-downstream}"
+ctx=$(kubectl config current-context)
 
 # hardcoded token, cluster is ephemeral and private
 token="token-ci:zfllcbdr4677rkj4hmlr8rsmljg87l7874882928khlfs2pmmcq7l5"
@@ -42,9 +44,16 @@ EOF
 echo -e "4\n" | rancher login "https://$url" --token "$token" --skip-verify
 
 rancher clusters create second --import
+until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' | grep -Eq "c-[a-z0-9]" ; do sleep 1; done
+id=$( rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' )
 
 kubectl config use-context "$cluster_downstream"
-rancher cluster import second
-rancher cluster import second | grep curl | sh
+rancher cluster import "$id"
+rancher cluster import "$id" | grep curl | sh
 
-until rancher cluster list | grep second | grep -q active; do echo waiting for cluster registration; sleep 5; done
+until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .Cluster.state' | grep -q active; do
+  echo waiting for cluster registration
+  sleep 5
+done
+
+kubectl config use-context "$ctx"

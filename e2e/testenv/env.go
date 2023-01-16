@@ -11,8 +11,9 @@ import (
 const Timeout = 5 * time.Minute
 
 type Env struct {
-	Kubectl    kubectl.Command
-	Fleet      string
+	Kubectl kubectl.Command
+	// Upstream context for cluster containing the fleet controller and local agent
+	Upstream   string
 	Downstream string
 	Namespace  string
 }
@@ -20,8 +21,8 @@ type Env struct {
 func New() *Env {
 	env := &Env{
 		Kubectl:    kubectl.New("", "default"),
-		Fleet:      "k3d-k3s-default",
-		Downstream: "k3d-k3s-second",
+		Upstream:   "k3d-upstream",
+		Downstream: "k3d-downstream",
 		Namespace:  "fleet-default",
 	}
 	env.getShellEnv()
@@ -30,7 +31,7 @@ func New() *Env {
 
 func (e *Env) getShellEnv() {
 	if val := os.Getenv("FLEET_E2E_CLUSTER"); val != "" {
-		e.Fleet = val
+		e.Upstream = val
 	}
 	if val := os.Getenv("FLEET_E2E_CLUSTER_DOWNSTREAM"); val != "" {
 		e.Downstream = val
