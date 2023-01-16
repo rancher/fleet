@@ -1,0 +1,20 @@
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: imagescan
+  namespace: fleet-local
+spec:
+  # change this to be your own repo
+  repo: {{.Repo}}
+  branch: {{.Branch}}
+  # define how long it will sync all the images and decide to apply change
+  imageScanInterval: 5s
+  # user must properly provide a secret that have write access to git repository
+  clientSecretName: git-auth
+  # specify the commit pattern
+  imageScanCommit:
+    authorName: foo
+    authorEmail: foo@bar.com
+    messageTemplate: "update image"
+  paths:
+  - examples

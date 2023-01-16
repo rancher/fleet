@@ -15,6 +15,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	kyaml "sigs.k8s.io/yaml"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundlematcher"
@@ -42,7 +43,10 @@ var (
 	defMaxUnavailablePartitions = intstr.FromInt(0)
 )
 
-const maxTemplateRecursionDepth = 50
+const (
+	maxTemplateRecursionDepth = 50
+	clusterLabelPrefix        = "global.fleet.clusterLabels."
+)
 
 type Manager struct {
 	clusters                    fleetcontrollers.ClusterCache
@@ -321,7 +325,7 @@ func preprocessHelmValues(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cl
 		return nil
 	}
 
-	if err := processLabelValues(opts.Helm.Values.Data, clusterLabels); err != nil {
+	if err := processLabelValues(opts.Helm.Values.Data, clusterLabels, 0); err != nil {
 		return err
 	}
 
@@ -335,8 +339,8 @@ func preprocessHelmValues(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cl
 		values := map[string]interface{}{
 			"ClusterNamespace":   cluster.Namespace,
 			"ClusterName":        cluster.Name,
-			"ClusterLabels":      clusterLabels,
-			"ClusterAnnotations": clusterAnnotations,
+			"ClusterLabels":      toDict(clusterLabels),
+			"ClusterAnnotations": toDict(clusterAnnotations),
 			"ClusterValues":      templateValues,
 		}
 
@@ -349,6 +353,15 @@ func preprocessHelmValues(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cl
 
 	return nil
 
+}
+
+// sprig dictionary functions like "default" and "hasKey" expect map[string]interface{}
+func toDict(values map[string]string) map[string]interface{} {
+	dict := make(map[string]interface{}, len(values))
+	for k, v := range values {
+		dict[k] = v
+	}
+	return dict
 }
 
 // foldInDeployments adds the existing bundledeployments to the targets.
@@ -592,81 +605,46 @@ func tplFuncMap() template.FuncMap {
 	return f
 }
 
-func processTemplateValues(valuesMap map[string]interface{}, templateContext map[string]interface{}) (map[string]interface{}, error) {
-	tplFn := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error")
-	recursionDepth := 0
-	tplResult, err := templateSubstitutions(valuesMap, templateContext, tplFn, recursionDepth)
+func processTemplateValues(helmValues map[string]interface{}, templateContext map[string]interface{}) (map[string]interface{}, error) {
+	data, err := kyaml.Marshal(helmValues)
 	if err != nil {
-		return nil, err
-	}
-	compiledYaml, ok := tplResult.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("templated result was expected to be map[string]interface{}, got %T", tplResult)
+		return nil, fmt.Errorf("failed to marshal helm values section into a template: %w", err)
 	}
 
-	return compiledYaml, nil
+	// fleet.yaml must be valid yaml, however '{}[]' are YAML control
+	// characters and will be interpreted as JSON data structures. This
+	// causes issues when parsing the fleet.yaml so we change the delims
+	// for templating to '${ }'
+	tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
+	tmpl, err = tmpl.Parse(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse helm values template: %w", err)
+	}
+
+	var b bytes.Buffer
+	err = tmpl.Execute(&b, templateContext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render helm values template: %w", err)
+	}
+
+	var renderedValues map[string]interface{}
+	err = kyaml.Unmarshal(b.Bytes(), &renderedValues)
+	if err != nil {
+		return nil, fmt.Errorf("failed to interpret rendered template as helm values: %#v, %v", renderedValues, err)
+	}
+
+	return renderedValues, nil
 }
 
-func templateSubstitutions(src interface{}, templateContext map[string]interface{}, tplFn *template.Template, recursionDepth int) (interface{}, error) {
+func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string, recursionDepth int) error {
 	if recursionDepth > maxTemplateRecursionDepth {
-		return nil, fmt.Errorf("maximum recursion depth of %v exceeded for current templating operation, too many nested values", maxTemplateRecursionDepth)
+		return fmt.Errorf("maximum recursion depth of %v exceeded for cluster label prefix processing, too many nested values", maxTemplateRecursionDepth)
 	}
 
-	switch tplVal := src.(type) {
-	case string:
-		tpl, err := tplFn.Parse(tplVal)
-		if err != nil {
-			return nil, err
-		}
-
-		var tplBytes bytes.Buffer
-		defer func() {
-			if r := recover(); r != nil {
-				err = fmt.Errorf("failed to process template substitution for string '%s': [%v]", tplVal, err)
-			}
-		}()
-		err = tpl.Execute(&tplBytes, templateContext)
-		if err != nil {
-			return nil, fmt.Errorf("failed to process template substitution for string '%s': [%v]", tplVal, err)
-		}
-		return tplBytes.String(), nil
-	case map[string]interface{}:
-		newMap := make(map[string]interface{})
-		for key, val := range tplVal {
-			processedKey, err := templateSubstitutions(key, templateContext, tplFn, recursionDepth+1)
-			if err != nil {
-				return nil, err
-			}
-			keyAsString, ok := processedKey.(string)
-			if !ok {
-				return nil, fmt.Errorf("expected a string to be returned, but instead got [%T]", processedKey)
-			}
-			if newMap[keyAsString], err = templateSubstitutions(val, templateContext, tplFn, recursionDepth+1); err != nil {
-				return nil, err
-			}
-		}
-		return newMap, nil
-	case []interface{}:
-		newSlice := make([]interface{}, len(tplVal))
-		for i, v := range tplVal {
-			newVal, err := templateSubstitutions(v, templateContext, tplFn, recursionDepth+1)
-			if err != nil {
-				return nil, err
-			}
-			newSlice[i] = newVal
-		}
-		return newSlice, nil
-	default:
-		return tplVal, nil
-	}
-}
-
-func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) error {
-	prefix := "global.fleet.clusterLabels."
 	for key, val := range valuesMap {
 		valStr, ok := val.(string)
-		if ok && strings.HasPrefix(valStr, prefix) {
-			label := strings.TrimPrefix(valStr, prefix)
+		if ok && strings.HasPrefix(valStr, clusterLabelPrefix) {
+			label := strings.TrimPrefix(valStr, clusterLabelPrefix)
 			labelVal, labelPresent := clusterLabels[label]
 			if labelPresent {
 				valuesMap[key] = labelVal
@@ -677,7 +655,7 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 		}
 
 		if valMap, ok := val.(map[string]interface{}); ok {
-			err := processLabelValues(valMap, clusterLabels)
+			err := processLabelValues(valMap, clusterLabels, recursionDepth+1)
 			if err != nil {
 				return err
 			}
@@ -686,7 +664,7 @@ func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[stri
 		if valArr, ok := val.([]interface{}); ok {
 			for _, item := range valArr {
 				if itemMap, ok := item.(map[string]interface{}); ok {
-					err := processLabelValues(itemMap, clusterLabels)
+					err := processLabelValues(itemMap, clusterLabels, recursionDepth+1)
 					if err != nil {
 						return err
 					}

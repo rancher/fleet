@@ -16,7 +16,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '^1.18'
+  SETUP_GO_VERSION: '^1.19'
   GINKGO_NODES: 1
   FLAKE_ATTEMPTS: 1
   GKE_ZONE: 'europe-west1-b'
@@ -51,6 +51,8 @@ jobs:
       -
         name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
       -
         name: Install gcloud kubectl version
         run: gcloud components install kubectl
@@ -71,6 +73,8 @@ jobs:
           --zone ${{ env.GKE_ZONE }}
       -
         name: Get kubeconfig file from GKE
+        env:
+          USE_GKE_GCLOUD_AUTH_PLUGIN: True
         run: |
           id="${{ steps.create-cluster.outputs.ID }}"
           gcloud container clusters get-credentials fleetci$id --zone ${{ env.GKE_ZONE }} --project ${{ secrets.CI_GOOGLE_PROJECT }}

@@ -1,4 +1,6 @@
 # Introduction
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Francher%2Ffleet.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Francher%2Ffleet?ref=badge_shield)
+
 
 [![Unit](https://github.com/rancher/fleet/actions/workflows/ci.yml/badge.svg)](https://github.com/rancher/fleet/actions/workflows/ci.yml)
 [![E2E Examples](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml/badge.svg?event=schedule)](https://github.com/rancher/fleet/actions/workflows/e2e-ci.yml)
@@ -32,11 +34,10 @@ brew install helm
 Install the Fleet Helm charts (there's two because we separate out CRDs for ultimate flexibility.)
 
 ```shell
-VERSION=0.3.9
 helm -n cattle-fleet-system install --create-namespace --wait \
-    fleet-crd https://github.com/rancher/fleet/releases/download/v${VERSION}/fleet-crd-${VERSION}.tgz
+    fleet-crd https://github.com/rancher/fleet/releases/download/v0.5.0/fleet-crd-0.5.0.tgz
 helm -n cattle-fleet-system install --create-namespace --wait \
-    fleet https://github.com/rancher/fleet/releases/download/v${VERSION}/fleet-${VERSION}.tgz
+    fleet https://github.com/rancher/fleet/releases/download/v0.5.0/fleet-0.5.0.tgz
 ```
 
 ## Add a Git Repo to watch
@@ -82,6 +83,8 @@ frontend   3/3     3            3           116m
 
 Enjoy and read the [docs](https://fleet.rancher.io/).
 
----
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Francher%2Ffleet.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Francher%2Ffleet?ref=badge_large)
 
-For developer and maintainer documentation, see [DEVELOPING.md](./DEVELOPING.md).
+For developer and maintainer documentation, see [DEVELOPING.md](./DEVELOPING.md).=======
+

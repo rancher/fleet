@@ -114,12 +114,26 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 		data = nil
 	}
 
-	newObjs, processed, err := kustomize.Process(p.manifest, data, p.opts.Kustomize.Dir)
-	if err != nil {
-		return nil, err
+	// Kustomize applies some restrictions fleet does not have, like a regular expression, which checks for valid file
+	// names. If no instructions for kustomize are found in the manifests, then kustomize shouldn't be called at all
+	// to prevent causing issues with these restrictions.
+	kustomizable := false
+	for _, resource := range p.manifest.Resources {
+		if strings.HasSuffix(resource.Name, "kustomization.yaml") ||
+			strings.HasSuffix(resource.Name, "kustomization.yml") ||
+			strings.HasSuffix(resource.Name, "Kustomization") {
+			kustomizable = true
+			break
+		}
 	}
-	if processed {
-		objs = newObjs
+	if kustomizable {
+		newObjs, processed, err := kustomize.Process(p.manifest, data, p.opts.Kustomize.Dir)
+		if err != nil {
+			return nil, err
+		}
+		if processed {
+			objs = newObjs
+		}
 	}
 
 	yamlObjs, err := rawyaml.ToObjects(p.chart)
@@ -433,7 +447,7 @@ func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 	return values, nil
 }
 
-// ListDeployments returns a list of bundles by listing all helm relases via
+// ListDeployments returns a list of bundles by listing all helm releases via
 // helm's storage driver (secrets)
 func (h *Helm) ListDeployments() ([]DeployedBundle, error) {
 	list := action.NewList(&h.globalCfg)
@@ -465,16 +479,12 @@ func (h *Helm) ListDeployments() ([]DeployedBundle, error) {
 	return result, nil
 }
 
-func (h *Helm) getRelease(bundleID, resourcesID string) (*release.Release, error) {
-
+func getReleaseNameVersionAndNamespace(bundleID, resourcesID string) (string, int, string, error) {
 	// When a bundle is installed a resourcesID is generated. If there is no
 	// resourcesID then there isn't anything to lookup.
 	if resourcesID == "" {
-		return nil, ErrNoResourceID
+		return "", 0, "", ErrNoResourceID
 	}
-
-	hist := action.NewHistory(&h.globalCfg)
-
 	namespace, name := kv.Split(resourcesID, "/")
 	releaseName, versionStr := kv.Split(name, ":")
 	version, _ := strconv.Atoi(versionStr)
@@ -482,6 +492,13 @@ func (h *Helm) getRelease(bundleID, resourcesID string) (*release.Release, error
 	if releaseName == "" {
 		releaseName = bundleID
 	}
+
+	return releaseName, version, namespace, nil
+}
+
+func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.Release, error) {
+
+	hist := action.NewHistory(&h.globalCfg)
 
 	releases, err := hist.Run(releaseName)
 	if err == driver.ErrReleaseNotFound {
@@ -500,7 +517,12 @@ func (h *Helm) getRelease(bundleID, resourcesID string) (*release.Release, error
 }
 
 func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
-	if _, err := h.getRelease(bundleID, resourcesID); err == ErrNoRelease {
+	releaseName, version, namespace, err := getReleaseNameVersionAndNamespace(bundleID, resourcesID)
+	if err != nil {
+		return false, err
+	}
+
+	if _, err := h.getRelease(releaseName, namespace, version); err == ErrNoRelease {
 		return false, nil
 	} else if err != nil {
 		return false, err
@@ -509,7 +531,27 @@ func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
 }
 
 func (h *Helm) Resources(bundleID, resourcesID string) (*Resources, error) {
-	release, err := h.getRelease(bundleID, resourcesID)
+	releaseName, version, namespace, err := getReleaseNameVersionAndNamespace(bundleID, resourcesID)
+	if err != nil {
+		return &Resources{}, err
+	}
+
+	release, err := h.getRelease(releaseName, namespace, version)
+	if err == ErrNoRelease {
+		return &Resources{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return releaseToResources(release)
+}
+
+func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string) (*Resources, error) {
+	releaseName, version, namespace, err := getReleaseNameVersionAndNamespace(bundleID, resourcesID)
+	if err != nil {
+		return &Resources{}, err
+	}
+
+	release, err := h.getRelease(releaseName, namespace, version-1)
 	if err == ErrNoRelease {
 		return &Resources{}, nil
 	} else if err != nil {

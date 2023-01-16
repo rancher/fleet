@@ -21,7 +21,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '^1.18'
+  SETUP_GO_VERSION: '^1.19'
 
 jobs:
   e2e-fleet-mc-test:
@@ -114,8 +114,7 @@ jobs:
           { grep -q -m 1 "second-token"; kill $!; } < <(kubectl get secrets -n fleet-local -l "fleet.cattle.io/managed=true" -w)
 
           token=$(kubectl get secret -n fleet-local second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
-          name=$(kubectl get -n default sa default -o=jsonpath='{.secrets[0].name}')
-          ca=$(kubectl get -n default secret "$name" -o go-template='{{index .data "ca.crt" | base64decode}}')
+          ca=$(kubectl get secret -n cattle-fleet-system fleet-controller-bootstrap-token -o go-template='{{index .data "ca.crt" | base64decode}}')
 
           kubectl config use-context k3d-downstream
           helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -33,7 +34,7 @@ import (
 	"github.com/rancher/fleet/pkg/update"
 
 	"github.com/rancher/wrangler/pkg/condition"
-	corev1controler "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kstatus"
 
 	corev1 "k8s.io/api/core/v1"
@@ -61,7 +62,7 @@ const (
 	imageSyncCond = "ImageSynced"
 )
 
-func Register(ctx context.Context, core corev1controler.Interface, gitRepos fleetcontrollers.GitRepoController, images fleetcontrollers.ImageScanController) {
+func Register(ctx context.Context, core corev1controller.Interface, gitRepos fleetcontrollers.GitRepoController, images fleetcontrollers.ImageScanController) {
 	h := handler{
 		ctx:         ctx,
 		secretCache: core.Secret().Cache(),
@@ -76,7 +77,7 @@ func Register(ctx context.Context, core corev1controler.Interface, gitRepos flee
 
 type handler struct {
 	ctx         context.Context
-	secretCache corev1controler.SecretCache
+	secretCache corev1controller.SecretCache
 	gitrepos    fleetcontrollers.GitRepoController
 	imagescans  fleetcontrollers.ImageScanController
 }
@@ -213,6 +214,8 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 
 	logrus.Debugf("onChangeGitRepo: gitrepo %s/%s changed, syncing repo for image scans", gitrepo.Namespace, gitrepo.Name)
 
+	// This lock is required to prevent conflicts while using the environment variable SSH_KNOWN_HOSTS.
+	// It was added before the SSH support so there might be other potential conflicts without it.
 	lock.Lock()
 	defer lock.Unlock()
 	// todo: maybe we should preserve the dir
@@ -227,6 +230,14 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	if err != nil {
 		kstatus.SetError(gitrepo, err.Error())
 		return status, err
+	}
+
+	// Remove SSH known_hosts tmpdir unless it was provided by the user
+	if os.Getenv("SSH_KNOWN_HOSTS") != "" {
+		tmpdir := filepath.Dir(os.Getenv("SSH_KNOWN_HOSTS"))
+		if strings.HasPrefix(tmpdir, "/tmp/"+fmt.Sprintf("ssh-%s-%s-", gitrepo.Namespace, gitrepo.Name)) {
+			defer os.RemoveAll(tmpdir)
+		}
 	}
 
 	repo, err := gogit.PlainClone(tmp, false, &gogit.CloneOptions{
@@ -276,6 +287,32 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	status.LastSyncedImageScanTime = metav1.NewTime(time.Now())
 	h.gitrepos.EnqueueAfter(gitrepo.Namespace, gitrepo.Name, interval.Duration)
 	return status, err
+}
+
+func setupKnownHosts(gitrepo *v1alpha1.GitRepo, data []byte) error {
+	tmpdir, err := os.MkdirTemp("", fmt.Sprintf("ssh-%s-%s-", gitrepo.Namespace, gitrepo.Name))
+	if err != nil {
+		return err
+	}
+
+	known := path.Join(tmpdir, "known_hosts")
+	err = os.Setenv("SSH_KNOWN_HOSTS", known)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Create(known)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Write(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func shouldSync(gitrepo *v1alpha1.GitRepo) bool {
@@ -352,6 +389,16 @@ func (h handler) auth(gitrepo *v1alpha1.GitRepo) (transport.AuthMethod, error) {
 			Password: string(secret.Data[corev1.BasicAuthPasswordKey]),
 		}, nil
 	case corev1.SecretTypeSSHAuth:
+		knownHosts := secret.Data["known_hosts"]
+		if knownHosts == nil {
+			logrus.Infof("The git secret `%s` does not have a known_hosts field, so no host key verification possible!", gitrepo.Spec.ClientSecretName)
+		} else {
+			err := setupKnownHosts(gitrepo, knownHosts)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		publicKey, err := ssh.NewPublicKeys("git", secret.Data[corev1.SSHAuthPrivateKey], "")
 		if err != nil {
 			return nil, err
@@ -437,7 +484,7 @@ func latestTag(policy v1alpha1.ImagePolicyChoice, versions []string) (string, er
 }
 
 func semverLatest(r string, versions []string) (string, error) {
-	contraints, err := semver.NewConstraint(r)
+	constraints, err := semver.NewConstraint(r)
 	if err != nil {
 		return "", err
 	}
@@ -445,7 +492,7 @@ func semverLatest(r string, versions []string) (string, error) {
 	for _, version := range versions {
 		if ver, err := semver.NewVersion(version); err == nil {
 			if latestVersion == nil || ver.GreaterThan(latestVersion) {
-				if contraints.Check(ver) {
+				if constraints.Check(ver) {
 					latestVersion = ver
 				}
 			}
