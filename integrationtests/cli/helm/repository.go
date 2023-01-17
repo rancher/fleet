@@ -37,7 +37,6 @@ func getHandler(authEnabled bool) http.Handler {
 		return fs
 	}
 	return &authHandler{fs: fs}
-
 }
 
 func (r *repository) stopRepository() error {
