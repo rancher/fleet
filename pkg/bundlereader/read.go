@@ -31,7 +31,7 @@ type Options struct {
 	Paused           bool
 	SyncGeneration   int64
 	Auth             Auth
-	HelmRepoUrlRegex string
+	HelmRepoURLRegex string
 }
 
 // Open reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
@@ -193,7 +193,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	propagateHelmChartProperties(&fy.BundleSpec)
 
-	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth, opts.HelmRepoUrlRegex)
+	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth, opts.HelmRepoURLRegex)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -48,7 +48,7 @@ type Options struct {
 	Labels           map[string]string
 	SyncGeneration   int64
 	Auth             bundlereader.Auth
-	HelmRepoUrlRegex string
+	HelmRepoURLRegex string
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -176,7 +176,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 		Paused:           opts.Paused,
 		SyncGeneration:   opts.SyncGeneration,
 		Auth:             opts.Auth,
-		HelmRepoUrlRegex: opts.HelmRepoUrlRegex,
+		HelmRepoURLRegex: opts.HelmRepoURLRegex,
 	})
 }
 

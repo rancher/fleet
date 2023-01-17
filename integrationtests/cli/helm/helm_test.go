@@ -79,7 +79,7 @@ var _ = Describe("Fleet apply helm release", Ordered, func() {
 			It("fleet apply success", func() {
 				err := fleetApply([]string{cli.AssetsPath + "helm"}, &apply.Options{
 					Auth:             bundlereader.Auth{Username: username, Password: password},
-					HelmRepoUrlRegex: "http://localhost/*",
+					HelmRepoURLRegex: "http://localhost/*",
 				})
 				Expect(err).NotTo(HaveOccurred())
 			})
@@ -99,7 +99,7 @@ var _ = Describe("Fleet apply helm release", Ordered, func() {
 			It("fleet apply fails when --helm-repo-url-regex doesn't match the helm repo url", func() {
 				err := fleetApply([]string{cli.AssetsPath + "helm"}, &apply.Options{
 					Auth:             bundlereader.Auth{Username: username, Password: password},
-					HelmRepoUrlRegex: "nomatch",
+					HelmRepoURLRegex: "nomatch",
 				})
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).Should(Equal("failed to read helm repo from http://localhost:3000/index.yaml, error code: 401, response body: Unauthorised."))
@@ -116,7 +116,7 @@ var _ = Describe("Fleet apply helm release", Ordered, func() {
 			It("fleet apply fails when --helm-repo-url-regex is not valid", func() {
 				err := fleetApply([]string{cli.AssetsPath + "helm"}, &apply.Options{
 					Auth:             bundlereader.Auth{Username: username, Password: password},
-					HelmRepoUrlRegex: "a(b",
+					HelmRepoURLRegex: "a(b",
 				})
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).Should(Equal("error parsing regexp: missing closing ): `a(b`"))
