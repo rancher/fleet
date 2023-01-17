@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-simple-chart-config
+data:
+  test: "value123"
+  name: {{ .Values.name }}
