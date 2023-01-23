@@ -20,7 +20,10 @@ const (
 	AgentConfigName          = "fleet-agent"
 	AgentBootstrapConfigName = "fleet-agent-bootstrap"
 	Key                      = "config"
-	DefaultNamespace         = "cattle-fleet-system"
+	// DefaultNamespace is the default for the system namespace, which
+	// contains the manager and agent
+	DefaultNamespace       = "cattle-fleet-system"
+	LegacyDefaultNamespace = "fleet-system"
 )
 
 var (

@@ -166,6 +166,10 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 }
 
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
+	if cluster.Status.Agent.Namespace == config.LegacyDefaultNamespace {
+		cluster.Status.CattleNamespaceMigrated = false
+	}
+
 	if cluster.Spec.KubeConfigSecret == "" ||
 		agentDeployed(cluster) ||
 		cluster.Spec.ClientID == "" {
@@ -275,7 +279,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
-	if cluster.Spec.AgentNamespace != "" && (cluster.Status.Agent.Namespace != agentNamespace || !cluster.Status.AgentNamespaceMigrated) {
+	if cluster.Status.Agent.Namespace != agentNamespace || !cluster.Status.AgentNamespaceMigrated {
 		// delete old agent if moving namespaces for agent
 		if err := i.deleteOldAgentBundle(cluster); err != nil {
 			return status, err
