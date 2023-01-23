@@ -315,8 +315,9 @@ clone:
   depth: 20
 steps:
 - name: docker-publish-agent
-  image: plugins/docker
+  image: plugins/docker:windows-1809-amd64
   settings:
+    purge: false
     dockerfile: package/Dockerfile-windows.agent
     password:
       from_secret: docker_password
