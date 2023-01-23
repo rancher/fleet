@@ -376,6 +376,7 @@ steps:
         - "SERVERCORE_VERSION=ltsc2022"
         - "RELEASES=releases.rancher.com"
         - "VERSION=${DRONE_TAG}"
+        - ARCH=amd64
       context: package/
       custom_dns: 1.1.1.1
     volumes:
