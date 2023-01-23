@@ -1121,8 +1121,8 @@ github.com/rancher/helm/v3 v3.9.0-rancher1 h1:lqDYFI2AmkDn6Jwzu9A3YKr8EJ34ZmdahR
 github.com/rancher/helm/v3 v3.9.0-rancher1/go.mod h1:fzZfyslcPAWwSdkXrXlpKexFeE2Dei8N27FFQWt+PN0=
 github.com/rancher/lasso v0.0.0-20220519004610-700f167d8324 h1:yi3gGq+tBqkMppIY2gLDidDMtxr6ajcoWxJ6HaLI0TA=
 github.com/rancher/lasso v0.0.0-20220519004610-700f167d8324/go.mod h1:T6WoUopOHBWTGjnphruTJAgoZ+dpm6llvn6GDYaa7Kw=
-github.com/rancher/wrangler v1.0.1-0.20220623232707-cc833dd0d546 h1:OCC9GH8IkXHG4JzujwjdDXRgTQ4TFfDG7i1NHj0nwi4=
-github.com/rancher/wrangler v1.0.1-0.20220623232707-cc833dd0d546/go.mod h1:Blhan9LdaIJjC9w+xGteSrHHEiIFIdPEHEMrtx82dPk=
+github.com/rancher/wrangler v1.0.1 h1:toavOGC1+eaZufcOJD6UyIf+aGM4rlJjPqm511Ls4sI=
+github.com/rancher/wrangler v1.0.1/go.mod h1:Blhan9LdaIJjC9w+xGteSrHHEiIFIdPEHEMrtx82dPk=
 github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22 h1:ADMwgJyVwmLXJBSm/nNobB1XGSmFCTA+TY/otxgIPu4=
 github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22/go.mod h1:vyO9SU60oplNFa5ZqoEAFWmYKgj2F6remdy8p6H0SgI=
 github.com/remyoudompheng/bigfft v0.0.0-20170806203942-52369c62f446/go.mod h1:uYEyJGbgTkfkS4+E/PavXkNJcbFIpEtjt2B0KDQ5+9M=
