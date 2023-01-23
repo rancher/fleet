@@ -443,10 +443,6 @@ platform:
 clone:
   depth: 20
 steps:
-- name: clone
-  image: rancher/drone-images:git-20H2
-  settings:
-    depth: 1
 - name: docker-publish-agent
   image: rancher/drone-images:docker-20H2
   settings:
