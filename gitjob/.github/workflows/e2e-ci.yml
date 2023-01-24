@@ -9,6 +9,7 @@ on:
       - 'docs/**'
       - 'scripts/**'
       - '*.md'
+  workflow_dispatch:
 
 env:
   GOARCH: amd64
