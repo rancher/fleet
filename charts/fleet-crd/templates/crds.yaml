@@ -2103,6 +2103,9 @@ spec:
                 type: string
               forceSyncGeneration:
                 type: integer
+              helmRepoURLRegex:
+                nullable: true
+                type: string
               helmSecretName:
                 nullable: true
                 type: string

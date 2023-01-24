@@ -30,7 +30,7 @@ type Auth struct {
 }
 
 // readResources reads and downloads all resources from the bundle
-func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth) ([]fleet.BundleResource, error) {
+func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth, helmRepoURLRegex string) ([]fleet.BundleResource, error) {
 	var directories []directory
 
 	directories, err := addDirectory(directories, base, ".", ".")
@@ -59,7 +59,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 		}
 	}
 
-	directories, err = addRemoteCharts(directories, base, chartDirs, auth)
+	directories, err = addRemoteCharts(directories, base, chartDirs, auth, helmRepoURLRegex)
 	if err != nil {
 		return nil, err
 	}
@@ -152,9 +152,17 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 
 // addRemoteCharts gets the chart url from a helm repo server and returns a `directory` struct.
 // For every chart that is not on disk, create a directory struct that contains the charts URL as path.
-func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmOptions, auth Auth) ([]directory, error) {
+func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
+			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo)
+			if err != nil {
+				return nil, err
+			}
+			if !shouldAddAuthToRequest {
+				auth = Auth{}
+			}
+
 			chartURL, err := chartURL(chart, auth)
 			if err != nil {
 				return nil, err
@@ -171,6 +179,13 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 		}
 	}
 	return directories, nil
+}
+
+func shouldAddAuthToRequest(helmRepoURLRegex, repo string) (bool, error) {
+	if helmRepoURLRegex == "" {
+		return true, nil
+	}
+	return regexp.MatchString(helmRepoURLRegex, repo)
 }
 
 func checksum(helm *fleet.HelmOptions) string {
