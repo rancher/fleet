@@ -16,7 +16,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/lasso v0.0.0-20210616224652-fc3ebd901c08
 	github.com/rancher/steve v0.0.0-20220628235427-dbf9ef88ce8f
-	github.com/rancher/wrangler v1.0.0
+	github.com/rancher/wrangler v1.0.2
 	github.com/sirupsen/logrus v1.9.0
 	github.com/urfave/cli v1.22.12
 	github.com/whilp/git-urls v0.0.0-20191001220047-6db9661140c0
