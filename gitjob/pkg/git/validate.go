@@ -76,6 +76,10 @@ func validateBranch(name string) error {
 
 // validateCommit validates a commit and returns an error in case it is invalid.
 func validateCommit(commit string) error {
+	if commit == "" {
+		return nil
+	}
+
 	switch len(commit) {
 	// git supports SHA1 and SHA256 (experimental).
 	case 40, 64:
