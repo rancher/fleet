@@ -34,6 +34,10 @@ type options struct {
 }
 
 func newGit(directory, url string, opts *options) (*git, error) {
+	if err := validateURL(url); err != nil {
+		return nil, err
+	}
+
 	if opts == nil {
 		opts = &options{}
 	}
@@ -63,6 +67,13 @@ type git struct {
 
 // LsRemote runs ls-remote on git repo and returns the HEAD commit SHA
 func (g *git) lsRemote(branch string, commit string) (string, error) {
+	if err := validateBranch(branch); err != nil {
+		return "", err
+	}
+	if err := validateCommit(commit); err != nil {
+		return "", err
+	}
+
 	if changed, err := g.remoteSHAChanged(branch, commit); err != nil || !changed {
 		return commit, err
 	}
