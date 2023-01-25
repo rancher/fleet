@@ -49,7 +49,7 @@ require (
 	github.com/rancher/fleet/pkg/apis v0.0.0
 	github.com/rancher/gitjob v0.1.30
 	github.com/rancher/lasso v0.0.0-20220519004610-700f167d8324
-	github.com/rancher/wrangler v1.0.1-0.20220623232707-cc833dd0d546
+	github.com/rancher/wrangler v1.0.2
 	github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.5.0
