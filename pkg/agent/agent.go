@@ -110,6 +110,7 @@ func agentToken(ctx context.Context, agentNamespace, controllerNamespace string,
 				},
 			},
 		},
+		// fleet-agent-bootstrap
 		&v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      config.AgentBootstrapConfigName,

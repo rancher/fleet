@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	CredName            = "fleet-agent"
+	CredName            = "fleet-agent" // same as AgentConfigName
 	Kubeconfig          = "kubeconfig"
 	Token               = "token"
 	Values              = "values"
@@ -211,6 +211,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 			return nil, err
 		}
 
+		// fleet-agent secret
 		updatedSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      CredName,

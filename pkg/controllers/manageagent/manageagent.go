@@ -135,6 +135,12 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 		return nil, nil
 	}
 
+	cfg := config.Get()
+	// managed agents are disabled, so we don't need to create the bundle
+	if cfg.ManageAgent != nil && !*cfg.ManageAgent {
+		return nil, nil
+	}
+
 	clusters, err := h.clusterCache.List(namespace.Name, labels.Everything())
 	if err != nil {
 		return nil, err
@@ -164,11 +170,6 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 
 func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Object, error) {
 	cfg := config.Get()
-	// managed agents are disabled, so we don't need to create the bundle
-	if cfg.ManageAgent != nil && !*cfg.ManageAgent {
-		return nil, nil
-	}
-
 	agentNamespace := h.systemNamespace
 	if cluster.Spec.AgentNamespace != "" {
 		agentNamespace = cluster.Spec.AgentNamespace
