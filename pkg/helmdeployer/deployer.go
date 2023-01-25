@@ -231,23 +231,24 @@ func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 		timeout = time.Second * time.Duration(options.Helm.TimeoutSeconds)
 	}
 
+	ns := options.DefaultNamespace
 	if options.TargetNamespace != "" {
-		options.DefaultNamespace = options.TargetNamespace
+		ns = options.TargetNamespace
 	}
 
-	if options.DefaultNamespace == "" {
-		options.DefaultNamespace = h.defaultNamespace
+	if ns == "" {
+		ns = h.defaultNamespace
+	}
+
+	if options.Helm != nil && options.Helm.ReleaseName != "" {
+		// JSON schema validation makes sure that the option is valid
+		return timeout, ns, options.Helm.ReleaseName
 	}
 
 	// releaseName has a limit of 53 in helm https://github.com/helm/helm/blob/main/pkg/action/install.go#L58
-	// apply already makes sure that the bundle.Name is not longer than 53 characters
-	releaseName := name.Limit(bundleID, 53)
-	if options.Helm != nil && options.Helm.ReleaseName != "" {
-		// JSON schema validation makes sure that the option is valid
-		releaseName = options.Helm.ReleaseName
-	}
-
-	return timeout, options.DefaultNamespace, releaseName
+	// apply already makes sure that the bundle.Name/bundleID is not longer
+	// than 53 characters
+	return timeout, ns, bundleID
 }
 
 func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
