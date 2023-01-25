@@ -70,8 +70,10 @@ func (g *git) lsRemote(branch string, commit string) (string, error) {
 	if err := validateBranch(branch); err != nil {
 		return "", err
 	}
-	if err := validateCommit(commit); err != nil {
-		return "", err
+	if commit != "" {
+		if err := validateCommit(commit); err != nil {
+			return "", err
+		}
 	}
 
 	if changed, err := g.remoteSHAChanged(branch, commit); err != nil || !changed {
