@@ -43,7 +43,7 @@ require (
 	github.com/go-logr/logr v1.2.3
 	github.com/gobwas/glob v0.2.3
 	github.com/google/go-cmp v0.5.9
-	github.com/google/go-containerregistry v0.12.1
+	github.com/google/go-containerregistry v0.13.0
 	github.com/hashicorp/go-getter v1.6.2
 	github.com/onsi/ginkgo/v2 v2.7.0
 	github.com/onsi/gomega v1.26.0
