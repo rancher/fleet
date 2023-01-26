@@ -49,7 +49,7 @@ require (
 	github.com/onsi/gomega v1.26.0
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
-	github.com/rancher/gitjob v0.1.30
+	github.com/rancher/gitjob v0.1.36
 	github.com/rancher/lasso v0.0.0-20221202205459-e7138f16489c
 	github.com/rancher/wrangler v1.0.2
 	github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22
@@ -204,7 +204,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.starlark.net v0.0.0-20220328144851-d1966c6b9fcd // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/crypto v0.3.0 // indirect
+	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/net v0.5.0 // indirect
 	golang.org/x/oauth2 v0.1.0 // indirect
