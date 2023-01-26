@@ -3,12 +3,13 @@ module github.com/rancher/fleet/pkg/apis
 go 1.19
 
 require (
-	github.com/rancher/wrangler v1.0.1-0.20221202234327-1cafffeaa9a1
+	github.com/rancher/wrangler v1.0.2
 	k8s.io/api v0.25.4
 	k8s.io/apimachinery v0.25.4
 )
 
 require (
+	github.com/emicklei/go-restful/v3 v3.10.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect

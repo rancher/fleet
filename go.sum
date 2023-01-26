@@ -193,8 +193,8 @@ github.com/elazarl/goproxy v0.0.0-20180725130230-947c36da3153/go.mod h1:/Zj4wYkg
 github.com/emicklei/go-restful v0.0.0-20170410110728-ff4f55a20633/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
 github.com/emicklei/go-restful v2.9.5+incompatible/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
 github.com/emicklei/go-restful/v3 v3.8.0/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
-github.com/emicklei/go-restful/v3 v3.9.0 h1:XwGDlfxEnQZzuopoqxwSEllNcCOM9DhhFyhFIIGKwxE=
-github.com/emicklei/go-restful/v3 v3.9.0/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
+github.com/emicklei/go-restful/v3 v3.10.1 h1:rc42Y5YTp7Am7CS630D7JmhRjq4UlEUuEKfrDac4bSQ=
+github.com/emicklei/go-restful/v3 v3.10.1/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
 github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc=
 github.com/emirpasic/gods v1.18.1/go.mod h1:8tpGGwCnJ5H4r6BWwaV6OrWmMoPhUl5jm/FMNAnJvWQ=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
@@ -662,8 +662,8 @@ github.com/rancher/helm/v3 v3.10.3-fleet1 h1:CCYFsIqIu+Z0beA58cUie1s3qmVSyxFzNqv
 github.com/rancher/helm/v3 v3.10.3-fleet1/go.mod h1:CXOcs02AYvrlPMWARNYNRgf2rNP7gLJQsi/Ubd4EDrI=
 github.com/rancher/lasso v0.0.0-20221202205459-e7138f16489c h1:RKGa+6plIHqyfBcC+lnCs3oe7A8wSFkUPBtqWBAi/1E=
 github.com/rancher/lasso v0.0.0-20221202205459-e7138f16489c/go.mod h1:Qewwr/xGzhtG7WCxhubrKZrdAobv5yqAIuHbDoxThZQ=
-github.com/rancher/wrangler v1.0.1-0.20221202234327-1cafffeaa9a1 h1:Rnrc4yx1Pkqoto7/n6GT68tk5up/SLuan1uSYXACpoM=
-github.com/rancher/wrangler v1.0.1-0.20221202234327-1cafffeaa9a1/go.mod h1:+GbeNyk8mbdOdMSdLIqvz+0JQ/2PhIb4ufMOcmHLIJQ=
+github.com/rancher/wrangler v1.0.2 h1:0JGv62gF2OkYUoR0fsr99Za63fquFeKTHE2z9kAFVsE=
+github.com/rancher/wrangler v1.0.2/go.mod h1:Blhan9LdaIJjC9w+xGteSrHHEiIFIdPEHEMrtx82dPk=
 github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22 h1:ADMwgJyVwmLXJBSm/nNobB1XGSmFCTA+TY/otxgIPu4=
 github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22/go.mod h1:vyO9SU60oplNFa5ZqoEAFWmYKgj2F6remdy8p6H0SgI=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
