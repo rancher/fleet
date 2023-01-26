@@ -16,7 +16,7 @@ on:
       - '*.md'
   push:
     branches:
-    - 'release/*"'
+    - 'release/*'
 
 env:
   GOARCH: amd64
