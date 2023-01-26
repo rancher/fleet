@@ -215,6 +215,7 @@ func createName(name, baseDir string) string {
 	// shorten name to 53 characters, the limit for helm release names
 	if helmReleaseName.MatchString(str) && dnsLabelSafe.MatchString(str) {
 		// name2.Limit will add another checksum if the name is too long
+		logrus.Debugf("shorten bundle name %v to %v\n", str, name2.Limit(str, 53))
 		return name2.Limit(str, 53)
 	}
 

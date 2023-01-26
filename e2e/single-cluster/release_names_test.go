@@ -14,6 +14,19 @@ var _ = Describe("ReleaseName", func() {
 	var (
 		asset string
 		k     kubectl.Command
+
+		// namespaces from test data in single-cluster/release-names.yaml
+		namespaces = []string{
+			"workloadns1",
+			"workloadns2",
+			"workloadns4",
+			"workloadns5",
+			"workloadns6",
+			"workloadns7",
+			"workloadns8",
+			"workloadns9",
+			"workloadns10",
+		}
 	)
 
 	BeforeEach(func() {
@@ -50,23 +63,32 @@ var _ = Describe("ReleaseName", func() {
 				ContainSubstring("long-name-test-funcharts-app-12-factor-"),
 			))
 
-			for _, ns := range []string{
-				"workloadns1",
-				"workloadns2",
-				"workloadns4",
-				"workloadns5",
-				"workloadns6",
-				"workloadns7",
-				"workloadns8",
-				"workloadns9",
-				"workloadns10",
-			} {
+			for _, ns := range namespaces {
 				Eventually(func() string {
 					out, _ := k.Namespace(ns).Get("configmaps")
 
 					return out
 				}).Should(ContainSubstring("app-config"))
 			}
+
+			By("making sure helm release names match the bundle name", func() {
+				for _, ns := range []string{
+					"workloadns4",
+					"workloadns5",
+					"workloadns6",
+					"workloadns7",
+					"workloadns8",
+					"workloadns9",
+					"workloadns10",
+				} {
+					name, _ := k.Get("bundles", "-A", `-o=go-template={{- range .items -}}{{- if eq .spec.namespace "`+ns+`" }}{{ .metadata.name }}{{ end }}{{ end }}`)
+
+					// it should only contain the correct release name
+					out, _ := k.Get("secrets", "-n", ns, "-o=jsonpath={.items[*].metadata.labels.name}")
+					releases := strings.Split(out, " ")
+					Expect(releases).To(HaveEach(name))
+				}
+			})
 		})
 	})
 })
