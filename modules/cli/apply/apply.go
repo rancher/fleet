@@ -93,14 +93,12 @@ func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs
 				}
 			}
 			err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
-				// always consider the root valid
-				if baseDir != path {
-					if !info.IsDir() {
-						return nil
-					}
-					if !fleetyaml.FoundFleetYamlInDirectory(path) {
-						return nil
-					}
+				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, info)
+				if e != nil {
+					return e
+				}
+				if !createBundle {
+					return nil
 				}
 				if err := Dir(ctx, client, repoName, path, opts, gitRepoBundlesMap); err == ErrNoResources {
 					logrus.Warnf("%s: %v", path, err)
@@ -320,4 +318,63 @@ func mergeMap(a, b map[string]string) map[string]string {
 		result[k] = v
 	}
 	return result
+}
+
+// shouldCreateBundleForThisPath returns true if a bundle should be created for this path. This happens when:
+// 1) Root path contains resources in the root directory or any subdirectory without a fleet.yaml.
+// 2) Or it is a subdirectory with a fleet.yaml
+func shouldCreateBundleForThisPath(baseDir, path string, info os.FileInfo) (bool, error) {
+	isRootPath := baseDir == path
+	if isRootPath {
+		// always create a Bundle if fleet.yaml is found in the root path
+		if !fleetyaml.FoundFleetYamlInDirectory(path) {
+			// don't create a Bundle if any subdirectory with resources and witouth a fleet.yaml is found
+			createBundleForRoot, err := hasSubDirectoryWithResourcesAndWithoutFleetYaml(path)
+			if err != nil {
+				return false, err
+			}
+			return createBundleForRoot, nil
+		}
+	} else {
+		if !info.IsDir() {
+			return false, nil
+		}
+		if !fleetyaml.FoundFleetYamlInDirectory(path) {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// hasSubDirectoryWithResourcesAndWithoutFleetYaml returns true if this path or any of its subdirectories contains any
+// resource, and it doesn't contain a fleet.yaml.
+func hasSubDirectoryWithResourcesAndWithoutFleetYaml(path string) (bool, error) {
+	if fleetyaml.FoundFleetYamlInDirectory(path) {
+		return false, nil
+	}
+	files, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+
+	for _, file := range files {
+		if !file.IsDir() {
+			if ext := filepath.Ext(file.Name()); ext == ".yaml" || ext == ".yml" {
+				return true, nil
+			}
+		} else {
+			// check if this subdirectory contains resources without a fleet.yaml. If it contains a fleet.yaml a new
+			// Bundle for this subdirectory will be created
+			containsResources, err := hasSubDirectoryWithResourcesAndWithoutFleetYaml(filepath.Join(path, file.Name()))
+			if err != nil {
+				return false, err
+			}
+			if containsResources {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
