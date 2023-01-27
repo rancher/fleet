@@ -1779,6 +1779,27 @@ spec:
               agentNamespace:
                 nullable: true
                 type: string
+              agentTolerations:
+                items:
+                  properties:
+                    effect:
+                      nullable: true
+                      type: string
+                    key:
+                      nullable: true
+                      type: string
+                    operator:
+                      nullable: true
+                      type: string
+                    tolerationSeconds:
+                      nullable: true
+                      type: integer
+                    value:
+                      nullable: true
+                      type: string
+                  type: object
+                nullable: true
+                type: array
               clientID:
                 nullable: true
                 type: string

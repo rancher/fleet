@@ -269,10 +269,11 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				Labels:   cluster.Labels,
 			},
 			ManifestOptions: agent.ManifestOptions{
-				AgentEnvVars:    cluster.Spec.AgentEnvVars,
-				CheckinInterval: cfg.AgentCheckinInterval.Duration.String(),
-				Generation:      string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
-				PrivateRepoURL:  cluster.Spec.PrivateRepoURL,
+				AgentEnvVars:     cluster.Spec.AgentEnvVars,
+				AgentTolerations: cluster.Spec.AgentTolerations,
+				CheckinInterval:  cfg.AgentCheckinInterval.Duration.String(),
+				Generation:       string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
+				PrivateRepoURL:   cluster.Spec.PrivateRepoURL,
 			},
 		})
 	if err != nil {
