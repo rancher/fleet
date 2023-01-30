@@ -55,6 +55,10 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
+          privileged: false
+          capabilities:
+            drop:
+            - ALL
         {{- end }}
         volumeMounts:
           - mountPath: /tmp

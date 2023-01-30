@@ -29,6 +29,10 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
+          privileged: false
+          capabilities:
+            drop:
+            - ALL
         {{- end }}
       serviceAccountName: fleet-agent
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
