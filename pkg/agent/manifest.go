@@ -9,11 +9,12 @@ import (
 
 	"github.com/rancher/fleet/pkg/basic"
 	"github.com/rancher/fleet/pkg/config"
+	"github.com/rancher/wrangler/pkg/name"
 
 	corev1 "k8s.io/api/core/v1"
 	networkv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -46,16 +47,42 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 
 	sa := basic.ServiceAccount(namespace, DefaultName)
 
+	logrus.Debugf("Building manifest for fleet-agent in namespace %s (sa: %s)", namespace, sa.Name)
+
 	defaultSa := basic.ServiceAccount(namespace, "default")
 	defaultSa.AutomountServiceAccountToken = new(bool)
 
-	clusterRole := basic.ClusterRole(sa,
-		rbacv1.PolicyRule{
-			Verbs:     []string{rbacv1.VerbAll},
-			APIGroups: []string{rbacv1.APIGroupAll},
-			Resources: []string{rbacv1.ResourceAll},
+	clusterRole := []runtime.Object{
+		&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name.SafeConcatName(sa.Namespace, sa.Name, "role"),
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{rbacv1.VerbAll},
+					APIGroups: []string{rbacv1.APIGroupAll},
+					Resources: []string{rbacv1.ResourceAll},
+				},
+			},
 		},
-	)
+		&rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name.SafeConcatName(sa.Namespace, sa.Name, "role", "binding"),
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      sa.Name,
+					Namespace: sa.Namespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "ClusterRole",
+				Name:     name.SafeConcatName(sa.Namespace, sa.Name, "role"),
+			},
+		},
+	}
 
 	// PrivateRepoURL = registry.yourdomain.com:5000
 	// DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
@@ -108,7 +135,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	}
 
 	networkPolicy := &networkv1.NetworkPolicy{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default-allow-all",
 			Namespace: namespace,
 		},
@@ -123,7 +150,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 			Egress: []networkv1.NetworkPolicyEgressRule{
 				{},
 			},
-			PodSelector: v1.LabelSelector{},
+			PodSelector: metav1.LabelSelector{},
 		},
 	}
 

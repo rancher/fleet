@@ -30,6 +30,7 @@ type Options struct {
 	StartAfter       <-chan struct{}
 }
 
+// Register is only used by simulators to start an agent
 func Register(ctx context.Context, kubeConfig, namespace, clusterID string) error {
 	clientConfig := kubeconfig.GetNonInteractiveClientConfig(kubeConfig)
 	kc, err := clientConfig.ClientConfig()
@@ -42,6 +43,7 @@ func Register(ctx context.Context, kubeConfig, namespace, clusterID string) erro
 	return err
 }
 
+// Start the fleet agent
 func Start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}

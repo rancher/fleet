@@ -115,6 +115,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 	if token.Spec.TTL != nil {
 		status.Expires = &metav1.Time{Time: token.CreationTimestamp.Add(token.Spec.TTL.Duration)}
 	}
+
+	// e.g.: import-token-local in system-registration-namespace
 	return append([]runtime.Object{
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
@@ -160,6 +162,37 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 				APIGroup: rbacv1.GroupName,
 				Kind:     "Role",
 				Name:     name.SafeConcatName(saName, "role"),
+			},
+		},
+		&rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name.SafeConcatName(saName, "creds"),
+				Namespace: h.systemRegistrationNamespace,
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"secrets"},
+				},
+			},
+		},
+		&rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name.SafeConcatName(saName, "creds"),
+				Namespace: h.systemRegistrationNamespace,
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      saName,
+					Namespace: token.Namespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "Role",
+				Name:     name.SafeConcatName(saName, "creds"),
 			},
 		},
 	}, secrets...), status, nil
