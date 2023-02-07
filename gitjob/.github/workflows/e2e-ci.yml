@@ -88,7 +88,7 @@ jobs:
       -
         name: E2E Tests
         # git repo tests can't run for PRs from forks, because PRs don't have access to the secrets
-        if: github.repository == 'rancher/gitjob'
+        if: github.repository == 'rancher/gitjob' && github.actor != 'dependabot[bot]'
         run: |
           export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
           echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
