@@ -8,7 +8,6 @@ import (
 
 var (
 	ClusterConditionReady                  = "Ready"
-	ClusterGroupAnnotation                 = "fleet.cattle.io/cluster-group"
 	ClusterNamespaceAnnotation             = "fleet.cattle.io/cluster-namespace"
 	ClusterAnnotation                      = "fleet.cattle.io/cluster"
 	ClusterRegistrationAnnotation          = "fleet.cattle.io/cluster-registration"
