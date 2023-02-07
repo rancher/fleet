@@ -144,6 +144,7 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 	// Note: these error strings are returned by the Helm SDK and its dependencies
 	if strings.Contains(msg, "timed out waiting for the condition") ||
 		strings.Contains(msg, "error validating data") ||
+		strings.Contains(msg, "chart requires kubeVersion") ||
 		strings.Contains(msg, "failed, and has been rolled back due to atomic being set") {
 
 		status.Ready = false

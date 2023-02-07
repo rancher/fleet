@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetgen "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -12,28 +11,49 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+func orphanBundeResources() map[string][]v1alpha1.BundleResource {
+	v1, err := os.ReadFile(assetsPath + "/deployment-v1.yaml")
+	Expect(err).NotTo(HaveOccurred())
+	v2, err := os.ReadFile(assetsPath + "/deployment-v2.yaml")
+	Expect(err).NotTo(HaveOccurred())
+
+	return map[string][]v1alpha1.BundleResource{
+		"v1": {
+			{
+				Name:     "deployment-v1.yaml",
+				Content:  string(v1),
+				Encoding: "",
+			},
+		}, "v2": {
+			{
+				Name:     "deployment-v2.yaml",
+				Content:  string(v2),
+				Encoding: "",
+			},
+		},
+	}
+}
 
 var _ = Describe("BundleDeployment status", Ordered, func() {
 
 	const (
-		bundle           = "bundle"
 		svcName          = "svc-test"
 		svcFinalizerName = "svc-finalizer"
 	)
 
 	var (
-		controller fleetgen.BundleDeploymentController
-		env        specEnv
-		namespace  string
+		env       *specEnv
+		namespace string
+		name      string
 	)
 
-	createBundleDeploymentV1 := func() {
+	createBundleDeploymentV1 := func(name string) {
 		bundled := v1alpha1.BundleDeployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      bundle,
+				Name:      name,
 				Namespace: namespace,
 			},
 			Spec: v1alpha1.BundleDeploymentSpec{
@@ -41,71 +61,38 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			},
 		}
 
-		b, err := controller.Create(&bundled)
+		b, err := env.controller.Create(&bundled)
 		Expect(err).To(BeNil())
 		Expect(b).To(Not(BeNil()))
 	}
 
-	createResources := func() (map[string][]v1alpha1.BundleResource, error) {
-		v1, err := os.ReadFile(assetsPath + "/deployment-v1.yaml")
-		if err != nil {
-			return nil, err
-		}
-		v2, err := os.ReadFile(assetsPath + "/deployment-v2.yaml")
-		if err != nil {
-			return nil, err
-		}
-
-		return map[string][]v1alpha1.BundleResource{
-			"v1": {
-				{
-					Name:     "deployment-v1.yaml",
-					Content:  string(v1),
-					Encoding: "",
-				},
-			}, "v2": {
-				{
-					Name:     "deployment-v2.yaml",
-					Content:  string(v2),
-					Encoding: "",
-				},
-			},
-		}, nil
-	}
-
 	BeforeAll(func() {
-		namespace = newNamespaceName()
-		Expect(k8sClient.Create(ctx, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-			},
-		})).NotTo(HaveOccurred())
-
-		resources, err := createResources()
-		Expect(err).ToNot(HaveOccurred())
-		controller = registerBundleDeploymentController(cfg, namespace, newLookup((resources)))
-
-		env = specEnv{controller: controller, k8sClient: k8sClient, namespace: namespace, name: bundle}
+		env = specEnvs["orphanbundle"]
+		name = "orphanbundle"
+		namespace = env.namespace
+		DeferCleanup(func() {
+			Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
+		})
 	})
 
 	When("New bundle deployment is created", func() {
 		BeforeAll(func() {
 			// this BundleDeployment will create a deployment with the resources from assets/deployment-v1.yaml
-			createBundleDeploymentV1()
+			createBundleDeploymentV1(name)
 		})
 
 		AfterAll(func() {
-			Expect(controller.Delete(namespace, bundle, nil)).NotTo(HaveOccurred())
+			Expect(env.controller.Delete(namespace, name, nil)).NotTo(HaveOccurred())
 		})
 
 		It("BundleDeployment is not ready", func() {
-			bd, err := controller.Get(namespace, bundle, metav1.GetOptions{})
+			bd, err := env.controller.Get(namespace, name, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Ready).To(BeFalse())
 		})
 
 		It("BundleDeployment will eventually be ready and non modified", func() {
-			Eventually(env.isBundleDeploymentReadyAndNotModified).Should(BeTrue())
+			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 		})
 
 		It("Resources from BundleDeployment are present in the cluster", func() {
@@ -134,7 +121,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					}
-					return env.isNotReadyAndModified(modifiedStatus, "service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}")
+					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}")
 				}).Should(BeTrue())
 			})
 
@@ -147,18 +134,20 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
-				Eventually(env.isBundleDeploymentReadyAndNotModified).Should(BeTrue())
+				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 
 		Context("Upgrading to a release that will leave an orphan resource", func() {
 			It("Upgrade BundleDeployment to a release that deletes the svc with a finalizer", func() {
-				bd, err := controller.Get(namespace, bundle, metav1.GetOptions{})
-				Expect(err).To(BeNil())
-				bd.Spec.DeploymentID = "v2"
-				b, err := controller.Update(bd)
-				Expect(err).To(BeNil())
-				Expect(b).To(Not(BeNil()))
+				Eventually(func() bool {
+					bd, err := env.controller.Get(namespace, name, metav1.GetOptions{})
+					Expect(err).To(BeNil())
+					bd.Spec.DeploymentID = "v2"
+					b, err := env.controller.Update(bd)
+					return err == nil && b != nil
+				}).Should(BeTrue())
+
 			})
 
 			It("BundleDeployment status will eventually be extra", func() {
@@ -172,7 +161,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     true,
 						Patch:      "",
 					}
-					return env.isNotReadyAndModified(modifiedStatus, "service.v1 "+namespace+"/svc-finalizer extra")
+					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-finalizer extra")
 				}).Should(BeTrue())
 			})
 
@@ -185,7 +174,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
-				Eventually(env.isBundleDeploymentReadyAndNotModified).Should(BeTrue())
+				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 
@@ -208,7 +197,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "",
 					}
-					return env.isNotReadyAndModified(modifiedStatus, "service.v1 "+namespace+"/svc-test missing")
+					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-test missing")
 				}).Should(BeTrue())
 			})
 		})
@@ -216,7 +205,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 
 	When("simulate operator dynamic resource creation", func() {
 		BeforeAll(func() {
-			createBundleDeploymentV1()
+			createBundleDeploymentV1(name)
 			// It is possible that some operators copy the objectset.rio.cattle.io/hash label into a dynamically created objects.
 			// https://github.com/rancher/fleet/issues/1141
 			By("Simulating orphan resource creation", func() {
@@ -239,11 +228,11 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		})
 
 		AfterAll(func() {
-			Expect(controller.Delete(namespace, bundle, nil)).NotTo(HaveOccurred())
+			Expect(env.controller.Delete(namespace, name, nil)).NotTo(HaveOccurred())
 		})
 
 		It("BundleDeployment will eventually be ready and non modified", func() {
-			Eventually(env.isBundleDeploymentReadyAndNotModified).Should(BeTrue())
+			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 		})
 
 		It("Resources from BundleDeployment are present in the cluster", func() {
