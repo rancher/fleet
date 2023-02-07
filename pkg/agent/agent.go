@@ -105,6 +105,9 @@ func agentToken(ctx context.Context, agentNamespace, controllerNamespace string,
 		&v1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: agentNamespace,
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
 			},
 		},
 		// fleet-agent-bootstrap
