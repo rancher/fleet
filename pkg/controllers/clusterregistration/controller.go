@@ -160,9 +160,6 @@ func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster
 			Labels: map[string]string{
 				fleet.ClusterAnnotation: cluster.Name,
 			},
-			Annotations: map[string]string{
-				fleet.ManagedLabel: "true",
-			},
 		},
 		Type: AgentCredentialSecretType,
 		Data: map[string][]byte{
@@ -235,7 +232,6 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				Name:      saName,
 				Namespace: cluster.Status.Namespace,
 				Annotations: map[string]string{
-					fleet.ManagedLabel:                           "true",
 					fleet.ClusterAnnotation:                      cluster.Name,
 					fleet.ClusterRegistrationAnnotation:          request.Name,
 					fleet.ClusterRegistrationNamespaceAnnotation: request.Namespace,
