@@ -10,9 +10,9 @@ on:
         required: true
         default: "master"
       keep_cluster:
-        description: "Keep the cluster afterwards? (empty/yes)"
+        description: "Keep the cluster afterwards?"
         required: false
-        default: ""
+        default: "no"
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
