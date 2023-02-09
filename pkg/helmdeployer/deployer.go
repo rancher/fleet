@@ -357,6 +357,7 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		u.Timeout = timeout
 		u.DryRun = dryRun
 		u.PostRenderer = pr
+		u.WaitForJobs = options.Helm.WaitForJobs
 		if u.Timeout > 0 {
 			u.Wait = true
 		}
@@ -379,6 +380,7 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u.DryRun = dryRun
 	u.DisableOpenAPIValidation = h.template || dryRun
 	u.PostRenderer = pr
+	u.WaitForJobs = options.Helm.WaitForJobs
 	if u.Timeout > 0 {
 		u.Wait = true
 	}

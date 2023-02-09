@@ -82,6 +82,7 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 		result.Helm.Atomic = result.Helm.Atomic || custom.Helm.Atomic
 		result.Helm.TakeOwnership = result.Helm.TakeOwnership || custom.Helm.TakeOwnership
 		result.Helm.DisablePreProcess = result.Helm.DisablePreProcess || custom.Helm.DisablePreProcess
+		result.Helm.WaitForJobs = result.Helm.WaitForJobs || custom.Helm.WaitForJobs
 	}
 	if custom.Kustomize != nil {
 		if result.Kustomize == nil {
