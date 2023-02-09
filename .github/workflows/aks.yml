@@ -43,7 +43,7 @@ jobs:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
         name: Setup Ginkgo Test Framework
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.1
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.8.0
 
       # Follow https://github.com/marketplace/actions/azure-login#configure-deployment-credentials
       # az group create --name fleetCI --location eastus2

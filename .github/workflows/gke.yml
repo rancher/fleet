@@ -42,7 +42,7 @@ jobs:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
         name: Setup Ginkgo Test Framework
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.1.1
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.8.0
       -
         name: Authenticate to GCP
         uses: 'google-github-actions/auth@v1'
