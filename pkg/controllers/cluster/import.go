@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/sirupsen/logrus"
@@ -170,7 +171,7 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 
 // importCluster is triggered for manager initiated deployments and the local agent,
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
-	if cluster.Status.Agent.Namespace == config.LegacyDefaultNamespace {
+	if shouldMigrateFromLegacyNamespace(cluster.Status.Agent.Namespace) {
 		cluster.Status.CattleNamespaceMigrated = false
 	}
 
@@ -334,6 +335,17 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 	status.AgentNamespaceMigrated = true
 	return status, nil
+}
+
+func shouldMigrateFromLegacyNamespace(agentStatusNs string) bool {
+	return !isLegacyAgentNamespaceSelectedByUser() && agentStatusNs == config.LegacyDefaultNamespace
+}
+
+func isLegacyAgentNamespaceSelectedByUser() bool {
+	cfg := config.Get()
+
+	return os.Getenv("NAMESPACE") == config.LegacyDefaultNamespace ||
+		cfg.Bootstrap.AgentNamespace == config.LegacyDefaultNamespace
 }
 
 // restConfigFromKubeConfig checks kubeconfig data and tries to connect to server. If server is behind public CA, remove CertificateAuthorityData in kubeconfig file.
