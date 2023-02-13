@@ -225,6 +225,8 @@ func agentDeployment(namespace, name, image, imagePullPolicy, serviceAccount str
 			container.SecurityContext = &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &[]bool{false}[0],
 				ReadOnlyRootFilesystem:   &[]bool{true}[0],
+				Privileged:               &[]bool{false}[0],
+				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 			}
 		}
 		deployment.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
