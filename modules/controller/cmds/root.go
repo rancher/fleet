@@ -26,9 +26,10 @@ var (
 )
 
 type FleetManager struct {
-	Kubeconfig    string `usage:"Kubeconfig file"`
-	Namespace     string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
-	DisableGitops bool   `usage:"disable gitops components" name:"disable-gitops"`
+	Kubeconfig       string `usage:"Kubeconfig file"`
+	Namespace        string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
+	DisableGitops    bool   `usage:"disable gitops components" name:"disable-gitops"`
+	DisableBootstrap bool   `usage:"disable local cluster components" name:"disable-bootstrap"`
 }
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
@@ -37,7 +38,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
 	debugConfig.MustSetupDebug()
-	if err := fleetcontroller.Start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops); err != nil {
+	if err := fleetcontroller.Start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops, f.DisableBootstrap); err != nil {
 		return err
 	}
 
