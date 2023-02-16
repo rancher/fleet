@@ -10,7 +10,11 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-const AssetsPath = "../assets/"
+const (
+	AssetsPath = "../assets/"
+	separator  = "-------\n"
+	apiVersion = "apiVersion: fleet.cattle.io/v1alpha1"
+)
 
 func GetBundleFromOutput(buf *gbytes.Buffer) (*v1alpha1.Bundle, error) {
 	bundle := &v1alpha1.Bundle{}
@@ -20,6 +24,23 @@ func GetBundleFromOutput(buf *gbytes.Buffer) (*v1alpha1.Bundle, error) {
 	}
 
 	return bundle, nil
+}
+
+func GetBundleListFromOutput(buf *gbytes.Buffer) ([]*v1alpha1.Bundle, error) {
+	bundles := []*v1alpha1.Bundle{}
+	bundlesWithSeparator := strings.ReplaceAll(string(buf.Contents()), apiVersion, separator+apiVersion)
+	bundlesStr := strings.Split(bundlesWithSeparator, separator)
+	for _, bundleStr := range bundlesStr {
+		if bundleStr != "" {
+			bundle := &v1alpha1.Bundle{}
+			err := yaml.Unmarshal([]byte(bundleStr), bundle)
+			if err != nil {
+				return nil, err
+			}
+			bundles = append(bundles, bundle)
+		}
+	}
+	return bundles, nil
 }
 
 func IsResourcePresentInBundle(resourcePath string, resources []v1alpha1.BundleResource) (bool, error) {
