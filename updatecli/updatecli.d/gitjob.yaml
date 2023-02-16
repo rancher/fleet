@@ -23,11 +23,6 @@ sources:
       username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
       versionfilter:
         kind: semver
-      changedif:
-          kind: file/checksum
-          spec:
-            files:
-              - charts/fleet/charts/gitjob/Chart.yaml
     # The assets name do not contains the 'v' prefix before the version
     transformers:
       - trimprefix: v
