@@ -1,10 +1,10 @@
 gitjob:
   repository: rancher/gitjob
-  tag: v0.1.37
+  tag: v0.1.36
 
 tekton:
   repository: rancher/tekton-utils
-  tag: v0.1.11
+  tag: v0.1.10
 
 global:
   cattle:
