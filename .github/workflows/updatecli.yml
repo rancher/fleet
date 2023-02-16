@@ -2,11 +2,13 @@
 name: "Updatecli: Dependency Management"
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
   schedule:
     # * is a special character in YAML so you have to quote this string
-    # Run every hour
-    - cron: '0 * * * *'
+    # Run once a day
+    - cron: '0 1 * * *'
 
 permissions:
   contents: write
