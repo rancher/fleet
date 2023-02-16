@@ -27,9 +27,7 @@ sources:
           kind: file/checksum
           spec:
             files:
-              - charts/fleet-crd/templates/gitjobs-crds.yaml
-              - charts/fleet/charts/gitjob/*
-              - charts/fleet/charts/gitjob/templates/*
+              - charts/fleet/charts/gitjob/Chart.yaml
     # The assets name do not contains the 'v' prefix before the version
     transformers:
       - trimprefix: v
@@ -49,9 +47,7 @@ targets:
         kind: file/checksum
         spec:
           files:
-            - charts/fleet-crd/templates/gitjobs-crds.yaml
-            - charts/fleet/charts/gitjob/*
-            - charts/fleet/charts/gitjob/templates/*
+            - charts/fleet/charts/gitjob/Chart.yaml
 
 actions:
   default:
