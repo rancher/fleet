@@ -2,21 +2,30 @@ package agent
 
 import (
 	"context"
-	"os"
+	"encoding/hex"
+	"fmt"
+	"math/rand"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
-	gen "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	fleetgen "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
+	"github.com/rancher/lasso/pkg/cache"
+	lassoclient "github.com/rancher/lasso/pkg/client"
+	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
+	"github.com/rancher/wrangler/pkg/genericcondition"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -25,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
@@ -37,17 +47,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
-var testEnv *envtest.Environment
-var ctx context.Context
-var cancel context.CancelFunc
-var controller gen.BundleDeploymentController
-var k8sClient client.Client
+var (
+	cfg       *rest.Config
+	testEnv   *envtest.Environment
+	ctx       context.Context
+	cancel    context.CancelFunc
+	k8sClient client.Client
+	specEnvs  map[string]*specEnv
+)
 
 const (
-	DeploymentsNamespace = "fleet-integration-tests"
-	assetsPath           = "assets"
-	timeout              = 5 * time.Second
+	assetsPath = "assets"
+	timeout    = 30 * time.Second
 )
+
+type specResources func() map[string][]v1alpha1.BundleResource
 
 func TestFleet(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -57,13 +71,13 @@ func TestFleet(t *testing.T) {
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
 	ctx, cancel = context.WithCancel(context.TODO())
-
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
 		ErrorIfCRDPathMissing: true,
 	}
 
-	cfg, err := testEnv.Start()
+	var err error
+	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
@@ -75,13 +89,21 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	Expect(k8sClient.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: DeploymentsNamespace,
-		},
-	})).NotTo(HaveOccurred())
+	specEnvs = make(map[string]*specEnv, 2)
+	for id, f := range map[string]specResources{"capabilitybundle": capabilityBundleResources, "orphanbundle": orphanBundeResources} {
+		namespace := newNamespaceName()
+		fmt.Printf("Creating namespace %s\n", namespace)
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+			},
+		})).ToNot(HaveOccurred())
 
-	registerBundleDeploymentController(cfg)
+		res := f()
+		controller := registerBundleDeploymentController(cfg, namespace, newLookup(res))
+
+		specEnvs[id] = &specEnv{controller: controller, k8sClient: k8sClient, namespace: namespace}
+	}
 })
 
 var _ = AfterSuite(func() {
@@ -89,18 +111,32 @@ var _ = AfterSuite(func() {
 	Expect(testEnv.Stop()).ToNot(HaveOccurred())
 })
 
-func registerBundleDeploymentController(cfg *rest.Config) {
+// registerBundleDeploymentController registers a BundleDeploymentController that will watch for changes
+// just in the namespace provided. Resources are provided by the lookup parameter.
+func registerBundleDeploymentController(cfg *rest.Config, namespace string, lookup *lookup) fleetgen.BundleDeploymentController {
 	d, err := discovery.NewDiscoveryClientForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
-
 	disc := memory.NewMemCacheClient(d)
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(disc)
 	dyn, err := dynamic.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
-
 	trig := trigger.New(ctx, mapper, dyn)
-	factory := fleet.NewFactoryFromConfigOrDie(cfg)
-	controller = factory.Fleet().V1alpha1().BundleDeployment()
+	cf, err := lassoclient.NewSharedClientFactory(cfg, &lassoclient.SharedClientFactoryOptions{
+		Mapper: mapper,
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	sharedFactory := controller.NewSharedControllerFactory(cache.NewSharedCachedFactory(cf, &cache.SharedCacheFactoryOptions{
+		DefaultNamespace: namespace,
+		DefaultResync:    durations.DefaultResyncAgent,
+	}), nil)
+
+	// this factory will watch BundleDeployments just for the namespace provided
+	factory, err := fleet.NewFactoryFromConfigWithOptions(cfg, &fleet.FactoryOptions{
+		SharedControllerFactory: sharedFactory,
+	})
+	Expect(err).ToNot(HaveOccurred())
+
 	restClientGetter := restClientGetter{
 		cfg:        cfg,
 		discovery:  disc,
@@ -109,55 +145,36 @@ func registerBundleDeploymentController(cfg *rest.Config) {
 	coreFactory, err := core.NewFactoryFromConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-	helmDeployer, err := helmdeployer.NewHelm(DeploymentsNamespace, DeploymentsNamespace, DeploymentsNamespace, DeploymentsNamespace, &restClientGetter,
+	helmDeployer, err := helmdeployer.NewHelm(namespace, namespace, namespace, namespace, &restClientGetter,
 		coreFactory.Core().V1().ServiceAccount().Cache(), coreFactory.Core().V1().ConfigMap().Cache(), coreFactory.Core().V1().Secret().Cache())
 	Expect(err).ToNot(HaveOccurred())
 
 	wranglerApply, err := apply.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-	resources, err := createResources()
-	Expect(err).ToNot(HaveOccurred())
-
 	deployManager := deployer.NewManager(
-		DeploymentsNamespace,
-		DeploymentsNamespace,
-		DeploymentsNamespace,
-		DeploymentsNamespace,
-		controller.Cache(),
-		&lookup{resources: resources},
+		namespace,
+		namespace,
+		namespace,
+		namespace,
+		factory.Fleet().V1alpha1().BundleDeployment().Cache(),
+		lookup,
 		helmDeployer,
 		wranglerApply)
-	bundledeployment.Register(ctx, trig, mapper, dyn, deployManager, controller)
+
+	bundledeployment.Register(ctx, trig, mapper, dyn, deployManager, factory.Fleet().V1alpha1().BundleDeployment())
+
 	err = factory.Start(ctx, 50)
 	Expect(err).ToNot(HaveOccurred())
+
+	return factory.Fleet().V1alpha1().BundleDeployment()
 }
 
-func createResources() (map[string][]v1alpha1.BundleResource, error) {
-	v1, err := os.ReadFile(assetsPath + "/deployment-v1.yaml")
-	if err != nil {
-		return nil, err
-	}
-	v2, err := os.ReadFile(assetsPath + "/deployment-v2.yaml")
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string][]v1alpha1.BundleResource{
-		"v1": {
-			{
-				Name:     "deployment-v1.yaml",
-				Content:  string(v1),
-				Encoding: "",
-			},
-		}, "v2": {
-			{
-				Name:     "deployment-v2.yaml",
-				Content:  string(v2),
-				Encoding: "",
-			},
-		},
-	}, nil
+func newNamespaceName() string {
+	rand.Seed(time.Now().UnixNano())
+	p := make([]byte, 12)
+	rand.Read(p)
+	return fmt.Sprintf("test-%s", hex.EncodeToString(p))[:12]
 }
 
 // restClientGetter is needed to create the helm deployer. We just need to return the rest.Config for this test.
@@ -183,10 +200,60 @@ func (c *restClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
 	return c.restMapper, nil
 }
 
+func newLookup(r map[string][]v1alpha1.BundleResource) *lookup {
+	return &lookup{resources: r}
+}
+
 type lookup struct {
 	resources map[string][]v1alpha1.BundleResource
 }
 
 func (l *lookup) Get(id string) (*manifest.Manifest, error) {
 	return manifest.New(l.resources[id])
+}
+
+type specEnv struct {
+	controller fleetgen.BundleDeploymentController
+	namespace  string
+	k8sClient  client.Client
+}
+
+func (se specEnv) isNotReadyAndModified(name string, modifiedStatus v1alpha1.ModifiedStatus, message string) bool {
+	bd, err := se.controller.Get(se.namespace, name, metav1.GetOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	isReadyCondition := checkCondition(bd.Status.Conditions, "Ready", "False", message)
+
+	return cmp.Equal(bd.Status.ModifiedStatus, []v1alpha1.ModifiedStatus{modifiedStatus}) &&
+		!bd.Status.NonModified &&
+		isReadyCondition
+}
+
+func (se specEnv) isBundleDeploymentReadyAndNotModified(name string) bool {
+	bd, err := se.controller.Get(se.namespace, name, metav1.GetOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	return bd.Status.Ready && bd.Status.NonModified
+}
+
+func (se specEnv) getService(name string) (corev1.Service, error) {
+	nsn := types.NamespacedName{
+		Namespace: se.namespace,
+		Name:      name,
+	}
+	svc := corev1.Service{}
+	err := se.k8sClient.Get(ctx, nsn, &svc)
+	if err != nil {
+		return corev1.Service{}, err
+	}
+
+	return svc, nil
+}
+
+func checkCondition(conditions []genericcondition.GenericCondition, conditionType string, status string, message string) bool {
+	for _, condition := range conditions {
+		if condition.Type == conditionType && string(condition.Status) == status && strings.Contains(condition.Message, message) {
+			return true
+		}
+	}
+
+	return false
 }

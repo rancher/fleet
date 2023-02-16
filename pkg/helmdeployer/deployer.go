@@ -63,11 +63,12 @@ type Helm struct {
 	secretCache         corecontrollers.SecretCache
 	getter              genericclioptions.RESTClientGetter
 	globalCfg           action.Configuration
-	useGlobalCfg        bool
-	template            bool
-	defaultNamespace    string
-	labelPrefix         string
-	labelSuffix         string
+	// useGlobalCfg is only used by Template
+	useGlobalCfg     bool
+	template         bool
+	defaultNamespace string
+	labelPrefix      string
+	labelSuffix      string
 }
 
 type Resources struct {
@@ -294,6 +295,8 @@ func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 	cfg.Releases.MaxHistory = 5
 	cfg.KubeClient = kClient
 
+	cfg.Capabilities, _ = getCapabilities(cfg)
+
 	return cfg, err
 }
 
@@ -349,6 +352,14 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	if install {
 		u := action.NewInstall(&cfg)
 		u.ClientOnly = h.template || dryRun
+		if cfg.Capabilities != nil {
+			if cfg.Capabilities.KubeVersion.Version != "" {
+				u.KubeVersion = &cfg.Capabilities.KubeVersion
+			}
+			if cfg.Capabilities.APIVersions != nil {
+				u.APIVersions = cfg.Capabilities.APIVersions
+			}
+		}
 		u.ForceAdopt = options.Helm.TakeOwnership
 		u.Replace = true
 		u.ReleaseName = releaseName
