@@ -17,7 +17,6 @@ permissions:
 jobs:
   updatecli:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
