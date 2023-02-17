@@ -234,6 +234,7 @@ type HelmOptions struct {
 	TakeOwnership  bool         `json:"takeOwnership,omitempty"`
 	MaxHistory     int          `json:"maxHistory,omitempty"`
 	ValuesFiles    []string     `json:"valuesFiles,omitempty"`
+	WaitForJobs    bool         `json:"waitForJobs,omitempty"`
 
 	// Atomic sets the --atomic flag when Helm is performing an upgrade
 	Atomic bool `json:"atomic,omitempty"`

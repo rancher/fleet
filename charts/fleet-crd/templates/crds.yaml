@@ -180,6 +180,8 @@ spec:
                   version:
                     nullable: true
                     type: string
+                  waitForJobs:
+                    type: boolean
                 type: object
               kustomize:
                 nullable: true
@@ -551,6 +553,8 @@ spec:
                         version:
                           nullable: true
                           type: string
+                        waitForJobs:
+                          type: boolean
                       type: object
                     kustomize:
                       nullable: true
@@ -1064,6 +1068,8 @@ spec:
                       version:
                         nullable: true
                         type: string
+                      waitForJobs:
+                        type: boolean
                     type: object
                   kustomize:
                     nullable: true
@@ -1211,6 +1217,8 @@ spec:
                       version:
                         nullable: true
                         type: string
+                      waitForJobs:
+                        type: boolean
                     type: object
                   kustomize:
                     nullable: true
