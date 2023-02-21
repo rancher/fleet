@@ -155,7 +155,7 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
-			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo)
+			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo, chart.Chart)
 			if err != nil {
 				return nil, err
 			}
@@ -181,10 +181,14 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 	return directories, nil
 }
 
-func shouldAddAuthToRequest(helmRepoURLRegex, repo string) (bool, error) {
+func shouldAddAuthToRequest(helmRepoURLRegex, repo, chart string) (bool, error) {
 	if helmRepoURLRegex == "" {
 		return true, nil
 	}
+	if repo == "" {
+		return regexp.MatchString(helmRepoURLRegex, chart)
+	}
+
 	return regexp.MatchString(helmRepoURLRegex, repo)
 }
 
