@@ -38,6 +38,8 @@ const (
 	AgentNamespaceAnnotation     = "fleet.cattle.io/agent-namespace"
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleet-default"
+	KeepResourceAnnotationKey    = "helm.sh/resource-policy"
+	KeepResourceAnnotationValue  = "keep"
 )
 
 var (
@@ -47,13 +49,14 @@ var (
 )
 
 type postRender struct {
-	labelPrefix string
-	labelSuffix string
-	bundleID    string
-	manifest    *manifest.Manifest
-	chart       *chart.Chart
-	mapper      meta.RESTMapper
-	opts        fleet.BundleDeploymentOptions
+	labelPrefix   string
+	labelSuffix   string
+	bundleID      string
+	manifest      *manifest.Manifest
+	chart         *chart.Chart
+	mapper        meta.RESTMapper
+	opts          fleet.BundleDeploymentOptions
+	keepResources bool
 }
 
 type Helm struct {
@@ -145,6 +148,9 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 
 	setID := GetSetID(p.bundleID, p.labelPrefix, p.labelSuffix)
 	labels, annotations, err := apply.GetLabelsAndAnnotations(setID, nil)
+	if p.keepResources {
+		annotations[KeepResourceAnnotationKey] = KeepResourceAnnotationValue
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -333,12 +339,13 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	}
 
 	pr := &postRender{
-		labelPrefix: h.labelPrefix,
-		labelSuffix: h.labelSuffix,
-		bundleID:    bundleID,
-		manifest:    manifest,
-		opts:        options,
-		chart:       chart,
+		labelPrefix:   h.labelPrefix,
+		labelSuffix:   h.labelSuffix,
+		bundleID:      bundleID,
+		manifest:      manifest,
+		opts:          options,
+		chart:         chart,
+		keepResources: options.KeepResources,
 	}
 
 	if !h.useGlobalCfg {
