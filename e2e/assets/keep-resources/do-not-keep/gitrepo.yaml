@@ -1,0 +1,17 @@
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: dont-keep
+spec:
+  repo: https://github.com/rancher/fleet-examples
+  branch: master
+  paths:
+  - simple
+  targetNamespace: do-not-keep-resources
+  targets:
+    - clusterSelector:
+        matchExpressions:
+          - key: provider.cattle.io
+            operator: NotIn
+            values:
+              - harvester

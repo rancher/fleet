@@ -641,6 +641,10 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 		"--target-namespace", gitrepo.Spec.TargetNamespace,
 	)
 
+	if gitrepo.Spec.KeepResources {
+		args = append(args, "--keep-resources")
+	}
+
 	var env []corev1.EnvVar
 	if gitrepo.Spec.HelmSecretName != "" {
 		helmArgs := []string{

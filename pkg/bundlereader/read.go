@@ -32,6 +32,7 @@ type Options struct {
 	SyncGeneration   int64
 	Auth             Auth
 	HelmRepoURLRegex string
+	KeepResources    bool
 }
 
 // Open reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
@@ -249,6 +250,10 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	if opts.Paused {
 		bundle.Spec.Paused = true
+	}
+
+	if opts.KeepResources {
+		bundle.Spec.KeepResources = opts.KeepResources
 	}
 
 	return bundle, scans, nil

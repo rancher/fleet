@@ -197,6 +197,7 @@ type BundleDeploymentOptions struct {
 	ForceSyncGeneration int64             `json:"forceSyncGeneration,omitempty"`
 	YAML                *YAMLOptions      `json:"yaml,omitempty"`
 	Diff                *DiffOptions      `json:"diff,omitempty"`
+	KeepResources       bool              `json:"keepResources,omitempty"`
 }
 
 type DiffOptions struct {
