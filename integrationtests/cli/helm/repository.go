@@ -16,12 +16,13 @@ const (
 
 type repository struct {
 	server *http.Server
+	port   string
 }
 
 // starts a helm repository on localhost:3000. It contains all repositories that are located in the assets/helmrepository folder.
 // basic auth is enabled is authEnabled is true.
 func (r *repository) startRepository(authEnabled bool) {
-	r.server = &http.Server{Addr: ":3000", ReadHeaderTimeout: 1 * time.Second}
+	r.server = &http.Server{Addr: r.port, ReadHeaderTimeout: 1 * time.Second}
 	r.server.Handler = getHandler(authEnabled)
 	go func() {
 		err := r.server.ListenAndServe()
