@@ -16,118 +16,118 @@ const (
 	numberOfFilesInHelmConfigChart = 3
 )
 
-var repo = repository{}
-
-var _ = Describe("Fleet apply helm release", Ordered, func() {
-	When("apply a folder with fleet.yaml that contains a helm release in the repo field", func() {
-		testHelmRepo("helm_repo_url")
+var _ = Describe("Fleet apply helm release", func() {
+	When("applying a folder with fleet.yaml that contains a helm release in the repo field", Serial, func() {
+		testHelmRepo("helm_repo_url", ":3000")
 	})
-	When("apply a folder with fleet.yaml that contains a helm release in the chart field", func() {
-		testHelmRepo("helm_chart_url")
+
+	When("applying a folder with fleet.yaml that contains a helm release in the chart field", Serial, func() {
+		testHelmRepo("helm_chart_url", ":3001")
 	})
 })
 
-func testHelmRepo(path string) {
+func testHelmRepo(path, port string) {
+	var authEnabled bool
+	var repo = repository{
+		port: port,
+	}
+
+	JustBeforeEach(func() {
+		repo.startRepository(authEnabled)
+	})
+
+	AfterEach(func() {
+		err := repo.stopRepository()
+		Expect(err).NotTo(HaveOccurred())
+	})
+
 	When("no auth is required", func() {
-		BeforeAll(func() {
-			repo.startRepository(false)
-		})
-		AfterAll(func() {
-			err := repo.stopRepository()
-			Expect(err).NotTo(HaveOccurred())
+		BeforeEach(func() {
+			authEnabled = false
 		})
 		It("fleet apply success", func() {
-			err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{})
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		It("then Bundle is created with all the resources inside of the helm release", func() {
-			Eventually(verifyResourcesArePresent).Should(BeTrue())
+			Eventually(func() error {
+				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{})
+			}).Should(Not(HaveOccurred()))
+			By("verifying Bundle is created with all the resources inside of the helm release", func() {
+				Eventually(verifyResourcesArePresent).Should(BeTrue())
+			})
 		})
 	})
+
 	When("auth is required, and it is not provided", func() {
-		BeforeAll(func() {
-			repo.startRepository(true)
-		})
-		AfterAll(func() {
-			err := repo.stopRepository()
-			Expect(err).NotTo(HaveOccurred())
+		BeforeEach(func() {
+			authEnabled = true
 		})
 		It("fleet apply fails when no auth provided", func() {
-			err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{})
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("401"))
+			Eventually(func() string {
+				err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{})
+				Expect(err).To(HaveOccurred())
+				return err.Error()
+			}).Should(ContainSubstring("401"))
 		})
 	})
+
 	When("auth is required, and it is provided without --helm-repo-url-regex", func() {
-		BeforeAll(func() {
-			repo.startRepository(true)
-		})
-		AfterAll(func() {
-			err := repo.stopRepository()
-			Expect(err).NotTo(HaveOccurred())
+		BeforeEach(func() {
+			authEnabled = true
 		})
 		It("fleet apply success", func() {
-			err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{Auth: bundlereader.Auth{Username: username, Password: password}})
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		It("then Bundle is created with all the resources inside of the helm release", func() {
-			Eventually(verifyResourcesArePresent).Should(BeTrue())
-		})
-	})
-	When("auth is required, it is provided and --helm-repo-url-regex matches the repo url", func() {
-		BeforeAll(func() {
-			repo.startRepository(true)
-		})
-		AfterAll(func() {
-			err := repo.stopRepository()
-			Expect(err).NotTo(HaveOccurred())
-		})
-		It("fleet apply success", func() {
-			err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{
-				Auth:             bundlereader.Auth{Username: username, Password: password},
-				HelmRepoURLRegex: "http://localhost/*",
+			Eventually(func() error {
+				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{Auth: bundlereader.Auth{Username: username, Password: password}})
+			}).Should(Not(HaveOccurred()))
+			By("verifying Bundle is created with all the resources inside of the helm release", func() {
+				Eventually(verifyResourcesArePresent).Should(BeTrue())
 			})
-			Expect(err).NotTo(HaveOccurred())
-		})
-
-		It("then Bundle is created with all the resources inside of the helm release", func() {
-			Eventually(verifyResourcesArePresent).Should(BeTrue())
 		})
 	})
-	When("auth is required, and it is provided but --helm-repo-url-regex doesn't match", func() {
-		BeforeAll(func() {
-			repo.startRepository(true)
+
+	When("auth is required, it is provided and --helm-repo-url-regex matches the repo url", func() {
+		BeforeEach(func() {
+			authEnabled = true
 		})
-		AfterAll(func() {
-			err := repo.stopRepository()
-			Expect(err).NotTo(HaveOccurred())
+		It("fleet apply success", func() {
+			Eventually(func() error {
+				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{
+					Auth:             bundlereader.Auth{Username: username, Password: password},
+					HelmRepoURLRegex: "http://localhost/*",
+				})
+			}).Should(Not(HaveOccurred()))
+			By("verifying Bundle is created with all the resources inside of the helm release", func() {
+				Eventually(verifyResourcesArePresent).Should(BeTrue())
+			})
+		})
+	})
+
+	When("auth is required, and it is provided but --helm-repo-url-regex doesn't match", func() {
+		BeforeEach(func() {
+			authEnabled = true
 		})
 		It("fleet apply fails when --helm-repo-url-regex doesn't match the helm repo url", func() {
-			err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{
-				Auth:             bundlereader.Auth{Username: username, Password: password},
-				HelmRepoURLRegex: "nomatch",
-			})
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("401"))
+			Eventually(func() string {
+				err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{
+					Auth:             bundlereader.Auth{Username: username, Password: password},
+					HelmRepoURLRegex: "nomatch",
+				})
+				Expect(err).To(HaveOccurred())
+				return err.Error()
+			}).Should(ContainSubstring("401"))
 		})
 	})
+
 	When("auth is required, and it is provided but --helm-repo-url-regex is not valid", func() {
-		BeforeAll(func() {
-			repo.startRepository(true)
-		})
-		AfterAll(func() {
-			err := repo.stopRepository()
-			Expect(err).NotTo(HaveOccurred())
+		BeforeEach(func() {
+			authEnabled = true
 		})
 		It("fleet apply fails when --helm-repo-url-regex is not valid", func() {
-			err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{
-				Auth:             bundlereader.Auth{Username: username, Password: password},
-				HelmRepoURLRegex: "a(b",
-			})
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).Should(Equal("error parsing regexp: missing closing ): `a(b`"))
+			Eventually(func() string {
+				err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{
+					Auth:             bundlereader.Auth{Username: username, Password: password},
+					HelmRepoURLRegex: "a(b",
+				})
+				Expect(err).To(HaveOccurred())
+				return err.Error()
+			}).Should(Equal("error parsing regexp: missing closing ): `a(b`"))
 		})
 	})
 }
