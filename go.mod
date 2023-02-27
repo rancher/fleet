@@ -50,8 +50,8 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
 	github.com/rancher/gitjob v0.1.36
-	github.com/rancher/lasso v0.0.0-20221202205459-e7138f16489c
-	github.com/rancher/wrangler v1.0.2
+	github.com/rancher/lasso v0.0.0-20221227210133-6ea88ca2fbcc
+	github.com/rancher/wrangler v1.1.1
 	github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.6.1
