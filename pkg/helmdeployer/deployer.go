@@ -265,7 +265,7 @@ func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 	// releaseName has a limit of 53 in helm https://github.com/helm/helm/blob/main/pkg/action/install.go#L58
 	// fleet apply already produces valid names, but we need to make sure
 	// that bundles from other sources are valid
-	return timeout, ns, name2.Limit(bundleID, 53)
+	return timeout, ns, name2.HelmReleaseName(bundleID)
 }
 
 func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
