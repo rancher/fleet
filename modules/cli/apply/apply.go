@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -29,11 +28,7 @@ import (
 )
 
 var (
-	disallowedChars = regexp.MustCompile("[^a-zA-Z0-9-]+")
-	helmReleaseName = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
-	dnsLabelSafe    = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
-	multiDash       = regexp.MustCompile("-+")
-	ErrNoResources  = errors.New("no resources found to deploy")
+	ErrNoResources = errors.New("no resources found to deploy")
 )
 
 type Options struct {
@@ -178,57 +173,19 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*bund
 	})
 }
 
-// createName uses the bundle name + the path to the bundle to create a unique
-// name. The resulting name is DNS label safe (RFC1123) and complies with
-// Helm's regex for release names.
+// Dir reads a bundle and image scans from a directory and writes runtime objects to the selected output.
 //
 // name: the gitrepo name, passed to 'fleet apply' on the cli
 // basedir: the path from the walk func in Dir, []baseDirs
-func createName(name, baseDir string) string {
-	needHex := false
-
-	str := filepath.Join(name, baseDir)
-	str = strings.ReplaceAll(str, "/", "-")
-
-	// avoid collision from different case
-	if str != strings.ToLower(str) {
-		needHex = true
-	}
-
-	// avoid collision from disallowed characters
-	if disallowedChars.MatchString(str) {
-		needHex = true
-	}
-
-	if needHex {
-		// append checksum before cleaning up the string
-		str = fmt.Sprintf("%s-%s", str, name2.Hex(str, 8))
-	}
-
-	// clean up new name
-	str = strings.ToLower(str)
-	str = disallowedChars.ReplaceAllLiteralString(str, "-")
-	str = multiDash.ReplaceAllString(str, "-")
-	str = strings.TrimLeft(str, "-")
-	str = strings.TrimRight(str, "-")
-
-	// shorten name to 53 characters, the limit for helm release names
-	if helmReleaseName.MatchString(str) && dnsLabelSafe.MatchString(str) {
-		logrus.Debugf("shorten bundle name %v to %v\n", str, name2.Limit(str, 53))
-		return name2.Limit(str, 53)
-	}
-
-	// if the string ends up empty or otherwise invalid, fall back to just
-	// a checksum of the original input
-	logrus.Debugf("couldn't derive a valid bundle name, using checksum instead for '%s'", str)
-	return name2.Hex(filepath.Join(name, baseDir), 24)
-}
-
 func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
 	if opts == nil {
 		opts = &Options{}
 	}
-	bundle, err := readBundle(ctx, createName(name, baseDir), baseDir, opts)
+	// the bundleID is a valid helm release name, it's used as a default if a release name is not specified in helm options
+	bundleID := filepath.Join(name, baseDir)
+	bundleID = name2.HelmReleaseName(bundleID)
+
+	bundle, err := readBundle(ctx, bundleID, baseDir, opts)
 	if err != nil {
 		return err
 	}
