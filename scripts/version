@@ -32,8 +32,13 @@ HELM_VERSION=${HELM_TAG/v/}
 TAG=${TAG:-${VERSION}${SUFFIX}}
 REPO=${REPO:-rancher}
 
-if echo $TAG | grep -q dirty; then
+if echo "$TAG" | grep -q dirty; then
     TAG=dev
     HELM_TAG=dev
     HELM_VERSION=0.0.0-dev
 fi
+
+export HELM_TAG
+export HELM_VERSION
+export TAG
+export REPO

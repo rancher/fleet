@@ -1,9 +1,10 @@
 #!/bin/bash
 set -e
 
-source $(dirname $0)/version
+# shellcheck source=/dev/null
+source "$(dirname "$0")/version"
 
-cd $(dirname $0)/..
+cd "$(dirname "$0")/.."
 
 mkdir -p bin
 
@@ -19,19 +20,19 @@ fi
 OTHER_LINKFLAGS="-extldflags -static"
 
 function build-binaries() {
-    printf "Building for ${1}-${2} ...\n"
+    printf "Building for %s-%s ...\n" "${1}" "${2}"
     TEMP_LINKFLAGS=$LINKFLAGS
-    if [ $1 = "linux" ]; then
+    if [ "$1" = "linux" ]; then
         TEMP_LINKFLAGS="$LINKFLAGS $OTHER_LINKFLAGS"
     fi
     TEMP_SUFFIX=""
-    if [ $1 = "windows" ]; then
+    if [ "$1" = "windows" ]; then
         TEMP_SUFFIX=".exe"
     fi
-    GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleet-${1}-${2}${TEMP_SUFFIX}
-    if ! [ $1 = "darwin" ]; then
-        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetcontroller-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetcontroller
-        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetagent-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetagent
+    GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleet-"${1}"-"${2}"${TEMP_SUFFIX}
+    if ! [ "$1" = "darwin" ]; then
+        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetcontroller-"${1}"-"${2}"${TEMP_SUFFIX} ./cmd/fleetcontroller
+        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetagent-"${1}"-"${2}"${TEMP_SUFFIX} ./cmd/fleetagent
     fi
 }
 
@@ -42,8 +43,8 @@ if [ "$CROSS" = "true" ]; then
     fi
     OS_ARCH=( "linux amd64" "linux arm64" "linux s390x" "darwin amd64" "windows amd64" )
     for i in "${OS_ARCH[@]}"; do
-        set -- $i
-        build-binaries ${1} ${2}
+        set -- "$i"
+        build-binaries "${1}" "${2}"
     done
 elif [ "$CROSS" = "windows" ]; then
    build-binaries "windows" "amd64"
@@ -52,7 +53,7 @@ fi
 # Always build for the host (local) OS and ARCH unless otherwise specified (setting LOCAL to "false").
 # LOCAL will be set to "false" if CROSS is "true" (avoids compiling the host OS and ARCH twice).
 if ! [ "$LOCAL" = "false" ]; then
-    build-binaries ${OS} ${ARCH}
+    build-binaries "${OS}" "${ARCH}"
 fi
 
 mkdir -p dist/artifacts

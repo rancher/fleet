@@ -1,9 +1,10 @@
 #!/bin/bash
 set -e
 
-source $(dirname $0)/version
+# shellcheck source=/dev/null
+source "$(dirname "$0")/version"
 
-cd $(dirname $0)/..
+cd "$(dirname "$0")/.."
 
 mkdir -p bin
 mkdir -p dist/artifacts
@@ -23,8 +24,8 @@ function build-binary() {
     fi
 
     echo "Building binary: $BINARY"
-    GOOS=linux GOARCH=$AGENT_ARCH CGO_ENABLED=0 go build -ldflags "$LINKFLAGS" -o $OUT
-    cp bin/$BINARY dist/artifacts/
+    GOOS=linux GOARCH=$AGENT_ARCH CGO_ENABLED=0 go build -ldflags "$LINKFLAGS" -o "$OUT"
+    cp bin/"$BINARY" dist/artifacts/
 }
 
 build-binary fleet
@@ -32,4 +33,4 @@ build-binary fleetagent
 
 IMAGE=$REPO/fleet-agent:$TAG
 echo "Building fleet-agent image for linux-$AGENT_ARCH: $IMAGE"
-docker build -f package/Dockerfile.agent -t $IMAGE --build-arg ARCH=$AGENT_ARCH .
+docker build -f package/Dockerfile.agent -t "$IMAGE" --build-arg ARCH=$AGENT_ARCH .

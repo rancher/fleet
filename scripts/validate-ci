@@ -1,10 +1,11 @@
 #!/bin/bash
 set -e
 
-cd $(dirname $0)/..
+cd "$(dirname "$0")/.."
 
 go generate
 
+# shellcheck source=/dev/null
 source ./scripts/version
 
 if [ -n "$DIRTY" ]; then

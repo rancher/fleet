@@ -8,9 +8,9 @@ ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION-1.25}
 # install and prepare setup-envtest
 if ! command -v setup-envtest &> /dev/null
 then
-    go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$SETUP_ENVTEST_VER
+    go install sigs.k8s.io/controller-runtime/tools/setup-envtest@"$SETUP_ENVTEST_VER"
 fi
-KUBEBUILDER_ASSETS=$(setup-envtest use --use-env -p path $ENVTEST_K8S_VERSION)
+KUBEBUILDER_ASSETS=$(setup-envtest use --use-env -p path "$ENVTEST_K8S_VERSION")
 export KUBEBUILDER_ASSETS
 
 # run integration tests

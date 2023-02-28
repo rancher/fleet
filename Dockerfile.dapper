@@ -1,17 +1,17 @@
 FROM registry.suse.com/bci/golang:1.19
 
 ARG DAPPER_HOST_ARCH
-ENV ARCH $DAPPER_HOST_ARCH
+ENV ARCH "$DAPPER_HOST_ARCH"
 
 RUN zypper -n install git docker vim wget
-RUN curl -sL https://get.helm.sh/helm-v3.9.3-linux-${ARCH}.tar.gz | tar xvzf - -C /usr/local/bin --strip-components=1
+RUN curl -sL https://get.helm.sh/helm-v3.9.3-linux-"${ARCH}".tar.gz | tar xvzf - -C /usr/local/bin --strip-components=1
 
 ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS DEBUG
 ENV DAPPER_SOURCE /go/src/github.com/rancher/fleet/
 ENV DAPPER_OUTPUT ./bin ./dist
 ENV DAPPER_DOCKER_SOCKET true
 ENV DAPPER_RUN_ARGS "-v fleet-pkg:/go/pkg -v fleet-cache:/root/.cache"
-WORKDIR ${DAPPER_SOURCE}
+WORKDIR "${DAPPER_SOURCE}"
 
 ENTRYPOINT ["./scripts/entry"]
 CMD ["ci"]

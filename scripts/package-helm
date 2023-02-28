@@ -5,7 +5,8 @@ if ! hash helm 2>/dev/null; then
     exit 0
 fi
 
-cd $(dirname $0)/..
+cd "$(dirname "$0")/.."
+# shellcheck source=/dev/null
 . ./scripts/version
 
 rm -rf build/charts
@@ -14,26 +15,26 @@ cp -rf charts build/
 rm -rf build/charts/fleet-crd/templates/crds.yaml
 
 sed -i \
-    -e 's/version:.*/version: '${HELM_VERSION}'/' \
-    -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
+    -e 's/version:.*/version: '"${HELM_VERSION}"'/' \
+    -e 's/appVersion:.*/appVersion: '"${HELM_VERSION}"'/' \
     build/charts/fleet/Chart.yaml
 
 sed -i \
-    -e 's/tag:.*/tag: '${HELM_TAG}'/' \
+    -e 's/tag:.*/tag: '"${HELM_TAG}"'/' \
     build/charts/fleet/values.yaml
 
 sed -i \
-    -e 's/version:.*/version: '${HELM_VERSION}'/' \
-    -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
+    -e 's/version:.*/version: '"${HELM_VERSION}"'/' \
+    -e 's/appVersion:.*/appVersion: '"${HELM_VERSION}"'/' \
     build/charts/fleet-crd/Chart.yaml
 
 sed -i \
-    -e 's/version:.*/version: '${HELM_VERSION}'/' \
-    -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
+    -e 's/version:.*/version: '"${HELM_VERSION}"'/' \
+    -e 's/appVersion:.*/appVersion: '"${HELM_VERSION}"'/' \
     build/charts/fleet-agent/Chart.yaml
 
 sed -i \
-    -e 's/tag: dev/tag: '${HELM_TAG}'/' \
+    -e 's/tag: dev/tag: '"${HELM_TAG}"'/' \
     build/charts/fleet-agent/values.yaml
 
 go run ./pkg/codegen crds ./build/charts/fleet-crd/templates/crds.yaml
