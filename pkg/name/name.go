@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/sirupsen/logrus"
 )
 
@@ -75,8 +76,8 @@ func HelmReleaseName(str string) string {
 
 	// shorten name to 53 characters, the limit for helm release names
 	if helmReleaseName.MatchString(str) && dnsLabelSafe.MatchString(str) {
-		logrus.Debugf("shorten bundle name %v to %v\n", str, Limit(str, 53))
-		return Limit(str, 53)
+		logrus.Debugf("shorten bundle name %v to %v\n", str, Limit(str, v1alpha1.MaxHelmReleaseNameLen))
+		return Limit(str, v1alpha1.MaxHelmReleaseNameLen)
 	}
 
 	// if the string ends up empty or otherwise invalid, fall back to just
