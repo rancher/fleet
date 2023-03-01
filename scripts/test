@@ -7,4 +7,3 @@ echo Running tests
 
 readarray -t TEST_FILES < <(go list ./... | grep -v -e /e2e -e /integrationtests)
 go test -cover -tags=test "${TEST_FILES[@]}"
-echo "$1"

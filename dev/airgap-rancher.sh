@@ -19,7 +19,8 @@ rancher/thanosio-thanos
 rancher/webhook-receiver
 rancher/rancher-webhook"
 
-grep -f <(echo "$essentials") rancher-images.txt | grep -v windows >> running-images.txt
+# shellcheck disable=SC2086
+grep -f <(echo $essentials) rancher-images.txt | grep -v windows >> running-images.txt
 
 function pullpush() {
   reg="$1"

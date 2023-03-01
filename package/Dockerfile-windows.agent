@@ -1,12 +1,12 @@
 ARG SERVERCORE_VERSION
-FROM mcr.microsoft.com/windows/servercore:"${SERVERCORE_VERSION}"
+FROM mcr.microsoft.com/windows/servercore:${SERVERCORE_VERSION}
 ARG RELEASES
 ARG VERSION
-ENV RELEASES="$RELEASES"
-ENV VERSION="$VERSION"
+ENV RELEASES=$RELEASES
+ENV VERSION=$VERSION
 SHELL ["powershell", "-NoLogo", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 RUN pushd c:\; \
-    "$URL" = 'https://github.com/git-for-windows/git/releases/download/v2.33.1.windows.1/MinGit-2.33.1-64-bit.zip'; \
+    $URL = 'https://github.com/git-for-windows/git/releases/download/v2.33.1.windows.1/MinGit-2.33.1-64-bit.zip'; \
     \
     Write-Host ('Downloading git from {0} ...' -f $URL); \
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; \

@@ -6,13 +6,13 @@ COPY package/log.sh /usr/bin/
 
 FROM base AS copy_dapper
 ONBUILD ARG ARCH
-ONBUILD COPY bin/fleetagent-linux-"$ARCH" /usr/bin/fleetagent
-ONBUILD COPY bin/fleet-linux-"$ARCH" /usr/bin/fleet
+ONBUILD COPY bin/fleetagent-linux-$ARCH /usr/bin/fleetagent
+ONBUILD COPY bin/fleet-linux-$ARCH /usr/bin/fleet
 
 FROM base AS copy_buildx
 ONBUILD ARG TARGETARCH
-ONBUILD COPY bin/fleetagent-linux-"$TARGETARCH" /usr/bin/fleetagent
-ONBUILD COPY bin/fleet-linux-"$TARGETARCH" /usr/bin/fleet
+ONBUILD COPY bin/fleetagent-linux-$TARGETARCH /usr/bin/fleetagent
+ONBUILD COPY bin/fleet-linux-$TARGETARCH /usr/bin/fleet
 
-FROM copy_"${BUILD_ENV}"
+FROM copy_${BUILD_ENV}
 CMD ["fleetagent"]
