@@ -18,8 +18,8 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/bundle"
 	"github.com/rancher/fleet/pkg/bundleyaml"
+	name2 "github.com/rancher/fleet/pkg/name"
 
-	name2 "github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -214,7 +214,6 @@ func createName(name, baseDir string) string {
 
 	// shorten name to 53 characters, the limit for helm release names
 	if helmReleaseName.MatchString(str) && dnsLabelSafe.MatchString(str) {
-		// name2.Limit will add another checksum if the name is too long
 		logrus.Debugf("shorten bundle name %v to %v\n", str, name2.Limit(str, 53))
 		return name2.Limit(str, 53)
 	}

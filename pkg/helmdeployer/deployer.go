@@ -19,8 +19,10 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/kustomize"
 	"github.com/rancher/fleet/pkg/manifest"
+	name2 "github.com/rancher/fleet/pkg/name"
 	"github.com/rancher/fleet/pkg/rawyaml"
 	"github.com/rancher/fleet/pkg/render"
+
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kv"
@@ -246,9 +248,9 @@ func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 	}
 
 	// releaseName has a limit of 53 in helm https://github.com/helm/helm/blob/main/pkg/action/install.go#L58
-	// apply already makes sure that the bundle.Name/bundleID is not longer
-	// than 53 characters
-	return timeout, ns, bundleID
+	// fleet apply already produces valid names, but we need to make sure
+	// that bundles from other sources are valid
+	return timeout, ns, name2.Limit(bundleID, 53)
 }
 
 func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
