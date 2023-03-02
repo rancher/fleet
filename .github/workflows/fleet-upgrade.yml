@@ -16,6 +16,7 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_GO_VERSION: '1.19.*'
+  SETUP_K3D_VERSION: 'v5.4.7'
 
 jobs:
   fleet-upgrade-test:
@@ -50,6 +51,7 @@ jobs:
         uses: AbsaOSS/k3d-action@v2
         # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
         with:
+          k3d-version: ${{ env.SETUP_K3D_VERSION }}
           cluster-name: "upstream"
           args: >-
             --agents 3
