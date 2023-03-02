@@ -215,6 +215,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 
 	if err := connection.SmokeTestKubeClientConnection(kc); err != nil {
+		logrus.Errorf("Cluster import for '%s/%s'. Smoke test failed: %v", cluster.Namespace, cluster.Name, err)
 		return status, err
 	}
 
@@ -225,13 +226,14 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	setID := helmdeployer.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
 	apply = apply.WithDynamicLookup().WithSetID(setID).WithNoDeleteGVK(fleetns.GVK())
 
-	token, err := i.tokens.Get(cluster.Namespace, ImportTokenPrefix+cluster.Name)
+	tokenName := name.SafeConcatName(ImportTokenPrefix + cluster.Name)
+	token, err := i.tokens.Get(cluster.Namespace, tokenName)
 	if err != nil {
 		// ignore error
-		_, _ = i.tokenClient.Create(&fleet.ClusterRegistrationToken{
+		_, err = i.tokenClient.Create(&fleet.ClusterRegistrationToken{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: cluster.Namespace,
-				Name:      ImportTokenPrefix + cluster.Name,
+				Name:      tokenName,
 				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion: fleet.SchemeGroupVersion.String(),
@@ -245,6 +247,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				TTL: &metav1.Duration{Duration: durations.ClusterImportTokenTTL},
 			},
 		})
+		logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeueing)", cluster.Namespace, cluster.Name, err)
 		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
 		return status, nil
 	}
@@ -303,6 +306,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 
 	if err := apply.ApplyObjects(obj...); err != nil {
+		logrus.Errorf("Failed cluster import for '%s/%s'. Cannot create agent deployment", cluster.Namespace, cluster.Name)
 		return status, err
 	}
 	logrus.Infof("Cluster import for '%s/%s'. Deployed new agent", cluster.Namespace, cluster.Name)
