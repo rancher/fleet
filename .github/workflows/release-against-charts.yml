@@ -54,7 +54,7 @@ jobs:
         with:
           token: ${{secrets.CHART_PR_PAT}}
           push-to-fork: thardeck/charts
-          title: ' Update Fleet to v${{github.event.inputs.new_fleet}}'
+          title: 'Update Fleet to v${{github.event.inputs.new_fleet}}'
           body: |
             Update Fleet to v${{github.event.inputs.new_fleet}}
 
