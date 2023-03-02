@@ -16,7 +16,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '^1.18'
+  SETUP_GO_VERSION: '1.18.*'
   GINKGO_NODES: 1
   FLAKE_ATTEMPTS: 1
   GKE_ZONE: 'europe-west1-b'

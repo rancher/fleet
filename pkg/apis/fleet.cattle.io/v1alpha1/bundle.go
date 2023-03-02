@@ -31,6 +31,10 @@ var (
 	}
 )
 
+// MaxHelmReleaseNameLen is the maximum length of a Helm release name.
+// See https://github.com/helm/helm/blob/293b50c65d4d56187cd4e2f390f0ada46b4c4737/pkg/chartutil/validate_name.go#L54-L61
+const MaxHelmReleaseNameLen = 53
+
 type BundleState string
 
 // +genclient
