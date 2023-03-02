@@ -24,7 +24,8 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '^1.19'
+  SETUP_GO_VERSION: '1.19.*'
+  SETUP_K3D_VERSION: 'v5.4.7'
 
 jobs:
   rancher-integration:
@@ -122,6 +123,7 @@ jobs:
         name: Set up k3d control-plane cluster
         uses: AbsaOSS/k3d-action@v2
         with:
+          k3d-version: ${{ env.SETUP_K3D_VERSION }}
           cluster-name: "upstream"
           args: >-
             -p "80:80@agent:0:direct"
@@ -135,6 +137,7 @@ jobs:
         name: Set up k3d downstream cluster
         uses: AbsaOSS/k3d-action@v2
         with:
+          k3d-version: ${{ env.SETUP_K3D_VERSION }}
           cluster-name: "downstream"
           args: >-
             -p "81:80@agent:0:direct"
