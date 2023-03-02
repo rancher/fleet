@@ -125,9 +125,10 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 	var objs []runtime.Object
 
 	for _, cluster := range clusters {
-		logrus.Infof("Updated agent for cluster %s/%s", cluster.Namespace, cluster.Name)
+		logrus.Infof("Update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
 		bundle, err := h.getAgentBundle(namespace.Name, cluster)
 		if err != nil {
+			logrus.Errorf("Failed to update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
 			return nil, err
 		}
 		objs = append(objs, bundle)
