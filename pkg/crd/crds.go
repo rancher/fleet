@@ -195,7 +195,7 @@ func releaseNameValidation() apiextv1.JSONSchemaProps {
 	return apiextv1.JSONSchemaProps{
 		Type:      "string",
 		Pattern:   `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`,
-		MaxLength: &[]int64{53}[0],
+		MaxLength: &[]int64{fleet.MaxHelmReleaseNameLen}[0],
 		Nullable:  true,
 	}
 }

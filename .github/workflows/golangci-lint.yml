@@ -1,7 +1,7 @@
 name: golangci-lint
 
 env:
-  SETUP_GO_VERSION: '^1.19'
+  SETUP_GO_VERSION: '1.19.*'
 
 on:
   schedule:
@@ -31,7 +31,7 @@ jobs:
         uses: golangci/golangci-lint-action@v3.3.1
         with:
           # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
-          version: v1.48
+          version: v1.51
 
           args: --timeout=10m --config=.golangci.json
 
