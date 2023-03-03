@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Checkout Fleet branch/tag"
+        description: "Branch to use for GitHub action workflow"
         required: true
         default: "master"
       charts_ref:
