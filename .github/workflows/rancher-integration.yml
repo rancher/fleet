@@ -26,6 +26,7 @@ env:
   CGO_ENABLED: 0
   SETUP_GO_VERSION: '1.19.*'
   SETUP_K3D_VERSION: 'v5.4.7'
+  SETUP_K3S_VERSION: 'v1.24.1-k3s1'
 
 jobs:
   rancher-integration:
@@ -133,6 +134,7 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*'
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
+            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
       -
         name: Set up k3d downstream cluster
         uses: AbsaOSS/k3d-action@v2
@@ -147,6 +149,7 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*'
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
+            --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
       -
         name: Set up tmate debug session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
