@@ -24,4 +24,4 @@ trap 'kill $!' EXIT
 tput bold
 echo 'Please wait for the line "debug layer=debugger continuing" to appear...'
 tput sgr0
-kubectl --namespace "$ns" debug -it "pod/$pod" --image=ghcr.io/moio/delve-debugger:latest --target="$app" --env="[EXECUTABLE=$procname]"
+kubectl --namespace "$ns" debug -it "pod/$pod" --image=ghcr.io/rancherlabs/delve-debugger:latest --target="$app" --env="[EXECUTABLE=$procname]"
