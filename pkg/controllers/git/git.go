@@ -208,7 +208,7 @@ func isAllowed(currentValue, defaultValue string, allowedValues []string, patter
 		if err != nil {
 			return currentValue, err
 		}
-		if p.MatchString(allowedValue) {
+		if p.MatchString(currentValue) {
 			return currentValue, nil
 		}
 	}
