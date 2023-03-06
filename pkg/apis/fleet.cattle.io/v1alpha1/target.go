@@ -58,14 +58,18 @@ type Cluster struct {
 }
 
 type ClusterSpec struct {
-	Paused                  bool        `json:"paused,omitempty"`
-	ClientID                string      `json:"clientID,omitempty"`
-	KubeConfigSecret        string      `json:"kubeConfigSecret,omitempty"`
-	RedeployAgentGeneration int64       `json:"redeployAgentGeneration,omitempty"`
-	AgentEnvVars            []v1.EnvVar `json:"agentEnvVars,omitempty"`
+	Paused                  bool   `json:"paused,omitempty"`
+	ClientID                string `json:"clientID,omitempty"`
+	KubeConfigSecret        string `json:"kubeConfigSecret,omitempty"`
+	RedeployAgentGeneration int64  `json:"redeployAgentGeneration,omitempty"`
+
+	// AgentEnvVars are extra environment variables to be added to the agent deployment
+	AgentEnvVars []v1.EnvVar `json:"agentEnvVars,omitempty"`
 
 	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system
 	AgentNamespace string `json:"agentNamespace,omitempty"`
+
+	// PrivateRepoURL prefixes the image name and overrides a global repo URL from the agents config
 	PrivateRepoURL string `json:"privateRepoURL,omitempty"`
 
 	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating
