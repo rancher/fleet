@@ -80,6 +80,9 @@ type GitRepoSpec struct {
 	// Commit specifies how to commit to the git repo when new image is scanned and write back to git repo
 	// +required
 	ImageScanCommit CommitSpec `json:"imageScanCommit,omitempty"`
+
+	// KeepResources specifies if the resources created must be kept after deleting the GitRepo
+	KeepResources bool `json:"keepResources,omitempty"`
 }
 
 type GitTarget struct {

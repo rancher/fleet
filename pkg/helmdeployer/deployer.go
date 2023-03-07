@@ -40,6 +40,7 @@ const (
 	AgentNamespaceAnnotation     = "fleet.cattle.io/agent-namespace"
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleet-default"
+	KeepResourcesAnnotation      = "fleet.cattle.io/keep-resources"
 )
 
 var (
@@ -84,6 +85,8 @@ type DeployedBundle struct {
 	BundleID string
 	// ReleaseName is actually in the form "namespace/release name"
 	ReleaseName string
+	// KeepResources indicate if resources should be kept when deleting a GitRepo or Bundle
+	KeepResources bool
 }
 
 func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
@@ -204,6 +207,8 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	chart.Metadata.Annotations[ServiceAccountNameAnnotation] = options.ServiceAccount
 	chart.Metadata.Annotations[BundleIDAnnotation] = bundleID
 	chart.Metadata.Annotations[AgentNamespaceAnnotation] = h.agentNamespace
+	chart.Metadata.Annotations[KeepResourcesAnnotation] = strconv.FormatBool(options.KeepResources)
+
 	if manifest.Commit != "" {
 		chart.Metadata.Annotations[CommitAnnotation] = manifest.Commit
 	}
@@ -486,9 +491,12 @@ func (h *Helm) ListDeployments() ([]DeployedBundle, error) {
 		if ns != "" && ns != h.agentNamespace {
 			continue
 		}
+		// ignore error as keepResources should be false if annotation not found
+		keepResources, _ := strconv.ParseBool(release.Chart.Metadata.Annotations[KeepResourcesAnnotation])
 		result = append(result, DeployedBundle{
-			BundleID:    d,
-			ReleaseName: release.Namespace + "/" + release.Name,
+			BundleID:      d,
+			ReleaseName:   release.Namespace + "/" + release.Name,
+			KeepResources: keepResources,
 		})
 	}
 
@@ -580,6 +588,7 @@ func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string)
 // format "namespace/name". If releaseName is empty, search for a matching
 // release.
 func (h *Helm) Delete(bundleID, releaseName string) error {
+	keepResources := false
 	if releaseName == "" {
 		deployments, err := h.ListDeployments()
 		if err != nil {
@@ -588,6 +597,7 @@ func (h *Helm) Delete(bundleID, releaseName string) error {
 		for _, deployment := range deployments {
 			if deployment.BundleID == bundleID {
 				releaseName = deployment.ReleaseName
+				keepResources = deployment.KeepResources
 				break
 			}
 		}
@@ -596,10 +606,10 @@ func (h *Helm) Delete(bundleID, releaseName string) error {
 		// Never found anything to delete
 		return nil
 	}
-	return h.deleteByRelease(bundleID, releaseName)
+	return h.deleteByRelease(bundleID, releaseName, keepResources)
 }
 
-func (h *Helm) deleteByRelease(bundleID, releaseName string) error {
+func (h *Helm) deleteByRelease(bundleID, releaseName string, keepResources bool) error {
 	releaseNamespace, releaseName := kv.Split(releaseName, "/")
 	rels, err := h.globalCfg.Releases.List(func(r *release.Release) bool {
 		return r.Namespace == releaseNamespace &&
@@ -631,6 +641,11 @@ func (h *Helm) deleteByRelease(bundleID, releaseName string) error {
 
 	if strings.HasPrefix(bundleID, "fleet-agent") {
 		// Never uninstall the fleet-agent, just "forget" it
+		return deleteHistory(cfg, bundleID)
+	}
+
+	if keepResources {
+		// don't delete resources, just delete the helm release secrets
 		return deleteHistory(cfg, bundleID)
 	}
 

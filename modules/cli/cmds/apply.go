@@ -39,6 +39,7 @@ type Apply struct {
 	CACertsFile       string            `usage:"Path of custom cacerts for helm repo" name:"cacerts-file"`
 	SSHPrivateKeyFile string            `usage:"Path of ssh-private-key for helm repo" name:"ssh-privatekey-file"`
 	HelmRepoURLRegex  string            `usage:"Helm credentials will be used if the helm repo matches this regex. Credentials will always be used if this is empty or not provided" name:"helm-repo-url-regex"`
+	KeepResources     bool              `usage:"Keep resources created after the GitRepo or Bundle is deleted" name:"keep-resources"`
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
@@ -65,6 +66,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		Paused:           a.Paused,
 		SyncGeneration:   int64(a.SyncGeneration),
 		HelmRepoURLRegex: a.HelmRepoURLRegex,
+		KeepResources:    a.KeepResources,
 	}
 
 	if a.Username != "" && a.PasswordFile != "" {

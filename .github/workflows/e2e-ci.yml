@@ -97,7 +97,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo e2e/single-cluster
+          ginkgo e2e/single-cluster e2e/keep-resources
       -
         name: Fleet Tests Requiring Github Secrets
         # These tests can't run for PRs, because PRs don't have access to the secrets

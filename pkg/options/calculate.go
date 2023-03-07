@@ -107,5 +107,7 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 	if custom.ForceSyncGeneration > 0 {
 		result.ForceSyncGeneration = custom.ForceSyncGeneration
 	}
+	result.KeepResources = result.KeepResources || custom.KeepResources
+
 	return result
 }
