@@ -4,7 +4,7 @@ updates:
     package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     labels:
       - "dependencies"
   -
@@ -18,7 +18,7 @@ updates:
     package-ecosystem: "docker"
     directory: "/package/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
     labels:
       - "dependencies"
   -
