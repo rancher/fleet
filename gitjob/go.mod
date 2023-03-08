@@ -1,6 +1,6 @@
 module github.com/rancher/gitjob
 
-go 1.18
+go 1.19
 
 replace (
 	github.com/matryer/moq => github.com/rancher/moq v0.0.0-20190404221404-ee5226d43009
