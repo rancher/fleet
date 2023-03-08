@@ -208,7 +208,7 @@ func isAllowed(currentValue, defaultValue string, allowedValues []string, patter
 		if err != nil {
 			return currentValue, err
 		}
-		if p.MatchString(allowedValue) {
+		if p.MatchString(currentValue) {
 			return currentValue, nil
 		}
 	}
@@ -640,6 +640,10 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 		fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
 		"--target-namespace", gitrepo.Spec.TargetNamespace,
 	)
+
+	if gitrepo.Spec.KeepResources {
+		args = append(args, "--keep-resources")
+	}
 
 	var env []corev1.EnvVar
 	if gitrepo.Spec.HelmSecretName != "" {

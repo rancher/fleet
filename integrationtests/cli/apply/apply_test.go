@@ -14,7 +14,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("then a Bundle is created with all the resources", func() {
+		It("then a Bundle is created with all the resources and keepResources is false", func() {
 			Eventually(func() bool {
 				bundle, err := cli.GetBundleFromOutput(buf)
 				Expect(err).NotTo(HaveOccurred())
@@ -24,7 +24,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 				isDeploymentPresent, err := cli.IsResourcePresentInBundle(cli.AssetsPath+"simple/deployment.yaml", bundle.Spec.Resources)
 				Expect(err).NotTo(HaveOccurred())
 
-				return isSvcPresent && isDeploymentPresent
+				return isSvcPresent && isDeploymentPresent && !bundle.Spec.KeepResources
 			}).Should(BeTrue())
 		})
 	})
@@ -143,6 +143,20 @@ var _ = Describe("Fleet apply", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				return isFleetAPresent && isDeploymentAPresent && isFleetCPresent && isRootDeploymentAPresent && isRootFleetAPresent && isRootSvcBPresent && isRootFleetCPresent && isRootDeploymentDPresent
+			}).Should(BeTrue())
+		})
+	})
+	When("containing keepResources in the fleet.yaml", func() {
+		It("fleet apply is called", func() {
+			err := fleetApply("keepResources", []string{cli.AssetsPath + "keep_resources"}, &apply.Options{})
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("then a Bundle is created with keepResources", func() {
+			Eventually(func() bool {
+				bundle, err := cli.GetBundleFromOutput(buf)
+				Expect(err).NotTo(HaveOccurred())
+				return bundle.Spec.KeepResources
 			}).Should(BeTrue())
 		})
 	})

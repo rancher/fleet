@@ -183,6 +183,8 @@ spec:
                   waitForJobs:
                     type: boolean
                 type: object
+              keepResources:
+                type: boolean
               kustomize:
                 nullable: true
                 properties:
@@ -556,6 +558,8 @@ spec:
                         waitForJobs:
                           type: boolean
                       type: object
+                    keepResources:
+                      type: boolean
                     kustomize:
                       nullable: true
                       properties:
@@ -1071,6 +1075,8 @@ spec:
                       waitForJobs:
                         type: boolean
                     type: object
+                  keepResources:
+                    type: boolean
                   kustomize:
                     nullable: true
                     properties:
@@ -1220,6 +1226,8 @@ spec:
                       waitForJobs:
                         type: boolean
                     type: object
+                  keepResources:
+                    type: boolean
                   kustomize:
                     nullable: true
                     properties:
@@ -2154,6 +2162,8 @@ spec:
                 nullable: true
                 type: string
               insecureSkipTLSVerify:
+                type: boolean
+              keepResources:
                 type: boolean
               paths:
                 items:

@@ -29,12 +29,12 @@ const (
 
 type ManifestOptions struct {
 	AgentEnvVars          []corev1.EnvVar
-	AgentImage            string
+	AgentImage            string // DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
 	AgentImagePullPolicy  string
 	AgentTolerations      []corev1.Toleration
 	CheckinInterval       string
 	Generation            string
-	PrivateRepoURL        string
+	PrivateRepoURL        string // PrivateRepoURL = registry.yourdomain.com:5000
 	SystemDefaultRegistry string
 }
 
@@ -86,60 +86,10 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 		},
 	}
 
-	// PrivateRepoURL = registry.yourdomain.com:5000
-	// DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
-	image := resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
-
 	// if debug is enabled in controller, enable in agents too (unless otherwise specified)
 	propagateDebug, _ := strconv.ParseBool(os.Getenv("FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS"))
 	debug := logrus.IsLevelEnabled(logrus.DebugLevel) && propagateDebug
-	dep := agentDeployment(namespace, DefaultName, image, opts.AgentImagePullPolicy, DefaultName, false, debug)
-
-	// additional tolerations
-	dep.Spec.Template.Spec.Tolerations = append(dep.Spec.Template.Spec.Tolerations, opts.AgentTolerations...)
-
-	dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env,
-		corev1.EnvVar{
-			Name:  "AGENT_SCOPE",
-			Value: agentScope,
-		},
-		corev1.EnvVar{
-			Name:  "CHECKIN_INTERVAL",
-			Value: opts.CheckinInterval,
-		},
-		corev1.EnvVar{
-			Name:  "GENERATION",
-			Value: opts.Generation,
-		})
-	if opts.AgentEnvVars != nil {
-		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, opts.AgentEnvVars...)
-	}
-	if debug {
-		dep.Spec.Template.Spec.Containers[0].Command = []string{
-			"fleetagent",
-			"--debug",
-			"--debug-level",
-			strconv.Itoa(DebugLevel),
-		}
-	}
-	dep.Spec.Template.Spec.Affinity = &corev1.Affinity{
-		NodeAffinity: &corev1.NodeAffinity{
-			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{
-				{
-					Weight: 1,
-					Preference: corev1.NodeSelectorTerm{
-						MatchExpressions: []corev1.NodeSelectorRequirement{
-							{
-								Key:      "fleet.cattle.io/agent",
-								Operator: corev1.NodeSelectorOpIn,
-								Values:   []string{"true"},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+	deployment := agentDeployment(namespace, agentScope, opts, debug)
 
 	networkPolicy := &networkv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -163,7 +113,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 
 	var objs []runtime.Object
 	objs = append(objs, clusterRole...)
-	objs = append(objs, sa, defaultSa, dep, networkPolicy)
+	objs = append(objs, sa, defaultSa, deployment, networkPolicy)
 
 	return objs
 }
@@ -179,8 +129,12 @@ func resolve(global, prefix, image string) string {
 	return image
 }
 
-func agentDeployment(namespace, name, image, imagePullPolicy, serviceAccount string, linuxOnly, debug bool) *appsv1.Deployment {
-	deployment := &appsv1.Deployment{
+func agentDeployment(namespace string, agentScope string, opts ManifestOptions, debug bool) *appsv1.Deployment {
+	name := DefaultName
+	serviceAccount := DefaultName
+	image := resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
+
+	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
@@ -203,7 +157,7 @@ func agentDeployment(namespace, name, image, imagePullPolicy, serviceAccount str
 						{
 							Name:            name,
 							Image:           image,
-							ImagePullPolicy: corev1.PullPolicy(imagePullPolicy),
+							ImagePullPolicy: corev1.PullPolicy(opts.AgentImagePullPolicy),
 							Env: []corev1.EnvVar{
 								{
 									Name: "NAMESPACE",
@@ -213,15 +167,51 @@ func agentDeployment(namespace, name, image, imagePullPolicy, serviceAccount str
 										},
 									},
 								},
+								{Name: "AGENT_SCOPE", Value: agentScope},
+								{Name: "CHECKIN_INTERVAL", Value: opts.CheckinInterval},
+								{Name: "GENERATION", Value: opts.Generation},
 							},
+						},
+					},
+					Affinity: &corev1.Affinity{
+						NodeAffinity: &corev1.NodeAffinity{
+							PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{
+								{
+									Weight: 1,
+									Preference: corev1.NodeSelectorTerm{
+										MatchExpressions: []corev1.NodeSelectorRequirement{
+											{
+												Key:      "fleet.cattle.io/agent",
+												Operator: corev1.NodeSelectorOpIn,
+												Values:   []string{"true"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "node.cloudprovider.kubernetes.io/uninitialized",
+							Operator: corev1.TolerationOpEqual,
+							Value:    "true",
+							Effect:   corev1.TaintEffectNoSchedule,
+						},
+						{
+							Key:      "cattle.io/os",
+							Operator: corev1.TolerationOpEqual,
+							Value:    "linux",
+							Effect:   corev1.TaintEffectNoSchedule,
 						},
 					},
 				},
 			},
 		},
 	}
+
 	if !debug {
-		for _, container := range deployment.Spec.Template.Spec.Containers {
+		for _, container := range dep.Spec.Template.Spec.Containers {
 			container.SecurityContext = &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &[]bool{false}[0],
 				ReadOnlyRootFilesystem:   &[]bool{true}[0],
@@ -229,28 +219,31 @@ func agentDeployment(namespace, name, image, imagePullPolicy, serviceAccount str
 				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
 			}
 		}
-		deployment.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
+		dep.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 			RunAsUser:    &[]int64{1000}[0],
 			RunAsGroup:   &[]int64{1000}[0],
 		}
 	}
-	if linuxOnly {
-		deployment.Spec.Template.Spec.NodeSelector = map[string]string{"kubernetes.io/os": "linux"}
-	}
-	deployment.Spec.Template.Spec.Tolerations = append(deployment.Spec.Template.Spec.Tolerations, corev1.Toleration{
-		Key:      "node.cloudprovider.kubernetes.io/uninitialized",
-		Operator: corev1.TolerationOpEqual,
-		Value:    "true",
-		Effect:   corev1.TaintEffectNoSchedule,
-	}, corev1.Toleration{
-		Key:      "cattle.io/os",
-		Operator: corev1.TolerationOpEqual,
-		Value:    "linux",
-		Effect:   corev1.TaintEffectNoSchedule,
-	})
 
-	return deployment
+	// additional tolerations from cluster
+	dep.Spec.Template.Spec.Tolerations = append(dep.Spec.Template.Spec.Tolerations, opts.AgentTolerations...)
+
+	// additional env vars from cluster
+	if opts.AgentEnvVars != nil {
+		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, opts.AgentEnvVars...)
+	}
+
+	if debug {
+		dep.Spec.Template.Spec.Containers[0].Command = []string{
+			"fleetagent",
+			"--debug",
+			"--debug-level",
+			strconv.Itoa(DebugLevel),
+		}
+	}
+
+	return dep
 }
 
 func serviceAccount(namespace, name string) *corev1.ServiceAccount {
