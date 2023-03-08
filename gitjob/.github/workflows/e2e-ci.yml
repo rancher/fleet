@@ -14,7 +14,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '^1.18'
+  SETUP_GO_VERSION: '1.19.*'
 
 jobs:
   e2e-gitjob-test:
