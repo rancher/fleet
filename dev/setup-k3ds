@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-args=${k3d_args-}
+args=${k3d_args---network fleet}
 docker_mirror=${docker_mirror-}
 
 if [ -n "$docker_mirror" ]; then
