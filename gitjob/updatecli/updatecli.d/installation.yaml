@@ -5,7 +5,7 @@ scms:
     kind: github
     spec:
       user: gitjob-bot
-      email: gitjob@olblak.com
+      email: fleet@suse.de
       owner: rancher
       repository: gitjob
       token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
