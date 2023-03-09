@@ -20,7 +20,6 @@ steps:
   settings:
     api_key:
       from_secret: github_token
-    prerelease: true
     checksum:
       - sha256
     checksum_file: CHECKSUMsum-amd64.txt
