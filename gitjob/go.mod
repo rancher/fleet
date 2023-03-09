@@ -11,7 +11,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.0
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/gorilla/mux v1.8.0
-	github.com/onsi/ginkgo/v2 v2.8.4
+	github.com/onsi/ginkgo/v2 v2.9.0
 	github.com/onsi/gomega v1.27.2
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/lasso v0.0.0-20221227210133-6ea88ca2fbcc
