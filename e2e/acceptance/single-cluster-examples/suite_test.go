@@ -1,4 +1,4 @@
-package mc_examples_test
+package examples_test
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ import (
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "E2E Suite for Multi-Cluster")
+	RunSpecs(t, "E2E Suite for Single-Cluster Examples")
 }
 
 var (
@@ -20,7 +20,7 @@ var (
 
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(testenv.Timeout)
-	testenv.SetRoot("../..")
+	testenv.SetRoot("../../..")
 
 	env = testenv.New()
 })

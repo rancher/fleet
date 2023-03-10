@@ -68,7 +68,7 @@ var _ = Describe("BundleDiffs", func() {
 
 	When("fleet.yaml contains bundle-diff patches", func() {
 		BeforeEach(func() {
-			asset = "bundle-diffs/gitrepo.yaml"
+			asset = "single-cluster/bundle-diffs.yaml"
 		})
 
 		JustBeforeEach(func() {
