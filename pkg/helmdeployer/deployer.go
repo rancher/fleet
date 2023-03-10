@@ -589,17 +589,17 @@ func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string)
 // release.
 func (h *Helm) Delete(bundleID, releaseName string) error {
 	keepResources := false
-	if releaseName == "" {
-		deployments, err := h.ListDeployments()
-		if err != nil {
-			return err
-		}
-		for _, deployment := range deployments {
-			if deployment.BundleID == bundleID {
+	deployments, err := h.ListDeployments()
+	if err != nil {
+		return err
+	}
+	for _, deployment := range deployments {
+		if deployment.BundleID == bundleID {
+			if releaseName == "" {
 				releaseName = deployment.ReleaseName
-				keepResources = deployment.KeepResources
-				break
 			}
+			keepResources = deployment.KeepResources
+			break
 		}
 	}
 	if releaseName == "" {
