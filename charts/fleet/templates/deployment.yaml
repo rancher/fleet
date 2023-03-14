@@ -19,6 +19,10 @@ spec:
               fieldPath: metadata.namespace
         - name: FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS
           value: {{ quote .Values.propagateDebugSettingsToAgents }}
+        {{- if .Values.clusterEnqueueDelay }}
+        - name: FLEET_CLUSTER_ENQUEUE_DELAY
+          value: {{ .Values.clusterEnqueueDelay }}
+        {{- end }}
         {{- if .Values.proxy }}
         - name: HTTP_PROXY
           value: {{ .Values.proxy }}
