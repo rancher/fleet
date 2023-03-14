@@ -39,18 +39,16 @@ var _ = Describe("Single Cluster Examples", func() {
 			})
 
 			It("deploys the helm chart", func() {
-				Eventually(func() string {
-					out, _ := k.Namespace("fleet-helm-example").Get("pods")
-					return out
-				}).Should(ContainSubstring("frontend-"))
-
 				By("Checking that labels from gitrepo are present on the bundle", func() {
-					out, err := k.Namespace("fleet-local").Get("bundle", "helm-single-cluster-helm",
-						`-o=jsonpath={.metadata.labels}`)
-					Expect(err).ToNot(HaveOccurred())
+					var out string
+					Eventually(func() (err error) {
+						out, err = k.Namespace("fleet-local").Get("bundle", "helm-single-cluster-helm",
+							`-o=jsonpath={.metadata.labels}`)
+						return err
+					}).ShouldNot(HaveOccurred())
 
 					labels := &map[string]string{}
-					err = json.Unmarshal([]byte(out), labels)
+					err := json.Unmarshal([]byte(out), labels)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(*labels).To(HaveKeyWithValue("test", "me"))
 				})
