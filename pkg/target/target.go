@@ -223,14 +223,12 @@ func (m *Manager) getNamespacesForBundle(bundle *fleet.Bundle) ([]string, error)
 			logrus.Errorf("invalid BundleNamespaceMapping %s/%s skipping: %v", mapping.Namespace, mapping.Name, err)
 			continue
 		}
-		if matcher.Matches(bundle) {
-			namespaces, err := matcher.Namespaces()
-			if err != nil {
-				return nil, err
-			}
-			for _, namespace := range namespaces {
-				nses.Insert(namespace.Name)
-			}
+		namespaces, err := matcher.Namespaces()
+		if err != nil {
+			return nil, err
+		}
+		for _, namespace := range namespaces {
+			nses.Insert(namespace.Name)
 		}
 	}
 
