@@ -15,7 +15,8 @@ spec:
       containers:
         - image: "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag }}"
           name: gitjob
-          args:
+          command:
+          - gitjob
           {{- if .Values.debug }}
           - --debug
           {{- end }}
