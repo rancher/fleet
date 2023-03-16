@@ -2,7 +2,7 @@
 #
 # Submit new Fleet version against rancher/charts
 
-set -uex
+set -ue
 
 PREV_FLEET_VERSION="$1"   # e.g. 0.5.2-rc.3
 NEW_FLEET_VERSION="$2"
