@@ -69,8 +69,8 @@ var _ = Describe("Single Cluster Examples", func() {
 					out, _ := k.Namespace("fleet-local").Get("bundles")
 					return out
 				}).Should(SatisfyAll(
-					ContainSubstring("multiple-paths-single-cluster-manifests"),
-					ContainSubstring("multiple-paths-single-cluster-helm"),
+					ContainSubstring("multiple-paths-multiple-paths-config"),
+					ContainSubstring("multiple-paths-multiple-paths-service"),
 				))
 
 				out, _ := k.Namespace("fleet-local").Get("bundles",
@@ -82,19 +82,19 @@ var _ = Describe("Single Cluster Examples", func() {
 					out, _ := k.Get("bundledeployments", "-A")
 					return out
 				}).Should(SatisfyAll(
-					ContainSubstring("multiple-paths-single-cluster-manifests"),
-					ContainSubstring("multiple-paths-single-cluster-helm"),
+					ContainSubstring("multiple-paths-multiple-paths-config"),
+					ContainSubstring("multiple-paths-multiple-paths-service"),
 				))
 
 				Eventually(func() string {
-					out, _ := k.Namespace("fleet-manifest-example").Get("deployments")
+					out, _ := k.Namespace("test-fleet-mp-config").Get("configmaps")
 					return out
-				}).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+				}).Should(ContainSubstring("mp-app-config"))
 
 				Eventually(func() string {
-					out, _ := k.Namespace("fleet-helm-example").Get("deployments")
+					out, _ := k.Namespace("test-fleet-mp-service").Get("services")
 					return out
-				}).Should(SatisfyAll(ContainSubstring("frontend"), ContainSubstring("redis-")))
+				}).Should(ContainSubstring("mp-app-service"))
 			})
 		})
 	})
