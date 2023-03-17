@@ -41,6 +41,7 @@ const (
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleet-default"
 	KeepResourcesAnnotation      = "fleet.cattle.io/keep-resources"
+	HelmUpgradeInterruptedError  = "another operation (install/upgrade/rollback) is in progress"
 )
 
 var (
@@ -405,7 +406,20 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	if !dryRun {
 		logrus.Infof("Helm: Upgrading %s", bundleID)
 	}
-	return u.Run(releaseName, chart, values)
+	rel, err := u.Run(releaseName, chart, values)
+	if err != nil && err.Error() == HelmUpgradeInterruptedError {
+		logrus.Infof("Helm error: %s for %s. Doing a rollback", HelmUpgradeInterruptedError, bundleID)
+		r := action.NewRollback(&cfg)
+		err = r.Run(releaseName)
+		if err != nil {
+			return nil, err
+		}
+		logrus.Debugf("Helm: retrying upgrade for %s after rollback", bundleID)
+
+		return u.Run(releaseName, chart, values)
+	}
+
+	return rel, err
 }
 
 func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
