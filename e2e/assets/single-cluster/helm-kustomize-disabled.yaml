@@ -9,6 +9,7 @@ metadata:
   name: helm-kustomize-disabled
 spec:
   repo: https://github.com/rancher/fleet-test-data
-  branch: test-helm-kustomize-disabled
+  branch: master
+  targetNamespace: helm-kustomize-disabled
   paths:
-    - config-chart
+    - helm-kustomize-disabled

@@ -53,9 +53,9 @@ var _ = Describe("Single Cluster Examples", func() {
 
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
-					out, _ := k.Namespace("helm-kustomize-disabled").Get("configmap")
+					out, _ := k.Namespace("helm-kustomize-disabled").Get("configmap", "-o", "yaml")
 					return out
-				}).Should(ContainSubstring("helm-kustomize-disabled"))
+				}).Should(ContainSubstring("name: helm-kustomize-disabled"))
 			})
 		})
 

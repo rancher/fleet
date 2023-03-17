@@ -4,6 +4,6 @@ metadata:
   name: helm-verify-test
 spec:
   repo: https://github.com/rancher/fleet-test-data
-  branch: test-helm-verify
+  branch: master
   paths:
   - helm-verify
