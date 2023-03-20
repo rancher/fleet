@@ -58,6 +58,7 @@ type Cluster struct {
 }
 
 type ClusterSpec struct {
+	// Paused if set to true, will stop any BundleDeployments from being updated.
 	Paused                  bool   `json:"paused,omitempty"`
 	ClientID                string `json:"clientID,omitempty"`
 	KubeConfigSecret        string `json:"kubeConfigSecret,omitempty"`
