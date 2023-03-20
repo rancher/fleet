@@ -8,7 +8,8 @@ apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: helm-kustomize-disabled
 spec:
-  repo: https://github.com/rancher/fleet-examples
-  branch: test-helm-kustomize-disabled
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  targetNamespace: helm-kustomize-disabled
   paths:
-    - config-chart
+    - helm-kustomize-disabled

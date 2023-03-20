@@ -3,7 +3,7 @@ apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: helm-verify-test
 spec:
-  repo: https://github.com/rancher/fleet-examples
-  branch: test-helm-verify
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
   paths:
   - helm-verify

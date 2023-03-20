@@ -36,7 +36,7 @@ metadata:
     team: one
 
 spec:
-  repo: https://github.com/rancher/fleet-examples
+  repo: https://github.com/rancher/fleet-test-data
   branch: master
   paths:
   - bundle-diffs
