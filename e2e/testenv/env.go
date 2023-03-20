@@ -2,6 +2,9 @@
 package testenv
 
 import (
+	"encoding/hex"
+	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -39,4 +42,10 @@ func (e *Env) getShellEnv() {
 	if val := os.Getenv("FLEET_E2E_NS"); val != "" {
 		e.Namespace = val
 	}
+}
+func NewNamespaceName(name string) string {
+	rand.Seed(time.Now().UnixNano())
+	p := make([]byte, 12)
+	rand.Read(p) // nolint:gosec // Non-crypto use
+	return fmt.Sprintf("test-%.20s-%.12s", name, hex.EncodeToString(p))
 }
