@@ -93,11 +93,19 @@ jobs:
         run: |
           ./.github/scripts/deploy-fleet.sh
       -
-        name: E2E Tests for Examples
+        name: E2E Tests
         env:
           FLEET_E2E_NS: fleet-local
         run: |
           ginkgo e2e/single-cluster e2e/keep-resources
+      -
+        name: Acceptance Tests for Examples
+        if: >
+          github.event_name == 'schedule'
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
+          ginkgo e2e/acceptance/single-cluster-examples
       -
         name: Fleet Tests Requiring Github Secrets
         # These tests can't run for PRs, because PRs don't have access to the secrets

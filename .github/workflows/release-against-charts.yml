@@ -52,8 +52,8 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v3
         with:
-          token: ${{secrets.CHART_PR_PAT}}
-          push-to-fork: thardeck/charts
+          token: ${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}
+          push-to-fork: rancherbot/charts
           title: 'Update Fleet to v${{github.event.inputs.new_fleet}}'
           body: |
             Update Fleet to v${{github.event.inputs.new_fleet}}

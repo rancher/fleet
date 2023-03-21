@@ -1,5 +1,5 @@
 #!/bin/bash
-# Description: setup managed fleet agent in the downstream cluster
+# Description: setup managed fleet agent in the downstream cluster (manager initiated registration)
 
 set -euxo pipefail
 

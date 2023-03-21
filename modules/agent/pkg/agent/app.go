@@ -25,9 +25,7 @@ import (
 type Options struct {
 	DefaultNamespace string
 	ClusterID        string
-	NoLeaderElect    bool
 	CheckinInterval  time.Duration
-	StartAfter       <-chan struct{}
 }
 
 // Start the fleet agent
@@ -66,7 +64,6 @@ func Start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *
 	}
 
 	return controllers.Register(ctx,
-		!opts.NoLeaderElect,
 		fleetNamespace,
 		namespace,
 		opts.DefaultNamespace,
@@ -78,8 +75,7 @@ func Start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *
 		clientConfig,
 		fleetMapper,
 		mapper,
-		discovery,
-		opts.StartAfter)
+		discovery)
 }
 
 var (
