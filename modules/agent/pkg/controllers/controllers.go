@@ -75,13 +75,12 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 5, a.starters...)
 }
 
-func Register(ctx context.Context, leaderElect bool,
+func Register(ctx context.Context,
 	fleetNamespace, agentNamespace, defaultNamespace, agentScope, clusterNamespace, clusterName string,
 	checkinInterval time.Duration,
 	fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig,
 	fleetMapper, mapper meta.RESTMapper,
-	discovery discovery.CachedDiscoveryInterface,
-	startChan <-chan struct{}) error {
+	discovery discovery.CachedDiscoveryInterface) error {
 	appCtx, err := newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName,
 		fleetConfig, clientConfig, fleetMapper, mapper, discovery)
 	if err != nil {
@@ -122,20 +121,11 @@ func Register(ctx context.Context, leaderElect bool,
 		appCtx.Core.Node().Cache(),
 		appCtx.Fleet.Cluster())
 
-	if leaderElect {
-		leader.RunOrDie(ctx, agentNamespace, "fleet-agent-lock", appCtx.K8s, func(ctx context.Context) {
-			if err := appCtx.start(ctx); err != nil {
-				logrus.Fatal(err)
-			}
-		})
-	} else if startChan != nil {
-		go func() {
-			<-startChan
-			logrus.Fatalf("failed to start: %v", appCtx.start(ctx))
-		}()
-	} else {
-		return appCtx.start(ctx)
-	}
+	leader.RunOrDie(ctx, agentNamespace, "fleet-agent-lock", appCtx.K8s, func(ctx context.Context) {
+		if err := appCtx.start(ctx); err != nil {
+			logrus.Fatal(err)
+		}
+	})
 
 	return nil
 }
