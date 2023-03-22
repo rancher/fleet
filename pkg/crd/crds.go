@@ -16,6 +16,15 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+func Create(ctx context.Context, cfg *rest.Config) error {
+	factory, err := crd.NewFactoryFromClient(cfg)
+	if err != nil {
+		return err
+	}
+
+	return factory.BatchCreateCRDs(ctx, list()...).BatchWait()
+}
+
 func WriteFile(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
@@ -26,11 +35,11 @@ func WriteFile(filename string) error {
 	}
 	defer f.Close()
 
-	return Print(f)
+	return print(f)
 }
 
-func Print(out io.Writer) error {
-	obj, err := Objects()
+func print(out io.Writer) error {
+	obj, err := objects()
 	if err != nil {
 		return err
 	}
@@ -43,8 +52,8 @@ func Print(out io.Writer) error {
 	return err
 }
 
-func Objects() (result []runtime.Object, err error) {
-	for _, crdDef := range List() {
+func objects() (result []runtime.Object, err error) {
+	for _, crdDef := range list() {
 		crd, err := crdDef.ToCustomResourceDefinition()
 		if err != nil {
 			return nil, err
@@ -54,7 +63,7 @@ func Objects() (result []runtime.Object, err error) {
 	return
 }
 
-func List() []crd.CRD {
+func list() []crd.CRD {
 	return []crd.CRD{
 		newCRD(&fleet.Bundle{}, func(c crd.CRD) crd.CRD {
 			schema := mustSchema(fleet.Bundle{})
@@ -142,15 +151,6 @@ func List() []crd.CRD {
 				WithColumn("Latest", ".status.latestTag")
 		}),
 	}
-}
-
-func Create(ctx context.Context, cfg *rest.Config) error {
-	factory, err := crd.NewFactoryFromClient(cfg)
-	if err != nil {
-		return err
-	}
-
-	return factory.BatchCreateCRDs(ctx, List()...).BatchWait()
 }
 
 func newCRD(obj interface{}, customize func(crd.CRD) crd.CRD) crd.CRD {

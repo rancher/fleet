@@ -62,6 +62,7 @@ type BundleNamespaceMapping struct {
 type BundleSpec struct {
 	BundleDeploymentOptions
 
+	// Paused if set to true, will stop any BundleDeployments from being updated.
 	Paused             bool                      `json:"paused,omitempty"`
 	RolloutStrategy    *RolloutStrategy          `json:"rolloutStrategy,omitempty"`
 	Resources          []BundleResource          `json:"resources,omitempty"`
