@@ -436,6 +436,31 @@ func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 	if !h.template {
 		for _, valuesFrom := range options.Helm.ValuesFrom {
 			var tempValues map[string]interface{}
+			if valuesFrom.ConfigMapKeyRef != nil {
+				name := valuesFrom.ConfigMapKeyRef.Name
+				namespace := valuesFrom.ConfigMapKeyRef.Namespace
+				if namespace == "" {
+					namespace = defaultNamespace
+				}
+				key := valuesFrom.ConfigMapKeyRef.Key
+				if key == "" {
+					key = DefaultKey
+				}
+				configMap, err := h.configmapCache.Get(namespace, name)
+				if err != nil {
+					return nil, err
+				}
+				tempValues, err = valuesFromConfigMap(name, namespace, key, configMap)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if tempValues != nil {
+				values = mergeValues(values, tempValues)
+				tempValues = nil
+			}
+
+			// merge secret last to be compatible with fleet <= 0.6.0
 			if valuesFrom.SecretKeyRef != nil {
 				name := valuesFrom.SecretKeyRef.Name
 				namespace := valuesFrom.SecretKeyRef.Namespace
@@ -450,25 +475,7 @@ func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 				if err != nil {
 					return nil, err
 				}
-				tempValues, err = processValuesFromObject(name, namespace, key, secret, nil)
-				if err != nil {
-					return nil, err
-				}
-			} else if valuesFrom.ConfigMapKeyRef != nil {
-				name := valuesFrom.ConfigMapKeyRef.Name
-				namespace := valuesFrom.ConfigMapKeyRef.Namespace
-				if namespace == "" {
-					namespace = defaultNamespace
-				}
-				key := valuesFrom.ConfigMapKeyRef.Key
-				if key == "" {
-					key = DefaultKey
-				}
-				configMap, err := h.configmapCache.Get(namespace, name)
-				if err != nil {
-					return nil, err
-				}
-				tempValues, err = processValuesFromObject(name, namespace, key, nil, configMap)
+				tempValues, err = valuesFromSecret(name, namespace, key, secret)
 				if err != nil {
 					return nil, err
 				}
@@ -731,24 +738,34 @@ func deleteHistory(cfg action.Configuration, bundleID string) error {
 	return nil
 }
 
-func processValuesFromObject(name, namespace, key string, secret *corev1.Secret, configMap *corev1.ConfigMap) (map[string]interface{}, error) {
+func valuesFromSecret(name, namespace, key string, secret *corev1.Secret) (map[string]interface{}, error) {
 	var m map[string]interface{}
-	if secret != nil {
-		values, ok := secret.Data[key]
-		if !ok {
-			return nil, fmt.Errorf("key %s is missing from secret %s/%s, can't use it in valuesFrom", key, namespace, name)
-		}
-		if err := yaml.Unmarshal(values, &m); err != nil {
-			return nil, err
-		}
-	} else if configMap != nil {
-		values, ok := configMap.Data[key]
-		if !ok {
-			return nil, fmt.Errorf("key %s is missing from configmap %s/%s, can't use it in valuesFrom", key, namespace, name)
-		}
-		if err := yaml.Unmarshal([]byte(values), &m); err != nil {
-			return nil, err
-		}
+	if secret == nil {
+		return m, nil
+	}
+
+	values, ok := secret.Data[key]
+	if !ok {
+		return nil, fmt.Errorf("key %s is missing from secret %s/%s, can't use it in valuesFrom", key, namespace, name)
+	}
+	if err := yaml.Unmarshal(values, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func valuesFromConfigMap(name, namespace, key string, configMap *corev1.ConfigMap) (map[string]interface{}, error) {
+	var m map[string]interface{}
+	if configMap == nil {
+		return m, nil
+	}
+
+	values, ok := configMap.Data[key]
+	if !ok {
+		return nil, fmt.Errorf("key %s is missing from configmap %s/%s, can't use it in valuesFrom", key, namespace, name)
+	}
+	if err := yaml.Unmarshal([]byte(values), &m); err != nil {
+		return nil, err
 	}
 	return m, nil
 }
@@ -764,19 +781,21 @@ func mergeMaps(base, other map[string]string) map[string]string {
 	return result
 }
 
-// mergeValues merges source and destination map, preferring values
+// mergeValues merges source and destination map, preferring values over maps
 // from the source values. This is slightly adapted from:
 // https://github.com/helm/helm/blob/2332b480c9cb70a0d8a85247992d6155fbe82416/cmd/helm/install.go#L359
 func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
 	for k, v := range src {
 		// If the key doesn't exist already, then just set the key to that value
 		if _, exists := dest[k]; !exists {
+			// new key
 			dest[k] = v
 			continue
 		}
 		nextMap, ok := v.(map[string]interface{})
 		// If it isn't another map, overwrite the value
 		if !ok {
+			// new key is not a map, overwrite existing key as we prefer values over maps
 			dest[k] = v
 			continue
 		}
