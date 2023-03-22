@@ -1,4 +1,5 @@
-package mc_examples_test
+// Package multicluster contains e2e tests deploying to multiple clusters. The tests use kubectl to apply manifests. Expectations are verified by checking cluster resources. Assets refer to the https://github.com/rancher/fleet-test-data git repo.
+package multicluster_test
 
 import (
 	"testing"

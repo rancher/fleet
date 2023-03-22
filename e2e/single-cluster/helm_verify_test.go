@@ -1,4 +1,4 @@
-package examples_test
+package singlecluster_test
 
 import (
 	"github.com/rancher/fleet/e2e/testenv"

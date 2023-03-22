@@ -1,4 +1,4 @@
-package examples_test
+package singlecluster_test
 
 import (
 	"strings"
@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("ReleaseName", func() {
+var _ = Describe("Release Name", func() {
 	var (
 		asset string
 		k     kubectl.Command

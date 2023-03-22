@@ -1,4 +1,4 @@
-package examples_test
+package singlecluster_test
 
 import (
 	"encoding/json"

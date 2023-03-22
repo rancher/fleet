@@ -1,4 +1,4 @@
-package mc_examples_test
+package multicluster_test
 
 import (
 	"os"
