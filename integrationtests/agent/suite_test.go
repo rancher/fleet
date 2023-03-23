@@ -2,15 +2,14 @@ package agent
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"math/rand"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer"
 	"github.com/rancher/fleet/modules/agent/pkg/trigger"
@@ -91,7 +90,8 @@ var _ = BeforeSuite(func() {
 
 	specEnvs = make(map[string]*specEnv, 2)
 	for id, f := range map[string]specResources{"capabilitybundle": capabilityBundleResources, "orphanbundle": orphanBundeResources} {
-		namespace := newNamespaceName()
+		namespace, err := utils.NewNamespaceName()
+		Expect(err).ToNot(HaveOccurred())
 		fmt.Printf("Creating namespace %s\n", namespace)
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -168,13 +168,6 @@ func registerBundleDeploymentController(cfg *rest.Config, namespace string, look
 	Expect(err).ToNot(HaveOccurred())
 
 	return factory.Fleet().V1alpha1().BundleDeployment()
-}
-
-func newNamespaceName() string {
-	rand.Seed(time.Now().UnixNano())
-	p := make([]byte, 12)
-	rand.Read(p)
-	return fmt.Sprintf("test-%s", hex.EncodeToString(p))[:12]
 }
 
 // restClientGetter is needed to create the helm deployer. We just need to return the rest.Config for this test.
