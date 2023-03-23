@@ -1,8 +1,6 @@
 package multicluster_test
 
 import (
-	"os"
-	"path"
 	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
@@ -20,7 +18,6 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 		asset     string
 		namespace string
 		data      any
-		tmpdir    string
 
 		interval = 2 * time.Second
 		duration = 30 * time.Second
@@ -40,19 +37,13 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 	})
 
 	JustBeforeEach(func() {
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		output := path.Join(tmpdir, testenv.RandomFilename("manifests.yaml"))
-		err := testenv.Template(output, testenv.AssetPath(asset), data)
+		err := testenv.ApplyTemplate(k.Namespace(namespace), testenv.AssetPath(asset), data)
 		Expect(err).ToNot(HaveOccurred())
-
-		out, err := k.Namespace(namespace).Apply("-f", output)
-		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	AfterEach(func() {
 		out, err := k.Delete("ns", namespace)
 		Expect(err).ToNot(HaveOccurred(), out)
-		os.RemoveAll(tmpdir)
 	})
 
 	Context("with bundlenamespacemapping", func() {

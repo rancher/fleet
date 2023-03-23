@@ -62,7 +62,7 @@ var _ = Describe("BundleDiffs", func() {
 				}
 
 				return false
-			}).Should(BeTrue(), "bundledepoloyment should be deleted")
+			}).Should(BeTrue(), "bundledeployment should be deleted")
 		})
 	})
 
