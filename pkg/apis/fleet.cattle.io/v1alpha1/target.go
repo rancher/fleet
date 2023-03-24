@@ -85,6 +85,13 @@ type ClusterSpec struct {
 
 	// AgentTolerations defines an extra set of Tolerations to be added to the Agent deployment.
 	AgentTolerations []v1.Toleration `json:"agentTolerations,omitempty"`
+
+	// AgentAffinity overrides the default affinity for the cluster's agent
+	// deployment. If this value is nil the default affinity is used.
+	AgentAffinity *v1.Affinity `json:"agentAffinity,omitempty"`
+
+	// AgentResources sets the resources for the cluster's agent deployment.
+	AgentResources *v1.ResourceRequirements `json:"agentResources,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -106,6 +113,10 @@ type ClusterStatus struct {
 	AgentMigrated           bool   `json:"agentMigrated,omitempty"`
 	AgentNamespaceMigrated  bool   `json:"agentNamespaceMigrated,omitempty"`
 	CattleNamespaceMigrated bool   `json:"cattleNamespaceMigrated,omitempty"`
+
+	AgentAffinityHash    string `json:"agentAffinityHash,omitempty"`
+	AgentResourcesHash   string `json:"agentResourcesHash,omitempty"`
+	AgentTolerationsHash string `json:"agentTolerationsHash,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`

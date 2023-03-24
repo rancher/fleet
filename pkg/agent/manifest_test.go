@@ -1,10 +1,12 @@
 package agent
 
 import (
+	"reflect"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -41,7 +43,7 @@ func getDeploymentFromManifests(namespace string, scope string, opts ManifestOpt
 	return nil
 }
 
-func TestManifestAdditionalTolerations(t *testing.T) {
+func TestManifestAgentTolerations(t *testing.T) {
 	const namespace = "fleet-system"
 	const scope = "test-scope"
 	baseOpts := ManifestOptions{
@@ -81,12 +83,7 @@ func TestManifestAdditionalTolerations(t *testing.T) {
 			getOpts: func() ManifestOptions {
 				withTolerationsOpts := baseOpts
 				withTolerationsOpts.AgentTolerations = []corev1.Toleration{
-					{
-						Key:      "fleet-agent",
-						Operator: "Equals",
-						Value:    "true",
-						Effect:   "NoSchedule",
-					},
+					{Key: "fleet-agent", Operator: "Equals", Value: "true", Effect: "NoSchedule"},
 				}
 				return withTolerationsOpts
 			},
@@ -96,7 +93,6 @@ func TestManifestAdditionalTolerations(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-
 			agentDeployment := getDeploymentFromManifests(namespace, scope, testCase.getOpts())
 			if agentDeployment == nil {
 				t.Fatal("there were no deployments returned from the manifests")
@@ -104,6 +100,118 @@ func TestManifestAdditionalTolerations(t *testing.T) {
 
 			if !cmp.Equal(agentDeployment.Spec.Template.Spec.Tolerations, testCase.expectedTolerations, cmpOpt) {
 				t.Fatalf("tolerations were not as expected: %v", agentDeployment.Spec.Template.Spec.Tolerations)
+			}
+		})
+	}
+}
+
+func TestManifestAgentAffinity(t *testing.T) {
+	const namespace = "fleet-system"
+
+	// this is the value from manifest.go
+	builtinAffinity := &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{
+		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+			Weight: 1,
+			Preference: corev1.NodeSelectorTerm{
+				MatchExpressions: []corev1.NodeSelectorRequirement{
+					{Key: "fleet.cattle.io/agent", Operator: corev1.NodeSelectorOpIn, Values: []string{"true"}},
+				},
+			},
+		}},
+	}}
+
+	customAffinity := &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{
+		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+			Weight: 1,
+			Preference: corev1.NodeSelectorTerm{
+				MatchExpressions: []corev1.NodeSelectorRequirement{
+					{Key: "custom/label", Operator: corev1.NodeSelectorOpIn, Values: []string{"true"}},
+				},
+			},
+		}},
+	}}
+
+	for _, testCase := range []struct {
+		name             string
+		getOpts          func() ManifestOptions
+		expectedAffinity *corev1.Affinity
+	}{
+		{
+			name:             "Builtin Affinity",
+			getOpts:          func() ManifestOptions { return ManifestOptions{} },
+			expectedAffinity: builtinAffinity,
+		},
+		{
+			name:             "Remove Affinity",
+			getOpts:          func() ManifestOptions { return ManifestOptions{AgentAffinity: &corev1.Affinity{}} },
+			expectedAffinity: &corev1.Affinity{},
+		},
+		{
+			name:             "Override Affinity",
+			getOpts:          func() ManifestOptions { return ManifestOptions{AgentAffinity: customAffinity} },
+			expectedAffinity: customAffinity,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			agentDeployment := getDeploymentFromManifests(namespace, "", testCase.getOpts())
+			if agentDeployment == nil {
+				t.Fatal("there were no deployments returned from the manifests")
+			}
+
+			if !cmp.Equal(agentDeployment.Spec.Template.Spec.Affinity, testCase.expectedAffinity) {
+				t.Fatalf("affinity was not as expected: %v %v", testCase.expectedAffinity, agentDeployment.Spec.Template.Spec.Affinity)
+			}
+		})
+	}
+}
+
+func TestManifestAgentResources(t *testing.T) {
+	const namespace = "fleet-system"
+
+	// this is the value from manifest.go
+	builtinResources := corev1.ResourceRequirements{}
+
+	customResources := corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+			corev1.ResourceMemory: resource.MustParse("100Mi"),
+		},
+
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("50m"),
+			corev1.ResourceMemory: resource.MustParse("50Mi"),
+		},
+	}
+
+	for _, testCase := range []struct {
+		name              string
+		getOpts           func() ManifestOptions
+		expectedResources corev1.ResourceRequirements
+	}{
+		{
+			name:              "Builtin Resources",
+			getOpts:           func() ManifestOptions { return ManifestOptions{} },
+			expectedResources: builtinResources,
+		},
+		{
+			name:              "Remove Resources",
+			getOpts:           func() ManifestOptions { return ManifestOptions{AgentResources: &corev1.ResourceRequirements{}} },
+			expectedResources: corev1.ResourceRequirements{},
+		},
+		{
+			name:              "Override Resources",
+			getOpts:           func() ManifestOptions { return ManifestOptions{AgentResources: &customResources} },
+			expectedResources: customResources,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			agentDeployment := getDeploymentFromManifests(namespace, "", testCase.getOpts())
+			if agentDeployment == nil {
+				t.Fatal("there were no deployments returned from the manifests")
+			}
+
+			if !reflect.DeepEqual(agentDeployment.Spec.Template.Spec.Containers[0].Resources, testCase.expectedResources) {
+				t.Fatalf("resources was not as expected: %v %v", testCase.expectedResources, agentDeployment.Spec.Template.Spec.Containers[0].Resources)
 			}
 		})
 	}
