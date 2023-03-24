@@ -32,12 +32,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
@@ -80,11 +78,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	customScheme := scheme.Scheme
-	customScheme.AddKnownTypes(schema.GroupVersion{Group: "fleet.cattle.io", Version: "v1alpha1"}, &v1alpha1.Bundle{}, &v1alpha1.BundleList{})
-	customScheme.AddKnownTypes(schema.GroupVersion{Group: "fleet.cattle.io", Version: "v1alpha1"}, &v1alpha1.BundleDeployment{}, &v1alpha1.BundleDeploymentList{})
-
-	k8sClient, err = client.New(cfg, client.Options{Scheme: customScheme})
+	k8sClient, err = client.New(cfg, client.Options{})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
