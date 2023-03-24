@@ -59,24 +59,31 @@ type Cluster struct {
 
 type ClusterSpec struct {
 	// Paused if set to true, will stop any BundleDeployments from being updated.
-	Paused                  bool   `json:"paused,omitempty"`
-	ClientID                string `json:"clientID,omitempty"`
-	KubeConfigSecret        string `json:"kubeConfigSecret,omitempty"`
-	RedeployAgentGeneration int64  `json:"redeployAgentGeneration,omitempty"`
+	Paused bool `json:"paused,omitempty"`
 
-	// AgentEnvVars are extra environment variables to be added to the agent deployment
+	// ClientID is a unique string that will identify the cluster. It can
+	// either be predefined, or generated when importing the cluster.
+	ClientID string `json:"clientID,omitempty"`
+
+	// KubeConfigSecret is the name of the secret containing the kubeconfig for the downstream cluster.
+	KubeConfigSecret string `json:"kubeConfigSecret,omitempty"`
+
+	// RedeployAgentGeneration can be used to force redeploying the agent.
+	RedeployAgentGeneration int64 `json:"redeployAgentGeneration,omitempty"`
+
+	// AgentEnvVars are extra environment variables to be added to the agent deployment.
 	AgentEnvVars []v1.EnvVar `json:"agentEnvVars,omitempty"`
 
-	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system
+	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system.
 	AgentNamespace string `json:"agentNamespace,omitempty"`
 
-	// PrivateRepoURL prefixes the image name and overrides a global repo URL from the agents config
+	// PrivateRepoURL prefixes the image name and overrides a global repo URL from the agents config.
 	PrivateRepoURL string `json:"privateRepoURL,omitempty"`
 
-	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating
+	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating.
 	TemplateValues *GenericMap `json:"templateValues,omitempty"`
 
-	// AgentTolerations defines an extra set of Tolerations to be added to the Agent deployment
+	// AgentTolerations defines an extra set of Tolerations to be added to the Agent deployment.
 	AgentTolerations []v1.Toleration `json:"agentTolerations,omitempty"`
 }
 
