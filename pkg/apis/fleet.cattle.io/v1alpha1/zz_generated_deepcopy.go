@@ -1018,6 +1018,16 @@ func (in *ClusterSpec) DeepCopyInto(out *ClusterSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.AgentAffinity != nil {
+		in, out := &in.AgentAffinity, &out.AgentAffinity
+		*out = new(corev1.Affinity)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.AgentResources != nil {
+		in, out := &in.AgentResources, &out.AgentResources
+		*out = new(corev1.ResourceRequirements)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 

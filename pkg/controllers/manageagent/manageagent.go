@@ -74,11 +74,55 @@ func (h *handler) onClusterStatusChange(cluster *fleet.Cluster, status fleet.Clu
 	if err != nil {
 		return status, err
 	}
-	status, repo := h.reconcileAgentPrivateRepoURL(cluster, status)
-	if vars || repo {
+
+	status, changed, err := h.updateClusterStatus(cluster, status)
+	if err != nil {
+		return status, err
+	}
+
+	if vars || changed {
 		h.namespaces.Enqueue(cluster.Namespace)
 	}
 	return status, nil
+}
+
+func hashStatusField(field any) (string, error) {
+	hasher := sha256.New224()
+	b, err := json.Marshal(field)
+	if err != nil {
+		return "", err
+	}
+	hasher.Write(b)
+	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+}
+
+func hashChanged(field any, statusHash string) (bool, string, error) {
+	isNil := func(field any) bool {
+		switch field := field.(type) {
+		case *corev1.Affinity:
+			return field == nil
+		case *corev1.ResourceRequirements:
+			return field == nil
+		case []corev1.Toleration:
+			return len(field) == 0
+		default:
+			return false
+		}
+	}
+
+	if isNil(field) {
+		if statusHash != "" {
+			return true, "", nil
+		}
+		return false, "", nil
+	}
+
+	hash, err := hashStatusField(field)
+	if err != nil {
+		return false, "", err
+	}
+
+	return statusHash != hash, hash, nil
 }
 
 // reconcileAgentEnvVars checks if the agent environment variables field was
@@ -96,13 +140,10 @@ func (h *handler) reconcileAgentEnvVars(cluster *fleet.Cluster, status fleet.Clu
 		return status, enqueue, nil
 	}
 
-	hasher := sha256.New224()
-	b, err := json.Marshal(cluster.Spec.AgentEnvVars)
+	hash, err := hashStatusField(cluster.Spec.AgentEnvVars)
 	if err != nil {
 		return status, enqueue, err
 	}
-	hasher.Write(b)
-	hash := fmt.Sprintf("%x", hasher.Sum(nil))
 
 	if status.AgentEnvVarsHash != hash {
 		// We enqueue to ensure that we edit the status after other controllers.
@@ -113,12 +154,36 @@ func (h *handler) reconcileAgentEnvVars(cluster *fleet.Cluster, status fleet.Clu
 	return status, enqueue, nil
 }
 
-func (h *handler) reconcileAgentPrivateRepoURL(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, bool) {
+func (h *handler) updateClusterStatus(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, bool, error) {
+	changed := false
+
 	if status.AgentPrivateRepoURL != cluster.Spec.PrivateRepoURL {
 		status.AgentPrivateRepoURL = cluster.Spec.PrivateRepoURL
-		return status, true
+		changed = true
 	}
-	return status, false
+
+	if c, hash, err := hashChanged(cluster.Spec.AgentAffinity, status.AgentAffinityHash); err != nil {
+		return status, changed, err
+	} else if c {
+		status.AgentAffinityHash = hash
+		changed = c
+	}
+
+	if c, hash, err := hashChanged(cluster.Spec.AgentResources, status.AgentResourcesHash); err != nil {
+		return status, changed, err
+	} else if c {
+		status.AgentResourcesHash = hash
+		changed = c
+	}
+
+	if c, hash, err := hashChanged(cluster.Spec.AgentTolerations, status.AgentTolerationsHash); err != nil {
+		return status, changed, err
+	} else if c {
+		status.AgentTolerationsHash = hash
+		changed = c
+	}
+
+	return status, changed, nil
 }
 
 func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
@@ -189,6 +254,8 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			Generation:            "bundle",
 			PrivateRepoURL:        cluster.Spec.PrivateRepoURL,
 			SystemDefaultRegistry: cfg.SystemDefaultRegistry,
+			AgentAffinity:         cluster.Spec.AgentAffinity,
+			AgentResources:        cluster.Spec.AgentResources,
 		},
 	)
 	agentYAML, err := yaml.Export(objs...)
