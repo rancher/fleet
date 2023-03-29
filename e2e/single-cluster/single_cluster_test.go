@@ -1,4 +1,4 @@
-package examples_test
+package singlecluster_test
 
 import (
 	"strings"
@@ -10,8 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/single-cluster
-var _ = Describe("Single Cluster Examples", func() {
+var _ = Describe("Single Cluster Deployments", func() {
 	var (
 		asset string
 		k     kubectl.Command

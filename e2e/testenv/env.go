@@ -16,9 +16,11 @@ const Timeout = 5 * time.Minute
 type Env struct {
 	Kubectl kubectl.Command
 	// Upstream context for cluster containing the fleet controller and local agent
-	Upstream   string
+	Upstream string
+	// Downstream context for fleet-agent cluster
 	Downstream string
-	Namespace  string
+	// Namespace which contains the cluster resource (cluster registration namespace)
+	Namespace string
 }
 
 func New() *Env {
@@ -43,6 +45,9 @@ func (e *Env) getShellEnv() {
 		e.Namespace = val
 	}
 }
+
+// NewNamespaceName returns a name for a namespace that is unique to the test
+// run. e.g. as a targetNamespace for workloads
 func NewNamespaceName(name string) string {
 	rand.Seed(time.Now().UnixNano())
 	p := make([]byte, 12)

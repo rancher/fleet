@@ -45,23 +45,20 @@ var _ = Describe("Git Repo", func() {
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		repodir = path.Join(tmpdir, "repo")
-		repo, err = gh.Create(repodir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-		Expect(err).ToNot(HaveOccurred())
-
-		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
-		err = testenv.Template(gitrepo, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
 			Repo   string
 			Branch string
 		}{
 			gh.URL,
 			gh.Branch,
 		})
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		tmpdir, _ = os.MkdirTemp("", "fleet-")
+		repodir = path.Join(tmpdir, "repo")
+		repo, err = gh.Create(repodir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
 		Expect(err).ToNot(HaveOccurred())
 
-		out, err = k.Apply("-f", gitrepo)
-		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	AfterEach(func() {
