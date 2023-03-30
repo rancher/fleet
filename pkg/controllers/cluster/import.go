@@ -276,7 +276,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				AgentEnvVars:     cluster.Spec.AgentEnvVars,
 				AgentTolerations: cluster.Spec.AgentTolerations,
 				CheckinInterval:  cfg.AgentCheckinInterval.Duration.String(),
-				Generation:       string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10),
+				Generation:       string(cluster.UID) + "-" + strconv.FormatInt(cluster.Generation, 10), // initial value for the agent deployment
 				PrivateRepoURL:   cluster.Spec.PrivateRepoURL,
 				AgentAffinity:    cluster.Spec.AgentAffinity,
 				AgentResources:   cluster.Spec.AgentResources,
