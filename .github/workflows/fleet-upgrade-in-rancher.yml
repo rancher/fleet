@@ -57,7 +57,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
       -
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
