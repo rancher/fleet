@@ -47,7 +47,7 @@ require (
 	github.com/google/go-containerregistry v0.13.0
 	github.com/hashicorp/go-getter v1.7.1
 	github.com/onsi/ginkgo/v2 v2.9.2
-	github.com/onsi/gomega v1.27.5
+	github.com/onsi/gomega v1.27.6
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0
 	github.com/rancher/gitjob v0.1.36
