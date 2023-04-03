@@ -1,5 +1,5 @@
 # Upgrade fleet in specific Rancher versions to latest fleet release and run MC tests
-name: Upgrade Fleet in Rancher
+name: Upgrade Fleet in Rancher to Latest Release
 
 on:
   schedule:
