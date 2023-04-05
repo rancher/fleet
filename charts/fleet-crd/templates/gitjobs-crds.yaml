@@ -82,6 +82,46 @@ spec:
                   parallelism:
                     nullable: true
                     type: integer
+                  podFailurePolicy:
+                    nullable: true
+                    properties:
+                      rules:
+                        items:
+                          properties:
+                            action:
+                              nullable: true
+                              type: string
+                            onExitCodes:
+                              nullable: true
+                              properties:
+                                containerName:
+                                  nullable: true
+                                  type: string
+                                operator:
+                                  nullable: true
+                                  type: string
+                                values:
+                                  items:
+                                    type: integer
+                                  nullable: true
+                                  type: array
+                              type: object
+                            onPodConditions:
+                              items:
+                                properties:
+                                  status:
+                                    nullable: true
+                                    type: string
+                                  type:
+                                    nullable: true
+                                    type: string
+                                type: object
+                              nullable: true
+                              type: array
+                          type: object
+                        nullable: true
+                        type: array
+                    type: object
                   selector:
                     nullable: true
                     properties:
@@ -123,9 +163,6 @@ spec:
                               type: string
                             nullable: true
                             type: object
-                          clusterName:
-                            nullable: true
-                            type: string
                           creationTimestamp:
                             nullable: true
                             type: string
@@ -1924,6 +1961,9 @@ spec:
                             type: boolean
                           hostPID:
                             type: boolean
+                          hostUsers:
+                            nullable: true
+                            type: boolean
                           hostname:
                             nullable: true
                             type: string
@@ -2751,11 +2791,23 @@ spec:
                                       nullable: true
                                       type: object
                                   type: object
+                                matchLabelKeys:
+                                  items:
+                                    nullable: true
+                                    type: string
+                                  nullable: true
+                                  type: array
                                 maxSkew:
                                   type: integer
                                 minDomains:
                                   nullable: true
                                   type: integer
+                                nodeAffinityPolicy:
+                                  nullable: true
+                                  type: string
+                                nodeTaintsPolicy:
+                                  nullable: true
+                                  type: string
                                 topologyKey:
                                   nullable: true
                                   type: string
@@ -2983,9 +3035,6 @@ spec:
                                                 type: string
                                               nullable: true
                                               type: object
-                                            clusterName:
-                                              nullable: true
-                                              type: string
                                             creationTimestamp:
                                               nullable: true
                                               type: string
@@ -3787,6 +3836,46 @@ spec:
                 parallelism:
                   nullable: true
                   type: integer
+                podFailurePolicy:
+                  nullable: true
+                  properties:
+                    rules:
+                      items:
+                        properties:
+                          action:
+                            nullable: true
+                            type: string
+                          onExitCodes:
+                            nullable: true
+                            properties:
+                              containerName:
+                                nullable: true
+                                type: string
+                              operator:
+                                nullable: true
+                                type: string
+                              values:
+                                items:
+                                  type: integer
+                                nullable: true
+                                type: array
+                            type: object
+                          onPodConditions:
+                            items:
+                              properties:
+                                status:
+                                  nullable: true
+                                  type: string
+                                type:
+                                  nullable: true
+                                  type: string
+                              type: object
+                            nullable: true
+                            type: array
+                        type: object
+                      nullable: true
+                      type: array
+                  type: object
                 selector:
                   nullable: true
                   properties:
@@ -3828,9 +3917,6 @@ spec:
                             type: string
                           nullable: true
                           type: object
-                        clusterName:
-                          nullable: true
-                          type: string
                         creationTimestamp:
                           nullable: true
                           type: string
@@ -5629,6 +5715,9 @@ spec:
                           type: boolean
                         hostPID:
                           type: boolean
+                        hostUsers:
+                          nullable: true
+                          type: boolean
                         hostname:
                           nullable: true
                           type: string
@@ -6456,11 +6545,23 @@ spec:
                                     nullable: true
                                     type: object
                                 type: object
+                              matchLabelKeys:
+                                items:
+                                  nullable: true
+                                  type: string
+                                nullable: true
+                                type: array
                               maxSkew:
                                 type: integer
                               minDomains:
                                 nullable: true
                                 type: integer
+                              nodeAffinityPolicy:
+                                nullable: true
+                                type: string
+                              nodeTaintsPolicy:
+                                nullable: true
+                                type: string
                               topologyKey:
                                 nullable: true
                                 type: string
@@ -6688,9 +6789,6 @@ spec:
                                               type: string
                                             nullable: true
                                             type: object
-                                          clusterName:
-                                            nullable: true
-                                            type: string
                                           creationTimestamp:
                                             nullable: true
                                             type: string

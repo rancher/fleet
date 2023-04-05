@@ -3,7 +3,7 @@ apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: helm-cluster-values
 spec:
-  repo: https://github.com/rancher/fleet-examples
-  branch: test-cluster-values
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
   paths:
-  - single-cluster/helm-cluster-values
+  - helm-cluster-values

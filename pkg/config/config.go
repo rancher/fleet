@@ -1,3 +1,4 @@
+// Package config implements the config for the fleet manager and agent
 package config
 
 import (
@@ -37,11 +38,21 @@ var (
 )
 
 type Config struct {
-	AgentImage                      string            `json:"agentImage,omitempty"`
-	AgentImagePullPolicy            string            `json:"agentImagePullPolicy,omitempty"`
-	SystemDefaultRegistry           string            `json:"systemDefaultRegistry,omitempty"`
-	AgentCheckinInterval            metav1.Duration   `json:"agentCheckinInterval,omitempty"`
-	ManageAgent                     *bool             `json:"manageAgent,omitempty"`
+	// AgentImage defaults to rancher/fleet-agent:version if empty, can include a prefixed SystemDefaultRegistry
+	AgentImage           string `json:"agentImage,omitempty"`
+	AgentImagePullPolicy string `json:"agentImagePullPolicy,omitempty"`
+
+	// SystemDefaultRegistry used by Rancher when constructing the
+	// agentImage string, it's in the config so fleet can remove it if a
+	// private repo url prefix is specified on the agent's cluster resource
+	SystemDefaultRegistry string `json:"systemDefaultRegistry,omitempty"`
+
+	// AgentCheckinInterval determines how often agents update their clusters status, defaults to 15m
+	AgentCheckinInterval metav1.Duration `json:"agentCheckinInterval,omitempty"`
+
+	// ManageAgent if present and set to false, no bundles will be created to manage agents
+	ManageAgent *bool `json:"manageAgent,omitempty"`
+
 	Labels                          map[string]string `json:"labels,omitempty"`
 	ClientID                        string            `json:"clientID,omitempty"`
 	APIServerURL                    string            `json:"apiServerURL,omitempty"`

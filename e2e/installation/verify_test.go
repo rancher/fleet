@@ -80,7 +80,7 @@ var _ = Describe("Fleet Installation", func() {
 	When("Deploying another bundle still works", func() {
 		var tmpdir string
 		BeforeEach(func() {
-			asset = "simple/gitrepo.yaml"
+			asset = "installation/verify.yaml"
 		})
 
 		JustBeforeEach(func() {

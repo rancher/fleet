@@ -1,5 +1,5 @@
 #!/bin/bash
-# Description: setup fleet in the downstream cluster and register it
+# Description: setup fleet in the downstream cluster and register it (agent initiated registration)
 
 set -euxo pipefail
 

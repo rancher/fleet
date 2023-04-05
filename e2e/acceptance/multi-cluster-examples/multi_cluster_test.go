@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/multi-cluster
+// These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/multi-cluster-examples
 var _ = Describe("Multi Cluster Examples", func() {
 	var (
 		asset string
@@ -56,7 +56,7 @@ var _ = Describe("Multi Cluster Examples", func() {
 	When("creating gitrepo resource", func() {
 		Context("containing a helm chart", func() {
 			BeforeEach(func() {
-				asset = "multi-cluster/helm.yaml"
+				asset = "multi-cluster-examples/helm.yaml"
 			})
 
 			It("deploys the helm chart in the downstream cluster", func() {
@@ -69,7 +69,7 @@ var _ = Describe("Multi Cluster Examples", func() {
 
 		Context("containing a manifest", func() {
 			BeforeEach(func() {
-				asset = "multi-cluster/manifests.yaml"
+				asset = "multi-cluster-examples/manifests.yaml"
 			})
 
 			It("deploys the manifest", func() {
@@ -90,7 +90,7 @@ var _ = Describe("Multi Cluster Examples", func() {
 
 		Context("containing a kustomize manifest", func() {
 			BeforeEach(func() {
-				asset = "multi-cluster/kustomize.yaml"
+				asset = "multi-cluster-examples/kustomize.yaml"
 			})
 
 			It("runs kustomize and deploys the manifest", func() {
@@ -103,7 +103,7 @@ var _ = Describe("Multi Cluster Examples", func() {
 
 		Context("containing an kustomized helm chart", func() {
 			BeforeEach(func() {
-				asset = "multi-cluster/helm-kustomize.yaml"
+				asset = "multi-cluster-examples/helm-kustomize.yaml"
 			})
 
 			It("deploys the helm chart", func() {
@@ -116,7 +116,7 @@ var _ = Describe("Multi Cluster Examples", func() {
 
 		Context("containing an external helm chart", func() {
 			BeforeEach(func() {
-				asset = "multi-cluster/helm-external.yaml"
+				asset = "multi-cluster-examples/helm-external.yaml"
 			})
 
 			It("deploys the helm chart", func() {
@@ -129,7 +129,7 @@ var _ = Describe("Multi Cluster Examples", func() {
 
 		Context("containing an external helm chart with targetCustomizations", func() {
 			BeforeEach(func() {
-				asset = "multi-cluster/helm-target-customizations.yaml"
+				asset = "multi-cluster-examples/helm-target-customizations.yaml"
 			})
 
 			It("can replace the chart version and url", func() {

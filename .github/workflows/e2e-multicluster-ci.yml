@@ -31,7 +31,7 @@ jobs:
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
@@ -124,12 +124,20 @@ jobs:
             --set clusterNamespace="fleet-local" \
             --set token="$token"
       -
-        name: E2E tests for Examples
+        name: E2E tests
         env:
           FLEET_E2E_NS: fleet-local
         run: |
           kubectl config use-context k3d-upstream
           ginkgo e2e/multi-cluster
+      -
+        name: Acceptance Tests for Examples
+        if: >
+          github.event_name == 'schedule'
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
+          ginkgo e2e/acceptance/multi-cluster-examples
       -
         name: Dump Failed Environment
         if: failure()

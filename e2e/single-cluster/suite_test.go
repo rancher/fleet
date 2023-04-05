@@ -1,4 +1,5 @@
-package examples_test
+// Package singlecluster contains e2e tests deploying to a single cluster. The tests use kubectl to apply manifests. Expectations are verified by checking cluster resources. Assets refer to the https://github.com/rancher/fleet-test-data git repo.
+package singlecluster_test
 
 import (
 	"testing"
@@ -11,7 +12,7 @@ import (
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "E2E Suite for Single-Cluster Examples")
+	RunSpecs(t, "E2E Suite for Single-Cluster")
 }
 
 var (

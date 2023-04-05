@@ -1,5 +1,5 @@
 # Upgrade fleet in specific Rancher versions to latest fleet release and run MC tests
-name: Upgrade Fleet in Rancher
+name: Upgrade Fleet in Rancher to Latest Release
 
 on:
   schedule:
@@ -57,7 +57,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
       -
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
@@ -137,8 +137,8 @@ jobs:
       -
         name: Create example workload
         run: |
-          kubectl apply -n fleet-local -f e2e/assets/gitrepo-simple.yaml
-          kubectl apply -n fleet-default -f e2e/assets/gitrepo-simple.yaml
+          kubectl apply -n fleet-local -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
+          kubectl apply -n fleet-default -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
       -
         name: Deploy latest fleet
         env:

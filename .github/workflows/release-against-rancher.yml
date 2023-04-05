@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Checkout Fleet branch/tag"
+        description: "Branch to use for GitHub action workflow"
         required: true
         default: "master"
       rancher_ref:
@@ -52,16 +52,16 @@ jobs:
           repository: rancher/rancher
           ref: ${{github.event.inputs.rancher_ref}}
           path: rancher
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Run release script
         run: ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.prev_fleet}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.prev_chart}}  ${{github.event.inputs.new_chart}}  ${{github.event.inputs.should_bump_api}}
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@v4
         with:
-          token: ${{secrets.CHART_PR_PAT}}
-          push-to-fork: thardeck/rancher
+          token: ${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}
+          push-to-fork: rancherbot/rancher
           title: ' Update Fleet to v${{github.event.inputs.new_fleet}}'
           body: |
             Update Fleet to v${{github.event.inputs.new_fleet}}

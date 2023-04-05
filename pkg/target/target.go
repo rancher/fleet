@@ -223,12 +223,14 @@ func (m *Manager) getNamespacesForBundle(bundle *fleet.Bundle) ([]string, error)
 			logrus.Errorf("invalid BundleNamespaceMapping %s/%s skipping: %v", mapping.Namespace, mapping.Name, err)
 			continue
 		}
-		namespaces, err := matcher.Namespaces()
-		if err != nil {
-			return nil, err
-		}
-		for _, namespace := range namespaces {
-			nses.Insert(namespace.Name)
+		if matcher.Matches(bundle) {
+			namespaces, err := matcher.Namespaces()
+			if err != nil {
+				return nil, err
+			}
+			for _, namespace := range namespaces {
+				nses.Insert(namespace.Name)
+			}
 		}
 	}
 
@@ -419,18 +421,24 @@ func (t *Target) IsPaused() bool {
 
 // ResetDeployment replaces the BundleDeployment for the target with a new one
 func (t *Target) ResetDeployment() {
+	t.Deployment = &fleet.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.Bundle.Name,
+			Namespace: t.Cluster.Status.Namespace,
+			Labels:    t.BundleDeploymentLabels(),
+		},
+	}
+}
+
+// BundleDeploymentLabels returns all labels from the Bundle
+func (t *Target) BundleDeploymentLabels() map[string]string {
 	labels := map[string]string{}
 	for k, v := range deploymentLabelsForNewBundle(t.Bundle) {
 		labels[k] = v
 	}
 	labels[fleet.ManagedLabel] = "true"
-	t.Deployment = &fleet.BundleDeployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      t.Bundle.Name,
-			Namespace: t.Cluster.Status.Namespace,
-			Labels:    labels,
-		},
-	}
+
+	return labels
 }
 
 // getRollout returns the rollout strategy for the specified targets (pure function)

@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
       -
         name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
@@ -53,12 +53,9 @@ jobs:
       -
         name: Set Nightly Version
         run: |
-          tag_commit=$(git rev-list --abbrev-commit --tags --max-count=1)
-          tag=$(git describe --abbrev=0 --tags "$tag_commit")
-          version=$(git describe --long --tags --always --match 'v[0-9]\.*')-nightly
+          commit=$(git rev-parse --short HEAD)
           ts=$(date +%s)
-          version=$(echo $version | sed "s/$tag/$tag.$ts/")
-          # example: v0.6.0-alpha1.1667814448-8-gcd772be-nightly
+          version="v999.0.0-$ts.$commit.nightly"
           echo "VERSION=$version" >> $GITHUB_ENV
           echo "### $version :rocket:" >> $GITHUB_STEP_SUMMARY
       -

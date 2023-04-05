@@ -2,13 +2,13 @@
 #
 # Submit new Fleet version against rancher/rancher
 
-set -uex
+set -ue
 
-PREV_FLEET_VERSION=$1   # e.g. 0.6.0-rc.3
-NEW_FLEET_VERSION=$2
-PREV_CHART_VERSION=$3   # e.g. 101.1.0
-NEW_CHART_VERSION=$4
-BUMP_API=$5             # bump api if `true`
+PREV_FLEET_VERSION="$1"   # e.g. 0.6.0-rc.3
+NEW_FLEET_VERSION="$2"
+PREV_CHART_VERSION="$3"   # e.g. 101.1.0
+NEW_CHART_VERSION="$4"
+BUMP_API="$5"             # bump api if `true`
 
 bump_fleet_api() {
     COMMIT=$1

@@ -3,6 +3,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: {{.ProjectNamespace}}
+{{if .Restricted}}
 ---
 kind: GitRepoRestriction
 apiVersion: fleet.cattle.io/v1alpha1
@@ -12,6 +13,7 @@ metadata:
 
 allowedTargetNamespaces:
   - project1simpleapp
+{{end}}
 ---
 kind: BundleNamespaceMapping
 apiVersion: fleet.cattle.io/v1alpha1
@@ -21,7 +23,7 @@ metadata:
 
 bundleSelector:
   matchLabels:
-    team: one
+    team: {{ .BundleSelectorLabel }}
 
 namespaceSelector:
   matchLabels:
@@ -36,7 +38,7 @@ metadata:
     team: one
 
 spec:
-  repo: https://github.com/rancher/fleet-examples
+  repo: https://github.com/rancher/fleet-test-data
   branch: master
   paths:
   - bundle-diffs

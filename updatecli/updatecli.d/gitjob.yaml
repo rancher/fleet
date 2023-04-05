@@ -5,7 +5,7 @@ scms:
     kind: github
     spec:
       user: fleet-bot
-      email: fleet@olblak.com
+      email: fleet@suse.de
       owner: rancher
       repository: fleet
       token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'

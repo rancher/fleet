@@ -287,18 +287,20 @@ func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *
 }
 
 // bundleDeployments copies BundleDeployments out of targets and into a new slice of runtime.Object
-// discarding Status, and replacing DependsOn with the bundle's DependsOn (pure function)
+// discarding Status, replacing DependsOn with the bundle's DependsOn (pure function) and replacing the labels with the
+// bundle's labels
 func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result []runtime.Object) {
 	for _, target := range targets {
 		if target.Deployment == nil {
 			continue
 		}
 		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
+		// copy labels from Bundle as they might have changed
 		dp := &fleet.BundleDeployment{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      target.Deployment.Name,
 				Namespace: target.Deployment.Namespace,
-				Labels:    target.Deployment.Labels,
+				Labels:    target.BundleDeploymentLabels(),
 			},
 			Spec: target.Deployment.Spec,
 		}

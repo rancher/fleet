@@ -1,8 +1,7 @@
-package mc_examples_test
+package multicluster_test
 
 import (
-	"os"
-	"path"
+	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
@@ -19,8 +18,18 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 		asset     string
 		namespace string
 		data      any
-		tmpdir    string
+
+		interval = 2 * time.Second
+		duration = 30 * time.Second
 	)
+
+	type TemplateData struct {
+		ClusterNamespace    string
+		ProjectNamespace    string
+		TargetNamespace     string
+		BundleSelectorLabel string
+		Restricted          bool
+	}
 
 	BeforeEach(func() {
 		k = env.Kubectl.Context(env.Upstream)
@@ -28,19 +37,30 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 	})
 
 	JustBeforeEach(func() {
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		output := path.Join(tmpdir, testenv.RandomFilename("manifests.yaml"))
-		err := testenv.Template(output, testenv.AssetPath(asset), data)
+		err := testenv.ApplyTemplate(k.Namespace(namespace), testenv.AssetPath(asset), data)
 		Expect(err).ToNot(HaveOccurred())
-
-		out, err := k.Namespace(namespace).Apply("-f", output)
-		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	AfterEach(func() {
 		out, err := k.Delete("ns", namespace)
 		Expect(err).ToNot(HaveOccurred(), out)
-		os.RemoveAll(tmpdir)
+	})
+
+	Context("with bundlenamespacemapping", func() {
+		When("bundle selector does not match", func() {
+			BeforeEach(func() {
+				namespace = testenv.NewNamespaceName("bnm-nomatch")
+				asset = "multi-cluster/bundle-namespace-mapping.yaml"
+				data = TemplateData{env.Namespace, namespace, "", "mismatch", false}
+			})
+
+			It("does not deploy to the mapped downstream cluster", func() {
+				Consistently(func() string {
+					out, _ := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-namespace="+namespace)
+					return out
+				}, duration, interval).ShouldNot(ContainSubstring("simpleapp-bundle-diffs"))
+			})
+		})
 	})
 
 	// the cluster resource in not in the same namespace as the gitrepo
@@ -50,16 +70,12 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 			BeforeEach(func() {
 				namespace = "project1"
 				asset = "multi-cluster/bundle-namespace-mapping.yaml"
-				data = struct {
-					ProjectNamespace string
-					ClusterNamespace string
-					TargetNamespace  string
-				}{namespace, env.Namespace, "targetNamespace: project1simpleapp"}
+				data = TemplateData{env.Namespace, namespace, "targetNamespace: project1simpleapp", "one", true}
 			})
 
 			It("deploys to the mapped downstream cluster", func() {
 				Eventually(func() string {
-					out, _ := k.Get("bundledeployments", "-A")
+					out, _ := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-namespace="+namespace)
 					return out
 				}).Should(ContainSubstring("simpleapp-bundle-diffs"))
 				Eventually(func() string {
@@ -73,11 +89,7 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 			BeforeEach(func() {
 				namespace = "project2"
 				asset = "multi-cluster/bundle-namespace-mapping.yaml"
-				data = struct {
-					ProjectNamespace string
-					ClusterNamespace string
-					TargetNamespace  string
-				}{namespace, env.Namespace, "targetNamespace: denythisnamespace"}
+				data = TemplateData{env.Namespace, namespace, "targetNamespace: denythisnamespace", "one", true}
 			})
 
 			It("denies deployment to downstream cluster", func() {
@@ -94,11 +106,7 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 			BeforeEach(func() {
 				namespace = "project3"
 				asset = "multi-cluster/bundle-namespace-mapping.yaml"
-				data = struct {
-					ProjectNamespace string
-					ClusterNamespace string
-					TargetNamespace  string
-				}{namespace, env.Namespace, ""}
+				data = TemplateData{env.Namespace, namespace, "", "one", true}
 			})
 
 			It("denies deployment to downstream cluster", func() {

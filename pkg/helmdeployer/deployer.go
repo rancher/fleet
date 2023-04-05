@@ -40,6 +40,8 @@ const (
 	AgentNamespaceAnnotation     = "fleet.cattle.io/agent-namespace"
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleet-default"
+	KeepResourcesAnnotation      = "fleet.cattle.io/keep-resources"
+	HelmUpgradeInterruptedError  = "another operation (install/upgrade/rollback) is in progress"
 )
 
 var (
@@ -84,6 +86,8 @@ type DeployedBundle struct {
 	BundleID string
 	// ReleaseName is actually in the form "namespace/release name"
 	ReleaseName string
+	// KeepResources indicate if resources should be kept when deleting a GitRepo or Bundle
+	KeepResources bool
 }
 
 func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
@@ -204,6 +208,8 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	chart.Metadata.Annotations[ServiceAccountNameAnnotation] = options.ServiceAccount
 	chart.Metadata.Annotations[BundleIDAnnotation] = bundleID
 	chart.Metadata.Annotations[AgentNamespaceAnnotation] = h.agentNamespace
+	chart.Metadata.Annotations[KeepResourcesAnnotation] = strconv.FormatBool(options.KeepResources)
+
 	if manifest.Commit != "" {
 		chart.Metadata.Annotations[CommitAnnotation] = manifest.Commit
 	}
@@ -363,6 +369,7 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 			}
 		}
 		u.ForceAdopt = options.Helm.TakeOwnership
+		u.EnableDNS = true
 		u.Replace = true
 		u.ReleaseName = releaseName
 		u.CreateNamespace = true
@@ -382,6 +389,7 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 
 	u := action.NewUpgrade(&cfg)
 	u.Adopt = true
+	u.EnableDNS = true
 	u.Force = options.Helm.Force
 	u.Atomic = options.Helm.Atomic
 	u.MaxHistory = options.Helm.MaxHistory
@@ -400,7 +408,20 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	if !dryRun {
 		logrus.Infof("Helm: Upgrading %s", bundleID)
 	}
-	return u.Run(releaseName, chart, values)
+	rel, err := u.Run(releaseName, chart, values)
+	if err != nil && err.Error() == HelmUpgradeInterruptedError {
+		logrus.Infof("Helm error: %s for %s. Doing a rollback", HelmUpgradeInterruptedError, bundleID)
+		r := action.NewRollback(&cfg)
+		err = r.Run(releaseName)
+		if err != nil {
+			return nil, err
+		}
+		logrus.Debugf("Helm: retrying upgrade for %s after rollback", bundleID)
+
+		return u.Run(releaseName, chart, values)
+	}
+
+	return rel, err
 }
 
 func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
@@ -417,6 +438,31 @@ func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 	if !h.template {
 		for _, valuesFrom := range options.Helm.ValuesFrom {
 			var tempValues map[string]interface{}
+			if valuesFrom.ConfigMapKeyRef != nil {
+				name := valuesFrom.ConfigMapKeyRef.Name
+				namespace := valuesFrom.ConfigMapKeyRef.Namespace
+				if namespace == "" {
+					namespace = defaultNamespace
+				}
+				key := valuesFrom.ConfigMapKeyRef.Key
+				if key == "" {
+					key = DefaultKey
+				}
+				configMap, err := h.configmapCache.Get(namespace, name)
+				if err != nil {
+					return nil, err
+				}
+				tempValues, err = valuesFromConfigMap(name, namespace, key, configMap)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if tempValues != nil {
+				values = mergeValues(values, tempValues)
+				tempValues = nil
+			}
+
+			// merge secret last to be compatible with fleet <= 0.6.0
 			if valuesFrom.SecretKeyRef != nil {
 				name := valuesFrom.SecretKeyRef.Name
 				namespace := valuesFrom.SecretKeyRef.Namespace
@@ -431,25 +477,7 @@ func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 				if err != nil {
 					return nil, err
 				}
-				tempValues, err = processValuesFromObject(name, namespace, key, secret, nil)
-				if err != nil {
-					return nil, err
-				}
-			} else if valuesFrom.ConfigMapKeyRef != nil {
-				name := valuesFrom.ConfigMapKeyRef.Name
-				namespace := valuesFrom.ConfigMapKeyRef.Namespace
-				if namespace == "" {
-					namespace = defaultNamespace
-				}
-				key := valuesFrom.ConfigMapKeyRef.Key
-				if key == "" {
-					key = DefaultKey
-				}
-				configMap, err := h.configmapCache.Get(namespace, name)
-				if err != nil {
-					return nil, err
-				}
-				tempValues, err = processValuesFromObject(name, namespace, key, nil, configMap)
+				tempValues, err = valuesFromSecret(name, namespace, key, secret)
 				if err != nil {
 					return nil, err
 				}
@@ -486,9 +514,12 @@ func (h *Helm) ListDeployments() ([]DeployedBundle, error) {
 		if ns != "" && ns != h.agentNamespace {
 			continue
 		}
+		// ignore error as keepResources should be false if annotation not found
+		keepResources, _ := strconv.ParseBool(release.Chart.Metadata.Annotations[KeepResourcesAnnotation])
 		result = append(result, DeployedBundle{
-			BundleID:    d,
-			ReleaseName: release.Namespace + "/" + release.Name,
+			BundleID:      d,
+			ReleaseName:   release.Namespace + "/" + release.Name,
+			KeepResources: keepResources,
 		})
 	}
 
@@ -580,26 +611,28 @@ func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string)
 // format "namespace/name". If releaseName is empty, search for a matching
 // release.
 func (h *Helm) Delete(bundleID, releaseName string) error {
-	if releaseName == "" {
-		deployments, err := h.ListDeployments()
-		if err != nil {
-			return err
-		}
-		for _, deployment := range deployments {
-			if deployment.BundleID == bundleID {
+	keepResources := false
+	deployments, err := h.ListDeployments()
+	if err != nil {
+		return err
+	}
+	for _, deployment := range deployments {
+		if deployment.BundleID == bundleID {
+			if releaseName == "" {
 				releaseName = deployment.ReleaseName
-				break
 			}
+			keepResources = deployment.KeepResources
+			break
 		}
 	}
 	if releaseName == "" {
 		// Never found anything to delete
 		return nil
 	}
-	return h.deleteByRelease(bundleID, releaseName)
+	return h.deleteByRelease(bundleID, releaseName, keepResources)
 }
 
-func (h *Helm) deleteByRelease(bundleID, releaseName string) error {
+func (h *Helm) deleteByRelease(bundleID, releaseName string, keepResources bool) error {
 	releaseNamespace, releaseName := kv.Split(releaseName, "/")
 	rels, err := h.globalCfg.Releases.List(func(r *release.Release) bool {
 		return r.Namespace == releaseNamespace &&
@@ -631,6 +664,11 @@ func (h *Helm) deleteByRelease(bundleID, releaseName string) error {
 
 	if strings.HasPrefix(bundleID, "fleet-agent") {
 		// Never uninstall the fleet-agent, just "forget" it
+		return deleteHistory(cfg, bundleID)
+	}
+
+	if keepResources {
+		// don't delete resources, just delete the helm release secrets
 		return deleteHistory(cfg, bundleID)
 	}
 
@@ -702,24 +740,34 @@ func deleteHistory(cfg action.Configuration, bundleID string) error {
 	return nil
 }
 
-func processValuesFromObject(name, namespace, key string, secret *corev1.Secret, configMap *corev1.ConfigMap) (map[string]interface{}, error) {
+func valuesFromSecret(name, namespace, key string, secret *corev1.Secret) (map[string]interface{}, error) {
 	var m map[string]interface{}
-	if secret != nil {
-		values, ok := secret.Data[key]
-		if !ok {
-			return nil, fmt.Errorf("key %s is missing from secret %s/%s, can't use it in valuesFrom", key, namespace, name)
-		}
-		if err := yaml.Unmarshal(values, &m); err != nil {
-			return nil, err
-		}
-	} else if configMap != nil {
-		values, ok := configMap.Data[key]
-		if !ok {
-			return nil, fmt.Errorf("key %s is missing from configmap %s/%s, can't use it in valuesFrom", key, namespace, name)
-		}
-		if err := yaml.Unmarshal([]byte(values), &m); err != nil {
-			return nil, err
-		}
+	if secret == nil {
+		return m, nil
+	}
+
+	values, ok := secret.Data[key]
+	if !ok {
+		return nil, fmt.Errorf("key %s is missing from secret %s/%s, can't use it in valuesFrom", key, namespace, name)
+	}
+	if err := yaml.Unmarshal(values, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func valuesFromConfigMap(name, namespace, key string, configMap *corev1.ConfigMap) (map[string]interface{}, error) {
+	var m map[string]interface{}
+	if configMap == nil {
+		return m, nil
+	}
+
+	values, ok := configMap.Data[key]
+	if !ok {
+		return nil, fmt.Errorf("key %s is missing from configmap %s/%s, can't use it in valuesFrom", key, namespace, name)
+	}
+	if err := yaml.Unmarshal([]byte(values), &m); err != nil {
+		return nil, err
 	}
 	return m, nil
 }
@@ -735,19 +783,21 @@ func mergeMaps(base, other map[string]string) map[string]string {
 	return result
 }
 
-// mergeValues merges source and destination map, preferring values
+// mergeValues merges source and destination map, preferring values over maps
 // from the source values. This is slightly adapted from:
 // https://github.com/helm/helm/blob/2332b480c9cb70a0d8a85247992d6155fbe82416/cmd/helm/install.go#L359
 func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
 	for k, v := range src {
 		// If the key doesn't exist already, then just set the key to that value
 		if _, exists := dest[k]; !exists {
+			// new key
 			dest[k] = v
 			continue
 		}
 		nextMap, ok := v.(map[string]interface{})
 		// If it isn't another map, overwrite the value
 		if !ok {
+			// new key is not a map, overwrite existing key as we prefer values over maps
 			dest[k] = v
 			continue
 		}

@@ -58,21 +58,40 @@ type Cluster struct {
 }
 
 type ClusterSpec struct {
-	Paused                  bool        `json:"paused,omitempty"`
-	ClientID                string      `json:"clientID,omitempty"`
-	KubeConfigSecret        string      `json:"kubeConfigSecret,omitempty"`
-	RedeployAgentGeneration int64       `json:"redeployAgentGeneration,omitempty"`
-	AgentEnvVars            []v1.EnvVar `json:"agentEnvVars,omitempty"`
+	// Paused if set to true, will stop any BundleDeployments from being updated.
+	Paused bool `json:"paused,omitempty"`
 
-	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system
+	// ClientID is a unique string that will identify the cluster. It can
+	// either be predefined, or generated when importing the cluster.
+	ClientID string `json:"clientID,omitempty"`
+
+	// KubeConfigSecret is the name of the secret containing the kubeconfig for the downstream cluster.
+	KubeConfigSecret string `json:"kubeConfigSecret,omitempty"`
+
+	// RedeployAgentGeneration can be used to force redeploying the agent.
+	RedeployAgentGeneration int64 `json:"redeployAgentGeneration,omitempty"`
+
+	// AgentEnvVars are extra environment variables to be added to the agent deployment.
+	AgentEnvVars []v1.EnvVar `json:"agentEnvVars,omitempty"`
+
+	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system.
 	AgentNamespace string `json:"agentNamespace,omitempty"`
+
+	// PrivateRepoURL prefixes the image name and overrides a global repo URL from the agents config.
 	PrivateRepoURL string `json:"privateRepoURL,omitempty"`
 
-	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating
+	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating.
 	TemplateValues *GenericMap `json:"templateValues,omitempty"`
 
-	// AgentTolerations defines an extra set of Tolerations to be added to the Agent deployment
+	// AgentTolerations defines an extra set of Tolerations to be added to the Agent deployment.
 	AgentTolerations []v1.Toleration `json:"agentTolerations,omitempty"`
+
+	// AgentAffinity overrides the default affinity for the cluster's agent
+	// deployment. If this value is nil the default affinity is used.
+	AgentAffinity *v1.Affinity `json:"agentAffinity,omitempty"`
+
+	// AgentResources sets the resources for the cluster's agent deployment.
+	AgentResources *v1.ResourceRequirements `json:"agentResources,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -94,6 +113,10 @@ type ClusterStatus struct {
 	AgentMigrated           bool   `json:"agentMigrated,omitempty"`
 	AgentNamespaceMigrated  bool   `json:"agentNamespaceMigrated,omitempty"`
 	CattleNamespaceMigrated bool   `json:"cattleNamespaceMigrated,omitempty"`
+
+	AgentAffinityHash    string `json:"agentAffinityHash,omitempty"`
+	AgentResourcesHash   string `json:"agentResourcesHash,omitempty"`
+	AgentTolerationsHash string `json:"agentTolerationsHash,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`

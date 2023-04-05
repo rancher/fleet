@@ -1,4 +1,4 @@
-package examples_test
+package singlecluster_test
 
 import (
 	"encoding/json"
@@ -62,13 +62,13 @@ var _ = Describe("BundleDiffs", func() {
 				}
 
 				return false
-			}).Should(BeTrue(), "bundledepoloyment should be deleted")
+			}).Should(BeTrue(), "bundledeployment should be deleted")
 		})
 	})
 
 	When("fleet.yaml contains bundle-diff patches", func() {
 		BeforeEach(func() {
-			asset = "bundle-diffs/gitrepo.yaml"
+			asset = "single-cluster/bundle-diffs.yaml"
 		})
 
 		JustBeforeEach(func() {

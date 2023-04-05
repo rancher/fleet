@@ -156,33 +156,26 @@ func (h *handler) authorizeAndAssignDefaults(gitrepo *fleet.GitRepo) (*fleet.Git
 		return nil, fmt.Errorf("empty targetNamespace denied, because allowedTargetNamespaces restriction is present")
 	}
 
-	gitrepo.Spec.TargetNamespace, err = isAllowed(gitrepo.Spec.TargetNamespace,
-		"",
-		restriction.AllowedTargetNamespaces,
-		false)
+	gitrepo.Spec.TargetNamespace, err = isAllowed(gitrepo.Spec.TargetNamespace, "", restriction.AllowedTargetNamespaces)
 	if err != nil {
 		return nil, fmt.Errorf("disallowed targetNamespace %s: %w", gitrepo.Spec.TargetNamespace, err)
 	}
 
 	gitrepo.Spec.ServiceAccount, err = isAllowed(gitrepo.Spec.ServiceAccount,
 		restriction.DefaultServiceAccount,
-		restriction.AllowedServiceAccounts,
-		false)
+		restriction.AllowedServiceAccounts)
 	if err != nil {
 		return nil, fmt.Errorf("disallowed serviceAccount %s: %w", gitrepo.Spec.ServiceAccount, err)
 	}
 
-	gitrepo.Spec.Repo, err = isAllowed(gitrepo.Spec.Repo,
-		"",
-		restriction.AllowedRepoPatterns,
-		true)
+	gitrepo.Spec.Repo, err = isAllowedByRegex(gitrepo.Spec.Repo, "", restriction.AllowedRepoPatterns)
 	if err != nil {
 		return nil, fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.ServiceAccount, err)
 	}
 
 	gitrepo.Spec.ClientSecretName, err = isAllowed(gitrepo.Spec.ClientSecretName,
 		restriction.DefaultClientSecretName,
-		restriction.AllowedClientSecretNames, false)
+		restriction.AllowedClientSecretNames)
 	if err != nil {
 		return nil, fmt.Errorf("disallowed clientSecretName %s: %w", gitrepo.Spec.ServiceAccount, err)
 	}
@@ -190,7 +183,7 @@ func (h *handler) authorizeAndAssignDefaults(gitrepo *fleet.GitRepo) (*fleet.Git
 	return gitrepo, nil
 }
 
-func isAllowed(currentValue, defaultValue string, allowedValues []string, pattern bool) (string, error) {
+func isAllowed(currentValue, defaultValue string, allowedValues []string) (string, error) {
 	if currentValue == "" {
 		return defaultValue, nil
 	}
@@ -201,19 +194,35 @@ func isAllowed(currentValue, defaultValue string, allowedValues []string, patter
 		if allowedValue == currentValue {
 			return currentValue, nil
 		}
-		if !pattern {
-			continue
+	}
+
+	return currentValue, fmt.Errorf("%s not in allowed set %v", currentValue, allowedValues)
+}
+
+func isAllowedByRegex(currentValue, defaultValue string, patterns []string) (string, error) {
+	if currentValue == "" {
+		return defaultValue, nil
+	}
+	if len(patterns) == 0 {
+		return currentValue, nil
+	}
+	for _, pattern := range patterns {
+		// for compatibility with previous versions, the patterns can match verbatim
+		if pattern == currentValue {
+			return currentValue, nil
 		}
-		p, err := regexp.Compile(allowedValue)
+
+		p, err := regexp.Compile(pattern)
 		if err != nil {
+			logrus.Infof("GitRepoRestriction failed to compile regex '%s'", pattern)
 			return currentValue, err
 		}
-		if p.MatchString(allowedValue) {
+		if p.MatchString(currentValue) {
 			return currentValue, nil
 		}
 	}
 
-	return currentValue, fmt.Errorf("%s not in allowed set %v", currentValue, allowedValues)
+	return currentValue, fmt.Errorf("%s not in allowed set %v", currentValue, patterns)
 }
 
 func aggregate(restrictions []*fleet.GitRepoRestriction) (result fleet.GitRepoRestriction) {
@@ -640,6 +649,10 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 		fmt.Sprintf("--paused=%v", gitrepo.Spec.Paused),
 		"--target-namespace", gitrepo.Spec.TargetNamespace,
 	)
+
+	if gitrepo.Spec.KeepResources {
+		args = append(args, "--keep-resources")
+	}
 
 	var env []corev1.EnvVar
 	if gitrepo.Spec.HelmSecretName != "" {

@@ -2,13 +2,13 @@
 #
 # Submit new Fleet version against rancher/charts
 
-set -uex
+set -ue
 
-PREV_FLEET_VERSION=$1   # e.g. 0.5.2-rc.3
-NEW_FLEET_VERSION=$2
-PREV_CHART_VERSION=$3   # e.g. 101.2.0
-NEW_CHART_VERSION=$4
-REPLACE=$5              # remove previous version if `true`, otherwise add new
+PREV_FLEET_VERSION="$1"   # e.g. 0.5.2-rc.3
+NEW_FLEET_VERSION="$2"
+PREV_CHART_VERSION="$3"   # e.g. 101.2.0
+NEW_CHART_VERSION="$4"
+REPLACE="$5"              # remove previous version if `true`, otherwise add new
 
 if [ -z "${GITHUB_WORKSPACE:-}" ]; then
     CHARTS_DIR="$(dirname -- "$0")/../../../charts"
