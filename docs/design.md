@@ -1,6 +1,6 @@
 # Design
 
-More information can be found in the "Reference" section on the [fleet docs site](https://fleet.rancher.io/next/ref-components).
+More information can be found in the "Component Overview" [section](https://fleet.rancher.io/architecture#component-overview) on the Fleet docs website.
 
 ## Design for Fleet Managing Fleet: Hosted Rancher, Harvester, Rancher Managing Rancher, etc.
 
