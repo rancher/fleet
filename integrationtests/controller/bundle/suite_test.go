@@ -66,8 +66,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	specEnvs = make(map[string]*specEnv, 1)
-	for _, id := range []string{"labels"} {
+	specEnvs = make(map[string]*specEnv, 2)
+	for _, id := range []string{"labels", "targets"} {
 		namespace, err := utils.NewNamespaceName()
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Printf("Creating namespace %s\n", namespace)
