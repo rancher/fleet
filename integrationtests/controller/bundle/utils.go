@@ -35,11 +35,11 @@ func createBundle(name, namespace string, bundleController v1gen.BundleControlle
 	return bundleController.Create(&bundle)
 }
 
-func createCluster(name, namespace string, clusterController v1gen.ClusterController, labels map[string]string, clusterNs string) (*v1alpha1.Cluster, error) {
+func createCluster(name, controllerNs string, clusterController v1gen.ClusterController, labels map[string]string, clusterNs string) (*v1alpha1.Cluster, error) {
 	cluster := v1alpha1.Cluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: controllerNs,
 			Labels:    labels,
 		},
 	}

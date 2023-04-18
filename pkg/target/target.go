@@ -278,6 +278,7 @@ func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]
 			if targetCustomized != nil {
 				targetOpts = targetCustomized.BundleDeploymentOptions
 			}
+
 			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, targetOpts)
 			err = preprocessHelmValues(&opts, cluster)
 			if err != nil {

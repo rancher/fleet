@@ -53,7 +53,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		Expect(bundleController.Delete(env.namespace, bundleName, nil)).NotTo(HaveOccurred())
 	})
 
-	When("target all clusters without customization", func() {
+	When("a GitRepo targets all clusters without customization", func() {
 		BeforeEach(func() {
 			bundleName = "all"
 			bdLabels = map[string]string{
@@ -70,7 +70,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			copy(targetRestrictions, targets)
 		})
 
-		It("three BundleDeployments are created", func() {
+		It("creates three BundleDeployments", func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(3, bdLabels)
 			By("and BundleDeployments don't have values from customizations")
 			for _, bd := range bdList.Items {
@@ -234,7 +234,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 	})
 
-	When("target customization for all cluster when targeting just cluster one", func() {
+	When("target customization for all clusters when targeting just cluster one", func() {
 		BeforeEach(func() {
 			bundleName = "one-target-all-customized"
 			bdLabels = map[string]string{
@@ -297,69 +297,31 @@ func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[s
 // - a namespace per cluster. This is to simulate the namespace created for placing the BundleDeployments, this
 // is done by another controller, then it is set in the status field.
 func createClustersAndClusterGroups() {
-	clusterNs, err := utils.NewNamespaceName()
-	Expect(err).ToNot(HaveOccurred())
-	clusterNs = clusterNs + "cluster-one"
-	Expect(env.k8sClient.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: clusterNs,
-		},
-	})).ToNot(HaveOccurred())
-	DeferCleanup(func() {
-		Expect(env.k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNs}})).ToNot(HaveOccurred())
-	})
 
-	clusterOne, err := createCluster("one", env.namespace, clusterController, map[string]string{"cluster": "one", "env": "test"}, clusterNs)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(clusterOne).To(Not(BeNil()))
+	clusterNames := []string{"one", "two", "three"}
+	for _, cn := range clusterNames {
+		clusterNs, err := utils.NewNamespaceName()
+		Expect(err).ToNot(HaveOccurred())
+		clusterNs = clusterNs + "cluster-" + cn
+		Expect(env.k8sClient.Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: clusterNs,
+			},
+		})).ToNot(HaveOccurred())
+		DeferCleanup(func() {
+			Expect(env.k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNs}})).ToNot(HaveOccurred())
+		})
 
-	clusterNs, err = utils.NewNamespaceName()
-	Expect(err).ToNot(HaveOccurred())
-	clusterNs = clusterNs + "cluster-two"
-	Expect(env.k8sClient.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: clusterNs,
-		},
-	})).ToNot(HaveOccurred())
-	DeferCleanup(func() {
-		Expect(env.k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNs}})).ToNot(HaveOccurred())
-	})
-	clusterTwo, err := createCluster("two", env.namespace, clusterController, map[string]string{"cluster": "two", "env": "test"}, clusterNs)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(clusterTwo).To(Not(BeNil()))
+		clusterOne, err := createCluster(cn, env.namespace, clusterController, map[string]string{"cluster": cn, "env": "test"}, clusterNs)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(clusterOne).To(Not(BeNil()))
 
-	clusterNs, err = utils.NewNamespaceName()
-	Expect(err).ToNot(HaveOccurred())
-	clusterNs = clusterNs + "cluster-three"
-	Expect(env.k8sClient.Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: clusterNs,
-		},
-	})).ToNot(HaveOccurred())
-	DeferCleanup(func() {
-		Expect(env.k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNs}})).ToNot(HaveOccurred())
-	})
-	clusterThree, err := createCluster("three", env.namespace, clusterController, map[string]string{"cluster": "three", "env": "test"}, clusterNs)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(clusterThree).To(Not(BeNil()))
-
-	clusterGroupOne, err := createClusterGroup("one", env.namespace, clusterGroupController, &metav1.LabelSelector{
-		MatchLabels: map[string]string{"cluster": "one"},
-	})
-	Expect(err).NotTo(HaveOccurred())
-	Expect(clusterGroupOne).To(Not(BeNil()))
-
-	clusterGroupTwo, err := createClusterGroup("two", env.namespace, clusterGroupController, &metav1.LabelSelector{
-		MatchLabels: map[string]string{"cluster": "two"},
-	})
-	Expect(err).NotTo(HaveOccurred())
-	Expect(clusterGroupTwo).To(Not(BeNil()))
-
-	clusterGroupThree, err := createClusterGroup("three", env.namespace, clusterGroupController, &metav1.LabelSelector{
-		MatchLabels: map[string]string{"cluster": "three"},
-	})
-	Expect(err).NotTo(HaveOccurred())
-	Expect(clusterGroupThree).To(Not(BeNil()))
+		clusterGroup, err := createClusterGroup(cn, env.namespace, clusterGroupController, &metav1.LabelSelector{
+			MatchLabels: map[string]string{"cluster": cn},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(clusterGroup).To(Not(BeNil()))
+	}
 
 	clusterGroupAll, err := createClusterGroup("all", env.namespace, clusterGroupController, &metav1.LabelSelector{
 		MatchLabels: map[string]string{"env": "test"},

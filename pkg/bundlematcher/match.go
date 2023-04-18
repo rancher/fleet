@@ -30,7 +30,7 @@ func (a *BundleMatch) MatchForTarget(name string) *fleet.BundleTarget {
 	return nil
 }
 
-// Match returns the first BundleTarget that matches the target criteria. Targets are evaluated in order
+// Match returns the first BundleTarget that matches the target criteria. Targets are evaluated in order.
 // It checks for restrictions, which means that just targets included in the GitRepo can be returned. TargetCustomizations
 // described in the fleet.yaml will be ignored.
 // All GitRepo targets are added as TargetRestrictions, which acts as a whitelist.
@@ -42,7 +42,7 @@ func (a *BundleMatch) Match(clusterName string, clusterGroups map[string]map[str
 	return nil
 }
 
-// MatchTargetCustomizations returns the first BundleTarget that matches the target criteria. Targets are evaluated in order
+// MatchTargetCustomizations returns the first BundleTarget that matches the target criteria. Targets are evaluated in order.
 // It doesn't check for restrictions, which means TargetCustomizations described in the fleet.yaml are considered.
 func (a *BundleMatch) MatchTargetCustomizations(clusterName string, clusterGroups map[string]map[string]string, clusterLabels map[string]string) *fleet.BundleTarget {
 	if m := a.matcher.match(clusterName, clusterLabels, clusterGroups, criteriaWithoutRestrictions); m != nil {
@@ -117,11 +117,12 @@ func (m *matcher) criteriaWithRestrictions(targetMatch targetMatch, clusterName,
 	return false
 }
 
-// doesn't check if target is inside the targetRestrictions. This is used for TargetCustomizations
+// Checks targetMatch's criteria for a match on the specified cluster name, group and labels, without checking if target is inside the targetRestrictions. This is used for TargetCustomizations.
 func criteriaWithoutRestrictions(targetMatch targetMatch, clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
 	return targetMatch.criteria.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels)
 }
 
+// match returns the first BundleTarget, from the matcher's target matches, which matches the specified cluster name, groups and labels, using matching logic implemented via findCriteriaMatch.
 func (m *matcher) match(clusterName string, clusterLabels map[string]string, clusterGroups map[string]map[string]string, findCriteriaMatch findCriteriaMatch) *fleet.BundleTarget {
 	for _, targetMatch := range m.matches {
 		if len(clusterGroups) == 0 {
