@@ -37,10 +37,11 @@ var _ = Describe("Bundle targets", Ordered, func() {
 	})
 
 	var (
-		targets            []v1alpha1.BundleTarget
-		targetRestrictions []v1alpha1.BundleTarget
-		bundleName         string
-		bdLabels           map[string]string
+		targets                           []v1alpha1.BundleTarget
+		targetRestrictions                []v1alpha1.BundleTarget
+		bundleName                        string
+		bdLabels                          map[string]string
+		expectedNumberOfBundleDeployments int
 	)
 
 	JustBeforeEach(func() {
@@ -60,6 +61,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				"fleet.cattle.io/bundle-name":      bundleName,
 				"fleet.cattle.io/bundle-namespace": env.namespace,
 			}
+			expectedNumberOfBundleDeployments = 3
 			// simulate targets in GitRepo. All targets in GitRepo are also added to targetRestrictions, which acts as a white list
 			targets = []v1alpha1.BundleTarget{
 				{
@@ -71,7 +73,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("creates three BundleDeployments", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(3, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
 			By("and BundleDeployments don't have values from customizations")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
@@ -86,6 +88,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				"fleet.cattle.io/bundle-name":      bundleName,
 				"fleet.cattle.io/bundle-namespace": env.namespace,
 			}
+			expectedNumberOfBundleDeployments = 3
 			// simulate targets in fleet.yaml which are used for customization
 			targets = []v1alpha1.BundleTarget{
 				{
@@ -114,7 +117,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("three BundleDeployments are created", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(3, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
 			By("and BundleDeployments have values from customizations")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "3"}))
@@ -129,6 +132,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				"fleet.cattle.io/bundle-name":      bundleName,
 				"fleet.cattle.io/bundle-namespace": env.namespace,
 			}
+			expectedNumberOfBundleDeployments = 3
 			// simulate targets in fleet.yaml which are used for customization
 			targets = []v1alpha1.BundleTarget{
 				{
@@ -165,7 +169,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("three BundleDeployments are created", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(3, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
 			By("and just BundleDeployment from cluster one and two are customized")
 			for _, bd := range bdList.Items {
 				if strings.Contains(bd.ObjectMeta.Namespace, "cluster-one") {
@@ -186,6 +190,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				"fleet.cattle.io/bundle-name":      bundleName,
 				"fleet.cattle.io/bundle-namespace": env.namespace,
 			}
+			expectedNumberOfBundleDeployments = 3
 			// simulate targets in fleet.yaml which are used for customization
 			targets = []v1alpha1.BundleTarget{
 				{
@@ -222,7 +227,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("three BundleDeployments are created", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(3, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
 			By("and just BundleDeployment from cluster one is customized")
 			for _, bd := range bdList.Items {
 				if strings.Contains(bd.ObjectMeta.Namespace, "cluster-one") {
@@ -241,6 +246,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				"fleet.cattle.io/bundle-name":      bundleName,
 				"fleet.cattle.io/bundle-namespace": env.namespace,
 			}
+			expectedNumberOfBundleDeployments = 1
 			// simulate targets in fleet.yaml which are used for customization
 			targets = []v1alpha1.BundleTarget{
 				{
@@ -269,7 +275,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("one BundleDeployment is created", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(1, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
 			By("and the BundleDeployment is customized")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "2"}))
