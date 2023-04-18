@@ -183,6 +183,18 @@ spec:
                   waitForJobs:
                     type: boolean
                 type: object
+              ignore:
+                properties:
+                  conditions:
+                    items:
+                      additionalProperties:
+                        nullable: true
+                        type: string
+                      nullable: true
+                      type: object
+                    nullable: true
+                    type: array
+                type: object
               keepResources:
                 type: boolean
               kustomize:
@@ -557,6 +569,18 @@ spec:
                           type: string
                         waitForJobs:
                           type: boolean
+                      type: object
+                    ignore:
+                      properties:
+                        conditions:
+                          items:
+                            additionalProperties:
+                              nullable: true
+                              type: string
+                            nullable: true
+                            type: object
+                          nullable: true
+                          type: array
                       type: object
                     keepResources:
                       type: boolean
@@ -1075,6 +1099,18 @@ spec:
                       waitForJobs:
                         type: boolean
                     type: object
+                  ignore:
+                    properties:
+                      conditions:
+                        items:
+                          additionalProperties:
+                            nullable: true
+                            type: string
+                          nullable: true
+                          type: object
+                        nullable: true
+                        type: array
+                    type: object
                   keepResources:
                     type: boolean
                   kustomize:
@@ -1225,6 +1261,18 @@ spec:
                         type: string
                       waitForJobs:
                         type: boolean
+                    type: object
+                  ignore:
+                    properties:
+                      conditions:
+                        items:
+                          additionalProperties:
+                            nullable: true
+                            type: string
+                          nullable: true
+                          type: object
+                        nullable: true
+                        type: array
                     type: object
                   keepResources:
                     type: boolean
