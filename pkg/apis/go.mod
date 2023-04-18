@@ -2,6 +2,8 @@ module github.com/rancher/fleet/pkg/apis
 
 go 1.19
 
+replace github.com/rancher/wrangler => github.com/vardhaman22/wrangler v1.26.4-rancher1
+
 require (
 	github.com/rancher/wrangler v1.1.1
 	k8s.io/api v0.26.4

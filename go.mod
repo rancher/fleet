@@ -3,6 +3,12 @@ module github.com/rancher/fleet
 go 1.19
 
 replace (
+	github.com/rancher/gitjob => github.com/vardhaman22/gitjob v1.26.4-rancher1
+	github.com/rancher/lasso => github.com/vardhaman22/lasso v1.26.4-rancher1
+	github.com/rancher/wrangler => github.com/vardhaman22/wrangler v1.26.4-rancher1
+)
+
+replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.11.3-rancher1
 	k8s.io/api => k8s.io/api v0.26.4
@@ -10,7 +16,7 @@ replace (
 	k8s.io/apimachinery => k8s.io/apimachinery v0.26.4 // indirect
 	k8s.io/apiserver => k8s.io/apiserver v0.26.4
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.26.4
-	k8s.io/client-go => github.com/rancher/client-go v0.24.0-fleet1
+	k8s.io/client-go => github.com/vardhaman22/rancher-client-go v1.26.4-rancher1
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.26.4
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.26.4
 	k8s.io/code-generator => k8s.io/code-generator v0.26.4
@@ -61,7 +67,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	helm.sh/helm/v3 v3.11.1
 	k8s.io/api v0.26.4
-	k8s.io/apiextensions-apiserver v0.26.1
+	k8s.io/apiextensions-apiserver v0.26.4
 	k8s.io/apimachinery v0.26.4
 	k8s.io/cli-runtime v0.26.4
 	k8s.io/client-go v12.0.0+incompatible
@@ -83,12 +89,6 @@ require (
 	cloud.google.com/go/storage v1.28.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
-	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
-	github.com/Azure/go-autorest/autorest v0.11.27 // indirect
-	github.com/Azure/go-autorest/autorest/adal v0.9.20 // indirect
-	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
-	github.com/Azure/go-autorest/logger v0.2.1 // indirect
-	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
@@ -129,7 +129,6 @@ require (
 	github.com/go-openapi/swag v0.21.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
@@ -210,12 +209,12 @@ require (
 	go.opentelemetry.io/otel/trace v1.14.0 // indirect
 	go.starlark.net v0.0.0-20220328144851-d1966c6b9fcd // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/crypto v0.6.0 // indirect
+	golang.org/x/crypto v0.8.0 // indirect
 	golang.org/x/mod v0.9.0 // indirect
-	golang.org/x/net v0.8.0 // indirect
+	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/oauth2 v0.5.0 // indirect
-	golang.org/x/sys v0.6.0 // indirect
-	golang.org/x/term v0.6.0 // indirect
+	golang.org/x/sys v0.7.0 // indirect
+	golang.org/x/term v0.7.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.7.0 // indirect
