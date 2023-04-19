@@ -81,7 +81,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 	})
 
-	When("target customization for all clusters", func() {
+	When("a target customization is specified for all clusters", func() {
 		BeforeEach(func() {
 			bundleName = "all-customized"
 			bdLabels = map[string]string{
@@ -116,7 +116,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			targets = append(targets, targetsInGitRepo...)
 		})
 
-		It("three BundleDeployments are created", func() {
+		It("creates three BundleDeployments", func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
 			By("and BundleDeployments have values from customizations")
 			for _, bd := range bdList.Items {
@@ -125,7 +125,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 	})
 
-	When("target customization for clusters one and two", func() {
+	When("target customizations are specified for clusters one and two", func() {
 		BeforeEach(func() {
 			bundleName = "one-customized"
 			bdLabels = map[string]string{
@@ -168,7 +168,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			targets = append(targets, targetsInGitRepo...)
 		})
 
-		It("three BundleDeployments are created", func() {
+		It("creates three BundleDeployments", func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
 			By("and just BundleDeployment from cluster one and two are customized")
 			for _, bd := range bdList.Items {
@@ -183,7 +183,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 	})
 
-	When("target customization for cluster one and all clusters", func() {
+	When("target customizations are specified both for cluster one, and for all clusters", func() {
 		BeforeEach(func() {
 			bundleName = "one-all-customized"
 			bdLabels = map[string]string{
@@ -226,7 +226,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			targets = append(targets, targetsInGitRepo...)
 		})
 
-		It("three BundleDeployments are created", func() {
+		It("creates three BundleDeployments", func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
 			By("and just BundleDeployment from cluster one is customized")
 			for _, bd := range bdList.Items {
@@ -239,7 +239,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 	})
 
-	When("target customization for all clusters when targeting just cluster one", func() {
+	When("target customizations are specified for all clusters but the GitRepo targets only cluster one", func() {
 		BeforeEach(func() {
 			bundleName = "one-target-all-customized"
 			bdLabels = map[string]string{
@@ -274,7 +274,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			targets = append(targets, targetsInGitRepo...)
 		})
 
-		It("one BundleDeployment is created", func() {
+		It("creates one BundleDeployment", func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
 			By("and the BundleDeployment is customized")
 			for _, bd := range bdList.Items {
