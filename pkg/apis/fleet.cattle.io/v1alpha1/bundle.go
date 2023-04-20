@@ -351,6 +351,7 @@ type LocalObjectReference struct {
 }
 
 type BundleDeploymentSpec struct {
+	Paused             bool                    `json:"paused,omitempty"`
 	StagedOptions      BundleDeploymentOptions `json:"stagedOptions,omitempty"`
 	StagedDeploymentID string                  `json:"stagedDeploymentID,omitempty"`
 	Options            BundleDeploymentOptions `json:"options,omitempty"`
