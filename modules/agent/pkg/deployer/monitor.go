@@ -277,8 +277,7 @@ func nonReady(plan apply.Plan, ignoreOptions fleet.IgnoreOptions) (result []flee
 		}
 		if u, ok := obj.(*unstructured.Unstructured); ok {
 			if ignoreOptions.Conditions != nil {
-				err := excludeIgnoredConditions(u, ignoreOptions)
-				if err != nil {
+				if err := excludeIgnoredConditions(u, ignoreOptions); err != nil {
 					logrus.Errorf("failed to ignore conditions: %v", err)
 				}
 			}
@@ -300,7 +299,7 @@ func nonReady(plan apply.Plan, ignoreOptions fleet.IgnoreOptions) (result []flee
 	return result
 }
 
-// excludeIgnoredConditions remove the conditions that are included in ignoreOptions from the object passed as a parameter
+// excludeIgnoredConditions removes the conditions that are included in ignoreOptions from the object passed as a parameter
 func excludeIgnoredConditions(obj *unstructured.Unstructured, ignoreOptions fleet.IgnoreOptions) error {
 	conditions, _, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
 	if err != nil {
@@ -338,10 +337,12 @@ func shouldExcludeCondition(conditions map[string]interface{}, ignoredConditions
 	if len(ignoredConditions) > len(conditions) {
 		return false
 	}
+
 	for k, v := range ignoredConditions {
 		if vc, found := conditions[k]; !found || vc != v {
 			return false
 		}
 	}
+
 	return true
 }

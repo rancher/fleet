@@ -23,7 +23,7 @@ func TestExcludeIgnoredConditions(t *testing.T) {
 	}}
 	uPodInitialized, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&podInitialized)
 	if err != nil {
-		t.Errorf("can't convert podInitializedAndNotReady to unstructured: %v", err)
+		t.Errorf("can't convert podInitialized to unstructured: %v", err)
 	}
 	tests := map[string]struct {
 		obj           *unstructured.Unstructured
