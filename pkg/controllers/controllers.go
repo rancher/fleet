@@ -4,7 +4,9 @@ package controllers
 import (
 	"context"
 
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/rancher/fleet/pkg/controllers/bootstrap"
 	"github.com/rancher/fleet/pkg/controllers/bundle"
@@ -237,7 +239,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 
 func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
 	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(durations.FailureRateLimiterBase, durations.FailureRateLimiterMax)
-	workqueue.DefaultControllerRateLimiter()
+	clusterRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(durations.SlowFailureRateLimiterBase, durations.SlowFailureRateLimiterMax)
 	clientFactory, err := client.NewSharedClientFactory(rest, nil)
 	if err != nil {
 		return nil, err
@@ -248,6 +250,9 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 		DefaultRateLimiter:     rateLimit,
 		DefaultWorkers:         50,
 		SyncOnlyChangedObjects: true,
+		KindRateLimiter: map[schema.GroupVersionKind]workqueue.RateLimiter{
+			v1alpha1.SchemeGroupVersion.WithKind("Cluster"): clusterRateLimiter,
+		},
 	}), nil
 }
 
