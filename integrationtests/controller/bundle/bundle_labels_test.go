@@ -20,52 +20,6 @@ var _ = Describe("Bundle labels", func() {
 		bundleDeploymentController v1gen.BundleDeploymentController
 	)
 
-	createBundle := func(name, namespace string) {
-		bundle := v1alpha1.Bundle{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-				Labels:    map[string]string{"foo": "bar"},
-			},
-			Spec: v1alpha1.BundleSpec{
-				Targets: []v1alpha1.BundleTarget{
-					{
-						BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
-							TargetNamespace: "targetNs",
-						},
-						Name:        "cluster",
-						ClusterName: "cluster",
-					},
-				},
-			},
-		}
-		b, err := bundleController.Create(&bundle)
-		Expect(err).To(BeNil())
-		Expect(b).To(Not(BeNil()))
-	}
-
-	createCluster := func(name, namespace string) {
-		cluster := v1alpha1.Cluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-				Labels:    map[string]string{"env": "test"},
-			},
-			Spec: v1alpha1.ClusterSpec{
-				ClientID: "id",
-			},
-		}
-		c, err := clusterController.Create(&cluster)
-		Expect(err).To(BeNil())
-		Expect(c).To(Not(BeNil()))
-		// Need to set the status.Namespace as it is needed to create a BundleDeployment.
-		// Namespace is set by the Cluster controller. We need to do it manually because we are running just the Bundle controller.
-		c.Status.Namespace = namespace
-		c, err = clusterController.UpdateStatus(c)
-		Expect(err).To(BeNil())
-		Expect(c).To(Not(BeNil()))
-	}
-
 	BeforeEach(func() {
 		env = specEnvs["labels"]
 		bundleController = env.fleet.V1alpha1().Bundle()
@@ -79,8 +33,21 @@ var _ = Describe("Bundle labels", func() {
 
 	When("BundleDeployment labels are updated", func() {
 		BeforeEach(func() {
-			createCluster("cluster", env.namespace)
-			createBundle("name", env.namespace)
+			cluster, err := createCluster("cluster", env.namespace, clusterController, nil, env.namespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cluster).To(Not(BeNil()))
+			targets := []v1alpha1.BundleTarget{
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						TargetNamespace: "targetNs",
+					},
+					Name:        "cluster",
+					ClusterName: "cluster",
+				},
+			}
+			bundle, err := createBundle("name", env.namespace, bundleController, targets, targets)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle).To(Not(BeNil()))
 		})
 
 		AfterEach(func() {

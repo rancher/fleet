@@ -11,6 +11,8 @@ type BundleMatch struct {
 	matcher *matcher
 }
 
+type findCriteriaMatch func(targetMatch targetMatch, clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool
+
 func New(bundle *fleet.Bundle) (*BundleMatch, error) {
 	bm := &BundleMatch{
 		bundle: bundle,
@@ -28,15 +30,25 @@ func (a *BundleMatch) MatchForTarget(name string) *fleet.BundleTarget {
 	return nil
 }
 
+// Match returns the first BundleTarget that matches the target criteria. Targets are evaluated in order.
+// It checks for restrictions, which means that just targets included in the GitRepo can be returned. TargetCustomizations
+// described in the fleet.yaml will be ignored.
+// All GitRepo targets are added as TargetRestrictions, which acts as a whitelist.
 func (a *BundleMatch) Match(clusterName string, clusterGroups map[string]map[string]string, clusterLabels map[string]string) *fleet.BundleTarget {
-	for clusterGroup, clusterGroupLabels := range clusterGroups {
-		if m := a.matcher.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels); m != nil {
-			return m
-		}
+	if m := a.matcher.match(clusterName, clusterLabels, clusterGroups, a.matcher.criteriaWithRestrictions); m != nil {
+		return m
 	}
-	if len(clusterGroups) == 0 {
-		return a.matcher.Match(clusterName, "", nil, clusterLabels)
+
+	return nil
+}
+
+// MatchTargetCustomizations returns the first BundleTarget that matches the target criteria. Targets are evaluated in order.
+// It doesn't check for restrictions, which means TargetCustomizations described in the fleet.yaml are considered.
+func (a *BundleMatch) MatchTargetCustomizations(clusterName string, clusterGroups map[string]map[string]string, clusterLabels map[string]string) *fleet.BundleTarget {
+	if m := a.matcher.match(clusterName, clusterLabels, clusterGroups, criteriaWithoutRestrictions); m != nil {
+		return m
 	}
+
 	return nil
 }
 
@@ -94,14 +106,35 @@ func (m *matcher) isRestricted(clusterName, clusterGroup string, clusterGroupLab
 	return true
 }
 
-func (m *matcher) Match(clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) *fleet.BundleTarget {
-	if m.isRestricted(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
-		return nil
+// checks if criteria is matched just if the target is inside the targetRestrictions. This is used for Targets defined
+// in the GitRepo, since these targets are also added as targetRestrictions.
+func (m *matcher) criteriaWithRestrictions(targetMatch targetMatch, clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
+	if !m.isRestricted(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) &&
+		targetMatch.criteria.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
+		return true
 	}
 
+	return false
+}
+
+// Checks targetMatch's criteria for a match on the specified cluster name, group and labels, without checking if target is inside the targetRestrictions. This is used for TargetCustomizations.
+func criteriaWithoutRestrictions(targetMatch targetMatch, clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
+	return targetMatch.criteria.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels)
+}
+
+// match returns the first BundleTarget, from the matcher's target matches, which matches the specified cluster name, groups and labels, using matching logic implemented via findCriteriaMatch.
+func (m *matcher) match(clusterName string, clusterLabels map[string]string, clusterGroups map[string]map[string]string, findCriteriaMatch findCriteriaMatch) *fleet.BundleTarget {
 	for _, targetMatch := range m.matches {
-		if targetMatch.criteria.Match(clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
-			return targetMatch.bundleTarget
+		if len(clusterGroups) == 0 {
+			if findCriteriaMatch(targetMatch, clusterName, "", nil, clusterLabels) {
+				return targetMatch.bundleTarget
+			}
+		} else {
+			for clusterGroup, clusterGroupLabels := range clusterGroups {
+				if findCriteriaMatch(targetMatch, clusterName, clusterGroup, clusterGroupLabels, clusterLabels) {
+					return targetMatch.bundleTarget
+				}
+			}
 		}
 	}
 
