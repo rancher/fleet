@@ -1089,6 +1089,8 @@ spec:
                         type: array
                     type: object
                 type: object
+              paused:
+                type: boolean
               stagedDeploymentID:
                 nullable: true
                 type: string
