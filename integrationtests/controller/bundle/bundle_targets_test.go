@@ -303,7 +303,6 @@ func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[s
 // - a namespace per cluster. This is to simulate the namespace created for placing the BundleDeployments, this
 // is done by another controller, then it is set in the status field.
 func createClustersAndClusterGroups() {
-
 	clusterNames := []string{"one", "two", "three"}
 	for _, cn := range clusterNames {
 		clusterNs, err := utils.NewNamespaceName()

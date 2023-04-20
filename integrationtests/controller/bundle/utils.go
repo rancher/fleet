@@ -6,10 +6,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// createBundle copies all targets from the GitRepo into TargetRestrictions. TargetRestrictions acts as a whitelist to prevent
+// the creation of BundleDeployments from Targets created from the TargetCustomizations in the fleet.yaml
+// we replicate this behaviour here since this is run in an integration tests that runs just the BundleController.
 func createBundle(name, namespace string, bundleController v1gen.BundleController, targets []v1alpha1.BundleTarget, targetRestrictions []v1alpha1.BundleTarget) (*v1alpha1.Bundle, error) {
-	// All Targets from the GitRepo are copied into TargetRestrictions. TargetRestrictions acts as a whitelist to prevent
-	// the creation of BundleDeployments from Targets created from the TargetCustomizations in the fleet.yaml
-	// we replicate this behaviour here since this is run in an integration tests that runs just the BundleController.
 	restrictions := []v1alpha1.BundleTargetRestriction{}
 	for _, r := range targetRestrictions {
 		restrictions = append(restrictions, v1alpha1.BundleTargetRestriction{
