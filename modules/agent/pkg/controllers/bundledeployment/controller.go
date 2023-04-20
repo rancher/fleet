@@ -96,6 +96,11 @@ func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
+	if bd.Spec.Paused {
+		// nothing to do
+		return status, nil
+	}
+
 	if err := h.checkDependency(bd); err != nil {
 		return status, err
 	}
