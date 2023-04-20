@@ -233,6 +233,9 @@ type BundleDeploymentOptions struct {
 
 	// KeepResources can be used to keep the deployed resources when removing the bundle
 	KeepResources bool `json:"keepResources,omitempty"`
+
+	//IgnoreOptions can be used to ignore fields when monitoring the bundle.
+	IgnoreOptions `json:"ignore,omitempty"`
 }
 
 type DiffOptions struct {
@@ -310,6 +313,11 @@ type HelmOptions struct {
 
 	// DisablePreProcess disables template processing in values
 	DisablePreProcess bool `json:"disablePreProcess,omitempty"`
+}
+
+// IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
+type IgnoreOptions struct {
+	Conditions []map[string]string `json:"conditions,omitempty"`
 }
 
 // Define helm values that can come from configmap, secret or external. Credit: https://github.com/fluxcd/helm-operator/blob/0cfea875b5d44bea995abe7324819432070dfbdc/pkg/apis/helm.fluxcd.io/v1/types_helmrelease.go#L439
