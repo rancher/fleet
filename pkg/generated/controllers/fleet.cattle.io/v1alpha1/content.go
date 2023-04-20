@@ -23,234 +23,110 @@ import (
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/generic"
-	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type ContentHandler func(string, *v1alpha1.Content) (*v1alpha1.Content, error)
-
+// ContentController interface for managing Content resources.
 type ContentController interface {
 	generic.ControllerMeta
 	ContentClient
 
+	// OnChange runs the given handler when the controller detects a resource was changed.
 	OnChange(ctx context.Context, name string, sync ContentHandler)
+
+	// OnRemove runs the given handler when the controller detects a resource was changed.
 	OnRemove(ctx context.Context, name string, sync ContentHandler)
+
+	// Enqueue adds the resource with the given name to the worker queue of the controller.
 	Enqueue(name string)
+
+	// EnqueueAfter runs Enqueue after the provided duration.
 	EnqueueAfter(name string, duration time.Duration)
 
+	// Cache returns a cache for the resource type T.
 	Cache() ContentCache
 }
 
+// ContentClient interface for managing Content resources in Kubernetes.
 type ContentClient interface {
+	// Create creates a new object and return the newly created Object or an error.
 	Create(*v1alpha1.Content) (*v1alpha1.Content, error)
+
+	// Update updates the object and return the newly updated Object or an error.
 	Update(*v1alpha1.Content) (*v1alpha1.Content, error)
 
+	// Delete deletes the Object in the given name.
 	Delete(name string, options *metav1.DeleteOptions) error
+
+	// Get will attempt to retrieve the resource with the specified name.
 	Get(name string, options metav1.GetOptions) (*v1alpha1.Content, error)
+
+	// List will attempt to find multiple resources.
 	List(opts metav1.ListOptions) (*v1alpha1.ContentList, error)
+
+	// Watch will start watching resources.
 	Watch(opts metav1.ListOptions) (watch.Interface, error)
+
+	// Patch will patch the resource with the matching name.
 	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.Content, err error)
 }
 
+// ContentCache interface for retrieving Content resources in memory.
 type ContentCache interface {
+	// Get returns the resources with the specified name from the cache.
 	Get(name string) (*v1alpha1.Content, error)
+
+	// List will attempt to find resources from the Cache.
 	List(selector labels.Selector) ([]*v1alpha1.Content, error)
 
+	// AddIndexer adds  a new Indexer to the cache with the provided name.
+	// If you call this after you already have data in the store, the results are undefined.
 	AddIndexer(indexName string, indexer ContentIndexer)
+
+	// GetByIndex returns the stored objects whose set of indexed values
+	// for the named index includes the given indexed value.
 	GetByIndex(indexName, key string) ([]*v1alpha1.Content, error)
 }
 
+// ContentHandler is function for performing any potential modifications to a Content resource.
+type ContentHandler func(string, *v1alpha1.Content) (*v1alpha1.Content, error)
+
+// ContentIndexer computes a set of indexed values for the provided object.
 type ContentIndexer func(obj *v1alpha1.Content) ([]string, error)
 
-type contentController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
+// ContentGenericController wraps wrangler/pkg/generic.NonNamespacedController so that the function definitions adhere to ContentController interface.
+type ContentGenericController struct {
+	generic.NonNamespacedControllerInterface[*v1alpha1.Content, *v1alpha1.ContentList]
 }
 
-func NewContentController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ContentController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &contentController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
+// OnChange runs the given resource handler when the controller detects a resource was changed.
+func (c *ContentGenericController) OnChange(ctx context.Context, name string, sync ContentHandler) {
+	c.NonNamespacedControllerInterface.OnChange(ctx, name, generic.ObjectHandler[*v1alpha1.Content](sync))
+}
+
+// OnRemove runs the given object handler when the controller detects a resource was changed.
+func (c *ContentGenericController) OnRemove(ctx context.Context, name string, sync ContentHandler) {
+	c.NonNamespacedControllerInterface.OnRemove(ctx, name, generic.ObjectHandler[*v1alpha1.Content](sync))
+}
+
+// Cache returns a cache of resources in memory.
+func (c *ContentGenericController) Cache() ContentCache {
+	return &ContentGenericCache{
+		c.NonNamespacedControllerInterface.Cache(),
 	}
 }
 
-func FromContentHandlerToHandler(sync ContentHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1alpha1.Content
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1alpha1.Content))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
+// ContentGenericCache wraps wrangler/pkg/generic.NonNamespacedCache so the function definitions adhere to ContentCache interface.
+type ContentGenericCache struct {
+	generic.NonNamespacedCacheInterface[*v1alpha1.Content]
 }
 
-func (c *contentController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1alpha1.Content))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateContentDeepCopyOnChange(client ContentClient, obj *v1alpha1.Content, handler func(obj *v1alpha1.Content) (*v1alpha1.Content, error)) (*v1alpha1.Content, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *contentController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *contentController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *contentController) OnChange(ctx context.Context, name string, sync ContentHandler) {
-	c.AddGenericHandler(ctx, name, FromContentHandlerToHandler(sync))
-}
-
-func (c *contentController) OnRemove(ctx context.Context, name string, sync ContentHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromContentHandlerToHandler(sync)))
-}
-
-func (c *contentController) Enqueue(name string) {
-	c.controller.Enqueue("", name)
-}
-
-func (c *contentController) EnqueueAfter(name string, duration time.Duration) {
-	c.controller.EnqueueAfter("", name, duration)
-}
-
-func (c *contentController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *contentController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *contentController) Cache() ContentCache {
-	return &contentCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *contentController) Create(obj *v1alpha1.Content) (*v1alpha1.Content, error) {
-	result := &v1alpha1.Content{}
-	return result, c.client.Create(context.TODO(), "", obj, result, metav1.CreateOptions{})
-}
-
-func (c *contentController) Update(obj *v1alpha1.Content) (*v1alpha1.Content, error) {
-	result := &v1alpha1.Content{}
-	return result, c.client.Update(context.TODO(), "", obj, result, metav1.UpdateOptions{})
-}
-
-func (c *contentController) Delete(name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), "", name, *options)
-}
-
-func (c *contentController) Get(name string, options metav1.GetOptions) (*v1alpha1.Content, error) {
-	result := &v1alpha1.Content{}
-	return result, c.client.Get(context.TODO(), "", name, result, options)
-}
-
-func (c *contentController) List(opts metav1.ListOptions) (*v1alpha1.ContentList, error) {
-	result := &v1alpha1.ContentList{}
-	return result, c.client.List(context.TODO(), "", result, opts)
-}
-
-func (c *contentController) Watch(opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), "", opts)
-}
-
-func (c *contentController) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (*v1alpha1.Content, error) {
-	result := &v1alpha1.Content{}
-	return result, c.client.Patch(context.TODO(), "", name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type contentCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *contentCache) Get(name string) (*v1alpha1.Content, error) {
-	obj, exists, err := c.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1alpha1.Content), nil
-}
-
-func (c *contentCache) List(selector labels.Selector) (ret []*v1alpha1.Content, err error) {
-
-	err = cache.ListAll(c.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.Content))
-	})
-
-	return ret, err
-}
-
-func (c *contentCache) AddIndexer(indexName string, indexer ContentIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1alpha1.Content))
-		},
-	}))
-}
-
-func (c *contentCache) GetByIndex(indexName, key string) (result []*v1alpha1.Content, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1alpha1.Content, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1alpha1.Content))
-	}
-	return result, nil
+// AddIndexer adds  a new Indexer to the cache with the provided name.
+// If you call this after you already have data in the store, the results are undefined.
+func (c ContentGenericCache) AddIndexer(indexName string, indexer ContentIndexer) {
+	c.NonNamespacedCacheInterface.AddIndexer(indexName, generic.Indexer[*v1alpha1.Content](indexer))
 }
