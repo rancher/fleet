@@ -159,10 +159,7 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	initContainers, err := h.generateInitContainer(obj)
-	if err != nil {
-		return nil, err
-	}
+	initContainers := h.generateInitContainer()
 
 	job.Spec.Template.Spec.InitContainers = initContainers
 	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes,
@@ -380,7 +377,7 @@ func (h Handler) generateCloneContainer(obj *v1.GitJob) (corev1.Container, error
 	return c, nil
 }
 
-func (h Handler) generateInitContainer(obj *v1.GitJob) ([]corev1.Container, error) {
+func (h Handler) generateInitContainer() []corev1.Container {
 	initContainers := []corev1.Container{
 		{
 			Command: []string{
@@ -424,7 +421,7 @@ func (h Handler) generateInitContainer(obj *v1.GitJob) ([]corev1.Container, erro
 		},
 	}
 
-	return initContainers, nil
+	return initContainers
 }
 
 func (h Handler) inspectSecretType(secretName, namespace string) (string, error) {

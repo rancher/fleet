@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	webhookSecretName = "gitjob-webhook"
+	webhookSecretName = "gitjob-webhook" //nolint:gosec // this is a resource name
 
 	githubKey          = "github"
 	gitlabKey          = "gitlab"
@@ -60,7 +60,7 @@ func New(ctx context.Context, rContext *types.Context) *Webhook {
 	return webhook
 }
 
-func (w *Webhook) onSecretChange(key string, secret *corev1.Secret) (*corev1.Secret, error) {
+func (w *Webhook) onSecretChange(_ string, secret *corev1.Secret) (*corev1.Secret, error) {
 	if secret == nil || secret.DeletionTimestamp != nil {
 		return nil, nil
 	}
