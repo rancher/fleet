@@ -1,19 +1,24 @@
 {
-	"linters": {
-		"disable-all": true,
-		"enable": [
-			"govet",
-			"golint",
-			"goimports",
-			"misspell",
-			"ineffassign",
-			"gofmt"
-		]
-	},
-	"run": {
-		"skip-files": [
-			"/zz_generated_"
-		],
-		"deadline": "5m"
-	}
+  "linters": {
+    "disable-all": true,
+    "enable": [
+      "govet",
+      "unparam",
+      "nakedret",
+      "dupl",
+      "goimports",
+      "misspell",
+      "ineffassign",
+      "revive",
+      "gosec",
+      "typecheck",
+      "unused"
+    ]
+  },
+  "run": {
+    "skip-files": [
+      "/zz_generated_"
+    ],
+    "deadline": "5m"
+  }
 }

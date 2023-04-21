@@ -33,7 +33,7 @@ type jobHandler struct {
 	pods    corev1.PodCache
 }
 
-func (j jobHandler) sync(key string, obj *v1.Job) (*v1.Job, error) {
+func (j jobHandler) sync(_ string, obj *v1.Job) (*v1.Job, error) {
 	if obj == nil {
 		return nil, nil
 	}

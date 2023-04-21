@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	DefaultSecretName = "gitcredential"
+	DefaultSecretName = "gitcredential" //nolint:gosec // this is a resource name
 )
 
 type SecretGetter interface {

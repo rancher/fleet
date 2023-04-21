@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 
 	"github.com/rancher/gitjob/pkg/controller"
