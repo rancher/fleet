@@ -228,6 +228,10 @@ func (g *git) setCredential(cred *corev1.Secret) error {
 
 func (g *git) gitCmd(output io.Writer, subCmd string, args ...string) error {
 	kv := fmt.Sprintf("credential.helper=%s", `/bin/sh -c 'echo "password=$GIT_PASSWORD"'`)
+	//nolint:gosec // this exec deals with user input:
+	// $GIT_PASSWORD, g.URL, branch, commit
+	// The args are validated before and the -- is used to help git
+	// distinguish between git options from other arguments.
 	cmd := exec.Command("git", append([]string{"-c", kv, subCmd, "--"}, args...)...)
 	cmd.Env = append(os.Environ(), fmt.Sprintf("GIT_PASSWORD=%s", g.password))
 	stderrBuf := &bytes.Buffer{}
