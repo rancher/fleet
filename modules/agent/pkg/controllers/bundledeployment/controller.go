@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -143,14 +144,17 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 	msg := err.Error()
 
 	// The following error conditions are turned into a status
-	// * when a Helm wait occurs and it times out
-	// * manifests fail to pass validation
-	// * atomic is set and a rollback occurs
 	// Note: these error strings are returned by the Helm SDK and its dependencies
-	if strings.Contains(msg, "timed out waiting for the condition") ||
-		strings.Contains(msg, "error validating data") ||
-		strings.Contains(msg, "failed, and has been rolled back due to atomic being set") {
-
+	re := regexp.MustCompile(
+		"(timed out waiting for the condition)|" + // a Helm wait occurs and it times out
+			"(error validating data)|" + // manifests fail to pass validation
+			"(annotation validation error)|" + // annotations fail to pass validation
+			"(failed, and has been rolled back due to atomic being set)|" + // atomic is set and a rollback occurs
+			"(YAML parse error)|" + // YAML is broken in source files
+			"(Forbidden: updates to [0-9A-Za-z]+ spec for fields other than [0-9A-Za-z ']+ are forbidden)|" + // trying to update fields that cannot be updated
+			"(Forbidden: spec is immutable after creation)|", // trying to modify immutable spec
+	)
+	if re.MatchString(msg) {
 		status.Ready = false
 		status.NonModified = true
 
