@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/rancher/gitjob/pkg/controller"
 	"github.com/rancher/gitjob/pkg/types"
@@ -96,9 +97,17 @@ func run(c *cli.Context) {
 	}()
 
 	logrus.Info("Setting up webhook listener")
-	handler := webhook.HandleHooks(ctx, cont)
 	addr := c.String("listen")
-	if err := http.ListenAndServe(addr, handler); err != nil {
+
+	server := &http.Server{
+		Addr:    addr,
+		Handler: webhook.HandleHooks(ctx, cont),
+		// According to https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+	}
+
+	if err := server.ListenAndServe(); err != nil {
 		logrus.Fatalf("Failed to listen on %s: %v", addr, err)
 	}
 
