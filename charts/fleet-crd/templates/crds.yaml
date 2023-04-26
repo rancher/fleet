@@ -1793,6 +1793,13 @@ spec:
                                         nullable: true
                                         type: string
                                       operator:
+                                        enum:
+                                        - In
+                                        - NotIn
+                                        - Exists
+                                        - DoesNotExist
+                                        - Gt
+                                        - Lt
                                         nullable: true
                                         type: string
                                       values:
@@ -1811,6 +1818,13 @@ spec:
                                         nullable: true
                                         type: string
                                       operator:
+                                        enum:
+                                        - In
+                                        - NotIn
+                                        - Exists
+                                        - DoesNotExist
+                                        - Gt
+                                        - Lt
                                         nullable: true
                                         type: string
                                       values:
@@ -1841,6 +1855,13 @@ spec:
                                         nullable: true
                                         type: string
                                       operator:
+                                        enum:
+                                        - In
+                                        - NotIn
+                                        - Exists
+                                        - DoesNotExist
+                                        - Gt
+                                        - Lt
                                         nullable: true
                                         type: string
                                       values:
@@ -1859,6 +1880,13 @@ spec:
                                         nullable: true
                                         type: string
                                       operator:
+                                        enum:
+                                        - In
+                                        - NotIn
+                                        - Exists
+                                        - DoesNotExist
+                                        - Gt
+                                        - Lt
                                         nullable: true
                                         type: string
                                       values:
@@ -1893,6 +1921,11 @@ spec:
                                             nullable: true
                                             type: string
                                           operator:
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
                                             nullable: true
                                             type: string
                                           values:
@@ -1921,6 +1954,11 @@ spec:
                                             nullable: true
                                             type: string
                                           operator:
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
                                             nullable: true
                                             type: string
                                           values:
@@ -1967,6 +2005,11 @@ spec:
                                         nullable: true
                                         type: string
                                       operator:
+                                        enum:
+                                        - In
+                                        - NotIn
+                                        - Exists
+                                        - DoesNotExist
                                         nullable: true
                                         type: string
                                       values:
@@ -1995,6 +2038,11 @@ spec:
                                         nullable: true
                                         type: string
                                       operator:
+                                        enum:
+                                        - In
+                                        - NotIn
+                                        - Exists
+                                        - DoesNotExist
                                         nullable: true
                                         type: string
                                       values:
@@ -2044,6 +2092,11 @@ spec:
                                             nullable: true
                                             type: string
                                           operator:
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
                                             nullable: true
                                             type: string
                                           values:
@@ -2072,6 +2125,11 @@ spec:
                                             nullable: true
                                             type: string
                                           operator:
+                                            enum:
+                                            - In
+                                            - NotIn
+                                            - Exists
+                                            - DoesNotExist
                                             nullable: true
                                             type: string
                                           values:
@@ -2118,6 +2176,11 @@ spec:
                                         nullable: true
                                         type: string
                                       operator:
+                                        enum:
+                                        - In
+                                        - NotIn
+                                        - Exists
+                                        - DoesNotExist
                                         nullable: true
                                         type: string
                                       values:
@@ -2146,6 +2209,11 @@ spec:
                                         nullable: true
                                         type: string
                                       operator:
+                                        enum:
+                                        - In
+                                        - NotIn
+                                        - Exists
+                                        - DoesNotExist
                                         nullable: true
                                         type: string
                                       values:
@@ -2275,6 +2343,7 @@ spec:
                       nullable: true
                       type: string
                     tolerationSeconds:
+                      maximum: 86400
                       nullable: true
                       type: integer
                     value:
