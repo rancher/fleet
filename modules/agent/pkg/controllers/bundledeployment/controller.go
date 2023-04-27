@@ -238,7 +238,7 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
 }
 
 func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
-	if bd == nil {
+	if bd == nil || bd.Spec.Paused {
 		return bd, h.trigger.Clear(key)
 	}
 
