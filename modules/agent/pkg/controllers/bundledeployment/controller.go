@@ -318,6 +318,11 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 		return status, nil
 	}
 
+	// Same considerations in case the bundle is paused
+	if bd.Spec.Paused {
+		return status, nil
+	}
+
 	deploymentStatus, err := h.deployManager.MonitorBundle(bd)
 	if err != nil {
 
