@@ -26,4 +26,5 @@ const (
 	TokenClusterEnqueueDelay       = time.Second * 2
 	TriggerSleep                   = time.Second * 2
 	DefaultCpuPprofPeriod          = time.Minute
+	ReleaseCacheTTL                = time.Minute * 5
 )

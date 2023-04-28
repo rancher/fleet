@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -15,6 +16,7 @@ import (
 	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	"k8s.io/client-go/tools/cache"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/kustomize"
@@ -73,6 +75,12 @@ type Helm struct {
 	defaultNamespace string
 	labelPrefix      string
 	labelSuffix      string
+	releaseCache     cache.Store
+}
+
+func releaseKeyfunc(obj interface{}) (string, error) {
+	r := obj.(*release.Release)
+	return fmt.Sprintf("%s/%s-%d", r.Namespace, r.Name, r.Version), nil
 }
 
 type Resources struct {
@@ -99,6 +107,7 @@ func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, gette
 		serviceAccountCache: serviceAccountCache,
 		configmapCache:      configmapCache,
 		secretCache:         secretCache,
+		releaseCache:        cache.NewTTLStore(releaseKeyfunc, durations.ReleaseCacheTTL),
 		labelPrefix:         labelPrefix,
 		labelSuffix:         labelSuffix,
 	}
@@ -544,23 +553,63 @@ func getReleaseNameVersionAndNamespace(bundleID, resourcesID string) (string, in
 }
 
 func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.Release, error) {
+	key := &release.Release{
+		Namespace: namespace,
+		Name:      releaseName,
+		Version:   version,
+	}
 
-	hist := action.NewHistory(&h.globalCfg)
-
-	releases, err := hist.Run(releaseName)
-	if err == driver.ErrReleaseNotFound {
-		return nil, ErrNoRelease
-	} else if err != nil {
+	object, found, err := h.releaseCache.Get(key)
+	if err != nil {
 		return nil, err
 	}
-
-	for _, release := range releases {
-		if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
-			return release, nil
+	if !found {
+		// cache MISS, query Helm's storage
+		hist := action.NewHistory(&h.globalCfg)
+		releases, err := hist.Run(releaseName)
+		if err == driver.ErrReleaseNotFound {
+			return nil, ErrNoRelease
+		} else if err != nil {
+			return nil, err
 		}
+
+		// opportunistically cache all releases in the storage with that name
+		for _, release := range releases {
+			err := h.releaseCache.Add(release)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// return the right one if found
+		for _, release := range releases {
+			if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
+				return release, nil
+			}
+		}
+
+		// desired release was not found in Helm's storage. Put a "dummy" in the cache to remember it was not found
+		err = h.releaseCache.Add(&release.Release{
+			Namespace: namespace,
+			Name:      releaseName,
+			Version:   version,
+			Manifest:  "release not found",
+		})
+		if err != nil {
+			return nil, err
+		}
+		return nil, ErrNoRelease
 	}
 
-	return nil, ErrNoRelease
+	// cache HIT
+	rel := object.(*release.Release)
+	if rel.Manifest == "release not found" {
+		// but it was actually a "dummy". Return not found
+		return nil, ErrNoRelease
+	}
+
+	// happy case
+	return rel, nil
 }
 
 func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
