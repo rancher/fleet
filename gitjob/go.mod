@@ -18,7 +18,7 @@ require (
 	github.com/rancher/steve v0.0.0-20220628235427-dbf9ef88ce8f
 	github.com/rancher/wrangler v1.1.1
 	github.com/sirupsen/logrus v1.9.0
-	github.com/urfave/cli v1.22.12
+	github.com/urfave/cli v1.22.13
 	github.com/whilp/git-urls v1.0.0
 	golang.org/x/crypto v0.8.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
