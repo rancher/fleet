@@ -43,7 +43,7 @@ jobs:
           - v2.6.11  # k3s: 1.20 - 1.24
           - v2.7.3  # k3s: 1.23 - 1.24
         fleet_version:
-          - "0.7.0-AGENT-rc.1"
+          - "0.7.0-rc.2"
         exclude:
           - k3s_version: v1.20.15-k3s1
             rancher_version: v2.7.3
