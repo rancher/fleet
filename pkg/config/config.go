@@ -64,10 +64,13 @@ type Config struct {
 type Bootstrap struct {
 	Namespace      string `json:"namespace,omitempty"`
 	AgentNamespace string `json:"agentNamespace,omitempty"`
-	Repo           string `json:"repo,omitempty"`
-	Secret         string `json:"secret,omitempty"` // gitrepo.ClientSecretName for agent from repo
-	Paths          string `json:"paths,omitempty"`
-	Branch         string `json:"branch,omitempty"`
+	// Repo to add at install time that will deploy to the local cluster. This allows
+	// one to fully bootstrap fleet, its configuration and all its downstream clusters
+	// in one shot.
+	Repo   string `json:"repo,omitempty"`
+	Secret string `json:"secret,omitempty"` // gitrepo.ClientSecretName for agent from repo
+	Paths  string `json:"paths,omitempty"`
+	Branch string `json:"branch,omitempty"`
 }
 
 func OnChange(ctx context.Context, f func(*Config) error) {
