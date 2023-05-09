@@ -10,7 +10,7 @@ This is especially true if the change request is something large.
 The bug, feature request, or other type of issue can be discussed prior to
 creating the pull request. This can reduce rework.
 
-[Create an issue]: https://github.com/fleet/fleet/issues/new
+[Create an issue]: https://github.com/rancher/fleet/issues/new
 
 ## Sign Your Commits
 
