@@ -1,16 +1,11 @@
-name: E2E Fleet
+# Workflow tests more k8s versions than the e2e-ci workflow for PR does
+name: Nightly E2E Fleet
 
 on:
+  schedule:
+    # Run everyday day at 7:00 AM
+    - cron: '0 7 * * *'
   workflow_dispatch:
-    inputs:
-      enable_tmate:
-        description: 'Enable debugging via tmate'
-        required: false
-        default: "false"
-  pull_request:
-  push:
-    branches:
-    - 'release/*'
 
 env:
   GOARCH: amd64
@@ -26,7 +21,10 @@ jobs:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
+          - v1.27.1-k3s1
+          - v1.26.4-k3s1
           - v1.25.4-k3s1
+          - v1.24.1-k3s1
           - v1.22.10-k3s1
           - v1.20.15-k3s1
     steps:
@@ -78,13 +76,6 @@ jobs:
         run: |
           k3d image import rancher/fleet:dev rancher/fleet-agent:dev
       -
-        name: Set Up Tmate Debug Session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
-      -
         name: Deploy Fleet
         run: |
           ./.github/scripts/deploy-fleet.sh
@@ -96,18 +87,12 @@ jobs:
           ginkgo e2e/single-cluster e2e/keep-resources
       -
         name: Acceptance Tests for Examples
-        if: >
-          github.event_name == 'schedule'
         env:
           FLEET_E2E_NS: fleet-local
         run: |
           ginkgo e2e/acceptance/single-cluster-examples
       -
         name: Fleet Tests Requiring Github Secrets
-        # These tests can't run for PRs, because PRs don't have access to the secrets
-        if: >
-          github.event_name != 'pull_request' &&
-          github.repository == 'rancher/fleet'
         env:
           FLEET_E2E_NS: fleet-local
           GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"
@@ -134,7 +119,7 @@ jobs:
         uses: actions/upload-artifact@v3
         if: failure()
         with:
-          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
+          name: gha-nightly-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
           path: |
             tmp/*.json
             tmp/*.log
