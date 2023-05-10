@@ -7,7 +7,7 @@ if [ ! -d ./.github/scripts ]; then
   exit 1
 fi
 
-fleet_version="${1-0.6.0-rc.5}"
+fleet_version="${1-0.7.0-rc.2}"
 if [ "$fleet_version" == "dev" ]; then
   echo "don't forget to run dev/build-fleet before running this script"
   dev/import-images-k3d
