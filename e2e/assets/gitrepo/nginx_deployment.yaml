@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git-server
+  labels:
+    fleet: testing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: git-server
+  template:
+    metadata:
+      labels:
+        app: git-server
+    spec:
+      containers:
+        - name: git-server
+          image: nginx-git:test
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 8080
