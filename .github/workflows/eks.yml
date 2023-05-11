@@ -76,7 +76,7 @@ jobs:
         id: create-cluster
         run: |
           id=$RANDOM
-          echo '::set-output name=ID::'$id
+          echo "ID=$id" >> $GITHUB_OUTPUT
           eksctl create cluster --name=fleet-ci$id \
           --region=${{ env.AWS_REGION }} \
           --nodes=2 \
@@ -97,7 +97,7 @@ jobs:
       -
         name: Get UUID
         id: uuid
-        run: echo "::set-output name=uuid::$(uuidgen)"
+        run: echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v2
