@@ -13,7 +13,7 @@ spec:
     spec:
       serviceAccountName: gitjob
       containers:
-        - image: "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag }}"
+        - image: "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag | default (printf "v%s" .Chart.AppVersion) }}"
           name: gitjob
           args:
           {{- if .Values.debug }}
