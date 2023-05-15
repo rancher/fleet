@@ -28,5 +28,4 @@ helm upgrade fleet "$url" \
   --wait -n "$fleetns" \
   --set image.tag="$version" \
   --set agentImage.tag="$version" \
-  --set debug=true --set debugLevel=99 \
-  --reuse-values
+  --set debug=true --set debugLevel=99

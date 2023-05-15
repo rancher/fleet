@@ -153,8 +153,7 @@ jobs:
           helm upgrade fleet "$url" \
             --wait -n "$fleetns" \
             --set image.tag="$version" \
-            --set agentImage.tag="$version" \
-            --reuse-values
+            --set agentImage.tag="$version"
           until helm -n "$fleetns" status fleet | grep -q "STATUS: deployed"; do echo waiting for original fleet chart to be deployed; sleep 3; done
           kubectl -n "$fleetns" rollout status deploy/fleet-controller
 
