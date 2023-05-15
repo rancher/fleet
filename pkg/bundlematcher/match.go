@@ -93,6 +93,7 @@ func (a *BundleMatch) initMatcher() error {
 }
 
 func (m *matcher) isRestricted(clusterName, clusterGroup string, clusterGroupLabels, clusterLabels map[string]string) bool {
+	// There are no restrictions. That means this Bundle was not created by a GitRepo, and there are no targetCustomizations
 	if len(m.restrictions) == 0 {
 		return false
 	}
@@ -103,6 +104,7 @@ func (m *matcher) isRestricted(clusterName, clusterGroup string, clusterGroupLab
 		}
 	}
 
+	// This target is a targetCustomization from a fleet.yaml
 	return true
 }
 

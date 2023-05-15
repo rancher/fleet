@@ -282,6 +282,28 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			}
 		})
 	})
+
+	// Bundles created without a GitRepo. It simulates how Rancher creates Bundles
+	When("a Bundle does not contain any TargetRestrictions", func() {
+		BeforeEach(func() {
+			bundleName = "all"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": env.namespace,
+			}
+			expectedNumberOfBundleDeployments = 3
+			targets = []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "all",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, 0)
+		})
+
+		It("creates three BundleDeployments", func() {
+			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
+		})
+	})
 })
 
 func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[string]string) *v1alpha1.BundleDeploymentList {
