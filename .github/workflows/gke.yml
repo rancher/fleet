@@ -37,7 +37,7 @@ jobs:
           fetch-depth: 0
       -
         name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
@@ -62,7 +62,7 @@ jobs:
         id: create-cluster
         run: |
           id=$RANDOM
-          echo '::set-output name=ID::'$id
+          echo "ID=$id" >> $GITHUB_OUTPUT
           gcloud container clusters create fleetci$id \
           --disk-size 100 \
           --num-nodes=1 \
@@ -94,7 +94,7 @@ jobs:
       -
         name: Get UUID
         id: uuid
-        run: echo "::set-output name=uuid::$(uuidgen)"
+        run: echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
       -
         id: meta-fleet
         uses: docker/metadata-action@v4

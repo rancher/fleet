@@ -35,8 +35,7 @@ helm upgrade fleet charts/fleet \
   --set image.tag="$fleetTag" \
   --set agentImage.repository="$agentRepo" \
   --set agentImage.tag="$agentTag" \
-  --set agentImage.imagePullPolicy=IfNotPresent \
-  --reuse-values
+  --set agentImage.imagePullPolicy=IfNotPresent
 
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
 helm list -A

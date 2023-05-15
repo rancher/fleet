@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 
 	jsonpatch "github.com/evanphx/json-patch"
@@ -16,6 +17,7 @@ import (
 	"github.com/rancher/wrangler/pkg/merr"
 	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/rancher/wrangler/pkg/summary"
+	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -166,7 +168,7 @@ func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, e
 		return status, err
 	}
 
-	status.NonReadyStatus = nonReady(plan)
+	status.NonReadyStatus = nonReady(plan, bd.Spec.Options.IgnoreOptions)
 	status.ModifiedStatus = modified(plan, resourcesPreviuosRelease)
 	status.Ready = false
 	status.NonModified = false
@@ -262,7 +264,7 @@ func isResourceInPreviousRelease(key objectset.ObjectKey, kind string, objsPrevi
 	return false
 }
 
-func nonReady(plan apply.Plan) (result []fleet.NonReadyStatus) {
+func nonReady(plan apply.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
 	defer func() {
 		sort.Slice(result, func(i, j int) bool {
 			return result[i].UID < result[j].UID
@@ -274,6 +276,12 @@ func nonReady(plan apply.Plan) (result []fleet.NonReadyStatus) {
 			return
 		}
 		if u, ok := obj.(*unstructured.Unstructured); ok {
+			if ignoreOptions.Conditions != nil {
+				if err := excludeIgnoredConditions(u, ignoreOptions); err != nil {
+					logrus.Errorf("failed to ignore conditions: %v", err)
+				}
+			}
+
 			summary := summary.Summarize(u)
 			if !summary.IsReady() {
 				result = append(result, fleet.NonReadyStatus{
@@ -288,5 +296,53 @@ func nonReady(plan apply.Plan) (result []fleet.NonReadyStatus) {
 		}
 	}
 
-	return
+	return result
+}
+
+// excludeIgnoredConditions removes the conditions that are included in ignoreOptions from the object passed as a parameter
+func excludeIgnoredConditions(obj *unstructured.Unstructured, ignoreOptions fleet.IgnoreOptions) error {
+	conditions, _, err := unstructured.NestedSlice(obj.Object, "status", "conditions")
+	if err != nil {
+		return err
+	}
+	conditionsWithoutIgnored := make([]interface{}, 0)
+
+	for _, condition := range conditions {
+		condition, ok := condition.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("condition: %#v can't be converted to map[string]interface{}", condition)
+		}
+		excludeCondition := false
+		for _, ignoredCondition := range ignoreOptions.Conditions {
+			if shouldExcludeCondition(condition, ignoredCondition) {
+				excludeCondition = true
+				break
+			}
+		}
+		if !excludeCondition {
+			conditionsWithoutIgnored = append(conditionsWithoutIgnored, condition)
+		}
+	}
+
+	err = unstructured.SetNestedSlice(obj.Object, conditionsWithoutIgnored, "status", "conditions")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// shouldExcludeCondition returns true if all the elements of ignoredConditions are inside conditions
+func shouldExcludeCondition(conditions map[string]interface{}, ignoredConditions map[string]string) bool {
+	if len(ignoredConditions) > len(conditions) {
+		return false
+	}
+
+	for k, v := range ignoredConditions {
+		if vc, found := conditions[k]; !found || vc != v {
+			return false
+		}
+	}
+
+	return true
 }

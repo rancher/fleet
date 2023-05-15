@@ -46,7 +46,7 @@ jobs:
           fetch-depth: 0
       -
         name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
@@ -66,7 +66,7 @@ jobs:
           sudo mv eksctl /usr/local/bin
       -
         name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ github.event.inputs.aws_id || secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ github.event.inputs.aws_key || secrets.AWS_SECRET_ACCESS_KEY }}
@@ -76,7 +76,7 @@ jobs:
         id: create-cluster
         run: |
           id=$RANDOM
-          echo '::set-output name=ID::'$id
+          echo "ID=$id" >> $GITHUB_OUTPUT
           eksctl create cluster --name=fleet-ci$id \
           --region=${{ env.AWS_REGION }} \
           --nodes=2 \
@@ -97,7 +97,7 @@ jobs:
       -
         name: Get UUID
         id: uuid
-        run: echo "::set-output name=uuid::$(uuidgen)"
+        run: echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v2

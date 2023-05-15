@@ -272,8 +272,14 @@ func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]
 			if target == nil {
 				continue
 			}
+			// check if there is any matching targetCustomization that should be applied
+			targetOpts := target.BundleDeploymentOptions
+			targetCustomized := bm.MatchTargetCustomizations(cluster.Name, clusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			if targetCustomized != nil {
+				targetOpts = targetCustomized.BundleDeploymentOptions
+			}
 
-			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, target.BundleDeploymentOptions)
+			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, targetOpts)
 			err = preprocessHelmValues(&opts, cluster)
 			if err != nil {
 				return nil, err
@@ -421,18 +427,24 @@ func (t *Target) IsPaused() bool {
 
 // ResetDeployment replaces the BundleDeployment for the target with a new one
 func (t *Target) ResetDeployment() {
+	t.Deployment = &fleet.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.Bundle.Name,
+			Namespace: t.Cluster.Status.Namespace,
+			Labels:    t.BundleDeploymentLabels(),
+		},
+	}
+}
+
+// BundleDeploymentLabels returns all labels from the Bundle
+func (t *Target) BundleDeploymentLabels() map[string]string {
 	labels := map[string]string{}
 	for k, v := range deploymentLabelsForNewBundle(t.Bundle) {
 		labels[k] = v
 	}
 	labels[fleet.ManagedLabel] = "true"
-	t.Deployment = &fleet.BundleDeployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      t.Bundle.Name,
-			Namespace: t.Cluster.Status.Namespace,
-			Labels:    labels,
-		},
-	}
+
+	return labels
 }
 
 // getRollout returns the rollout strategy for the specified targets (pure function)

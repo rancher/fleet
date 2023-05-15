@@ -7,5 +7,25 @@ if [ ! -d ./.github/scripts ]; then
   exit 1
 fi
 
-dev/import-images-k3d
-./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh
+fleet_version="${1-0.7.0-rc.2}"
+if [ "$fleet_version" == "dev" ]; then
+  echo "don't forget to run dev/build-fleet before running this script"
+  dev/import-images-k3d
+  ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh
+  exit 0
+fi
+
+# install released fleet from url
+url_crd="https://github.com/rancher/fleet/releases/download/v${fleet_version}/fleet-crd-${fleet_version}.tgz"
+url="https://github.com/rancher/fleet/releases/download/v${fleet_version}/fleet-${fleet_version}.tgz"
+version="v${fleet_version}"
+fleetns="cattle-fleet-system"
+
+helm upgrade fleet-crd "$url_crd" --wait -n "$fleetns"
+until helm -n "$fleetns" status fleet-crd  | grep -q "STATUS: deployed"; do echo waiting for original fleet-crd chart to be deployed; sleep 1; done
+
+helm upgrade fleet "$url" \
+  --wait -n "$fleetns" \
+  --set image.tag="$version" \
+  --set agentImage.tag="$version" \
+  --set debug=true --set debugLevel=99

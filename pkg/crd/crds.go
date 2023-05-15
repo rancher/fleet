@@ -101,6 +101,25 @@ func list() []crd.CRD {
 		newCRD(&fleet.Cluster{}, func(c crd.CRD) crd.CRD {
 			schema := mustSchema(fleet.Cluster{})
 			schema.Properties["metadata"] = metadataNameValidation()
+			schema.Properties["spec"].Properties["agentTolerations"].Items.Schema.Properties["tolerationSeconds"] = tolerationSecondsValidation()
+
+			nodeAffinity := nodeAffinity(schema)
+			nodeAffinity.Properties["requiredDuringSchedulingIgnoredDuringExecution"].Properties["nodeSelectorTerms"].Items.Schema.Properties["matchExpressions"].Items.Schema.Properties["operator"] = nodeSelectorOperatorValidation()
+			nodeAffinity.Properties["requiredDuringSchedulingIgnoredDuringExecution"].Properties["nodeSelectorTerms"].Items.Schema.Properties["matchFields"].Items.Schema.Properties["operator"] = nodeSelectorOperatorValidation()
+			nodeAffinity.Properties["preferredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["preference"].Properties["matchExpressions"].Items.Schema.Properties["operator"] = nodeSelectorOperatorValidation()
+			nodeAffinity.Properties["preferredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["preference"].Properties["matchFields"].Items.Schema.Properties["operator"] = nodeSelectorOperatorValidation()
+
+			podAffinity := podAffinity(schema)
+			podAffinity.Properties["requiredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["labelSelector"].Properties["matchExpressions"].Items.Schema.Properties["operator"] = labelSelectorOperatorValidation()
+			podAffinity.Properties["requiredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["namespaceSelector"].Properties["matchExpressions"].Items.Schema.Properties["operator"] = labelSelectorOperatorValidation()
+			podAffinity.Properties["preferredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["podAffinityTerm"].Properties["labelSelector"].Properties["matchExpressions"].Items.Schema.Properties["operator"] = labelSelectorOperatorValidation()
+			podAffinity.Properties["preferredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["podAffinityTerm"].Properties["namespaceSelector"].Properties["matchExpressions"].Items.Schema.Properties["operator"] = labelSelectorOperatorValidation()
+
+			podAntiAffinity := podAntiAffinity(schema)
+			podAntiAffinity.Properties["requiredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["labelSelector"].Properties["matchExpressions"].Items.Schema.Properties["operator"] = labelSelectorOperatorValidation()
+			podAntiAffinity.Properties["requiredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["namespaceSelector"].Properties["matchExpressions"].Items.Schema.Properties["operator"] = labelSelectorOperatorValidation()
+			podAntiAffinity.Properties["preferredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["podAffinityTerm"].Properties["labelSelector"].Properties["matchExpressions"].Items.Schema.Properties["operator"] = labelSelectorOperatorValidation()
+			podAntiAffinity.Properties["preferredDuringSchedulingIgnoredDuringExecution"].Items.Schema.Properties["podAffinityTerm"].Properties["namespaceSelector"].Properties["matchExpressions"].Items.Schema.Properties["operator"] = labelSelectorOperatorValidation()
 
 			c.GVK.Kind = "Cluster"
 			return c.
@@ -200,10 +219,53 @@ func releaseNameValidation() apiextv1.JSONSchemaProps {
 	}
 }
 
+// tolerationSecondsValidation limits the maximum of TolerationSeconds to one day
+func tolerationSecondsValidation() apiextv1.JSONSchemaProps {
+	return apiextv1.JSONSchemaProps{
+		Type:     "integer",
+		Maximum:  &[]float64{86400}[0],
+		Nullable: true,
+	}
+}
+
+// nodeSelectorOperatorValidation validates the Operator is one of: In, NotIn, Exists, DoesNotExist, Gt, Lt
+func nodeSelectorOperatorValidation() apiextv1.JSONSchemaProps {
+	return apiextv1.JSONSchemaProps{
+		Type:     "string",
+		Enum:     []apiextv1.JSON{{Raw: []byte(`"In"`)}, {Raw: []byte(`"NotIn"`)}, {Raw: []byte(`"Exists"`)}, {Raw: []byte(`"DoesNotExist"`)}, {Raw: []byte(`"Gt"`)}, {Raw: []byte(`"Lt"`)}},
+		Nullable: true,
+	}
+}
+
+// labelSelectorOperatorValidation validates the Operator is one of: In, NotIn, Exists, DoesNotExist
+func labelSelectorOperatorValidation() apiextv1.JSONSchemaProps {
+	return apiextv1.JSONSchemaProps{
+		Type:     "string",
+		Enum:     []apiextv1.JSON{{Raw: []byte(`"In"`)}, {Raw: []byte(`"NotIn"`)}, {Raw: []byte(`"Exists"`)}, {Raw: []byte(`"DoesNotExist"`)}},
+		Nullable: true,
+	}
+}
+
 func mustSchema(obj interface{}) *apiextv1.JSONSchemaProps {
 	result, err := openapi.ToOpenAPIFromStruct(obj)
 	if err != nil {
 		panic(err)
 	}
 	return result
+}
+
+func agentAffinity(schema *apiextv1.JSONSchemaProps) apiextv1.JSONSchemaProps {
+	return schema.Properties["spec"].Properties["agentAffinity"]
+}
+
+func nodeAffinity(schema *apiextv1.JSONSchemaProps) apiextv1.JSONSchemaProps {
+	return agentAffinity(schema).Properties["nodeAffinity"]
+}
+
+func podAffinity(schema *apiextv1.JSONSchemaProps) apiextv1.JSONSchemaProps {
+	return agentAffinity(schema).Properties["podAffinity"]
+}
+
+func podAntiAffinity(schema *apiextv1.JSONSchemaProps) apiextv1.JSONSchemaProps {
+	return agentAffinity(schema).Properties["podAntiAffinity"]
 }

@@ -1,5 +1,5 @@
 # Upgrade fleet in specific Rancher versions to latest fleet release and run MC tests
-name: Upgrade Fleet in Rancher
+name: Upgrade Fleet in Rancher to Latest Release
 
 on:
   schedule:
@@ -40,13 +40,13 @@ jobs:
           - v1.24.1-k3s1
         rancher_version:
           - v2.5.16 # k3s: 1.19 - 1.20
-          - v2.6.10  # k3s: 1.20 - 1.24
-          - v2.7.1  # k3s: 1.23 - 1.24
+          - v2.6.11  # k3s: 1.20 - 1.24
+          - v2.7.3  # k3s: 1.23 - 1.24
         fleet_version:
-          - "0.6.0-rc.3"
+          - "0.7.0-rc.2"
         exclude:
           - k3s_version: v1.20.15-k3s1
-            rancher_version: v2.7.1
+            rancher_version: v2.7.3
           - k3s_version: v1.24.1-k3s1
             rancher_version: v2.5.16
 
@@ -57,7 +57,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
       -
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
@@ -137,8 +137,8 @@ jobs:
       -
         name: Create example workload
         run: |
-          kubectl apply -n fleet-local -f e2e/assets/gitrepo-simple.yaml
-          kubectl apply -n fleet-default -f e2e/assets/gitrepo-simple.yaml
+          kubectl apply -n fleet-local -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
+          kubectl apply -n fleet-default -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
       -
         name: Deploy latest fleet
         env:
@@ -153,8 +153,7 @@ jobs:
           helm upgrade fleet "$url" \
             --wait -n "$fleetns" \
             --set image.tag="$version" \
-            --set agentImage.tag="$version" \
-            --reuse-values
+            --set agentImage.tag="$version"
           until helm -n "$fleetns" status fleet | grep -q "STATUS: deployed"; do echo waiting for original fleet chart to be deployed; sleep 3; done
           kubectl -n "$fleetns" rollout status deploy/fleet-controller
 

@@ -1,5 +1,5 @@
 # Upgrade from latest released fleet to dev version
-name: Upgrade Fleet
+name: Upgrade Fleet Standalone to HEAD
 
 on:
   schedule:
@@ -31,7 +31,7 @@ jobs:
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -

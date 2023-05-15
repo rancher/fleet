@@ -36,6 +36,8 @@ type ManifestOptions struct {
 	Generation            string
 	PrivateRepoURL        string // PrivateRepoURL = registry.yourdomain.com:5000
 	SystemDefaultRegistry string
+	AgentAffinity         *corev1.Affinity
+	AgentResources        *corev1.ResourceRequirements
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
@@ -173,6 +175,7 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions, 
 							},
 						},
 					},
+					NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
 					Affinity: &corev1.Affinity{
 						NodeAffinity: &corev1.NodeAffinity{
 							PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{
@@ -228,6 +231,16 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions, 
 
 	// additional tolerations from cluster
 	dep.Spec.Template.Spec.Tolerations = append(dep.Spec.Template.Spec.Tolerations, opts.AgentTolerations...)
+
+	// overwrite affinity if present on cluster
+	if opts.AgentAffinity != nil {
+		dep.Spec.Template.Spec.Affinity = opts.AgentAffinity
+	}
+
+	// set resources if present on cluster
+	if opts.AgentResources != nil {
+		dep.Spec.Template.Spec.Containers[0].Resources = *opts.AgentResources
+	}
 
 	// additional env vars from cluster
 	if opts.AgentEnvVars != nil {

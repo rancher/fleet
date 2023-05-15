@@ -38,7 +38,7 @@ jobs:
           fetch-depth: 0
       -
         name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       -
@@ -61,7 +61,7 @@ jobs:
         shell: bash
         run: |
           id=$RANDOM
-          echo '::set-output name=ID::'$id
+          echo "ID=$id" >> $GITHUB_OUTPUT
           az aks create --resource-group fleetCI \
           --node-vm-size ${{ env.AKS_MACHINE_TYPE }} \
           --name fleetCI$id \
@@ -90,7 +90,7 @@ jobs:
       -
         name: Get UUID
         id: uuid
-        run: echo "::set-output name=uuid::$(uuidgen)"
+        run: echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
       -
         id: meta-fleet
         uses: docker/metadata-action@v4
