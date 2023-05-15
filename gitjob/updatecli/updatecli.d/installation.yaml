@@ -29,9 +29,9 @@ targets:
     name: 'Update build-tekton reference'
     kind: file
     spec:
-      file: chart/values.yaml
-      matchpattern: 'tag: (v{0,1})(\d)(.*)'
-      replacepattern: 'tag: {{ source "build-tekton" }}'
+      file: chart/templates/deployment.yaml
+      matchpattern: '.Values.tekton.tag | default "(v{0,1})(\d)(.*)"'
+      replacepattern: '.Values.tekton.tag | default "{{ source "build-tekton" }}"'
     scmid: gitjob
     sourceid: build-tekton
 
