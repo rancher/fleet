@@ -12,14 +12,13 @@ then
     exit 0
 fi
 
-CURRENT_VERSION="$(sed -n 's/.*.Values.tekton.tag | default "v\([.0-9]*\).*"/\1/p' ./chart/templates/deployment.yaml)"
+CURRENT_VERSION="$(sed -n 's/.*.Values.tekton.tag | default "\(v[.0-9]*\).*"/\1/p' ./chart/templates/deployment.yaml)"
 
-if [ "$VERSION" -eq "$CURRENT_VERSION" ]
+if [ "$VERSION" = "$CURRENT_VERSION" ]
 then
     echo "The Tekton chart in Gitjob is already up to date."
     exit 0
 fi
-
 
 if test "$DRY_RUN" == "true"
 then
@@ -27,4 +26,4 @@ then
     exit 0
 fi
 
-sed -e -i "s/.Values.tekton.tag | default \"v[.0-9]*\"/.Values.tekton.tag | default \"v${VERSION}\"/g" ./chart/templates/deployment.yaml
+sed -i "s/.Values.tekton.tag | default \"v[.0-9]*\"/.Values.tekton.tag | default \"${VERSION}\"/g" ./chart/templates/deployment.yaml
