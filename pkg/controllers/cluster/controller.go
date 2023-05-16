@@ -3,15 +3,12 @@ package cluster
 
 import (
 	"context"
-	"os"
 	"sort"
-	"time"
 
 	"github.com/sirupsen/logrus"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
-	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/summary"
 
@@ -185,14 +182,9 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 		logrus.Debugf("Cluster %s/%s is not ready because not all gitrepos are ready: %d/%d, enqueue cluster again",
 			cluster.Namespace, cluster.Name, status.ResourceCounts.Ready, status.ResourceCounts.DesiredReady)
 
-		// Counts from gitrepo are out of sync with bundleDeployment state
-		// just retry in a number of seconds as there no great way to trigger an event that
-		// doesn't cause a loop
-		delay := durations.DefaultClusterEnqueueDelay
-		if customDelay, err := time.ParseDuration(os.Getenv("FLEET_CLUSTER_ENQUEUE_DELAY")); err == nil {
-			delay = customDelay
-		}
-		h.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, delay)
+		// Counts from gitrepo are out of sync with bundleDeployment state, retry in a number of seconds.
+		// Time depends on the rate limiter, see controllers.go newSharedControllerFactory()
+		h.clusters.Enqueue(cluster.Namespace, cluster.Name)
 	}
 
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)

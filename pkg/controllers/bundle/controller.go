@@ -304,6 +304,7 @@ func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result [
 			},
 			Spec: target.Deployment.Spec,
 		}
+		dp.Spec.Paused = target.IsPaused()
 		dp.Spec.DependsOn = bundle.Spec.DependsOn
 		result = append(result, dp)
 	}
