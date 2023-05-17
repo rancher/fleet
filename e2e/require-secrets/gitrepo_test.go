@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -140,27 +138,9 @@ func buildGitHostname(ns string) (string, error) {
 func getExternalRepoIP(port int, repoName string) (string, error) {
 	systemk := env.Kubectl.Namespace(env.Namespace)
 
-	svcOutput, err := systemk.Get("service", "git-service")
+	externalIP, err := systemk.Get("service", "git-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 	if err != nil {
 		return "", err
-	}
-
-	svc := strings.Split(svcOutput, "\n")
-
-	rgxp, err := regexp.Compile("\\s+")
-	if err != nil {
-		return "", err
-	}
-
-	headerRow := strings.Split(rgxp.ReplaceAllString(svc[0], " "), " ")
-	svcRow := strings.Split(rgxp.ReplaceAllString(svc[1], " "), " ")
-	var externalIP string
-	for idx, val := range headerRow {
-		if val == "EXTERNAL-IP" {
-			externalIPs := svcRow[idx]
-			externalIP = strings.Split(externalIPs, ",")[0] // several IPs provided, any of them should work.
-			break
-		}
 	}
 
 	return fmt.Sprintf("http://%s:%d/%s", externalIP, port, repoName), nil
