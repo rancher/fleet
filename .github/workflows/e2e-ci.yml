@@ -62,6 +62,8 @@ jobs:
         run: |
           docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
           docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+          cd e2e/assets/gitrepo
+          docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
       -
         name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
@@ -77,6 +79,7 @@ jobs:
         name: Import Images Into k3d
         run: |
           k3d image import rancher/fleet:dev rancher/fleet-agent:dev
+          k3d image import nginx-git:test nginx-git:test
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
@@ -104,24 +107,14 @@ jobs:
           ginkgo e2e/acceptance/single-cluster-examples
       -
         name: Fleet Tests Requiring Github Secrets
-        # These tests can't run for PRs, because PRs don't have access to the secrets
-        if: >
-          github.event_name != 'pull_request' &&
-          github.repository == 'rancher/fleet'
         env:
           FLEET_E2E_NS: fleet-local
-          GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"
-          GIT_REPO_HOST: "github.com"
-          GIT_REPO_USER: "git"
-          GIT_REPO_BRANCH: ${{ matrix.k3s_version }}
+          # Git credentials are here used in a local, ephemeral environment. Leaks would be harmless.
+          GIT_HTTP_USER: "fleet-ci"
+          GIT_HTTP_PASSWORD: "foo"
           CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
           CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
         run: |
-          export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
-          export GIT_SSH_PUBKEY="$GITHUB_WORKSPACE/id_ecdsa.pub"
-          echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
-          echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
-
           ginkgo e2e/require-secrets
       -
         name: Dump Failed Environment

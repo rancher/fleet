@@ -60,6 +60,15 @@ and restart the controller:
     dev/update-agent-k3d
     dev/update-controller-k3d
 
+### Running gitrepo tests
+
+Those tests require an additional git server image to be built and imported into the upstream cluster:
+```
+cd e2e/assets/gitrepo
+docker build . -f Dockerfile.gitserver --build-arg passwd=$(openssl passwd foo) -t nginx-git:test
+k3d image import nginx-git:test -m direct -c $FLEET_E2E_CLUSTER
+```
+
 ## Different Script Folders
 
 Our CIs, dapper/drone and github actions, use a different set of scripts.
