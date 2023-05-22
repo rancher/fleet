@@ -1,6 +1,7 @@
 package githelper
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,6 +16,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/filesystem"
+
+	"github.com/rancher/fleet/e2e/testenv"
 )
 
 type Git struct {
@@ -139,4 +142,26 @@ func (g *Git) Update(repo *git.Repository) (string, error) {
 		Progress: os.Stdout,
 		RefSpecs: []config.RefSpec{config.RefSpec("refs/heads/master:refs/heads/" + g.Branch)},
 	})
+}
+
+// BuildGitHostname builds the hostname of a cluster-local git repo from the provided namespace.
+func BuildGitHostname(ns string) (string, error) {
+	if ns == "" {
+		return "", errors.New("namespace is required")
+	}
+
+	return fmt.Sprintf("git-service.%s.svc.cluster.local", ns), nil
+}
+
+// GetExternalRepoIP retrieves the external IP where our local git server can be reached, based on the provided port and
+// repo name.
+func GetExternalRepoIP(env *testenv.Env, port int, repoName string) (string, error) {
+	systemk := env.Kubectl.Namespace(env.Namespace)
+
+	externalIP, err := systemk.Get("service", "git-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("http://%s:%d/%s", externalIP, port, repoName), nil
 }

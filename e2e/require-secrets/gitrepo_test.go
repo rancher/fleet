@@ -2,7 +2,6 @@ package require_secrets
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -36,7 +35,7 @@ var _ = Describe("Git Repo with polling", func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
-		host, err := buildGitHostname(env.Namespace)
+		host, err := githelper.BuildGitHostname(env.Namespace)
 		Expect(err).ToNot(HaveOccurred())
 
 		// Create git server
@@ -48,7 +47,7 @@ var _ = Describe("Git Repo with polling", func() {
 
 		time.Sleep(3 * time.Second) // give git server time to spin up
 
-		ip, err := getExternalRepoIP(port, repoName)
+		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
 		gh = githelper.New(ip)
 
@@ -121,26 +120,4 @@ func replace(path string, s string, r string) {
 
 	err = os.WriteFile(path, b, 0644)
 	Expect(err).ToNot(HaveOccurred())
-}
-
-// buildGitHostname builds the hostname of a cluster-local git repo from the provided namespace.
-func buildGitHostname(ns string) (string, error) {
-	if ns == "" {
-		return "", errors.New("namespace is required")
-	}
-
-	return fmt.Sprintf("git-service.%s.svc.cluster.local", ns), nil
-}
-
-// getExternalRepoIP retrieves the external IP where our local git server can be reached, based on the provided port and
-// repo name.
-func getExternalRepoIP(port int, repoName string) (string, error) {
-	systemk := env.Kubectl.Namespace(env.Namespace)
-
-	externalIP, err := systemk.Get("service", "git-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("http://%s:%d/%s", externalIP, port, repoName), nil
 }

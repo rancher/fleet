@@ -18,9 +18,8 @@ func TestE2E(t *testing.T) {
 }
 
 var (
-	env            *testenv.Env
-	khDir          string
-	knownHostsPath string
+	env   *testenv.Env
+	khDir string
 )
 
 var _ = BeforeSuite(func() {

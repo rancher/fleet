@@ -1,8 +1,10 @@
 package require_secrets
 
 import (
+	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
@@ -14,36 +16,48 @@ import (
 
 var _ = Describe("Image Scan", func() {
 	var (
-		tmpdir  string
-		repodir string
-		k       kubectl.Command
-		gh      *githelper.Git
+		tmpdir   string
+		clonedir string
+		k        kubectl.Command
+		gh       *githelper.Git
 	)
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
-		gh = githelper.New()
-		gh.Branch = "imagescan"
 
-		out, err := k.Create(
-			"secret", "generic", "git-auth", "--type", "kubernetes.io/ssh-auth",
-			"--from-file=ssh-privatekey="+gh.SSHKey,
-			"--from-file=ssh-publickey="+gh.SSHPubKey,
-			"--from-file=known_hosts="+knownHostsPath,
-		)
+		// Create git server
+		out, err := k.Apply("-f", testenv.AssetPath("gitrepo/nginx_deployment.yaml"))
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		repodir = path.Join(tmpdir, "repo")
-		_, err = gh.Create(repodir, testenv.AssetPath("imagescan/repo"), "examples")
+		out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_service.yaml"))
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		time.Sleep(3 * time.Second) // give git server time to spin up
+
+		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
+		gh = githelper.New(ip)
+		gh.Branch = "imagescan"
+
+		tmpdir, _ = os.MkdirTemp("", "fleet-")
+		clonedir = path.Join(tmpdir, "clone")
+		_, err = gh.CreateHTTP(clonedir, testenv.AssetPath("imagescan/repo"), "examples")
+		Expect(err).ToNot(HaveOccurred())
+
+		// Build git repo URL reachable _within_ the cluster, for the GitRepo
+		host, err := githelper.BuildGitHostname(env.Namespace)
+		Expect(err).ToNot(HaveOccurred())
+
+		// For some reason, using an HTTP secret makes `git fetch` fail within tektoncd/pipeline;
+		// Hence we resort to inline credentials here, for an ephemeral test setup.
+		inClusterRepoURL := fmt.Sprintf("http://%s:%s@%s:%d/%s", gh.Username, gh.Password, host, port, repoName)
 
 		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
 		err = testenv.Template(gitrepo, testenv.AssetPath("imagescan/imagescan.yaml"), struct {
 			Repo   string
 			Branch string
 		}{
-			gh.URL,
+			inClusterRepoURL,
 			gh.Branch,
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -54,8 +68,9 @@ var _ = Describe("Image Scan", func() {
 
 	AfterEach(func() {
 		os.RemoveAll(tmpdir)
-		_, _ = k.Delete("secret", "git-auth")
 		_, _ = k.Delete("gitrepo", "imagescan")
+		_, _ = k.Delete("deployment", "git-server")
+		_, _ = k.Delete("service", "git-service")
 	})
 
 	When("update docker reference in git via image scan", func() {
@@ -71,14 +86,14 @@ var _ = Describe("Image Scan", func() {
 				out, _ := k.Get("bundles", "imagescan-examples", "-o", "yaml")
 				return out
 			}).Should(
-				MatchRegexp(`image: nginx:latest # {"\$imagescan": "test-scan:digest"}`))
+				MatchRegexp(`image: public\.ecr\.aws\/nginx\/nginx:latest # {"\$imagescan": "test-scan:digest"}`))
 
 			By("checking for the updated docker reference")
 			Eventually(func() string {
 				out, _ := k.Get("bundles", "imagescan-examples", "-o", "yaml")
 				return out
 			}).Should(
-				MatchRegexp(`image: index\.docker\.io\/library\/nginx:[0-9][.0-9]*@sha256:[0-9a-f]{64} # {"\$imagescan": "test-scan:digest"}`))
+				MatchRegexp(`image: public\.ecr\.aws\/nginx\/nginx:[0-9][.0-9]*@sha256:[0-9a-f]{64} # {"\$imagescan": "test-scan:digest"}`))
 
 		})
 	})
