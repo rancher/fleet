@@ -17,7 +17,7 @@ require (
 	github.com/rancher/lasso v0.0.0-20221227210133-6ea88ca2fbcc
 	github.com/rancher/steve v0.0.0-20220628235427-dbf9ef88ce8f
 	github.com/rancher/wrangler v1.1.1
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.2
 	github.com/urfave/cli v1.22.13
 	github.com/whilp/git-urls v1.0.0
 	golang.org/x/crypto v0.9.0
