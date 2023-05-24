@@ -86,5 +86,5 @@ Enjoy and read the [docs](https://fleet.rancher.io/).
 ## License
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Francher%2Ffleet.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Francher%2Ffleet?ref=badge_large)
 
-For developer and maintainer documentation, see [DEVELOPING.md](./DEVELOPING.md).=======
+For developer and maintainer documentation, see [DEVELOPING.md](./DEVELOPING.md).
 
