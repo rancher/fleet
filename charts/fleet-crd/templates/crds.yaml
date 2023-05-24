@@ -2693,6 +2693,9 @@ spec:
               helmSecretName:
                 nullable: true
                 type: string
+              helmSecretNameForPaths:
+                nullable: true
+                type: string
               imageScanCommit:
                 properties:
                   authorEmail:

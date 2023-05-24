@@ -45,6 +45,7 @@ type Options struct {
 	Auth             bundlereader.Auth
 	HelmRepoURLRegex string
 	KeepResources    bool
+	AuthByPath       map[string]bundlereader.Auth
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -95,6 +96,9 @@ func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs
 				}
 				if !createBundle {
 					return nil
+				}
+				if auth, ok := opts.AuthByPath[baseDir]; ok {
+					opts.Auth = auth
 				}
 				if err := Dir(ctx, client, repoName, path, opts, gitRepoBundlesMap); err == ErrNoResources {
 					logrus.Warnf("%s: %v", path, err)
