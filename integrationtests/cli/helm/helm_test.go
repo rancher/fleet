@@ -130,6 +130,34 @@ func testHelmRepo(path, port string) {
 			}).Should(Equal("error parsing regexp: missing closing ): `a(b`"))
 		})
 	})
+
+	When("Auth is required, and it provided in HelmSecretNameForPaths", func() {
+		BeforeEach(func() {
+			authEnabled = true
+		})
+		It("fleet apply uses credentials from HelmSecretNameForPaths", func() {
+			Eventually(func() error {
+				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
+			}).Should(Not(HaveOccurred()))
+			By("verify Bundle is created with all the resources inside of the helm release", func() {
+				Eventually(verifyResourcesArePresent).Should(BeTrue())
+			})
+		})
+	})
+
+	When("Auth is required, and it provided in both HelmSecretNameForPaths and HelmSecret", func() {
+		BeforeEach(func() {
+			authEnabled = true
+		})
+		It("fleet apply uses credentials from HelmSecretNameForPaths", func() {
+			Eventually(func() error {
+				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{Auth: bundlereader.Auth{Username: "wrong", Password: "wrong"}, AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
+			}).Should(Not(HaveOccurred()))
+			By("verify Bundle is created with all the resources inside of the helm release", func() {
+				Eventually(verifyResourcesArePresent).Should(BeTrue())
+			})
+		})
+	})
 }
 
 func verifyResourcesArePresent() bool {
