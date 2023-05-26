@@ -69,7 +69,7 @@ func TestAddAuthToOpts(t *testing.T) {
 				t.Errorf("opts don't match: expected %v, got %v", test.expectedOpts, opts)
 			}
 			if err != test.expectedErr {
-				t.Errorf("erros don't match: expected %v, got %v", test.expectedErr, err)
+				t.Errorf("errors don't match: expected %v, got %v", test.expectedErr, err)
 			}
 		})
 	}
