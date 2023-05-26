@@ -92,6 +92,16 @@ jobs:
         run: |
           ./.github/scripts/deploy-fleet.sh
       -
+        name: Deploy zot for OCI tests
+        run: |
+          # Generate cert and key for TLS
+          ./dev/create_zot_certs
+
+          # Install root cert in host
+          mkdir /usr/share/ca-certificates/extra
+          cp FleetCI-RootCA/FleetCI-RootCA.crt /usr/share/ca-certificates/extra/
+          update-ca-certificates
+      -
         name: E2E Tests
         env:
           FLEET_E2E_NS: fleet-local
@@ -99,6 +109,8 @@ jobs:
           GIT_HTTP_USER: "fleet-ci"
           GIT_HTTP_PASSWORD: "foo"
         run: |
+          helm package e2e/assets/gitrepo/sleeper-chart/
+
           ginkgo e2e/single-cluster e2e/keep-resources
       -
         name: Acceptance Tests for Examples

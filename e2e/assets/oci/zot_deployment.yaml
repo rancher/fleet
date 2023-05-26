@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zot
+  labels:
+    fleet: testing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zot
+  template:
+    metadata:
+      labels:
+        app: zot
+    spec:
+      containers:
+        - name: zot
+          image: ghcr.io/project-zot/zot-linux-amd64:v1.4.3
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 5000
+          volumeMounts:
+          - name: config-file
+            mountPath: /etc/zot/config.json
+            subPath: config.json
+          - name: htpasswd-secret
+            mountPath: /secret
+          - name: tls-cert
+            mountPath: /etc/zot/certs
+      volumes:
+        - name: config-file
+          configMap:
+            name: zot-config
+            items:
+              - key: config.json
+                path: config.json
+        - name: htpasswd-secret
+          secret:
+            secretName: zot-htpasswd
+        - name: tls-cert
+          secret:
+            secretName: zot-tls

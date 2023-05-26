@@ -1,0 +1,34 @@
+#!/bin/bash
+
+CA_name=FleetCI-RootCA
+validity_days=3
+passphrase=foo # this should not matter too much for local, ephemeral certs and keys
+
+mkdir -p $CA_name
+cd $CA_name
+
+# generate private key for CA
+CA_key_name="$CA_name.key"
+openssl genrsa -aes256 -passout pass:$passphrase -out "$CA_key_name" 4096
+
+# generate CA cert using private key
+openssl req -x509 -new -nodes -key "$CA_key_name" -sha256 -days $validity_days -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test Root CA" -passin pass:$passphrase -out $CA_name.crt
+
+# generate Zot cert and key
+openssl req -new -newkey rsa:4096 -sha256 -nodes -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test" -out zot_csr.csr -keyout zot_key.key
+
+# generate extensions file for SAN IP
+# (necessary for the host to be able to interact with the in-cluster registry by external IP)
+node_IP=$(kubectl get nodes --namespace default -o jsonpath="{.items[0].status.addresses[0].address}")
+
+cat > crt.ext << EOF
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName = @alt_names
+[alt_names]
+IP.1 = $node_IP
+EOF
+
+# sign Zot cert with CA root key
+openssl x509 -req -in zot_csr.csr -CA "$CA_name.crt" -CAkey "$CA_key_name" -CAcreateserial -out zot_crt.crt -days $validity_days -extfile crt.ext -passin pass:$passphrase
