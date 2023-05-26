@@ -4,25 +4,64 @@ import (
 	"io/fs"
 	"path/filepath"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/integrationtests/cli"
 	"github.com/rancher/fleet/modules/cli/apply"
 	"github.com/rancher/fleet/pkg/bundlereader"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 const (
 	numberOfFilesInHelmConfigChart = 3
+	port                           = ":3000"
 )
 
-var _ = Describe("Fleet apply helm release", func() {
-	When("applying a folder with fleet.yaml that contains a helm release in the repo field", Serial, func() {
-		testHelmRepo("helm_repo_url", ":3000")
+var _ = Describe("Fleet apply helm release", Serial, func() {
+	When("applying a folder with fleet.yaml that contains a helm release in the repo field", func() {
+		testHelmRepo("helm_repo_url", port)
 	})
 
-	When("applying a folder with fleet.yaml that contains a helm release in the chart field", Serial, func() {
-		testHelmRepo("helm_chart_url", ":3001")
+	When("applying a folder with fleet.yaml that contains a helm release in the chart field", func() {
+		testHelmRepo("helm_chart_url", port)
+	})
+
+	When("applying a folder with fleet.yaml that contains a sub folder with another fleet.yaml", func() {
+		var repo = repository{
+			port: port,
+		}
+		BeforeEach(func() {
+			repo.startRepository(true)
+		})
+		AfterEach(func() {
+			err := repo.stopRepository()
+			Expect(err).NotTo(HaveOccurred())
+		})
+		When("path credentials are provided just for root folder", func() {
+			It("fleet apply fails for sub folder", func() {
+				Eventually(func() string {
+					err := fleetApply([]string{cli.AssetsPath + "helm_path_credentials"}, &apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + "helm_path_credentials": {Username: username, Password: password}},
+					})
+					Expect(err).To(HaveOccurred())
+					return err.Error()
+				}).Should(ContainSubstring("401"))
+			})
+		})
+		When("path credentials are provided for both root and sub folder", func() {
+			It("fleet apply works fine", func() {
+				Eventually(func() error {
+					return fleetApply([]string{cli.AssetsPath + "helm_path_credentials"}, &apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + "helm_path_credentials":           {Username: username, Password: password},
+							cli.AssetsPath + "helm_path_credentials/subfolder": {Username: username, Password: password},
+						},
+					})
+				}).Should(Not(HaveOccurred()))
+				By("verifying Bundle is created with all the resources inside of the helm release", func() {
+					Eventually(verifyResourcesArePresent).Should(BeTrue())
+				})
+			})
+		})
 	})
 })
 
