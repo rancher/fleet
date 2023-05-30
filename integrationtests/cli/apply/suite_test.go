@@ -20,7 +20,7 @@ func TestFleet(t *testing.T) {
 }
 
 // simulates fleet cli execution
-func fleetApply(name string, dirs []string, options *apply.Options) error {
+func fleetApply(name string, dirs []string, options apply.Options) error {
 	buf = gbytes.NewBuffer()
 	options.Output = buf
 

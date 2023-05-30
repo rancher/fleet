@@ -43,6 +43,9 @@ type GitRepoSpec struct {
 	// HelmSecretName contains the auth secret for private helm repository
 	HelmSecretName string `json:"helmSecretName,omitempty"`
 
+	// HelmSecretNameForPaths contains the auth secret for private helm repository for each path
+	HelmSecretNameForPaths string `json:"helmSecretNameForPaths,omitempty"`
+
 	// HelmRepoURLRegex Helm credentials will be used if the helm repo matches this regex
 	// Credentials will always be used if this is empty or not provided
 	HelmRepoURLRegex string `json:"helmRepoURLRegex,omitempty"`

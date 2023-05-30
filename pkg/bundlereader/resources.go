@@ -23,10 +23,10 @@ import (
 var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
 
 type Auth struct {
-	Username      string
-	Password      string
-	CABundle      []byte
-	SSHPrivateKey []byte
+	Username      string `json:"username,omitempty"`
+	Password      string `json:"password,omitempty"`
+	CABundle      []byte `json:"caBundle,omitempty"`
+	SSHPrivateKey []byte `json:"sshPrivateKey,omitempty"`
 }
 
 // readResources reads and downloads all resources from the bundle
