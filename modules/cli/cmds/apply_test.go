@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"sigs.k8s.io/yaml"
+
 	"github.com/rancher/fleet/modules/cli/apply"
 	"github.com/rancher/fleet/pkg/bundlereader"
-	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -49,7 +50,7 @@ func TestAddAuthToOpts(t *testing.T) {
 			expectedOpts: &apply.Options{AuthByPath: helmSecretsNameByPath_content},
 			expectedErr:  nil,
 		},
-		"AuthByPath contains values from HelmCredentialsByPathFile if provided and Auth is empty even in username and password for a generic helm secret are provided": {
+		"HelmCredentialsByPathFile has priority over username and password for a generic helm secret if both are provided": {
 			apply:        Apply{HelmCredentialsByPathFile: helmSecretsNameByPath_file, PasswordFile: password_file, Username: username, CACertsFile: caCerts_file, SSHPrivateKeyFile: sshPrivateKey_file},
 			expectedOpts: &apply.Options{AuthByPath: helmSecretsNameByPath_content},
 			expectedErr:  nil,

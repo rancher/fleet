@@ -104,7 +104,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	return apply.Apply(cmd.Context(), Client, name, args, opts)
 }
 
-// addAuthToOpts add auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
+// addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
 // is not provided it means that the same helm secret should be used for all helm repositories, then it will look for
 // Username, PasswordFile, CACertsFile and SSHPrivateKeyFile
 func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {

@@ -170,7 +170,7 @@ func testHelmRepo(path, port string) {
 		})
 	})
 
-	When("Auth is required, and it provided in HelmSecretNameForPaths", func() {
+	When("Auth is required, and it is provided in HelmSecretNameForPaths", func() {
 		BeforeEach(func() {
 			authEnabled = true
 		})
