@@ -119,30 +119,32 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {
 			return err
 		}
 		opts.AuthByPath = authByPath
-	} else {
-		if a.Username != "" && a.PasswordFile != "" {
-			password, err := readFile(a.PasswordFile)
-			if err != nil && !os.IsNotExist(err) {
-				return err
-			}
 
-			opts.Auth.Username = a.Username
-			opts.Auth.Password = string(password)
+		return nil
+	}
+
+	if a.Username != "" && a.PasswordFile != "" {
+		password, err := readFile(a.PasswordFile)
+		if err != nil && !os.IsNotExist(err) {
+			return err
 		}
-		if a.CACertsFile != "" {
-			cabundle, err := readFile(a.CACertsFile)
-			if err != nil && !os.IsNotExist(err) {
-				return err
-			}
-			opts.Auth.CABundle = cabundle
+
+		opts.Auth.Username = a.Username
+		opts.Auth.Password = string(password)
+	}
+	if a.CACertsFile != "" {
+		cabundle, err := readFile(a.CACertsFile)
+		if err != nil && !os.IsNotExist(err) {
+			return err
 		}
-		if a.SSHPrivateKeyFile != "" {
-			privateKey, err := readFile(a.SSHPrivateKeyFile)
-			if err != nil && !os.IsNotExist(err) {
-				return err
-			}
-			opts.Auth.SSHPrivateKey = privateKey
+		opts.Auth.CABundle = cabundle
+	}
+	if a.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(a.SSHPrivateKeyFile)
+		if err != nil && !os.IsNotExist(err) {
+			return err
 		}
+		opts.Auth.SSHPrivateKey = privateKey
 	}
 
 	return nil
