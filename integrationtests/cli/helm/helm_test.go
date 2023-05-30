@@ -39,7 +39,7 @@ var _ = Describe("Fleet apply helm release", Serial, func() {
 		When("path credentials are provided just for root folder", func() {
 			It("fleet apply fails for sub folder", func() {
 				Eventually(func() string {
-					err := fleetApply([]string{cli.AssetsPath + "helm_path_credentials"}, &apply.Options{
+					err := fleetApply([]string{cli.AssetsPath + "helm_path_credentials"}, apply.Options{
 						AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + "helm_path_credentials": {Username: username, Password: password}},
 					})
 					Expect(err).To(HaveOccurred())
@@ -50,7 +50,7 @@ var _ = Describe("Fleet apply helm release", Serial, func() {
 		When("path credentials are provided for both root and sub folder", func() {
 			It("fleet apply works fine", func() {
 				Eventually(func() error {
-					return fleetApply([]string{cli.AssetsPath + "helm_path_credentials"}, &apply.Options{
+					return fleetApply([]string{cli.AssetsPath + "helm_path_credentials"}, apply.Options{
 						AuthByPath: map[string]bundlereader.Auth{
 							cli.AssetsPath + "helm_path_credentials":           {Username: username, Password: password},
 							cli.AssetsPath + "helm_path_credentials/subfolder": {Username: username, Password: password},
@@ -86,7 +86,7 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply success", func() {
 			Eventually(func() error {
-				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{})
+				return fleetApply([]string{cli.AssetsPath + path}, apply.Options{})
 			}).Should(Not(HaveOccurred()))
 			By("verifying Bundle is created with all the resources inside of the helm release", func() {
 				Eventually(verifyResourcesArePresent).Should(BeTrue())
@@ -100,7 +100,7 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply fails when no auth provided", func() {
 			Eventually(func() string {
-				err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{})
+				err := fleetApply([]string{cli.AssetsPath + path}, apply.Options{})
 				Expect(err).To(HaveOccurred())
 				return err.Error()
 			}).Should(ContainSubstring("401"))
@@ -113,7 +113,7 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply success", func() {
 			Eventually(func() error {
-				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{Auth: bundlereader.Auth{Username: username, Password: password}})
+				return fleetApply([]string{cli.AssetsPath + path}, apply.Options{Auth: bundlereader.Auth{Username: username, Password: password}})
 			}).Should(Not(HaveOccurred()))
 			By("verifying Bundle is created with all the resources inside of the helm release", func() {
 				Eventually(verifyResourcesArePresent).Should(BeTrue())
@@ -127,7 +127,7 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply success", func() {
 			Eventually(func() error {
-				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{
+				return fleetApply([]string{cli.AssetsPath + path}, apply.Options{
 					Auth:             bundlereader.Auth{Username: username, Password: password},
 					HelmRepoURLRegex: "http://localhost/*",
 				})
@@ -144,7 +144,7 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply fails when --helm-repo-url-regex doesn't match the helm repo url", func() {
 			Eventually(func() string {
-				err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{
+				err := fleetApply([]string{cli.AssetsPath + path}, apply.Options{
 					Auth:             bundlereader.Auth{Username: username, Password: password},
 					HelmRepoURLRegex: "nomatch",
 				})
@@ -160,7 +160,7 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply fails when --helm-repo-url-regex is not valid", func() {
 			Eventually(func() string {
-				err := fleetApply([]string{cli.AssetsPath + path}, &apply.Options{
+				err := fleetApply([]string{cli.AssetsPath + path}, apply.Options{
 					Auth:             bundlereader.Auth{Username: username, Password: password},
 					HelmRepoURLRegex: "a(b",
 				})
@@ -176,7 +176,7 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply uses credentials from HelmSecretNameForPaths", func() {
 			Eventually(func() error {
-				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
+				return fleetApply([]string{cli.AssetsPath + path}, apply.Options{AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
 			}).Should(Not(HaveOccurred()))
 			By("verify Bundle is created with all the resources inside of the helm release", func() {
 				Eventually(verifyResourcesArePresent).Should(BeTrue())
@@ -190,7 +190,7 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply uses credentials from HelmSecretNameForPaths", func() {
 			Eventually(func() error {
-				return fleetApply([]string{cli.AssetsPath + path}, &apply.Options{Auth: bundlereader.Auth{Username: "wrong", Password: "wrong"}, AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
+				return fleetApply([]string{cli.AssetsPath + path}, apply.Options{Auth: bundlereader.Auth{Username: "wrong", Password: "wrong"}, AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
 			}).Should(Not(HaveOccurred()))
 			By("verify Bundle is created with all the resources inside of the helm release", func() {
 				Eventually(verifyResourcesArePresent).Should(BeTrue())

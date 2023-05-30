@@ -60,7 +60,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	name := ""
-	opts := &apply.Options{
+	opts := apply.Options{
 		BundleFile:       a.BundleFile,
 		Output:           writer.NewDefaultNone(a.Output),
 		Compress:         a.Compress,
@@ -73,7 +73,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		HelmRepoURLRegex: a.HelmRepoURLRegex,
 		KeepResources:    a.KeepResources,
 	}
-	err := a.addAuthToOpts(opts, os.ReadFile)
+	err := a.addAuthToOpts(&opts, os.ReadFile)
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,7 @@ import (
 var _ = Describe("Fleet apply", Ordered, func() {
 	When("simple resources", func() {
 		It("fleet apply is called", func() {
-			err := fleetApply("simple", []string{cli.AssetsPath + "simple"}, &apply.Options{})
+			err := fleetApply("simple", []string{cli.AssetsPath + "simple"}, apply.Options{})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -30,7 +30,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 	})
 	When("simple resources in a nested folder", func() {
 		It("fleet apply is called", func() {
-			err := fleetApply("nested_simple", []string{cli.AssetsPath + "nested_simple"}, &apply.Options{})
+			err := fleetApply("nested_simple", []string{cli.AssetsPath + "nested_simple"}, apply.Options{})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -52,7 +52,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 	})
 	When("simple resources in a nested folder with two levels", func() {
 		It("fleet apply is called", func() {
-			err := fleetApply("nested_two_levels", []string{cli.AssetsPath + "nested_two_levels"}, &apply.Options{})
+			err := fleetApply("nested_two_levels", []string{cli.AssetsPath + "nested_two_levels"}, apply.Options{})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -72,7 +72,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 	})
 	When("multiple fleet.yaml in a nested folder", func() {
 		It("fleet apply is called", func() {
-			err := fleetApply("nested_multiple", []string{cli.AssetsPath + "nested_multiple"}, &apply.Options{})
+			err := fleetApply("nested_multiple", []string{cli.AssetsPath + "nested_multiple"}, apply.Options{})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -108,7 +108,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 	})
 	When("multiple fleet.yaml mixed with simple resources in a nested folder", func() {
 		It("fleet apply is called", func() {
-			err := fleetApply("nested_mixed_two_levels", []string{cli.AssetsPath + "nested_mixed_two_levels"}, &apply.Options{})
+			err := fleetApply("nested_mixed_two_levels", []string{cli.AssetsPath + "nested_mixed_two_levels"}, apply.Options{})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -148,7 +148,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 	})
 	When("containing keepResources in the fleet.yaml", func() {
 		It("fleet apply is called", func() {
-			err := fleetApply("keepResources", []string{cli.AssetsPath + "keep_resources"}, &apply.Options{})
+			err := fleetApply("keepResources", []string{cli.AssetsPath + "keep_resources"}, apply.Options{})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
