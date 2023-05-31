@@ -45,6 +45,7 @@ const (
 	DefaultServiceAccount        = "fleet-default"
 	KeepResourcesAnnotation      = "fleet.cattle.io/keep-resources"
 	HelmUpgradeInterruptedError  = "another operation (install/upgrade/rollback) is in progress"
+	MaxHelmHistory               = 5
 )
 
 var (
@@ -115,7 +116,7 @@ func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, gette
 	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
 		return nil, err
 	}
-	h.globalCfg.Releases.MaxHistory = 5
+	h.globalCfg.Releases.MaxHistory = MaxHelmHistory
 	return h, nil
 }
 
@@ -310,7 +311,7 @@ func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 	kClient.Namespace = namespace
 
 	err = cfg.Init(getter, namespace, "secrets", logrus.Infof)
-	cfg.Releases.MaxHistory = 5
+	cfg.Releases.MaxHistory = MaxHelmHistory
 	cfg.KubeClient = kClient
 
 	cfg.Capabilities, _ = getCapabilities(cfg)
@@ -404,7 +405,7 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	u.Atomic = options.Helm.Atomic
 	u.MaxHistory = options.Helm.MaxHistory
 	if u.MaxHistory == 0 {
-		u.MaxHistory = 10
+		u.MaxHistory = MaxHelmHistory
 	}
 	u.Namespace = defaultNamespace
 	u.Timeout = timeout
