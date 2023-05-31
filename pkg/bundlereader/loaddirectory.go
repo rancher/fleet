@@ -178,7 +178,13 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		err = registryClient.Login(url.Hostname(), registry.LoginOptInsecure(false), registry.LoginOptBasicAuth(auth.Username, auth.Password))
+
+		addr := url.Hostname()
+		if port := url.Port(); port != "" {
+			addr = fmt.Sprintf("%s:%s", addr, port)
+		}
+
+		err = registryClient.Login(addr, registry.LoginOptInsecure(false), registry.LoginOptBasicAuth(auth.Username, auth.Password))
 		if err != nil {
 			return "", err
 		}
