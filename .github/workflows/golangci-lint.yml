@@ -4,8 +4,6 @@ env:
   SETUP_GO_VERSION: '1.19.*'
 
 on:
-  schedule:
-    - cron:  '0 5 * * *'
   pull_request:
 
 jobs:
