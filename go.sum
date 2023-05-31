@@ -732,6 +732,8 @@ github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742/go.mod h1:bx2lN
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
+github.com/moio/wrangler v1.0.2-SURE-6125.1 h1:jc70+4k+mCnGjE8jh9uuy41oznPgyNXq6xXXxVXvakE=
+github.com/moio/wrangler v1.0.2-SURE-6125.1/go.mod h1:Blhan9LdaIJjC9w+xGteSrHHEiIFIdPEHEMrtx82dPk=
 github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 h1:n6/2gBQ3RWajuToeY6ZtZTIKv2v7ThUy5KKusIT0yc0=
 github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00/go.mod h1:Pm3mSP3c5uWn86xMLZ5Sa7JB9GsEZySvHYXCTK4E9q4=
 github.com/morikuni/aec v1.0.0 h1:nP9CBfwrvYnBRgY6qfDQkygYDmYwOilePFkwzv4dU8A=
@@ -822,8 +824,6 @@ github.com/rancher/helm/v3 v3.10.3-fleet1 h1:CCYFsIqIu+Z0beA58cUie1s3qmVSyxFzNqv
 github.com/rancher/helm/v3 v3.10.3-fleet1/go.mod h1:CXOcs02AYvrlPMWARNYNRgf2rNP7gLJQsi/Ubd4EDrI=
 github.com/rancher/lasso v0.0.0-20221202205459-e7138f16489c h1:RKGa+6plIHqyfBcC+lnCs3oe7A8wSFkUPBtqWBAi/1E=
 github.com/rancher/lasso v0.0.0-20221202205459-e7138f16489c/go.mod h1:Qewwr/xGzhtG7WCxhubrKZrdAobv5yqAIuHbDoxThZQ=
-github.com/rancher/wrangler v1.0.2 h1:0JGv62gF2OkYUoR0fsr99Za63fquFeKTHE2z9kAFVsE=
-github.com/rancher/wrangler v1.0.2/go.mod h1:Blhan9LdaIJjC9w+xGteSrHHEiIFIdPEHEMrtx82dPk=
 github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22 h1:ADMwgJyVwmLXJBSm/nNobB1XGSmFCTA+TY/otxgIPu4=
 github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22/go.mod h1:vyO9SU60oplNFa5ZqoEAFWmYKgj2F6remdy8p6H0SgI=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
