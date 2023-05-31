@@ -1,10 +1,11 @@
 package githelper
 
 import (
-	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/go-git/go-billy/v5/osfs"
@@ -12,29 +13,28 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/filesystem"
 )
 
 type Git struct {
-	URL       string
-	User      string
-	SSHKey    string
-	SSHPubKey string
-	Branch    string
+	URL      string
+	Branch   string
+	Username string
+	Password string
 }
 
-func New() *Git {
+func New(url string) *Git {
 	g := &Git{
-		User:      os.Getenv("GIT_REPO_USER"),
-		SSHKey:    os.Getenv("GIT_SSH_KEY"),
-		SSHPubKey: os.Getenv("GIT_SSH_PUBKEY"),
-		URL:       os.Getenv("GIT_REPO_URL"),
-		Branch:    os.Getenv("GIT_REPO_BRANCH"),
+		URL:      url,
+		Branch:   os.Getenv("GIT_REPO_BRANCH"),
+		Username: os.Getenv("GIT_HTTP_USER"),
+		Password: os.Getenv("GIT_HTTP_PASSWORD"),
 	}
 	if g.Branch == "" {
 		g.Branch = "master"
 	}
+
 	g.check()
 
 	return g
@@ -49,40 +49,40 @@ func author() *object.Signature {
 }
 
 func (g *Git) check() {
-	if g.User == "" || g.SSHKey == "" || g.URL == "" || g.SSHPubKey == "" {
-		panic("GIT_REPO_USER, GIT_SSH_KEY, GIT_SSH_PUBKEY, GIT_REPO_URL, GIT_REPO_HOST must be set")
+	if g.URL == "" {
+		panic("git repo URL must be set")
+	}
+
+	if g.Username == "" || g.Password == "" {
+		panic("repo with HTTP auth: GIT_HTTP_USER, GIT_HTTP_PASSWORD must be set")
 	}
 }
 
-// CreateKnownHosts works around https://github.com/go-git/go-git/issues/411
-func CreateKnownHosts(path string, host string) (string, error) {
-	cmd := exec.Command("/bin/sh", "-c", "ssh-keyscan "+host+" >> "+path) //nolint:gosec // test code should never receive user input
-
-	var b bytes.Buffer
-	cmd.Stdout = &b
-	cmd.Stderr = &b
-
-	err := cmd.Run()
-	return b.String(), err
-}
-
-func (g *Git) Create(repodir string, from string, subdir string) (*git.Repository, error) {
-	//fmt.Printf("Creating git repository in %s\n", repodir)
+// CreateHTTP creates a git repository at the specified repodir, with contents from `from/subdir`, and sets a
+// remote using g's URL, inserting username and password into that HTTP URL for password-based auth.
+// This is not secure, but should be enough for testing against ephemeral repos located on the same host.
+func (g *Git) CreateHTTP(repodir, from, subdir string) (*git.Repository, error) {
 	s := osfs.New(path.Join(repodir, ".git"))
 	repo, err := git.Init(filesystem.NewStorage(s, cache.NewObjectLRUDefault()), osfs.New(repodir))
 	if err != nil {
 		return nil, err
 	}
 
+	// insert username and password into remote URL.
+	url := g.URL
+	if before, after, found := strings.Cut(g.URL, "//"); found {
+		url = fmt.Sprintf("%s//%s:%s@%s", before, g.Username, g.Password, after)
+
+	}
+
 	_, err = repo.CreateRemote(&config.RemoteConfig{
 		Name: "origin",
-		URLs: []string{g.URL},
+		URLs: []string{url},
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	//fmt.Printf("Copying %s to %s\n", from, to)
 	cmd := exec.Command("cp", "-a", from, path.Join(repodir, subdir)) //nolint:gosec // test code should never receive user input
 	err = cmd.Run()
 	if err != nil {
@@ -105,14 +105,7 @@ func (g *Git) Create(repodir string, from string, subdir string) (*git.Repositor
 		return nil, err
 	}
 
-	//fmt.Printf("Pushing to remote: %s\n", g.SSHKey)
-	keys, err := ssh.NewPublicKeysFromFile(g.User, g.SSHKey, "")
-	if err != nil {
-		return nil, err
-	}
-
 	err = repo.Push(&git.PushOptions{
-		Auth:     keys,
 		Progress: os.Stdout,
 		// Force push, so our initial state is deterministic
 		RefSpecs: []config.RefSpec{config.RefSpec("+refs/heads/master:refs/heads/" + g.Branch)},
@@ -121,6 +114,7 @@ func (g *Git) Create(repodir string, from string, subdir string) (*git.Repositor
 	return repo, err
 }
 
+// Update commits and pushes the current state of the worktree to the remote.
 func (g *Git) Update(repo *git.Repository) (string, error) {
 	w, err := repo.Worktree()
 	if err != nil {
@@ -138,13 +132,10 @@ func (g *Git) Update(repo *git.Repository) (string, error) {
 		return "", err
 	}
 
-	keys, err := ssh.NewPublicKeysFromFile(g.User, g.SSHKey, "")
-	if err != nil {
-		return "", err
-	}
+	keys := http.BasicAuth{Username: g.Username, Password: g.Password}
 
 	return h.String(), repo.Push(&git.PushOptions{
-		Auth:     keys,
+		Auth:     &keys,
 		Progress: os.Stdout,
 		RefSpecs: []config.RefSpec{config.RefSpec("refs/heads/master:refs/heads/" + g.Branch)},
 	})

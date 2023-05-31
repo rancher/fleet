@@ -16,10 +16,11 @@ RUN mkdir /srv/git
 RUN mkdir /srv/git/repo
 WORKDIR /srv/git/repo
 RUN git init . --bare --shared
-RUN git update-server-info
 
-# Enable push
+# Enable force-push
 RUN git config --type bool http.receivepack true
+RUN git config --type bool receive.denyNonFastforwards false
+RUN git update-server-info
 
 # Configure nginx
 COPY nginx_git.conf /etc/nginx/nginx.conf
