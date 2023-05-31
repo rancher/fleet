@@ -32,7 +32,7 @@ var _ = Describe("Image Scan", func() {
 		out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_service.yaml"))
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		time.Sleep(3 * time.Second) // give git server time to spin up
+		time.Sleep(10 * time.Second) // give git server time to spin up
 
 		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
