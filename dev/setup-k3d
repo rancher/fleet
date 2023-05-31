@@ -20,4 +20,9 @@ EOF
   args="$args --registry-config $TMP_CONFIG"
 fi
 
+caName="FleetCI-RootCA"
+./dev/create_zot_certs $caName
+
+args="$args --volume $(realpath $(dirname $0)/../"$caName"/"$caName".crt):/etc/ssl/certs/test_root_ca.crt"
+
 k3d cluster create "$name" --servers 3 --api-port $(( 36443 + i )) -p "$(( 8080 + i )):80@server:0" -p "$(( 8443 + i )):443@server:0" $args

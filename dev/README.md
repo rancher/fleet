@@ -45,6 +45,8 @@ This should set up k3d, and the fleet standalone images for single cluster tests
     dev/setup-fleet
     ginkgo e2e/single-cluster
 
+Optional flags for reporting on long-running tests: `--poll-progress-after=10s --poll-progress-interval=10s`.
+
 For multi-cluster tests we need to configure two clusters. You also need to
 make the upstream clusters API accessible to the downstream cluster. The
 default `url` in [dev/setup-fleet-downstream] should work with most systems.
@@ -62,6 +64,17 @@ and restart the controller:
 
     dev/update-agent-k3d
     dev/update-controller-k3d
+
+### Running tests involving an OCI registry
+
+# TODO add more info here once test setup process automated enough
+Tests involving an OCI registry require a Helm repository image; certificates can be generated via:
+    dev/create_zot_certs
+The root CA certificate will need to be added to the host's trusted certs; refer to your host OS' guidelines for this.
+For instance, with openSUSE this can be done via:
+```
+sudo cp <path>/<cert_name>.crt /etc/pki/trust/anchors
+```
 
 ## Different Script Folders
 

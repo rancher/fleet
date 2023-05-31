@@ -3,7 +3,7 @@ apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: helm
 spec:
-  repo: https://github.com/rancher/fleet-test-data
+  repo: {{ .Repo }}
   helmSecretName: helm-oci-secret
   paths:
   - helm-oci-with-auth

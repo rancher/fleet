@@ -93,6 +93,8 @@ jobs:
           ./.github/scripts/deploy-fleet.sh
       -
         name: Deploy zot for OCI tests
+        env:
+          FLEET_E2E_NS: fleet-local
         run: |
           # Generate cert and key for TLS
           ./dev/create_zot_certs
