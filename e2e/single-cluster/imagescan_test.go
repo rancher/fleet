@@ -1,7 +1,6 @@
-package require_secrets
+package singlecluster_test
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"time"
@@ -36,21 +35,19 @@ var _ = Describe("Image Scan", func() {
 
 		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.New(ip)
+		gh = githelper.New(ip, false)
 		gh.Branch = "imagescan"
 
 		tmpdir, _ = os.MkdirTemp("", "fleet-")
 		clonedir = path.Join(tmpdir, "clone")
-		_, err = gh.CreateHTTP(clonedir, testenv.AssetPath("imagescan/repo"), "examples")
+		_, err = gh.Create(clonedir, testenv.AssetPath("imagescan/repo"), "examples")
 		Expect(err).ToNot(HaveOccurred())
 
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
 		host, err := githelper.BuildGitHostname(env.Namespace)
 		Expect(err).ToNot(HaveOccurred())
 
-		// For some reason, using an HTTP secret makes `git fetch` fail within tektoncd/pipeline;
-		// Hence we resort to inline credentials here, for an ephemeral test setup.
-		inClusterRepoURL := fmt.Sprintf("http://%s:%s@%s:%d/%s", gh.Username, gh.Password, host, port, repoName)
+		inClusterRepoURL := gh.GetInClusterURL(host, port, repoName)
 
 		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
 		err = testenv.Template(gitrepo, testenv.AssetPath("imagescan/imagescan.yaml"), struct {
