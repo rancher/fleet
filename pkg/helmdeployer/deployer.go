@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/flowcontrol"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/kustomize"
@@ -76,6 +78,7 @@ type Helm struct {
 	labelPrefix      string
 	labelSuffix      string
 	releaseCache     cache.Store
+	rateLimiter      flowcontrol.RateLimiter
 }
 
 func releaseKeyfunc(obj interface{}) (string, error) {
@@ -100,6 +103,25 @@ type DeployedBundle struct {
 
 func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
 	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache) (*Helm, error) {
+
+	rateLimiter := flowcontrol.NewFakeAlwaysRateLimiter()
+	if e := os.Getenv("FLEET_HELM_RATE_LIMITER_QPM"); e != "" {
+		qpm, err := strconv.ParseFloat(e, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		burst := 1
+		if e := os.Getenv("FLEET_HELM_RATE_LIMITER_BURST"); e != "" {
+			burst, err = strconv.Atoi(e)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		rateLimiter = flowcontrol.NewTokenBucketRateLimiter(float32(qpm/60), burst)
+	}
+
 	h := &Helm{
 		getter:              getter,
 		defaultNamespace:    defaultNamespace,
@@ -108,6 +130,7 @@ func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, gette
 		configmapCache:      configmapCache,
 		secretCache:         secretCache,
 		releaseCache:        cache.NewTTLStore(releaseKeyfunc, durations.ReleaseCacheTTL),
+		rateLimiter:         rateLimiter,
 		labelPrefix:         labelPrefix,
 		labelSuffix:         labelSuffix,
 	}
@@ -565,11 +588,8 @@ func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.
 	}
 	if !found {
 		// cache MISS, query Helm's storage
-		hist := action.NewHistory(&h.globalCfg)
-		releases, err := hist.Run(releaseName)
-		if err == driver.ErrReleaseNotFound {
-			return nil, ErrNoRelease
-		} else if err != nil {
+		releases, err := h.retrieveHelmHistory(releaseName)
+		if err != nil {
 			return nil, err
 		}
 
@@ -610,6 +630,22 @@ func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.
 
 	// happy case
 	return rel, nil
+}
+
+// retrieveHelmHistory returns the history of releases for the specified name from Helm (optionally rate limited)
+func (h *Helm) retrieveHelmHistory(releaseName string) ([]*release.Release, error) {
+	// Getting Helm history can be heavy on the control plane as potentially many large
+	// secrets need to be retrieved. Limit the rate to limit API Server load
+	h.rateLimiter.Accept()
+
+	hist := action.NewHistory(&h.globalCfg)
+	releases, err := hist.Run(releaseName)
+	if err == driver.ErrReleaseNotFound {
+		return nil, ErrNoRelease
+	} else if err != nil {
+		return nil, err
+	}
+	return releases, nil
 }
 
 func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
