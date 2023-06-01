@@ -31,27 +31,22 @@ func loadDirectory(ctx context.Context, compress bool, prefix, base, source, ver
 		return nil, err
 	}
 
-	for k := range files {
-		resources = append(resources, fleet.BundleResource{
-			Name: k,
-		})
-	}
-
-	for i, resource := range resources {
-		data := files[resource.Name]
+	for name, data := range files {
+		r := fleet.BundleResource{Name: name}
 		if compress || !utf8.Valid(data) {
-			content, err := content.Base64GZ(files[resource.Name])
+			content, err := content.Base64GZ(data)
 			if err != nil {
 				return nil, err
 			}
-			resources[i].Content = content
-			resources[i].Encoding = "base64+gz"
+			r.Content = content
+			r.Encoding = "base64+gz"
 		} else {
-			resources[i].Content = string(data)
+			r.Content = string(data)
 		}
 		if prefix != "" {
-			resources[i].Name = filepath.Join(prefix, resources[i].Name)
+			r.Name = filepath.Join(prefix, name)
 		}
+		resources = append(resources, r)
 	}
 
 	return resources, nil
