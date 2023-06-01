@@ -24,8 +24,16 @@ var _ = Describe("Image Scan", func() {
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 
+		// Create git secret
+		out, err := k.Create(
+			"secret", "generic", "git-auth", "--type", "kubernetes.io/basic-auth",
+			"--from-literal=username="+os.Getenv("GIT_HTTP_USER"),
+			"--from-literal=password="+os.Getenv("GIT_HTTP_PASSWORD"),
+		)
+		Expect(err).ToNot(HaveOccurred(), out)
+
 		// Create git server
-		out, err := k.Apply("-f", testenv.AssetPath("gitrepo/nginx_deployment.yaml"))
+		out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_deployment.yaml"))
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_service.yaml"))
@@ -68,6 +76,7 @@ var _ = Describe("Image Scan", func() {
 		_, _ = k.Delete("gitrepo", "imagescan")
 		_, _ = k.Delete("deployment", "git-server")
 		_, _ = k.Delete("service", "git-service")
+		_, _ = k.Delete("secret", "git-auth")
 	})
 
 	When("update docker reference in git via image scan", func() {
