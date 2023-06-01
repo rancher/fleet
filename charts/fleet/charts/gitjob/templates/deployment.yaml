@@ -20,7 +20,7 @@ spec:
           - --debug
           {{- end }}
           - --tekton-image
-          - "{{ template "system_default_registry" . }}{{ .Values.tekton.repository }}:{{ .Values.tekton.tag | default "v0.1.22" }}"
+          - "{{ template "system_default_registry" . }}{{ .Values.tekton.repository }}:{{ .Values.tekton.tag | default "v0.1.23" }}"
           env:
             - name: NAMESPACE
               valueFrom:
