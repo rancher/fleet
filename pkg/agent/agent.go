@@ -29,9 +29,9 @@ type Options struct {
 	NoCA bool // unused
 }
 
-// AgentWithConfig writes the agent manifest to the given writer. It
-// includes an updated agent token secret from the cluster. It finds or creates
-// the agent config inside a configmap.
+// AgentWithConfig returns the agent manifest. It includes an updated agent
+// token secret from the cluster. It finds or creates the agent config inside a
+// configmap.
 //
 // This is used when importing a cluster.
 func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, agentScope string, cg *client.Getter, tokenName string, opts *Options) ([]runtime.Object, error) {
