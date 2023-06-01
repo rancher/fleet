@@ -52,6 +52,11 @@ var _ = Describe("Bundle targets", Ordered, func() {
 
 	AfterEach(func() {
 		Expect(bundleController.Delete(env.namespace, bundleName, nil)).NotTo(HaveOccurred())
+		bdList, err := bundleDeploymentController.List("", metav1.ListOptions{LabelSelector: labels.SelectorFromSet(bdLabels).String()})
+		Expect(err).NotTo(HaveOccurred())
+		for _, bd := range bdList.Items {
+			Expect(bundleDeploymentController.Delete(bd.Namespace, bd.Name, &metav1.DeleteOptions{})).NotTo(HaveOccurred())
+		}
 	})
 
 	When("a GitRepo targets all clusters without customization", func() {
@@ -73,7 +78,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("creates three BundleDeployments", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and BundleDeployments don't have values from customizations")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
@@ -117,7 +122,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("creates three BundleDeployments", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and BundleDeployments have values from customizations")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "3"}))
@@ -169,7 +174,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("creates three BundleDeployments", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and just BundleDeployment from cluster one and two are customized")
 			for _, bd := range bdList.Items {
 				if strings.Contains(bd.ObjectMeta.Namespace, "cluster-one") {
@@ -227,7 +232,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("creates three BundleDeployments", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and just BundleDeployment from cluster one is customized")
 			for _, bd := range bdList.Items {
 				if strings.Contains(bd.ObjectMeta.Namespace, "cluster-one") {
@@ -275,7 +280,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("creates one BundleDeployment", func() {
-			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and the BundleDeployment is customized")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "2"}))
@@ -301,14 +306,98 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		})
 
 		It("creates three BundleDeployments", func() {
-			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels)
+			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+		})
+	})
+
+	When("GitRepo has a target that matches clusterGroup all, and a targetCustomization that matches all clusters has DoNotDeploy set to true", func() {
+		BeforeEach(func() {
+			bundleName = "skip"
+			expectedNumberOfBundleDeployments = 0
+			// simulate targets in fleet.yaml which are used for customization
+			targets = []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "all",
+					DoNotDeploy:  true,
+				},
+			}
+			// simulate targets in GitRepo. All targets in GitRepo are also added to targetRestrictions, which acts as a white list
+			targetsInGitRepo := []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "all",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targetsInGitRepo))
+			copy(targetRestrictions, targetsInGitRepo)
+			targets = append(targets, targetsInGitRepo...)
+		})
+
+		It("no BundleDeployments are created", func() {
+			waitForBundleToBeReady(bundleName)
+			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+		})
+	})
+
+	When("GitRepo has a target that matches clusterGroup one, and a targetCustomization that matches all clusters has DoNotDeploy set to true", func() {
+		BeforeEach(func() {
+			bundleName = "skipone"
+			expectedNumberOfBundleDeployments = 0
+			// simulate targets in fleet.yaml which are used for customization
+			targets = []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "all",
+					DoNotDeploy:  true,
+				},
+			}
+			// simulate targets in GitRepo. All targets in GitRepo are also added to targetRestrictions, which acts as a white list
+			targetsInGitRepo := []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "one",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targetsInGitRepo))
+			copy(targetRestrictions, targetsInGitRepo)
+			targets = append(targets, targetsInGitRepo...)
+		})
+
+		It("no BundleDeployments are created", func() {
+			waitForBundleToBeReady(bundleName)
+			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+		})
+	})
+
+	When("GitRepo has a target that matches clusterGroup one, and a targetCustomization that matches clusterGroup two has DoNotDeploy set to true", func() {
+		BeforeEach(func() {
+			bundleName = "dontskip"
+			expectedNumberOfBundleDeployments = 1
+			// simulate targets in fleet.yaml which are used for customization
+			targets = []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "two",
+					DoNotDeploy:  true,
+				},
+			}
+			// simulate targets in GitRepo. All targets in GitRepo are also added to targetRestrictions, which acts as a white list
+			targetsInGitRepo := []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "one",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targetsInGitRepo))
+			copy(targetRestrictions, targetsInGitRepo)
+			targets = append(targets, targetsInGitRepo...)
+		})
+
+		It("one BundleDeployment is created", func() {
+			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 		})
 	})
 })
 
-func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[string]string) *v1alpha1.BundleDeploymentList {
+func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[string]string, bundleName string) *v1alpha1.BundleDeploymentList {
 	var bdList *v1alpha1.BundleDeploymentList
 	var err error
+	bdLabels["fleet.cattle.io/bundle-name"] = bundleName
 	Eventually(func() int {
 		bdList, err = bundleDeploymentController.List("", metav1.ListOptions{LabelSelector: labels.SelectorFromSet(bdLabels).String()})
 		Expect(err).NotTo(HaveOccurred())
@@ -317,6 +406,19 @@ func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[s
 	}).Should(Equal(numBundleDeployments))
 
 	return bdList
+}
+
+func waitForBundleToBeReady(bundleName string) {
+	Eventually(func() bool {
+		bundle, err := bundleController.Get(env.namespace, bundleName, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
+		for _, condition := range bundle.Status.Conditions {
+			if condition.Type == "Ready" && condition.Status == "True" {
+				return true
+			}
+		}
+		return false
+	}).Should(BeTrue())
 }
 
 // creates:

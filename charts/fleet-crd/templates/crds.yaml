@@ -496,6 +496,8 @@ spec:
                           nullable: true
                           type: array
                       type: object
+                    doNotDeploy:
+                      type: boolean
                     forceSyncGeneration:
                       type: integer
                     helm:

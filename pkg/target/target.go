@@ -276,6 +276,10 @@ func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]
 			targetOpts := target.BundleDeploymentOptions
 			targetCustomized := bm.MatchTargetCustomizations(cluster.Name, clusterGroupsToLabelMap(clusterGroups), cluster.Labels)
 			if targetCustomized != nil {
+				if targetCustomized.DoNotDeploy {
+					logrus.Debugf("BundleDeployment creation for Bundle '%s' was skipped because doNotDeploy is set to true.", bundle.Name)
+					continue
+				}
 				targetOpts = targetCustomized.BundleDeploymentOptions
 			}
 
