@@ -44,7 +44,7 @@ const (
 	AgentNamespaceAnnotation     = "fleet.cattle.io/agent-namespace"
 	ServiceAccountNameAnnotation = "fleet.cattle.io/service-account"
 	DefaultServiceAccount        = "fleet-default"
-	MaxHelmHistory               = 5
+	MaxHelmHistory               = 2
 )
 
 var (
