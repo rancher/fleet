@@ -117,6 +117,7 @@ type ClusterStatus struct {
 	AgentAffinityHash    string `json:"agentAffinityHash,omitempty"`
 	AgentResourcesHash   string `json:"agentResourcesHash,omitempty"`
 	AgentTolerationsHash string `json:"agentTolerationsHash,omitempty"`
+	AgentConfigChanged   bool   `json:"agentConfigChanged,omitempty"`
 
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`

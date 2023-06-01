@@ -81,8 +81,12 @@ func (h *handler) onClusterStatusChange(cluster *fleet.Cluster, status fleet.Clu
 	}
 
 	if vars || changed {
+		// trigger importCluster to re-create the deployment, in case
+		// the agent cannot update itself from the bundle
+		status.AgentConfigChanged = true
 		h.namespaces.Enqueue(cluster.Namespace)
 	}
+
 	return status, nil
 }
 

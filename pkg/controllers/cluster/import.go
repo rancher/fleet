@@ -72,6 +72,10 @@ func RegisterImport(
 }
 
 func agentDeployed(cluster *fleet.Cluster) bool {
+	if cluster.Status.AgentConfigChanged {
+		return false
+	}
+
 	if !cluster.Status.AgentMigrated {
 		return false
 	}
@@ -340,6 +344,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		Namespace: cluster.Spec.AgentNamespace,
 	}
 	status.AgentNamespaceMigrated = true
+	status.AgentConfigChanged = false
 	return status, nil
 }
 
