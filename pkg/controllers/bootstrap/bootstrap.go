@@ -5,15 +5,16 @@ import (
 	"os"
 	"regexp"
 
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/fleet/pkg/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/config"
 	fleetns "github.com/rancher/fleet/pkg/namespace"
 	secretutil "github.com/rancher/fleet/pkg/secret"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +29,8 @@ const (
 )
 
 var (
-	splitter = regexp.MustCompile(`\s*,\s*`)
+	splitter          = regexp.MustCompile(`\s*,\s*`)
+	ErrNoHostInConfig = errors.New("failed to find cluster server parameter")
 )
 
 type handler struct {
@@ -127,52 +129,6 @@ func (h *handler) OnConfig(config *config.Config) error {
 	return h.apply.WithNoDeleteGVK(fleetns.GVK()).ApplyObjects(objs...)
 }
 
-func getHost(rawConfig clientcmdapi.Config) (string, error) {
-	icc, err := rest.InClusterConfig()
-	if err != nil {
-		return agent.GetHostFromConfig(rawConfig)
-	}
-	return icc.Host, nil
-}
-
-func getCA(rawConfig clientcmdapi.Config) ([]byte, error) {
-	icc, err := rest.InClusterConfig()
-	if err != nil {
-		return agent.GetCAFromConfig(rawConfig)
-	}
-	return os.ReadFile(icc.CAFile)
-}
-
-func (h *handler) getToken() (string, error) {
-	sa, err := h.serviceAccountCache.Get(h.systemNamespace, FleetBootstrap)
-	if apierrors.IsNotFound(err) {
-		icc, err := rest.InClusterConfig()
-		if err == nil {
-			return icc.BearerToken, nil
-		}
-		return "", nil
-	} else if err != nil {
-		return "", err
-	}
-
-	// kubernetes 1.24 doesn't populate sa.Secrets
-	if len(sa.Secrets) == 0 {
-		logrus.Infof("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
-		secret, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
-		if err != nil {
-			return "", err
-		}
-		return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
-	}
-
-	secret, err := h.secretsCache.Get(h.systemNamespace, sa.Secrets[0].Name)
-	if err != nil {
-		return "", err
-	}
-
-	return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
-}
-
 func (h *handler) buildSecret(bootstrapNamespace string, cfg clientcmd.ClientConfig) (*corev1.Secret, error) {
 	rawConfig, err := cfg.RawConfig()
 	if err != nil {
@@ -213,6 +169,78 @@ func (h *handler) buildSecret(bootstrapNamespace string, cfg clientcmd.ClientCon
 			"apiServerCA":  ca,
 		},
 	}, nil
+}
+
+func getHost(rawConfig clientcmdapi.Config) (string, error) {
+	icc, err := rest.InClusterConfig()
+	if err == nil {
+		return icc.Host, nil
+	}
+
+	cluster, ok := rawConfig.Clusters[rawConfig.CurrentContext]
+	if ok {
+		return cluster.Server, nil
+	}
+
+	for _, v := range rawConfig.Clusters {
+		return v.Server, nil
+	}
+
+	return "", ErrNoHostInConfig
+}
+
+func getCA(rawConfig clientcmdapi.Config) ([]byte, error) {
+	icc, err := rest.InClusterConfig()
+	if err == nil {
+		return os.ReadFile(icc.CAFile)
+	}
+
+	cluster, ok := rawConfig.Clusters[rawConfig.CurrentContext]
+	if !ok {
+		for _, v := range rawConfig.Clusters {
+			cluster = v
+			break
+		}
+	}
+
+	if cluster != nil {
+		if len(cluster.CertificateAuthorityData) > 0 {
+			return cluster.CertificateAuthorityData, nil
+		}
+		return os.ReadFile(cluster.CertificateAuthority)
+	}
+
+	return nil, nil
+}
+
+func (h *handler) getToken() (string, error) {
+	sa, err := h.serviceAccountCache.Get(h.systemNamespace, FleetBootstrap)
+	if apierrors.IsNotFound(err) {
+		icc, err := rest.InClusterConfig()
+		if err == nil {
+			return icc.BearerToken, nil
+		}
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+
+	// kubernetes 1.24 doesn't populate sa.Secrets
+	if len(sa.Secrets) == 0 {
+		logrus.Infof("waiting on secret for service account %s/%s", h.systemNamespace, FleetBootstrap)
+		secret, err := secretutil.GetServiceAccountTokenSecret(sa, h.secretsController)
+		if err != nil {
+			return "", err
+		}
+		return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
+	}
+
+	secret, err := h.secretsCache.Get(h.systemNamespace, sa.Secrets[0].Name)
+	if err != nil {
+		return "", err
+	}
+
+	return string(secret.Data[corev1.ServiceAccountTokenKey]), nil
 }
 
 func buildKubeConfig(host string, ca []byte, token string, rawConfig clientcmdapi.Config) ([]byte, error) {

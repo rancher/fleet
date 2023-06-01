@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -24,7 +23,7 @@ import (
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/randomtoken"
-	"github.com/rancher/wrangler/pkg/yaml"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -96,7 +95,7 @@ func agentDeployed(cluster *fleet.Cluster) bool {
 }
 
 // OnChange is triggered for manager initiated deployments and the local agent,
-// where KubeConfigSecret is configured
+// where KubeConfigSecret is configured. It updates the client ID.
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
 	if cluster == nil {
 		return cluster, nil
@@ -106,6 +105,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 		return cluster, nil
 	}
 
+	// NOTE(mm): why is this not done in importCluster?
 	if cluster.Spec.ClientID == "" {
 		logrus.Debugf("Cluster import for '%s/%s'. Agent found, updating ClientID", cluster.Namespace, cluster.Name)
 
@@ -252,18 +252,16 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, nil
 	}
 
-	output := &bytes.Buffer{}
 	agentNamespace := i.systemNamespace
 	if cluster.Spec.AgentNamespace != "" {
 		agentNamespace = cluster.Spec.AgentNamespace
 	}
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
-	err = agent.AgentWithConfig(
+	objs, err := agent.AgentWithConfig(
 		i.ctx, agentNamespace, i.systemNamespace,
 		cluster.Spec.AgentNamespace,
 		&client.Getter{Namespace: cluster.Namespace},
-		output,
 		token.Name,
 		&agent.Options{
 			CA:   apiServerCA,
@@ -286,11 +284,6 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
-	obj, err := yaml.ToObjects(output)
-	if err != nil {
-		return status, err
-	}
-
 	if cluster.Status.Agent.Namespace != agentNamespace || !cluster.Status.AgentNamespaceMigrated {
 		// delete old agent if moving namespaces for agent
 		if err := i.deleteOldAgentBundle(cluster); err != nil {
@@ -307,7 +300,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, err
 	}
 
-	if err := apply.ApplyObjects(obj...); err != nil {
+	if err := apply.ApplyObjects(objs...); err != nil {
 		logrus.Errorf("Failed cluster import for '%s/%s'. Cannot create agent deployment", cluster.Namespace, cluster.Name)
 		return status, err
 	}
