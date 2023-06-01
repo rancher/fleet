@@ -21,6 +21,9 @@ import (
 const (
 	port     = 8080
 	repoName = "repo"
+
+	// URL of the gitjob service, called from a git post-receive hook script to simulate webhook delivery
+	gitjobServiceURL = "gitjob.cattle-fleet-system.svc.cluster.local"
 )
 
 var _ = Describe("Git Repo with polling", func() {
@@ -70,6 +73,103 @@ var _ = Describe("Git Repo with polling", func() {
 	})
 
 	When("updating a git repository monitored via polling", func() {
+		It("updates the deployment", func() {
+			By("checking the pod exists")
+			Eventually(func() string {
+				out, _ := k.Namespace("default").Get("pods")
+				return out
+			}).Should(ContainSubstring("sleeper-"))
+
+			By("updating the git repository")
+			replace(path.Join(clonedir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
+			replace(path.Join(clonedir, "examples", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")
+
+			commit, err := gh.Update(clone)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("checking for the updated commit hash in gitrepo")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", "gitrepo-test", "-o", "yaml")
+				return out
+			}).Should(ContainSubstring("commit: " + commit))
+
+			By("checking the deployment's new name")
+			Eventually(func() string {
+				out, _ := k.Namespace("default").Get("deployments")
+				return out
+			}).Should(ContainSubstring("newsleep"))
+		})
+	})
+})
+
+var _ = Describe("Git Repo with webhook", func() {
+	var (
+		tmpdir   string
+		clonedir string
+		k        kubectl.Command
+		gh       *githelper.Git
+		clone    *git.Repository
+	)
+
+	BeforeEach(func() {
+		k = env.Kubectl.Namespace(env.Namespace)
+
+		// Build git repo URL reachable _within_ the cluster, for the GitRepo
+		host, err := githelper.BuildGitHostname(env.Namespace)
+		Expect(err).ToNot(HaveOccurred())
+
+		inClusterRepoURL := gh.GetInClusterURL(host, port, repoName)
+
+		// Create git server with git hook
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/hook_configmap.yaml"), struct {
+			GitJobURL string
+			RepoURL   string
+		}{
+			gitjobServiceURL,
+			inClusterRepoURL,
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		out, err := k.Apply("-f", testenv.AssetPath("gitrepo/nginx_deployment_with_hook.yaml"))
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_service.yaml"))
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		time.Sleep(5 * time.Second) // give git server time to spin up
+
+		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
+		Expect(err).ToNot(HaveOccurred())
+		gh = githelper.NewHTTP(ip)
+
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+			Repo            string
+			Branch          string
+			PollingInterval string
+		}{
+			inClusterRepoURL,
+			gh.Branch,
+			"24h", // prevent polling
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		tmpdir, _ = os.MkdirTemp("", "fleet-")
+
+		// Clone previously created repo
+		clonedir = path.Join(tmpdir, "clone")
+		clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		os.RemoveAll(tmpdir)
+		_, _ = k.Delete("gitrepo", "gitrepo-test")
+		_, _ = k.Delete("deployment", "git-server")
+		_, _ = k.Delete("service", "git-service")
+		_, _ = k.Delete("configmap", "hook-script")
+	})
+
+	When("updating a git repository monitored via webhook", func() {
 		It("updates the deployment", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
