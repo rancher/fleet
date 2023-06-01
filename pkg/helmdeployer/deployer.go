@@ -45,7 +45,7 @@ const (
 	DefaultServiceAccount        = "fleet-default"
 	KeepResourcesAnnotation      = "fleet.cattle.io/keep-resources"
 	HelmUpgradeInterruptedError  = "another operation (install/upgrade/rollback) is in progress"
-	MaxHelmHistory               = 5
+	MaxHelmHistory               = 2
 )
 
 var (
