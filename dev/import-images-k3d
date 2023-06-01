@@ -12,3 +12,8 @@ if [ "$upstream_ctx" != "$downstream_ctx" ]; then
 else
   echo "not importing agent to any downstream clusters. Set FLEET_E2E_CLUSTER_DOWNSTREAM"
 fi
+
+# Build and import git server image
+cd e2e/assets/gitrepo
+docker build . -f Dockerfile.gitserver --build-arg passwd=$(openssl passwd $GIT_HTTP_PASSWORD) -t nginx-git:test
+k3d image import nginx-git:test -m direct -c $upstream_ctx

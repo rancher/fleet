@@ -29,6 +29,8 @@ You can set these manually or put them in an `.envrc`:
     #export GIT_REPO_HOST="github.com"
     #export GIT_SSH_KEY="$HOME/.ssh/id_ecdsa_test"
     #export GIT_SSH_PUBKEY="$HOME/.ssh/id_ecdsa_test.pub"
+    #export GIT_HTTP_USER="fleet-ci"
+    #export GIT_HTTP_PASSWORD="foo"
 
 ## Running Tests on K3D
 
@@ -59,15 +61,6 @@ and restart the controller:
 
     dev/update-agent-k3d
     dev/update-controller-k3d
-
-### Running gitrepo tests
-
-Those tests require an additional git server image to be built and imported into the upstream cluster:
-```
-cd e2e/assets/gitrepo
-docker build . -f Dockerfile.gitserver --build-arg passwd=$(openssl passwd foo) -t nginx-git:test
-k3d image import nginx-git:test -m direct -c $FLEET_E2E_CLUSTER
-```
 
 ## Different Script Folders
 
