@@ -2,9 +2,6 @@
 name: Upgrade Fleet in Rancher to Latest Release
 
 on:
-  schedule:
-    # Run every other day at 1:00 PM
-    - cron: '0 13 */2 * *'
   workflow_dispatch:
     inputs:
       ref:
