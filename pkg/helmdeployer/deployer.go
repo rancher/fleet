@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
@@ -881,9 +882,9 @@ func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
 	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
 	if strings.HasPrefix(bundleID, "fleet-agent") {
 		if labelSuffix == "" {
-			return "fleet-agent-bootstrap"
+			return config.AgentBootstrapConfigName
 		}
-		return name.SafeConcatName("fleet-agent-bootstrap", labelSuffix)
+		return name.SafeConcatName(config.AgentBootstrapConfigName, labelSuffix)
 	}
 	if labelSuffix != "" {
 		return name.SafeConcatName(labelPrefix, bundleID, labelSuffix)
