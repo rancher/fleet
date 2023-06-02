@@ -6,7 +6,7 @@ set -e
 reg=${1-$priv}
 ver=${2-2.7.0-rc8}
 
-kubectl get pod -A  -o jsonpath='{range .items[*].spec.containers[*]}{.image}{"\n"}{end}' | sort -u | grep -v windows > running-images.txt
+kubectl get pod -A  -o jsonpath='{range .items[*].spec.containers[*]}{.image}{"\n"}{end}' | sort -u | grep -v windows > short-list.txt
 
 wget "https://github.com/rancher/rancher/releases/download/v$ver/rancher-images.txt" -O rancher-images.txt
 
@@ -19,7 +19,7 @@ rancher/thanosio-thanos
 rancher/webhook-receiver
 rancher/rancher-webhook"
 
-grep -f <(echo $essentials) rancher-images.txt | grep -v windows >> running-images.txt
+grep -f <(echo $essentials) rancher-images.txt | grep -v windows >> short-list.txt
 
 function pullpush() {
   reg="$1"

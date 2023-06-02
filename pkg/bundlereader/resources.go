@@ -31,9 +31,7 @@ type Auth struct {
 
 // readResources reads and downloads all resources from the bundle
 func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth, helmRepoURLRegex string) ([]fleet.BundleResource, error) {
-	var directories []directory
-
-	directories, err := addDirectory(directories, base, ".", ".")
+	directories, err := addDirectory(base, ".", ".")
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +88,8 @@ type directory struct {
 	auth    Auth
 }
 
-func addDirectory(directories []directory, base, customDir, defaultDir string) ([]directory, error) {
+func addDirectory(base, customDir, defaultDir string) ([]directory, error) {
+	var directories []directory
 	if customDir == "" {
 		if _, err := os.Stat(filepath.Join(base, defaultDir)); os.IsNotExist(err) {
 			return directories, nil
@@ -100,12 +99,12 @@ func addDirectory(directories []directory, base, customDir, defaultDir string) (
 		customDir = defaultDir
 	}
 
-	return append(directories, directory{
+	return []directory{{
 		prefix: defaultDir,
 		base:   base,
 		source: customDir,
 		key:    defaultDir,
-	}), nil
+	}}, nil
 }
 
 func parseValueFiles(base string, chart *fleet.HelmOptions) (err error) {
