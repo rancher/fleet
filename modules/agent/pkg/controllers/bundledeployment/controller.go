@@ -192,7 +192,7 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 
 func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
 	var depBundleList []string
-	bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
+	bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
 	for _, depend := range bd.Spec.DependsOn {
 		// skip empty BundleRef definitions. Possible if there is a typo in the yaml
 		if depend.Name != "" || depend.Selector != nil {
@@ -202,8 +202,8 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
 			}
 
 			if depend.Name != "" {
-				ls = metav1.AddLabelToSelector(ls, "fleet.cattle.io/bundle-name", depend.Name)
-				ls = metav1.AddLabelToSelector(ls, "fleet.cattle.io/bundle-namespace", bundleNamespace)
+				ls = metav1.AddLabelToSelector(ls, fleet.BundleLabel, depend.Name)
+				ls = metav1.AddLabelToSelector(ls, fleet.BundleNamespaceLabel, bundleNamespace)
 			}
 
 			selector, err := metav1.LabelSelectorAsSelector(ls)

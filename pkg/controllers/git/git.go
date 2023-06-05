@@ -523,8 +523,8 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	}
 
 	bundleDeployments, err := h.bundleDeployments.List("", labels.SelectorFromSet(labels.Set{
-		fleet.RepoLabel:                    gitrepo.Name,
-		"fleet.cattle.io/bundle-namespace": gitrepo.Namespace,
+		fleet.RepoLabel:            gitrepo.Name,
+		fleet.BundleNamespaceLabel: gitrepo.Namespace,
 	}))
 	if err != nil {
 		return status, err

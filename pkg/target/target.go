@@ -79,8 +79,8 @@ func New(
 }
 
 func (m *Manager) BundleFromDeployment(bd *fleet.BundleDeployment) (string, string) {
-	return bd.Labels["fleet.cattle.io/bundle-namespace"],
-		bd.Labels["fleet.cattle.io/bundle-name"]
+	return bd.Labels[fleet.BundleNamespaceLabel],
+		bd.Labels[fleet.BundleLabel]
 }
 
 // StoreManifest stores the manifest as a content resource and returns the name.
@@ -448,8 +448,8 @@ func (t *Target) BundleDeploymentLabels(clusterNamespace string, clusterName str
 // bundledeployments for a given bundle
 func deploymentLabelsForSelector(bundle *fleet.Bundle) map[string]string {
 	return map[string]string{
-		"fleet.cattle.io/bundle-name":      bundle.Name,
-		"fleet.cattle.io/bundle-namespace": bundle.Namespace,
+		fleet.BundleLabel:          bundle.Name,
+		fleet.BundleNamespaceLabel: bundle.Namespace,
 	}
 }
 
