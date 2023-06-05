@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/bci-base:15.4.27.14.63
+FROM registry.suse.com/bci/bci-base:15.4.27.14.66
 RUN zypper -n update && \
     zypper -n install git openssh catatonit && \
     zypper -n clean -a
