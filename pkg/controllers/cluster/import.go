@@ -68,9 +68,49 @@ func RegisterImport(
 
 	clusters.OnChange(ctx, "import-cluster", h.OnChange)
 	fleetcontrollers.RegisterClusterStatusHandler(ctx, clusters, "Imported", "import-cluster", h.importCluster)
+	config.OnChange(ctx, h.onConfig)
+}
+
+// onConfig triggers clusters which rely on the fallback config in the
+// fleet-controller config map. This is important for changes to apiServerURL
+// and apiServerCA, as they are needed e.g. to update the fleet-agent-bootstrap
+// secret.
+func (i *importHandler) onConfig(config *config.Config) error {
+	clusters, err := i.clusters.List("", metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	if len(clusters.Items) == 0 {
+		return nil
+	}
+
+	for _, cluster := range clusters.Items {
+		if cluster.Spec.KubeConfigSecret == "" {
+			continue
+		}
+		secret, err := i.secrets.Get(cluster.Namespace, cluster.Spec.KubeConfigSecret)
+		if err != nil {
+			return err
+		}
+		if string(secret.Data["apiServerURL"]) == "" || string(secret.Data["apiServerCA"]) == "" {
+			logrus.Debugf("API server fallback-config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
+			c := cluster.DeepCopy()
+			c.Status.AgentConfigChanged = true
+			_, err := i.clusters.UpdateStatus(c)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func agentDeployed(cluster *fleet.Cluster) bool {
+	if cluster.Status.AgentConfigChanged {
+		return false
+	}
+
 	if !cluster.Status.AgentMigrated {
 		return false
 	}
@@ -196,6 +236,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		if len(cfg.APIServerURL) == 0 {
 			return status, fmt.Errorf("missing apiServerURL in fleet config for cluster auto registration")
 		}
+		logrus.Debugf("Cluster import for '%s/%s'. Using apiServerURL from fleet-controller config", cluster.Namespace, cluster.Name)
 		apiServerURL = cfg.APIServerURL
 	}
 
@@ -333,6 +374,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		Namespace: cluster.Spec.AgentNamespace,
 	}
 	status.AgentNamespaceMigrated = true
+	status.AgentConfigChanged = false
 	return status, nil
 }
 

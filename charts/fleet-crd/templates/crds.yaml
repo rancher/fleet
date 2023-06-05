@@ -2402,6 +2402,8 @@ spec:
               agentAffinityHash:
                 nullable: true
                 type: string
+              agentConfigChanged:
+                type: boolean
               agentDeployedGeneration:
                 nullable: true
                 type: integer
