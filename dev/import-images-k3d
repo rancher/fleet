@@ -14,6 +14,13 @@ else
 fi
 
 # Build and import git server image
-cd e2e/assets/gitrepo
-docker build . -f Dockerfile.gitserver --build-arg passwd=$(openssl passwd $GIT_HTTP_PASSWORD) -t nginx-git:test
+gitSrvImage=$( docker image ls -q nginx-git:test )
+
+if [ -n "$FORCE_GIT_SERVER_BUILD" -o -z "$gitSrvImage" ]; then
+    cd e2e/assets/gitrepo
+    docker build . -f Dockerfile.gitserver --build-arg passwd=$(openssl passwd $GIT_HTTP_PASSWORD) -t nginx-git:test
+else
+    echo "Git test server image already present. Skipping build."
+fi
+
 k3d image import nginx-git:test -m direct -c $upstream_ctx

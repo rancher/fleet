@@ -24,6 +24,7 @@ You can set these manually or put them in an `.envrc`:
     #export GOARCH=arm64
 
     # needed for gitrepo tests
+    #export FORCE_GIT_SERVER_BUILD="yes" # set to an empty value to skip rebuilds
     #export GIT_REPO_USER="git"
     #export GIT_REPO_URL="git@github.com:yourprivate/repo.git"
     #export GIT_REPO_HOST="github.com"
