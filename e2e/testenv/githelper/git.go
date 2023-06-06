@@ -107,8 +107,18 @@ type Git struct {
 	Auth   gitAuth
 }
 
-// New creates a new Git instance using environment variables.
-func New(url string, isSSH bool) *Git {
+// NewHTTP creates a new Git instance with HTTP auth, using environment variables.
+func NewHTTP(addr string) *Git {
+	return newGit(addr, false)
+}
+
+// NewSSH creates a new Git instance with SSH auth, using environment variables.
+func NewSSH() *Git {
+	return newGit("", true)
+}
+
+// newGit creates a new Git instance using environment variables.
+func newGit(url string, isSSH bool) *Git {
 	g := &Git{
 		User:   os.Getenv("GIT_REPO_USER"),
 		Branch: os.Getenv("GIT_REPO_BRANCH"),

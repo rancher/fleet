@@ -51,7 +51,7 @@ var _ = Describe("Git Repo with polling", func() {
 
 		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.New(ip, false)
+		gh = githelper.NewHTTP(ip)
 
 		inClusterRepoURL := gh.GetInClusterURL(host, port, repoName)
 

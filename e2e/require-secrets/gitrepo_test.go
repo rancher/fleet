@@ -39,7 +39,7 @@ var _ = Describe("Git Repo", func() {
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
-		gh = githelper.New("", true)
+		gh = githelper.NewSSH()
 
 		out, err := k.Create(
 			"secret", "generic", "git-auth", "--type", "kubernetes.io/ssh-auth",
