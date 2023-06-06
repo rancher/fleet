@@ -300,7 +300,7 @@ func bundleDeployments(targets []*target.Target, bundle *fleet.Bundle) (result [
 			ObjectMeta: v1.ObjectMeta{
 				Name:      target.Deployment.Name,
 				Namespace: target.Deployment.Namespace,
-				Labels:    target.BundleDeploymentLabels(),
+				Labels:    target.BundleDeploymentLabels(target.Cluster.Namespace, target.Cluster.Name),
 			},
 			Spec: target.Deployment.Spec,
 		}

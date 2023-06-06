@@ -7,12 +7,26 @@ import (
 )
 
 var (
-	ClusterConditionReady                  = "Ready"
-	ClusterNamespaceAnnotation             = "fleet.cattle.io/cluster-namespace"
+	ClusterConditionReady = "Ready"
+	// ClusterNamespaceAnnotation used on a cluster namespace to refer to
+	// the cluster registration namespace, which contains the cluster
+	// resource.
+	ClusterNamespaceAnnotation = "fleet.cattle.io/cluster-namespace"
+	// ClusterAnnotation used on a cluster namespace to refer to the
+	// cluster name for that namespace.
 	ClusterAnnotation                      = "fleet.cattle.io/cluster"
 	ClusterRegistrationAnnotation          = "fleet.cattle.io/cluster-registration"
 	ClusterRegistrationNamespaceAnnotation = "fleet.cattle.io/cluster-registration-namespace"
-	ManagedLabel                           = "fleet.cattle.io/managed"
+	// ManagedLabel is used for clean up. Cluster namespaces and other
+	// resources with this label will be cleaned up. Used in Rancher to
+	// identify fleet namespaces.
+	ManagedLabel = "fleet.cattle.io/managed"
+	// ClusterNamespaceLabel is used on a bundledeployment to refer to the
+	// cluster registration namespace of the targeted cluster.
+	ClusterNamespaceLabel = "fleet.cattle.io/cluster-namespace"
+	// ClusterLabel is used on a bundledeployment to refer to the targeted
+	// cluster
+	ClusterLabel = "fleet.cattle.io/cluster"
 )
 
 // +genclient

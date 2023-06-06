@@ -100,7 +100,7 @@ func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.N
 
 	logrus.Debugf("Cleaning up fleet-managed namespace %s", obj.Name)
 
-	// NOTE no cluster has this annotation - is this dead code?
+	// check if the cluster for this cluster namespace still exists, otherwise clean up the namespace
 	_, err := h.clusters.Get(obj.Annotations[fleet.ClusterNamespaceAnnotation], obj.Annotations[fleet.ClusterAnnotation])
 	if apierrors.IsNotFound(err) {
 		err = h.namespaces.Delete(key, nil)
