@@ -124,6 +124,7 @@ type BundleTarget struct {
 	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
 	ClusterGroup         string                `json:"clusterGroup,omitempty"`
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
+	DoNotDeploy          bool                  `json:"doNotDeploy,omitempty"`
 }
 
 type BundleSummary struct {

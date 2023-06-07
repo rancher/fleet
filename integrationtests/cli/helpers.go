@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"errors"
+	"io"
 	"os"
 	"strings"
 
@@ -16,7 +18,11 @@ const (
 	apiVersion = "apiVersion: fleet.cattle.io/v1alpha1"
 )
 
-func GetBundleFromOutput(buf *gbytes.Buffer) (*v1alpha1.Bundle, error) {
+func GetBundleFromOutput(w io.Writer) (*v1alpha1.Bundle, error) {
+	buf, ok := w.(*gbytes.Buffer)
+	if !ok {
+		return nil, errors.New("can't convert to gbytes.Buffer")
+	}
 	bundle := &v1alpha1.Bundle{}
 	err := yaml.Unmarshal(buf.Contents(), bundle)
 	if err != nil {
@@ -26,7 +32,11 @@ func GetBundleFromOutput(buf *gbytes.Buffer) (*v1alpha1.Bundle, error) {
 	return bundle, nil
 }
 
-func GetBundleListFromOutput(buf *gbytes.Buffer) ([]*v1alpha1.Bundle, error) {
+func GetBundleListFromOutput(w io.Writer) ([]*v1alpha1.Bundle, error) {
+	buf, ok := w.(*gbytes.Buffer)
+	if !ok {
+		return nil, errors.New("can't convert to gbytes.Buffer")
+	}
 	bundles := []*v1alpha1.Bundle{}
 	bundlesWithSeparator := strings.ReplaceAll(string(buf.Contents()), apiVersion, separator+apiVersion)
 	bundlesStr := strings.Split(bundlesWithSeparator, separator)
