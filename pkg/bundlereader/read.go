@@ -34,6 +34,7 @@ type Options struct {
 	Auth             Auth
 	HelmRepoURLRegex string
 	KeepResources    bool
+	CorrectDrift     fleet.CorrectDrift
 }
 
 // Open reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
@@ -272,6 +273,10 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	if opts.KeepResources {
 		bundle.Spec.KeepResources = opts.KeepResources
+	}
+
+	if opts.CorrectDrift.Enabled {
+		bundle.Spec.CorrectDrift = opts.CorrectDrift
 	}
 
 	return bundle, scans, nil

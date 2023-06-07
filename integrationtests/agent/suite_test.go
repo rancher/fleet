@@ -152,6 +152,7 @@ func registerBundleDeploymentController(cfg *rest.Config, namespace string, look
 		namespace,
 		namespace,
 		factory.Fleet().V1alpha1().BundleDeployment().Cache(),
+		factory.Fleet().V1alpha1().BundleDeployment(),
 		lookup,
 		helmDeployer,
 		wranglerApply)

@@ -673,6 +673,16 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 		args = append(args, "--keep-resources")
 	}
 
+	if gitrepo.Spec.CorrectDrift.Enabled {
+		args = append(args, "--correct-drift")
+		if gitrepo.Spec.CorrectDrift.Force {
+			args = append(args, "--correct-drift-force")
+		}
+		if gitrepo.Spec.CorrectDrift.KeepFailHistory {
+			args = append(args, "--correct-drift-keep-fail-history")
+		}
+	}
+
 	var env []corev1.EnvVar
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
 		helmArgs := []string{

@@ -237,6 +237,9 @@ type BundleDeploymentOptions struct {
 
 	//IgnoreOptions can be used to ignore fields when monitoring the bundle.
 	IgnoreOptions `json:"ignore,omitempty"`
+
+	// CorrectDrift specifies how drift correction should work.
+	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
 }
 
 type DiffOptions struct {
@@ -358,6 +361,7 @@ type BundleDeploymentSpec struct {
 	Options            BundleDeploymentOptions `json:"options,omitempty"`
 	DeploymentID       string                  `json:"deploymentID,omitempty"`
 	DependsOn          []BundleRef             `json:"dependsOn,omitempty"`
+	CorrectDrift       CorrectDrift            `json:"correctDrift,omitempty"`
 }
 
 type BundleDeploymentStatus struct {
