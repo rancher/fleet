@@ -27,6 +27,3 @@ kubectl -n cattle-fleet-system rollout status deploy/fleet-agent
 
 # label local cluster
 kubectl patch clusters.fleet.cattle.io -n fleet-local local --type=json -p '[{"op": "add", "path": "/metadata/labels/management.cattle.io~1cluster-display-name", "value": "local" }]'
-
-certDir="$(realpath $(dirname $0)/../FleetCI-RootCA)"
-kubectl --namespace=$FLEET_E2E_NS create secret tls zot-tls --cert $certDir/zot_crt.crt --key $certDir/zot_key.key

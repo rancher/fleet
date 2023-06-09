@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"regexp"
 	"sort"
 	"time"
@@ -594,6 +595,7 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	return status, nil
 }
 
+// volumes builds sets of volumes and their volume mounts based on configuration and secrets.
 func volumes(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volume, []corev1.VolumeMount) {
 	volumes := []corev1.Volume{
 		{
@@ -640,6 +642,29 @@ func volumes(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volu
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      "helm-secret",
 			MountPath: "/etc/fleet/helm",
+		})
+
+		// TODO add condition on secret containing key
+		// TODO apply this to HelmSecretNameForPaths too
+		mode := int32(fs.ModePerm) // XXX: refine if this works
+		volumes = append(volumes, corev1.Volume{
+			Name: "helm-secret-cert",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: gitrepo.Spec.HelmSecretName,
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "cacerts",
+							Path: "cacert.crt",
+							Mode: &mode,
+						},
+					},
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "helm-secret-cert",
+			MountPath: "/etc/ssl/certs",
 		})
 	}
 	return volumes, volumeMounts

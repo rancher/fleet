@@ -33,6 +33,11 @@ You can set these manually or put them in an `.envrc`:
     #export GIT_HTTP_USER="fleet-ci"
     #export GIT_HTTP_PASSWORD="foo"
 
+    # needed for OCI tests
+    export CI_OCI_USERNAME="fleet-ci"
+    export CI_OCI_PASSWORD="foo"
+    export CI_OCI_CACERT_PATH="../../FleetCI-RootCA/FleetCI-RootCA.crt"
+
 ## Running Tests on K3D
 
 This should set up k3d, and the fleet standalone images for single cluster tests
@@ -43,6 +48,7 @@ This should set up k3d, and the fleet standalone images for single cluster tests
     dev/build-fleet
     dev/import-images-k3d
     dev/setup-fleet
+    dev/create_zot_certs 'FleetCI-RootCA' # for OCI tests (see additional instructions [here](#running-tests-involving-an-oci-registry))
     ginkgo e2e/single-cluster
 
 Optional flags for reporting on long-running tests: `--poll-progress-after=10s --poll-progress-interval=10s`.
@@ -67,13 +73,15 @@ and restart the controller:
 
 ### Running tests involving an OCI registry
 
-# TODO add more info here once test setup process automated enough
-Tests involving an OCI registry require a Helm repository image; certificates can be generated via:
-    dev/create_zot_certs
-The root CA certificate will need to be added to the host's trusted certs; refer to your host OS' guidelines for this.
-For instance, with openSUSE this can be done via:
+The root CA certificate created via `dev/create_zot_certs` will need to be added to the host's trusted certs; refer to
+your host OS' guidelines for this. For instance, on openSUSE this can be done via:
 ```
 sudo cp <path>/<cert_name>.crt /etc/pki/trust/anchors
+```
+
+Then, a Helm chart must be packaged to be used by OCI tests:
+```
+helm package e2e/assets/gitrepo/sleeper-chart/ # creates sleeper-chart-0.1.0.tgz
 ```
 
 ## Different Script Folders

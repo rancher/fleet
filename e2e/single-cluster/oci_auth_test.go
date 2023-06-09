@@ -10,13 +10,12 @@ import (
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	"helm.sh/helm/v3/pkg/registry"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"helm.sh/helm/v3/pkg/registry"
 )
 
-// These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/single-cluster
 var _ = Describe("Single Cluster Examples", func() {
 	var (
 		asset    string
@@ -29,18 +28,12 @@ var _ = Describe("Single Cluster Examples", func() {
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 
-		//
-		// 1. Deploy git server
-		// 2. Deploy Helm registry (apply config map + secret, then depl + service) -> do this from CI/script?
-		// 3. Push data taken from https://github.com/rancher/fleet-test-data (path: helm-oci-with-auth) to the repo
-		// 4. Deploy GitRepo pointing to served repo (helm-oci-with-auth.yaml)
-		// 5. Check that connection to registry happens (does root cert need to be installed somewhere in
-		// cluster, ie for Fleet to use and log into the Helm registry?)
-		var wg sync.WaitGroup
+		var wgGit, wgHelm sync.WaitGroup
+		wgGit.Add(1)
+		wgHelm.Add(1)
 
 		spinUpGitServer := func() {
-			wg.Add(1)
-			defer wg.Done()
+			defer wgGit.Done()
 
 			out, err := k.Apply("-f", testenv.AssetPath("gitrepo/nginx_deployment.yaml"))
 			Expect(err).ToNot(HaveOccurred(), out)
@@ -51,30 +44,31 @@ var _ = Describe("Single Cluster Examples", func() {
 			time.Sleep(5 * time.Second)
 		}
 
-		//spinUpHelmRegistry := func() {
-		//wg.Add(1)
-		//defer wg.Done()
+		spinUpHelmRegistry := func() {
+			defer wgHelm.Done()
 
-		out, err := k.Apply("-f", testenv.AssetPath("oci/zot_secret.yaml"))
-		Expect(err).ToNot(HaveOccurred(), out)
+			out, err := k.Apply("-f", testenv.AssetPath("oci/zot_secret.yaml"))
+			Expect(err).ToNot(HaveOccurred(), out)
 
-		// XXX: ensure certs have been generated: can this be taken care of here?
-		out, err = k.Apply("-f", testenv.AssetPath("oci/zot_configmap.yaml"))
-		Expect(err).ToNot(HaveOccurred(), out)
+			// XXX: ensure certs have been generated: can this be taken care of here?
+			out, err = k.Apply("-f", testenv.AssetPath("oci/zot_configmap.yaml"))
+			Expect(err).ToNot(HaveOccurred(), out)
 
-		out, err = k.Apply("-f", testenv.AssetPath("oci/zot_deployment.yaml"))
-		Expect(err).ToNot(HaveOccurred(), out)
+			out, err = k.Apply("-f", testenv.AssetPath("oci/zot_deployment.yaml"))
+			Expect(err).ToNot(HaveOccurred(), out)
 
-		out, err = k.Apply("-f", testenv.AssetPath("oci/zot_service.yaml"))
-		Expect(err).ToNot(HaveOccurred(), out)
+			out, err = k.Apply("-f", testenv.AssetPath("oci/zot_service.yaml"))
+			Expect(err).ToNot(HaveOccurred(), out)
 
-		time.Sleep(5 * time.Second)
-		//}
+			time.Sleep(5 * time.Second)
+		}
 
 		go spinUpGitServer()
-		//go spinUpHelmRegistry()
+		go spinUpHelmRegistry()
 
-		// TODO log into repo and push chart
+		wgHelm.Wait()
+
+		// Login and push a Helm chart to our local Helm registry
 		helmClient, err := registry.NewClient()
 		Expect(err).ToNot(HaveOccurred())
 
@@ -88,22 +82,30 @@ var _ = Describe("Single Cluster Examples", func() {
 		chartArchive, err := os.ReadFile("../../sleeper-chart-0.1.0.tgz")
 		Expect(err).ToNot(HaveOccurred())
 
-		result, err := helmClient.Push(chartArchive, path.Join(helmHost, "sleeper-chart"), registry.PushOptStrictMode(false))
+		_, err = helmClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", helmHost))
 		Expect(err).ToNot(HaveOccurred())
 
-		fmt.Println(result) // DEBUG
-
-		wg.Wait()
+		wgGit.Wait()
 
 		// Prepare git repo
 		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.New(ip, false)
+		Expect(ip).ToNot(HaveLen(0))
+
+		gh = githelper.NewHTTP(ip)
 
 		tmpdir, _ = os.MkdirTemp("", "fleet-")
 		clonedir = path.Join(tmpdir, "clone")
 		_, err = gh.Create(clonedir, testenv.AssetPath("oci/repo"), "helm-oci-with-auth")
 		Expect(err).ToNot(HaveOccurred())
+
+		out, err := k.Create(
+			"secret", "generic", "helm-oci-secret",
+			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+			"--from-file=cacerts="+os.Getenv("CI_OCI_CACERT_PATH"),
+		)
+		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	JustBeforeEach(func() {
@@ -143,16 +145,6 @@ var _ = Describe("Single Cluster Examples", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/helm-oci-with-auth.yaml"
 				k = env.Kubectl.Namespace(env.Namespace)
-
-				out, err := k.Create(
-					"secret", "generic", "helm-oci-secret",
-					//"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
-					"--from-literal=username=fleet-ci",
-					//"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-					"--from-literal=password=foo",
-					"--from-file=cacerts=../../FleetCI-RootCA/FleetCI-RootCA.crt",
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
 			})
 
 			AfterEach(func() {

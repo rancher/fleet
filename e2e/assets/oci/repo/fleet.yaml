@@ -9,16 +9,13 @@ helm:
   # The release name to use. If empty a generated release name will be used
   releaseName: sleeper-chart
 
-  # The directory of the chart in the repo.  Also any valid go-getter supported
-  # URL can be used there is specify where to download the chart from.
-  # If repo below is set this value if the chart name in the repo
+  # The directory of the chart in the repo.  Any valid go-getter supported
+  # URL can also be used here to specify where to download the chart from.
+  # If repo below is set, this value is the chart name in the repo.
   chart: "oci://zot-service.fleet-local.svc.cluster.local:5000/sleeper-chart"
 
-  # An https to a valid Helm repository to download the chart from
-  repo: ""
-
   # Used if repo is set to look up the version of the chart
-  version: "0.0.0"
+  version: "0.1.0"
 
   # Force recreate resource that can not be updated
   force: false
