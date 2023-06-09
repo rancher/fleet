@@ -385,7 +385,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	}
 	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, bundleErrorState)
 	status = countResources(status)
-	volumes, volumeMounts := volumes(gitrepo, configMap)
+	volumes, volumeMounts := volumes(h, gitrepo, configMap)
 	args, envs := argsAndEnvs(gitrepo)
 	return []runtime.Object{
 		configMap,
@@ -596,7 +596,7 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 }
 
 // volumes builds sets of volumes and their volume mounts based on configuration and secrets.
-func volumes(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volume, []corev1.VolumeMount) {
+func volumes(h *handler, gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volume, []corev1.VolumeMount) {
 	volumes := []corev1.Volume{
 		{
 			Name: "config",
@@ -644,28 +644,30 @@ func volumes(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volu
 			MountPath: "/etc/fleet/helm",
 		})
 
-		// TODO add condition on secret containing key
 		// TODO apply this to HelmSecretNameForPaths too
-		mode := int32(fs.ModePerm) // XXX: refine if this works
-		volumes = append(volumes, corev1.Volume{
-			Name: "helm-secret-cert",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: gitrepo.Spec.HelmSecretName,
-					Items: []corev1.KeyToPath{
-						{
-							Key:  "cacerts",
-							Path: "cacert.crt",
-							Mode: &mode,
+		secret, _ := h.secrets.Get(gitrepo.Namespace, gitrepo.Spec.HelmSecretName)
+		if _, ok := secret.Data["cacerts"]; ok {
+			mode := int32(fs.ModePerm) // XXX: refine if this works
+			volumes = append(volumes, corev1.Volume{
+				Name: "helm-secret-cert",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: gitrepo.Spec.HelmSecretName,
+						Items: []corev1.KeyToPath{
+							{
+								Key:  "cacerts",
+								Path: "cacert.crt",
+								Mode: &mode,
+							},
 						},
 					},
 				},
-			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "helm-secret-cert",
-			MountPath: "/etc/ssl/certs",
-		})
+			})
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      "helm-secret-cert",
+				MountPath: "/etc/ssl/certs",
+			})
+		}
 	}
 	return volumes, volumeMounts
 }
