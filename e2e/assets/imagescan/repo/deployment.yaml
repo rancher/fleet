@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:latest # {"$imagescan": "test-scan:digest"}
+        image: public.ecr.aws/nginx/nginx:latest # {"$imagescan": "test-scan:digest"}
         ports:
         - containerPort: 80
