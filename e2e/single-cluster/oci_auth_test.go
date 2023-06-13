@@ -47,10 +47,16 @@ var _ = Describe("Single Cluster Examples", func() {
 		spinUpHelmRegistry := func() {
 			defer wgHelm.Done()
 
-			out, err := k.Apply("-f", testenv.AssetPath("oci/zot_secret.yaml"))
+			out, err := k.Create(
+				"secret", "tls", "zot-tls",
+				"--cert", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "zot.crt"),
+				"--key", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "zot.key"),
+			)
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			// XXX: ensure certs have been generated: can this be taken care of here?
+			out, err = k.Apply("-f", testenv.AssetPath("oci/zot_secret.yaml"))
+			Expect(err).ToNot(HaveOccurred(), out)
+
 			out, err = k.Apply("-f", testenv.AssetPath("oci/zot_configmap.yaml"))
 			Expect(err).ToNot(HaveOccurred(), out)
 
@@ -103,7 +109,7 @@ var _ = Describe("Single Cluster Examples", func() {
 			"secret", "generic", "helm-oci-secret",
 			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
 			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-			"--from-file=cacerts="+os.Getenv("CI_OCI_CACERT_PATH"),
+			"--from-file=cacerts="+path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "root.crt"),
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
@@ -135,9 +141,7 @@ var _ = Describe("Single Cluster Examples", func() {
 		_, _ = k.Delete("configmap", "zot-config")
 		_, _ = k.Delete("deployment", "zot")
 		_, _ = k.Delete("service", "zot-service")
-
-		// Let's not delete the secret, which prevents us from having to regenerate it and install the root cert
-		// on the host for each test run
+		_, _ = k.Delete("secret", "zot-tls")
 	})
 
 	When("creating a gitrepo resource", func() {

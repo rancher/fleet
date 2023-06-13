@@ -1,12 +1,5 @@
 #!/bin/bash
 
-secret_name=zot-tls
-
-if kubectl --namespace=$FLEET_E2E_NS get secret "$secret_name" 2> /dev/null; then
-    echo "secret $secret_name already exists. Exiting."
-    exit 1
-fi
-
 CA_name=${1-'FleetCI-RootCA'}
 validity_days=365
 passphrase=foo # this should not matter too much for local, ephemeral certs and keys
@@ -14,36 +7,52 @@ passphrase=foo # this should not matter too much for local, ephemeral certs and 
 mkdir -p $CA_name
 cd $CA_name
 
-# generate private key for CA
-CA_key_name="$CA_name.key"
-openssl genrsa -aes256 -passout pass:$passphrase -out "$CA_key_name" 4096
+must_create_certs ()
+{
+    if [ -z "$(find . -iname '*.crt')" ]; then
+        return 1
+    fi
 
-# generate CA cert using private key
-openssl req -x509 -new -nodes -key "$CA_key_name" -sha256 -days $validity_days -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test Root CA" -passin pass:$passphrase -out $CA_name.crt
+    age_of_most_recent_cert=$(( $(date +%s) - $(date -r $(ls -1 -t *.crt | head -n 1) +%s) ))
 
-# generate Zot cert and key
-openssl req -new -newkey rsa:4096 -sha256 -nodes -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test" -out zot_csr.csr -keyout zot_key.key
+    [ $(( $age_of_most_recent_crt )) -lt $(( validity_days * 24 * 3600 )) ]
 
-# generate extensions file for SAN IP
-# (necessary for the host to be able to interact with the in-cluster registry, both by external IP and by name within
-# the cluster)
-node_IP=$(kubectl get nodes --namespace default -o jsonpath="{.items[0].status.addresses[0].address}")
-if [ -z "$node_IP" ]; then
-    echo "Error: external IP empty for node. A service must be deployed on a node for this to work."
-    exit 1
-fi
+    return $?
+}
 
-cat > crt.ext << EOF
-authorityKeyIdentifier=keyid,issuer
-basicConstraints=CA:FALSE
-keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-subjectAltName = @alt_names
-[alt_names]
-IP.1 = $node_IP
-DNS.1 = zot-service.$FLEET_E2E_NS.svc.cluster.local
+must_create_certs
+if [ $? -eq 1 ]; then
+    # generate private key for CA
+    CA_key_name="$CA_name.key"
+    openssl genrsa -aes256 -passout pass:$passphrase -out "$CA_key_name" 4096
+
+    # generate CA cert using private key
+    openssl req -x509 -new -nodes -key "$CA_key_name" -sha256 -days $validity_days -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test Root CA" -passin pass:$passphrase -out root.crt
+
+    # generate Zot cert and key
+    openssl req -new -newkey rsa:4096 -sha256 -nodes -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test" -out zot.csr -keyout zot.key
+
+    # generate extensions file for SAN IP
+    # (necessary for the host to be able to interact with the in-cluster registry, both by external IP and by name within
+    # the cluster)
+    node_IP=$(kubectl get nodes --namespace default -o jsonpath="{.items[0].status.addresses[0].address}")
+    if [ -z "$node_IP" ]; then
+        echo "Error: external IP empty for node. A service must be deployed on a node for this to work."
+        exit 1
+    fi
+
+    cat > crt.ext << EOF
+    authorityKeyIdentifier=keyid,issuer
+    basicConstraints=CA:FALSE
+    keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+    subjectAltName = @alt_names
+    [alt_names]
+    IP.1 = $node_IP
+    DNS.1 = zot-service.$FLEET_E2E_NS.svc.cluster.local
 EOF
 
-# sign Zot cert with CA root key
-openssl x509 -req -in zot_csr.csr -CA "$CA_name.crt" -CAkey "$CA_key_name" -CAcreateserial -out zot_crt.crt -days $validity_days -extfile crt.ext -passin pass:$passphrase
-
-kubectl --namespace=$FLEET_E2E_NS create secret tls zot-tls --cert zot_crt.crt --key zot_key.key
+    # sign Zot cert with CA root key
+    openssl x509 -req -in zot.csr -CA root.crt -CAkey "$CA_key_name" -CAcreateserial -out zot.crt -days $validity_days -extfile crt.ext -passin pass:$passphrase
+else
+    echo "Skipping creation of certificates, as certificates more recent than $validity_days days exist."
+fi

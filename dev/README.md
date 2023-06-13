@@ -36,7 +36,7 @@ You can set these manually or put them in an `.envrc`:
     # needed for OCI tests
     export CI_OCI_USERNAME="fleet-ci"
     export CI_OCI_PASSWORD="foo"
-    export CI_OCI_CACERT_PATH="../../FleetCI-RootCA/FleetCI-RootCA.crt"
+    export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
 
 ## Running Tests on K3D
 
