@@ -1,2 +1,5 @@
 [files]
 extend-exclude = ["go.mod"]
+
+[default.extend-identifiers]
+"passin" = "passin"
