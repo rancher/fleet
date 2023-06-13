@@ -102,7 +102,7 @@ jobs:
           # Install root cert in host
           mkdir /usr/share/ca-certificates/extra
           cp FleetCI-RootCA/root.crt /usr/share/ca-certificates/extra/
-          update-ca-certificates
+          sudo update-ca-certificates
       -
         name: E2E Tests
         env:
