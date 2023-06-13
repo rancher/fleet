@@ -10,7 +10,7 @@ imageScans:
       order: asc
 
   # specify images to scan
-  image: "nginx"
+  image: "public.ecr.aws/nginx/nginx"
 
   # Specify the tag name, it has to be unique in the same bundle
   tagName: test-scan

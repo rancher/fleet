@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: git-service
+spec:
+  selector:
+    app: git-server
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 80
+  type: LoadBalancer
