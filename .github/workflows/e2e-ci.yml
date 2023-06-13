@@ -110,6 +110,9 @@ jobs:
           # Git credentials are here used in a local, ephemeral environment. Leaks would be harmless.
           GIT_HTTP_USER: "fleet-ci"
           GIT_HTTP_PASSWORD: "foo"
+          CI_OCI_USERNAME: "fleet-ci"
+          CI_OCI_PASSWORD: "foo"
+          CI_OCI_CERTS_DIR: "../../FleetCI-RootCA" # relative to e2e/single-cluster/oci_auth_test.go
         run: |
           helm package e2e/assets/gitrepo/sleeper-chart/
 
