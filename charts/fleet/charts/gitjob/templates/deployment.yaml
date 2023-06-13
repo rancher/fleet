@@ -13,14 +13,14 @@ spec:
     spec:
       serviceAccountName: gitjob
       containers:
-        - image: "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag | default (printf "v%s" .Chart.AppVersion) }}"
+        - image: "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag }}"
           name: gitjob
           args:
           {{- if .Values.debug }}
           - --debug
           {{- end }}
           - --tekton-image
-          - "{{ template "system_default_registry" . }}{{ .Values.tekton.repository }}:{{ .Values.tekton.tag | default "v0.1.24" }}"
+          - "{{ template "system_default_registry" . }}{{ .Values.tekton.repository }}:{{ .Values.tekton.tag }}"
           env:
             - name: NAMESPACE
               valueFrom:
