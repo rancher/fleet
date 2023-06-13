@@ -25,21 +25,15 @@ sources:
         kind: semver
 
 targets:
-  gitjob:
-    kind: shell
+  values-yaml:
     name: 'Update build-tekton reference'
+    kind: file
+    spec:
+      file: chart/values.yaml
+      matchpattern: 'tag: (v{0,1})(\d)(.*)'
+      replacepattern: 'tag: {{ source "build-tekton" }}'
     scmid: gitjob
     sourceid: build-tekton
-    spec:
-      # gitjob source value is automatically added to the command as a parameter
-      command: "./updatecli/scripts/update_deployment.sh"
-      environments:
-        - name: PATH
-      changedif:
-        kind: file/checksum
-        spec:
-          files:
-            -  chart/templates/deployment.yaml
 
 actions:
   default:
