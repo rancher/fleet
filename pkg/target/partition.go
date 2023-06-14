@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/match"
+	"github.com/rancher/fleet/pkg/target/matcher"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -30,7 +30,7 @@ func manualPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Parti
 	)
 
 	for _, partitionDef := range rollout.Partitions {
-		matcher, err := match.NewClusterMatcher(partitionDef.ClusterName, partitionDef.ClusterGroup, partitionDef.ClusterGroupSelector, partitionDef.ClusterSelector)
+		matcher, err := matcher.NewClusterMatcher(partitionDef.ClusterName, partitionDef.ClusterGroup, partitionDef.ClusterGroupSelector, partitionDef.ClusterSelector)
 		if err != nil {
 			return nil, err
 		}
