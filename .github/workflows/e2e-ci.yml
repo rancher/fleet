@@ -97,7 +97,7 @@ jobs:
           FLEET_E2E_NS: fleet-local
         run: |
           # Generate cert and key for TLS
-          ./dev/create_zot_certs "FleetCI-RootCA"
+          ./dev/create-zot-certs "FleetCI-RootCA"
 
           # Install root cert in host
           mkdir /usr/share/ca-certificates/extra

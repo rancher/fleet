@@ -48,7 +48,7 @@ This should set up k3d, and the fleet standalone images for single cluster tests
     dev/build-fleet
     dev/import-images-k3d
     dev/setup-fleet
-    dev/create_zot_certs 'FleetCI-RootCA' # for OCI tests (see additional instructions [here](#running-tests-involving-an-oci-registry))
+    dev/create-zot-certs 'FleetCI-RootCA' # for OCI tests (see additional instructions [here](#running-tests-involving-an-oci-registry))
     ginkgo e2e/single-cluster
 
 Optional flags for reporting on long-running tests: `--poll-progress-after=10s --poll-progress-interval=10s`.
@@ -73,7 +73,7 @@ and restart the controller:
 
 ### Running tests involving an OCI registry
 
-The root CA certificate created via `dev/create_zot_certs` will need to be added to the host's trusted certs; refer to
+The root CA certificate created via `dev/create-zot-certs` will need to be added to the host's trusted certs; refer to
 your host OS' guidelines for this. For instance, on openSUSE this can be done via:
 ```
 sudo cp <path>/<cert_name>.crt /etc/pki/trust/anchors
