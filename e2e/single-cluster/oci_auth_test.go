@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("Single Cluster Examples", func() {
+var _ = Describe("Single Cluster Examples", func() {
 	var (
 		asset    string
 		tmpdir   string
@@ -66,7 +66,7 @@ var _ = FDescribe("Single Cluster Examples", func() {
 			out, err = k.Apply("-f", testenv.AssetPath("oci/zot_service.yaml"))
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			time.Sleep(5 * time.Second)
+			time.Sleep(10 * time.Second)
 		}
 
 		go spinUpGitServer()
