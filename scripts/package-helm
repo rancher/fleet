@@ -14,7 +14,7 @@ cp -rf charts build/
 rm -rf build/charts/fleet-crd/templates/crds.yaml
 
 sed -i \
-    -e 's/version:.*/version: '${HELM_VERSION}'/' \
+    -e 's/^version:.*/version: '${HELM_VERSION}'/' \
     -e 's/appVersion:.*/appVersion: '${HELM_VERSION}'/' \
     build/charts/fleet/Chart.yaml
 
