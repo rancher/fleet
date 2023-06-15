@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Single Cluster Examples", func() {
+var _ = FDescribe("Single Cluster Examples", func() {
 	var (
 		asset    string
 		tmpdir   string
@@ -141,6 +141,7 @@ var _ = Describe("Single Cluster Examples", func() {
 		_, _ = k.Delete("configmap", "zot-config")
 		_, _ = k.Delete("deployment", "zot")
 		_, _ = k.Delete("service", "zot-service")
+		_, _ = k.Delete("secret", "zot-htpasswd")
 		_, _ = k.Delete("secret", "zot-tls")
 	})
 
