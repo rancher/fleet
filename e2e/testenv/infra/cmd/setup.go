@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -67,12 +68,23 @@ Parallelism is used when possible to save time.`,
 		}
 
 		helmHost := fmt.Sprintf("%s:5000", externalIP)
-		if err := helmClient.Login(
-			helmHost,
-			registry.LoginOptBasicAuth("fleet-ci", "foo"),
-			registry.LoginOptInsecure(true),
-		); err != nil {
-			fail(fmt.Errorf("log into Helm registry: %v", err))
+
+		startTime := time.Now()
+		for err := errors.New("not nil"); err != nil && time.Now().Sub(startTime) < 30*time.Second; {
+			err = helmClient.Login(
+				helmHost,
+				registry.LoginOptBasicAuth("fleet-ci", "foo"),
+				registry.LoginOptInsecure(true),
+			)
+			if err != nil {
+				fmt.Println(fmt.Errorf("log into Helm registry: %v", err))
+
+				time.Sleep(time.Second)
+
+				fmt.Println("Trying again...")
+			} else {
+				fmt.Println("Success!")
+			}
 		}
 
 		pushCmd := exec.Command(
@@ -119,8 +131,9 @@ func spinUpGitServer(k kubectl.Command, wg *sync.WaitGroup) {
 		fail(fmt.Errorf("apply git server service: %s with error %v", out, err))
 	}
 
-	// TODO replace this with state check
-	time.Sleep(5 * time.Second)
+	if err := waitForPodReady(k, "git-server"); err != nil {
+		fail(fmt.Errorf("wait for git server pod to be ready: %v", err))
+	}
 
 	fmt.Println("git server up.")
 }
@@ -171,8 +184,9 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		failHelm(fmt.Errorf("apply Zot service: %s with error %v", out, err))
 	}
 
-	// TODO replace this with state check
-	time.Sleep(5 * time.Second)
+	if err := waitForPodReady(k, "zot"); err != nil {
+		failHelm(fmt.Errorf("wait for Zot pod to be ready: %v", err))
+	}
 
 	fmt.Println("Helm registry up.")
 }
@@ -184,6 +198,24 @@ func packageHelmChart() error {
 
 	if err != nil {
 		err = fmt.Errorf("%s", cmd.Stderr)
+	}
+
+	return err
+}
+
+// waitForPodReady waits until a pod with the specified appName app label is ready.
+func waitForPodReady(k kubectl.Command, appName string) error {
+	out, err := k.Run(
+		"wait",
+		"--for=condition=Ready",
+		"pod",
+		"--timeout=30s",
+		"-l",
+		fmt.Sprintf("app=%s", appName),
+	)
+
+	if err != nil {
+		return fmt.Errorf("waitForPodReady (appName: %s): %s, error: %v", appName, out, err)
 	}
 
 	return err
