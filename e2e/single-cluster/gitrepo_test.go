@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"os"
 	"path"
-	"time"
 
 	"github.com/go-git/go-git/v5"
 
@@ -40,15 +39,6 @@ var _ = Describe("Git Repo with polling", func() {
 		host, err := githelper.BuildGitHostname(env.Namespace)
 		Expect(err).ToNot(HaveOccurred())
 
-		// Create git server
-		out, err := k.Apply("-f", testenv.AssetPath("gitrepo/nginx_deployment.yaml"))
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_service.yaml"))
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		time.Sleep(5 * time.Second) // give git server time to spin up
-
 		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
 		gh = githelper.NewHTTP(ip)
@@ -77,8 +67,6 @@ var _ = Describe("Git Repo with polling", func() {
 	AfterEach(func() {
 		os.RemoveAll(tmpdir)
 		_, _ = k.Delete("gitrepo", "gitrepo-test")
-		_, _ = k.Delete("deployment", "git-server")
-		_, _ = k.Delete("service", "git-service")
 	})
 
 	When("updating a git repository monitored via polling", func() {
