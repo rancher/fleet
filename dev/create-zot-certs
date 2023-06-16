@@ -20,6 +20,11 @@ must_create_certs ()
     return $?
 }
 
+if [ -z $FLEET_E2E_NS ]; then
+    echo "Error: env var FLEET_E2E_NS is not set. Exiting."
+    exit 1
+fi
+
 must_create_certs
 if [ $? -eq 1 ]; then
     # generate private key for CA
