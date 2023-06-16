@@ -87,8 +87,13 @@ Parallelism is used when possible to save time.`,
 			}
 		}
 
+		helmPath := os.Getenv("HELM_PATH")
+		if helmPath == "" {
+			helmPath = "/usr/bin/helm" // prevents eg. ~/.rd/bin/helm from being used, without support for skipping TLS
+		}
+
 		pushCmd := exec.Command(
-			"/usr/bin/helm", // prevents eg. ~/.rd/bin/helm from being used, without support for skipping TLS
+			helmPath,
 			"push",
 			"sleeper-chart-0.1.0.tgz",
 			fmt.Sprintf("oci://%s", helmHost),

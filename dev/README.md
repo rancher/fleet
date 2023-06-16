@@ -34,9 +34,10 @@ You can set these manually or put them in an `.envrc`:
     #export GIT_HTTP_PASSWORD="foo"
 
     # needed for OCI tests
-    export CI_OCI_USERNAME="fleet-ci"
-    export CI_OCI_PASSWORD="foo"
-    export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
+    #export CI_OCI_USERNAME="fleet-ci"
+    #export CI_OCI_PASSWORD="foo"
+    #export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
+    #export HELM_PATH="/usr/bin/helm" # optional, for selecting Helm versions (see [Troubleshooting](#troubleshooting))
 
 ## Running Tests on K3D
 
@@ -80,6 +81,14 @@ and restart the controller:
 
     dev/update-agent-k3d
     dev/update-controller-k3d
+
+### Troubleshooting
+
+If running the `infra setup` script returns an error about flag `--insecure-skip-tls-verify` not being found, check
+which version of Helm you are using via `helm version`.
+In case you have Rancher Desktop installed, you may be using its own Helm fork from `~/.rd/bin` by default, based on a
+different version of upstream Helm.
+Feel free to set environment variable `HELM_PATH` to remedy this. By default, the setup script will use `/usr/bin/helm`.
 
 ## Different Script Folders
 
