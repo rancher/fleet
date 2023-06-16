@@ -1,8 +1,7 @@
-package bundlematcher
+package matcher
 
 import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/match"
 )
 
 // BundleMatch stores the bundle and the matcher for the bundle
@@ -54,12 +53,12 @@ func (a *BundleMatch) MatchTargetCustomizations(clusterName string, clusterGroup
 
 type targetMatch struct {
 	bundleTarget *fleet.BundleTarget
-	criteria     *match.ClusterMatcher
+	criteria     *ClusterMatcher
 }
 
 type matcher struct {
 	matches      []targetMatch
-	restrictions []*match.ClusterMatcher
+	restrictions []*ClusterMatcher
 }
 
 func (a *BundleMatch) initMatcher() error {
@@ -68,7 +67,7 @@ func (a *BundleMatch) initMatcher() error {
 	)
 
 	for i, target := range a.bundle.Spec.Targets {
-		clusterMatcher, err := match.NewClusterMatcher(target.ClusterName, target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
+		clusterMatcher, err := NewClusterMatcher(target.ClusterName, target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
 		if err != nil {
 			return err
 		}
@@ -81,7 +80,7 @@ func (a *BundleMatch) initMatcher() error {
 	}
 
 	for _, target := range a.bundle.Spec.TargetRestrictions {
-		clusterMatcher, err := match.NewClusterMatcher(target.ClusterName, target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
+		clusterMatcher, err := NewClusterMatcher(target.ClusterName, target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)
 		if err != nil {
 			return err
 		}

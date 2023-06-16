@@ -13,11 +13,11 @@ import (
 	"os"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundlematcher"
 	"github.com/rancher/fleet/pkg/bundlereader"
 	"github.com/rancher/fleet/pkg/helmdeployer"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
+	"github.com/rancher/fleet/pkg/target/matcher"
 
 	"github.com/rancher/wrangler/pkg/yaml"
 )
@@ -61,7 +61,7 @@ func Match(ctx context.Context, opts *Options) error {
 		}
 	}
 
-	bm, err := bundlematcher.New(bundle)
+	bm, err := matcher.New(bundle)
 	if err != nil {
 		return err
 	}

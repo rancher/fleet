@@ -18,11 +18,11 @@ import (
 	kyaml "sigs.k8s.io/yaml"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundlematcher"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
 	"github.com/rancher/fleet/pkg/summary"
+	"github.com/rancher/fleet/pkg/target/matcher"
 
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
@@ -169,7 +169,7 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, b
 	}
 
 	for _, app := range bundles {
-		bm, err := bundlematcher.New(app)
+		bm, err := matcher.New(app)
 		if err != nil {
 			logrus.Errorf("ignore bad app %s/%s: %v", app.Namespace, app.Name, err)
 			continue
@@ -245,7 +245,7 @@ func (m *Manager) getNamespacesForBundle(bundle *fleet.Bundle) ([]string, error)
 // The returned target structs contain merged BundleDeploymentOptions.
 // Finally all existing bundledeployments are added to the targets.
 func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]*Target, error) {
-	bm, err := bundlematcher.New(bundle)
+	bm, err := matcher.New(bundle)
 	if err != nil {
 		return nil, err
 	}
