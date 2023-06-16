@@ -98,11 +98,6 @@ jobs:
         run: |
           # Generate cert and key for TLS
           ./dev/create-zot-certs "FleetCI-RootCA"
-
-          # Install root cert in host
-          mkdir /usr/share/ca-certificates/extra
-          sudo cp FleetCI-RootCA/root.crt /etc/ssl/certs
-          sudo update-ca-certificates
       -
         name: E2E Tests
         env:
