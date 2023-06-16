@@ -655,6 +655,7 @@ func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
 	return true, nil
 }
 
+// Resources returns the resources from the helm release history
 func (h *Helm) Resources(bundleID, resourcesID string) (*Resources, error) {
 	releaseName, version, namespace, err := getReleaseNameVersionAndNamespace(bundleID, resourcesID)
 	if err != nil {

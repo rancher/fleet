@@ -69,7 +69,8 @@ type BundleSpec struct {
 	// partitions, canaries and percentages for cluster availability.
 	RolloutStrategy *RolloutStrategy `json:"rolloutStrategy,omitempty"`
 
-	// Resources contain the actual resources from the git repo which will be deployed.
+	// Resources contains the resources that were read from the bundle's
+	// path. This includes the content of downloaded helm charts.
 	Resources []BundleResource `json:"resources,omitempty"`
 
 	// Targets refer to the clusters which will be deployed to.
@@ -166,8 +167,11 @@ type BundleStatus struct {
 	MaxNew                   int               `json:"maxNew,omitempty"`
 	PartitionStatus          []PartitionStatus `json:"partitions,omitempty"`
 	Display                  BundleDisplay     `json:"display,omitempty"`
-	ResourceKey              []ResourceKey     `json:"resourceKey,omitempty"`
-	ObservedGeneration       int64             `json:"observedGeneration"`
+	// ResourceKey lists resources, which will likely be deployed. The
+	// actual list of resources on a cluster might differ, depending on the
+	// helm chart, value templating, etc..
+	ResourceKey        []ResourceKey `json:"resourceKey,omitempty"`
+	ObservedGeneration int64         `json:"observedGeneration"`
 }
 
 type ResourceKey struct {
@@ -364,6 +368,14 @@ type BundleDeploymentSpec struct {
 	CorrectDrift       CorrectDrift            `json:"correctDrift,omitempty"`
 }
 
+type BundleDeploymentResource struct {
+	Kind       string      `json:"kind,omitempty"`
+	APIVersion string      `json:"apiVersion,omitempty"`
+	Namespace  string      `json:"namespace,omitempty"`
+	Name       string      `json:"name,omitempty"`
+	CreatedAt  metav1.Time `json:"createdAt,omitempty"`
+}
+
 type BundleDeploymentStatus struct {
 	Conditions          []genericcondition.GenericCondition `json:"conditions,omitempty"`
 	AppliedDeploymentID string                              `json:"appliedDeploymentID,omitempty"`
@@ -374,6 +386,9 @@ type BundleDeploymentStatus struct {
 	ModifiedStatus      []ModifiedStatus                    `json:"modifiedStatus,omitempty"`
 	Display             BundleDeploymentDisplay             `json:"display,omitempty"`
 	SyncGeneration      *int64                              `json:"syncGeneration,omitempty"`
+	// Resources lists the metadata of resources that were deployed
+	// according to the helm release history.
+	Resources []BundleDeploymentResource `json:"resources,omitempty"`
 }
 
 type BundleDeploymentDisplay struct {

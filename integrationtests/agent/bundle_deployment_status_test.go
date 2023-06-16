@@ -101,6 +101,18 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			Expect(svc).To(Not(BeNil()))
 		})
 
+		It("Lists deployed resources in the status", func() {
+			bd, err := env.controller.Get(namespace, name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bd.Status.Resources).To(HaveLen(3))
+			Expect(bd.Status.Resources).To(ContainElement(v1alpha1.BundleDeploymentResource{
+				Kind:       "Service",
+				APIVersion: "v1",
+				Namespace:  namespace,
+				Name:       "svc-test",
+			}))
+		})
+
 		Context("A release resource is modified", func() {
 			It("Modify service", func() {
 				svc, err := env.getService(svcName)
@@ -203,7 +215,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		})
 	})
 
-	When("simulate operator dynamic resource creation", func() {
+	When("Simulating how another operator creates a dynamic resource", func() {
 		BeforeAll(func() {
 			createBundleDeploymentV1(name)
 			// It is possible that some operators copy the objectset.rio.cattle.io/hash label into a dynamically created objects.
