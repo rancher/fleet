@@ -112,8 +112,9 @@ jobs:
           GIT_HTTP_PASSWORD: "foo"
           CI_OCI_USERNAME: "fleet-ci"
           CI_OCI_PASSWORD: "foo"
-          CI_OCI_CERTS_DIR: "$(git rev-parse --show-toplevel)/FleetCI-RootCA"
         run: |
+          export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+
           cd e2e/testenv/infra
           go build -o . ./...
           ./infra setup
