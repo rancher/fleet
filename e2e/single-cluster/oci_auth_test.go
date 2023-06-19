@@ -65,7 +65,7 @@ var _ = Describe("Single Cluster Examples", func() {
 
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
-					out, _ := k.Namespace("fleet-helm-oci-with-auth-example").Get("pods")
+					out, _ := k.Namespace("fleet-helm-oci-with-auth-example").Get("pods", "--field-selector=status.phase==Running")
 					return out
 				}).Should(ContainSubstring("sleeper-"))
 			})
@@ -73,6 +73,6 @@ var _ = Describe("Single Cluster Examples", func() {
 	})
 
 	AfterEach(func() {
-		_, _ = k.Namespace("fleet-helm-oci-with-auth-example").Delete("deployment", "sleeper")
+		_, _ = k.Delete("gitrepo", "helm")
 	})
 })
