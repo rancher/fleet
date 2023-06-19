@@ -10,7 +10,7 @@
 ![](./docs/arch.png)
 
 Fleet is GitOps at scale. Fleet is designed to manage multiple clusters. It's also lightweight
-enough that it works great for a [single cluster](https://fleet.rancher.io/single-cluster-install/) too, but it really shines
+enough that it works great for a single cluster too, but it really shines
 when you get to a large scale. By large scale we mean either a lot of clusters, a lot of deployments, or a lot of
 teams in a single organization.
 
