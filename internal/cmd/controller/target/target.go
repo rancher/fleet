@@ -78,6 +78,8 @@ func New(
 	}
 }
 
+// BundleFromDeployment returns the namespace and name of the bundle that
+// created the bundledeployment
 func (m *Manager) BundleFromDeployment(bd *fleet.BundleDeployment) (string, string) {
 	return bd.Labels[fleet.BundleNamespaceLabel],
 		bd.Labels[fleet.BundleLabel]
@@ -191,8 +193,12 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, b
 	return
 }
 
-func (m *Manager) GetBundleDeploymentsForBundleInCluster(app *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(deploymentLabelsForSelector(app)))
+func (m *Manager) GetBundleDeploymentsForBundleInCluster(bundle *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
+	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(labels.Set{
+		fleet.BundleLabel:          bundle.Name,
+		fleet.BundleNamespaceLabel: bundle.Namespace,
+	}))
+
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +384,10 @@ func toDict(values map[string]string) map[string]interface{} {
 
 // foldInDeployments adds the existing bundledeployments to the targets.
 func (m *Manager) foldInDeployments(bundle *fleet.Bundle, targets []*Target) error {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(deploymentLabelsForSelector(bundle)))
+	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(labels.Set{
+		fleet.BundleLabel:          bundle.Name,
+		fleet.BundleNamespaceLabel: bundle.Namespace,
+	}))
 	if err != nil {
 		return err
 	}
@@ -434,9 +443,8 @@ func (t *Target) BundleDeploymentLabels(clusterNamespace string, clusterName str
 	}
 
 	// labels for the bundledeployment by bundle selector
-	for k, v := range deploymentLabelsForSelector(t.Bundle) {
-		labels[k] = v
-	}
+	labels[fleet.BundleLabel] = t.Bundle.Name
+	labels[fleet.BundleNamespaceLabel] = t.Bundle.Namespace
 
 	// ManagedLabel allows clean up of the bundledeployment
 	labels[fleet.ManagedLabel] = "true"
@@ -446,15 +454,6 @@ func (t *Target) BundleDeploymentLabels(clusterNamespace string, clusterName str
 	labels[fleet.ClusterLabel] = clusterName
 
 	return labels
-}
-
-// deploymentLabelsForSelector returns the labels that are used to select
-// bundledeployments for a given bundle
-func deploymentLabelsForSelector(bundle *fleet.Bundle) map[string]string {
-	return map[string]string{
-		fleet.BundleLabel:          bundle.Name,
-		fleet.BundleNamespaceLabel: bundle.Namespace,
-	}
 }
 
 // getRollout returns the rollout strategy for the specified targets (pure function)
