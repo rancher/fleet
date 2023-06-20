@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chartmuseum
+  labels:
+    fleet: testing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chartmuseum
+  template:
+    metadata:
+      labels:
+        app: chartmuseum
+    spec:
+      containers:
+        - name: chartmuseum
+          image: ghcr.io/helm/chartmuseum:v0.14.0
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 8081
+          env:
+            - name: PORT
+              value: "8081"
+            - name: STORAGE_LOCAL_ROOTDIR
+              value: /tmp
+            - name: TLS_CERT
+              value: /etc/chartmuseum/certs/tls.crt
+            - name: TLS_KEY
+              value: /etc/chartmuseum/certs/tls.key
+            - name: BASIC_AUTH_USER
+              value: fleet-ci
+            - name: BASIC_AUTH_PASS
+              value: foo
+            - name: STORAGE
+              value: local
+          volumeMounts:
+          - name: tls-cert
+            mountPath: /etc/chartmuseum/certs
+      volumes:
+        - name: tls-cert
+          secret:
+            secretName: zot-tls
+
