@@ -99,8 +99,10 @@ func (m *Manager) Delete(bundleDeploymentKey string) error {
 	return m.deployer.Delete(name, "")
 }
 
-// Resources returns the resources that are deployed by the bundle deployment, used by trigger.Watches
-func (m *Manager) Resources(bd *fleet.BundleDeployment) (*helmdeployer.Resources, error) {
+// AllResources returns the resources that are deployed by the bundle deployment,
+// according to the helm release history. It adds to be deleted resources to
+// the list, by comparing the desired state to the actual state with apply.
+func (m *Manager) AllResources(bd *fleet.BundleDeployment) (*helmdeployer.Resources, error) {
 	resources, err := m.deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
 		return nil, nil

@@ -244,20 +244,20 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 
 	logrus.Debugf("Triggering for bundledeployment '%s'", key)
 
-	resources, err := h.deployManager.Resources(bd)
+	resources, err := h.deployManager.AllResources(bd)
 	if err != nil {
 		return bd, err
 	}
 
-	if resources != nil {
-		logrus.Debugf("Adding OnChange for bundledeployment's '%s' resource list", key)
-		return bd, h.trigger.OnChange(key, resources.DefaultNamespace, func() {
-			// enqueue bundledeployment if any resource changes
-			h.bdController.EnqueueAfter(bd.Namespace, bd.Name, 0)
-		}, resources.Objects...)
+	if resources == nil {
+		return bd, nil
 	}
 
-	return bd, nil
+	logrus.Debugf("Adding OnChange for bundledeployment's '%s' resource list", key)
+	return bd, h.trigger.OnChange(key, resources.DefaultNamespace, func() {
+		// enqueue bundledeployment if any resource changes
+		h.bdController.EnqueueAfter(bd.Namespace, bd.Name, 0)
+	}, resources.Objects...)
 }
 
 func isAgent(bd *fleet.BundleDeployment) bool {
@@ -324,7 +324,7 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 		return status, nil
 	}
 
-	deploymentStatus, err := h.deployManager.MonitorBundle(bd)
+	err := h.deployManager.UpdateBundleDeploymentStatus(h.restMapper, bd)
 	if err != nil {
 
 		// Returning an error will cause MonitorBundle to requeue in a loop.
@@ -337,11 +337,7 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 
 		return status, err
 	}
-
-	status.NonReadyStatus = deploymentStatus.NonReadyStatus
-	status.ModifiedStatus = deploymentStatus.ModifiedStatus
-	status.Ready = deploymentStatus.Ready
-	status.NonModified = deploymentStatus.NonModified
+	status = bd.Status
 
 	readyError := readyError(status)
 	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)

@@ -26,13 +26,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-type DeploymentStatus struct {
-	Ready          bool                   `json:"ready,omitempty"`
-	NonModified    bool                   `json:"nonModified,omitempty"`
-	NonReadyStatus []fleet.NonReadyStatus `json:"nonReadyStatus,omitempty"`
-	ModifiedStatus []fleet.ModifiedStatus `json:"modifiedStatus,omitempty"`
-}
-
+// plan first does a dry run of the apply to get the difference between the
+// desired and live state. It relies on the bundledeployment's bundle diff
+// patches to ignore changes.
 func (m *Manager) plan(bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (apply.Plan, error) {
 	if ns == "" {
 		ns = m.defaultNamespace
@@ -151,51 +147,77 @@ func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) apply.Apply {
 		WithDefaultNamespace(ns)
 }
 
-// MonitorBundle returns the DeploymentStatus for the given bundledeployment
-func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, error) {
-	var status DeploymentStatus
-
+// UpdateBundleDeploymentStatus updates the status with information from the
+// helm release history and an apply dry run.
+func (m *Manager) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet.BundleDeployment) error {
 	resources, err := m.deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
-		return status, err
+		return err
 	}
-	resourcesPreviuosRelease, err := m.deployer.ResourcesFromPreviousReleaseVersion(bd.Name, bd.Status.Release)
+	resourcesPreviousRelease, err := m.deployer.ResourcesFromPreviousReleaseVersion(bd.Name, bd.Status.Release)
 	if err != nil {
-		return status, err
+		return err
 	}
 
 	plan, err := m.plan(bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
-		return status, err
+		return err
 	}
 
-	status.NonReadyStatus = nonReady(plan, bd.Spec.Options.IgnoreOptions)
-	status.ModifiedStatus = modified(plan, resourcesPreviuosRelease)
-	status.Ready = false
-	status.NonModified = false
+	bd.Status.NonReadyStatus = nonReady(plan, bd.Spec.Options.IgnoreOptions)
+	bd.Status.ModifiedStatus = modified(plan, resourcesPreviousRelease)
+	bd.Status.Ready = false
+	bd.Status.NonModified = false
 
-	if len(status.NonReadyStatus) == 0 {
-		status.Ready = true
+	if len(bd.Status.NonReadyStatus) == 0 {
+		bd.Status.Ready = true
 	}
-	if len(status.ModifiedStatus) == 0 {
-		status.NonModified = true
+	if len(bd.Status.ModifiedStatus) == 0 {
+		bd.Status.NonModified = true
 	} else if bd.Spec.CorrectDrift.Enabled {
 		err = m.deployer.RemoveExternalChanges(bd)
 		if err != nil {
 			// Update BundleDeployment status as wrangler doesn't update the status if error is not nil.
-			bd.Status.NonReadyStatus = status.NonReadyStatus
-			bd.Status.ModifiedStatus = status.ModifiedStatus
-			bd.Status.Ready = status.Ready
-			bd.Status.NonModified = status.NonModified
 			_, errStatus := m.bundleDeploymentController.UpdateStatus(bd)
 			if errStatus != nil {
-				return status, errors.Wrap(err, "error updating status when reconciling drift: "+errStatus.Error())
+				return errors.Wrap(err, "error updating status when reconciling drift: "+errStatus.Error())
 			}
-			return status, errors.Wrapf(err, "error reconciling drift")
+			return errors.Wrapf(err, "error reconciling drift")
 		}
 	}
 
-	return status, nil
+	bd.Status.Resources = []fleet.BundleDeploymentResource{}
+	for _, obj := range resources.Objects {
+		m, err := meta.Accessor(obj)
+		if err != nil {
+			return err
+		}
+
+		ns := m.GetNamespace()
+		gvk := obj.GetObjectKind().GroupVersionKind()
+		if ns == "" && isNamespaced(mapper, gvk) {
+			ns = resources.DefaultNamespace
+		}
+
+		version, kind := gvk.ToAPIVersionAndKind()
+		bd.Status.Resources = append(bd.Status.Resources, fleet.BundleDeploymentResource{
+			Kind:       kind,
+			APIVersion: version,
+			Namespace:  ns,
+			Name:       m.GetName(),
+			CreatedAt:  m.GetCreationTimestamp(),
+		})
+	}
+
+	return nil
+}
+
+func isNamespaced(mapper meta.RESTMapper, gvk schema.GroupVersionKind) bool {
+	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return true
+	}
+	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
 }
 
 func sortKey(f fleet.ModifiedStatus) string {

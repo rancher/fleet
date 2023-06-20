@@ -1460,6 +1460,27 @@ spec:
               release:
                 nullable: true
                 type: string
+              resources:
+                items:
+                  properties:
+                    apiVersion:
+                      nullable: true
+                      type: string
+                    createdAt:
+                      nullable: true
+                      type: string
+                    kind:
+                      nullable: true
+                      type: string
+                    name:
+                      nullable: true
+                      type: string
+                    namespace:
+                      nullable: true
+                      type: string
+                  type: object
+                nullable: true
+                type: array
               syncGeneration:
                 nullable: true
                 type: integer
