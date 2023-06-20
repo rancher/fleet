@@ -42,6 +42,9 @@ spec:
                     name:
                       nullable: true
                       type: string
+                    namespace:
+                      nullable: true
+                      type: string
                     selector:
                       nullable: true
                       properties:
@@ -968,6 +971,9 @@ spec:
                 items:
                   properties:
                     name:
+                      nullable: true
+                      type: string
+                    namespace:
                       nullable: true
                       type: string
                     selector:

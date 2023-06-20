@@ -259,10 +259,9 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				},
 			},
 		},
-		&rbacv1.RoleBinding{
+		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      request.Name,
-				Namespace: cluster.Status.Namespace,
+				Name: name.SafeConcatName(request.Name, "bundledeployment"),
 				Labels: map[string]string{
 					fleet.ManagedLabel: "true",
 				},

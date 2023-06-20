@@ -84,8 +84,12 @@ type BundleSpec struct {
 }
 
 type BundleRef struct {
-	Name     string                `json:"name,omitempty"`
-	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+	Name string `json:"name,omitempty"`
+	// Namespace is the namespace of the bundle to depend on. Setting
+	// Namespace allows to depend on bundles from another cluster. If not
+	// set, the namespace from the bundledeployment's status will be used.
+	Namespace string                `json:"namespace,omitempty"`
+	Selector  *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
 type BundleResource struct {
