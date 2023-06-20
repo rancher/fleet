@@ -2,12 +2,12 @@ package helmdeployer
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/rancher/fleet/pkg/config"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/sirupsen/logrus"
@@ -236,6 +236,34 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	}
 
 	return releaseToResources(release)
+}
+
+// RemoveExternalChanges does a helm rollback to remove changes made outside of fleet.
+// It removes the helm history entry if the rollback fails.
+func (h *Helm) RemoveExternalChanges(bd *fleet.BundleDeployment) error {
+	logrus.Infof("Drift correction: rollback BundleDeployment %s", bd.Name)
+
+	_, defaultNamespace, releaseName := h.getOpts(bd.Name, bd.Spec.Options)
+	cfg, err := h.getCfg(defaultNamespace, bd.Spec.Options.ServiceAccount)
+	if err != nil {
+		return err
+	}
+	currentRelease, err := cfg.Releases.Last(releaseName)
+	if err != nil {
+		return err
+	}
+
+	r := action.NewRollback(&cfg)
+	r.Version = currentRelease.Version
+	if bd.Spec.CorrectDrift.Force {
+		r.Force = true
+	}
+	err = r.Run(releaseName)
+	if err != nil && !bd.Spec.CorrectDrift.KeepFailHistory {
+		return removeFailedRollback(cfg, currentRelease, err)
+	}
+
+	return err
 }
 
 func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (bool, error) {
@@ -890,4 +918,25 @@ func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
 		return name.SafeConcatName(labelPrefix, bundleID, labelSuffix)
 	}
 	return name.SafeConcatName(labelPrefix, bundleID)
+}
+
+func removeFailedRollback(cfg action.Configuration, currentRelease *release.Release, err error) error {
+	failedRelease, errRel := cfg.Releases.Last(currentRelease.Name)
+	if errRel != nil {
+		return errors.Wrap(err, errRel.Error())
+	}
+	if failedRelease.Version == currentRelease.Version+1 &&
+		failedRelease.Info.Status == release.StatusFailed &&
+		strings.HasPrefix(failedRelease.Info.Description, "Rollback") {
+		_, errDel := cfg.Releases.Delete(failedRelease.Name, failedRelease.Version)
+		if errDel != nil {
+			return errors.Wrap(err, errDel.Error())
+		}
+		errUpdate := cfg.Releases.Update(currentRelease)
+		if errUpdate != nil {
+			return errors.Wrap(err, errUpdate.Error())
+		}
+	}
+
+	return err
 }

@@ -24,6 +24,15 @@ spec:
         properties:
           spec:
             properties:
+              correctDrift:
+                properties:
+                  enabled:
+                    type: boolean
+                  force:
+                    type: boolean
+                  keepFailHistory:
+                    type: boolean
+                type: object
               defaultNamespace:
                 nullable: true
                 type: string
@@ -449,6 +458,15 @@ spec:
                             type: string
                           nullable: true
                           type: object
+                      type: object
+                    correctDrift:
+                      properties:
+                        enabled:
+                          type: boolean
+                        force:
+                          type: boolean
+                        keepFailHistory:
+                          type: boolean
                       type: object
                     defaultNamespace:
                       nullable: true
@@ -937,6 +955,15 @@ spec:
         properties:
           spec:
             properties:
+              correctDrift:
+                properties:
+                  enabled:
+                    type: boolean
+                  force:
+                    type: boolean
+                  keepFailHistory:
+                    type: boolean
+                type: object
               dependsOn:
                 items:
                   properties:
@@ -979,6 +1006,15 @@ spec:
                 type: string
               options:
                 properties:
+                  correctDrift:
+                    properties:
+                      enabled:
+                        type: boolean
+                      force:
+                        type: boolean
+                      keepFailHistory:
+                        type: boolean
+                    type: object
                   defaultNamespace:
                     nullable: true
                     type: string
@@ -1146,6 +1182,15 @@ spec:
                 type: string
               stagedOptions:
                 properties:
+                  correctDrift:
+                    properties:
+                      enabled:
+                        type: boolean
+                      force:
+                        type: boolean
+                      keepFailHistory:
+                        type: boolean
+                    type: object
                   defaultNamespace:
                     nullable: true
                     type: string
@@ -2689,6 +2734,15 @@ spec:
               clientSecretName:
                 nullable: true
                 type: string
+              correctDrift:
+                properties:
+                  enabled:
+                    type: boolean
+                  force:
+                    type: boolean
+                  keepFailHistory:
+                    type: boolean
+                type: object
               forceSyncGeneration:
                 type: integer
               helmRepoURLRegex:

@@ -32,20 +32,23 @@ var (
 )
 
 type Options struct {
-	BundleFile       string
-	TargetsFile      string
-	Compress         bool
-	BundleReader     io.Reader
-	Output           io.Writer
-	ServiceAccount   string
-	TargetNamespace  string
-	Paused           bool
-	Labels           map[string]string
-	SyncGeneration   int64
-	Auth             bundlereader.Auth
-	HelmRepoURLRegex string
-	KeepResources    bool
-	AuthByPath       map[string]bundlereader.Auth
+	BundleFile                  string
+	TargetsFile                 string
+	Compress                    bool
+	BundleReader                io.Reader
+	Output                      io.Writer
+	ServiceAccount              string
+	TargetNamespace             string
+	Paused                      bool
+	Labels                      map[string]string
+	SyncGeneration              int64
+	Auth                        bundlereader.Auth
+	HelmRepoURLRegex            string
+	KeepResources               bool
+	AuthByPath                  map[string]bundlereader.Auth
+	CorrectDrift                bool
+	CorrectDriftForce           bool
+	CorrectDriftKeepFailHistory bool
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -173,6 +176,11 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 		Auth:             opts.Auth,
 		HelmRepoURLRegex: opts.HelmRepoURLRegex,
 		KeepResources:    opts.KeepResources,
+		CorrectDrift: fleet.CorrectDrift{
+			Enabled:         opts.CorrectDrift,
+			Force:           opts.CorrectDriftForce,
+			KeepFailHistory: opts.CorrectDriftKeepFailHistory,
+		},
 	})
 }
 
