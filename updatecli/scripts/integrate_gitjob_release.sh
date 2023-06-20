@@ -14,7 +14,7 @@ fi
 
 CURRENT_VERSION="$(sed -n "s/^version: \([.0-9]*\)/\1/p" ./charts/fleet/charts/gitjob/Chart.yaml)"
 
-if [ "$VERSION" -eq "$CURRENT_VERSION" ]
+if [ "$VERSION" = "$CURRENT_VERSION" ]
 then
     echo "The Gitjob chart in Fleet is already up to date."
     exit 0
