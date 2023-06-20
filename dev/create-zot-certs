@@ -37,22 +37,12 @@ if [ $? -eq 1 ]; then
     # generate Zot cert and key
     openssl req -new -newkey rsa:4096 -sha256 -nodes -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test" -out zot.csr -keyout zot.key
 
-    # generate extensions file for SAN IP
-    # (necessary for the host to be able to interact with the in-cluster registry, both by external IP and by name within
-    # the cluster)
-    node_IP=$(kubectl get nodes --namespace default -o jsonpath="{.items[0].status.addresses[0].address}")
-    if [ -z "$node_IP" ]; then
-        echo "Error: external IP empty for node. A service must be deployed on a node for this to work."
-        exit 1
-    fi
-
     cat > crt.ext << EOF
     authorityKeyIdentifier=keyid,issuer
     basicConstraints=CA:FALSE
     keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
     subjectAltName = @alt_names
     [alt_names]
-    IP.1 = $node_IP
     DNS.1 = zot-service.$FLEET_E2E_NS.svc.cluster.local
 EOF
 
