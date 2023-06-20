@@ -44,11 +44,6 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 	} else if custom.ServiceAccount == "-" {
 		result.ServiceAccount = ""
 	}
-	if custom.ServiceAccount != "" {
-		result.ServiceAccount = custom.ServiceAccount
-	} else if custom.ServiceAccount == "-" {
-		result.ServiceAccount = ""
-	}
 	if custom.Helm != nil {
 		if result.Helm == nil {
 			result.Helm = &fleet.HelmOptions{}

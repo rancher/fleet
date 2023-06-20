@@ -7,6 +7,7 @@ import (
 
 var (
 	RepoLabel            = "fleet.cattle.io/repo-name"
+	BundleLabel          = "fleet.cattle.io/bundle-name"
 	BundleNamespaceLabel = "fleet.cattle.io/bundle-namespace"
 )
 
@@ -42,6 +43,9 @@ type GitRepoSpec struct {
 
 	// HelmSecretName contains the auth secret for private helm repository
 	HelmSecretName string `json:"helmSecretName,omitempty"`
+
+	// HelmSecretNameForPaths contains the auth secret for private helm repository for each path
+	HelmSecretNameForPaths string `json:"helmSecretNameForPaths,omitempty"`
 
 	// HelmRepoURLRegex Helm credentials will be used if the helm repo matches this regex
 	// Credentials will always be used if this is empty or not provided
@@ -83,6 +87,9 @@ type GitRepoSpec struct {
 
 	// KeepResources specifies if the resources created must be kept after deleting the GitRepo
 	KeepResources bool `json:"keepResources,omitempty"`
+
+	// CorrectDrift specifies how drift correction should work.
+	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
 }
 
 type GitTarget struct {
@@ -165,4 +172,13 @@ type ResourcePerClusterState struct {
 	Message       string      `json:"message,omitempty"`
 	Patch         *GenericMap `json:"patch,omitempty"`
 	ClusterID     string      `json:"clusterId,omitempty"`
+}
+
+type CorrectDrift struct {
+	// Enabled correct drift if true.
+	Enabled bool `json:"enabled,omitempty"`
+	// Force helm rollback with --force option will be used if true. This will try to recreate all resources in the release.
+	Force bool `json:"force,omitempty"`
+	// KeepFailHistory keeps track of failed rollbacks in the helm history.
+	KeepFailHistory bool `json:"keepFailHistory,omitempty"`
 }

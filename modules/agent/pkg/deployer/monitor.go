@@ -7,6 +7,7 @@ import (
 
 	jsonpatch "github.com/evanphx/json-patch"
 
+	"github.com/pkg/errors"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/diff"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/diffnormalize"
 	"github.com/rancher/fleet/modules/agent/pkg/deployer/internal/resource"
@@ -178,6 +179,20 @@ func (m *Manager) MonitorBundle(bd *fleet.BundleDeployment) (DeploymentStatus, e
 	}
 	if len(status.ModifiedStatus) == 0 {
 		status.NonModified = true
+	} else if bd.Spec.CorrectDrift.Enabled {
+		err = m.deployer.RemoveExternalChanges(bd)
+		if err != nil {
+			// Update BundleDeployment status as wrangler doesn't update the status if error is not nil.
+			bd.Status.NonReadyStatus = status.NonReadyStatus
+			bd.Status.ModifiedStatus = status.ModifiedStatus
+			bd.Status.Ready = status.Ready
+			bd.Status.NonModified = status.NonModified
+			_, errStatus := m.bundleDeploymentController.UpdateStatus(bd)
+			if errStatus != nil {
+				return status, errors.Wrap(err, "error updating status when reconciling drift: "+errStatus.Error())
+			}
+			return status, errors.Wrapf(err, "error reconciling drift")
+		}
 	}
 
 	return status, nil

@@ -5,7 +5,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/bundledeployment"
 	"github.com/rancher/fleet/modules/agent/pkg/controllers/cluster"
@@ -108,6 +111,7 @@ func Register(ctx context.Context,
 			labelPrefix,
 			agentScope,
 			appCtx.Fleet.BundleDeployment().Cache(),
+			appCtx.Fleet.BundleDeployment(),
 			manifest.NewLookup(appCtx.Fleet.Content()),
 			helmDeployer,
 			appCtx.Apply),
@@ -137,10 +141,17 @@ func newSharedControllerFactory(config *rest.Config, mapper meta.RESTMapper, nam
 	if err != nil {
 		return nil, err
 	}
-	return controller.NewSharedControllerFactory(cache2.NewSharedCachedFactory(cf, &cache2.SharedCacheFactoryOptions{
+
+	cacheFactory := cache2.NewSharedCachedFactory(cf, &cache2.SharedCacheFactoryOptions{
 		DefaultNamespace: namespace,
 		DefaultResync:    durations.DefaultResyncAgent,
-	}), nil), nil
+	})
+	slowRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(durations.SlowFailureRateLimiterBase, durations.SlowFailureRateLimiterMax)
+	return controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{
+		KindRateLimiter: map[schema.GroupVersionKind]workqueue.RateLimiter{
+			v1alpha1.SchemeGroupVersion.WithKind("BundleDeployment"): slowRateLimiter,
+		},
+	}), nil
 }
 
 func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName string,

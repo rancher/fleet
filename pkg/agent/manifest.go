@@ -175,6 +175,7 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions, 
 							},
 						},
 					},
+					NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
 					Affinity: &corev1.Affinity{
 						NodeAffinity: &corev1.NodeAffinity{
 							PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{

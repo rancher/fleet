@@ -9,10 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
 )
-
-var buf *gbytes.Buffer
 
 func TestFleet(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -20,9 +17,7 @@ func TestFleet(t *testing.T) {
 }
 
 // simulates fleet cli execution
-func fleetApply(name string, dirs []string, options *apply.Options) error {
-	buf = gbytes.NewBuffer()
-	options.Output = buf
+func fleetApply(name string, dirs []string, options apply.Options) error {
 
 	return apply.Apply(context.Background(), client.NewGetter("", "", "fleet-local"), name, dirs, options)
 }

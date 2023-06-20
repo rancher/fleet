@@ -24,11 +24,14 @@ You can set these manually or put them in an `.envrc`:
     #export GOARCH=arm64
 
     # needed for gitrepo tests
+    #export FORCE_GIT_SERVER_BUILD="yes" # set to an empty value to skip rebuilds
     #export GIT_REPO_USER="git"
     #export GIT_REPO_URL="git@github.com:yourprivate/repo.git"
     #export GIT_REPO_HOST="github.com"
     #export GIT_SSH_KEY="$HOME/.ssh/id_ecdsa_test"
     #export GIT_SSH_PUBKEY="$HOME/.ssh/id_ecdsa_test.pub"
+    #export GIT_HTTP_USER="fleet-ci"
+    #export GIT_HTTP_PASSWORD="foo"
 
 ## Running Tests on K3D
 

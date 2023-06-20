@@ -32,19 +32,23 @@ var (
 )
 
 type Options struct {
-	BundleFile       string
-	TargetsFile      string
-	Compress         bool
-	BundleReader     io.Reader
-	Output           io.Writer
-	ServiceAccount   string
-	TargetNamespace  string
-	Paused           bool
-	Labels           map[string]string
-	SyncGeneration   int64
-	Auth             bundlereader.Auth
-	HelmRepoURLRegex string
-	KeepResources    bool
+	BundleFile                  string
+	TargetsFile                 string
+	Compress                    bool
+	BundleReader                io.Reader
+	Output                      io.Writer
+	ServiceAccount              string
+	TargetNamespace             string
+	Paused                      bool
+	Labels                      map[string]string
+	SyncGeneration              int64
+	Auth                        bundlereader.Auth
+	HelmRepoURLRegex            string
+	KeepResources               bool
+	AuthByPath                  map[string]bundlereader.Auth
+	CorrectDrift                bool
+	CorrectDriftForce           bool
+	CorrectDriftKeepFailHistory bool
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -66,11 +70,7 @@ func globDirs(baseDir string) (result []string, err error) {
 // Apply creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs []string, opts *Options) error {
-	if opts == nil {
-		opts = &Options{}
-	}
-
+func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
@@ -89,6 +89,7 @@ func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs
 				}
 			}
 			err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+				opts := opts
 				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, info)
 				if e != nil {
 					return e
@@ -96,7 +97,10 @@ func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs
 				if !createBundle {
 					return nil
 				}
-				if err := Dir(ctx, client, repoName, path, opts, gitRepoBundlesMap); err == ErrNoResources {
+				if auth, ok := opts.AuthByPath[path]; ok {
+					opts.Auth = auth
+				}
+				if err := Dir(ctx, client, repoName, path, &opts, gitRepoBundlesMap); err == ErrNoResources {
 					logrus.Warnf("%s: %v", path, err)
 					return nil
 				} else if err != nil {
@@ -172,6 +176,11 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 		Auth:             opts.Auth,
 		HelmRepoURLRegex: opts.HelmRepoURLRegex,
 		KeepResources:    opts.KeepResources,
+		CorrectDrift: fleet.CorrectDrift{
+			Enabled:         opts.CorrectDrift,
+			Force:           opts.CorrectDriftForce,
+			KeepFailHistory: opts.CorrectDriftKeepFailHistory,
+		},
 	})
 }
 

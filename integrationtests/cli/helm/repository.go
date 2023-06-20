@@ -25,9 +25,24 @@ func (r *repository) startRepository(authEnabled bool) {
 	r.server = &http.Server{Addr: r.port, ReadHeaderTimeout: 1 * time.Second}
 	r.server.Handler = getHandler(authEnabled)
 	go func() {
-		err := r.server.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			panic("error creating helm repository: " + err.Error())
+		const maxAttempts = 10
+		currentAttempt := 0
+		for {
+			err := r.server.ListenAndServe()
+			// It is possible that the previous repository is still closing as it takes a few extra milliseconds to fully close
+			// retry after 100 milliseconds if "address already in use" error is returned
+			if err != nil && strings.Contains(err.Error(), "address already in use") {
+				if currentAttempt == maxAttempts {
+					panic("Max number of attempts reached: error creating helm repository: " + err.Error())
+				}
+				currentAttempt++
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			if err != nil && err != http.ErrServerClosed {
+				panic("error creating helm repository: " + err.Error())
+			}
+			break
 		}
 	}()
 }

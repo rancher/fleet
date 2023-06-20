@@ -9,8 +9,8 @@
 
 ![](./docs/arch.png)
 
-Fleet is GitOps at scale. Fleet is designed to manage up to a million clusters. It's also lightweight
-enough that it works great for a [single cluster](https://fleet.rancher.io/single-cluster-install/) too, but it really shines
+Fleet is GitOps at scale. Fleet is designed to manage multiple clusters. It's also lightweight
+enough that it works great for a single cluster too, but it really shines
 when you get to a large scale. By large scale we mean either a lot of clusters, a lot of deployments, or a lot of
 teams in a single organization.
 
@@ -35,9 +35,9 @@ Install the Fleet Helm charts (there's two because we separate out CRDs for ulti
 
 ```shell
 helm -n cattle-fleet-system install --create-namespace --wait \
-    fleet-crd https://github.com/rancher/fleet/releases/download/v0.6.0/fleet-crd-0.6.0.tgz
+    fleet-crd https://github.com/rancher/fleet/releases/download/v0.7.0/fleet-crd-0.7.0.tgz
 helm -n cattle-fleet-system install --create-namespace --wait \
-    fleet https://github.com/rancher/fleet/releases/download/v0.6.0/fleet-0.6.0.tgz
+    fleet https://github.com/rancher/fleet/releases/download/v0.7.0/fleet-0.7.0.tgz
 ```
 
 ## Add a Git Repo to watch
@@ -86,5 +86,5 @@ Enjoy and read the [docs](https://fleet.rancher.io/).
 ## License
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Francher%2Ffleet.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Francher%2Ffleet?ref=badge_large)
 
-For developer and maintainer documentation, see [DEVELOPING.md](./DEVELOPING.md).=======
+For developer and maintainer documentation, see [DEVELOPING.md](./DEVELOPING.md).
 

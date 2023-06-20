@@ -124,6 +124,7 @@ type BundleTarget struct {
 	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
 	ClusterGroup         string                `json:"clusterGroup,omitempty"`
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
+	DoNotDeploy          bool                  `json:"doNotDeploy,omitempty"`
 }
 
 type BundleSummary struct {
@@ -236,6 +237,9 @@ type BundleDeploymentOptions struct {
 
 	//IgnoreOptions can be used to ignore fields when monitoring the bundle.
 	IgnoreOptions `json:"ignore,omitempty"`
+
+	// CorrectDrift specifies how drift correction should work.
+	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
 }
 
 type DiffOptions struct {
@@ -351,11 +355,13 @@ type LocalObjectReference struct {
 }
 
 type BundleDeploymentSpec struct {
+	Paused             bool                    `json:"paused,omitempty"`
 	StagedOptions      BundleDeploymentOptions `json:"stagedOptions,omitempty"`
 	StagedDeploymentID string                  `json:"stagedDeploymentID,omitempty"`
 	Options            BundleDeploymentOptions `json:"options,omitempty"`
 	DeploymentID       string                  `json:"deploymentID,omitempty"`
 	DependsOn          []BundleRef             `json:"dependsOn,omitempty"`
+	CorrectDrift       CorrectDrift            `json:"correctDrift,omitempty"`
 }
 
 type BundleDeploymentStatus struct {

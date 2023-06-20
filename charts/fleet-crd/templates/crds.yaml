@@ -24,6 +24,15 @@ spec:
         properties:
           spec:
             properties:
+              correctDrift:
+                properties:
+                  enabled:
+                    type: boolean
+                  force:
+                    type: boolean
+                  keepFailHistory:
+                    type: boolean
+                type: object
               defaultNamespace:
                 nullable: true
                 type: string
@@ -450,6 +459,15 @@ spec:
                           nullable: true
                           type: object
                       type: object
+                    correctDrift:
+                      properties:
+                        enabled:
+                          type: boolean
+                        force:
+                          type: boolean
+                        keepFailHistory:
+                          type: boolean
+                      type: object
                     defaultNamespace:
                       nullable: true
                       type: string
@@ -496,6 +514,8 @@ spec:
                           nullable: true
                           type: array
                       type: object
+                    doNotDeploy:
+                      type: boolean
                     forceSyncGeneration:
                       type: integer
                     helm:
@@ -935,6 +955,15 @@ spec:
         properties:
           spec:
             properties:
+              correctDrift:
+                properties:
+                  enabled:
+                    type: boolean
+                  force:
+                    type: boolean
+                  keepFailHistory:
+                    type: boolean
+                type: object
               dependsOn:
                 items:
                   properties:
@@ -977,6 +1006,15 @@ spec:
                 type: string
               options:
                 properties:
+                  correctDrift:
+                    properties:
+                      enabled:
+                        type: boolean
+                      force:
+                        type: boolean
+                      keepFailHistory:
+                        type: boolean
+                    type: object
                   defaultNamespace:
                     nullable: true
                     type: string
@@ -1137,11 +1175,22 @@ spec:
                         type: array
                     type: object
                 type: object
+              paused:
+                type: boolean
               stagedDeploymentID:
                 nullable: true
                 type: string
               stagedOptions:
                 properties:
+                  correctDrift:
+                    properties:
+                      enabled:
+                        type: boolean
+                      force:
+                        type: boolean
+                      keepFailHistory:
+                        type: boolean
+                    type: object
                   defaultNamespace:
                     nullable: true
                     type: string
@@ -2400,6 +2449,8 @@ spec:
               agentAffinityHash:
                 nullable: true
                 type: string
+              agentConfigChanged:
+                type: boolean
               agentDeployedGeneration:
                 nullable: true
                 type: integer
@@ -2683,12 +2734,24 @@ spec:
               clientSecretName:
                 nullable: true
                 type: string
+              correctDrift:
+                properties:
+                  enabled:
+                    type: boolean
+                  force:
+                    type: boolean
+                  keepFailHistory:
+                    type: boolean
+                type: object
               forceSyncGeneration:
                 type: integer
               helmRepoURLRegex:
                 nullable: true
                 type: string
               helmSecretName:
+                nullable: true
+                type: string
+              helmSecretNameForPaths:
                 nullable: true
                 type: string
               imageScanCommit:

@@ -4,7 +4,7 @@ metadata:
   name: gitrepo-test
 spec:
   repo: {{.Repo}}
-  clientSecretName: git-auth
   branch: {{.Branch}}
+  pollingInterval: {{.PollingInterval}}
   paths:
   - examples

@@ -18,6 +18,7 @@ import (
 
 	name1 "github.com/rancher/wrangler/pkg/name"
 
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
@@ -33,6 +34,7 @@ type Options struct {
 	Auth             Auth
 	HelmRepoURLRegex string
 	KeepResources    bool
+	CorrectDrift     fleet.CorrectDrift
 }
 
 // Open reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
@@ -134,6 +136,7 @@ type fleetYAML struct {
 	fleet.BundleSpec
 	TargetCustomizations []fleet.BundleTarget `json:"targetCustomizations,omitempty"`
 	ImageScans           []imageScan          `json:"imageScans,omitempty"`
+	OverrideTargets      []fleet.GitTarget    `json:"overrideTargets,omitempty"`
 }
 
 type imageScan struct {
@@ -227,9 +230,25 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	bundle.Spec.ForceSyncGeneration = opts.SyncGeneration
 
-	bundle, err = appendTargets(bundle, opts.TargetsFile)
-	if err != nil {
-		return nil, nil, err
+	// Targets defined in the GitRepo are stored in the targets file, which will be used if OverrideTargets is not provided.
+	// Use targets from OverrideTargets if found in the fleet.yaml.
+	if fy.OverrideTargets != nil {
+		logrus.Debugf("Overriding targets for Bundle '%s' ", bundle.Name)
+		for _, target := range fy.OverrideTargets {
+			bundle.Spec.Targets = append(bundle.Spec.Targets, fleet.BundleTarget{
+				Name:                 target.Name,
+				ClusterName:          target.ClusterName,
+				ClusterSelector:      target.ClusterSelector,
+				ClusterGroup:         target.ClusterGroup,
+				ClusterGroupSelector: target.ClusterGroupSelector,
+			})
+			bundle.Spec.TargetRestrictions = append(bundle.Spec.TargetRestrictions, fleet.BundleTargetRestriction(target))
+		}
+	} else {
+		bundle, err = appendTargets(bundle, opts.TargetsFile)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if len(bundle.Spec.Targets) == 0 {
@@ -254,6 +273,10 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	if opts.KeepResources {
 		bundle.Spec.KeepResources = opts.KeepResources
+	}
+
+	if opts.CorrectDrift.Enabled {
+		bundle.Spec.CorrectDrift = opts.CorrectDrift
 	}
 
 	return bundle, scans, nil

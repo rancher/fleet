@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -96,6 +97,11 @@ func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 }
 
 func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
+	if bd.Spec.Paused {
+		// nothing to do
+		return status, nil
+	}
+
 	if err := h.checkDependency(bd); err != nil {
 		return status, err
 	}
@@ -138,15 +144,19 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 	msg := err.Error()
 
 	// The following error conditions are turned into a status
-	// * when a Helm wait occurs and it times out
-	// * manifests fail to pass validation
-	// * atomic is set and a rollback occurs
 	// Note: these error strings are returned by the Helm SDK and its dependencies
-	if strings.Contains(msg, "timed out waiting for the condition") ||
-		strings.Contains(msg, "error validating data") ||
-		strings.Contains(msg, "chart requires kubeVersion") ||
-		strings.Contains(msg, "failed, and has been rolled back due to atomic being set") {
-
+	re := regexp.MustCompile(
+		"(timed out waiting for the condition)|" + // a Helm wait occurs and it times out
+			"(error validating data)|" + // manifests fail to pass validation
+			"(chart requires kubeVersion)|" + // kubeVersion mismatch
+			"(annotation validation error)|" + // annotations fail to pass validation
+			"(failed, and has been rolled back due to atomic being set)|" + // atomic is set and a rollback occurs
+			"(YAML parse error)|" + // YAML is broken in source files
+			"(Forbidden: updates to [0-9A-Za-z]+ spec for fields other than [0-9A-Za-z ']+ are forbidden)|" + // trying to update fields that cannot be updated
+			"(Forbidden: spec is immutable after creation)|" + // trying to modify immutable spec
+			"(chart requires kubeVersion: [0-9A-Za-z\\.\\-<>=]+ which is incompatible with Kubernetes)", // trying to deploy to incompatible Kubernetes
+	)
+	if re.MatchString(msg) {
 		status.Ready = false
 		status.NonModified = true
 
@@ -182,7 +192,7 @@ func deployErrToStatus(err error, status fleet.BundleDeploymentStatus) (bool, fl
 
 func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
 	var depBundleList []string
-	bundleNamespace := bd.Labels["fleet.cattle.io/bundle-namespace"]
+	bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
 	for _, depend := range bd.Spec.DependsOn {
 		// skip empty BundleRef definitions. Possible if there is a typo in the yaml
 		if depend.Name != "" || depend.Selector != nil {
@@ -192,8 +202,8 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
 			}
 
 			if depend.Name != "" {
-				ls = metav1.AddLabelToSelector(ls, "fleet.cattle.io/bundle-name", depend.Name)
-				ls = metav1.AddLabelToSelector(ls, "fleet.cattle.io/bundle-namespace", bundleNamespace)
+				ls = metav1.AddLabelToSelector(ls, fleet.BundleLabel, depend.Name)
+				ls = metav1.AddLabelToSelector(ls, fleet.BundleNamespaceLabel, bundleNamespace)
 			}
 
 			selector, err := metav1.LabelSelectorAsSelector(ls)
@@ -228,7 +238,7 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
 }
 
 func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
-	if bd == nil {
+	if bd == nil || bd.Spec.Paused {
 		return bd, h.trigger.Clear(key)
 	}
 
@@ -243,7 +253,7 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 		logrus.Debugf("Adding OnChange for bundledeployment's '%s' resource list", key)
 		return bd, h.trigger.OnChange(key, resources.DefaultNamespace, func() {
 			// enqueue bundledeployment if any resource changes
-			h.bdController.Enqueue(bd.Namespace, bd.Name)
+			h.bdController.EnqueueAfter(bd.Namespace, bd.Name, 0)
 		}, resources.Objects...)
 	}
 
@@ -306,6 +316,11 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 	// If the bundle failed to install the status should not be updated. Updating
 	// here would remove the condition message that was previously set on it.
 	if condition.Cond(fleet.BundleDeploymentConditionInstalled).IsFalse(bd) {
+		return status, nil
+	}
+
+	// Same considerations in case the bundle is paused
+	if bd.Spec.Paused {
 		return status, nil
 	}
 

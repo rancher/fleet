@@ -3,20 +3,34 @@ package apply
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 	"github.com/rancher/fleet/integrationtests/cli"
 	"github.com/rancher/fleet/modules/cli/apply"
 )
 
 var _ = Describe("Fleet apply", Ordered, func() {
-	When("simple resources", func() {
-		It("fleet apply is called", func() {
-			err := fleetApply("simple", []string{cli.AssetsPath + "simple"}, &apply.Options{})
-			Expect(err).NotTo(HaveOccurred())
+
+	var (
+		dirs    []string
+		name    string
+		options apply.Options
+	)
+
+	JustBeforeEach(func() {
+		err := fleetApply(name, dirs, options)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	When("folder contains simple resources", func() {
+		BeforeEach(func() {
+			name = "simple"
+			options = apply.Options{Output: gbytes.NewBuffer()}
+			dirs = []string{cli.AssetsPath + "simple"}
 		})
 
 		It("then a Bundle is created with all the resources and keepResources is false", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleFromOutput(buf)
+				bundle, err := cli.GetBundleFromOutput(options.Output)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle.Spec.Resources)).To(Equal(2))
 				isSvcPresent, err := cli.IsResourcePresentInBundle(cli.AssetsPath+"simple/svc.yaml", bundle.Spec.Resources)
@@ -29,14 +43,15 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 	})
 	When("simple resources in a nested folder", func() {
-		It("fleet apply is called", func() {
-			err := fleetApply("nested_simple", []string{cli.AssetsPath + "nested_simple"}, &apply.Options{})
-			Expect(err).NotTo(HaveOccurred())
+		BeforeEach(func() {
+			name = "nested_simple"
+			options = apply.Options{Output: gbytes.NewBuffer()}
+			dirs = []string{cli.AssetsPath + "nested_simple"}
 		})
 
 		It("then a Bundle is created with all the resources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleFromOutput(buf)
+				bundle, err := cli.GetBundleFromOutput(options.Output)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle.Spec.Resources)).To(Equal(3))
 				isSvcPresent, err := cli.IsResourcePresentInBundle(cli.AssetsPath+"nested_simple/simple/svc.yaml", bundle.Spec.Resources)
@@ -51,14 +66,15 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 	})
 	When("simple resources in a nested folder with two levels", func() {
-		It("fleet apply is called", func() {
-			err := fleetApply("nested_two_levels", []string{cli.AssetsPath + "nested_two_levels"}, &apply.Options{})
-			Expect(err).NotTo(HaveOccurred())
+		BeforeEach(func() {
+			name = "nested_two_levels"
+			options = apply.Options{Output: gbytes.NewBuffer()}
+			dirs = []string{cli.AssetsPath + "nested_two_levels"}
 		})
 
 		It("then a Bundle is created with all the resources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleFromOutput(buf)
+				bundle, err := cli.GetBundleFromOutput(options.Output)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle.Spec.Resources)).To(Equal(2))
 				isSvcPresent, err := cli.IsResourcePresentInBundle(cli.AssetsPath+"nested_two_levels/nested/svc/svc.yaml", bundle.Spec.Resources)
@@ -71,14 +87,15 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 	})
 	When("multiple fleet.yaml in a nested folder", func() {
-		It("fleet apply is called", func() {
-			err := fleetApply("nested_multiple", []string{cli.AssetsPath + "nested_multiple"}, &apply.Options{})
-			Expect(err).NotTo(HaveOccurred())
+		BeforeEach(func() {
+			name = "nested_multiple"
+			options = apply.Options{Output: gbytes.NewBuffer()}
+			dirs = []string{cli.AssetsPath + "nested_multiple"}
 		})
 
 		It("then 3 Bundles are created with the relevant resources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleListFromOutput(buf)
+				bundle, err := cli.GetBundleListFromOutput(options.Output)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle)).To(Equal(3))
 				deploymentA := bundle[0]
@@ -107,14 +124,15 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 	})
 	When("multiple fleet.yaml mixed with simple resources in a nested folder", func() {
-		It("fleet apply is called", func() {
-			err := fleetApply("nested_mixed_two_levels", []string{cli.AssetsPath + "nested_mixed_two_levels"}, &apply.Options{})
-			Expect(err).NotTo(HaveOccurred())
+		BeforeEach(func() {
+			name = "nested_mixed_two_levels"
+			options = apply.Options{Output: gbytes.NewBuffer()}
+			dirs = []string{cli.AssetsPath + "nested_mixed_two_levels"}
 		})
 
 		It("then Bundles are created with all the resources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleListFromOutput(buf)
+				bundle, err := cli.GetBundleListFromOutput(options.Output)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle)).To(Equal(3))
 				root := bundle[0]
@@ -147,14 +165,15 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 	})
 	When("containing keepResources in the fleet.yaml", func() {
-		It("fleet apply is called", func() {
-			err := fleetApply("keepResources", []string{cli.AssetsPath + "keep_resources"}, &apply.Options{})
-			Expect(err).NotTo(HaveOccurred())
+		BeforeEach(func() {
+			name = "keep_resources"
+			options = apply.Options{Output: gbytes.NewBuffer()}
+			dirs = []string{cli.AssetsPath + "keep_resources"}
 		})
 
 		It("then a Bundle is created with keepResources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleFromOutput(buf)
+				bundle, err := cli.GetBundleFromOutput(options.Output)
 				Expect(err).NotTo(HaveOccurred())
 				return bundle.Spec.KeepResources
 			}).Should(BeTrue())

@@ -66,7 +66,13 @@ var _ = Describe("Bundle labels", func() {
 
 			By("BundleDeployment has the foo label from Bundle")
 			Eventually(func() bool {
-				return expectedLabelValue(bundleDeploymentController, bdLabels, "foo", "bar")
+				bd, ok := expectedLabelValue(bundleDeploymentController, bdLabels, "foo", "bar")
+				if !ok {
+					return false
+				}
+				Expect(bd.Labels).To(HaveKeyWithValue("fleet.cattle.io/cluster", "cluster"))
+				Expect(bd.Labels).To(HaveKeyWithValue("fleet.cattle.io/cluster-namespace", env.namespace))
+				return true
 			}).Should(BeTrue())
 
 			By("Modifying foo label in Bundle")
@@ -77,18 +83,19 @@ var _ = Describe("Bundle labels", func() {
 
 			By("Should modify foo label in BundleDeployment")
 			Eventually(func() bool {
-				return expectedLabelValue(bundleDeploymentController, bdLabels, "foo", "modified")
+				_, ok := expectedLabelValue(bundleDeploymentController, bdLabels, "foo", "modified")
+				return ok
 			}).Should(BeTrue())
 
 		})
 	})
 })
 
-func expectedLabelValue(controller v1gen.BundleDeploymentController, bdLabels map[string]string, key, value string) bool {
+func expectedLabelValue(controller v1gen.BundleDeploymentController, bdLabels map[string]string, key, value string) (*v1alpha1.BundleDeployment, bool) {
 	list, err := controller.List("", metav1.ListOptions{LabelSelector: labels.SelectorFromSet(bdLabels).String()})
 	Expect(err).NotTo(HaveOccurred())
 	if len(list.Items) == 1 {
-		return list.Items[0].Labels[key] == value
+		return &list.Items[0], list.Items[0].Labels[key] == value
 	}
-	return false
+	return nil, false
 }

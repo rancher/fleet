@@ -320,7 +320,11 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 		return nil, status, nil
 	}
 
-	if gitrepo.Spec.HelmSecretName != "" {
+	if gitrepo.Spec.HelmSecretNameForPaths != "" {
+		if _, err := h.secrets.Get(gitrepo.Namespace, gitrepo.Spec.HelmSecretNameForPaths); err != nil {
+			return nil, status, fmt.Errorf("failed to look up HelmSecretNameForPaths, error: %v", err)
+		}
+	} else if gitrepo.Spec.HelmSecretName != "" {
 		if _, err := h.secrets.Get(gitrepo.Namespace, gitrepo.Spec.HelmSecretName); err != nil {
 			return nil, status, fmt.Errorf("failed to look up helmSecretName, error: %v", err)
 		}
@@ -519,8 +523,8 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	}
 
 	bundleDeployments, err := h.bundleDeployments.List("", labels.SelectorFromSet(labels.Set{
-		fleet.RepoLabel:                    gitrepo.Name,
-		"fleet.cattle.io/bundle-namespace": gitrepo.Namespace,
+		fleet.RepoLabel:            gitrepo.Name,
+		fleet.BundleNamespaceLabel: gitrepo.Namespace,
 	}))
 	if err != nil {
 		return status, err
@@ -611,7 +615,20 @@ func volumes(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volu
 		},
 	}
 
-	if gitrepo.Spec.HelmSecretName != "" {
+	if gitrepo.Spec.HelmSecretNameForPaths != "" {
+		volumes = append(volumes, corev1.Volume{
+			Name: "helm-secret-by-path",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: gitrepo.Spec.HelmSecretNameForPaths,
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "helm-secret-by-path",
+			MountPath: "/etc/fleet/helm",
+		})
+	} else if gitrepo.Spec.HelmSecretName != "" {
 		volumes = append(volumes, corev1.Volume{
 			Name: "helm-secret",
 			VolumeSource: corev1.VolumeSource{
@@ -656,8 +673,32 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 		args = append(args, "--keep-resources")
 	}
 
+	if gitrepo.Spec.CorrectDrift.Enabled {
+		args = append(args, "--correct-drift")
+		if gitrepo.Spec.CorrectDrift.Force {
+			args = append(args, "--correct-drift-force")
+		}
+		if gitrepo.Spec.CorrectDrift.KeepFailHistory {
+			args = append(args, "--correct-drift-keep-fail-history")
+		}
+	}
+
 	var env []corev1.EnvVar
-	if gitrepo.Spec.HelmSecretName != "" {
+	if gitrepo.Spec.HelmSecretNameForPaths != "" {
+		helmArgs := []string{
+			"--helm-credentials-by-path-file",
+			"/etc/fleet/helm/secrets-path.yaml",
+		}
+
+		args = append(args, helmArgs...)
+		env = append(env,
+			// for ssh go-getter, make sure we always accept new host key
+			corev1.EnvVar{
+				Name:  "GIT_SSH_COMMAND",
+				Value: "ssh -o stricthostkeychecking=accept-new",
+			},
+		)
+	} else if gitrepo.Spec.HelmSecretName != "" {
 		helmArgs := []string{
 			"--password-file",
 			"/etc/fleet/helm/password",

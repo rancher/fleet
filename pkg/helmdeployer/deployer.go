@@ -2,12 +2,14 @@ package helmdeployer
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/rancher/fleet/pkg/config"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -15,6 +17,7 @@ import (
 	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	"k8s.io/client-go/tools/cache"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/kustomize"
@@ -73,6 +76,12 @@ type Helm struct {
 	defaultNamespace string
 	labelPrefix      string
 	labelSuffix      string
+	releaseCache     cache.Store
+}
+
+func releaseKeyfunc(obj interface{}) (string, error) {
+	r := obj.(*release.Release)
+	return fmt.Sprintf("%s/%s-%d", r.Namespace, r.Name, r.Version), nil
 }
 
 type Resources struct {
@@ -99,6 +108,7 @@ func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, gette
 		serviceAccountCache: serviceAccountCache,
 		configmapCache:      configmapCache,
 		secretCache:         secretCache,
+		releaseCache:        cache.NewTTLStore(releaseKeyfunc, durations.ReleaseCacheTTL),
 		labelPrefix:         labelPrefix,
 		labelSuffix:         labelSuffix,
 	}
@@ -226,6 +236,34 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 	}
 
 	return releaseToResources(release)
+}
+
+// RemoveExternalChanges does a helm rollback to remove changes made outside of fleet.
+// It removes the helm history entry if the rollback fails.
+func (h *Helm) RemoveExternalChanges(bd *fleet.BundleDeployment) error {
+	logrus.Infof("Drift correction: rollback BundleDeployment %s", bd.Name)
+
+	_, defaultNamespace, releaseName := h.getOpts(bd.Name, bd.Spec.Options)
+	cfg, err := h.getCfg(defaultNamespace, bd.Spec.Options.ServiceAccount)
+	if err != nil {
+		return err
+	}
+	currentRelease, err := cfg.Releases.Last(releaseName)
+	if err != nil {
+		return err
+	}
+
+	r := action.NewRollback(&cfg)
+	r.Version = currentRelease.Version
+	if bd.Spec.CorrectDrift.Force {
+		r.Force = true
+	}
+	err = r.Run(releaseName)
+	if err != nil && !bd.Spec.CorrectDrift.KeepFailHistory {
+		return removeFailedRollback(cfg, currentRelease, err)
+	}
+
+	return err
 }
 
 func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (bool, error) {
@@ -544,23 +582,63 @@ func getReleaseNameVersionAndNamespace(bundleID, resourcesID string) (string, in
 }
 
 func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.Release, error) {
+	key := &release.Release{
+		Namespace: namespace,
+		Name:      releaseName,
+		Version:   version,
+	}
 
-	hist := action.NewHistory(&h.globalCfg)
-
-	releases, err := hist.Run(releaseName)
-	if err == driver.ErrReleaseNotFound {
-		return nil, ErrNoRelease
-	} else if err != nil {
+	object, found, err := h.releaseCache.Get(key)
+	if err != nil {
 		return nil, err
 	}
-
-	for _, release := range releases {
-		if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
-			return release, nil
+	if !found {
+		// cache MISS, query Helm's storage
+		hist := action.NewHistory(&h.globalCfg)
+		releases, err := hist.Run(releaseName)
+		if err == driver.ErrReleaseNotFound {
+			return nil, ErrNoRelease
+		} else if err != nil {
+			return nil, err
 		}
+
+		// opportunistically cache all releases in the storage with that name
+		for _, release := range releases {
+			err := h.releaseCache.Add(release)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// return the right one if found
+		for _, release := range releases {
+			if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
+				return release, nil
+			}
+		}
+
+		// desired release was not found in Helm's storage. Put a "dummy" in the cache to remember it was not found
+		err = h.releaseCache.Add(&release.Release{
+			Namespace: namespace,
+			Name:      releaseName,
+			Version:   version,
+			Manifest:  "release not found",
+		})
+		if err != nil {
+			return nil, err
+		}
+		return nil, ErrNoRelease
 	}
 
-	return nil, ErrNoRelease
+	// cache HIT
+	rel := object.(*release.Release)
+	if rel.Manifest == "release not found" {
+		// but it was actually a "dummy". Return not found
+		return nil, ErrNoRelease
+	}
+
+	// happy case
+	return rel, nil
 }
 
 func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
@@ -832,12 +910,33 @@ func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
 	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
 	if strings.HasPrefix(bundleID, "fleet-agent") {
 		if labelSuffix == "" {
-			return "fleet-agent-bootstrap"
+			return config.AgentBootstrapConfigName
 		}
-		return name.SafeConcatName("fleet-agent-bootstrap", labelSuffix)
+		return name.SafeConcatName(config.AgentBootstrapConfigName, labelSuffix)
 	}
 	if labelSuffix != "" {
 		return name.SafeConcatName(labelPrefix, bundleID, labelSuffix)
 	}
 	return name.SafeConcatName(labelPrefix, bundleID)
+}
+
+func removeFailedRollback(cfg action.Configuration, currentRelease *release.Release, err error) error {
+	failedRelease, errRel := cfg.Releases.Last(currentRelease.Name)
+	if errRel != nil {
+		return errors.Wrap(err, errRel.Error())
+	}
+	if failedRelease.Version == currentRelease.Version+1 &&
+		failedRelease.Info.Status == release.StatusFailed &&
+		strings.HasPrefix(failedRelease.Info.Description, "Rollback") {
+		_, errDel := cfg.Releases.Delete(failedRelease.Name, failedRelease.Version)
+		if errDel != nil {
+			return errors.Wrap(err, errDel.Error())
+		}
+		errUpdate := cfg.Releases.Update(currentRelease)
+		if errUpdate != nil {
+			return errors.Wrap(err, errUpdate.Error())
+		}
+	}
+
+	return err
 }

@@ -23,7 +23,7 @@ steps:
     FOSSA_API_KEY:
       from_secret: FOSSA_API_KEY
   commands:
-    - zypper -n install curl unzip
+    - zypper -n install curl unzip tar
     - "curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | bash"
     - fossa analyze
     - fossa test

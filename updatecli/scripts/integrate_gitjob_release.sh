@@ -33,4 +33,7 @@ tar -xf "/tmp/gitjob-${VERSION}.tgz" -C ./charts/fleet/charts/
 # move gitjob crd to fleet-crd chart
 mv ./charts/fleet/charts/gitjob/templates/crds.yaml ./charts/fleet-crd/templates/gitjobs-crds.yaml
 
+# update gitjob version reference in Fleet chart
+sed -z -i "s/  name: gitjob\n  version: [0-9a-z.-]*/  name: gitjob\n  version: ${VERSION}/" ./charts/fleet/Chart.yaml
+
 rm "/tmp/gitjob-${VERSION}.tgz"

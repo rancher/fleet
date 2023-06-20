@@ -4,11 +4,7 @@ package agent
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/rancher/fleet/modules/cli/pkg/client"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -23,11 +19,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-)
-
-var (
-	ErrNoHostInConfig = errors.New("failed to find cluster server parameter")
 )
 
 type Options struct {
@@ -38,29 +29,35 @@ type Options struct {
 	NoCA bool // unused
 }
 
-// AgentWithConfig writes the agent manifest to the given writer. It
-// includes an updated agent token secret from the cluster. It finds or creates
-// the agent config inside a configmap.
+// AgentWithConfig returns the agent manifest. It includes an updated agent
+// token secret from the cluster. It finds or creates the agent config inside a
+// configmap.
 //
 // This is used when importing a cluster.
-func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, agentScope string, cg *client.Getter, output io.Writer, tokenName string, opts *Options) error {
+func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, agentScope string, cg *client.Getter, tokenName string, opts *Options) ([]runtime.Object, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
 
-	client, err := cg.Get()
-	if err != nil {
-		return err
+	objs := []runtime.Object{
+		&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: agentNamespace}},
 	}
 
-	objs, err := agentToken(ctx, agentNamespace, controllerNamespace, client, tokenName, opts)
+	client, err := cg.Get()
 	if err != nil {
-		return err
+		return objs, err
 	}
+
+	secret, err := agentBootstrapSecret(ctx, agentNamespace, controllerNamespace, client, tokenName, opts)
+	if err != nil {
+		return objs, err
+	}
+
+	objs = append(objs, secret)
 
 	agentConfig, err := agentConfig(ctx, agentNamespace, controllerNamespace, cg, &opts.ConfigOptions)
 	if err != nil {
-		return err
+		return objs, err
 	}
 
 	objs = append(objs, agentConfig...)
@@ -68,7 +65,7 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 	// get a fresh config from the API
 	cfg, err := config.Lookup(ctx, controllerNamespace, config.ManagerConfigName, client.Core.ConfigMap())
 	if err != nil {
-		return err
+		return objs, err
 	}
 
 	mo := opts.ManifestOptions
@@ -79,42 +76,29 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 
 	objs = append(objs, Manifest(agentNamespace, agentScope, mo)...)
 
-	data, err := yaml.Export(objs...)
-	if err != nil {
-		return err
-	}
-
-	_, err = output.Write(data)
-	return err
+	return objs, err
 }
 
-func agentToken(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) ([]runtime.Object, error) {
-	token, err := getToken(ctx, controllerNamespace, tokenName, client)
+// agentBootstrapSecret creates the fleet-agent-bootstrap secret
+func agentBootstrapSecret(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) (*v1.Secret, error) {
+	data, err := getToken(ctx, controllerNamespace, tokenName, client)
 	if err != nil {
 		return nil, err
 	}
 
 	if opts.Host != "" {
-		token["apiServerURL"] = []byte(opts.Host)
+		data["apiServerURL"] = []byte(opts.Host)
 	}
 	if len(opts.CA) > 0 {
-		token["apiServerCA"] = opts.CA
+		data["apiServerCA"] = opts.CA
 	}
 
-	return []runtime.Object{
-		&v1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: agentNamespace,
-			},
+	return &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      config.AgentBootstrapConfigName,
+			Namespace: agentNamespace,
 		},
-		// fleet-agent-bootstrap
-		&v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      config.AgentBootstrapConfigName,
-				Namespace: agentNamespace,
-			},
-			Data: token,
-		},
+		Data: data,
 	}, nil
 }
 
@@ -209,36 +193,4 @@ func startWatch(namespace string, sa fleetcontrollers.ClusterRegistrationTokenCl
 		return nil, err
 	}
 	return sa.Watch(namespace, metav1.ListOptions{ResourceVersion: secrets.ResourceVersion})
-}
-
-func GetCAFromConfig(rawConfig clientcmdapi.Config) ([]byte, error) {
-	cluster, ok := rawConfig.Clusters[rawConfig.CurrentContext]
-	if !ok {
-		for _, v := range rawConfig.Clusters {
-			cluster = v
-			break
-		}
-	}
-
-	if cluster != nil {
-		if len(cluster.CertificateAuthorityData) > 0 {
-			return cluster.CertificateAuthorityData, nil
-		}
-		return os.ReadFile(cluster.CertificateAuthority)
-	}
-
-	return nil, nil
-}
-
-func GetHostFromConfig(rawConfig clientcmdapi.Config) (string, error) {
-	cluster, ok := rawConfig.Clusters[rawConfig.CurrentContext]
-	if ok {
-		return cluster.Server, nil
-	}
-
-	for _, v := range rawConfig.Clusters {
-		return v.Server, nil
-	}
-
-	return "", ErrNoHostInConfig
 }

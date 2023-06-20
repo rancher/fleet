@@ -1,9 +1,6 @@
 name: E2E Fleet
 
 on:
-  schedule:
-    # Run everyday day at 7:00 AM
-    - cron: '0 7 * * *'
   workflow_dispatch:
     inputs:
       enable_tmate:
@@ -30,7 +27,6 @@ jobs:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
           - v1.25.4-k3s1
-          - v1.24.1-k3s1
           - v1.22.10-k3s1
           - v1.20.15-k3s1
     steps:
@@ -66,6 +62,8 @@ jobs:
         run: |
           docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
           docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+          cd e2e/assets/gitrepo
+          docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
       -
         name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
@@ -81,6 +79,7 @@ jobs:
         name: Import Images Into k3d
         run: |
           k3d image import rancher/fleet:dev rancher/fleet-agent:dev
+          k3d image import nginx-git:test nginx-git:test
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
@@ -96,6 +95,9 @@ jobs:
         name: E2E Tests
         env:
           FLEET_E2E_NS: fleet-local
+          # Git credentials are here used in a local, ephemeral environment. Leaks would be harmless.
+          GIT_HTTP_USER: "fleet-ci"
+          GIT_HTTP_PASSWORD: "foo"
         run: |
           ginkgo e2e/single-cluster e2e/keep-resources
       -
@@ -112,6 +114,7 @@ jobs:
         if: >
           github.event_name != 'pull_request' &&
           github.repository == 'rancher/fleet'
+
         env:
           FLEET_E2E_NS: fleet-local
           GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"

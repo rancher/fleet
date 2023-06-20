@@ -14,32 +14,35 @@ import (
 )
 
 type Manager struct {
-	fleetNamespace        string
-	defaultNamespace      string
-	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache
-	lookup                manifest.Lookup
-	deployer              *helmdeployer.Helm
-	apply                 apply.Apply
-	labelPrefix           string
-	labelSuffix           string
+	fleetNamespace             string
+	defaultNamespace           string
+	bundleDeploymentCache      fleetcontrollers.BundleDeploymentCache
+	lookup                     manifest.Lookup
+	deployer                   *helmdeployer.Helm
+	apply                      apply.Apply
+	labelPrefix                string
+	labelSuffix                string
+	bundleDeploymentController fleetcontrollers.BundleDeploymentController
 }
 
 func NewManager(fleetNamespace string,
 	defaultNamespace string,
 	labelPrefix, labelSuffix string,
 	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache,
+	bundleDeploymentController fleetcontrollers.BundleDeploymentController,
 	lookup manifest.Lookup,
 	deployer *helmdeployer.Helm,
 	apply apply.Apply) *Manager {
 	return &Manager{
-		fleetNamespace:        fleetNamespace,
-		defaultNamespace:      defaultNamespace,
-		labelPrefix:           labelPrefix,
-		labelSuffix:           labelSuffix,
-		bundleDeploymentCache: bundleDeploymentCache,
-		lookup:                lookup,
-		deployer:              deployer,
-		apply:                 apply.WithDynamicLookup(),
+		fleetNamespace:             fleetNamespace,
+		defaultNamespace:           defaultNamespace,
+		labelPrefix:                labelPrefix,
+		labelSuffix:                labelSuffix,
+		bundleDeploymentCache:      bundleDeploymentCache,
+		lookup:                     lookup,
+		deployer:                   deployer,
+		apply:                      apply.WithDynamicLookup(),
+		bundleDeploymentController: bundleDeploymentController,
 	}
 }
 
@@ -131,7 +134,6 @@ func (m *Manager) Deploy(bd *fleet.BundleDeployment) (string, error) {
 			return bd.Status.Release, nil
 		}
 	}
-
 	manifestID, _ := kv.Split(bd.Spec.DeploymentID, ":")
 	manifest, err := m.lookup.Get(manifestID)
 	if err != nil {

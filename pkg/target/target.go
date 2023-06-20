@@ -18,11 +18,11 @@ import (
 	kyaml "sigs.k8s.io/yaml"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/bundlematcher"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
 	"github.com/rancher/fleet/pkg/summary"
+	"github.com/rancher/fleet/pkg/target/matcher"
 
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
@@ -79,8 +79,8 @@ func New(
 }
 
 func (m *Manager) BundleFromDeployment(bd *fleet.BundleDeployment) (string, string) {
-	return bd.Labels["fleet.cattle.io/bundle-namespace"],
-		bd.Labels["fleet.cattle.io/bundle-name"]
+	return bd.Labels[fleet.BundleNamespaceLabel],
+		bd.Labels[fleet.BundleLabel]
 }
 
 // StoreManifest stores the manifest as a content resource and returns the name.
@@ -169,7 +169,7 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, b
 	}
 
 	for _, app := range bundles {
-		bm, err := bundlematcher.New(app)
+		bm, err := matcher.New(app)
 		if err != nil {
 			logrus.Errorf("ignore bad app %s/%s: %v", app.Namespace, app.Name, err)
 			continue
@@ -245,7 +245,7 @@ func (m *Manager) getNamespacesForBundle(bundle *fleet.Bundle) ([]string, error)
 // The returned target structs contain merged BundleDeploymentOptions.
 // Finally all existing bundledeployments are added to the targets.
 func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]*Target, error) {
-	bm, err := bundlematcher.New(bundle)
+	bm, err := matcher.New(bundle)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +276,10 @@ func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]
 			targetOpts := target.BundleDeploymentOptions
 			targetCustomized := bm.MatchTargetCustomizations(cluster.Name, clusterGroupsToLabelMap(clusterGroups), cluster.Labels)
 			if targetCustomized != nil {
+				if targetCustomized.DoNotDeploy {
+					logrus.Debugf("BundleDeployment creation for Bundle '%s' was skipped because doNotDeploy is set to true.", bundle.Name)
+					continue
+				}
 				targetOpts = targetCustomized.BundleDeploymentOptions
 			}
 
@@ -391,26 +395,6 @@ func (m *Manager) foldInDeployments(bundle *fleet.Bundle, targets []*Target) err
 	return nil
 }
 
-func deploymentLabelsForNewBundle(bundle *fleet.Bundle) map[string]string {
-	labels := yaml.CleanAnnotationsForExport(bundle.Labels)
-	for k, v := range bundle.Labels {
-		if strings.HasPrefix(k, "fleet.cattle.io/") {
-			labels[k] = v
-		}
-	}
-	for k, v := range deploymentLabelsForSelector(bundle) {
-		labels[k] = v
-	}
-	return labels
-}
-
-func deploymentLabelsForSelector(bundle *fleet.Bundle) map[string]string {
-	return map[string]string{
-		"fleet.cattle.io/bundle-name":      bundle.Name,
-		"fleet.cattle.io/bundle-namespace": bundle.Namespace,
-	}
-}
-
 type Target struct {
 	Deployment    *fleet.BundleDeployment
 	ClusterGroups []*fleet.ClusterGroup
@@ -431,20 +415,46 @@ func (t *Target) ResetDeployment() {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.Bundle.Name,
 			Namespace: t.Cluster.Status.Namespace,
-			Labels:    t.BundleDeploymentLabels(),
+			Labels:    t.BundleDeploymentLabels(t.Cluster.Namespace, t.Cluster.Name),
 		},
 	}
 }
 
-// BundleDeploymentLabels returns all labels from the Bundle
-func (t *Target) BundleDeploymentLabels() map[string]string {
-	labels := map[string]string{}
-	for k, v := range deploymentLabelsForNewBundle(t.Bundle) {
+// BundleDeploymentLabels builds all labels for a bundledeployment
+func (t *Target) BundleDeploymentLabels(clusterNamespace string, clusterName string) map[string]string {
+	// remove labels starting with kubectl.kubernetes.io or containing
+	// cattle.io from bundle
+	labels := yaml.CleanAnnotationsForExport(t.Bundle.Labels)
+
+	// copy fleet labels from bundle to bundledeployment
+	for k, v := range t.Bundle.Labels {
+		if strings.HasPrefix(k, "fleet.cattle.io/") {
+			labels[k] = v
+		}
+	}
+
+	// labels for the bundledeployment by bundle selector
+	for k, v := range deploymentLabelsForSelector(t.Bundle) {
 		labels[k] = v
 	}
+
+	// ManagedLabel allows clean up of the bundledeployment
 	labels[fleet.ManagedLabel] = "true"
 
+	// add labels to identify the cluster this bundledeployment belongs to
+	labels[fleet.ClusterNamespaceLabel] = clusterNamespace
+	labels[fleet.ClusterLabel] = clusterName
+
 	return labels
+}
+
+// deploymentLabelsForSelector returns the labels that are used to select
+// bundledeployments for a given bundle
+func deploymentLabelsForSelector(bundle *fleet.Bundle) map[string]string {
+	return map[string]string{
+		fleet.BundleLabel:          bundle.Name,
+		fleet.BundleNamespaceLabel: bundle.Namespace,
+	}
 }
 
 // getRollout returns the rollout strategy for the specified targets (pure function)

@@ -1,0 +1,4 @@
+helm:
+  releaseName: config-chart
+  chart: config-chart
+  repo: http://localhost:3000
