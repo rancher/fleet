@@ -3,7 +3,6 @@ package singlecluster_test
 import (
 	"os"
 	"path"
-	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
@@ -31,15 +30,6 @@ var _ = Describe("Image Scan", func() {
 			"--from-literal=password="+os.Getenv("GIT_HTTP_PASSWORD"),
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
-
-		// Create git server
-		out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_deployment.yaml"))
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_service.yaml"))
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		time.Sleep(5 * time.Second) // give git server time to spin up
 
 		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
@@ -74,8 +64,6 @@ var _ = Describe("Image Scan", func() {
 	AfterEach(func() {
 		os.RemoveAll(tmpdir)
 		_, _ = k.Delete("gitrepo", "imagescan")
-		_, _ = k.Delete("deployment", "git-server")
-		_, _ = k.Delete("service", "git-service")
 		_, _ = k.Delete("secret", "git-auth")
 	})
 

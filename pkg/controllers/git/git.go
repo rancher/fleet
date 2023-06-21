@@ -384,7 +384,7 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	}
 	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, bundleErrorState)
 	status = countResources(status)
-	volumes, volumeMounts := volumes(gitrepo, configMap)
+	volumes, volumeMounts := volumes(h.secrets, gitrepo, configMap)
 	args, envs := argsAndEnvs(gitrepo)
 	return []runtime.Object{
 		configMap,
@@ -594,7 +594,12 @@ func (h *handler) setBundleStatus(gitrepo *fleet.GitRepo, status fleet.GitRepoSt
 	return status, nil
 }
 
-func volumes(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volume, []corev1.VolumeMount) {
+// volumes builds sets of volumes and their volume mounts based on configuration and secrets.
+func volumes(
+	secrets corev1controller.SecretCache,
+	gitrepo *fleet.GitRepo,
+	configMap *corev1.ConfigMap,
+) ([]corev1.Volume, []corev1.VolumeMount) {
 	volumes := []corev1.Volume{
 		{
 			Name: "config",
@@ -616,32 +621,75 @@ func volumes(gitrepo *fleet.GitRepo, configMap *corev1.ConfigMap) ([]corev1.Volu
 	}
 
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
-		volumes = append(volumes, corev1.Volume{
-			Name: "helm-secret-by-path",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: gitrepo.Spec.HelmSecretNameForPaths,
-				},
-			},
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "helm-secret-by-path",
-			MountPath: "/etc/fleet/helm",
-		})
+		vols, volMnts := volumesFromSecret(
+			secrets,
+			gitrepo.Namespace,
+			gitrepo.Spec.HelmSecretNameForPaths,
+			"helm-secret-by-path",
+		)
+
+		volumes = append(volumes, vols...)
+		volumeMounts = append(volumeMounts, volMnts...)
+
 	} else if gitrepo.Spec.HelmSecretName != "" {
-		volumes = append(volumes, corev1.Volume{
-			Name: "helm-secret",
+		vols, volMnts := volumesFromSecret(secrets, gitrepo.Namespace, gitrepo.Spec.HelmSecretName, "helm-secret")
+
+		volumes = append(volumes, vols...)
+		volumeMounts = append(volumeMounts, volMnts...)
+	}
+
+	return volumes, volumeMounts
+}
+
+// volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that that secret exists.
+func volumesFromSecret(
+	secrets corev1controller.SecretCache,
+	namespace string,
+	secretName, volumeName string,
+) ([]corev1.Volume, []corev1.VolumeMount) {
+	volumes := []corev1.Volume{
+		{
+			Name: volumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: gitrepo.Spec.HelmSecretName,
+					SecretName: secretName,
+				},
+			},
+		},
+	}
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      volumeName,
+			MountPath: "/etc/fleet/helm",
+		},
+	}
+
+	// Mount a CA certificate, if specified in the secret. This is necessary to support Helm registries with
+	// self-signed certificates.
+	secret, _ := secrets.Get(namespace, secretName)
+	if _, ok := secret.Data["cacerts"]; ok {
+		certVolumeName := fmt.Sprintf("%s-cert", volumeName)
+
+		volumes = append(volumes, corev1.Volume{
+			Name: certVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secretName,
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "cacerts",
+							Path: "cacert.crt",
+						},
+					},
 				},
 			},
 		})
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "helm-secret",
-			MountPath: "/etc/fleet/helm",
+			Name:      certVolumeName,
+			MountPath: "/etc/ssl/certs",
 		})
 	}
+
 	return volumes, volumeMounts
 }
 

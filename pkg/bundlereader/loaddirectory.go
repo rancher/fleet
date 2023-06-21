@@ -156,42 +156,54 @@ func getContent(ctx context.Context, base, source, version string, auth Auth) (m
 	return files, nil
 }
 
-// downloadOciChart uses Helm to download charts from OCI based registries
+// downloadOCIChart uses Helm to download charts from OCI based registries
 func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	var registryClient *registry.Client
 	var requiresLogin bool = auth.Username != "" && auth.Password != ""
 
-	c := downloader.ChartDownloader{
-		Verify:  downloader.VerifyNever,
-		Getters: helmgetter.All(&cli.EnvSettings{}),
-	}
 	url, err := url.Parse(name)
 	if err != nil {
 		return "", err
 	}
 
-	// Helm does not support direct authentication for private OCI regstries when a chart is downloaded
+	// Helm does not support direct authentication for private OCI registries when a chart is downloaded
 	// so it is necessary to login before via Helm which stores the registry token in a configuration
 	// file on the system
+	addr := url.Hostname()
 	if requiresLogin {
+		if port := url.Port(); port != "" {
+			addr = fmt.Sprintf("%s:%s", addr, port)
+		}
+
 		registryClient, err = registry.NewClient()
 		if err != nil {
 			return "", err
 		}
-		err = registryClient.Login(url.Hostname(), registry.LoginOptInsecure(false), registry.LoginOptBasicAuth(auth.Username, auth.Password))
+
+		err = registryClient.Login(
+			addr,
+			registry.LoginOptInsecure(false),
+			registry.LoginOptBasicAuth(auth.Username, auth.Password),
+		)
 		if err != nil {
 			return "", err
 		}
 	}
 
+	c := downloader.ChartDownloader{
+		Verify:         downloader.VerifyNever,
+		Getters:        helmgetter.All(&cli.EnvSettings{}),
+		RegistryClient: registryClient,
+	}
+
 	saved, _, err := c.DownloadTo(name, version, path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("Helm chart download: %v", err)
 	}
 
 	// Logout to remove the token configuration file from the system again
 	if requiresLogin {
-		err = registryClient.Logout(url.Hostname())
+		err = registryClient.Logout(addr)
 		if err != nil {
 			return "", err
 		}

@@ -92,14 +92,35 @@ jobs:
         run: |
           ./.github/scripts/deploy-fleet.sh
       -
+        name: Create Zot certificates for OCI tests
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
+          # Generate cert and key for TLS
+          ./dev/create-zot-certs "FleetCI-RootCA"
+      -
         name: E2E Tests
         env:
           FLEET_E2E_NS: fleet-local
-          # Git credentials are here used in a local, ephemeral environment. Leaks would be harmless.
+          # Git and OCI credentials are here used in a local, ephemeral environment. Leaks would be harmless.
           GIT_HTTP_USER: "fleet-ci"
           GIT_HTTP_PASSWORD: "foo"
+          CI_OCI_USERNAME: "fleet-ci"
+          CI_OCI_PASSWORD: "foo"
+          HELM_PATH: /usr/local/bin/helm
         run: |
+          export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+
+          cd e2e/testenv/infra
+          go build -o . ./...
+          ./infra setup
+          cd -
+
           ginkgo e2e/single-cluster e2e/keep-resources
+
+          cd -
+
+          ./infra teardown
       -
         name: Acceptance Tests for Examples
         if: >
