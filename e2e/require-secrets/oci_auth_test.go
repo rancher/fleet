@@ -2,6 +2,7 @@ package require_secrets
 
 import (
 	"os"
+	"path"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
@@ -13,20 +14,32 @@ import (
 // These tests use the examples from https://github.com/rancher/fleet-examples/tree/master/single-cluster
 var _ = Describe("Single Cluster Examples", func() {
 	var (
-		asset string
-		k     kubectl.Command
+		asset  string
+		tmpdir string
+		k      kubectl.Command
 	)
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
+		tmpdir, _ = os.MkdirTemp("", "fleet-")
 	})
 
 	JustBeforeEach(func() {
-		out, err := k.Apply("-f", testenv.AssetPath(asset))
+		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
+
+		err := testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
+			Repo string
+		}{
+			"https://github.com/rancher/fleet-test-data",
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		out, err := k.Apply("-f", gitrepo)
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	AfterEach(func() {
+		os.RemoveAll(tmpdir)
 		out, err := k.Delete("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
 
