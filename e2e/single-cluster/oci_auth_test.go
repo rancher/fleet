@@ -25,11 +25,11 @@ var _ = Describe("Single Cluster Examples", func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 
 		// Prepare git repo
-		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
+		addr, err := githelper.GetExternalRepoAddr(env, port, caseName)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(ip).ToNot(HaveLen(0))
+		Expect(addr).ToNot(HaveLen(0))
 
-		gh = githelper.NewHTTP(ip)
+		gh = githelper.NewHTTP(addr)
 
 		tmpdir, _ = os.MkdirTemp("", "fleet-")
 		clonedir = path.Join(tmpdir, "clone")
