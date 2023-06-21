@@ -161,12 +161,12 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	}
 
 	out, err = k.Create(
-		"secret", "tls", "zot-tls",
-		"--cert", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "zot.crt"),
-		"--key", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "zot.key"),
+		"secret", "tls", "helm-tls",
+		"--cert", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.crt"),
+		"--key", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.key"),
 	)
 	if err != nil {
-		failHelm(fmt.Errorf("create zot-tls secret: %s with error %v", out, err))
+		failHelm(fmt.Errorf("create helm-tls secret: %s with error %v", out, err))
 	}
 
 	out, err = k.Apply("-f", testenv.AssetPath("oci/zot_secret.yaml"))

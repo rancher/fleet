@@ -40,4 +40,4 @@ spec:
             secretName: zot-htpasswd
         - name: tls-cert
           secret:
-            secretName: zot-tls
+            secretName: helm-tls
