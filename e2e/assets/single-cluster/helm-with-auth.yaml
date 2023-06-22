@@ -4,9 +4,9 @@ metadata:
   name: helm
 spec:
   repo: {{ .Repo }}
-  helmSecretName: helm-oci-secret
+  helmSecretName: {{ .SecretName }}
   paths:
-  - helm-oci-with-auth
+  - {{ .Path }}
   targets:
   - clusterSelector:
       matchExpressions:
