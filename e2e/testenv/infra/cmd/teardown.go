@@ -27,8 +27,12 @@ var teardownCmd = &cobra.Command{
 		_, _ = k.Delete("deployment", "zot")
 		_, _ = k.Delete("service", "zot-service")
 		_, _ = k.Delete("secret", "zot-htpasswd")
+
+		_, _ = k.Delete("deployment", "chartmuseum")
+		_, _ = k.Delete("service", "chartmuseum-service")
+
 		_, _ = k.Delete("secret", "helm-tls")
-		_, _ = k.Delete("secret", "helm-oci-secret")
+		_, _ = k.Delete("secret", "helm-secret")
 	},
 }
 

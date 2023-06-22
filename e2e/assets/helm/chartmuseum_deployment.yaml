@@ -41,5 +41,5 @@ spec:
       volumes:
         - name: tls-cert
           secret:
-            secretName: zot-tls
+            secretName: helm-tls
 

@@ -42,13 +42,12 @@ var _ = Describe("Single Cluster Examples", func() {
 		os.RemoveAll(tmpdir)
 		out, err := k.Delete("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
-
 	})
 
 	When("creating a gitrepo resource", func() {
 		Context("containing a private oci based helm chart", func() {
 			BeforeEach(func() {
-				asset = "single-cluster/helm-oci-with-auth.yaml"
+				asset = "single-cluster/helm-with-auth.yaml"
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				out, err := k.Create(

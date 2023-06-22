@@ -25,7 +25,7 @@ var _ = Describe("Single Cluster Examples", func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 
 		// Prepare git repo
-		addr, err := githelper.GetExternalRepoAddr(env, port, caseName)
+		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(addr).ToNot(HaveLen(0))
 
@@ -33,7 +33,7 @@ var _ = Describe("Single Cluster Examples", func() {
 
 		tmpdir, _ = os.MkdirTemp("", "fleet-")
 		clonedir = path.Join(tmpdir, "clone")
-		_, err = gh.Create(clonedir, testenv.AssetPath("oci/repo"), "helm-oci-with-auth")
+		_, err = gh.Create(clonedir, testenv.AssetPath("helm/repo"), "helm-oci-with-auth")
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -59,7 +59,7 @@ var _ = Describe("Single Cluster Examples", func() {
 	When("creating a gitrepo resource", func() {
 		Context("containing a private oci based helm chart", func() {
 			BeforeEach(func() {
-				asset = "single-cluster/helm-oci-with-auth.yaml"
+				asset = "single-cluster/helm-with-auth.yaml"
 				k = env.Kubectl.Namespace(env.Namespace)
 			})
 
