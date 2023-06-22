@@ -43,15 +43,17 @@ type ManifestOptions struct {
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
 // cluster role, two service accounts and a network policy
 //
+// It allows the downstream agent to create any resource on its cluster.
+//
 // This is called by both, import and manageagent.
 func Manifest(namespace string, agentScope string, opts ManifestOptions) []runtime.Object {
 	if opts.AgentImage == "" {
 		opts.AgentImage = config.DefaultAgentImage
 	}
 
-	sa := serviceAccount(namespace, DefaultName)
+	admin := serviceAccount(namespace, DefaultName)
 
-	logrus.Debugf("Building manifest for fleet-agent in namespace %s (sa: %s)", namespace, sa.Name)
+	logrus.Debugf("Building manifest for fleet-agent in namespace %s (sa: %s)", namespace, admin.Name)
 
 	defaultSa := serviceAccount(namespace, "default")
 	defaultSa.AutomountServiceAccountToken = new(bool)
@@ -59,7 +61,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	clusterRole := []runtime.Object{
 		&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name.SafeConcatName(sa.Namespace, sa.Name, "role"),
+				Name: name.SafeConcatName(admin.Namespace, admin.Name, "role"),
 			},
 			Rules: []rbacv1.PolicyRule{
 				{
@@ -71,19 +73,19 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 		},
 		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name.SafeConcatName(sa.Namespace, sa.Name, "role", "binding"),
+				Name: name.SafeConcatName(admin.Namespace, admin.Name, "role", "binding"),
 			},
 			Subjects: []rbacv1.Subject{
 				{
 					Kind:      "ServiceAccount",
-					Name:      sa.Name,
-					Namespace: sa.Namespace,
+					Name:      admin.Name,
+					Namespace: admin.Namespace,
 				},
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
 				Kind:     "ClusterRole",
-				Name:     name.SafeConcatName(sa.Namespace, sa.Name, "role"),
+				Name:     name.SafeConcatName(admin.Namespace, admin.Name, "role"),
 			},
 		},
 	}
@@ -115,7 +117,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 
 	var objs []runtime.Object
 	objs = append(objs, clusterRole...)
-	objs = append(objs, sa, defaultSa, deployment, networkPolicy)
+	objs = append(objs, admin, defaultSa, deployment, networkPolicy)
 
 	return objs
 }

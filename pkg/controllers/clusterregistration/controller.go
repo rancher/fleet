@@ -188,6 +188,11 @@ func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, err
 	return secret, nil
 }
 
+// OnChange creates the service account and roles for a cluster registration.
+// The service account's token is deployed to the downstream cluster, via the
+// fleet-secret. It allows the downstream fleet-agent to list any
+// bundledeployment. It can also read contents and update a bundledeployments
+// status, but that is limited to its own cluster namespace on upstream.
 func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.ClusterRegistrationStatus) ([]runtime.Object, fleet.ClusterRegistrationStatus, error) {
 	var (
 		objects []runtime.Object
@@ -242,23 +247,6 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				},
 			},
 		},
-		&rbacv1.Role{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      request.Name,
-				Namespace: request.Namespace,
-				Labels: map[string]string{
-					fleet.ManagedLabel: "true",
-				},
-			},
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:         []string{"patch"},
-					APIGroups:     []string{fleetgroup.GroupName},
-					Resources:     []string{fleet.ClusterResourceName + "/status"},
-					ResourceNames: []string{cluster.Name},
-				},
-			},
-		},
 		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name.SafeConcatName(request.Name, "bundledeployment"),
@@ -277,6 +265,43 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				APIGroup: rbacv1.GroupName,
 				Kind:     "ClusterRole",
 				Name:     "fleet-bundle-deployment",
+			},
+		},
+		&rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name.SafeConcatName(request.Name, "content"),
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      saName,
+					Namespace: cluster.Status.Namespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "ClusterRole",
+				Name:     "fleet-content",
+			},
+		},
+		&rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      request.Name,
+				Namespace: request.Namespace,
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:         []string{"patch"},
+					APIGroups:     []string{fleetgroup.GroupName},
+					Resources:     []string{fleet.ClusterResourceName + "/status"},
+					ResourceNames: []string{cluster.Name},
+				},
 			},
 		},
 		&rbacv1.RoleBinding{
@@ -298,26 +323,6 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				APIGroup: rbacv1.GroupName,
 				Kind:     "Role",
 				Name:     request.Name,
-			},
-		},
-		&rbacv1.ClusterRoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name.SafeConcatName(request.Name, "content"),
-				Labels: map[string]string{
-					fleet.ManagedLabel: "true",
-				},
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      saName,
-					Namespace: cluster.Status.Namespace,
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: rbacv1.GroupName,
-				Kind:     "ClusterRole",
-				Name:     "fleet-content",
 			},
 		},
 	), status, nil
