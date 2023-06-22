@@ -33,19 +33,20 @@ find ./packages/fleet/ -type f -exec sed -i -e "s/version: ${PREV_CHART_VERSION}
 if [ "${REPLACE}" == "true" ]; then
     sed -i -e "s/${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}/${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" release.yaml
 else
-    sed -i -e "s/${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}/${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}\n${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" release.yaml
-    if grep -qv "fleet:" release.yaml; then
-
+    if grep -q "fleet:" release.yaml; then
+        sed -i -e "s/- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}/- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}\n  - ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" release.yaml
+    else
         cat <<< "fleet:
-- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}
-- ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}
+  - ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}
+  - ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}
 fleet-agent:
-- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}
-- ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}
+  - ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}
+  - ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}
 fleet-crd:
-- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}
-- ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}" >> release.yaml
-
+  - ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}
+  - ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}" >> release.yaml
+    # remove empty line above fleet
+    sed -i -z -e  "s/[[:space:]]*\nfleet:/\nfleet:/g" release.yaml
     fi
 fi
 
