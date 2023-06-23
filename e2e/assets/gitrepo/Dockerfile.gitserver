@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM nginx:1.23.4-alpine
 
 ARG user=fleet-ci
@@ -8,18 +9,21 @@ RUN apk add git-daemon
 RUN apk add fcgiwrap
 RUN apk add spawn-fcgi
 
-RUN git config --global user.email "fleet.ci@test.com"
-RUN git config --global user.name "Fleet CI"
+# Set user info and enable force-push
+COPY <<-"EOT" /root/.gitconfig
+[user]
+        name = Fleet CI
+        email = fleet.ci@test.com
+[http]
+        receivepack = true
+[receive]
+        denyNonFastforwards = false
+EOT
 
 # Configure git remote
-RUN mkdir /srv/git
-RUN mkdir /srv/git/repo
+RUN mkdir -p /srv/git/repo
 WORKDIR /srv/git/repo
-RUN git init . --bare --shared
-
-# Enable force-push
-RUN git config --type bool http.receivepack true
-RUN git config --type bool receive.denyNonFastforwards false
+RUN git init . --bare
 RUN git update-server-info
 
 # Configure nginx
