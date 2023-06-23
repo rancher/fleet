@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM nginx:1.23.4-alpine
 
 ARG user=fleet-ci
@@ -10,13 +11,13 @@ RUN apk add spawn-fcgi
 
 # Set user info and enable force-push
 COPY <<-"EOT" /root/.gitconfig
-    [user]
-            name = Fleet CI
-            email = fleet.ci@test.com
-    [http]
-            receivepack = true
-    [receive]
-            denyNonFastforwards = false
+[user]
+        name = Fleet CI
+        email = fleet.ci@test.com
+[http]
+        receivepack = true
+[receive]
+        denyNonFastforwards = false
 EOT
 
 # Configure git remote
