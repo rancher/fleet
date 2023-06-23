@@ -5,8 +5,10 @@ package singlecluster_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 
@@ -21,9 +23,6 @@ import (
 const (
 	port     = 8080
 	repoName = "repo"
-
-	// URL of the gitjob service, called from a git post-receive hook script to simulate webhook delivery
-	gitjobServiceURL = "gitjob.cattle-fleet-system.svc.cluster.local"
 )
 
 var _ = Describe("Git Repo with polling", func() {
@@ -113,34 +112,57 @@ var _ = Describe("Git Repo with webhook", func() {
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
+		repoName := "webhook-test"
 
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
 		host, err := githelper.BuildGitHostname(env.Namespace)
 		Expect(err).ToNot(HaveOccurred())
 
+		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
+		Expect(err).ToNot(HaveOccurred())
+		gh = githelper.NewHTTP(ip)
+
+		// Get git server pod name and create post-receive hook script from template
+		out, err := k.Get("pod", "-l", "app=git-server", "-o", "name")
+		Expect(err).ToNot(HaveOccurred())
+
+		gitServerPod := strings.TrimPrefix(strings.TrimSpace(out), "pod/")
+
+		tmpdir, _ = os.MkdirTemp("", "fleet-")
+		hookScript := path.Join(tmpdir, "hook_script")
+
 		inClusterRepoURL := gh.GetInClusterURL(host, port, repoName)
 
-		// Create git server with git hook
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/hook_configmap.yaml"), struct {
-			GitJobURL string
-			RepoURL   string
+		err = testenv.Template(hookScript, testenv.AssetPath("gitrepo/post-receive.sh"), struct {
+			RepoURL string
 		}{
-			gitjobServiceURL,
 			inClusterRepoURL,
 		})
 		Expect(err).ToNot(HaveOccurred())
 
-		out, err := k.Apply("-f", testenv.AssetPath("gitrepo/nginx_deployment_with_hook.yaml"))
+		// Create a git repo, erasing a previous repo with the same name if any
+		out, err = k.Run(
+			"exec",
+			gitServerPod,
+			"--",
+			"/bin/sh",
+			"-c",
+			fmt.Sprintf(
+				`dir=/srv/git/%s; rm -rf "$dir"; mkdir -p "$dir"; git init "$dir" --bare; GIT_DIR="$dir" git update-server-info`,
+				repoName,
+			),
+		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		out, err = k.Apply("-f", testenv.AssetPath("gitrepo/nginx_service.yaml"))
+		// Copy the script into the repo on the server pod
+		hookPathInRepo := fmt.Sprintf("/srv/git/%s/hooks/post-receive", repoName)
+
+		out, err = k.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		time.Sleep(5 * time.Second) // give git server time to spin up
-
-		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
-		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.NewHTTP(ip)
+		// Make hook script executable
+		out, err = k.Run("exec", gitServerPod, "--", "chmod", "+x", hookPathInRepo)
+		Expect(err).ToNot(HaveOccurred(), out)
 
 		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
 			Repo            string
@@ -153,8 +175,6 @@ var _ = Describe("Git Repo with webhook", func() {
 		})
 		Expect(err).ToNot(HaveOccurred())
 
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
-
 		// Clone previously created repo
 		clonedir = path.Join(tmpdir, "clone")
 		clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
@@ -164,8 +184,6 @@ var _ = Describe("Git Repo with webhook", func() {
 	AfterEach(func() {
 		os.RemoveAll(tmpdir)
 		_, _ = k.Delete("gitrepo", "gitrepo-test")
-		_, _ = k.Delete("deployment", "git-server")
-		_, _ = k.Delete("service", "git-service")
 		_, _ = k.Delete("configmap", "hook-script")
 	})
 

@@ -19,11 +19,10 @@ COPY <<-"EOT" /root/.gitconfig
             denyNonFastforwards = false
 EOT
 
-
 # Configure git remote
 RUN mkdir -p /srv/git/repo
 WORKDIR /srv/git/repo
-RUN git init . --bare --shared
+RUN git init . --bare
 RUN git update-server-info
 
 # Configure nginx
