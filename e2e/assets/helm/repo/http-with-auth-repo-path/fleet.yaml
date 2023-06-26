@@ -2,17 +2,15 @@
 
 # The namespace this chart will be installed and restricted to,
 # if not specified the chart will be installed to "default"
-namespace: fleet-helm-oci-with-auth-example
+namespace: fleet-helm-http-with-auth-repo-path
 
 # Custom helm options
 helm:
   # The release name to use. If empty a generated release name will be used
   releaseName: sleeper-chart
 
-  # The directory of the chart in the repo.  Any valid go-getter supported
-  # URL can also be used here to specify where to download the chart from.
-  # If repo below is set, this value is the chart name in the repo.
-  chart: "oci://zot-service.fleet-local.svc.cluster.local:5000/sleeper-chart"
+  chart: "sleeper-chart"
+  repo: "https://chartmuseum-service.fleet-local.svc.cluster.local:8081"
 
   # Used if repo is set to look up the version of the chart
   version: "0.1.0"
@@ -27,3 +25,4 @@ helm:
   # Custom values that will be passed as values.yaml to the installation
   values:
     replicas: 2
+

@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"bytes"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -47,12 +50,14 @@ Parallelism is used when possible to save time.`,
 			fail(fmt.Errorf("package Helm chart: %v", err))
 		}
 
-		var wgGit, wgHelm sync.WaitGroup
+		var wgGit, wgHelm, wgChartMuseum sync.WaitGroup
 		wgGit.Add(1)
 		wgHelm.Add(1)
+		wgChartMuseum.Add(1)
 
 		go spinUpGitServer(k, &wgGit)
 		go spinUpHelmRegistry(k, &wgHelm)
+		go spinUpChartMuseum(k, &wgChartMuseum)
 
 		wgHelm.Wait()
 
@@ -103,17 +108,50 @@ Parallelism is used when possible to save time.`,
 			fail(fmt.Errorf("push to Helm registry: %v with output %s", err, pushCmd.Stderr))
 		}
 
+		chartArchive, err := os.ReadFile("sleeper-chart-0.1.0.tgz")
+		if err != nil {
+			fail(fmt.Errorf("read packaged Helm chart: %v", err))
+		}
+
 		/*
 			// TODO enable this when the Helm library supports `--insecure-skip-tls-verify`
-			chartArchive, err := os.ReadFile("sleeper-chart-0.1.0.tgz")
-			if err != nil {
-				fail(fmt.Errorf("read packaged Helm chart: %v", err))
-			}
-
 			if _, err := helmClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", helmHost)); err != nil {
 				fail(fmt.Errorf("push to Helm registry: %v", err))
 			}
 		*/
+
+		// Push chart to ChartMuseum
+		wgChartMuseum.Wait()
+
+		SSLCfg := &tls.Config{
+			InsecureSkipVerify: true, // works around having to install or reference a CA cert
+		}
+
+		client := http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: SSLCfg,
+			},
+		}
+
+		cmAddr := fmt.Sprintf("https://%s:8081/api/charts", externalIP)
+
+		req, err := http.NewRequest(http.MethodPost, cmAddr, bytes.NewReader(chartArchive))
+		if err != nil {
+			fail(fmt.Errorf("create POST request to ChartMuseum: %v", err))
+		}
+
+		req.SetBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD"))
+
+		resp, err := client.Do(req)
+		if err != nil {
+			fail(fmt.Errorf("send POST request to ChartMuseum: %v", err))
+		}
+
+		if resp.StatusCode != http.StatusCreated {
+			fail(fmt.Errorf("POST response status code from ChartMuseum: %d", resp.StatusCode))
+		}
+
+		resp.Body.Close()
 
 		wgGit.Wait()
 	},
@@ -151,40 +189,40 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	}
 
 	out, err := k.Create(
-		"secret", "generic", "helm-oci-secret",
+		"secret", "generic", "helm-secret",
 		"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
 		"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
 		"--from-file=cacerts="+path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "root.crt"),
 	)
 	if err != nil {
-		failHelm(fmt.Errorf("create helm-oci-secret: %s with error %v", out, err))
+		failHelm(fmt.Errorf("create helm-secret: %s with error %v", out, err))
 	}
 
 	out, err = k.Create(
-		"secret", "tls", "zot-tls",
-		"--cert", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "zot.crt"),
-		"--key", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "zot.key"),
+		"secret", "tls", "helm-tls",
+		"--cert", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.crt"),
+		"--key", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.key"),
 	)
 	if err != nil {
-		failHelm(fmt.Errorf("create zot-tls secret: %s with error %v", out, err))
+		failHelm(fmt.Errorf("create helm-tls secret: %s with error %v", out, err))
 	}
 
-	out, err = k.Apply("-f", testenv.AssetPath("oci/zot_secret.yaml"))
+	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_secret.yaml"))
 	if err != nil {
 		failHelm(fmt.Errorf("create Zot htpasswd secret: %s with error %v", out, err))
 	}
 
-	out, err = k.Apply("-f", testenv.AssetPath("oci/zot_configmap.yaml"))
+	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_configmap.yaml"))
 	if err != nil {
 		failHelm(fmt.Errorf("apply Zot config map: %s with error %v", out, err))
 	}
 
-	out, err = k.Apply("-f", testenv.AssetPath("oci/zot_deployment.yaml"))
+	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_deployment.yaml"))
 	if err != nil {
 		failHelm(fmt.Errorf("apply Zot deployment: %s with error %v", out, err))
 	}
 
-	out, err = k.Apply("-f", testenv.AssetPath("oci/zot_service.yaml"))
+	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_service.yaml"))
 	if err != nil {
 		failHelm(fmt.Errorf("apply Zot service: %s with error %v", out, err))
 	}
@@ -194,6 +232,30 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	}
 
 	fmt.Println("Helm registry up.")
+}
+
+func spinUpChartMuseum(k kubectl.Command, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	failChartMuseum := func(err error) {
+		fail(fmt.Errorf("spin up ChartMuseum: %v", err))
+	}
+
+	out, err := k.Apply("-f", testenv.AssetPath("helm/chartmuseum_deployment.yaml"))
+	if err != nil {
+		failChartMuseum(fmt.Errorf("apply ChartMuseum deployment: %s with error %v", out, err))
+	}
+
+	out, err = k.Apply("-f", testenv.AssetPath("helm/chartmuseum_service.yaml"))
+	if err != nil {
+		failChartMuseum(fmt.Errorf("apply ChartMuseum service: %s with error %v", out, err))
+	}
+
+	if err := waitForPodReady(k, "chartmuseum"); err != nil {
+		failChartMuseum(fmt.Errorf("wait for ChartMuseum pod to be ready: %v", err))
+	}
+
+	fmt.Println("ChartMuseum up.")
 }
 
 func packageHelmChart() error {

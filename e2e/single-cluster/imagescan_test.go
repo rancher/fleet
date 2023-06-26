@@ -31,9 +31,9 @@ var _ = Describe("Image Scan", func() {
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
+		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.NewHTTP(ip)
+		gh = githelper.NewHTTP(addr)
 		gh.Branch = "imagescan"
 
 		tmpdir, _ = os.MkdirTemp("", "fleet-")

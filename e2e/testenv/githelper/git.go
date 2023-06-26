@@ -287,9 +287,9 @@ func BuildGitHostname(ns string) (string, error) {
 	return fmt.Sprintf("git-service.%s.svc.cluster.local", ns), nil
 }
 
-// GetExternalRepoIP retrieves the external IP where our local git server can be reached, based on the provided port and
-// repo name.
-func GetExternalRepoIP(env *testenv.Env, port int, repoName string) (string, error) {
+// GetExternalRepoAddr retrieves the external URL where our local git server can be reached, based on the provided port
+// and repo name.
+func GetExternalRepoAddr(env *testenv.Env, port int, repoName string) (string, error) {
 	systemk := env.Kubectl.Namespace(env.Namespace)
 
 	externalIP, err := systemk.Get("service", "git-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")

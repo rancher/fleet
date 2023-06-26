@@ -41,9 +41,9 @@ var _ = Describe("Git Repo with polling", func() {
 		host, err := githelper.BuildGitHostname(env.Namespace)
 		Expect(err).ToNot(HaveOccurred())
 
-		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
+		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.NewHTTP(ip)
+		gh = githelper.NewHTTP(addr)
 
 		inClusterRepoURL := gh.GetInClusterURL(host, port, repoName)
 
@@ -118,9 +118,9 @@ var _ = Describe("Git Repo with webhook", func() {
 		host, err := githelper.BuildGitHostname(env.Namespace)
 		Expect(err).ToNot(HaveOccurred())
 
-		ip, err := githelper.GetExternalRepoIP(env, port, repoName)
+		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.NewHTTP(ip)
+		gh = githelper.NewHTTP(addr)
 
 		// Get git server pod name and create post-receive hook script from template
 		out, err := k.Get("pod", "-l", "app=git-server", "-o", "name")

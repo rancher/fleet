@@ -35,7 +35,7 @@ if [ $? -eq 1 ]; then
     openssl req -x509 -new -nodes -key "$CA_key_name" -sha256 -days $validity_days -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test Root CA" -passin pass:$passphrase -out root.crt
 
     # generate Zot cert and key
-    openssl req -new -newkey rsa:4096 -sha256 -nodes -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test" -out zot.csr -keyout zot.key
+    openssl req -new -newkey rsa:4096 -sha256 -nodes -subj "/C=DE/ST=Fleetland/L=Fleetcity/O=Rancher/OU=Fleet/CN=Fleet-Test" -out helm.csr -keyout helm.key
 
     cat > crt.ext << EOF
     authorityKeyIdentifier=keyid,issuer
@@ -44,10 +44,11 @@ if [ $? -eq 1 ]; then
     subjectAltName = @alt_names
     [alt_names]
     DNS.1 = zot-service.$FLEET_E2E_NS.svc.cluster.local
+    DNS.2 = chartmuseum-service.$FLEET_E2E_NS.svc.cluster.local
 EOF
 
     # sign Zot cert with CA root key
-    openssl x509 -req -in zot.csr -CA root.crt -CAkey "$CA_key_name" -CAcreateserial -out zot.crt -days $validity_days -extfile crt.ext -passin pass:$passphrase
+    openssl x509 -req -in helm.csr -CA root.crt -CAkey "$CA_key_name" -CAcreateserial -out helm.crt -days $validity_days -extfile crt.ext -passin pass:$passphrase
 else
     echo "Skipping creation of certificates, as certificates more recent than $validity_days days exist."
 fi
