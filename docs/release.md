@@ -7,12 +7,17 @@ This section contains information on releasing Fleet.
 
 ## Updating Fleet Components
 
-1. Update and tag [rancher/build-tekton](https://github.com/rancher/build-tekton)
-1. Update the `rancher/tekton-utils` tag in the `GitJob` helm chart in [rancher/gitjob](https://github.com/rancher/gitjob)
-1. Update and tag [rancher/gitjob](https://github.com/rancher/gitjob)
-1. Copy the `GitJob` helm chart to `./charts/fleet/charts/gitjob` in [rancher/fleet](https://github.com/rancher/fleet)
-1. Generate the `GitJob` CRD into a file in [rancher/fleet](https://github.com/rancher/fleet): `go run $GITJOB_REPO/pkg/crdgen/main.go > $FLEET_REPO/charts/fleet-crd/templates/gitjobs-crds.yaml`
-1. Update and tag [rancher/fleet](https://github.com/rancher/fleet) (usually as a release candidate) to use those components in a released version of Fleet
+This process is now mostly automated:
+1. Update [rancher/build-tekton](https://github.com/rancher/build-tekton) if necessary
+1. Run an UpdateCLI Github [workflow](https://github.com/rancher/gitjob/actions/workflows/updatecli.yml) in
+   [rancher/gitjob](https://github.com/rancher/gitjob), which generates a PR to bump its `rancher/tekton-utils` image
+   version to the one generated when merging `rancher/build-tekton` changes
+1. Approve and merge the PR created by that workflow, which publishes a new image version
+1. Run a similar UpdateCLI [workflow](https://github.com/rancher/fleet/actions/workflows/updatecli.yml) in
+   [rancher/fleet](https://github.com/rancher/fleet) to bump its `rancher/gitjob` dependency version
+1. Approve and merge the PR created by that workflow
+1. Update and tag [rancher/fleet](https://github.com/rancher/fleet) (usually as a release candidate) to use those
+   components in a released version of Fleet
 
 ---
 
