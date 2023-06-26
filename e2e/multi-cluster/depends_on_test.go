@@ -16,11 +16,12 @@ var _ = Describe("Bundle Depends On", Label("difficult"), func() {
 	var (
 		k kubectl.Command
 
-		asset     string
-		namespace string
-		data      any
-		required  string
-		dependsOn string
+		asset       string
+		namespace   string
+		data        any
+		required    string
+		dependsOn   string
+		dependsOnNS string
 
 		interval = 2 * time.Second
 		duration = 30 * time.Second
@@ -36,46 +37,47 @@ var _ = Describe("Bundle Depends On", Label("difficult"), func() {
 	BeforeEach(func() {
 		k = env.Kubectl.Context(env.Upstream)
 		Expect(env.Namespace).To(Equal("fleet-local"))
-		Expect(env.ClusterRegistrationNamespace).To(Equal("fleet-default"))
+	})
+
+	JustBeforeEach(func() {
+		err := testenv.ApplyTemplate(k.Namespace(dependsOnNS), testenv.AssetPath(asset), data)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		out, err := k.Delete("ns", namespace)
 		Expect(err).ToNot(HaveOccurred(), out)
+
+		out, err = k.Namespace(dependsOnNS).Delete("bundle", dependsOn)
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		out, err = k.Namespace(env.Namespace).Delete("bundle", required)
+		Expect(err).ToNot(HaveOccurred(), out)
 	})
+
+	deployRequiredBundle := func() {
+		err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-cm.yaml"),
+			TemplateData{required, env.Namespace, namespace, ""})
+		Expect(err).ToNot(HaveOccurred())
+	}
 
 	When("bundle depends on a bundle in the same namespace", func() {
 		BeforeEach(func() {
 			required = "required"
 			dependsOn = "depends-on"
+			dependsOnNS = env.Namespace
 			namespace = testenv.NewNamespaceName("bnm-nomatch")
 			asset = "multi-cluster/bundle-depends-on.yaml"
 			data = TemplateData{dependsOn, env.Namespace, namespace, ""}
 		})
-		JustBeforeEach(func() {
-			err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath(asset), data)
-			Expect(err).ToNot(HaveOccurred())
-		})
-		AfterEach(func() {
-			out, err := k.Namespace(env.Namespace).Delete("bundle", dependsOn)
-			Expect(err).ToNot(HaveOccurred(), out)
 
-			out, err = k.Namespace(env.Namespace).Delete("bundle", required)
-			Expect(err).ToNot(HaveOccurred(), out)
-		})
 		It("shows an error until dependency is fulfilled", func() {
 			By("waiting for bundle to error")
 			Eventually(func() []fleet.NonReadyResource {
-				out, err := k.Namespace(env.Namespace).Get("bundle", dependsOn, "-o=jsonpath={.status.summary}")
+				out, err := k.Namespace(dependsOnNS).Get("bundle", dependsOn, "-o=jsonpath={.status.summary}")
 				if err != nil {
 					return []fleet.NonReadyResource{}
 				}
-				// summary:
-				//   nonReadyResources:
-				//   - bundleState: ErrApplied
-				//     message: 'list bundledeployments: no bundles matching labels fleet.cattle.io/bundle-namespace=fleet-local,role=root
-				//       in namespace fleet-local'
-				//     name: fleet-default/cluster-6e8490ced8a2
 				var sum fleet.BundleSummary
 				_ = json.Unmarshal([]byte(out), &sum)
 				return sum.NonReadyResources
@@ -85,15 +87,11 @@ var _ = Describe("Bundle Depends On", Label("difficult"), func() {
 				Name:    "fleet-local/local",
 			}))
 
-			By("deploying the required bundle", func() {
-				err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-cm.yaml"),
-					TemplateData{required, env.Namespace, namespace, ""})
-				Expect(err).ToNot(HaveOccurred())
-			})
+			By("deploying the required bundle", deployRequiredBundle)
 
 			By("waiting for bundle to ready")
 			Eventually(func() string {
-				out, err := k.Namespace(env.Namespace).Get("bundle", dependsOn, "-o=jsonpath={.status.display}")
+				out, err := k.Namespace(dependsOnNS).Get("bundle", dependsOn, "-o=jsonpath={.status.display}")
 				if err != nil {
 					return ""
 				}
@@ -106,30 +104,22 @@ var _ = Describe("Bundle Depends On", Label("difficult"), func() {
 
 	When("bundle depends on a bundle in another namespace", func() {
 		var clusterName string
+
 		BeforeEach(func() {
 			required = "required2"
 			dependsOn = "depends-on2"
+			dependsOnNS = env.ClusterRegistrationNamespace
 			namespace = testenv.NewNamespaceName("bnm-nomatch2")
 			asset = "multi-cluster/bundle-depends-on.yaml"
 			data = TemplateData{dependsOn, env.ClusterRegistrationNamespace, namespace, "namespace: " + env.Namespace}
 
 			clusterName, _ = k.Namespace(env.ClusterRegistrationNamespace).Get("clusters.fleet.cattle.io", "-o=jsonpath={.items[0].metadata.name}")
 		})
-		JustBeforeEach(func() {
-			err := testenv.ApplyTemplate(k.Namespace(env.ClusterRegistrationNamespace), testenv.AssetPath(asset), data)
-			Expect(err).ToNot(HaveOccurred())
-		})
-		AfterEach(func() {
-			out, err := k.Namespace(env.ClusterRegistrationNamespace).Delete("bundle", dependsOn)
-			Expect(err).ToNot(HaveOccurred(), out)
 
-			out, err = k.Namespace(env.Namespace).Delete("bundle", required)
-			Expect(err).ToNot(HaveOccurred(), out)
-		})
 		It("shows an error until dependency is fulfilled", func() {
 			By("waiting for bundle to error")
 			Eventually(func() []fleet.NonReadyResource {
-				out, err := k.Namespace(env.ClusterRegistrationNamespace).Get("bundle", dependsOn, "-o=jsonpath={.status.summary}")
+				out, err := k.Namespace(dependsOnNS).Get("bundle", dependsOn, "-o=jsonpath={.status.summary}")
 				if err != nil {
 					return []fleet.NonReadyResource{}
 				}
@@ -139,18 +129,14 @@ var _ = Describe("Bundle Depends On", Label("difficult"), func() {
 			}, duration, interval).Should(ContainElement(fleet.NonReadyResource{
 				State:   "ErrApplied",
 				Message: "list bundledeployments: no bundles matching labels fleet.cattle.io/bundle-namespace=fleet-local,role=root in namespace fleet-local",
-				Name:    "fleet-default/" + clusterName,
+				Name:    env.ClusterRegistrationNamespace + "/" + clusterName,
 			}))
 
-			By("deploying the required bundle", func() {
-				err := testenv.ApplyTemplate(k.Namespace(env.Namespace), testenv.AssetPath("multi-cluster/bundle-cm.yaml"),
-					TemplateData{required, env.Namespace, namespace, ""})
-				Expect(err).ToNot(HaveOccurred())
-			})
+			By("deploying the required bundle", deployRequiredBundle)
 
 			By("waiting for bundle to ready")
 			Eventually(func() string {
-				out, err := k.Namespace(env.ClusterRegistrationNamespace).Get("bundle", dependsOn, "-o=jsonpath={.status.display}")
+				out, err := k.Namespace(dependsOnNS).Get("bundle", dependsOn, "-o=jsonpath={.status.display}")
 				if err != nil {
 					return ""
 				}
