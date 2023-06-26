@@ -45,7 +45,7 @@ jobs:
             ${{ runner.os }}-go-
       -
         name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.8.0
+        run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
         name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
