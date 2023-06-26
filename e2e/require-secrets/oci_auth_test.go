@@ -44,7 +44,7 @@ var _ = Describe("Single Cluster Examples", func() {
 
 	AfterEach(func() {
 		os.RemoveAll(tmpdir)
-		out, err := k.Delete("-f", testenv.AssetPath(asset))
+		out, err := k.Delete("gitrepo", "helm")
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 

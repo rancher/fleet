@@ -49,11 +49,13 @@ var _ = Describe("Git Repo", func() {
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-			Repo   string
-			Branch string
+			Repo            string
+			Branch          string
+			PollingInterval string
 		}{
 			gh.GetURL(),
 			gh.Branch,
+			"15s", // default
 		})
 		Expect(err).ToNot(HaveOccurred(), out)
 
