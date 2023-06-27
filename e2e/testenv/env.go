@@ -19,16 +19,21 @@ type Env struct {
 	Upstream string
 	// Downstream context for fleet-agent cluster
 	Downstream string
-	// Namespace which contains the cluster resource (cluster registration namespace)
+	// Namespace which contains the cluster resource for most E2E tests
+	// (cluster registration namespace)
 	Namespace string
+	// Namespace which contains downstream clusters, besides the local
+	// cluster, for some multi-cluster E2E tests
+	ClusterRegistrationNamespace string
 }
 
 func New() *Env {
 	env := &Env{
-		Kubectl:    kubectl.New("", "default"),
-		Upstream:   "k3d-upstream",
-		Downstream: "k3d-downstream",
-		Namespace:  "fleet-default",
+		Kubectl:                      kubectl.New("", "default"),
+		Upstream:                     "k3d-upstream",
+		Downstream:                   "k3d-downstream",
+		Namespace:                    "fleet-local",
+		ClusterRegistrationNamespace: "fleet-default",
 	}
 	env.getShellEnv()
 	return env
@@ -43,6 +48,9 @@ func (e *Env) getShellEnv() {
 	}
 	if val := os.Getenv("FLEET_E2E_NS"); val != "" {
 		e.Namespace = val
+	}
+	if val := os.Getenv("FLEET_E2E_NS_DOWNSTREAM"); val != "" {
+		e.ClusterRegistrationNamespace = val
 	}
 }
 

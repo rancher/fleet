@@ -38,7 +38,7 @@ var _ = Describe("Multi Cluster Examples", func() {
 	}
 
 	BeforeEach(func() {
-		k = env.Kubectl.Context(env.Upstream).Namespace(env.Namespace)
+		k = env.Kubectl.Context(env.Upstream).Namespace(env.ClusterRegistrationNamespace)
 		kd = env.Kubectl.Context(env.Downstream)
 	})
 

@@ -201,6 +201,7 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
 				ls = depend.Selector
 			}
 
+			// depend.Name is just a shortcut for matchLabels: {bundle-name: name}
 			if depend.Name != "" {
 				ls = metav1.AddLabelToSelector(ls, fleet.BundleLabel, depend.Name)
 				ls = metav1.AddLabelToSelector(ls, fleet.BundleNamespaceLabel, bundleNamespace)
@@ -216,7 +217,7 @@ func (h *handler) checkDependency(bd *fleet.BundleDeployment) error {
 			}
 
 			if len(bds) == 0 {
-				return fmt.Errorf("no bundles matching labels %s in namespace %s", selector.String(), bundleNamespace)
+				return fmt.Errorf("list bundledeployments: no bundles matching labels %s in namespace %s", selector.String(), bundleNamespace)
 			}
 
 			for _, depBundle := range bds {
