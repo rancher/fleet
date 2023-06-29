@@ -4,7 +4,7 @@ package main
 import (
 	_ "net/http/pprof"
 
-	"github.com/rancher/fleet/modules/agent/cmds"
+	"github.com/rancher/fleet/internal/agent/cmds"
 
 	command "github.com/rancher/wrangler-cli"
 )

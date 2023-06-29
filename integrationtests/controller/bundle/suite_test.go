@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/pkg/controllers/bundle"
-	"github.com/rancher/fleet/pkg/target"
+	"github.com/rancher/fleet/internal/controller/controllers/bundle"
+	"github.com/rancher/fleet/internal/controller/target"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -17,7 +17,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
-	"github.com/rancher/fleet/pkg/manifest"
+	"github.com/rancher/fleet/internal/pkg/manifest"
 	"github.com/rancher/lasso/pkg/cache"
 	lassoclient "github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"

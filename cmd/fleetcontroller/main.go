@@ -4,7 +4,7 @@ package main
 import (
 	_ "net/http/pprof"
 
-	controller "github.com/rancher/fleet/modules/controller/cmds"
+	controller "github.com/rancher/fleet/internal/controller/cmds"
 
 	command "github.com/rancher/wrangler-cli"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
