@@ -2,7 +2,7 @@
 package main
 
 import (
-	"github.com/rancher/fleet/internal/cli/cmds"
+	"github.com/rancher/fleet/internal/fleetcli/cmds"
 
 	command "github.com/rancher/wrangler-cli"
 

@@ -5,7 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/rancher/fleet/integrationtests/cli"
-	"github.com/rancher/fleet/internal/cli/apply"
+	"github.com/rancher/fleet/internal/fleetcli/apply"
 )
 
 var _ = Describe("Fleet apply", Ordered, func() {

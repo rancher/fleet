@@ -7,8 +7,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/integrationtests/cli"
-	"github.com/rancher/fleet/internal/cli/apply"
-	"github.com/rancher/fleet/internal/pkg/bundlereader"
+	"github.com/rancher/fleet/internal/fleetcli/apply"
+	"github.com/rancher/fleet/internal/bundlereader"
 )
 
 const (

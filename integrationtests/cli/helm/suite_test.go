@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/rancher/fleet/internal/cli/apply"
-	"github.com/rancher/fleet/internal/pkg/client"
+	"github.com/rancher/fleet/internal/fleetcli/apply"
+	"github.com/rancher/fleet/internal/client"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
