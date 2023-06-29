@@ -7,12 +7,12 @@ import (
 
 	"helm.sh/helm/v3/pkg/chart"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/fleetyaml"
-	"github.com/rancher/fleet/internal/manifest"
-	"github.com/rancher/fleet/internal/helmdeployer/render/patch"
 	"github.com/rancher/fleet/internal/helmdeployer/rawyaml"
+	"github.com/rancher/fleet/internal/helmdeployer/render/patch"
+	"github.com/rancher/fleet/internal/manifest"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/pkg/kv"
 

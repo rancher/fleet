@@ -14,10 +14,10 @@ import (
 
 	"github.com/rancher/fleet/internal/fleetagent/deployer"
 	"github.com/rancher/fleet/internal/fleetagent/trigger"
+	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/internal/helmdeployer"
 
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/merr"

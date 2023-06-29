@@ -7,8 +7,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"sigs.k8s.io/yaml"
 
-	"github.com/rancher/fleet/internal/fleetcli/apply"
 	"github.com/rancher/fleet/internal/bundlereader"
+	"github.com/rancher/fleet/internal/fleetcli/apply"
 )
 
 const (

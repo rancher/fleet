@@ -14,11 +14,11 @@ import (
 	"github.com/rancher/fleet/internal/fleetagent/controllers/cluster"
 	"github.com/rancher/fleet/internal/fleetagent/deployer"
 	"github.com/rancher/fleet/internal/fleetagent/trigger"
+	"github.com/rancher/fleet/internal/helmdeployer"
+	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/internal/helmdeployer"
-	"github.com/rancher/fleet/internal/manifest"
 
 	cache2 "github.com/rancher/lasso/pkg/cache"
 	"github.com/rancher/lasso/pkg/client"

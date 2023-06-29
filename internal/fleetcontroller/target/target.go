@@ -17,12 +17,12 @@ import (
 	"github.com/sirupsen/logrus"
 	kyaml "sigs.k8s.io/yaml"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/fleetcontroller/options"
 	"github.com/rancher/fleet/internal/fleetcontroller/summary"
 	"github.com/rancher/fleet/internal/fleetcontroller/target/matcher"
+	"github.com/rancher/fleet/internal/manifest"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"

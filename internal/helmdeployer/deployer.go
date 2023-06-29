@@ -19,12 +19,12 @@ import (
 	"helm.sh/helm/v3/pkg/storage/driver"
 	"k8s.io/client-go/tools/cache"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/helmdeployer/kustomize"
-	"github.com/rancher/fleet/internal/manifest"
-	name2 "github.com/rancher/fleet/internal/name"
 	"github.com/rancher/fleet/internal/helmdeployer/rawyaml"
 	"github.com/rancher/fleet/internal/helmdeployer/render"
+	"github.com/rancher/fleet/internal/manifest"
+	name2 "github.com/rancher/fleet/internal/name"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"

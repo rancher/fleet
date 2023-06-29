@@ -15,9 +15,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
-	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/lasso/pkg/cache"
 	lassoclient "github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"

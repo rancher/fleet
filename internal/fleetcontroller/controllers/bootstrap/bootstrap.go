@@ -8,10 +8,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/config"
 	fleetns "github.com/rancher/fleet/internal/fleetcontroller/namespace"
 	secretutil "github.com/rancher/fleet/internal/fleetcontroller/secret"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 

@@ -1,9 +1,9 @@
 package controllers
 
 import (
+	fleetns "github.com/rancher/fleet/internal/fleetcontroller/namespace"
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetns "github.com/rancher/fleet/internal/fleetcontroller/namespace"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

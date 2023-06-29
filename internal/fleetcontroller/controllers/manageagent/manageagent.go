@@ -11,9 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/fleetcontroller/agent"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/internal/config"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/sirupsen/logrus"
 

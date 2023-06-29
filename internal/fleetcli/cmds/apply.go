@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/fleetcli/apply"
 	"github.com/rancher/fleet/internal/fleetcli/writer"
-	"github.com/rancher/fleet/internal/bundlereader"
 	command "github.com/rancher/wrangler-cli"
 	"github.com/rancher/wrangler/pkg/yaml"
 )

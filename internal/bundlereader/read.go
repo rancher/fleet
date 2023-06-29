@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/fleetyaml"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	name1 "github.com/rancher/wrangler/pkg/name"
 

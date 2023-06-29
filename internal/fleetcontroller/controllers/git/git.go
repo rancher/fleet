@@ -13,12 +13,12 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/fleetcontroller/controllers/clusterregistration"
 	"github.com/rancher/fleet/internal/fleetcontroller/display"
-	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/fleetcontroller/summary"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
 	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"

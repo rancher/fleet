@@ -13,13 +13,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/rancher/fleet/internal/config"
+	secretutil "github.com/rancher/fleet/internal/fleetcontroller/secret"
+	"github.com/rancher/fleet/internal/registration"
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/internal/registration"
-	secretutil "github.com/rancher/fleet/internal/fleetcontroller/secret"
 
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"

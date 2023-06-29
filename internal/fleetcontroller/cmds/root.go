@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/rancher/fleet/internal/fleetcontroller/agent"
-	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/internal/fleetcontroller/fleetcontroller"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/version"
 
 	command "github.com/rancher/wrangler-cli"

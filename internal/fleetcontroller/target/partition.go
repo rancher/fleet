@@ -3,8 +3,8 @@ package target
 import (
 	"fmt"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/fleetcontroller/target/matcher"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 

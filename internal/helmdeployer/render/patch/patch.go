@@ -9,9 +9,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/manifest"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/pkg/patch"
 

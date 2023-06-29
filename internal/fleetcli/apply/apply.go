@@ -13,11 +13,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/fleet/internal/client"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/bundlereader"
+	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/fleetyaml"
 	name2 "github.com/rancher/fleet/internal/name"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/pkg/yaml"
 

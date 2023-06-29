@@ -12,12 +12,12 @@ import (
 	"io"
 	"os"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/bundlereader"
-	"github.com/rancher/fleet/internal/helmdeployer"
-	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/fleetcontroller/options"
 	"github.com/rancher/fleet/internal/fleetcontroller/target/matcher"
+	"github.com/rancher/fleet/internal/helmdeployer"
+	"github.com/rancher/fleet/internal/manifest"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/pkg/yaml"
 )

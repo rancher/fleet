@@ -8,11 +8,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/config"
+	"github.com/rancher/fleet/internal/registration"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
-	"github.com/rancher/fleet/internal/registration"
 
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"

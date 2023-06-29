@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/internal/client"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/config"
+	fleetns "github.com/rancher/fleet/internal/fleetcontroller/namespace"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	fleetns "github.com/rancher/fleet/internal/fleetcontroller/namespace"
 
 	"github.com/rancher/wrangler/pkg/yaml"
 

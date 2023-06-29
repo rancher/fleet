@@ -7,9 +7,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/rancher/fleet/internal/fleetcontroller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/internal/fleetcontroller/summary"
 
 	"github.com/rancher/wrangler/pkg/kv"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

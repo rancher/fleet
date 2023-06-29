@@ -15,8 +15,8 @@ import (
 
 	"github.com/hashicorp/go-getter"
 	"github.com/pkg/errors"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/internal/content"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/downloader"
 	helmgetter "helm.sh/helm/v3/pkg/getter"

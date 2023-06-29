@@ -28,10 +28,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/sirupsen/logrus"
 
+	"github.com/rancher/fleet/internal/fleetcontroller/controllers/image/update"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/internal/fleetcontroller/controllers/image/update"
 
 	"github.com/rancher/wrangler/pkg/condition"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
