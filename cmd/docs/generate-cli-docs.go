@@ -9,9 +9,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	fleetagent "github.com/rancher/fleet/internal/fleetagent/cmds"
-	fleetcli "github.com/rancher/fleet/internal/fleetcli/cmds"
-	fleetcontroller "github.com/rancher/fleet/internal/fleetcontroller/cmds"
+	fleetagent "github.com/rancher/fleet/internal/cmd/agent"
+	fleetcli "github.com/rancher/fleet/internal/cmd/cli"
+	fleetcontroller "github.com/rancher/fleet/internal/cmd/controller"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"

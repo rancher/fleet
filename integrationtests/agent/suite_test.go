@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/internal/fleetagent/controllers/bundledeployment"
-	"github.com/rancher/fleet/internal/fleetagent/deployer"
-	"github.com/rancher/fleet/internal/fleetagent/trigger"
+	"github.com/rancher/fleet/internal/cmd/agent/controllers/bundledeployment"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer"
+	"github.com/rancher/fleet/internal/cmd/agent/trigger"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/internal/fleetcontroller/controllers/bundle"
-	"github.com/rancher/fleet/internal/fleetcontroller/target"
+	"github.com/rancher/fleet/internal/cmd/controller/controllers/bundle"
+	"github.com/rancher/fleet/internal/cmd/controller/target"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
