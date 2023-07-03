@@ -75,7 +75,7 @@ jobs:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
           cluster-name: "k3s-default"
           args: >-
-            --agents 3
+            --agents 1
             --network "nw01"
             --image docker.io/rancher/k3s:${{matrix.k3s_version}}
       -
