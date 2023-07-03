@@ -1,4 +1,4 @@
-// Package match is used to test matching a bundles to a target on the command line. (fleetapply)
+// Package match is used to test matching a bundles to a target on the command line.
 //
 // It's not used by fleet, but it is available in the fleet CLI as "test" sub
 // command. The tests in fleet-examples use it.

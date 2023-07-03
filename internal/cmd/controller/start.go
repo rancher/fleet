@@ -1,5 +1,4 @@
-// Package fleetcontroller registers the fleet controller. (fleetcontroller)
-package fleetcontroller
+package controller
 
 import (
 	"context"
@@ -11,7 +10,7 @@ import (
 	"github.com/rancher/wrangler/pkg/ratelimit"
 )
 
-func Start(ctx context.Context, systemNamespace string, kubeconfigFile string, disableGitops bool, disableBootstrap bool) error {
+func start(ctx context.Context, systemNamespace string, kubeconfigFile string, disableGitops bool, disableBootstrap bool) error {
 	cfg := kubeconfig.GetNonInteractiveClientConfig(kubeconfigFile)
 	clientConfig, err := cfg.ClientConfig()
 	if err != nil {

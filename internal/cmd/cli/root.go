@@ -1,4 +1,4 @@
-// Package cli sets up the CLI commands for the fleet apply binary. (fleetapply)
+// Package cli sets up the CLI commands for the fleet apply binary.
 package cli
 
 import (

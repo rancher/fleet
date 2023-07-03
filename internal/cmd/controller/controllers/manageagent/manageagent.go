@@ -1,4 +1,4 @@
-// Package manageagent provides a controller for managing the agent bundle. (fleetcontroller)
+// Package manageagent provides a controller for managing the agent bundle.
 //
 // Allows Fleet to deploy the Fleet Agent itself as a Bundle, which ensures
 // changes to Fleet’s configuration are reflected in the Agent.

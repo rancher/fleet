@@ -1,4 +1,4 @@
-// Package content purges orphaned content objects by inspecting bundledeployments in all namespaces. Runs every 5 minutes. (fleetcontroller)
+// Package content purges orphaned content objects by inspecting bundledeployments in all namespaces. Runs every 5 minutes.
 package content
 
 import (

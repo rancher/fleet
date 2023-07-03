@@ -1,3 +1,4 @@
+// Package controller starts the fleet controller.
 package controller
 
 import (
@@ -14,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agent"
-	"github.com/rancher/fleet/internal/cmd/controller/fleetcontroller"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/version"
 
@@ -38,7 +38,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
 	debugConfig.MustSetupDebug()
-	if err := fleetcontroller.Start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops, f.DisableBootstrap); err != nil {
+	if err := start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops, f.DisableBootstrap); err != nil {
 		return err
 	}
 

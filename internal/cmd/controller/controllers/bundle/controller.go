@@ -1,4 +1,4 @@
-// Package bundle registers a controller for Bundle objects. (fleetcontroller)
+// Package bundle registers a controller for Bundle objects.
 package bundle
 
 import (

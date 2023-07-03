@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rancher/fleet/internal/cmd/agent/agent"
 	"github.com/rancher/fleet/pkg/version"
 
 	command "github.com/rancher/wrangler-cli"
@@ -32,7 +31,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 
 	debugConfig.MustSetupDebug()
 	var (
-		opts agent.Options
+		opts options
 		err  error
 	)
 
@@ -45,7 +44,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	if a.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
 	}
-	if err := agent.Start(cmd.Context(), a.Kubeconfig, a.Namespace, a.AgentScope, &opts); err != nil {
+	if err := start(cmd.Context(), a.Kubeconfig, a.Namespace, a.AgentScope, &opts); err != nil {
 		return err
 	}
 	<-cmd.Context().Done()

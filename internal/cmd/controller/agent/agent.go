@@ -1,4 +1,4 @@
-// Package agent builds manifests for creating a managed fleet-agent. (fleetcontroller)
+// Package agent builds manifests for creating a managed fleet-agent.
 package agent
 
 import (

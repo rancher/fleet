@@ -1,4 +1,4 @@
-// Package cluster updates the cluster.fleet.cattle.io status in the upstream cluster with the current node status. (fleetagent)
+// Package cluster updates the cluster.fleet.cattle.io status in the upstream cluster with the current node status.
 package cluster
 
 import (

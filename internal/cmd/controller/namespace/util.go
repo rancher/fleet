@@ -1,4 +1,4 @@
-// Package namespace generates the name of the system registration namespace. (fleetcontroller)
+// Package namespace generates the name of the system registration namespace.
 //
 // Special namespaces in fleet:
 // * system namespace: cattle-fleet-system

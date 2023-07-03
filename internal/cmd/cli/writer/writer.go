@@ -1,4 +1,4 @@
-// Package writer provides a writer that can be used to write to a file or stdout. (fleetapply)
+// Package writer provides a writer that can be used to write to a file or stdout.
 package writer
 
 import (

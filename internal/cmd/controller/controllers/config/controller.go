@@ -1,4 +1,4 @@
-// Package config reads the initial global configuration. (fleetcontroller)
+// Package config reads the initial global configuration.
 package config
 
 import (

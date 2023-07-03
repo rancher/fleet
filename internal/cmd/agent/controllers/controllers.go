@@ -1,4 +1,4 @@
-// Package controllers wires and starts the controllers for the agent. (fleetagent)
+// Package controllers wires and starts the controllers for the agent.
 package controllers
 
 import (

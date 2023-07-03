@@ -1,4 +1,4 @@
-// Package bundledeployment deploys bundles, monitors them and cleans up. (fleetagent)
+// Package bundledeployment deploys bundles, monitors them and cleans up.
 package bundledeployment
 
 import (

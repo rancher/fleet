@@ -1,4 +1,4 @@
-// Package main is the entry point for the fleet apply binary. (fleetapply)
+// Package main is the entry point for the fleet apply binary.
 package main
 
 import (

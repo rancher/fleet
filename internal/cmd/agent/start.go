@@ -1,4 +1,3 @@
-// Package agent provides the agent controller. (fleetagent)
 package agent
 
 import (
@@ -22,16 +21,16 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type Options struct {
+type options struct {
 	DefaultNamespace string
 	ClusterID        string
 	CheckinInterval  time.Duration
 }
 
-// Start the fleet agent
-func Start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *Options) error {
+// start the fleet agent
+func start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *options) error {
 	if opts == nil {
-		opts = &Options{}
+		opts = &options{}
 	}
 	if opts.DefaultNamespace == "" {
 		opts.DefaultNamespace = "default"
@@ -58,7 +57,7 @@ func Start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *
 		return err
 	}
 
-	fleetMapper, mapper, discovery, err := NewMappers(ctx, fleetRestConfig, clientConfig, opts)
+	fleetMapper, mapper, discovery, err := newMappers(ctx, fleetRestConfig, clientConfig, opts)
 	if err != nil {
 		return err
 	}
@@ -86,7 +85,7 @@ var (
 )
 
 // Share mappers across simulators
-func NewMappers(ctx context.Context, fleetRESTConfig *rest.Config, clientconfig clientcmd.ClientConfig, opts *Options) (meta.RESTMapper, meta.RESTMapper, discovery.CachedDiscoveryInterface, error) {
+func newMappers(ctx context.Context, fleetRESTConfig *rest.Config, clientconfig clientcmd.ClientConfig, opts *options) (meta.RESTMapper, meta.RESTMapper, discovery.CachedDiscoveryInterface, error) {
 	mapperLock.Lock()
 	defer mapperLock.Unlock()
 

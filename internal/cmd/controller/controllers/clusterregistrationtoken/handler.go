@@ -1,4 +1,4 @@
-// Package clusterregistrationtoken provides a controller for ClusterRegistrationToken. (fleetcontroller)
+// Package clusterregistrationtoken provides a controller for ClusterRegistrationToken.
 //
 // It creates a service account and role binding for the token.
 package clusterregistrationtoken

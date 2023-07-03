@@ -1,4 +1,4 @@
-// Package connection provides a connection to a Kubernetes cluster, used when importing a cluster. (fleetcontroller)
+// Package connection provides a connection to a Kubernetes cluster, used when importing a cluster.
 package connection
 
 import (

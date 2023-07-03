@@ -1,4 +1,4 @@
-// Package target provides functionality around building and deploying bundledeployments. (fleetcontroller)
+// Package target provides functionality around building and deploying bundledeployments.
 //
 // Each "Target" represents a bundle, cluster pair and will be transformed into a bundledeployment.
 // The manifest, persisted in the content resource, contains the resources available to
