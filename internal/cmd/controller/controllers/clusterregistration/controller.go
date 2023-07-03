@@ -188,6 +188,12 @@ func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, err
 	return secret, nil
 }
 
+// OnChange creates the service account and roles for a cluster registration.
+// The service account's token is deployed to the downstream cluster, via the
+// fleet-secret. It allows the downstream fleet-agent to list
+// bundledeployments and update their status in its own cluster namespace on upstream.
+// It can also get content resources, but not list them. The name of content
+// resources is random.
 func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.ClusterRegistrationStatus) ([]runtime.Object, fleet.ClusterRegistrationStatus, error) {
 	var (
 		objects []runtime.Object
@@ -262,27 +268,6 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
-				Namespace: cluster.Status.Namespace,
-				Labels: map[string]string{
-					fleet.ManagedLabel: "true",
-				},
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      saName,
-					Namespace: cluster.Status.Namespace,
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: rbacv1.GroupName,
-				Kind:     "ClusterRole",
-				Name:     "fleet-bundle-deployment",
-			},
-		},
-		&rbacv1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      request.Name,
 				Namespace: request.Namespace,
 				Labels: map[string]string{
 					fleet.ManagedLabel: "true",
@@ -301,6 +286,31 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				Name:     request.Name,
 			},
 		},
+		// cluster role "fleet-bundle-deployment" created when
+		// fleet-controller starts, see pkg/controllers/data.go
+		&rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      request.Name,
+				Namespace: cluster.Status.Namespace,
+				Labels: map[string]string{
+					fleet.ManagedLabel: "true",
+				},
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      saName,
+					Namespace: cluster.Status.Namespace,
+				},
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.GroupName,
+				Kind:     "ClusterRole",
+				Name:     "fleet-bundle-deployment",
+			},
+		},
+		// cluster role "fleet-content" created when fleet-controller
+		// starts, see pkg/controllers/data.go
 		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name.SafeConcatName(request.Name, "content"),

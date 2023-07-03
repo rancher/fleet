@@ -10,6 +10,9 @@ fi
 
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+ns="${FLEET_E2E_NS_DOWNSTREAM-fleet-local}"
+
+kubectl create ns "$ns"|| true
 
 # predefined cluster
 # kubectl apply -f - <<EOF
@@ -17,7 +20,7 @@ downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
 # kind: Cluster
 # metadata:
 #   name: second
-#   namespace: fleet-local
+#   namespace: "$ns"
 # spec:
 #   clientID: "fake-random"
 # EOF
@@ -29,17 +32,17 @@ apiVersion: "fleet.cattle.io/v1alpha1"
 kind: ClusterRegistrationToken
 metadata:
   name: second-token
-  namespace: fleet-local
+  namespace: "$ns"
 spec:
   ttl: 12h
 EOF
-{ grep -q -m 1 "second-token"; kill $!; } < <(kubectl get clusterregistrationtoken -n fleet-local -w)
-while ! kubectl get clusterregistrationtoken -n fleet-local -o jsonpath='{.status}' second-token | grep -q secretName; do
+{ grep -q -m 1 "second-token"; kill $!; } < <(kubectl get clusterregistrationtoken -n "$ns" -w)
+while ! kubectl get clusterregistrationtoken -n "$ns" -o jsonpath='{.status}' second-token | grep -q secretName; do
   sleep 1
 done
-kubectl wait clusterregistrationtoken -n fleet-local --for=jsonpath='{.status.secretName}'=second-token second-token
+kubectl wait clusterregistrationtoken -n "$ns" --for=jsonpath='{.status.secretName}'=second-token second-token
 
-token=$(kubectl get secret -n fleet-local second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
+token=$(kubectl get secret -n "$ns" second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
 
 ca=""
 serverver=$(kubectl version -ojson 2> /dev/null | jq '.serverVersion.minor' | sed 's/"//g')
@@ -58,7 +61,7 @@ helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-ag
   --set-string labels.env=test \
   --set apiServerCA="$ca" \
   --set apiServerURL="https://$url:36443" \
-  --set clusterNamespace="fleet-local" \
+  --set clusterNamespace="$ns" \
   --set token="$token"
   #--set systemRegistrationNamespace="fleet-clusters-system" \
   #--set clientID="fake-random" \

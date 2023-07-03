@@ -73,13 +73,13 @@ func Register(ctx context.Context,
 			AllowClusterScoped: true,
 		})
 
-	relatedresource.Watch(ctx, "app", h.resolveApp, bundles, bundleDeployments)
+	relatedresource.Watch(ctx, "app", h.resolveBundle, bundles, bundleDeployments)
 	clusters.OnChange(ctx, "app", h.OnClusterChange)
 	bundles.OnChange(ctx, "bundle-orphan", h.OnPurgeOrphaned)
 	images.OnChange(ctx, "imagescan-orphan", h.OnPurgeOrphanedImageScan)
 }
 
-func (h *handler) resolveApp(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
+func (h *handler) resolveBundle(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if ad, ok := obj.(*fleet.BundleDeployment); ok {
 		ns, name := h.targets.BundleFromDeployment(ad)
 		if ns != "" && name != "" {
