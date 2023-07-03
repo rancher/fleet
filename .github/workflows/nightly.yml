@@ -65,11 +65,11 @@ jobs:
         run: |
           export GOARCH=amd64
           go build -gcflags='all=-N -l' -o bin/fleetcontroller-linux-amd64 ./cmd/fleetcontroller
-          go build -gcflags='all=-N -l' -o bin/fleet-linux-amd64
+          go build -gcflags='all=-N -l' -o bin/fleet-linux-amd64 ./cmd/fleetcli
           go build -gcflags='all=-N -l' -o bin/fleetagent-linux-amd64 ./cmd/fleetagent
           export GOARCH=arm64
           go build -gcflags='all=-N -l' -o bin/fleetcontroller-linux-arm64 ./cmd/fleetcontroller
-          go build -gcflags='all=-N -l' -o bin/fleet-linux-arm64
+          go build -gcflags='all=-N -l' -o bin/fleet-linux-arm64 ./cmd/fleetcli
           go build -gcflags='all=-N -l' -o bin/fleetagent-linux-arm64 ./cmd/fleetagent
       -
         id: meta-fleet

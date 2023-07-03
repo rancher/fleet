@@ -36,7 +36,7 @@ sed -i \
     -e 's/tag: dev/tag: '${HELM_TAG}'/' \
     build/charts/fleet-agent/values.yaml
 
-go run ./pkg/codegen crds ./build/charts/fleet-crd/templates/crds.yaml
+go run ./cmd/codegen crds ./build/charts/fleet-crd/templates/crds.yaml
 helm package -d ./dist/artifacts ./build/charts/fleet
 helm package -d ./dist/artifacts ./build/charts/fleet-crd
 helm package -d ./dist/artifacts ./build/charts/fleet-agent

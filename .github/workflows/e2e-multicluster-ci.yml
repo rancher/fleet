@@ -51,7 +51,7 @@ jobs:
         run: |
           go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
 
-          go build -o "bin/fleet-linux-$GOARCH"
+          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
           go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
       -
         name: Build Docker Images
