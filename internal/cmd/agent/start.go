@@ -57,7 +57,7 @@ func start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *
 		return err
 	}
 
-	fleetMapper, mapper, discovery, err := newMappers(ctx, fleetRestConfig, clientConfig, opts)
+	fleetMapper, mapper, discovery, err := newMappers(ctx, fleetRestConfig, clientConfig)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ var (
 )
 
 // Share mappers across simulators
-func newMappers(ctx context.Context, fleetRESTConfig *rest.Config, clientconfig clientcmd.ClientConfig, opts *options) (meta.RESTMapper, meta.RESTMapper, discovery.CachedDiscoveryInterface, error) {
+func newMappers(ctx context.Context, fleetRESTConfig *rest.Config, clientconfig clientcmd.ClientConfig) (meta.RESTMapper, meta.RESTMapper, discovery.CachedDiscoveryInterface, error) {
 	mapperLock.Lock()
 	defer mapperLock.Unlock()
 

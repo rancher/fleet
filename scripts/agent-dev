@@ -15,20 +15,13 @@ LINKFLAGS="$LINKFLAGS -extldflags -static"
 
 AGENT_ARCH=amd64
 
-function build-binary() {
-    local BINARY=$1-linux-$AGENT_ARCH
-    local OUT="bin/$BINARY"
-    if [ "$1" = "fleetagent" ]; then
-        OUT="$OUT ./cmd/$1"
-    fi
+echo "Building binary: fleet"
+GOOS=linux GOARCH=$AGENT_ARCH CGO_ENABLED=0 go build -ldflags "$LINKFLAGS" -o bin/fleet-linux-$AGENT_ARCH ./cmd/fleetcli
+cp bin/fleet-linux-$AGENT_ARCH dist/artifacts/
 
-    echo "Building binary: $BINARY"
-    GOOS=linux GOARCH=$AGENT_ARCH CGO_ENABLED=0 go build -ldflags "$LINKFLAGS" -o $OUT
-    cp bin/$BINARY dist/artifacts/
-}
-
-build-binary fleet
-build-binary fleetagent
+echo "Building binary: fleetagent"
+GOOS=linux GOARCH=$AGENT_ARCH CGO_ENABLED=0 go build -ldflags "$LINKFLAGS" -o bin/fleetagent-linux-$AGENT_ARCH ./cmd/fleetagent
+cp bin/fleetagent-linux-$AGENT_ARCH dist/artifacts/
 
 IMAGE=$REPO/fleet-agent:$TAG
 echo "Building fleet-agent image for linux-$AGENT_ARCH: $IMAGE"
