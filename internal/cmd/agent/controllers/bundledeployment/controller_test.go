@@ -1,6 +1,7 @@
 package bundledeployment
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -14,11 +15,10 @@ import (
 
 func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 	tests := map[string]struct {
-		bd          *fleet.BundleDeployment
-		ns          corev1.Namespace
-		release     string
-		expectedNs  corev1.Namespace
-		expectedErr error
+		bd         *fleet.BundleDeployment
+		ns         corev1.Namespace
+		release    string
+		expectedNs corev1.Namespace
 	}{
 		"NamespaceLabels and NamespaceAnnotations are appended": {
 			bd: &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
@@ -39,7 +39,6 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 					Annotations: map[string]string{"optAnn1": "optValue1"},
 				},
 			},
-			expectedErr: nil,
 		},
 
 		"NamespaceLabels and NamespaceAnnotations removes entries that are not in the options, except the name label": {
@@ -62,7 +61,6 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 					Annotations: map[string]string{},
 				},
 			},
-			expectedErr: nil,
 		},
 
 		"NamespaceLabels and NamespaceAnnotations updates existing values": {
@@ -85,7 +83,6 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 					Annotations: map[string]string{"bdAnn": "annUpdated"},
 				},
 			},
-			expectedErr: nil,
 		},
 	}
 
@@ -97,6 +94,7 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			mockDynamic := mocks.NewMockInterface(ctrl)
 			mockNamespaceableResourceInterface := mocks.NewMockNamespaceableResourceInterface(ctrl)
 			u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(&test.ns)
+			// Resource will be called twice, one time for UPDATE and another time for LIST
 			mockDynamic.EXPECT().Resource(gomock.Any()).Return(mockNamespaceableResourceInterface).Times(2)
 			mockNamespaceableResourceInterface.EXPECT().List(gomock.Any(), metav1.ListOptions{
 				LabelSelector: "name=namespace",
@@ -111,9 +109,39 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			}
 			err := h.setNamespaceLabelsAndAnnotations(test.bd, test.release)
 
-			if err != test.expectedErr {
-				t.Errorf("expected error doesn't match: expected %v, got %v", test.expectedErr, err)
+			if err != nil {
+				t.Errorf("expected nil error: got %v", err)
 			}
 		})
+	}
+}
+
+func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
+	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
+		Options: fleet.BundleDeploymentOptions{
+			NamespaceLabels:      &map[string]string{"optLabel1": "optValue1", "optLabel2": "optValue2"},
+			NamespaceAnnotations: &map[string]string{"optAnn1": "optValue1"},
+		},
+	}}
+	release := "test/foo/bar"
+	expectedErr := errors.New("namespace test not found")
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockDynamic := mocks.NewMockInterface(ctrl)
+	mockNamespaceableResourceInterface := mocks.NewMockNamespaceableResourceInterface(ctrl)
+	mockDynamic.EXPECT().Resource(gomock.Any()).Return(mockNamespaceableResourceInterface).Times(1)
+	mockNamespaceableResourceInterface.EXPECT().List(gomock.Any(), metav1.ListOptions{
+		LabelSelector: "name=test",
+	}).Return(&unstructured.UnstructuredList{
+		Items: []unstructured.Unstructured{},
+	}, nil).Times(1)
+	h := handler{
+		dynamic: mockDynamic,
+	}
+	err := h.setNamespaceLabelsAndAnnotations(bd, release)
+
+	if err.Error() != expectedErr.Error() {
+		t.Errorf("expected error %v: got %v", expectedErr, err)
 	}
 }

@@ -164,9 +164,9 @@ func (h *handler) setNamespaceLabelsAndAnnotations(bd *fleet.BundleDeployment, r
 		addLabelsFromOptions(ns.Labels, *bd.Spec.Options.NamespaceLabels)
 	}
 	if bd.Spec.Options.NamespaceAnnotations != nil {
-	        if ns.Annotations == nil {
-	                ns.Annotations = map[string]string{}
-	       }
+		if ns.Annotations == nil {
+			ns.Annotations = map[string]string{}
+		}
 		addAnnotationsFromOptions(ns.Annotations, *bd.Spec.Options.NamespaceAnnotations)
 	}
 	err = h.updateNamespace(ns)
@@ -202,7 +202,7 @@ func (h *handler) fetchNamespace(releaseID string) (*corev1.Namespace, error) {
 		return nil, err
 	}
 	if len(list.Items) == 0 {
-		return nil, errors.New("namespace not found")
+		return nil, fmt.Errorf("namespace %s not found", namespace)
 	}
 	var ns corev1.Namespace
 	err = runtime.DefaultUnstructuredConverter.
