@@ -245,10 +245,10 @@ type BundleDeploymentOptions struct {
 	// CorrectDrift specifies how drift correction should work.
 	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
 
-	// NamespaceLabels labels that will be appended to the namespace created by fleet
+	// NamespaceLabels are labels that will be appended to the namespace created by Fleet.
 	NamespaceLabels *map[string]string `json:"namespaceLabels,omitempty"`
 
-	// NamespaceAnnotations annotations that will be appended to the namespace created by fleet
+	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
 	NamespaceAnnotations *map[string]string `json:"namespaceAnnotations,omitempty"`
 }
 

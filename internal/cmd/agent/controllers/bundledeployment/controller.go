@@ -136,9 +136,7 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
 
-	err = h.setNamespaceLabelsAndAnnotations(bd, release)
-
-	if err != nil {
+	if err := h.setNamespaceLabelsAndAnnotations(bd, release); err != nil {
 		return fleet.BundleDeploymentStatus{}, err
 	}
 
@@ -147,6 +145,7 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	return status, nil
 }
 
+// setNamespaceLabelsAndAnnotations updates the namespace for the release, applying all labels and annotations to that namespace as configured in the bundle spec.
 func (h *handler) setNamespaceLabelsAndAnnotations(bd *fleet.BundleDeployment, releaseID string) error {
 	if bd.Spec.Options.NamespaceLabels == nil && bd.Spec.Options.NamespaceAnnotations == nil {
 		return nil
@@ -161,13 +160,13 @@ func (h *handler) setNamespaceLabelsAndAnnotations(bd *fleet.BundleDeployment, r
 		return nil
 	}
 
-	if ns.Annotations == nil && bd.Spec.Options.NamespaceAnnotations != nil {
-		ns.Annotations = map[string]string{}
-	}
 	if bd.Spec.Options.NamespaceLabels != nil {
 		addLabelsFromOptions(ns.Labels, *bd.Spec.Options.NamespaceLabels)
 	}
 	if bd.Spec.Options.NamespaceAnnotations != nil {
+	        if ns.Annotations == nil {
+	                ns.Annotations = map[string]string{}
+	       }
 		addAnnotationsFromOptions(ns.Annotations, *bd.Spec.Options.NamespaceAnnotations)
 	}
 	err = h.updateNamespace(ns)
@@ -178,6 +177,7 @@ func (h *handler) setNamespaceLabelsAndAnnotations(bd *fleet.BundleDeployment, r
 	return nil
 }
 
+// updateNamespace updates a namespace resource in the cluster.
 func (h *handler) updateNamespace(ns *corev1.Namespace) error {
 	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(ns)
 	if err != nil {
@@ -191,6 +191,7 @@ func (h *handler) updateNamespace(ns *corev1.Namespace) error {
 	return nil
 }
 
+// fetchNamespace gets the namespace matching the release ID. Returns an error if none is found.
 func (h *handler) fetchNamespace(releaseID string) (*corev1.Namespace, error) {
 	// releaseID is composed of release.Namespace/release.Name/release.Version
 	namespace := strings.Split(releaseID, "/")[0]
@@ -213,6 +214,7 @@ func (h *handler) fetchNamespace(releaseID string) (*corev1.Namespace, error) {
 	return &ns, nil
 }
 
+// addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `name` labels added by Helm when creating the namespace.
 func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]string) {
 	for k, v := range optLabels {
 		nsLabels[k] = v
@@ -227,6 +229,7 @@ func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]strin
 	}
 }
 
+// addAnnotationsFromOptions updates nsAnnotations so that it only contains all annotations specified in optAnnotations.
 func addAnnotationsFromOptions(nsAnnotations map[string]string, optAnnotations map[string]string) {
 	for k, v := range optAnnotations {
 		nsAnnotations[k] = v
