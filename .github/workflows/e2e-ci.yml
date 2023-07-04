@@ -16,7 +16,6 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_GO_VERSION: '1.19.*'
-  SETUP_K3D_VERSION: 'v5.4.7'
 
 jobs:
   e2e-fleet-test:
@@ -24,11 +23,9 @@ jobs:
     strategy:
       matrix:
         k3s_version:
-          # k3d version list k3s | sed 's/+/-/' | sort -h
-          # https://hub.docker.com/r/rancher/k3s/tags
-          - v1.25.4-k3s1
-          - v1.22.10-k3s1
-          - v1.20.15-k3s1
+          - v1.25.11
+          - v1.22.17
+          - v1.21.14
     steps:
       -
         uses: actions/checkout@v3
@@ -66,21 +63,15 @@ jobs:
           # Buildkit needed here for proper here-document support
           DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
       -
-        name: Provision k3d Cluster
-        uses: AbsaOSS/k3d-action@v2
-        # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
+        name: Provision Cluster
+        uses: engineerd/setup-kind@v0.5.0
         with:
-          k3d-version: ${{ env.SETUP_K3D_VERSION }}
-          cluster-name: "k3s-default"
-          args: >-
-            --agents 3
-            --network "nw01"
-            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
+          image: kindest/node:${{matrix.k3s_version}}
+          name: "k3s-default"
       -
-        name: Import Images Into k3d
+        name: Import Images
         run: |
-          k3d image import rancher/fleet:dev rancher/fleet-agent:dev
-          k3d image import nginx-git:test nginx-git:test
+          kind load docker-image rancher/fleet:dev rancher/fleet-agent:dev nginx-git:test nginx-git:test
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
