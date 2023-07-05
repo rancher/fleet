@@ -1,15 +1,18 @@
 package bundlereader
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -26,7 +29,7 @@ import (
 func loadDirectory(ctx context.Context, compress bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := getContent(ctx, base, source, version, auth)
+	files, err := GetContent(ctx, base, source, version, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +55,8 @@ func loadDirectory(ctx context.Context, compress bool, prefix, base, source, ver
 	return resources, nil
 }
 
-// getContent uses go-getter (and helm for oci) to read the files from directories and servers
-func getContent(ctx context.Context, base, source, version string, auth Auth) (map[string][]byte, error) {
+// GetContent uses go-getter (and Helm for OCI) to read the files from directories and servers.
+func GetContent(ctx context.Context, base, source, version string, auth Auth) (map[string][]byte, error) {
 	temp, err := os.MkdirTemp("", "fleet")
 	if err != nil {
 		return nil, err
@@ -120,16 +123,11 @@ func getContent(ctx context.Context, base, source, version string, auth Auth) (m
 		temp = dest
 	}
 
-	err = filepath.Walk(temp, func(path string, info os.FileInfo, err error) error {
+	var ignoredPaths []string
+
+	err = filepath.WalkDir(temp, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err
-		}
-
-		if info.IsDir() {
-			if strings.HasPrefix(filepath.Base(path), ".") {
-				return filepath.SkipDir
-			}
-			return nil
 		}
 
 		name, err := filepath.Rel(temp, path)
@@ -137,6 +135,32 @@ func getContent(ctx context.Context, base, source, version string, auth Auth) (m
 			return err
 		}
 
+		ignore, err := shouldIgnore(name, ignoredPaths)
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			// Skip .fleetignore'd and hidden directories
+			if ignore || strings.HasPrefix(filepath.Base(path), ".") {
+				return filepath.SkipDir
+			}
+
+			toIgnore, err := getIgnoredPaths(path)
+			if err != nil {
+				return fmt.Errorf("read .fleetignore for %s: %v", path, err)
+			}
+
+			ignoredPaths = append(ignoredPaths, toIgnore...)
+
+			return nil
+		}
+
+		if ignore {
+			return nil
+		}
+
+		// Skip hidden files
 		if strings.HasPrefix(filepath.Base(name), ".") {
 			return nil
 		}
@@ -241,4 +265,59 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 func basicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+// getIgnoredPaths reads a possible .fleetignore file within path and returns its entries as a slice of strings.
+// If no .fleetignore exists, then an empty slice and a nil error are returned.
+// If an error happens while opening an existing .fleetignore file, that error is returned along with an empty slice.
+func getIgnoredPaths(path string) ([]string, error) {
+	file, err := os.Open(filepath.Join(path, ".fleetignore"))
+	if err != nil {
+		// No ignored paths to add if no .fleetignore exists.
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+
+	var ignored []string
+
+	trailingSpaceRegex := regexp.MustCompile(`([^\\])\s+$`)
+
+	for scanner.Scan() {
+		path := scanner.Text()
+
+		// Trim trailing spaces unless escaped.
+		path = trailingSpaceRegex.ReplaceAllString(path, "$1")
+
+		// Ignore empty lines and comments (although they should not match any file).
+		if path == "" || strings.HasPrefix(path, "#") {
+			continue
+		}
+
+		ignored = append(ignored, path)
+	}
+
+	return ignored, nil
+}
+
+// shouldIgnore checks whether path matches any path from ignoredPaths, and returns true if path should be ignored.
+func shouldIgnore(path string, ignoredPaths []string) (bool, error) {
+	for _, ignored := range ignoredPaths {
+		toIgnore, err := filepath.Match(ignored, filepath.Base(path))
+		if err != nil {
+			return false, err
+		}
+
+		if toIgnore {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
