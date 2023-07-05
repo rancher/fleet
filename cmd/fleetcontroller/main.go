@@ -1,10 +1,10 @@
-// Package main provides the entrypoint for the fleet-controller binary (fleetcontroller)
+// Package main provides the entrypoint for the fleet-controller binary.
 package main
 
 import (
 	_ "net/http/pprof"
 
-	controller "github.com/rancher/fleet/modules/controller/cmds"
+	"github.com/rancher/fleet/internal/cmd/controller"
 
 	command "github.com/rancher/wrangler-cli"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"

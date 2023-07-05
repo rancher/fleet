@@ -19,7 +19,7 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_GO_VERSION: '1.19.*'
-  SETUP_K3D_VERSION: 'v5.4.7'
+  SETUP_K3D_VERSION: 'v5.5.1'
 
 jobs:
   e2e-fleet-mc-test:
@@ -51,7 +51,7 @@ jobs:
         run: |
           go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
 
-          go build -o "bin/fleet-linux-$GOARCH"
+          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
           go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
       -
         name: Build Docker Images
@@ -102,18 +102,19 @@ jobs:
       -
         name: Deploy and Register Downstream Fleet
         run: |
+          kubectl create ns fleet-default
           kubectl apply -f - <<EOF
           apiVersion: "fleet.cattle.io/v1alpha1"
           kind: ClusterRegistrationToken
           metadata:
             name: second-token
-            namespace: fleet-local
+            namespace: fleet-default
           spec:
             ttl: 12h
           EOF
-          { grep -q -m 1 "second-token"; kill $!; } < <(kubectl get secrets -n fleet-local -l "fleet.cattle.io/managed=true" -w)
+          { grep -q -m 1 "second-token"; kill $!; } < <(kubectl get secrets -n fleet-default -l "fleet.cattle.io/managed=true" -w)
 
-          token=$(kubectl get secret -n fleet-local second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
+          token=$(kubectl get secret -n fleet-default second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
           ca=$(kubectl get secret -n cattle-fleet-system fleet-controller-bootstrap-token -o go-template='{{index .data "ca.crt" | base64decode}}')
 
           kubectl config use-context k3d-downstream
@@ -121,12 +122,13 @@ jobs:
             --set-string labels.env=test \
             --set apiServerCA="$ca" \
             --set apiServerURL="https://172.18.0.1.omg.howdoi.website:6443" \
-            --set clusterNamespace="fleet-local" \
+            --set clusterNamespace="fleet-default" \
             --set token="$token"
       -
         name: E2E tests
         env:
           FLEET_E2E_NS: fleet-local
+          FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
           ginkgo e2e/multi-cluster
@@ -136,6 +138,7 @@ jobs:
           github.event_name == 'schedule'
         env:
           FLEET_E2E_NS: fleet-local
+          FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           ginkgo e2e/acceptance/multi-cluster-examples
       -

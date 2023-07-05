@@ -19,7 +19,7 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_GO_VERSION: '1.19.*'
-  SETUP_K3D_VERSION: 'v5.4.7'
+  SETUP_K3D_VERSION: 'v5.5.1'
 
 jobs:
   rancher-fleet-upgrade:
@@ -172,6 +172,9 @@ jobs:
           ginkgo --label-filter="!single-cluster" e2e/installation
       -
         name: E2E tests for examples
+        env:
+          FLEET_E2E_NS: fleet-local
+          FLEET_E2E_NS_DOWNSTREAM: fleet-local
         run: |
           ginkgo --label-filter="!difficult" e2e/multi-cluster
       -

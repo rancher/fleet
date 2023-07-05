@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/rancher/fleet/integrationtests/cli"
-	"github.com/rancher/fleet/modules/cli/apply"
+	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"

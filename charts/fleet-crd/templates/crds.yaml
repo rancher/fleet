@@ -216,6 +216,18 @@ spec:
               namespace:
                 nullable: true
                 type: string
+              namespaceAnnotations:
+                additionalProperties:
+                  nullable: true
+                  type: string
+                nullable: true
+                type: object
+              namespaceLabels:
+                additionalProperties:
+                  nullable: true
+                  type: string
+                nullable: true
+                type: object
               paused:
                 type: boolean
               resources:
@@ -617,6 +629,18 @@ spec:
                     namespace:
                       nullable: true
                       type: string
+                    namespaceAnnotations:
+                      additionalProperties:
+                        nullable: true
+                        type: string
+                      nullable: true
+                      type: object
+                    namespaceLabels:
+                      additionalProperties:
+                        nullable: true
+                        type: string
+                      nullable: true
+                      type: object
                     serviceAccount:
                       nullable: true
                       type: string
@@ -1161,6 +1185,18 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  namespaceAnnotations:
+                    additionalProperties:
+                      nullable: true
+                      type: string
+                    nullable: true
+                    type: object
+                  namespaceLabels:
+                    additionalProperties:
+                      nullable: true
+                      type: string
+                    nullable: true
+                    type: object
                   serviceAccount:
                     nullable: true
                     type: string
@@ -1335,6 +1371,18 @@ spec:
                   namespace:
                     nullable: true
                     type: string
+                  namespaceAnnotations:
+                    additionalProperties:
+                      nullable: true
+                      type: string
+                    nullable: true
+                    type: object
+                  namespaceLabels:
+                    additionalProperties:
+                      nullable: true
+                      type: string
+                    nullable: true
+                    type: object
                   serviceAccount:
                     nullable: true
                     type: string
