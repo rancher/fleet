@@ -14,3 +14,5 @@ docs/fleet-controller/
 e2e/testenv/infra/infra
 *.tgz
 ^fleet$
+FleetCI-RootCA
+.envrc

@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-url="${url-172.18.0.1.omg.howdoi.website}"
+external_ip="${external_ip-172.18.0.1.omg.howdoi.website}"
 cluster="${cluster-k3d-upstream}"
 
 kubectl config use-context "$cluster"
@@ -15,10 +15,10 @@ helm upgrade rancher rancher-latest/rancher \
   --install --wait \
   --create-namespace \
   --namespace cattle-system \
-  --set hostname="$url" \
+  --set hostname="$external_ip" \
   --set bootstrapPassword=admin \
   --set "extraEnv[0].name=CATTLE_SERVER_URL" \
-  --set "extraEnv[0].value=https://$url" \
+  --set "extraEnv[0].value=https://$external_ip" \
   --set "extraEnv[1].name=CATTLE_BOOTSTRAP_PASSWORD" \
   --set "extraEnv[1].value=rancherpassword"
 

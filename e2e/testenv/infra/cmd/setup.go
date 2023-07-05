@@ -67,9 +67,12 @@ Parallelism is used when possible to save time.`,
 			fail(fmt.Errorf("create Helm registry client: %v", err))
 		}
 
-		externalIP, err := k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-		if err != nil {
-			fail(fmt.Errorf("get external Zot service IP: %v", err))
+		externalIP := os.Getenv("external_ip")
+		if externalIP == "" {
+			externalIP, err = k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+			if err != nil {
+				fail(fmt.Errorf("get external Zot service IP: %v", err))
+			}
 		}
 
 		helmHost := fmt.Sprintf("%s:5000", externalIP)

@@ -50,8 +50,8 @@ This should set up k3d, and the fleet standalone images for single cluster tests
     dev/import-images-k3d
     # needed for gitrepo tests
     dev/import-images-tests-k3d
-    dev/setup-fleet
     dev/create-zot-certs 'FleetCI-RootCA' # for OCI tests
+    dev/setup-fleet
 
     # This should be needed only once
     cd e2e/testenv/infra

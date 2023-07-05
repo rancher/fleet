@@ -124,7 +124,7 @@ jobs:
       -
         name: Set up Rancher
         env:
-          url: "172.18.0.1.omg.howdoi.website"
+          external_ip: "172.18.0.1.omg.howdoi.website"
           fleetns: "${{ matrix.rancher_version == 'v2.5.16' && 'fleet-system' || 'cattle-fleet-system' }}"
         run: |
           ./.github/scripts/setup-rancher.sh "${{matrix.rancher_version}}"

@@ -3,7 +3,7 @@
 set -euxo pipefail
 
 
-url="${url-172.18.0.1.omg.howdoi.website}"
+external_ip="${external_ip-172.18.0.1.omg.howdoi.website}"
 cluster_downstream="${cluster_downstream-k3d-downstream}"
 ctx=$(kubectl config current-context)
 
@@ -41,7 +41,7 @@ userPrincipal:
   provider: local
 EOF
 
-echo -e "4\n" | rancher login "https://$url" --token "$token" --skip-verify
+echo -e "4\n" | rancher login "https://$external_ip" --token "$token" --skip-verify
 
 rancher clusters create second --import
 until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' | grep -Eq "c-[a-z0-9]" ; do sleep 1; done

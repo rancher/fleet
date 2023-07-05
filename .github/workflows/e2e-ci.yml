@@ -57,6 +57,8 @@ jobs:
 
           go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
           go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+          cd e2e/testenv/infra
+          go build -o . ./...
       -
         name: Build Docker Images
         run: |
@@ -98,7 +100,7 @@ jobs:
           FLEET_E2E_NS: fleet-local
         run: |
           # Generate cert and key for TLS
-          ./dev/create-zot-certs "FleetCI-RootCA"
+          ./.github/scripts/create-zot-certs.sh "FleetCI-RootCA"
       -
         name: E2E Tests
         env:
@@ -111,17 +113,11 @@ jobs:
           HELM_PATH: /usr/local/bin/helm
         run: |
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
-
-          cd e2e/testenv/infra
-          go build -o . ./...
-          ./infra setup
-          cd -
+          e2e/testenv/infra/infra setup
 
           ginkgo e2e/single-cluster e2e/keep-resources
 
-          cd -
-
-          ./infra teardown
+          e2e/testenv/infra/infra teardown
       -
         name: Acceptance Tests for Examples
         if: >
