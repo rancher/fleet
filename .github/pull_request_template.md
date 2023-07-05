@@ -1,4 +1,4 @@
-<!-- Specify the issue ID that this pullrequest is solving -->
+<!-- Specify the issue ID that this pull request is solving -->
 Fix #XXX
 
 <!-- Describe the changes introduced by this pull request -->
@@ -6,9 +6,9 @@ Fix #XXX
 <!--
   Please provide a unit or e2e test if possible.
 
-  To simplify the reviewing process of this pullrequest,
+  To simplify the reviewing process of this pull request,
   please explain how it should be tested.
-  The following is just an exammple
+  The following is just an example
 
 ## Test
 
@@ -23,9 +23,9 @@ go test
 
 ## Additional Information
 
-### Tradeoff
+### Trade-off
 
-<!-- Please describe, if any, the tradeoffs that you found acceptable in this pull request -->
+<!-- Please describe, if any, the trade-offs that you found acceptable in this pull request -->
 
 ### Potential improvement
 
@@ -33,9 +33,7 @@ go test
 
 <!-- Please Uncomment following block if looking for QA validation
 
-@rancher/qa
-
-## Additionnal QA
+## Additional QA
 ### Issue: <link the issue or issues this PR resolves here>
 < If your PR depends on changes from another pr link them here and describe why they are needed on your solution section. >
  
