@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -22,12 +23,17 @@ import (
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/merr"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 )
+
+var nsResource = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"}
 
 type handler struct {
 	cleanupOnce sync.Once
@@ -130,9 +136,111 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
 
+	if err := h.setNamespaceLabelsAndAnnotations(bd, release); err != nil {
+		return fleet.BundleDeploymentStatus{}, err
+	}
+
 	// Setting the error to nil clears any existing error
 	condition.Cond(fleet.BundleDeploymentConditionInstalled).SetError(&status, "", nil)
 	return status, nil
+}
+
+// setNamespaceLabelsAndAnnotations updates the namespace for the release, applying all labels and annotations to that namespace as configured in the bundle spec.
+func (h *handler) setNamespaceLabelsAndAnnotations(bd *fleet.BundleDeployment, releaseID string) error {
+	if bd.Spec.Options.NamespaceLabels == nil && bd.Spec.Options.NamespaceAnnotations == nil {
+		return nil
+	}
+
+	ns, err := h.fetchNamespace(releaseID)
+	if err != nil {
+		return err
+	}
+
+	if reflect.DeepEqual(bd.Spec.Options.NamespaceLabels, ns.Labels) && reflect.DeepEqual(bd.Spec.Options.NamespaceAnnotations, ns.Annotations) {
+		return nil
+	}
+
+	if bd.Spec.Options.NamespaceLabels != nil {
+		addLabelsFromOptions(ns.Labels, *bd.Spec.Options.NamespaceLabels)
+	}
+	if bd.Spec.Options.NamespaceAnnotations != nil {
+		if ns.Annotations == nil {
+			ns.Annotations = map[string]string{}
+		}
+		addAnnotationsFromOptions(ns.Annotations, *bd.Spec.Options.NamespaceAnnotations)
+	}
+	err = h.updateNamespace(ns)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// updateNamespace updates a namespace resource in the cluster.
+func (h *handler) updateNamespace(ns *corev1.Namespace) error {
+	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(ns)
+	if err != nil {
+		return err
+	}
+	_, err = h.dynamic.Resource(nsResource).Update(h.ctx, &unstructured.Unstructured{Object: u}, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// fetchNamespace gets the namespace matching the release ID. Returns an error if none is found.
+func (h *handler) fetchNamespace(releaseID string) (*corev1.Namespace, error) {
+	// releaseID is composed of release.Namespace/release.Name/release.Version
+	namespace := strings.Split(releaseID, "/")[0]
+	list, err := h.dynamic.Resource(nsResource).List(h.ctx, metav1.ListOptions{
+		LabelSelector: "name=" + namespace,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(list.Items) == 0 {
+		return nil, fmt.Errorf("namespace %s not found", namespace)
+	}
+	var ns corev1.Namespace
+	err = runtime.DefaultUnstructuredConverter.
+		FromUnstructured(list.Items[0].Object, &ns)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ns, nil
+}
+
+// addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `name` labels added by Helm when creating the namespace.
+func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]string) {
+	for k, v := range optLabels {
+		nsLabels[k] = v
+	}
+
+	// Delete labels not defined in the options.
+	// Keep the name label as it is added by helm when creating the namespace.
+	for k := range nsLabels {
+		if _, ok := optLabels[k]; k != "name" && !ok {
+			delete(nsLabels, k)
+		}
+	}
+}
+
+// addAnnotationsFromOptions updates nsAnnotations so that it only contains all annotations specified in optAnnotations.
+func addAnnotationsFromOptions(nsAnnotations map[string]string, optAnnotations map[string]string) {
+	for k, v := range optAnnotations {
+		nsAnnotations[k] = v
+	}
+
+	// Delete Annotations not defined in the options.
+	for k := range nsAnnotations {
+		if _, ok := optAnnotations[k]; !ok {
+			delete(nsAnnotations, k)
+		}
+	}
 }
 
 // deployErrToStatus converts an error into a status update
