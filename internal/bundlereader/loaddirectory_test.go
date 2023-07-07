@@ -262,6 +262,64 @@ func TestGetContent(t *testing.T) {
 				"subdir2/in_dir.yaml": []byte("from dir 2"),
 			},
 		},
+		{
+			name: "entries from parent directories' .fleetignore files are added in lower directories",
+			directoryStructure: fsNode{
+				isDir: true,
+				name:  "add-parent-entries",
+				children: []fsNode{
+					{
+						name:     "something.yaml",
+						contents: "foo",
+					},
+					{
+						name:     ".fleetignore",
+						contents: "ignore-always.yaml",
+					},
+					{
+						name:  "foo",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     "ignore-always.yaml",
+								contents: "will be ignored",
+							},
+							{
+								name:     "something.yaml",
+								contents: "something",
+							},
+						},
+					},
+					{
+						name:  "bar",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     ".fleetignore",
+								contents: "something.yaml",
+							},
+							{
+								name:     "something.yaml",
+								contents: "something",
+							},
+							{
+								name:     "something2.yaml",
+								contents: "something2",
+							},
+							{
+								name:     "ignore-always.yaml",
+								contents: "will be ignored",
+							},
+						},
+					},
+				},
+			},
+			expectedFiles: map[string][]byte{
+				"something.yaml":      []byte("foo"),
+				"foo/something.yaml":  []byte("something"),
+				"bar/something2.yaml": []byte("something2"),
+			},
+		},
 	}
 
 	base, err := os.MkdirTemp("", "test-fleet")

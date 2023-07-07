@@ -82,13 +82,15 @@ func (xt *ignoreTree) addNode(dir string) error {
 // Returns a slice representing all relevant nodes in the path to the destination, in order of traversal from the root.
 // The last element of that slice is the destination node.
 func (xt *ignoreTree) findNode(path string, isDir bool, nodesRoute []*ignoreTree) []*ignoreTree {
-	if path == xt.path {
-		return append(nodesRoute, xt)
-	}
-
 	// The path doesn't even belong in the tree. This should never happen.
 	if !strings.HasPrefix(path, xt.path) {
 		return nil
+	}
+
+	nodesRoute = append(nodesRoute, xt)
+
+	if path == xt.path {
+		return nodesRoute
 	}
 
 	for _, c := range xt.children {
