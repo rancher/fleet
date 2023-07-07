@@ -171,9 +171,6 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		AfterEach(func() {
-			_, _ = k.Delete("configmap", "hook-script")
-		})
 
 		It("updates the deployment", func() {
 			By("checking the pod exists")
