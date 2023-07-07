@@ -52,7 +52,6 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		inClusterRepoURL = gh.GetInClusterURL(host, port, repoName)
 
 		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		//clonedir = path.Join(tmpdir, "clone")
 		clonedir = path.Join(tmpdir, repoName)
 	})
 
