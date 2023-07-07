@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Image Scan", func() {
+var _ = Describe("Image Scan", Label("infra-setup"), func() {
 	var (
 		tmpdir   string
 		clonedir string

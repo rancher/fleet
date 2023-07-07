@@ -160,13 +160,13 @@ jobs:
       -
         name: Set up latest Rancher
         env:
-          url: "172.18.0.1.omg.howdoi.website"
+          external_ip: "172.18.0.1.omg.howdoi.website"
         run: |
           ./.github/scripts/setup-latest-rancher.sh
       -
         name: Register Rancher's downstream clusters
         env:
-          url: "172.18.0.1.omg.howdoi.website"
+          external_ip: "172.18.0.1.omg.howdoi.website"
         run: |
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh

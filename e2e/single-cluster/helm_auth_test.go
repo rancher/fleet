@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Single Cluster Examples", func() {
+var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 	var (
 		gitRepoPath string
 		tmpdir      string

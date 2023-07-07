@@ -25,18 +25,22 @@ const (
 	repoName = "repo"
 )
 
-var _ = Describe("Git Repo with polling", func() {
+var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
 	var (
-		tmpdir   string
-		clonedir string
-		k        kubectl.Command
-		gh       *githelper.Git
-		clone    *git.Repository
+		tmpdir           string
+		clonedir         string
+		k                kubectl.Command
+		gh               *githelper.Git
+		clone            *git.Repository
+		repoName         string
+		inClusterRepoURL string
 	)
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
+	})
 
+	JustBeforeEach(func() {
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
 		host, err := githelper.BuildGitHostname(env.Namespace)
 		Expect(err).ToNot(HaveOccurred())
@@ -45,25 +49,10 @@ var _ = Describe("Git Repo with polling", func() {
 		Expect(err).ToNot(HaveOccurred())
 		gh = githelper.NewHTTP(addr)
 
-		inClusterRepoURL := gh.GetInClusterURL(host, port, repoName)
-
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-			Repo            string
-			Branch          string
-			PollingInterval string
-		}{
-			inClusterRepoURL,
-			gh.Branch,
-			"15s", // default
-		})
-		Expect(err).ToNot(HaveOccurred())
+		inClusterRepoURL = gh.GetInClusterURL(host, port, repoName)
 
 		tmpdir, _ = os.MkdirTemp("", "fleet-")
-
 		clonedir = path.Join(tmpdir, repoName)
-
-		clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -72,6 +61,26 @@ var _ = Describe("Git Repo with polling", func() {
 	})
 
 	When("updating a git repository monitored via polling", func() {
+		BeforeEach(func() {
+			repoName = "repo"
+		})
+
+		JustBeforeEach(func() {
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+				Repo            string
+				Branch          string
+				PollingInterval string
+			}{
+				inClusterRepoURL,
+				gh.Branch,
+				"15s", // default
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		It("updates the deployment", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
@@ -99,95 +108,69 @@ var _ = Describe("Git Repo with polling", func() {
 			}).Should(ContainSubstring("newsleep"))
 		})
 	})
-})
-
-var _ = Describe("Git Repo with webhook", func() {
-	var (
-		tmpdir   string
-		clonedir string
-		k        kubectl.Command
-		gh       *githelper.Git
-		clone    *git.Repository
-	)
-
-	BeforeEach(func() {
-		k = env.Kubectl.Namespace(env.Namespace)
-		repoName := "webhook-test"
-
-		// Build git repo URL reachable _within_ the cluster, for the GitRepo
-		host, err := githelper.BuildGitHostname(env.Namespace)
-		Expect(err).ToNot(HaveOccurred())
-
-		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
-		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.NewHTTP(addr)
-
-		// Get git server pod name and create post-receive hook script from template
-		out, err := k.Get("pod", "-l", "app=git-server", "-o", "name")
-		Expect(err).ToNot(HaveOccurred())
-
-		gitServerPod := strings.TrimPrefix(strings.TrimSpace(out), "pod/")
-
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		hookScript := path.Join(tmpdir, "hook_script")
-
-		inClusterRepoURL := gh.GetInClusterURL(host, port, repoName)
-
-		err = testenv.Template(hookScript, testenv.AssetPath("gitrepo/post-receive.sh"), struct {
-			RepoURL string
-		}{
-			inClusterRepoURL,
-		})
-		Expect(err).ToNot(HaveOccurred())
-
-		// Create a git repo, erasing a previous repo with the same name if any
-		out, err = k.Run(
-			"exec",
-			gitServerPod,
-			"--",
-			"/bin/sh",
-			"-c",
-			fmt.Sprintf(
-				`dir=/srv/git/%s; rm -rf "$dir"; mkdir -p "$dir"; git init "$dir" --bare; GIT_DIR="$dir" git update-server-info`,
-				repoName,
-			),
-		)
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		// Copy the script into the repo on the server pod
-		hookPathInRepo := fmt.Sprintf("/srv/git/%s/hooks/post-receive", repoName)
-
-		out, err = k.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		// Make hook script executable
-		out, err = k.Run("exec", gitServerPod, "--", "chmod", "+x", hookPathInRepo)
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-			Repo            string
-			Branch          string
-			PollingInterval string
-		}{
-			inClusterRepoURL,
-			gh.Branch,
-			"24h", // prevent polling
-		})
-		Expect(err).ToNot(HaveOccurred())
-
-		// Clone previously created repo
-		clonedir = path.Join(tmpdir, "clone")
-		clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		os.RemoveAll(tmpdir)
-		_, _ = k.Delete("gitrepo", "gitrepo-test")
-		_, _ = k.Delete("configmap", "hook-script")
-	})
 
 	When("updating a git repository monitored via webhook", func() {
+		BeforeEach(func() {
+			repoName = "webhook-test"
+		})
+
+		JustBeforeEach(func() {
+			// Get git server pod name and create post-receive hook script from template
+			out, err := k.Get("pod", "-l", "app=git-server", "-o", "name")
+			Expect(err).ToNot(HaveOccurred())
+
+			gitServerPod := strings.TrimPrefix(strings.TrimSpace(out), "pod/")
+
+			hookScript := path.Join(tmpdir, "hook_script")
+
+			err = testenv.Template(hookScript, testenv.AssetPath("gitrepo/post-receive.sh"), struct {
+				RepoURL string
+			}{
+				inClusterRepoURL,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			// Create a git repo, erasing a previous repo with the same name if any
+			out, err = k.Run(
+				"exec",
+				gitServerPod,
+				"--",
+				"/bin/sh",
+				"-c",
+				fmt.Sprintf(
+					`dir=/srv/git/%s; rm -rf "$dir"; mkdir -p "$dir"; git init "$dir" --bare; GIT_DIR="$dir" git update-server-info`,
+					repoName,
+				),
+			)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			// Copy the script into the repo on the server pod
+			hookPathInRepo := fmt.Sprintf("/srv/git/%s/hooks/post-receive", repoName)
+
+			out, err = k.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			// Make hook script executable
+			out, err = k.Run("exec", gitServerPod, "--", "chmod", "+x", hookPathInRepo)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+				Repo            string
+				Branch          string
+				PollingInterval string
+			}{
+				inClusterRepoURL,
+				gh.Branch,
+				"24h", // prevent polling
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			// Clone previously created repo
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+
 		It("updates the deployment", func() {
 			By("checking the pod exists")
 			Eventually(func() string {

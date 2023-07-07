@@ -109,45 +109,45 @@ type Git struct {
 
 // NewHTTP creates a new Git instance with HTTP auth, using environment variables.
 func NewHTTP(addr string) *Git {
-	return newGit(addr, false)
+	g := newGit()
+	g.Auth = &HTTPAuth{
+		Username: os.Getenv("GIT_HTTP_USER"),
+		Password: os.Getenv("GIT_HTTP_PASSWORD"),
+	}
+	if addr != "" {
+		g.Auth.setURL(addr)
+	} else {
+		g.Auth.setURL(os.Getenv("GIT_REPO_URL"))
+	}
+	g.Auth.check()
+
+	return g
 }
 
 // NewSSH creates a new Git instance with SSH auth, using environment variables.
 func NewSSH() *Git {
-	return newGit("", true)
+	g := newGit()
+	g.Auth = &SSHAuth{
+		User:      os.Getenv("GIT_REPO_USER"),
+		SSHKey:    os.Getenv("GIT_SSH_KEY"),
+		SSHPubKey: os.Getenv("GIT_SSH_PUBKEY"),
+	}
+	g.Auth.setURL(os.Getenv("GIT_REPO_URL"))
+	g.Auth.check()
+
+	return g
 }
 
 // newGit creates a new Git instance using environment variables.
-func newGit(url string, isSSH bool) *Git {
+func newGit() *Git {
 	g := &Git{
 		User:   os.Getenv("GIT_REPO_USER"),
 		Branch: os.Getenv("GIT_REPO_BRANCH"),
 	}
 
-	if isSSH {
-		g.Auth = &SSHAuth{
-			User:      os.Getenv("GIT_REPO_USER"),
-			SSHKey:    os.Getenv("GIT_SSH_KEY"),
-			SSHPubKey: os.Getenv("GIT_SSH_PUBKEY"),
-		}
-	} else {
-		g.Auth = &HTTPAuth{
-			Username: os.Getenv("GIT_HTTP_USER"),
-			Password: os.Getenv("GIT_HTTP_PASSWORD"),
-		}
-	}
-
-	if url != "" {
-		g.Auth.setURL(url)
-	} else {
-		g.Auth.setURL(os.Getenv("GIT_REPO_URL"))
-	}
-
 	if g.Branch == "" {
 		g.Branch = "master"
 	}
-
-	g.Auth.check()
 
 	return g
 }
@@ -212,7 +212,7 @@ func (g *Git) Create(repodir string, from string, subdir string) (*git.Repositor
 	}
 	k, err := g.Auth.getKeys()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to getKeys: %w", err)
 	}
 
 	if k != nil {
@@ -294,7 +294,7 @@ func GetExternalRepoAddr(env *testenv.Env, port int, repoName string) (string, e
 
 	externalIP, err := systemk.Get("service", "git-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get ingress ip for git-service in %s: %w", env.Namespace, err)
 	}
 
 	return fmt.Sprintf("http://%s:%d/%s", externalIP, port, repoName), nil
