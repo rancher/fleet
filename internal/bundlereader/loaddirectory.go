@@ -26,6 +26,129 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 )
 
+// ignoreTree represents a tree of ignored paths (read from .fleetignore files), each node being a directory.
+// It provides a means for ignored paths to be propagated down the tree, but not between subdirectories of a same
+// directory.
+type ignoreTree struct {
+	path         string
+	ignoredPaths []string
+	children     []*ignoreTree
+}
+
+// isIgnored checks whether any path within xt matches path, and returns true if so.
+func (xt *ignoreTree) isIgnored(path string) (bool, error) {
+	steps := xt.findNode(path, false, nil)
+
+	for _, step := range steps {
+		for _, ignoredPath := range step.ignoredPaths {
+			toIgnore, err := filepath.Match(ignoredPath, filepath.Base(path))
+			if err != nil {
+				return false, err
+			}
+
+			if toIgnore {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
+// addNode reads a `.fleetignore` file in dir's root and adds each of its entries to ignored paths for dir.
+// Returns an error if a `.fleetignore` file exists for dir but reading it fails.
+func (xt *ignoreTree) addNode(dir string) error {
+	toIgnore, err := readFleetIgnore(dir)
+	if err != nil {
+		return fmt.Errorf("read .fleetignore for %s: %v", dir, err)
+	}
+
+	if len(toIgnore) == 0 {
+		return nil
+	}
+
+	steps := xt.findNode(dir, true, nil)
+	if steps == nil {
+		return fmt.Errorf("ignore tree node not found for path %q", dir)
+	}
+
+	destNode := steps[len(steps)-1]
+	destNode.ignoredPaths = append(destNode.ignoredPaths, toIgnore...)
+
+	return nil
+}
+
+// findNode finds the right node for path, creating that node if needed and if isDir is true.
+// Returns a slice representing all relevant nodes in the path to the destination, in order of traversal from the root.
+// The last element of that slice is the destination node.
+func (xt *ignoreTree) findNode(path string, isDir bool, nodesRoute []*ignoreTree) []*ignoreTree {
+	if path == xt.path {
+		return append(nodesRoute, xt)
+	}
+
+	// The path doesn't even belong in the tree. This should never happen.
+	if !strings.HasPrefix(path, xt.path) {
+		return nil
+	}
+
+	for _, c := range xt.children {
+		if steps := c.findNode(path, isDir, nodesRoute); steps != nil {
+			crossed := append(nodesRoute, steps...)
+
+			return crossed
+		}
+	}
+
+	if isDir {
+		xt.children = append(xt.children, &ignoreTree{path: path})
+
+		createdChild := xt.children[len(xt.children)-1]
+
+		return append(nodesRoute, createdChild)
+	}
+
+	return append(nodesRoute, xt)
+}
+
+// readFleetIgnore reads a possible .fleetignore file within path and returns its entries as a slice of strings.
+// If no .fleetignore exists, then an empty slice and a nil error are returned.
+// If an error happens while opening an existing .fleetignore file, that error is returned along with an empty slice.
+func readFleetIgnore(path string) ([]string, error) {
+	file, err := os.Open(filepath.Join(path, ".fleetignore"))
+	if err != nil {
+		// No ignored paths to add if no .fleetignore exists.
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+
+	var ignored []string
+
+	trailingSpaceRegex := regexp.MustCompile(`([^\\])\s+$`)
+
+	for scanner.Scan() {
+		path := scanner.Text()
+
+		// Trim trailing spaces unless escaped.
+		path = trailingSpaceRegex.ReplaceAllString(path, "$1")
+
+		// Ignore empty lines and comments (although they should not match any file).
+		if path == "" || strings.HasPrefix(path, "#") {
+			continue
+		}
+
+		ignored = append(ignored, path)
+	}
+
+	return ignored, nil
+}
+
 func loadDirectory(ctx context.Context, compress bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
@@ -123,7 +246,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth) (m
 		temp = dest
 	}
 
-	var ignoredPaths []string
+	ignoredPaths := ignoreTree{path: temp}
 
 	err = filepath.WalkDir(temp, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
@@ -135,7 +258,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth) (m
 			return err
 		}
 
-		ignore, err := shouldIgnore(name, ignoredPaths)
+		ignore, err := ignoredPaths.isIgnored(path)
 		if err != nil {
 			return err
 		}
@@ -146,14 +269,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth) (m
 				return filepath.SkipDir
 			}
 
-			toIgnore, err := getIgnoredPaths(path)
-			if err != nil {
-				return fmt.Errorf("read .fleetignore for %s: %v", path, err)
-			}
-
-			ignoredPaths = append(ignoredPaths, toIgnore...)
-
-			return nil
+			return ignoredPaths.addNode(path)
 		}
 
 		if ignore {
@@ -265,59 +381,4 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 func basicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
-}
-
-// getIgnoredPaths reads a possible .fleetignore file within path and returns its entries as a slice of strings.
-// If no .fleetignore exists, then an empty slice and a nil error are returned.
-// If an error happens while opening an existing .fleetignore file, that error is returned along with an empty slice.
-func getIgnoredPaths(path string) ([]string, error) {
-	file, err := os.Open(filepath.Join(path, ".fleetignore"))
-	if err != nil {
-		// No ignored paths to add if no .fleetignore exists.
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
-
-	var ignored []string
-
-	trailingSpaceRegex := regexp.MustCompile(`([^\\])\s+$`)
-
-	for scanner.Scan() {
-		path := scanner.Text()
-
-		// Trim trailing spaces unless escaped.
-		path = trailingSpaceRegex.ReplaceAllString(path, "$1")
-
-		// Ignore empty lines and comments (although they should not match any file).
-		if path == "" || strings.HasPrefix(path, "#") {
-			continue
-		}
-
-		ignored = append(ignored, path)
-	}
-
-	return ignored, nil
-}
-
-// shouldIgnore checks whether path matches any path from ignoredPaths, and returns true if path should be ignored.
-func shouldIgnore(path string, ignoredPaths []string) (bool, error) {
-	for _, ignored := range ignoredPaths {
-		toIgnore, err := filepath.Match(ignored, filepath.Base(path))
-		if err != nil {
-			return false, err
-		}
-
-		if toIgnore {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }

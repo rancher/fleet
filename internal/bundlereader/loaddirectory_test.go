@@ -13,8 +13,7 @@ import (
 	"github.com/rancher/fleet/internal/bundlereader"
 )
 
-// TODO test multiple levels with .fleetignore at root and in subdirs
-
+// fsNode represents a directory structure used to model `.fleetignore` test cases.
 type fsNode struct {
 	name string
 
@@ -25,7 +24,6 @@ type fsNode struct {
 }
 
 func TestGetContent(t *testing.T) {
-
 	cases := []struct {
 		name               string
 		directoryStructure fsNode
@@ -82,11 +80,8 @@ func TestGetContent(t *testing.T) {
 						contents: "bar",
 					},
 					{
-						name: ".fleetignore",
-						contents: `
-#something.yaml
-\#something_else.yaml
-`,
+						name:     ".fleetignore",
+						contents: "#something.yaml\n\\#something_else.yaml",
 					},
 				},
 			},
@@ -109,11 +104,8 @@ func TestGetContent(t *testing.T) {
 						contents: "bar",
 					},
 					{
-						name: ".fleetignore",
-						contents: `
-not_here.txt
-something.yaml
-`,
+						name:     ".fleetignore",
+						contents: "not_here.txt\nsomething.yaml",
 					},
 				},
 			},
@@ -150,15 +142,12 @@ something.yaml
 						contents: "foo",
 					},
 					{
-						name:     `something_else.yaml  `,
+						name:     "something_else.yaml  ",
 						contents: "bar",
 					},
 					{
-						name: ".fleetignore",
-						contents: `
-something_else.yaml\ \ 
-something.yaml 
-`,
+						name:     ".fleetignore",
+						contents: "something_else.yaml\\ \\ \nsomething.yaml ",
 					},
 				},
 			},
@@ -232,6 +221,47 @@ something.yaml
 				"something.yaml": []byte("foo"),
 			},
 		},
+		{
+			name: ".fleetignore files in neighbour dirs do not interfere with one another",
+			directoryStructure: fsNode{
+				isDir: true,
+				name:  "multiple-files-same-level",
+				children: []fsNode{
+					{
+						name:     "something.yaml",
+						contents: "foo",
+					},
+					{
+						name:  "subdir1",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     "in_dir.yaml",
+								contents: "from dir 1",
+							},
+							{
+								name:     ".fleetignore",
+								contents: "in_dir.yaml",
+							},
+						},
+					},
+					{
+						name:  "subdir2",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     "in_dir.yaml",
+								contents: "from dir 2",
+							},
+						},
+					},
+				},
+			},
+			expectedFiles: map[string][]byte{
+				"something.yaml":      []byte("foo"),
+				"subdir2/in_dir.yaml": []byte("from dir 2"),
+			},
+		},
 	}
 
 	base, err := os.MkdirTemp("", "test-fleet")
@@ -255,6 +285,7 @@ something.yaml
 	}
 }
 
+// createDirStruct generates and populates a directory structure which root is node, placing it at basePath.
 func createDirStruct(t *testing.T, basePath string, node fsNode) string {
 	path := filepath.Join(basePath, node.name)
 
