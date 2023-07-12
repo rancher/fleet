@@ -62,8 +62,7 @@ jobs:
         run: |
           docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
           docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
-          cd e2e/assets/gitrepo
-          DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
+          DOCKER_BUILDKIT=1 docker build -f e2e/assets/gitrepo/Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" e2e/assets/gitrepo
       -
         name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
