@@ -29,20 +29,22 @@ func Limit(s string, count int) string {
 		return s
 	}
 
-	if count <= 6 {
+	hexLen := 5
+	separator := "-"
+
+	if count <= hexLen+len(separator) {
 		return s[:count]
 	}
 
-	separator := "-"
-	nbCharsBeforeTrim := count - 6
+	nbCharsBeforeTrim := count - hexLen - 1 // using a 1-char separator
 
 	// If the last character of the truncated string is the separator, include it instead of the separator.
 	if string(s[nbCharsBeforeTrim-1]) == separator {
 		separator = ""
-		nbCharsBeforeTrim++
+		hexLen++
 	}
 
-	return fmt.Sprintf("%s%s%s", s[:nbCharsBeforeTrim], separator, Hex(s, 5))
+	return fmt.Sprintf("%s%s%s", s[:nbCharsBeforeTrim], separator, Hex(s, hexLen))
 }
 
 // Hex returns a hex-encoded hash of the string and truncates it to length.
