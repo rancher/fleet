@@ -32,7 +32,17 @@ func Limit(s string, count int) string {
 	if count <= 6 {
 		return s[:count]
 	}
-	return fmt.Sprintf("%s-%s", s[:count-6], Hex(s, 5))
+
+	separator := "-"
+	nbCharsBeforeTrim := count - 6
+
+	// If the last character of the truncated string is the separator, include it instead of the separator.
+	if string(s[nbCharsBeforeTrim-1]) == separator {
+		separator = ""
+		nbCharsBeforeTrim++
+	}
+
+	return fmt.Sprintf("%s%s%s", s[:nbCharsBeforeTrim], separator, Hex(s, 5))
 }
 
 // Hex returns a hex-encoded hash of the string and truncates it to length.
