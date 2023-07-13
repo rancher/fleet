@@ -33,7 +33,7 @@ func Limit(s string, count int) string {
 		return s
 	}
 
-	hexLen := 5
+	const hexLen int = 5
 	separator := "-"
 
 	if count <= hexLen+len(separator) {
