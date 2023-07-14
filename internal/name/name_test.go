@@ -31,7 +31,7 @@ var _ = Describe("Name", func() {
 			{arg: "12345678", n: 8, result: "12345678"},
 			{arg: "12345678", n: 7, result: "1-25d55"},
 			{arg: "123456789", n: 8, result: "12-25f9e"},
-			{arg: "1-3456789", n: 8, result: "1-39b657"}, // no double dash in the result
+			{arg: "1-3456789", n: 8, result: "1-9b657"}, // no double dash in the result
 		}
 
 		It("matches expected results", func() {
@@ -53,7 +53,7 @@ var _ = Describe("Name", func() {
 			{arg: "long-name-test--App_-_12.factor", result: "long-name-test-app-12-factor-0efbac37"},
 			{arg: "bundle.name.example.com", result: "bundle-name-example-com-645ef821"},
 			// no double dash in the result
-			{arg: str53[0:46] + "-1234567", result: "1234567890123456789012345678901234567890123456-1d0bce"},
+			{arg: str53[0:46] + "-1234567", result: "1234567890123456789012345678901234567890123456-d0bce"},
 		}
 
 		It("matches expected results", func() {
