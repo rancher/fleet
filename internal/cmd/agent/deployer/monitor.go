@@ -187,7 +187,7 @@ func (m *Manager) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet
 	}
 
 	bd.Status.Resources = []fleet.BundleDeploymentResource{}
-	for _, obj := range resources.Objects {
+	for _, obj := range plan.Objects {
 		m, err := meta.Accessor(obj)
 		if err != nil {
 			return err
