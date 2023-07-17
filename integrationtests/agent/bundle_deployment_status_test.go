@@ -105,11 +105,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			bd, err := env.controller.Get(namespace, name, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Resources).To(HaveLen(3))
+			ts := bd.Status.Resources[0].CreatedAt
+			Expect(ts.Time).ToNot(BeZero())
 			Expect(bd.Status.Resources).To(ContainElement(v1alpha1.BundleDeploymentResource{
 				Kind:       "Service",
 				APIVersion: "v1",
 				Namespace:  namespace,
 				Name:       "svc-test",
+				CreatedAt:  ts,
 			}))
 		})
 
