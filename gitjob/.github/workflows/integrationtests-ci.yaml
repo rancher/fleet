@@ -1,0 +1,28 @@
+name: Integration tests
+
+on:
+  pull_request:
+  push:
+    branches:
+    - 'master'
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+  SETUP_GO_VERSION: '1.19.*'
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.SETUP_GO_VERSION }}
+
+      - name: integration-test
+        run: go test -v ./integrationtests/...
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: true
