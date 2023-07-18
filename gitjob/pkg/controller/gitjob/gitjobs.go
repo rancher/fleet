@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
@@ -76,7 +77,7 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 			commit, err := git.LatestCommit(obj, h.secrets)
 			if err != nil {
 				kstatus.SetError(obj, err.Error())
-				h.gitjobs.EnqueueAfter(obj.Namespace, obj.Name, time.Duration(interval)*time.Second)
+				h.enqueueGitJob(obj, interval)
 				return nil, obj.Status, nil
 			} else if !kstatus.Stalled.IsTrue(obj) {
 				kstatus.SetActive(obj)
@@ -90,7 +91,7 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 	}
 
 	if obj.Status.Commit == "" {
-		h.gitjobs.EnqueueAfter(obj.Namespace, obj.Name, time.Duration(interval)*time.Second)
+		h.enqueueGitJob(obj, interval)
 		return nil, status, nil
 	}
 
@@ -103,7 +104,15 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 	// if force delete is set, delete the job to make sure a new job is created
 	if obj.Spec.ForceUpdateGeneration != status.UpdateGeneration {
 		status.UpdateGeneration = obj.Spec.ForceUpdateGeneration
-		if err := h.gitjobs.Delete(obj.Namespace, jobName(obj), &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+		if err := h.batch.Delete(obj.Namespace, jobName(obj), &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+			return nil, status, err
+		}
+	}
+
+	// if the job failed, e.g. because a helm registry was unreachable, delete the old job
+	// only retry for failed jobs, job output has a log level so check for that
+	if isJobError(obj) && strings.Contains(kstatus.Stalled.GetMessage(obj), "level=fatal") {
+		if err := h.batch.Delete(obj.Namespace, jobName(obj), &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
 			return nil, status, err
 		}
 	}
@@ -113,9 +122,18 @@ func (h Handler) generate(obj *v1.GitJob, status v1.GitJobStatus) ([]runtime.Obj
 		return nil, status, err
 	}
 
-	h.gitjobs.EnqueueAfter(obj.Namespace, obj.Name, time.Duration(interval)*time.Second)
+	h.enqueueGitJob(obj, interval)
 	status.ObservedGeneration = obj.Generation
 	return append(result, job), status, nil
+}
+
+// isJobError returns true if the conditions from kstatus.SetError, used by job controller, are matched
+func isJobError(obj *v1.GitJob) bool {
+	return kstatus.Reconciling.IsFalse(obj) && kstatus.Stalled.IsTrue(obj) && kstatus.Stalled.GetReason(obj) == string(kstatus.Stalled) && kstatus.Stalled.GetMessage(obj) != ""
+}
+
+func (h Handler) enqueueGitJob(obj *v1.GitJob, interval int) {
+	h.gitjobs.EnqueueAfter(obj.Namespace, obj.Name, time.Duration(interval)*time.Second)
 }
 
 func shouldSync(status v1.GitJobStatus, interval int) bool {
