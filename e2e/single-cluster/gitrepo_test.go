@@ -170,7 +170,6 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-
 		It("updates the deployment", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
