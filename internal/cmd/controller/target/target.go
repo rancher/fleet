@@ -327,7 +327,7 @@ func preprocessHelmValues(opts *fleet.BundleDeploymentOptions, cluster *fleet.Cl
 		}
 	}
 	if len(clusterLabels) == 0 {
-		return
+		return nil
 	}
 
 	if opts.Helm == nil {

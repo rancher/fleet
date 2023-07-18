@@ -233,7 +233,7 @@ func modified(plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources)
 	for gvk, keys := range plan.Create {
 		for _, key := range keys {
 			if len(result) >= 10 {
-				return
+				return result
 			}
 
 			apiVersion, kind := gvk.ToAPIVersionAndKind()
@@ -250,7 +250,7 @@ func modified(plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources)
 	for gvk, keys := range plan.Delete {
 		for _, key := range keys {
 			if len(result) >= 10 {
-				return
+				return result
 			}
 
 			apiVersion, kind := gvk.ToAPIVersionAndKind()
@@ -310,7 +310,7 @@ func nonReady(plan apply.Plan, ignoreOptions fleet.IgnoreOptions) (result []flee
 
 	for _, obj := range plan.Objects {
 		if len(result) >= 10 {
-			return
+			return result
 		}
 		if u, ok := obj.(*unstructured.Unstructured); ok {
 			if ignoreOptions.Conditions != nil {
