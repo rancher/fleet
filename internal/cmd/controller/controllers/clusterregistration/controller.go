@@ -137,41 +137,6 @@ func (h *handler) OnCluster(key string, cluster *fleet.Cluster) (*fleet.Cluster,
 	return cluster, nil
 }
 
-func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster, req *fleet.ClusterRegistration) (*v1.Secret, error) {
-	var secret *v1.Secret
-	var err error
-	if len(sa.Secrets) != 0 {
-		secret, err = h.secretsCache.Get(sa.Namespace, sa.Secrets[0].Name)
-		if apierrors.IsNotFound(err) {
-			// secrets can be slow to propagate to the cache
-			secret, err = h.secrets.Get(sa.Namespace, sa.Secrets[0].Name, metav1.GetOptions{})
-		}
-	} else {
-		secret, err = secretutil.GetServiceAccountTokenSecret(sa, h.secrets)
-	}
-	if err != nil || secret == nil {
-		return nil, err
-	}
-	return &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      registration.SecretName(req.Spec.ClientID, req.Spec.ClientRandom),
-			Namespace: h.systemRegistrationNamespace,
-			Labels: map[string]string{
-				fleet.ClusterAnnotation: cluster.Name,
-				fleet.ManagedLabel:      "true",
-			},
-		},
-		Type: AgentCredentialSecretType,
-		Data: map[string][]byte{
-			"token":               secret.Data["token"],
-			"deploymentNamespace": []byte(cluster.Status.Namespace),
-			"clusterNamespace":    []byte(cluster.Namespace),
-			"clusterName":         []byte(cluster.Name),
-			"systemNamespace":     []byte(h.systemNamespace),
-		},
-	}, nil
-}
-
 func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, error) {
 	if secret == nil || secret.Namespace != h.systemRegistrationNamespace ||
 		secret.Labels[fleet.ClusterAnnotation] == "" {
@@ -378,4 +343,39 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		logrus.Infof("Created cluster %s/%s", request.Namespace, clusterName)
 	}
 	return cluster, err
+}
+
+func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster, req *fleet.ClusterRegistration) (*v1.Secret, error) {
+	var secret *v1.Secret
+	var err error
+	if len(sa.Secrets) != 0 {
+		secret, err = h.secretsCache.Get(sa.Namespace, sa.Secrets[0].Name)
+		if apierrors.IsNotFound(err) {
+			// secrets can be slow to propagate to the cache
+			secret, err = h.secrets.Get(sa.Namespace, sa.Secrets[0].Name, metav1.GetOptions{})
+		}
+	} else {
+		secret, err = secretutil.GetServiceAccountTokenSecret(sa, h.secrets)
+	}
+	if err != nil || secret == nil {
+		return nil, err
+	}
+	return &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      registration.SecretName(req.Spec.ClientID, req.Spec.ClientRandom),
+			Namespace: h.systemRegistrationNamespace,
+			Labels: map[string]string{
+				fleet.ClusterAnnotation: cluster.Name,
+				fleet.ManagedLabel:      "true",
+			},
+		},
+		Type: AgentCredentialSecretType,
+		Data: map[string][]byte{
+			"token":               secret.Data["token"],
+			"deploymentNamespace": []byte(cluster.Status.Namespace),
+			"clusterNamespace":    []byte(cluster.Namespace),
+			"clusterName":         []byte(cluster.Name),
+			"systemNamespace":     []byte(h.systemNamespace),
+		},
+	}, nil
 }
