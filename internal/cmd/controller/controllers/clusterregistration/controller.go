@@ -195,9 +195,23 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		logrus.Debugf("Cluster registration request '%s/%s', creating registration secret", request.Namespace, request.Name)
 	}
 
+	// delete old clusterregistrations
+	crlist, _ := h.clusterRegistration.List(request.Namespace, metav1.ListOptions{})
+
+	for _, creg := range crlist.Items {
+		if creg.Spec.ClientID == request.Spec.ClientID && creg.Spec.ClientRandom != request.Spec.ClientRandom {
+			logrus.Infof("Deleting old clusterregistration %s/%s", creg.Namespace, creg.Name)
+			if err := h.clusterRegistration.Delete(creg.Namespace, creg.Name, nil); err != nil && !apierrors.IsNotFound(err) {
+				return nil, status, err
+			}
+		}
+	}
+
 	status.ClusterName = cluster.Name
-	// e.g. request- in the cluster namespace
+
 	return append(objects,
+		// Update the existing service account 'request-UID' in the
+		// cluster namespace, e.g. 'cluster-fleet-default-NAME-ID'
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      saName,
@@ -212,6 +226,11 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				},
 			},
 		},
+		// Add role bindings to manage bundledeployments and contents,
+		// the agent could previously only access secrets in
+		// 'cattle-fleet-clusters-system' and clusterregistrations in
+		// the cluster registration namespace (e.g. 'fleet-default'). See
+		// clusterregistrationtoken controller for details.
 		&rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,

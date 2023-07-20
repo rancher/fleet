@@ -174,7 +174,10 @@ type ClusterRegistrationSpec struct {
 
 type ClusterRegistrationStatus struct {
 	ClusterName string `json:"clusterName,omitempty"`
-	Granted     bool   `json:"granted,omitempty"`
+	// Granted is set to true, if the request service account is present
+	// and its token secret exists. This happens directly before creating
+	// the registration secret, roles and rolebindings.
+	Granted bool `json:"granted,omitempty"`
 }
 
 // +genclient
