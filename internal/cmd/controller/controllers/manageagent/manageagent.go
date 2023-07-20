@@ -224,6 +224,7 @@ func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.
 
 	var objs []runtime.Object
 
+	// TODO how to rate limit this?
 	for _, cluster := range clusters {
 		logrus.Infof("Update agent bundle for cluster %s/%s", cluster.Namespace, cluster.Name)
 		bundle, err := h.newAgentBundle(namespace.Name, cluster)

@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
+	"github.com/jpillora/backoff"
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/internal/client"
@@ -88,20 +90,35 @@ func (i *importHandler) onConfig(config *config.Config) error {
 		return nil
 	}
 
-	for _, cluster := range clusters.Items {
-		if cluster.Spec.KubeConfigSecret == "" {
-			continue
-		}
-		if config.APIServerURL != cluster.Status.APIServerURL || hashStatusField(config.APIServerCA) != cluster.Status.APIServerCAHash {
-			logrus.Infof("API server config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
-			c := cluster.DeepCopy()
-			c.Status.AgentConfigChanged = true
-			_, err := i.clusters.UpdateStatus(c)
-			if err != nil {
-				return err
+	b := &backoff.Backoff{
+		Min:    1 * time.Second,
+		Max:    3 * time.Minute,
+		Factor: 2,
+		Jitter: true,
+	}
+
+	go func() {
+		for _, cluster := range clusters.Items {
+			if cluster.Spec.KubeConfigSecret == "" {
+				continue
+			}
+
+			time.Sleep(b.Duration())
+
+			if config.APIServerURL != cluster.Status.APIServerURL || hashStatusField(config.APIServerCA) != cluster.Status.APIServerCAHash {
+				logrus.Infof("API server config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
+				c := cluster.DeepCopy()
+				c.Status.AgentConfigChanged = true
+				_, err := i.clusters.UpdateStatus(c)
+				if err != nil {
+					// ignore error, user needs to manually update the cluster
+					continue
+				}
 			}
 		}
-	}
+
+	}()
+
 	return nil
 }
 
