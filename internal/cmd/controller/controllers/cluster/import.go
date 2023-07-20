@@ -2,6 +2,8 @@ package cluster
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -90,12 +92,8 @@ func (i *importHandler) onConfig(config *config.Config) error {
 		if cluster.Spec.KubeConfigSecret == "" {
 			continue
 		}
-		secret, err := i.secrets.Get(cluster.Namespace, cluster.Spec.KubeConfigSecret)
-		if err != nil {
-			return err
-		}
-		if string(secret.Data["apiServerURL"]) == "" || string(secret.Data["apiServerCA"]) == "" {
-			logrus.Infof("API server fallback-config may have changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
+		if config.APIServerURL != cluster.Status.APIServerURL || hashStatusField(config.APIServerCA) != cluster.Status.APIServerCAHash {
+			logrus.Infof("API server config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
 			c := cluster.DeepCopy()
 			c.Status.AgentConfigChanged = true
 			_, err := i.clusters.UpdateStatus(c)
@@ -105,6 +103,16 @@ func (i *importHandler) onConfig(config *config.Config) error {
 		}
 	}
 	return nil
+}
+
+func hashStatusField(field any) string {
+	hasher := sha256.New224()
+	b, err := json.Marshal(field)
+	if err != nil {
+		return ""
+	}
+	hasher.Write(b)
+	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
 func agentDeployed(cluster *fleet.Cluster) bool {
@@ -379,6 +387,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 	status.AgentNamespaceMigrated = true
 	status.AgentConfigChanged = false
+	status.APIServerURL = apiServerURL
+	status.APIServerCAHash = hashStatusField(apiServerCA)
 	return status, nil
 }
 
