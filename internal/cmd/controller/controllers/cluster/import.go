@@ -23,6 +23,7 @@ import (
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/randomtoken"
+	"github.com/rancher/wrangler/pkg/yaml"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -297,6 +298,9 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if cluster.Spec.AgentNamespace != "" {
 		agentNamespace = cluster.Spec.AgentNamespace
 	}
+
+	clusterLabels := yaml.CleanAnnotationsForExport(cluster.Labels)
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
 	objs, err := agent.AgentWithConfig(
@@ -309,7 +313,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			Host: apiServerURL,
 			ConfigOptions: agent.ConfigOptions{
 				ClientID: cluster.Spec.ClientID,
-				Labels:   cluster.Labels,
+				Labels:   clusterLabels,
 			},
 			ManifestOptions: agent.ManifestOptions{
 				AgentEnvVars:     cluster.Spec.AgentEnvVars,
