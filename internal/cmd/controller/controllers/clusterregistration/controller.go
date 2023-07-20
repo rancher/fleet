@@ -6,8 +6,6 @@ package clusterregistration
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -15,6 +13,7 @@ import (
 
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/secret"
 	"github.com/rancher/fleet/internal/config"
+	fname "github.com/rancher/fleet/internal/name"
 	"github.com/rancher/fleet/internal/registration"
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -334,14 +333,6 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 	), status, nil
 }
 
-func KeyHash(s string) string {
-	if len(s) > 100 {
-		s = s[:100]
-	}
-	d := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(d[:])[:12]
-}
-
 func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet.Cluster, error) {
 	clusters, err := h.clusterCache.GetByIndex(clusterByClientID, fmt.Sprintf("%s/%s", request.Namespace, request.Spec.ClientID))
 	if err == nil && len(clusters) > 0 {
@@ -350,7 +341,7 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		return nil, err
 	}
 
-	clusterName := name.SafeConcatName("cluster", KeyHash(request.Spec.ClientID))
+	clusterName := name.SafeConcatName("cluster", fname.KeyHash(request.Spec.ClientID))
 	if cluster, err := h.clusterCache.Get(request.Namespace, clusterName); !apierrors.IsNotFound(err) {
 		if cluster.Spec.ClientID != request.Spec.ClientID {
 			// This would happen with a hash collision

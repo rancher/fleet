@@ -13,10 +13,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/clusterregistration"
 	"github.com/rancher/fleet/internal/cmd/controller/display"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/config"
+	fname "github.com/rancher/fleet/internal/name"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
@@ -129,7 +129,7 @@ func (h *handler) getConfig(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 		return nil, err
 	}
 
-	hash := clusterregistration.KeyHash(string(data))
+	hash := fname.KeyHash(string(data))
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name.SafeConcatName(repo.Name, "config", hash),
