@@ -95,7 +95,7 @@ func (i *importHandler) onConfig(config *config.Config) error {
 			return err
 		}
 		if string(secret.Data["apiServerURL"]) == "" || string(secret.Data["apiServerCA"]) == "" {
-			logrus.Debugf("API server fallback-config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
+			logrus.Infof("API server fallback-config may have changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
 			c := cluster.DeepCopy()
 			c.Status.AgentConfigChanged = true
 			_, err := i.clusters.UpdateStatus(c)

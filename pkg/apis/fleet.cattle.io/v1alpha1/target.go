@@ -173,6 +173,7 @@ type ClusterRegistrationSpec struct {
 }
 
 type ClusterRegistrationStatus struct {
+	// ClusterName is only set after the registration is granted.
 	ClusterName string `json:"clusterName,omitempty"`
 	// Granted is set to true, if the request service account is present
 	// and its token secret exists. This happens directly before creating
