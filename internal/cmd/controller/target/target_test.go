@@ -478,34 +478,15 @@ func TestGetBundleDeploymentForBundleInCluster(t *testing.T) {
 		bundleName                 string
 		bundleNamespace            string
 		clusterName                string
-		listedBundleDeployments    []*v1alpha1.BundleDeployment // bundle deployments to be returned by List
 		listBundleDeploymentsError error
 		expectedBundleDeployments  []*v1alpha1.BundleDeployment
 		wantError                  bool
 	}{
 		{
-			name:            "returns only bundle deployment for the cluster",
+			name:            "returns listed bundle deployments",
 			bundleName:      "my-bundle-my-cluster",
 			bundleNamespace: "fleet-default",
 			clusterName:     "my-cluster",
-			listedBundleDeployments: []*v1alpha1.BundleDeployment{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "cluster-fleet-default-my-cluster-1df72965a9b5",
-						Labels: map[string]string{
-							"fleet.cattle.io/cluster": "my-cluster",
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "cluster-fleet-default-my-other-cluster-1df72965a9b5",
-						Labels: map[string]string{
-							"fleet.cattle.io/cluster": "my-other-cluster",
-						},
-					},
-				},
-			},
 			expectedBundleDeployments: []*v1alpha1.BundleDeployment{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -521,34 +502,15 @@ func TestGetBundleDeploymentForBundleInCluster(t *testing.T) {
 			name:                       "returns error from bundle deployment cache listing",
 			bundleName:                 "my-bundle-my-cluster",
 			bundleNamespace:            "fleet-default",
-			listedBundleDeployments:    nil,
 			listBundleDeploymentsError: errors.New("something happened"),
 			expectedBundleDeployments:  nil,
 			wantError:                  true,
 		},
 		{
-			name:            "requires strict match on cluster name",
-			bundleName:      "my-bundle-my-cluster",
-			bundleNamespace: "fleet-default",
-			clusterName:     "my-cluster",
-			listedBundleDeployments: []*v1alpha1.BundleDeployment{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "cluster-fleet-default-my-cluster-with-bells-and-whistles-1df72965a9b5",
-						Labels: map[string]string{
-							"fleet.cattle.io/cluster": "my-cluster-with-bells-and-whistles",
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "cluster-fleet-default-MY-CLUSTER-1df72965a9b5",
-						Labels: map[string]string{
-							"fleet.cattle.io/cluster": "MY-CLUSTER",
-						},
-					},
-				},
-			},
+			name:                      "returns no bundle deployments when none are listed",
+			bundleName:                "my-bundle-my-cluster",
+			bundleNamespace:           "fleet-default",
+			clusterName:               "my-cluster",
 			expectedBundleDeployments: nil,
 		},
 	}
@@ -566,16 +528,17 @@ func TestGetBundleDeploymentForBundleInCluster(t *testing.T) {
 				},
 			}
 
-			mockBundleDeploymentCache.EXPECT().List("", labels.SelectorFromSet(labels.Set{
-				v1alpha1.BundleLabel:          bundle.Name,
-				v1alpha1.BundleNamespaceLabel: bundle.Namespace,
-			})).Return(tc.listedBundleDeployments, tc.listBundleDeploymentsError)
-
 			cluster := v1alpha1.Cluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: tc.clusterName,
 				},
 			}
+
+			mockBundleDeploymentCache.EXPECT().List("", labels.SelectorFromSet(labels.Set{
+				v1alpha1.BundleLabel:          bundle.Name,
+				v1alpha1.BundleNamespaceLabel: bundle.Namespace,
+				v1alpha1.ClusterLabel:         cluster.Name,
+			})).Return(tc.expectedBundleDeployments, tc.listBundleDeploymentsError)
 
 			manager := New(nil, nil, nil, nil, nil, nil, mockBundleDeploymentCache)
 			result, err := manager.GetBundleDeploymentsForBundleInCluster(&bundle, &cluster)

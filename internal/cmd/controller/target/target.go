@@ -196,18 +196,14 @@ func (m *Manager) GetBundleDeploymentsForBundleInCluster(bundle *fleet.Bundle, c
 	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(labels.Set{
 		fleet.BundleLabel:          bundle.Name,
 		fleet.BundleNamespaceLabel: bundle.Namespace,
+		fleet.ClusterLabel:         cluster.Name,
 	}))
 
 	if err != nil {
 		return nil, err
 	}
-	for _, bd := range bundleDeployments {
-		if bd.Labels[fleet.ClusterLabel] == cluster.Name {
-			result = append(result, bd)
-		}
-	}
 
-	return result, nil
+	return bundleDeployments, nil
 }
 
 // getNamespacesForBundle returns the namespaces that bundledeployments could
