@@ -1,6 +1,6 @@
 package manageagent
 
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../internal/mocks/namespace_mock.go -package=mocks github.com/rancher/wrangler/pkg/generated/controllers/core/v1 NamespaceController
+//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/namespace_mock.go -package=mocks github.com/rancher/wrangler/pkg/generated/controllers/core/v1 NamespaceController
 
 import (
 	"testing"
