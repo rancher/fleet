@@ -1,11 +1,18 @@
 package target
 
+//go:generate mockgen --build_flags=--mod=mod -destination=../mocks/bundle_deployment_cache_mock.go -package=mocks github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1 BundleDeploymentCache
+
 import (
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
 	"github.com/rancher/wrangler/pkg/yaml"
+	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
+	"github.com/rancher/fleet/internal/cmd/controller/mocks"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -463,4 +470,85 @@ func TestDisablePreProcessFlagMissing(t *testing.T) {
 		}
 	}
 
+}
+
+func TestGetBundleDeploymentForBundleInCluster(t *testing.T) {
+	testCases := []struct {
+		name                       string
+		bundleName                 string
+		bundleNamespace            string
+		clusterName                string
+		listBundleDeploymentsError error
+		expectedBundleDeployments  []*v1alpha1.BundleDeployment
+		wantError                  bool
+	}{
+		{
+			name:            "returns listed bundle deployments",
+			bundleName:      "my-bundle-my-cluster",
+			bundleNamespace: "fleet-default",
+			clusterName:     "my-cluster",
+			expectedBundleDeployments: []*v1alpha1.BundleDeployment{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "cluster-fleet-default-my-cluster-1df72965a9b5",
+						Labels: map[string]string{
+							"fleet.cattle.io/cluster": "my-cluster",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:                       "returns error from bundle deployment cache listing",
+			bundleName:                 "my-bundle-my-cluster",
+			bundleNamespace:            "fleet-default",
+			listBundleDeploymentsError: errors.New("something happened"),
+			expectedBundleDeployments:  nil,
+			wantError:                  true,
+		},
+		{
+			name:                      "returns no bundle deployments when none are listed",
+			bundleName:                "my-bundle-my-cluster",
+			bundleNamespace:           "fleet-default",
+			clusterName:               "my-cluster",
+			expectedBundleDeployments: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			mockBundleDeploymentCache := mocks.NewMockBundleDeploymentCache(ctrl)
+
+			bundle := v1alpha1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tc.bundleName,
+					Namespace: tc.bundleNamespace,
+				},
+			}
+
+			cluster := v1alpha1.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: tc.clusterName,
+				},
+			}
+
+			mockBundleDeploymentCache.EXPECT().List("", labels.SelectorFromSet(labels.Set{
+				v1alpha1.BundleLabel:          bundle.Name,
+				v1alpha1.BundleNamespaceLabel: bundle.Namespace,
+				v1alpha1.ClusterLabel:         cluster.Name,
+			})).Return(tc.expectedBundleDeployments, tc.listBundleDeploymentsError)
+
+			manager := New(nil, nil, nil, nil, nil, nil, mockBundleDeploymentCache)
+			result, err := manager.GetBundleDeploymentsForBundleInCluster(&bundle, &cluster)
+
+			if tc.wantError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.expectedBundleDeployments, result)
+		})
+	}
 }

@@ -25,7 +25,6 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler/pkg/name"
 	"github.com/rancher/wrangler/pkg/yaml"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -197,19 +196,14 @@ func (m *Manager) GetBundleDeploymentsForBundleInCluster(bundle *fleet.Bundle, c
 	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(labels.Set{
 		fleet.BundleLabel:          bundle.Name,
 		fleet.BundleNamespaceLabel: bundle.Namespace,
+		fleet.ClusterLabel:         cluster.Name,
 	}))
 
 	if err != nil {
 		return nil, err
 	}
-	nsPrefix := name.SafeConcatName("cluster", cluster.Namespace, cluster.Name)
-	for _, bd := range bundleDeployments {
-		if strings.HasPrefix(bd.Namespace, nsPrefix) {
-			result = append(result, bd)
-		}
-	}
 
-	return result, nil
+	return bundleDeployments, nil
 }
 
 // getNamespacesForBundle returns the namespaces that bundledeployments could
