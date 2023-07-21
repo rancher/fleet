@@ -66,6 +66,7 @@ func Register(ctx context.Context, namespace, clusterID string, config *rest.Con
 // populated and the contained kubeconfig is working
 func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Config) (*AgentInfo, error) {
 	cfg = rest.CopyConfig(cfg)
+	// disable the rate limiter
 	cfg.RateLimiter = ratelimit.None
 	k8s, err := core.NewFactoryFromConfig(cfg)
 	if err != nil {
@@ -74,10 +75,11 @@ func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Con
 
 	secret, err := k8s.Core().V1().Secret().Get(namespace, CredName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		logrus.Warn("Cannot find fleet-agent secret, running registration")
 		// fallback to local cattle-fleet-system/fleet-agent-bootstrap
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace, clusterID)
 		if err != nil {
-			return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, config.AgentBootstrapConfigName, err)
+			return nil, fmt.Errorf("registration failed: %w", err)
 		}
 	} else if err != nil {
 		return nil, err
@@ -86,7 +88,7 @@ func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Con
 		logrus.Errorf("Current credential failed, failing back to reregistering: %v", err)
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace, clusterID)
 		if err != nil {
-			return nil, fmt.Errorf("looking up secret %s/%s or %s/%s: %w", namespace, config.AgentBootstrapConfigName, namespace, CredName, err)
+			return nil, fmt.Errorf("re-registration failed: %w", err)
 		}
 	}
 
@@ -134,7 +136,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 
 	cfg, err := config.Lookup(ctx, secret.Namespace, config.AgentConfigName, k8s.ConfigMap())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to look up client config %s/%s: %w", secret.Namespace, config.AgentConfigName, err)
 	}
 
 	fleetK8s, err := kubernetes.NewForConfig(kc)
@@ -157,7 +159,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 	} else if clusterID == "" {
 		kubeSystem, err := k8s.Namespace().Get("kube-system", metav1.GetOptions{})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot retrieve our kubeSystem.UID: %w", err)
 		}
 
 		clusterID = string(kubeSystem.UID)
@@ -175,7 +177,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create clusterregistration on management cluster for cluster id '%s': %w", clusterID, err)
 	}
 
 	secretName := registration.SecretName(request.Spec.ClientID, request.Spec.ClientRandom)
@@ -185,7 +187,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 	for {
 		select {
 		case <-timeout:
-			return nil, fmt.Errorf("timeout waiting for secret %s/%s", secretNamespace, secretName)
+			return nil, fmt.Errorf("timeout waiting for registration secret '%s/%s' on management cluster", secretNamespace, secretName)
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-time.After(durations.ClusterSecretRetry):
@@ -193,7 +195,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 
 		newSecret, err := fleetK8s.CoreV1().Secrets(secretNamespace).Get(ctx, secretName, metav1.GetOptions{})
 		if err != nil {
-			logrus.Infof("Waiting for secret %s/%s for %s/%s: %v", secretNamespace, secretName, request.Namespace, request.Name, err)
+			logrus.Infof("Waiting for secret '%s/%s' on management cluster for request '%s/%s': %v", secretNamespace, secretName, request.Namespace, request.Name, err)
 			continue
 		}
 
@@ -208,7 +210,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 		}
 
 		if err := testClientConfig(newKubeconfig); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("new client config cannot list bundledeployments on management cluster: %w", err)
 		}
 
 		// fleet-agent secret
@@ -231,6 +233,9 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 				return nil, err
 			}
 			secret, err = k8s.Secret().Create(updatedSecret)
+		}
+		if err != nil {
+			err = fmt.Errorf("failed to create 'fleet-agent' secret: %w", err)
 		}
 		return secret, err
 	}

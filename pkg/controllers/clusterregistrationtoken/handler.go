@@ -128,7 +128,11 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		status.Expires = &metav1.Time{Time: token.CreationTimestamp.Add(token.Spec.TTL.Duration)}
 	}
 
-	// e.g.: import-token-local in system-registration-namespace
+	// Add service account, e.g.: import-token-local in the system
+	// registration namespace. This account is used during registration to
+	// access secrets in the system registration namespace
+	// 'cattle-fleet-clusters-system' and clusterregistrations in the
+	// cluster registration namespace (e.g. 'fleet-default').
 	return append([]runtime.Object{
 		&corev1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
