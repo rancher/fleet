@@ -2539,6 +2539,12 @@ spec:
               agentTolerationsHash:
                 nullable: true
                 type: string
+              apiServerCAHash:
+                nullable: true
+                type: string
+              apiServerURL:
+                nullable: true
+                type: string
               cattleNamespaceMigrated:
                 type: boolean
               conditions:

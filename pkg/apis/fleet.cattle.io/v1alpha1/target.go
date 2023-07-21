@@ -133,6 +133,9 @@ type ClusterStatus struct {
 	AgentTolerationsHash string `json:"agentTolerationsHash,omitempty"`
 	AgentConfigChanged   bool   `json:"agentConfigChanged,omitempty"`
 
+	APIServerURL    string `json:"apiServerURL,omitempty"`
+	APIServerCAHash string `json:"apiServerCAHash,omitempty"`
+
 	Display ClusterDisplay `json:"display,omitempty"`
 	Agent   AgentStatus    `json:"agent,omitempty"`
 }
@@ -173,8 +176,12 @@ type ClusterRegistrationSpec struct {
 }
 
 type ClusterRegistrationStatus struct {
+	// ClusterName is only set after the registration is granted.
 	ClusterName string `json:"clusterName,omitempty"`
-	Granted     bool   `json:"granted,omitempty"`
+	// Granted is set to true, if the request service account is present
+	// and its token secret exists. This happens directly before creating
+	// the registration secret, roles and rolebindings.
+	Granted bool `json:"granted,omitempty"`
 }
 
 // +genclient

@@ -58,7 +58,9 @@ func Register(ctx context.Context,
 			WithCacheTypes(bundle),
 	}
 
+	// update the agent bundles for all clusters in the triggered namespace
 	namespaces.OnChange(ctx, "manage-agent", h.OnNamespace)
+	// enqueue events for the agent bundle's namespace when clusters change
 	relatedresource.WatchClusterScoped(ctx, "manage-agent-resolver", h.resolveNS, namespaces, clusters)
 	fleetcontrollers.RegisterClusterStatusHandler(ctx,
 		clusters,
@@ -199,6 +201,7 @@ func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedr
 	return nil, nil
 }
 
+// OnNamespace updates agent bundles for all clusters in the namespace
 func (h *handler) OnNamespace(key string, namespace *corev1.Namespace) (*corev1.Namespace, error) {
 	if namespace == nil {
 		return nil, nil

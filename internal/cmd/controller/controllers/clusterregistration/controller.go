@@ -6,8 +6,6 @@ package clusterregistration
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -15,6 +13,7 @@ import (
 
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/secret"
 	"github.com/rancher/fleet/internal/config"
+	fname "github.com/rancher/fleet/internal/name"
 	"github.com/rancher/fleet/internal/registration"
 	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -138,41 +137,6 @@ func (h *handler) OnCluster(key string, cluster *fleet.Cluster) (*fleet.Cluster,
 	return cluster, nil
 }
 
-func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster, req *fleet.ClusterRegistration) (*v1.Secret, error) {
-	var secret *v1.Secret
-	var err error
-	if len(sa.Secrets) != 0 {
-		secret, err = h.secretsCache.Get(sa.Namespace, sa.Secrets[0].Name)
-		if apierrors.IsNotFound(err) {
-			// secrets can be slow to propagate to the cache
-			secret, err = h.secrets.Get(sa.Namespace, sa.Secrets[0].Name, metav1.GetOptions{})
-		}
-	} else {
-		secret, err = secretutil.GetServiceAccountTokenSecret(sa, h.secrets)
-	}
-	if err != nil || secret == nil {
-		return nil, err
-	}
-	return &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      registration.SecretName(req.Spec.ClientID, req.Spec.ClientRandom),
-			Namespace: h.systemRegistrationNamespace,
-			Labels: map[string]string{
-				fleet.ClusterAnnotation: cluster.Name,
-				fleet.ManagedLabel:      "true",
-			},
-		},
-		Type: AgentCredentialSecretType,
-		Data: map[string][]byte{
-			"token":               secret.Data["token"],
-			"deploymentNamespace": []byte(cluster.Status.Namespace),
-			"clusterNamespace":    []byte(cluster.Namespace),
-			"clusterName":         []byte(cluster.Name),
-			"systemNamespace":     []byte(h.systemNamespace),
-		},
-	}, nil
-}
-
 func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, error) {
 	if secret == nil || secret.Namespace != h.systemRegistrationNamespace ||
 		secret.Labels[fleet.ClusterAnnotation] == "" {
@@ -231,9 +195,23 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		logrus.Debugf("Cluster registration request '%s/%s', creating registration secret", request.Namespace, request.Name)
 	}
 
+	// delete old clusterregistrations
+	crlist, _ := h.clusterRegistration.List(request.Namespace, metav1.ListOptions{})
+
+	for _, creg := range crlist.Items {
+		if creg.Spec.ClientID == request.Spec.ClientID && creg.Spec.ClientRandom != request.Spec.ClientRandom {
+			logrus.Infof("Deleting old clusterregistration %s/%s", creg.Namespace, creg.Name)
+			if err := h.clusterRegistration.Delete(creg.Namespace, creg.Name, nil); err != nil && !apierrors.IsNotFound(err) {
+				return nil, status, err
+			}
+		}
+	}
+
 	status.ClusterName = cluster.Name
-	// e.g. request- in the cluster namespace
+
 	return append(objects,
+		// Update the existing service account 'request-UID' in the
+		// cluster namespace, e.g. 'cluster-fleet-default-NAME-ID'
 		&v1.ServiceAccount{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      saName,
@@ -248,6 +226,11 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				},
 			},
 		},
+		// Add role bindings to manage bundledeployments and contents,
+		// the agent could previously only access secrets in
+		// 'cattle-fleet-clusters-system' and clusterregistrations in
+		// the cluster registration namespace (e.g. 'fleet-default'). See
+		// clusterregistrationtoken controller for details.
 		&rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
@@ -334,14 +317,6 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 	), status, nil
 }
 
-func KeyHash(s string) string {
-	if len(s) > 100 {
-		s = s[:100]
-	}
-	d := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(d[:])[:12]
-}
-
 func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet.Cluster, error) {
 	clusters, err := h.clusterCache.GetByIndex(clusterByClientID, fmt.Sprintf("%s/%s", request.Namespace, request.Spec.ClientID))
 	if err == nil && len(clusters) > 0 {
@@ -350,7 +325,7 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		return nil, err
 	}
 
-	clusterName := name.SafeConcatName("cluster", KeyHash(request.Spec.ClientID))
+	clusterName := name.SafeConcatName("cluster", fname.KeyHash(request.Spec.ClientID))
 	if cluster, err := h.clusterCache.Get(request.Namespace, clusterName); !apierrors.IsNotFound(err) {
 		if cluster.Spec.ClientID != request.Spec.ClientID {
 			// This would happen with a hash collision
@@ -387,4 +362,39 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		logrus.Infof("Created cluster %s/%s", request.Namespace, clusterName)
 	}
 	return cluster, err
+}
+
+func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster, req *fleet.ClusterRegistration) (*v1.Secret, error) {
+	var secret *v1.Secret
+	var err error
+	if len(sa.Secrets) != 0 {
+		secret, err = h.secretsCache.Get(sa.Namespace, sa.Secrets[0].Name)
+		if apierrors.IsNotFound(err) {
+			// secrets can be slow to propagate to the cache
+			secret, err = h.secrets.Get(sa.Namespace, sa.Secrets[0].Name, metav1.GetOptions{})
+		}
+	} else {
+		secret, err = secretutil.GetServiceAccountTokenSecret(sa, h.secrets)
+	}
+	if err != nil || secret == nil {
+		return nil, err
+	}
+	return &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      registration.SecretName(req.Spec.ClientID, req.Spec.ClientRandom),
+			Namespace: h.systemRegistrationNamespace,
+			Labels: map[string]string{
+				fleet.ClusterAnnotation: cluster.Name,
+				fleet.ManagedLabel:      "true",
+			},
+		},
+		Type: AgentCredentialSecretType,
+		Data: map[string][]byte{
+			"token":               secret.Data["token"],
+			"deploymentNamespace": []byte(cluster.Status.Namespace),
+			"clusterNamespace":    []byte(cluster.Namespace),
+			"clusterName":         []byte(cluster.Name),
+			"systemNamespace":     []byte(h.systemNamespace),
+		},
+	}, nil
 }
