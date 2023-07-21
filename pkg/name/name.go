@@ -20,8 +20,12 @@ var (
 )
 
 // Limit the length of a string to count characters. If the string's length is
-// greater than count, it will be truncated and a hash will be appended to the
-// end.
+// greater than count, it will be truncated and a separator will be appended to
+// the end, followed by a hash.
+// If the last character of the truncated string is the separator, then the
+// separator itself is omitted. This prevents the result from containing two
+// consecutive separators. In such a case, the result will be [count -1]
+// characters long.
 // If count is too small to include the shortened hash the string is simply
 // truncated.
 func Limit(s string, count int) string {
@@ -29,10 +33,21 @@ func Limit(s string, count int) string {
 		return s
 	}
 
-	if count <= 6 {
+	const hexLen int = 5
+	separator := "-"
+
+	if count <= hexLen+len(separator) {
 		return s[:count]
 	}
-	return fmt.Sprintf("%s-%s", s[:count-6], Hex(s, 5))
+
+	nbCharsBeforeTrim := count - hexLen - len(separator)
+
+	// If the last character of the truncated string is the separator, include it instead of the separator.
+	if string(s[nbCharsBeforeTrim-1]) == separator {
+		separator = ""
+	}
+
+	return fmt.Sprintf("%s%s%s", s[:nbCharsBeforeTrim], separator, Hex(s, hexLen))
 }
 
 // Hex returns a hex-encoded hash of the string and truncates it to length.
