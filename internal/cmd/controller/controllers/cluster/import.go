@@ -218,7 +218,8 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 	return nil
 }
 
-// importCluster is triggered for manager initiated deployments and the local agent,
+// importCluster is triggered for manager initiated deployments and the local agent, It re-deploys the agent on the downstream cluster.
+// Since it re-creates the fleet-agent-bootstrap secret, it will also re-register the agent.
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
 	if shouldMigrateFromLegacyNamespace(cluster.Status.Agent.Namespace) {
 		cluster.Status.CattleNamespaceMigrated = false

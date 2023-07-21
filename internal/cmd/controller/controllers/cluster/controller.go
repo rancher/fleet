@@ -66,6 +66,7 @@ func Register(ctx context.Context,
 		"managed-cluster",
 		h.OnClusterChanged)
 
+	// enqueue cluster event for bundledeployment changes
 	relatedresource.Watch(ctx, "managed-cluster", h.findClusters(namespaces.Cache()), clusters, bundleDeployment)
 }
 
