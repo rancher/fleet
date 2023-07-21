@@ -3,6 +3,8 @@ package cluster
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -90,12 +92,8 @@ func (i *importHandler) onConfig(config *config.Config) error {
 		if cluster.Spec.KubeConfigSecret == "" {
 			continue
 		}
-		secret, err := i.secrets.Get(cluster.Namespace, cluster.Spec.KubeConfigSecret)
-		if err != nil {
-			return err
-		}
-		if string(secret.Data["apiServerURL"]) == "" || string(secret.Data["apiServerCA"]) == "" {
-			logrus.Debugf("API server fallback-config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
+		if config.APIServerURL != cluster.Status.APIServerURL || hashStatusField(config.APIServerCA) != cluster.Status.APIServerCAHash {
+			logrus.Infof("API server config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
 			c := cluster.DeepCopy()
 			c.Status.AgentConfigChanged = true
 			_, err := i.clusters.UpdateStatus(c)
@@ -105,6 +103,16 @@ func (i *importHandler) onConfig(config *config.Config) error {
 		}
 	}
 	return nil
+}
+
+func hashStatusField(field any) string {
+	hasher := sha256.New224()
+	b, err := json.Marshal(field)
+	if err != nil {
+		return ""
+	}
+	hasher.Write(b)
+	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
 func agentDeployed(cluster *fleet.Cluster) bool {
@@ -209,7 +217,8 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 	return nil
 }
 
-// importCluster is triggered for manager initiated deployments and the local agent,
+// importCluster is triggered for manager initiated deployments and the local agent, It re-deploys the agent on the downstream cluster.
+// Since it re-creates the fleet-agent-bootstrap secret, it will also re-register the agent.
 func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.ClusterStatus) (_ fleet.ClusterStatus, err error) {
 	if shouldMigrateFromLegacyNamespace(cluster.Status.Agent.Namespace) {
 		cluster.Status.CattleNamespaceMigrated = false
@@ -298,6 +307,9 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if cluster.Spec.AgentNamespace != "" {
 		agentNamespace = cluster.Spec.AgentNamespace
 	}
+
+	clusterLabels := yaml.CleanAnnotationsForExport(cluster.Labels)
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
 	err = agent.AgentWithConfig(
@@ -311,7 +323,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			Host: apiServerURL,
 			ConfigOptions: agent.ConfigOptions{
 				ClientID: cluster.Spec.ClientID,
-				Labels:   cluster.Labels,
+				Labels:   clusterLabels,
 			},
 			ManifestOptions: agent.ManifestOptions{
 				AgentEnvVars:     cluster.Spec.AgentEnvVars,
@@ -382,6 +394,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 	status.AgentNamespaceMigrated = true
 	status.AgentConfigChanged = false
+	status.APIServerURL = apiServerURL
+	status.APIServerCAHash = hashStatusField(apiServerCA)
 	return status, nil
 }
 

@@ -8,8 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/controllers/clusterregistration"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	fname "github.com/rancher/fleet/pkg/name"
 	"github.com/rancher/fleet/pkg/summary"
 
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -66,6 +66,7 @@ func Register(ctx context.Context,
 		"managed-cluster",
 		h.OnClusterChanged)
 
+	// enqueue cluster event for bundledeployment changes
 	relatedresource.Watch(ctx, "managed-cluster", h.findClusters(namespaces.Cache()), clusters, bundleDeployment)
 }
 
@@ -110,7 +111,7 @@ func clusterNamespace(clusterNamespace, clusterName string) string {
 	return name.SafeConcatName("cluster",
 		clusterNamespace,
 		clusterName,
-		clusterregistration.KeyHash(clusterNamespace+"::"+clusterName))
+		fname.KeyHash(clusterNamespace+"::"+clusterName))
 }
 
 func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
