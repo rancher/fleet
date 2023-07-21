@@ -105,6 +105,10 @@ func (i *importHandler) onConfig(config *config.Config) error {
 
 			time.Sleep(b.Duration())
 
+			// TODO since this is long running, do we need to fetch the cluster again?
+			// TODO what about two config changes in quick succession? This would be running twice.
+			// TODO updating a cluster triggers a namespace event, which ... triggers manageagent for all clusters in the namespace?
+
 			if config.APIServerURL != cluster.Status.APIServerURL || hashStatusField(config.APIServerCA) != cluster.Status.APIServerCAHash {
 				logrus.Infof("API server config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
 				c := cluster.DeepCopy()
