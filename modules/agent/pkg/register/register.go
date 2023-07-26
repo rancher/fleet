@@ -97,7 +97,7 @@ func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Con
 		return nil, err
 	}
 
-	// delete the bootstrap cred
+	// delete the fleet-agent-bootstrap cred
 	_ = k8s.Core().V1().Secret().Delete(namespace, config.AgentBootstrapConfigName, nil)
 	return &AgentInfo{
 		ClusterNamespace: string(secret.Data[ClusterNamespace]),
@@ -106,22 +106,26 @@ func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Con
 	}, nil
 }
 
+// runRegistration reads the cattle-fleet-system/fleet-agent-bootstrap and
+// waits for the registration secret to appear on the management cluster to
+// create a new fleet-agent secret
 func runRegistration(ctx context.Context, k8s corecontrollers.Interface, namespace, clusterID string) (*corev1.Secret, error) {
-	// read cattle-fleet-system/fleet-agent-bootstrap
 	secret, err := k8s.Secret().Get(namespace, config.AgentBootstrapConfigName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, config.AgentBootstrapConfigName, err)
 	}
-	return createClusterSecret(ctx, clusterID, k8s, secret)
+	return createAgentSecret(ctx, clusterID, k8s, secret)
 }
 
-// createClusterSecret uses the provided fleet-agent-bootstrap token to build a
-// kubeconfig and create a ClusterRegistration.
-// Then goes into a loop, waiting for the registration secret "clientID" to
-// appear in the systemRegistrationNamespace.
+// createAgentSecret uses the provided fleet-agent-bootstrap token to build a
+// kubeconfig and create a ClusterRegistration on the management cluster.
+// Then it waits up to 30 minutes for the registration secret
+// "c-clientID-clientRandom" to appear in the systemRegistrationNamespace on
+// the management cluster.
 // Finally uses the client from the config (service account: fleet-agent), to
-// update the "fleet-agent" secret from the registration secret.
-func createClusterSecret(ctx context.Context, clusterID string, k8s corecontrollers.Interface, secret *corev1.Secret) (*corev1.Secret, error) {
+// update the "fleet-agent" secret with a new kubeconfig from the registration
+// secret. The new kubeconfig can then be used to query bundledeployments.
+func createAgentSecret(ctx context.Context, clusterID string, k8s corecontrollers.Interface, secret *corev1.Secret) (*corev1.Secret, error) {
 	clientConfig := createClientConfigFromSecret(secret)
 
 	ns, _, err := clientConfig.Namespace()
@@ -214,7 +218,7 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 		}
 
 		// fleet-agent secret
-		updatedSecret := &corev1.Secret{
+		agentSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      CredName,
 				Namespace: secret.Namespace,
@@ -227,12 +231,12 @@ func createClusterSecret(ctx context.Context, clusterID string, k8s corecontroll
 			},
 		}
 
-		secret, err := k8s.Secret().Create(updatedSecret)
+		secret, err := k8s.Secret().Create(agentSecret)
 		if apierrors.IsAlreadyExists(err) {
-			if err = k8s.Secret().Delete(updatedSecret.Namespace, updatedSecret.Name, &metav1.DeleteOptions{}); err != nil {
+			if err = k8s.Secret().Delete(agentSecret.Namespace, agentSecret.Name, &metav1.DeleteOptions{}); err != nil {
 				return nil, err
 			}
-			secret, err = k8s.Secret().Create(updatedSecret)
+			secret, err = k8s.Secret().Create(agentSecret)
 		}
 		if err != nil {
 			err = fmt.Errorf("failed to create 'fleet-agent' secret: %w", err)
