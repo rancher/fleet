@@ -159,10 +159,6 @@ func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, err
 // It can also get content resources, but not list them. The name of content
 // resources is random.
 func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.ClusterRegistrationStatus) ([]runtime.Object, fleet.ClusterRegistrationStatus, error) {
-	var (
-		objects []runtime.Object
-	)
-
 	if status.Granted {
 		// only create the cluster for the request once
 		return nil, status, generic.ErrSkip
@@ -180,51 +176,48 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 
 	saName := name.SafeConcatName(request.Name, string(request.UID))
 	sa, err := h.serviceAccountCache.Get(cluster.Status.Namespace, saName)
-	if err == nil {
-		if secret, err := h.authorizeCluster(sa, cluster, request); err != nil {
-			return nil, status, fmt.Errorf("failed to authorize cluster: %w", err)
-		} else if secret != nil {
-			status.Granted = true
-			objects = append(objects, secret)
-		}
+	if err != nil && apierrors.IsNotFound(err) {
+		// create request service account if missing
+		status.ClusterName = cluster.Name
+		return []runtime.Object{requestSA(saName, cluster, request)}, status, nil
+	} else if err != nil {
+		return nil, status, fmt.Errorf("failed to retrieve service account from cache: %w", err)
 	}
 
-	logrus.Infof("Cluster registration request '%s/%s', cluster '%s/%s' granted [%v], creating cluster and request service account",
-		request.Namespace, request.Name, cluster.Namespace, cluster.Name, status.Granted)
+	// try to get request service account's token
+	var secret *v1.Secret
+	if secret, err = h.authorizeCluster(sa, cluster, request); err != nil {
+		return nil, status, fmt.Errorf("failed to authorize cluster, cannot get service account token: %w", err)
+	} else if secret == nil {
+		status.ClusterName = cluster.Name
+		logrus.Infof("Cluster registration request '%s/%s', cluster '%s/%s' not granted, waiting for service account token",
+			request.Namespace, request.Name, cluster.Namespace, cluster.Name)
+		return nil, status, nil
+	}
 
-	if status.Granted {
-		logrus.Debugf("Cluster registration request '%s/%s' granted, creating registration secret", request.Namespace, request.Name)
-
-		crlist, _ := h.clusterRegistration.List(request.Namespace, metav1.ListOptions{})
-		for _, creg := range crlist.Items {
-			if shouldDelete(creg, *request) {
-				logrus.Infof("Deleting old clusterregistration '%s/%s', now at '%s'", creg.Namespace, creg.Name, request.Name)
-				if err := h.clusterRegistration.Delete(creg.Namespace, creg.Name, nil); err != nil && !apierrors.IsNotFound(err) {
-					return nil, status, err
-				}
+	// delete old cluster registrations
+	crlist, _ := h.clusterRegistration.List(request.Namespace, metav1.ListOptions{})
+	for _, creg := range crlist.Items {
+		if shouldDelete(creg, *request) {
+			logrus.Debugf("Deleting old clusterregistration '%s/%s', now at '%s'", creg.Namespace, creg.Name, request.Name)
+			if err := h.clusterRegistration.Delete(creg.Namespace, creg.Name, nil); err != nil && !apierrors.IsNotFound(err) {
+				return nil, status, err
 			}
 		}
 	}
 
+	// request is granted, create the registration secret and roles
 	status.ClusterName = cluster.Name
+	status.Granted = true
 
-	return append(objects,
+	logrus.Infof("Cluster registration request '%s/%s' granted, creating cluster, request service account, registration secret", request.Namespace, request.Name)
+
+	return []runtime.Object{
+		// the registration secret c-clientID-clientRandom
+		secret,
 		// Update the existing service account 'request-UID' in the
 		// cluster namespace, e.g. 'cluster-fleet-default-NAME-ID'
-		&v1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      saName,
-				Namespace: cluster.Status.Namespace,
-				Labels: map[string]string{
-					fleet.ManagedLabel: "true",
-				},
-				Annotations: map[string]string{
-					fleet.ClusterAnnotation:                      cluster.Name,
-					fleet.ClusterRegistrationAnnotation:          request.Name,
-					fleet.ClusterRegistrationNamespaceAnnotation: request.Namespace,
-				},
-			},
-		},
+		requestSA(saName, cluster, request),
 		// Add role bindings to manage bundledeployments and contents,
 		// the agent could previously only access secrets in
 		// 'cattle-fleet-clusters-system' and clusterregistrations in
@@ -313,7 +306,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 				Name:     "fleet-content",
 			},
 		},
-	), status, nil
+	}, status, nil
 }
 
 // shouldDelete returns true for any other cluster registration with the same clientID, but different random and older creation timestamp
@@ -404,4 +397,21 @@ func (h *handler) authorizeCluster(sa *v1.ServiceAccount, cluster *fleet.Cluster
 			"systemNamespace":     []byte(h.systemNamespace),
 		},
 	}, nil
+}
+
+func requestSA(saName string, cluster *fleet.Cluster, request *fleet.ClusterRegistration) *v1.ServiceAccount {
+	return &v1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      saName,
+			Namespace: cluster.Status.Namespace,
+			Labels: map[string]string{
+				fleet.ManagedLabel: "true",
+			},
+			Annotations: map[string]string{
+				fleet.ClusterAnnotation:                      cluster.Name,
+				fleet.ClusterRegistrationAnnotation:          request.Name,
+				fleet.ClusterRegistrationNamespaceAnnotation: request.Namespace,
+			},
+		},
+	}
 }
