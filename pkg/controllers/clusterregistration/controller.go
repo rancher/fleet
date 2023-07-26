@@ -128,7 +128,7 @@ func (h *handler) OnCluster(key string, cluster *fleet.Cluster) (*fleet.Cluster,
 	}
 	for _, cr := range crs {
 		if !cr.Status.Granted {
-			logrus.Infof("Namespace assigned to %s/%s triggering %s/%s", cluster.Namespace, cluster.Name,
+			logrus.Infof("Namespace assigned to cluster '%s/%s' enqueues cluster registration '%s/%s'", cluster.Namespace, cluster.Name,
 				cr.Namespace, cr.Name)
 			h.clusterRegistration.Enqueue(cr.Namespace, cr.Name)
 		}
@@ -182,7 +182,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 	sa, err := h.serviceAccountCache.Get(cluster.Status.Namespace, saName)
 	if err == nil {
 		if secret, err := h.authorizeCluster(sa, cluster, request); err != nil {
-			return nil, status, err
+			return nil, status, fmt.Errorf("failed to authorize cluster: %w", err)
 		} else if secret != nil {
 			status.Granted = true
 			objects = append(objects, secret)
@@ -191,18 +191,17 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 
 	logrus.Infof("Cluster registration request '%s/%s', cluster '%s/%s' granted [%v], creating cluster and request service account",
 		request.Namespace, request.Name, cluster.Namespace, cluster.Name, status.Granted)
+
 	if status.Granted {
-		logrus.Debugf("Cluster registration request '%s/%s', creating registration secret", request.Namespace, request.Name)
-	}
+		logrus.Debugf("Cluster registration request '%s/%s' granted, creating registration secret", request.Namespace, request.Name)
 
-	// delete old clusterregistrations
-	crlist, _ := h.clusterRegistration.List(request.Namespace, metav1.ListOptions{})
-
-	for _, creg := range crlist.Items {
-		if creg.Spec.ClientID == request.Spec.ClientID && creg.Spec.ClientRandom != request.Spec.ClientRandom {
-			logrus.Infof("Deleting old clusterregistration %s/%s", creg.Namespace, creg.Name)
-			if err := h.clusterRegistration.Delete(creg.Namespace, creg.Name, nil); err != nil && !apierrors.IsNotFound(err) {
-				return nil, status, err
+		crlist, _ := h.clusterRegistration.List(request.Namespace, metav1.ListOptions{})
+		for _, creg := range crlist.Items {
+			if shouldDelete(creg, *request) {
+				logrus.Infof("Deleting old clusterregistration '%s/%s', now at '%s'", creg.Namespace, creg.Name, request.Name)
+				if err := h.clusterRegistration.Delete(creg.Namespace, creg.Name, nil); err != nil && !apierrors.IsNotFound(err) {
+					return nil, status, err
+				}
 			}
 		}
 	}
@@ -311,6 +310,14 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			},
 		},
 	), status, nil
+}
+
+// shouldDelete returns true for any other cluster registration with the same clientID, but different random and older creation timestamp
+func shouldDelete(creg fleet.ClusterRegistration, request fleet.ClusterRegistration) bool {
+	return creg.Spec.ClientID == request.Spec.ClientID &&
+		creg.Spec.ClientRandom != request.Spec.ClientRandom &&
+		creg.Name != request.Name &&
+		creg.CreationTimestamp.Time.Before(request.CreationTimestamp.Time)
 }
 
 func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet.Cluster, error) {
