@@ -183,7 +183,7 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 		When("service account secret is missing", func() {
 			BeforeEach(func() {
 				cluster.Status = fleet.ClusterStatus{Namespace: "fleet-default"}
-				// post k8s 1.22 service account without sa.Secrets list
+				// post k8s 1.24 service account without sa.Secrets list
 				sa = &corev1.ServiceAccount{}
 				saCache.EXPECT().Get(gomock.Any(), gomock.Any()).Return(sa, nil)
 			})
@@ -204,7 +204,7 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 
 			Context("authorizeCluster returns nil,nil", func() {
 				BeforeEach(func() {
-					// pre k8s 1.22 service account has sa.Secrets list
+					// pre k8s 1.24 service account has sa.Secrets list
 					sa.Secrets = []corev1.ObjectReference{{Name: "tokensecret"}}
 					secretCache.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, notFound)
 					secretController.EXPECT().Get(gomock.Any(), "tokensecret", gomock.Any()).Return(nil, nil)
