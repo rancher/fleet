@@ -68,7 +68,7 @@ jobs:
             -p "80:80@agent:0:direct"
             -p "443:443@agent:0:direct"
             --api-port 6443
-            --agents 3
+            --agents 1
             --network "nw01"
       -
         name: Provision k3d Downstream Cluster
