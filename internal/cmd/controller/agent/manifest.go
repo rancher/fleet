@@ -33,7 +33,6 @@ type ManifestOptions struct {
 	AgentImagePullPolicy  string
 	AgentTolerations      []corev1.Toleration
 	CheckinInterval       string
-	Generation            string
 	PrivateRepoURL        string // PrivateRepoURL = registry.yourdomain.com:5000
 	SystemDefaultRegistry string
 	AgentAffinity         *corev1.Affinity
@@ -173,7 +172,6 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions, 
 								},
 								{Name: "AGENT_SCOPE", Value: agentScope},
 								{Name: "CHECKIN_INTERVAL", Value: opts.CheckinInterval},
-								{Name: "GENERATION", Value: opts.Generation},
 							},
 						},
 					},

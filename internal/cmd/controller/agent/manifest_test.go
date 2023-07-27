@@ -52,7 +52,6 @@ func TestManifestAgentTolerations(t *testing.T) {
 		AgentImagePullPolicy:  "Always",
 		AgentTolerations:      []corev1.Toleration{},
 		CheckinInterval:       "1s",
-		Generation:            "100",
 		PrivateRepoURL:        "private.rancher.com:5000",
 		SystemDefaultRegistry: "default.rancher.com",
 	}
