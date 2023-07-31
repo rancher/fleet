@@ -169,6 +169,7 @@ func createAgentSecret(ctx context.Context, clusterID string, k8s corecontroller
 		clusterID = string(kubeSystem.UID)
 	}
 
+	logrus.Infof("Creating clusterregistration with id '%s' for new token", clusterID)
 	request, err := fc.Fleet().V1alpha1().ClusterRegistration().Create(&fleet.ClusterRegistration{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "request-",

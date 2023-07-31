@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// applyBootstrapResources creates the cluster roles, system namespace and system registration namespace
 func applyBootstrapResources(systemNamespace, systemRegistrationNamespace string, appCtx *appContext) error {
 	return appCtx.Apply.
 		WithSetID("fleet-bootstrap-data").

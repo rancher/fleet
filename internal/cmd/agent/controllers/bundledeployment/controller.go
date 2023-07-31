@@ -105,13 +105,16 @@ func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
 	if bd.Spec.Paused {
 		// nothing to do
+		logrus.Debugf("Bundle %s/%s is paused", bd.Namespace, bd.Name)
 		return status, nil
 	}
 
 	if err := h.checkDependency(bd); err != nil {
+		logrus.Debugf("Bundle %s/%s has a dependency that is not ready: %v", bd.Namespace, bd.Name, err)
 		return status, err
 	}
 
+	logrus.Infof("Deploying bundle %s/%s", bd.Namespace, bd.Name)
 	release, err := h.deployManager.Deploy(bd)
 	if err != nil {
 		// When an error from DeployBundle is returned it causes DeployBundle
