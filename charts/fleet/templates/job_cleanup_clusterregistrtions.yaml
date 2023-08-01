@@ -48,6 +48,14 @@ spec:
                       # The most recent cluster registration is still ahead of us: deletion is safe.
                       echo -n "Cluster: $cluster_name"
                       echo -e "\t$(kubectl delete --ignore-not-found=true clusterregistration "$name" -n $namespace)"
+
+                      # delete orphans, in case fleet-controller is not running to clean up "fleet.cattle.io/managed=true" resources
+                      # registration secret is via serviceaccount
+                      kubectl delete --ignore-not-found=true serviceaccount -A -l "fleet.cattle.io/cluster-registration=$name" -l "fleet.cattle.io/cluster-registration-namespace=$namespace"
+                      kubectl delete --ignore-not-found=true role -n "$namespace" "$name"
+                      kubectl delete --ignore-not-found=true rolebinding -n "$namespace" "$name"
+                      kubectl delete --ignore-not-found=true rolebinding -A -l "objectset.rio.cattle.io/owner-name=$name" -l "objectset.rio.cattle.io/owner-namespace=$namespace" # "$name"
+                      kubectl delete --ignore-not-found=true clusterrolebinding -A -l "objectset.rio.cattle.io/owner-name=$name" -l "objectset.rio.cattle.io/owner-namespace=$namespace" # "$name"-content
                   fi
               done
           }
