@@ -1,3 +1,4 @@
+{{- if .Values.migrations.clusterRegistrationCleanup }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -88,3 +89,4 @@ spec:
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
       tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
   backoffLimit: 1
+{{- end }}
