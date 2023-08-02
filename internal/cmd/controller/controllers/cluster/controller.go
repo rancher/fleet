@@ -117,6 +117,7 @@ func clusterNamespace(clusterNamespace, clusterName string) string {
 func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
 	logrus.Debugf("OnClusterChanged for cluster status %s, checking cluster registration, updating status from bundledeployments, gitrepos", cluster.Name)
 	if cluster.DeletionTimestamp != nil {
+		// cluster is being deleted, clean up the cluster registrations
 		clusterRegistrations, err := h.clusterRegistrations.List(cluster.Namespace, metav1.ListOptions{})
 		if err != nil {
 			return status, err

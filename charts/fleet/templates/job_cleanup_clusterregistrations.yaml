@@ -1,0 +1,29 @@
+{{- if .Values.migrations.clusterRegistrationCleanup }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fleet-cleanup-clusterregistrations
+  annotations:
+    "helm.sh/hook": post-install, post-upgrade
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        app: fleet-job
+    spec:
+      serviceAccountName: fleet-controller
+      restartPolicy: Never
+      containers:
+      - name: cleanup
+        image: "{{ template "system_default_registry" . }}{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        command:
+        - fleet
+        args:
+        - cleanup
+      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
+      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
+  backoffLimit: 1
+{{- end }}
