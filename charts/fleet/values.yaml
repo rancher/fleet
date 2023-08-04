@@ -78,3 +78,6 @@ propagateDebugSettingsToAgents: true
 #    hostPath:
 #      path: /tmp/pprof
 #      type: DirectoryOrCreate
+
+migrations:
+  clusterRegistrationCleanup: true
