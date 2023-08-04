@@ -1,6 +1,12 @@
 package cli
 
 import (
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
+	"time"
+
 	"github.com/spf13/cobra"
 
 	"github.com/rancher/fleet/internal/cmd/cli/cleanup"
@@ -17,24 +23,57 @@ func NewCleanUp() *cobra.Command {
 }
 
 type CleanUp struct {
-	Min int `usage:"Minimum delay between deletes in ms" name:"min"`
-	Max int `usage:"Maximum delay between deletes in s" name:"max"`
+	Min    string `usage:"Minimum delay between deletes (default: 10ms)" name:"min"`
+	Max    string `usage:"Maximum delay between deletes (default: 5s)" name:"max"`
+	Factor string `usage:"Factor to increase delay between deletes (default: 1.1)" name:"factor"`
 }
 
 func (a *CleanUp) Run(cmd *cobra.Command, args []string) error {
+	var err error
+	min := 10 * time.Millisecond
+	if a.Min != "" {
+		min, err = time.ParseDuration(a.Min)
+		if err != nil {
+			return err
+		}
+		if min <= 0 {
+			return errors.New("min cannot be negative")
+		}
+	}
+
+	max := 5 * time.Second
+	if a.Max != "" {
+		max, err = time.ParseDuration(a.Max)
+		if err != nil {
+			return err
+		}
+		if max <= 0 {
+			return errors.New("max cannot be negative")
+		}
+	}
+
+	if max < min {
+		return errors.New("max cannot be less than min")
+	}
+
+	factor := 1.1
+	if a.Factor != "" {
+		factor, err = strconv.ParseFloat(a.Factor, 64)
+		if err != nil {
+			return err
+		}
+		if factor <= 1 || math.IsInf(factor, 0) || math.IsNaN(factor) {
+			return errors.New("factor must be greater than 1 and finite")
+		}
+	}
+
 	opts := cleanup.Options{
-		Min:    a.Min,
-		Max:    a.Max,
-		Factor: 1.1,
+		Min:    min,
+		Max:    max,
+		Factor: factor,
 	}
 
-	if a.Min == 0 {
-		opts.Min = 10
-	}
-
-	if a.Max == 0 {
-		opts.Max = 5
-	}
+	fmt.Printf("Cleaning up outdated cluster registrations: %#v\n", opts)
 
 	return cleanup.ClusterRegistrations(cmd.Context(), Client, opts)
 }
