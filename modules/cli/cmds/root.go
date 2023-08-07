@@ -10,8 +10,13 @@ import (
 	command "github.com/rancher/wrangler-cli"
 )
 
+type Getter interface {
+	Get() (*client.Client, error)
+	GetNamespace() string
+}
+
 var (
-	Client          *client.Getter
+	Client          Getter
 	SystemNamespace string
 	Debug           command.DebugConfig
 )
@@ -27,6 +32,7 @@ func App() *cobra.Command {
 	root.AddCommand(
 		NewApply(),
 		NewTest(),
+		NewCleanUp(),
 	)
 
 	return root
