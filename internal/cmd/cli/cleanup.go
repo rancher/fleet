@@ -37,7 +37,7 @@ func (a *CleanUp) Run(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		if min <= 0 {
-			return errors.New("min cannot be negative")
+			return errors.New("min cannot be zero or less")
 		}
 	}
 
