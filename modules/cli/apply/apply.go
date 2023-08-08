@@ -31,6 +31,11 @@ var (
 	ErrNoResources = errors.New("no resources found to deploy")
 )
 
+type Getter interface {
+	Get() (*client.Client, error)
+	GetNamespace() string
+}
+
 type Options struct {
 	BundleFile       string
 	TargetsFile      string
@@ -66,7 +71,7 @@ func globDirs(baseDir string) (result []string, err error) {
 // Apply creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs []string, opts *Options) error {
+func Apply(ctx context.Context, client Getter, repoName string, baseDirs []string, opts *Options) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -127,13 +132,13 @@ func Apply(ctx context.Context, client *client.Getter, repoName string, baseDirs
 }
 
 // pruneBundlesNotFoundInRepo lists all bundles for this gitrepo and prunes those not found in the repo
-func pruneBundlesNotFoundInRepo(client *client.Getter, repoName string, gitRepoBundlesMap map[string]bool) error {
+func pruneBundlesNotFoundInRepo(client Getter, repoName string, gitRepoBundlesMap map[string]bool) error {
 	c, err := client.Get()
 	if err != nil {
 		return err
 	}
 	filter := labels.Set(map[string]string{fleet.RepoLabel: repoName})
-	bundles, err := c.Fleet.Bundle().List(client.Namespace, metav1.ListOptions{LabelSelector: filter.AsSelector().String()})
+	bundles, err := c.Fleet.Bundle().List(client.GetNamespace(), metav1.ListOptions{LabelSelector: filter.AsSelector().String()})
 	if err != nil {
 		return err
 	}
@@ -179,7 +184,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 //
 // name: the gitrepo name, passed to 'fleet apply' on the cli
 // basedir: the path from the walk func in Dir, []baseDirs
-func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
+func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -193,7 +198,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	}
 
 	def := bundle.DeepCopy()
-	def.Namespace = client.Namespace
+	def.Namespace = client.GetNamespace()
 
 	if len(def.Spec.Resources) == 0 {
 		return ErrNoResources
@@ -219,7 +224,7 @@ func Dir(ctx context.Context, client *client.Getter, name, baseDir string, opts 
 	return err
 }
 
-func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) error {
+func save(client Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) error {
 	c, err := client.Get()
 	if err != nil {
 		return err
@@ -244,7 +249,7 @@ func save(client *client.Getter, bundle *fleet.Bundle, imageScans ...*fleet.Imag
 	}
 
 	for _, scan := range imageScans {
-		scan.Namespace = client.Namespace
+		scan.Namespace = client.GetNamespace()
 		scan.Spec.GitRepoName = bundle.Labels[fleet.RepoLabel]
 		obj, err := c.Fleet.ImageScan().Get(scan.Namespace, scan.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
