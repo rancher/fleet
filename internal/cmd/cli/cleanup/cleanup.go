@@ -20,8 +20,8 @@ type Getter interface {
 }
 
 type Options struct {
-	Min    int
-	Max    int
+	Min    time.Duration
+	Max    time.Duration
 	Factor float64
 }
 
@@ -67,8 +67,8 @@ func ClusterRegistrations(ctx context.Context, client Getter, opts Options) erro
 
 	// sleep to not overload the API server
 	b := &backoff.Backoff{
-		Min:    time.Duration(opts.Min) * time.Millisecond,
-		Max:    time.Duration(opts.Max) * time.Second,
+		Min:    opts.Min,
+		Max:    opts.Max,
 		Factor: opts.Factor,
 		Jitter: true,
 	}

@@ -43,7 +43,7 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 		return cleanup.ClusterRegistrations(context.TODO(), &getter, options)
 	}
 
-	When("cleanining up", func() {
+	When("cleaning up", func() {
 		BeforeEach(func() {
 			options = cleanup.Options{Min: 1, Max: 1}
 			clusters = []fleetv1.Cluster{
