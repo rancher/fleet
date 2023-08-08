@@ -48,7 +48,7 @@ func (a *CleanUp) Run(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		if max <= 0 {
-			return errors.New("max cannot be negative")
+			return errors.New("max cannot be zero or less")
 		}
 	}
 
