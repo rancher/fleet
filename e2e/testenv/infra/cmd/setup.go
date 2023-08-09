@@ -12,11 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/cobra"
-	"helm.sh/helm/v3/pkg/registry"
-
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	"github.com/spf13/cobra"
+	"helm.sh/helm/v3/pkg/registry"
 )
 
 var timeoutDuration = 10 * time.Minute // default timeout duration
