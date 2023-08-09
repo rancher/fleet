@@ -46,7 +46,7 @@ Parallelism is used when possible to save time.`,
 		)
 		repoRoot, err := repoRootCmd.Output()
 		if err != nil {
-			fail(fmt.Errorf("get repo root", err, repoRootCmd.Stderr))
+			fail(fmt.Errorf("get repo root: %v", err))
 		}
 
 		env := testenv.New()
