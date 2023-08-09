@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -20,6 +19,8 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
+var timeoutDuration = 5 * time.Minute // default timeout duration
+
 // setupCmd represents the setup command
 var setupCmd = &cobra.Command{
 	Use:   "setup",
@@ -28,6 +29,15 @@ var setupCmd = &cobra.Command{
 Parallelism is used when possible to save time.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Setting up test environment...")
+
+		var err error
+		if minutes := os.Getenv("CI_OCI_TIMEOUT_DURATION"); minutes != "" {
+			timeoutDuration, err = time.ParseDuration(minutes)
+			if err != nil {
+				fail(fmt.Errorf("parse timeout duration: %v", err))
+			}
+		}
+		fmt.Printf("Timeout duration: %v\n", timeoutDuration)
 
 		repoRootCmd := exec.Command(
 			"git",
@@ -67,31 +77,41 @@ Parallelism is used when possible to save time.`,
 			fail(fmt.Errorf("create Helm registry client: %v", err))
 		}
 
+		startTime := time.Now()
 		externalIP := os.Getenv("external_ip")
-		if externalIP == "" {
+		for externalIP == "" {
+			if time.Now().After(startTime.Add(timeoutDuration)) {
+				fail(fmt.Errorf("timed out waiting for external IP"))
+			}
+
 			externalIP, err = k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 			if err != nil {
 				fail(fmt.Errorf("get external Zot service IP: %v", err))
 			}
+			time.Sleep(200 * time.Millisecond)
 		}
 
 		helmHost := fmt.Sprintf("%s:5000", externalIP)
 
-		startTime := time.Now()
-		for err := errors.New("not nil"); err != nil && time.Now().Sub(startTime) < 30*time.Second; {
-			err = helmClient.Login(
+		startTime = time.Now()
+		for {
+			if time.Now().After(startTime.Add(timeoutDuration)) {
+				fail(fmt.Errorf("timed out waiting for Helm registry"))
+			}
+
+			err := helmClient.Login(
 				helmHost,
 				registry.LoginOptBasicAuth("fleet-ci", "foo"),
 				registry.LoginOptInsecure(true),
 			)
 			if err != nil {
-				fmt.Println(fmt.Errorf("log into Helm registry: %v", err))
+				fmt.Println(fmt.Errorf("logging into Helm registry: %v", err))
+				time.Sleep(200 * time.Millisecond)
 
-				time.Sleep(time.Second)
-
-				fmt.Println("Trying again...")
+				fmt.Println("retrying...")
 			} else {
-				fmt.Println("Success!")
+				fmt.Println("success!")
+				break
 			}
 		}
 
@@ -279,7 +299,7 @@ func waitForPodReady(k kubectl.Command, appName string) error {
 		"wait",
 		"--for=condition=Ready",
 		"pod",
-		"--timeout=30s",
+		fmt.Sprintf("--timeout=%v", timeoutDuration),
 		"-l",
 		fmt.Sprintf("app=%s", appName),
 	)
