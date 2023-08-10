@@ -92,6 +92,7 @@ Parallelism is used when possible to save time.`,
 
 		helmHost := fmt.Sprintf("%s:5000", externalIP)
 
+		fmt.Printf("logging into Helm registry at %s...\n", helmHost)
 		startTime = time.Now()
 		for {
 			if time.Now().After(startTime.Add(timeoutDuration)) {
@@ -114,11 +115,13 @@ Parallelism is used when possible to save time.`,
 			}
 		}
 
+		fmt.Println("determining Helm binary path...")
 		helmPath := os.Getenv("HELM_PATH")
 		if helmPath == "" {
 			helmPath = "/usr/bin/helm" // prevents eg. ~/.rd/bin/helm from being used, without support for skipping TLS
 		}
 
+		fmt.Println("pushing Helm chart to registry...")
 		pushCmd := exec.Command(
 			helmPath,
 			"push",
@@ -167,10 +170,14 @@ Parallelism is used when possible to save time.`,
 		resp, err := client.Do(req)
 		if err != nil {
 			fail(fmt.Errorf("send POST request to ChartMuseum: %v", err))
+		} else {
+			fmt.Printf("Posted Helm chart to ChartMuseum")
 		}
 
 		if resp.StatusCode != http.StatusCreated {
 			fail(fmt.Errorf("POST response status code from ChartMuseum: %d", resp.StatusCode))
+		} else {
+			fmt.Println("POST response status code from ChartMuseum: %d", resp.StatusCode)
 		}
 
 		resp.Body.Close()
@@ -294,6 +301,7 @@ func packageHelmChart() error {
 
 // waitForPodReady waits until a pod with the specified appName app label is ready.
 func waitForPodReady(k kubectl.Command, appName string) error {
+	fmt.Printf("Timeout duration: %v\n", timeoutDuration)
 	out, err := k.Run(
 		"wait",
 		"--for=condition=Ready",
