@@ -56,16 +56,16 @@ jobs:
 
           go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
           go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
-          # cd e2e/testenv/infra
-          # go build -o . ./...
+          cd e2e/testenv/infra
+          go build -o . ./...
       -
         name: Build Docker Images
         run: |
           docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
           docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
-          # cd e2e/assets/gitrepo
-          # # Buildkit needed here for proper here-document support
-          # DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
+          cd e2e/assets/gitrepo
+          # Buildkit needed here for proper here-document support
+          DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
       -
         name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
@@ -81,7 +81,7 @@ jobs:
         name: Import Images Into k3d
         run: |
           k3d image import rancher/fleet:dev rancher/fleet-agent:dev
-          #k3d image import nginx-git:test nginx-git:test
+          k3d image import nginx-git:test nginx-git:test
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
@@ -93,13 +93,13 @@ jobs:
         name: Deploy Fleet
         run: |
           ./.github/scripts/deploy-fleet.sh
-      # -
-      #   name: Create Zot certificates for OCI tests
-      #   env:
-      #     FLEET_E2E_NS: fleet-local
-      #   run: |
-      #     # Generate cert and key for TLS
-      #     ./.github/scripts/create-zot-certs.sh "FleetCI-RootCA"
+      -
+        name: Create Zot certificates for OCI tests
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
+          # Generate cert and key for TLS
+          ./.github/scripts/create-zot-certs.sh "FleetCI-RootCA"
       -
         name: E2E Tests
         env:
@@ -111,12 +111,12 @@ jobs:
           CI_OCI_PASSWORD: "foo"
           HELM_PATH: /usr/local/bin/helm
         run: |
-          # export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
-          # e2e/testenv/infra/infra setup
+          export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+          e2e/testenv/infra/infra setup
 
-          ginkgo --label-filter="!infra-setup" e2e/single-cluster e2e/keep-resources
+          ginkgo e2e/single-cluster e2e/keep-resources
 
-          # e2e/testenv/infra/infra teardown
+          e2e/testenv/infra/infra teardown
       -
         name: Acceptance Tests for Examples
         if: >
