@@ -14,8 +14,6 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-type contextKey struct{}
-
 type Context struct {
 	Image     string
 	Namespace string
@@ -28,15 +26,7 @@ type Context struct {
 	Apply apply.Apply
 }
 
-func Store(ctx context.Context, c *Context) context.Context {
-	return context.WithValue(ctx, contextKey{}, c)
-}
-
-func From(ctx context.Context) *Context {
-	return ctx.Value(contextKey{}).(*Context)
-}
-
-func NewContext(namespace string, config *rest.Config) *Context {
+func newContext(namespace string, config *rest.Config) *Context {
 	context := &Context{
 		Namespace: namespace,
 		Batch:     batch.NewFactoryFromConfigOrDie(config),
@@ -44,8 +34,8 @@ func NewContext(namespace string, config *rest.Config) *Context {
 		Gitjob:    gitjob.NewFactoryFromConfigOrDie(config),
 		K8s:       kubernetes.NewForConfigOrDie(config),
 	}
-
 	context.Apply = apply.New(context.K8s.Discovery(), apply.NewClientFactory(config))
+
 	return context
 }
 
@@ -57,7 +47,7 @@ func (c *Context) Start(ctx context.Context) error {
 	)
 }
 
-func BuildContext(ctx context.Context, namespace string, config *rest.Config) (context.Context, *Context) {
+func BuildContext(namespace string, config *rest.Config) *Context {
 	factory, err := crd.NewFactoryFromClient(config)
 	if err != nil {
 		logrus.Fatal(err)
@@ -67,6 +57,5 @@ func BuildContext(ctx context.Context, namespace string, config *rest.Config) (c
 		logrus.Fatal(err)
 	}
 
-	c := NewContext(namespace, config)
-	return context.WithValue(ctx, contextKey{}, c), c
+	return newContext(namespace, config)
 }

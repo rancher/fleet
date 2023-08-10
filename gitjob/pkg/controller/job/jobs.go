@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/wrangler/pkg/condition"
 	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/kstatus"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	labels2 "k8s.io/apimachinery/pkg/labels"
@@ -58,6 +59,8 @@ func (j jobHandler) sync(_ string, obj *v1.Job) (*v1.Job, error) {
 			if strconv.Itoa(int(gitjob.Generation)) != obj.Annotations["generation"] {
 				continue
 			}
+			logrus.Debugf("Job change, syncing status for gitjob %s/%s: %s", gitjob.Namespace, gitjob.Name, result.Status.String())
+
 			gitjob.Status.JobStatus = result.Status.String()
 			for _, con := range result.Conditions {
 				condition.Cond(con.Type.String()).SetStatus(gitjob, string(con.Status))

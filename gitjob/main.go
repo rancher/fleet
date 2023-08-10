@@ -81,7 +81,7 @@ func run(c *cli.Context) {
 	}
 	cfg.RateLimiter = ratelimit.None
 
-	ctx, cont := types.BuildContext(ctx, c.String("namespace"), cfg)
+	cont := types.BuildContext(c.String("namespace"), cfg)
 	if err := cont.Start(ctx); err != nil {
 		logrus.Fatal(err)
 	}
