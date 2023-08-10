@@ -20,6 +20,7 @@ var _ = Describe("Gitjob Controller", func() {
 		gitjob     *v1.GitJob
 		jobmock    *mocks.MockJobClient
 		gitjobmock *mocks.MockGitJobController
+		background = metav1.DeletePropagationBackground
 	)
 
 	defaultGitjob := func() *v1.GitJob {
@@ -89,7 +90,7 @@ var _ = Describe("Gitjob Controller", func() {
 			gitjob = defaultGitjob()
 			gitjob.Spec.ForceUpdateGeneration = 234
 			gitjob.Status.UpdateGeneration = 1
-			jobmock.EXPECT().Delete(gitjob.Namespace, jobName(gitjob), &metav1.DeleteOptions{}).Return(nil)
+			jobmock.EXPECT().Delete(gitjob.Namespace, jobName(gitjob), &metav1.DeleteOptions{PropagationPolicy: &background}).Return(nil)
 		})
 
 		It("deletes the job and updates update generation in status", func() {
@@ -105,7 +106,7 @@ var _ = Describe("Gitjob Controller", func() {
 		BeforeEach(func() {
 			gitjob = defaultGitjob()
 			kstatus.SetError(gitjob, `time="2023-07-19T10:48:12Z" level=fatal msg="Helm chart download: failed to authorize: failed to fetch anonymous token: unexpected status: 403 Forbidden"`)
-			jobmock.EXPECT().Delete(gitjob.Namespace, jobName(gitjob), &metav1.DeleteOptions{}).Return(nil)
+			jobmock.EXPECT().Delete(gitjob.Namespace, jobName(gitjob), &metav1.DeleteOptions{PropagationPolicy: &background}).Return(nil)
 		})
 
 		It("deletes the job", func() {
