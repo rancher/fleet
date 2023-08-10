@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/workqueue"
 
@@ -27,24 +26,20 @@ import (
 	batchcontrollers "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler/pkg/leader"
-	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/start"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type appContext struct {
+type AppContext struct {
 	Fleet    fleetcontrollers.Interface
 	Core     corecontrollers.Interface
 	Batch    batchcontrollers.Interface
 	Dynamic  dynamic.Interface
-	K8s      kubernetes.Interface
 	Apply    apply.Apply
 	starters []start.Starter
 
@@ -58,44 +53,37 @@ type appContext struct {
 	restMapper               meta.RESTMapper
 }
 
-func (a *appContext) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+func (a *AppContext) ToRawKubeConfigLoader() clientcmd.ClientConfig {
 	return a.clientConfig
 }
 
-func (a *appContext) ToRESTConfig() (*rest.Config, error) {
+func (a *AppContext) ToRESTConfig() (*rest.Config, error) {
 	return a.restConfig, nil
 }
 
-func (a *appContext) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+func (a *AppContext) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
 	return a.cachedDiscoveryInterface, nil
 }
 
-func (a *appContext) ToRESTMapper() (meta.RESTMapper, error) {
+func (a *AppContext) ToRESTMapper() (meta.RESTMapper, error) {
 	return a.restMapper, nil
 }
 
-func (a *appContext) start(ctx context.Context) error {
+func (a *AppContext) Start(ctx context.Context) error {
 	return start.All(ctx, 5, a.starters...)
 }
 
 func Register(ctx context.Context,
-	fleetNamespace, agentNamespace, defaultNamespace, agentScope, clusterNamespace, clusterName string,
-	checkinInterval time.Duration,
-	fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig,
-	fleetMapper, mapper meta.RESTMapper,
-	discovery discovery.CachedDiscoveryInterface) error {
-	appCtx, err := newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName,
-		fleetConfig, clientConfig, fleetMapper, mapper, discovery)
-	if err != nil {
-		return err
-	}
+	appCtx *AppContext,
+	fleetNamespace, defaultNamespace, agentScope string,
+	checkinInterval time.Duration) error {
 
 	labelPrefix := "fleet"
 	if defaultNamespace != "" {
 		labelPrefix = defaultNamespace
 	}
 
-	helmDeployer, err := helmdeployer.NewHelm(agentNamespace, defaultNamespace, labelPrefix, agentScope, appCtx,
+	helmDeployer, err := helmdeployer.NewHelm(appCtx.AgentNamespace, defaultNamespace, labelPrefix, agentScope, appCtx,
 		appCtx.Core.ServiceAccount().Cache(), appCtx.Core.ConfigMap().Cache(), appCtx.Core.Secret().Cache())
 	if err != nil {
 		return err
@@ -125,12 +113,6 @@ func Register(ctx context.Context,
 		appCtx.Core.Node().Cache(),
 		appCtx.Fleet.Cluster())
 
-	leader.RunOrDie(ctx, agentNamespace, "fleet-agent-lock", appCtx.K8s, func(ctx context.Context) {
-		if err := appCtx.start(ctx); err != nil {
-			logrus.Fatal(err)
-		}
-	})
-
 	return nil
 }
 
@@ -154,19 +136,29 @@ func newSharedControllerFactory(config *rest.Config, mapper meta.RESTMapper, nam
 	}), nil
 }
 
-func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName string,
-	fleetConfig *rest.Config, clientConfig clientcmd.ClientConfig,
-	fleetMapper, mapper meta.RESTMapper, discovery discovery.CachedDiscoveryInterface) (*appContext, error) {
+func NewAppContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName string,
+	fleetRESTConfig *rest.Config, clientConfig clientcmd.ClientConfig,
+	fleetMapper, mapper meta.RESTMapper, discovery discovery.CachedDiscoveryInterface) (*AppContext, error) {
+
+	// set up factory for upstream cluster
+	fleetFactory, err := newSharedControllerFactory(fleetRESTConfig, fleetMapper, fleetNamespace)
+	if err != nil {
+		return nil, err
+	}
+
+	fleet, err := fleet.NewFactoryFromConfigWithOptions(fleetRESTConfig, &fleet.FactoryOptions{
+		SharedControllerFactory: fleetFactory,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	localConfig, err := clientConfig.ClientConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	fleetFactory, err := newSharedControllerFactory(fleetConfig, fleetMapper, fleetNamespace)
-	if err != nil {
-		return nil, err
-	}
-
+	// set up factory for local cluster
 	localFactory, err := newSharedControllerFactory(localConfig, mapper, "")
 	if err != nil {
 		return nil, err
@@ -178,15 +170,6 @@ func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName st
 	if err != nil {
 		return nil, err
 	}
-	corev := core.Core().V1()
-
-	fleet, err := fleet.NewFactoryFromConfigWithOptions(fleetConfig, &fleet.FactoryOptions{
-		SharedControllerFactory: fleetFactory,
-	})
-	if err != nil {
-		return nil, err
-	}
-	fleetv := fleet.Fleet().V1alpha1()
 
 	apply, err := apply.NewForConfig(localConfig)
 	if err != nil {
@@ -198,24 +181,14 @@ func newContext(fleetNamespace, agentNamespace, clusterNamespace, clusterName st
 		return nil, err
 	}
 
-	localConfig = rest.CopyConfig(localConfig)
-	localConfig.RateLimiter = ratelimit.None
-
-	k8s, err := kubernetes.NewForConfig(localConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return &appContext{
-		Dynamic:          dynamic,
-		Apply:            apply,
-		Fleet:            fleetv,
-		Core:             corev,
-		K8s:              k8s,
-		ClusterNamespace: clusterNamespace,
-		ClusterName:      clusterName,
-		AgentNamespace:   agentNamespace,
-
+	return &AppContext{
+		Dynamic:                  dynamic,
+		Apply:                    apply,
+		Fleet:                    fleet.Fleet().V1alpha1(),
+		Core:                     core.Core().V1(),
+		ClusterNamespace:         clusterNamespace,
+		ClusterName:              clusterName,
+		AgentNamespace:           agentNamespace,
 		clientConfig:             clientConfig,
 		restConfig:               localConfig,
 		cachedDiscoveryInterface: discovery,

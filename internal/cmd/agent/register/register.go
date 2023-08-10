@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -169,6 +170,10 @@ func createAgentSecret(ctx context.Context, clusterID string, k8s corecontroller
 		clusterID = string(kubeSystem.UID)
 	}
 
+	// add the name of the pod that created the registration for debugging
+	cfg.Labels["fleet.cattle.io/created-by-agent-pod"] = os.Getenv("HOSTNAME")
+
+	logrus.Infof("Creating clusterregistration with id '%s' for new token", clusterID)
 	request, err := fc.Fleet().V1alpha1().ClusterRegistration().Create(&fleet.ClusterRegistration{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "request-",
