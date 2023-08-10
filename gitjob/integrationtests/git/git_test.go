@@ -13,8 +13,8 @@ import (
 	"testing"
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/gogits/go-gogs-client"
 	cp "github.com/otiai10/copy"
-	"github.com/rancher/gitjob/integrationtests/git/util"
 	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/rancher/gitjob/pkg/git"
 	"github.com/testcontainers/testcontainers-go"
@@ -328,11 +328,18 @@ func createAndAddKeys(url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	client, err := util.NewClient(url)
+	c := gogs.NewClient(url, "")
+	token, err := c.CreateAccessToken(gogsUser, gogsPass, gogs.CreateAccessTokenOption{
+		Name: "test",
+	})
 	if err != nil {
 		return "", err
 	}
-	err = client.AddPublicKey(publicKey)
+	c = gogs.NewClient(url, token.Sha1)
+	_, err = c.CreatePublicKey(gogs.CreateKeyOption{
+		Title: "test",
+		Key:   publicKey,
+	})
 	if err != nil {
 		return "", err
 	}
