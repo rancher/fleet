@@ -4,4 +4,4 @@ set -e
 cd $(dirname $0)/..
 
 echo Running tests
-go test -cover -tags=test $(go list ./... | grep -v /e2e /integrationtests)
+go test -cover -tags=test $(go list ./... | grep -vE '/(e2e|integrationtests)')
