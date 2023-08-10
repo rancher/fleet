@@ -26,7 +26,7 @@ import (
 )
 
 /*
-This tests uses gogs for testing the integration with a git server. Gogs container uses the data from assets/gitserver, which
+These tests use gogs for testing integration with a git server. Gogs container uses data from assets/gitserver, which
 contains one user, one public repository, and another private repository. Initial commits and fingerprint are provided as consts.
 */
 const (
@@ -231,7 +231,7 @@ func TestLatestCommitSSH(t *testing.T) {
 					},
 				},
 			},
-			knownHosts:     []byte("doesntexits " + gogsFingerPrint),
+			knownHosts:     []byte("doesntexist " + gogsFingerPrint),
 			expectedCommit: "",
 			expectedErr:    fmt.Errorf("ssh: handshake failed: knownhosts: key is unknown"),
 		},
