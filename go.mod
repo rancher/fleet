@@ -69,8 +69,8 @@ require (
 	k8s.io/klog/v2 v2.100.1
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
 	k8s.io/kubernetes v1.25.12
-	sigs.k8s.io/cli-utils v0.34.0
-	sigs.k8s.io/controller-runtime v0.13.0
+	sigs.k8s.io/cli-utils v0.35.0
+	sigs.k8s.io/controller-runtime v0.14.1
 	sigs.k8s.io/kustomize/api v0.12.1
 	sigs.k8s.io/kustomize/kyaml v0.13.9
 	sigs.k8s.io/yaml v1.3.0
@@ -125,7 +125,7 @@ require (
 	github.com/go-gorp/gorp/v3 v3.0.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
-	github.com/go-openapi/swag v0.21.1 // indirect
+	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
@@ -214,7 +214,7 @@ require (
 	golang.org/x/sys v0.10.0 // indirect
 	golang.org/x/term v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
-	golang.org/x/time v0.0.0-20220609170525-579cf78fd858 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.9.3 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/api v0.103.0 // indirect
@@ -231,7 +231,7 @@ require (
 	k8s.io/gengo v0.0.0-20220613173612-397b4ae3bce7 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kubectl v0.26.0 // indirect
-	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d // indirect
+	k8s.io/utils v0.0.0-20230115233650-391b47cb4029 // indirect
 	oras.land/oras-go v1.2.2 // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
