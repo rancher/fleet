@@ -9,8 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	"github.com/rancher/gitjob/e2e/testenv"
+
+	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
 const gitrepoTemplate = "gitrepo-template.yaml"

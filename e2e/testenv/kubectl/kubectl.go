@@ -44,7 +44,7 @@ func (c Command) Workdir(dir string) Command {
 }
 
 func (c Command) Apply(args ...string) (string, error) {
-	return c.Run(append([]string{"apply"}, args...)...)
+	return c.Run(append([]string{"apply", "--wait"}, args...)...)
 }
 
 func (c Command) Get(args ...string) (string, error) {

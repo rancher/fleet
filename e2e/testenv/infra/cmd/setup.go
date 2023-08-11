@@ -148,39 +148,55 @@ Parallelism is used when possible to save time.`,
 		// Push chart to ChartMuseum
 		wgChartMuseum.Wait()
 
-		SSLCfg := &tls.Config{
-			InsecureSkipVerify: true, // works around having to install or reference a CA cert
+		startTime = time.Now()
+		for {
+			if startTime.Add(timeoutDuration).Before(time.Now()) {
+				fail(fmt.Errorf("timed out waiting for ChartMuseum"))
+			}
+
+			SSLCfg := &tls.Config{
+				InsecureSkipVerify: true, // works around having to install or reference a CA cert
+			}
+
+			client := http.Client{
+				Timeout: 10 * time.Second,
+				Transport: &http.Transport{
+					TLSClientConfig:       SSLCfg,
+					IdleConnTimeout:       10 * time.Second,
+					ExpectContinueTimeout: 1 * time.Second,
+				},
+			}
+
+			cmAddr := fmt.Sprintf("https://%s:8081/api/charts", externalIP)
+
+			req, err := http.NewRequest(http.MethodPost, cmAddr, bytes.NewReader(chartArchive))
+			if err != nil {
+				fail(fmt.Errorf("create POST request to ChartMuseum: %v", err))
+			}
+
+			req.SetBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD"))
+
+			resp, err := client.Do(req)
+
+			if err != nil {
+				fmt.Printf("POST request to ChartMuseum failed, retrying: %v\n", err)
+				time.Sleep(200 * time.Millisecond)
+				continue
+			} else {
+				fmt.Printf("Successfully posted Helm chart to ChartMuseum\n")
+			}
+
+			fmt.Printf("POST response status code from ChartMuseum: %d\n", resp.StatusCode)
+			if resp.StatusCode != http.StatusCreated {
+				fmt.Println("failure")
+				time.Sleep(200 * time.Millisecond)
+				continue
+			} else {
+				fmt.Println("success")
+				resp.Body.Close()
+				break
+			}
 		}
-
-		client := http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: SSLCfg,
-			},
-		}
-
-		cmAddr := fmt.Sprintf("https://%s:8081/api/charts", externalIP)
-
-		req, err := http.NewRequest(http.MethodPost, cmAddr, bytes.NewReader(chartArchive))
-		if err != nil {
-			fail(fmt.Errorf("create POST request to ChartMuseum: %v", err))
-		}
-
-		req.SetBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD"))
-
-		resp, err := client.Do(req)
-		if err != nil {
-			fail(fmt.Errorf("send POST request to ChartMuseum: %v", err))
-		} else {
-			fmt.Printf("Posted Helm chart to ChartMuseum")
-		}
-
-		if resp.StatusCode != http.StatusCreated {
-			fail(fmt.Errorf("POST response status code from ChartMuseum: %d", resp.StatusCode))
-		} else {
-			fmt.Println("POST response status code from ChartMuseum: %d", resp.StatusCode)
-		}
-
-		resp.Body.Close()
 
 		wgGit.Wait()
 	},
