@@ -41,7 +41,7 @@ func (a *CleanUp) Run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	max := 5 * time.Second
+	max := 3 * time.Second
 	if a.Max != "" {
 		max, err = time.ParseDuration(a.Max)
 		if err != nil {
@@ -56,7 +56,7 @@ func (a *CleanUp) Run(cmd *cobra.Command, args []string) error {
 		return errors.New("max cannot be less than min")
 	}
 
-	factor := 1.1
+	factor := 1.05
 	if a.Factor != "" {
 		factor, err = strconv.ParseFloat(a.Factor, 64)
 		if err != nil {

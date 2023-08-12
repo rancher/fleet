@@ -66,7 +66,7 @@ func ClusterRegistrations(ctx context.Context, client Getter, opts Options) erro
 	}
 
 	// sleep to not overload the API server
-	b := &backoff.Backoff{
+	b := backoff.Backoff{
 		Min:    opts.Min,
 		Max:    opts.Max,
 		Factor: opts.Factor,
@@ -78,8 +78,7 @@ func ClusterRegistrations(ctx context.Context, client Getter, opts Options) erro
 	// * requests after that might be in flight
 	// * requests before that are outdated
 	for _, cr := range crList.Items {
-		time.Sleep(b.Duration())
-
+		logrus.Debugf("Inspect cluster registration %s/%s", cr.Namespace, cr.Name)
 		if cr.Status.ClusterName == "" {
 			continue
 		}
@@ -87,7 +86,9 @@ func ClusterRegistrations(ctx context.Context, client Getter, opts Options) erro
 		clusterKey := types.NamespacedName{Namespace: cr.Namespace, Name: cr.Status.ClusterName}
 		latest, found := latestGranted[clusterKey]
 		if found && cr.CreationTimestamp.Before(&latest) {
-			logrus.Infof("Deleting outdated, granted cluster registration %s/%s", cr.Namespace, cr.Name)
+			t := b.Duration()
+			logrus.Infof("Deleting outdated, granted cluster registration %s/%s, wait for %s", cr.Namespace, cr.Name, t)
+			time.Sleep(t)
 			if err := clusterRegistration.Delete(cr.Namespace, cr.Name, nil); err != nil && !apierrors.IsNotFound(err) {
 				logrus.Errorf("Failed to delete clusterregistration %s/%s: %v", cr.Namespace, cr.Name, err)
 			}
