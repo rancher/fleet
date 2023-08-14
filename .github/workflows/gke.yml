@@ -16,7 +16,6 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '1.19.*'
   GINKGO_NODES: 1
   FLAKE_ATTEMPTS: 1
   GKE_ZONE: 'europe-west1-b'
@@ -39,7 +38,8 @@ jobs:
         name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.SETUP_GO_VERSION }}
+          go-version-file: 'go.mod'
+          check-latest: true
       -
         name: Setup Ginkgo Test Framework
         run: go install github.com/onsi/ginkgo/v2/ginkgo
