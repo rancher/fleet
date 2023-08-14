@@ -11,13 +11,12 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 const (
@@ -116,8 +115,19 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 		JustBeforeEach(func() {
 			// Get git server pod name and create post-receive hook script from template
-			out, err := k.Get("pod", "-l", "app=git-server", "-o", "name")
-			Expect(err).ToNot(HaveOccurred())
+			var (
+				out string
+				err error
+			)
+			Eventually(func() string {
+				out, err = k.Get("pod", "-l", "app=git-server", "-o", "name")
+				if err != nil {
+					fmt.Printf("%v\n", err)
+					return ""
+				}
+				return out
+			}).Should(ContainSubstring("pod/git-server-"))
+			Expect(err).ToNot(HaveOccurred(), out)
 
 			gitServerPod := strings.TrimPrefix(strings.TrimSpace(out), "pod/")
 
