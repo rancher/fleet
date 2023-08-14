@@ -21,6 +21,7 @@ jobs:
   e2e-fleet-test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
