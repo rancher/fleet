@@ -4,7 +4,7 @@ gitjob:
 
 tekton:
   repository: rancher/tekton-utils
-  tag: v0.1.31
+  tag: v0.1.32
 
 global:
   cattle:
