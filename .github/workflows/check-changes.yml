@@ -7,7 +7,6 @@ env:
   MAIN_BRANCH: origin/master
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '1.19.*'
 
 jobs:
   check-changes:
@@ -21,7 +20,8 @@ jobs:
       -
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.SETUP_GO_VERSION }}
+          go-version-file: 'go.mod'
+          check-latest: true
       -
         uses: actions/cache@v3
         with:
