@@ -218,6 +218,9 @@ func (g *git) setCredential(cred *corev1.Secret) error {
 			return err
 		}
 		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), cred.Data[corev1.SSHAuthPrivateKey], "")
+		if err != nil {
+			return err
+		}
 		if cred.Data["known_hosts"] != nil {
 			auth.HostKeyCallback, err = createKnownHosts(cred.Data["known_hosts"])
 		} else {

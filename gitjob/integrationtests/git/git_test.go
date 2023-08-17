@@ -8,11 +8,17 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	gogit "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
+	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/gogits/go-gogs-client"
 	cp "github.com/otiai10/copy"
 	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
@@ -30,11 +36,15 @@ These tests use gogs for testing integration with a git server. Gogs container u
 contains one user, one public repository, and another private repository. Initial commits and fingerprint are provided as consts.
 */
 const (
-	latestCommitPublicRepo  = "8cd5ab9c851482ce13a544c91ee010f6fdc7cf3f"
-	latestCommitPrivateRepo = "417310891d63d3f3a478bd4c5013e2f532056e8e"
-	gogsFingerPrint         = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBBpayjxZ7oeeMc6KjGM0VgFEE5GmN1H6RLquUENLcpGcKzrEtym48WmAnX9Xwdkg8eMUBgyYkZtZgR+eapf29fQ="
-	gogsUser                = "test"
-	gogsPass                = "pass"
+	gogsFingerPrint = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOLWGeeq/e1mK/zH47UeQeMtdh+NEz6j7xp5cAINcV2pPWgAsuyh5dumMv1RkC1rr0pmWekCoMnR2c4+PllRqrQ="
+	gogsUser        = "test"
+	gogsPass        = "pass"
+)
+
+var (
+	gogsClient              *gogs.Client
+	latestCommitPublicRepo  string
+	latestCommitPrivateRepo string
 )
 
 func TestLatestCommit_NoAuth(t *testing.T) {
@@ -158,7 +168,7 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 
 func TestLatestCommitSSH(t *testing.T) {
 	ctx := context.Background()
-	container, url, err := createGogsContainer(ctx, createTempFolder(t))
+	container, _, err := createGogsContainer(ctx, createTempFolder(t))
 	if err != nil {
 		t.Errorf("got error when none was expected: %v", err)
 	}
@@ -167,7 +177,7 @@ func TestLatestCommitSSH(t *testing.T) {
 			t.Fatalf("failed to terminate container: %s", err.Error())
 		}
 	}()
-	privateKey, err := createAndAddKeys(url)
+	privateKey, err := createAndAddKeys()
 	if err != nil {
 		t.Errorf("got error when none was expected: %v", err)
 	}
@@ -290,7 +300,103 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 		return nil, "", err
 	}
 
+	c := gogs.NewClient(url, "")
+	token, err := c.CreateAccessToken(gogsUser, gogsPass, gogs.CreateAccessTokenOption{
+		Name: "test",
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
+	gogsClient = gogs.NewClient(url, token.Sha1)
+	latestCommitPublicRepo, err = initRepo(url, "public-repo", false)
+	if err != nil {
+		return nil, "", err
+	}
+	latestCommitPrivateRepo, err = initRepo(url, "private-repo", true)
+	if err != nil {
+		return nil, "", err
+	}
+
 	return container, url, nil
+}
+
+// initRepo creates a git repo and adds an initial commit.
+func initRepo(url string, name string, private bool) (string, error) {
+	// create repo
+	_, err := gogsClient.CreateRepo(gogs.CreateRepoOption{
+		Name:    name,
+		Private: private,
+	})
+	if err != nil {
+		return "", err
+	}
+	repoURL := url + "/" + gogsUser + "/" + name
+
+	// add initial commit
+	tmp, err := os.MkdirTemp("", name)
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tmp)
+
+	r, err := gogit.PlainInit(tmp, false)
+	if err != nil {
+		return "", err
+	}
+	r, err = gogit.PlainOpen(tmp)
+	if err != nil {
+		return "", err
+	}
+	filename := filepath.Join(tmp, "example-git-file")
+	err = os.WriteFile(filename, []byte("test"), 0600)
+	if err != nil {
+		return "", err
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return "", err
+	}
+	_, err = w.Add("example-git-file")
+	if err != nil {
+		return "", err
+	}
+	commit, err := w.Commit("test commit", &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test user",
+			Email: "test@test.com",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	cfg, err := r.Config()
+	if err != nil {
+		return "", err
+	}
+	cfg.Remotes["upstream"] = &config.RemoteConfig{
+		Name:  "upstream",
+		URLs:  []string{repoURL},
+		Fetch: []config.RefSpec{"+refs/heads/*:refs/remotes/upstream/*"}, //TODO do we need this?
+	}
+	err = r.SetConfig(cfg)
+	if err != nil {
+		return "", err
+	}
+	err = r.Push(&gogit.PushOptions{
+		RemoteName: "upstream",
+		RemoteURL:  repoURL,
+		Auth: &httpgit.BasicAuth{
+			Username: gogsUser,
+			Password: gogsPass,
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return commit.String(), nil
 }
 
 func getURL(ctx context.Context, container testcontainers.Container) (string, error) {
@@ -323,20 +429,13 @@ func createTempFolder(t *testing.T) string {
 }
 
 // createAndAddKeys creates a public private key pair. It adds the public key to gogs, and returns the private key.
-func createAndAddKeys(url string) (string, error) {
+func createAndAddKeys() (string, error) {
 	publicKey, privateKey, err := makeSSHKeyPair()
 	if err != nil {
 		return "", err
 	}
-	c := gogs.NewClient(url, "")
-	token, err := c.CreateAccessToken(gogsUser, gogsPass, gogs.CreateAccessTokenOption{
-		Name: "test",
-	})
-	if err != nil {
-		return "", err
-	}
-	c = gogs.NewClient(url, token.Sha1)
-	_, err = c.CreatePublicKey(gogs.CreateKeyOption{
+
+	_, err = gogsClient.CreatePublicKey(gogs.CreateKeyOption{
 		Title: "test",
 		Key:   publicKey,
 	})
