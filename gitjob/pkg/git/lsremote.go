@@ -3,6 +3,7 @@ package git
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,7 +17,6 @@ import (
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/go-git/go-git/v5/storage/memory"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	giturls "github.com/whilp/git-urls"
 	"golang.org/x/crypto/ssh"
@@ -180,7 +180,7 @@ func (g *git) remoteSHAChanged(branch, sha string) (bool, error) {
 		// Return timeout errors so caller can decide whether or not to proceed with updating the repo
 		uErr := &url.Error{}
 		if ok := errors.As(err, &uErr); ok && uErr.Timeout() {
-			return false, errors.Wrapf(uErr, "Repo [%v] is not accessible", g.URL)
+			return false, fmt.Errorf("%w: Repo [%v] is not accessible", uErr, g.URL)
 		}
 		return true, nil
 	}
