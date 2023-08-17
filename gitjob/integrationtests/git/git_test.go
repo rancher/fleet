@@ -23,6 +23,7 @@ import (
 	cp "github.com/otiai10/copy"
 	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/rancher/gitjob/pkg/git"
+	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"golang.org/x/crypto/ssh"
@@ -50,14 +51,8 @@ var (
 func TestLatestCommit_NoAuth(t *testing.T) {
 	ctx := context.Background()
 	container, url, err := createGogsContainer(ctx, createTempFolder(t))
-	if err != nil {
-		t.Errorf("got error when none was expected: %v", err)
-	}
-	defer func() {
-		if err := container.Terminate(ctx); err != nil {
-			t.Fatalf("failed to terminate container: %s", err.Error())
-		}
-	}()
+	require.NoError(t, err)
+	defer terminateContainer(ctx, container, t)
 
 	tests := map[string]struct {
 		gitjob         *gitjobv1.GitJob
@@ -108,14 +103,8 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 func TestLatestCommit_BasicAuth(t *testing.T) {
 	ctx := context.Background()
 	container, url, err := createGogsContainer(ctx, createTempFolder(t))
-	if err != nil {
-		t.Errorf("got error when none was expected: %v", err)
-	}
-	defer func() {
-		if err := container.Terminate(ctx); err != nil {
-			t.Fatalf("failed to terminate container: %s", err.Error())
-		}
-	}()
+	require.NoError(t, err)
+	defer terminateContainer(ctx, container, t)
 
 	tests := map[string]struct {
 		gitjob         *gitjobv1.GitJob
@@ -169,22 +158,12 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 func TestLatestCommitSSH(t *testing.T) {
 	ctx := context.Background()
 	container, _, err := createGogsContainer(ctx, createTempFolder(t))
-	if err != nil {
-		t.Errorf("got error when none was expected: %v", err)
-	}
-	defer func() {
-		if err := container.Terminate(ctx); err != nil {
-			t.Fatalf("failed to terminate container: %s", err.Error())
-		}
-	}()
+	require.NoError(t, err)
+	defer terminateContainer(ctx, container, t)
 	privateKey, err := createAndAddKeys()
-	if err != nil {
-		t.Errorf("got error when none was expected: %v", err)
-	}
+	require.NoError(t, err)
 	sshPort, err := container.MappedPort(ctx, "22")
-	if err != nil {
-		t.Errorf("got error when none was expected: %v", err)
-	}
+	require.NoError(t, err)
 	gogsKnownHosts := []byte("[localhost]:" + sshPort.Port() + " " + gogsFingerPrint)
 
 	tests := map[string]struct {
@@ -419,9 +398,7 @@ func getURL(ctx context.Context, container testcontainers.Container) (string, er
 func createTempFolder(t *testing.T) string {
 	if os.Getenv("GITHUB_ACTIONS") == "true" {
 		tmp, err := os.MkdirTemp("", "gogs")
-		if err != nil {
-			t.Errorf("got error when none was expected: %v", err)
-		}
+		require.NoError(t, err)
 		return tmp
 	}
 
@@ -465,6 +442,12 @@ func makeSSHKeyPair() (string, string, error) {
 	pubKeyBuf.Write(ssh.MarshalAuthorizedKey(pub))
 
 	return pubKeyBuf.String(), privKeyBuf.String(), nil
+}
+
+func terminateContainer(ctx context.Context, container testcontainers.Container, t *testing.T) {
+	if err := container.Terminate(ctx); err != nil {
+		t.Fatalf("failed to terminate container: %s", err.Error())
+	}
 }
 
 type secretGetterMock struct {
