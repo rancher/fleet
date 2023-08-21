@@ -1,9 +1,12 @@
+# Dev Scripts
+
 These scripts are used for running tests locally in k3d. Don't use these on
 production systems.
 
 ## Configuration
 
-You can set these manually or put them in an `.envrc`:
+You can set these manually, but it is advised to put them in an `.envrc` and
+source them before running any of the scripts.
 
     # use fleet-default for fleet in Rancher, fleet-local for standalone
     export FLEET_E2E_NS=fleet-local
@@ -23,7 +26,9 @@ You can set these manually or put them in an `.envrc`:
     # for running tests on darwin/arm64
     #export GOARCH=arm64
 
-    # needed for gitrepo tests
+    # needed for gitrepo tests, which are currently disabled but part of the
+    # single-cluster tests
+
     #export FORCE_GIT_SERVER_BUILD="yes" # set to an empty value to skip rebuilds
     #export GIT_REPO_USER="git"
     #export GIT_REPO_URL="git@github.com:yourprivate/repo.git"
@@ -33,7 +38,9 @@ You can set these manually or put them in an `.envrc`:
     #export GIT_HTTP_USER="fleet-ci"
     #export GIT_HTTP_PASSWORD="foo"
 
-    # needed for OCI tests
+    # needed for OCI tests, which are currently disabled but part of the
+    # single-cluster tests
+
     #export CI_OCI_USERNAME="fleet-ci"
     #export CI_OCI_PASSWORD="foo"
     #export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
@@ -41,13 +48,17 @@ You can set these manually or put them in an `.envrc`:
 
 ## Running Tests on K3D
 
-This should set up k3d, and the fleet standalone images for single cluster tests
+These commands should set up k3d, and the fleet standalone images for single
+cluster tests.
 
-    export FLEET_E2E_NS=fleet-local FLEET_E2E_CLUSTER=k3d-upstream
+    export FLEET_E2E_NS=fleet-local
+    export FLEET_E2E_CLUSTER=k3d-upstream
     export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-upstream
+
     dev/setup-k3d
     dev/build-fleet
     dev/import-images-k3d
+
     # needed for gitrepo tests
     dev/import-images-tests-k3d
     dev/create-zot-certs 'FleetCI-RootCA' # for OCI tests
@@ -56,26 +67,29 @@ This should set up k3d, and the fleet standalone images for single cluster tests
     # This should be needed only once
     cd e2e/testenv/infra
     go build -o . ./...
-
-    ./infra setup
     cd -
+
+    ./e2e/testenv/infra setup
 
     ginkgo e2e/single-cluster
 
-    ./infra teardown # optional
+    ./e2e/testenv/infra teardown # optional
 
 Optional flags for reporting on long-running tests: `--poll-progress-after=10s --poll-progress-interval=10s`.
 
-For multi-cluster tests we need to configure two clusters. You also need to
-make the upstream clusters API accessible to the downstream cluster. The
-default `url` in [dev/setup-fleet-downstream] should work with most systems.
+For multi-cluster tests we need to configure two clusters. You also need to make
+the upstream clusters API accessible to the downstream cluster. The default
+`url` in [dev/setup-fleet-downstream] should work with most systems.
 
-    export FLEET_E2E_NS=fleet-local FLEET_E2E_CLUSTER=k3d-upstream
+    export FLEET_E2E_NS=fleet-local
+    export FLEET_E2E_CLUSTER=k3d-upstream
     export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-downstream
+
     dev/setup-k3ds
     dev/build-fleet
     dev/import-images-k3d
     dev/setup-fleet-multi-cluster
+
     ginkgo e2e/multi-cluster
 
 To test changes incrementally, rebuild just one binary, update the image in k3d
@@ -86,18 +100,19 @@ and restart the controller:
 
 ### Troubleshooting
 
-If running the `infra setup` script returns an error about flag `--insecure-skip-tls-verify` not being found, check
-which version of Helm you are using via `helm version`.
-In case you have Rancher Desktop installed, you may be using its own Helm fork from `~/.rd/bin` by default, based on a
-different version of upstream Helm.
-Feel free to set environment variable `HELM_PATH` to remedy this. By default, the setup script will use `/usr/bin/helm`.
+If running the `infra setup` script returns an error about flag
+`--insecure-skip-tls-verify` not being found, check which version of Helm you
+are using via `helm version`. In case you have Rancher Desktop installed, you
+may be using its own Helm fork from `~/.rd/bin` by default, based on a different
+version of upstream Helm. Feel free to set environment variable `HELM_PATH` to
+remedy this. By default, the setup script will use `/usr/bin/helm`.
 
 ## Different Script Folders
 
-Our CIs, dapper/drone and github actions, use a different set of scripts.
-CI does not reuse dev scripts, however dev scripts may use CI scripts.
-We want to keep CI scripts short, targeted and readable. Dev scripts may
-change in an incompatible way anyday.
+Our CIs, dapper/drone and github actions, use a different set of scripts. CI
+does not reuse dev scripts, however dev scripts may use CI scripts. We want to
+keep CI scripts short, targeted and readable. Dev scripts may change in an
+incompatible way at any day.
 
 ## Requirements
 
@@ -112,8 +127,6 @@ change in an incompatible way anyday.
 
 ## Run integration tests
 
-```
-./dev/run-integration-tests.sh
-```
+    ./dev/run-integration-tests.sh
 
 This will download and prepare setup-envtest, then it will execute all the integration tests.
