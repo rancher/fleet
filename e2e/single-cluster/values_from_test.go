@@ -2,12 +2,13 @@ package singlecluster_test
 
 import (
 	"encoding/json"
-
-	"github.com/rancher/fleet/e2e/testenv"
-	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	"math/rand"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
 var _ = Describe("ValuesFrom", func() {
@@ -21,7 +22,7 @@ var _ = Describe("ValuesFrom", func() {
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
-		namespace = testenv.NewNamespaceName("values-from")
+		namespace = testenv.NewNamespaceName("values-from", rand.New(rand.NewSource(GinkgoRandomSeed())))
 		kw = k.Namespace(namespace)
 
 		out, err := k.Create("ns", namespace)

@@ -6,6 +6,7 @@ package singlecluster_test
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"strings"
@@ -34,6 +35,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		repoName         string
 		inClusterRepoURL string
 		gitrepoName      string
+		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
 	)
 
 	BeforeEach(func() {
@@ -54,7 +56,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		tmpDir, _ = os.MkdirTemp("", "fleet-")
 		clonedir = path.Join(tmpDir, repoName)
 
-		gitrepoName = testenv.RandomFilename("gitjob-test")
+		gitrepoName = testenv.RandomFilename("gitjob-test", r)
 	})
 
 	AfterEach(func() {

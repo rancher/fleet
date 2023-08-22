@@ -11,26 +11,28 @@ import (
 )
 
 var _ = Describe("Randomizing filenames", func() {
+	var r *rand.Rand
+
 	BeforeEach(func() {
-		rand.Seed(1)
+		r = rand.New(rand.NewSource(1))
 	})
 
 	Context("with file extension", func() {
 		When("it has a relative path", func() {
 			It("adds a random number to the basename", func() {
-				filename := testenv.RandomFilename("./foo/bar/gitrepo-template.yaml")
+				filename := testenv.RandomFilename("./foo/bar/gitrepo-template.yaml", r)
 				Expect(filename).To(Equal("gitrepo-template11066.yaml"))
 			})
 		})
 		When("it does not have a path", func() {
 			It("adds a random number to the basename", func() {
-				filename := testenv.RandomFilename("template.yaml")
+				filename := testenv.RandomFilename("template.yaml", r)
 				Expect(filename).To(Equal("template11066.yaml"))
 			})
 		})
 		When("it has an absolute path", func() {
 			It("adds a random number to the basename", func() {
-				filename := testenv.RandomFilename("/foo/bar/gitrepo-template.yaml")
+				filename := testenv.RandomFilename("/foo/bar/gitrepo-template.yaml", r)
 				Expect(filename).To(Equal("gitrepo-template11066.yaml"))
 			})
 		})
@@ -39,19 +41,19 @@ var _ = Describe("Randomizing filenames", func() {
 	Context("without file extensions", func() {
 		When("it has a relative path", func() {
 			It("adds a random number to the basename", func() {
-				filename := testenv.RandomFilename("./foo/bar/gitrepo-template")
+				filename := testenv.RandomFilename("./foo/bar/gitrepo-template", r)
 				Expect(filename).To(Equal("gitrepo-template11066"))
 			})
 		})
 		When("it does not have a path", func() {
 			It("adds a random number to the basename", func() {
-				filename := testenv.RandomFilename("template")
+				filename := testenv.RandomFilename("template", r)
 				Expect(filename).To(Equal("template11066"))
 			})
 		})
 		When("it has an absolute path", func() {
 			It("adds a random number to the basename", func() {
-				filename := testenv.RandomFilename("/foo/bar/gitrepo-template")
+				filename := testenv.RandomFilename("/foo/bar/gitrepo-template", r)
 				Expect(filename).To(Equal("gitrepo-template11066"))
 			})
 		})

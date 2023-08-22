@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/rancher/gitjob/e2e/testenv"
 
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
@@ -40,7 +41,7 @@ func ApplyTemplate(k kubectl.Command, asset string, data interface{}) error {
 	tmpdir, _ := os.MkdirTemp("", "fleet-")
 	defer os.RemoveAll(tmpdir)
 
-	output := path.Join(tmpdir, RandomFilename(asset))
+	output := path.Join(tmpdir, RandomFilename(asset, rand.New(rand.NewSource(ginkgo.GinkgoRandomSeed())))) // nolint:gosec // test code
 	if err := Template(output, testenv.AssetPath(asset), data); err != nil {
 		return err
 	}
@@ -65,7 +66,7 @@ func Template(output string, tmplPath string, data any) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(output, []byte(sb.String()), 0644) // nolint:gosec // test code
+	err = os.WriteFile(output, []byte(sb.String()), 0644) // nolint:gosec // Non-crypto use
 	if err != nil {
 		return err
 	}
@@ -73,9 +74,9 @@ func Template(output string, tmplPath string, data any) error {
 }
 
 // RandomName returns a slightly random name, so temporary assets don't conflict
-func RandomFilename(filename string) string {
+func RandomFilename(filename string, r *rand.Rand) string {
 	ext := path.Ext(filename)
 	filename = path.Base(filename)
-	r := strconv.Itoa(rand.Intn(99999)) // nolint:gosec // Non-crypto use
-	return strings.TrimSuffix(filename, ext) + r + ext
+	rv := strconv.Itoa(r.Intn(99999)) // nolint:gosec // Non-crypto use
+	return strings.TrimSuffix(filename, ext) + rv + ext
 }
