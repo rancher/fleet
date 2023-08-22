@@ -317,21 +317,28 @@ func packageHelmChart() error {
 
 // waitForPodReady waits until a pod with the specified appName app label is ready.
 func waitForPodReady(k kubectl.Command, appName string) error {
-	fmt.Printf("Timeout duration: %v\n", timeoutDuration)
-	out, err := k.Run(
-		"wait",
-		"--for=condition=Ready",
-		"pod",
-		fmt.Sprintf("--timeout=%v", timeoutDuration),
-		"-l",
-		fmt.Sprintf("app=%s", appName),
-	)
+	t := time.Now().Add(timeoutDuration)
+	for {
+		if time.Now().After(t) {
+			return fmt.Errorf("waitForPodReady (appName: %s): timed out after %v", appName, timeoutDuration)
+		}
 
-	if err != nil {
-		return fmt.Errorf("waitForPodReady (appName: %s): %s, error: %v", appName, out, err)
+		out, err := k.Run(
+			"wait",
+			"--for=condition=Ready",
+			"pod",
+			"--timeout=30s",
+			"-l",
+			fmt.Sprintf("app=%s", appName),
+		)
+
+		if err != nil {
+			fmt.Printf("waitForPodReady (appName: %s): %s, error: %v", appName, out, err)
+			continue
+		}
+
+		return err
 	}
-
-	return err
 }
 
 // fail prints err and exits.
