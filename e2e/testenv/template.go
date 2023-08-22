@@ -77,5 +77,5 @@ func RandomFilename(filename string) string {
 	ext := path.Ext(filename)
 	filename = path.Base(filename)
 	r := strconv.Itoa(rand.Intn(99999)) // nolint:gosec // Non-crypto use
-	return strings.TrimSuffix(filename, ext) + r + "." + ext
+	return strings.TrimSuffix(filename, ext) + r + ext
 }
