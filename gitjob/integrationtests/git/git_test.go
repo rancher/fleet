@@ -355,9 +355,8 @@ func initRepo(url string, name string, private bool) (string, error) {
 		return "", err
 	}
 	cfg.Remotes["upstream"] = &config.RemoteConfig{
-		Name:  "upstream",
-		URLs:  []string{repoURL},
-		Fetch: []config.RefSpec{"+refs/heads/*:refs/remotes/upstream/*"}, //TODO do we need this?
+		Name: "upstream",
+		URLs: []string{repoURL},
 	}
 	err = r.SetConfig(cfg)
 	if err != nil {
