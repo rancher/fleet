@@ -1,10 +1,6 @@
 gitjob:
-  repository: rancher/gitjob
-  tag: v0.1.81
-
-tekton:
-  repository: rancher/tekton-utils
-  tag: v0.1.35
+  repository: raulcabm/gitjob #TODO undo this!
+  tag: remove-tekton1
 
 global:
   cattle:

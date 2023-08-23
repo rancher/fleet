@@ -11,21 +11,25 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/fleetyaml"
 	name2 "github.com/rancher/fleet/internal/name"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/wrangler/pkg/yaml"
 
+	"github.com/go-git/go-git/v5"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 )
+
+const defaultBranch = "master"
 
 var (
 	ErrNoResources = errors.New("no resources found to deploy")
@@ -54,10 +58,16 @@ type Options struct {
 	CorrectDrift                bool
 	CorrectDriftForce           bool
 	CorrectDriftKeepFailHistory bool
+	GitRepo                     string
+	GitAuth                     transport.AuthMethod
+	GitInsecureSkipTLS          bool
+	GitCABundle                 []byte
+	GitKnownHostsFile           string
+	GitBranch                   string
 }
 
 func globDirs(baseDir string) (result []string, err error) {
-	for strings.HasPrefix(baseDir, "/") {
+	for strings.HasPrefix(baseDir, "/") && !isCloningGitRepo(baseDir) {
 		baseDir = baseDir[1:]
 	}
 	paths, err := filepath.Glob(baseDir)
@@ -72,12 +82,26 @@ func globDirs(baseDir string) (result []string, err error) {
 	return
 }
 
+func isCloningGitRepo(baseDir string) bool {
+	return strings.HasPrefix(baseDir, "/tmp/fleet")
+}
+
 // Apply creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
 func Apply(ctx context.Context, client Getter, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
+	}
+	clonedRepoPath := ""
+	if opts.GitRepo != "" {
+		var err error
+		clonedRepoPath, err = cloneRepo(opts)
+		if err != nil {
+			return fmt.Errorf("error cloning repo: %w", err)
+		}
+		defer os.RemoveAll(clonedRepoPath)
+		baseDirs = appendDirPrefix(baseDirs, clonedRepoPath)
 	}
 
 	foundBundle := false
@@ -105,7 +129,7 @@ func Apply(ctx context.Context, client Getter, repoName string, baseDirs []strin
 				if auth, ok := opts.AuthByPath[path]; ok {
 					opts.Auth = auth
 				}
-				if err := Dir(ctx, client, repoName, path, &opts, gitRepoBundlesMap); err == ErrNoResources {
+				if err := Dir(ctx, client, repoName, path, &opts, gitRepoBundlesMap, clonedRepoPath); err == ErrNoResources {
 					logrus.Warnf("%s: %v", path, err)
 					return nil
 				} else if err != nil {
@@ -133,6 +157,15 @@ func Apply(ctx context.Context, client Getter, repoName string, baseDirs []strin
 	}
 
 	return nil
+}
+
+func appendDirPrefix(dirs []string, prefix string) []string {
+	result := make([]string, 0)
+	for _, dir := range dirs {
+		result = append(result, prefix+"/"+dir)
+	}
+
+	return result
 }
 
 // pruneBundlesNotFoundInRepo lists all bundles for this gitrepo and prunes those not found in the repo
@@ -193,12 +226,16 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 //
 // name: the gitrepo name, passed to 'fleet apply' on the cli
 // basedir: the path from the walk func in Dir, []baseDirs
-func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
+func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool, clonedRepoPath string) error {
 	if opts == nil {
 		opts = &Options{}
 	}
 	// the bundleID is a valid helm release name, it's used as a default if a release name is not specified in helm options
 	bundleID := filepath.Join(name, baseDir)
+	// apply clones a repo in a tmp folder, remove tmp folder from bundleID
+	if clonedRepoPath != "" {
+		bundleID = strings.ReplaceAll(bundleID, clonedRepoPath, "")
+	}
 	bundleID = name2.HelmReleaseName(bundleID)
 
 	bundle, scans, err := readBundle(ctx, bundleID, baseDir, opts)
@@ -349,4 +386,29 @@ func hasSubDirectoryWithResourcesAndWithoutFleetYaml(path string) (bool, error) 
 	}
 
 	return false, nil
+}
+
+func cloneRepo(opts Options) (string, error) {
+	tmpDir, err := os.MkdirTemp("", "fleet")
+	if err != nil {
+		return "", err
+	}
+	branch := defaultBranch
+	if opts.GitBranch != "" {
+		branch = opts.GitBranch
+	}
+
+	_, err = git.PlainClone(tmpDir, false, &git.CloneOptions{
+		URL:             opts.GitRepo,
+		Auth:            opts.GitAuth,
+		InsecureSkipTLS: opts.GitInsecureSkipTLS,
+		CABundle:        opts.GitCABundle,
+		SingleBranch:    true,
+		ReferenceName:   plumbing.ReferenceName(branch),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return tmpDir, nil
 }

@@ -11,14 +11,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/internal/cmd/controller/display"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/config"
 	fname "github.com/rancher/fleet/internal/name"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/api/errors"
 
 	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
@@ -385,7 +385,10 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, bundleErrorState)
 	status = countResources(status)
 	volumes, volumeMounts := volumes(h.secrets, gitrepo, configMap)
-	args, envs := argsAndEnvs(gitrepo)
+	args, envs, err := argsAndEnvs(gitrepo, h.secrets)
+	if err != nil {
+		return nil, status, err
+	}
 	return []runtime.Object{
 		configMap,
 		&corev1.ServiceAccount{
@@ -638,6 +641,14 @@ func volumes(
 		volumeMounts = append(volumeMounts, volMnts...)
 	}
 
+	if gitrepo.Spec.ClientSecretName != "" {
+		vols, volMnts := volumesForGitAuthentication(gitrepo.Spec.ClientSecretName, "git-auth-secret")
+
+		volumes = append(volumes, vols...)
+		volumeMounts = append(volumeMounts, volMnts...)
+
+	}
+
 	return volumes, volumeMounts
 }
 
@@ -693,7 +704,7 @@ func volumesFromSecret(
 	return volumes, volumeMounts
 }
 
-func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
+func argsAndEnvs(gitrepo *fleet.GitRepo, secretsCache corev1controller.SecretCache) ([]string, []corev1.EnvVar, error) {
 	args := []string{
 		"fleet",
 		"apply",
@@ -760,11 +771,6 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 		}
 		args = append(args, helmArgs...)
 		env = append(env,
-			// for ssh go-getter, make sure we always accept new host key
-			corev1.EnvVar{
-				Name:  "GIT_SSH_COMMAND",
-				Value: "ssh -o stricthostkeychecking=accept-new",
-			},
 			corev1.EnvVar{
 				Name: "HELM_USERNAME",
 				ValueFrom: &corev1.EnvVarSource{
@@ -779,5 +785,66 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 			})
 	}
 
-	return append(args, "--", gitrepo.Name), env
+	args = append(args, "--git-repo", gitrepo.Spec.Repo)
+	if gitrepo.Spec.Branch != "" {
+		args = append(args, "--git-branch", gitrepo.Spec.Branch)
+	}
+
+	authSecret, err := secretsCache.Get(gitrepo.Namespace, gitrepo.Spec.ClientSecretName)
+	if err != nil && !errors.IsNotFound(err) {
+		return nil, nil, err
+	}
+	if authSecret != nil {
+		if authSecret.Type == corev1.SecretTypeBasicAuth {
+			env = append(env,
+				corev1.EnvVar{
+					Name: "GIT_USERNAME",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Optional: &[]bool{true}[0],
+							Key:      "username",
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: gitrepo.Spec.ClientSecretName,
+							},
+						},
+					},
+				})
+			args = append(args, "--git-password-file", "/etc/fleet/git/password")
+
+		} else if authSecret.Type == corev1.SecretTypeSSHAuth {
+			args = append(args, "--git-ssh-private-key", "/etc/fleet/git/ssh-privatekey")
+			if authSecret.Data["known_hosts"] != nil {
+				args = append(args, "--git-known-hosts", "/etc/fleet/git/known_hosts")
+			}
+		}
+	}
+
+	if gitrepo.Spec.InsecureSkipTLSverify {
+		args = append(args, "git-insecure-skip-tls")
+	}
+
+	return append(args, "--", gitrepo.Name), env, nil
+}
+
+// volumesFromSecret generates volumes and volume mounts from secret, assuming that that secret exists.
+func volumesForGitAuthentication(secretName, volumeName string,
+) ([]corev1.Volume, []corev1.VolumeMount) {
+	volumes := []corev1.Volume{
+		{
+			Name: volumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secretName,
+				},
+			},
+		},
+	}
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      volumeName,
+			MountPath: "/etc/fleet/git",
+		},
+	}
+
+	return volumes, volumeMounts
 }

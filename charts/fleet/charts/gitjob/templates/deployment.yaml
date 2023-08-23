@@ -19,8 +19,6 @@ spec:
           {{- if .Values.debug }}
           - --debug
           {{- end }}
-          - --tekton-image
-          - "{{ template "system_default_registry" . }}{{ .Values.tekton.repository }}:{{ .Values.tekton.tag }}"
           env:
             - name: NAMESPACE
               valueFrom:
