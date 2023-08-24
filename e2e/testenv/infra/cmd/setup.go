@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -19,6 +20,26 @@ import (
 )
 
 var timeoutDuration = 10 * time.Minute // default timeout duration
+
+func eventually(f func() (string, error)) string {
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			fail(fmt.Errorf("timed out: %v", ctx.Err()))
+		default:
+			out, err := f()
+			if err != nil {
+				fmt.Printf("error: %v\n", err)
+				time.Sleep(time.Second)
+				continue
+			}
+			return out
+		}
+	}
+}
 
 // setupCmd represents the setup command
 var setupCmd = &cobra.Command{
@@ -76,44 +97,28 @@ Parallelism is used when possible to save time.`,
 			fail(fmt.Errorf("create Helm registry client: %v", err))
 		}
 
-		startTime := time.Now()
 		externalIP := os.Getenv("external_ip")
-		for externalIP == "" {
-			if time.Now().After(startTime.Add(timeoutDuration)) {
-				fail(fmt.Errorf("timed out waiting for external IP"))
-			}
-
-			externalIP, err = k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-			if err != nil {
-				fail(fmt.Errorf("get external Zot service IP: %v", err))
-			}
-			time.Sleep(200 * time.Millisecond)
+		if externalIP == "" {
+			externalIP = eventually(func() (string, error) {
+				return k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+			})
 		}
 
 		helmHost := fmt.Sprintf("%s:5000", externalIP)
 
 		fmt.Printf("logging into Helm registry at %s...\n", helmHost)
-		startTime = time.Now()
-		for {
-			if time.Now().After(startTime.Add(timeoutDuration)) {
-				fail(fmt.Errorf("timed out waiting for Helm registry"))
-			}
-
+		_ = eventually(func() (string, error) {
 			err := helmClient.Login(
 				helmHost,
 				registry.LoginOptBasicAuth("fleet-ci", "foo"),
 				registry.LoginOptInsecure(true),
 			)
 			if err != nil {
-				fmt.Println(fmt.Errorf("logging into Helm registry: %v", err))
-				time.Sleep(200 * time.Millisecond)
-
-				fmt.Println("retrying...")
-			} else {
-				fmt.Println("success!")
-				break
+				return "", fmt.Errorf("logging into Helm registry: %v", err)
 			}
-		}
+
+			return "", nil
+		})
 
 		fmt.Println("determining Helm binary path...")
 		helmPath := os.Getenv("HELM_PATH")
@@ -148,12 +153,7 @@ Parallelism is used when possible to save time.`,
 		// Push chart to ChartMuseum
 		wgChartMuseum.Wait()
 
-		startTime = time.Now()
-		for {
-			if startTime.Add(timeoutDuration).Before(time.Now()) {
-				fail(fmt.Errorf("timed out waiting for ChartMuseum"))
-			}
-
+		_ = eventually(func() (string, error) {
 			SSLCfg := &tls.Config{
 				InsecureSkipVerify: true, // works around having to install or reference a CA cert
 			}
@@ -177,26 +177,18 @@ Parallelism is used when possible to save time.`,
 			req.SetBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD"))
 
 			resp, err := client.Do(req)
-
 			if err != nil {
-				fmt.Printf("POST request to ChartMuseum failed, retrying: %v\n", err)
-				time.Sleep(200 * time.Millisecond)
-				continue
-			} else {
-				fmt.Printf("Successfully posted Helm chart to ChartMuseum\n")
+				return "", fmt.Errorf("POST request to ChartMuseum failed: %v", err)
 			}
+			defer resp.Body.Close()
 
-			fmt.Printf("POST response status code from ChartMuseum: %d\n", resp.StatusCode)
 			if resp.StatusCode != http.StatusCreated {
-				fmt.Println("failure")
-				time.Sleep(200 * time.Millisecond)
-				continue
-			} else {
-				fmt.Println("success")
-				resp.Body.Close()
-				break
+				return "", fmt.Errorf("POST response status code from ChartMuseum: %d", resp.StatusCode)
 			}
-		}
+			fmt.Println("successfully posted Helm chart to ChartMuseum")
+
+			return "", nil
+		})
 
 		wgGit.Wait()
 	},
