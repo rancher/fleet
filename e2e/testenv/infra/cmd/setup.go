@@ -32,7 +32,11 @@ func eventually(f func() (string, error)) string {
 		default:
 			out, err := f()
 			if err != nil {
-				fmt.Printf("error: %v\n", err)
+				msg := fmt.Sprintf("error: %v", err)
+				if out != "" {
+					msg = fmt.Sprintf("%s: stdout: %s", msg, out)
+				}
+				fmt.Println(msg)
 				time.Sleep(time.Second)
 				continue
 			}
