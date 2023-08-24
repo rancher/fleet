@@ -2435,6 +2435,15 @@ spec:
               agentResources:
                 nullable: true
                 properties:
+                  claims:
+                    items:
+                      properties:
+                        name:
+                          nullable: true
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                   limits:
                     additionalProperties:
                       nullable: true
