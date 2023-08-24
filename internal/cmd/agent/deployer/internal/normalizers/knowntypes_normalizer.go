@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-//go:generate go run github.com/argoproj/argo-cd/hack/known_types corev1 k8s.io/api/core/v1 corev1_known_types.go --docs diffing_known_types.txt
 var knownTypes = map[string]func() interface{}{}
 
 const Group string = "argoproj.io"
