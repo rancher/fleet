@@ -20,6 +20,7 @@ import (
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
+
 	"k8s.io/client-go/discovery"
 )
 
@@ -53,13 +54,12 @@ func getCapabilities(c action.Configuration) (*chartutil.Capabilities, error) {
 		}
 	}
 
-	c.Capabilities = &chartutil.Capabilities{
-		APIVersions: apiVersions,
-		KubeVersion: chartutil.KubeVersion{
-			Version: kubeVersion.GitVersion,
-			Major:   kubeVersion.Major,
-			Minor:   kubeVersion.Minor,
-		},
+	c.Capabilities = chartutil.DefaultCapabilities
+	c.Capabilities.APIVersions = apiVersions
+	c.Capabilities.KubeVersion = chartutil.KubeVersion{
+		Version: kubeVersion.GitVersion,
+		Major:   kubeVersion.Major,
+		Minor:   kubeVersion.Minor,
 	}
 	return c.Capabilities, nil
 }

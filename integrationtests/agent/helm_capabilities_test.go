@@ -19,7 +19,7 @@ func capabilityBundleResources() map[string][]v1alpha1.BundleResource {
 				Name:    "config-chart/Chart.yaml",
 			},
 			{
-				Content: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-simple-chart-config\ndata:\n  test: \"value123\"\n  name: {{ .Values.name }}\n",
+				Content: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-simple-chart-config\ndata:\n  test: \"value123\"\n  name: {{ .Values.name }}\n  kubeVersion: {{ .Capabilities.KubeVersion.Version }}\n  apiVersions: {{ join \", \" .Capabilities.APIVersions |  }}\n  helmVersion: {{ .Capabilities.HelmVersion.Version }}\n",
 				Name:    "config-chart/templates/configmap.yaml",
 			},
 			{
@@ -89,12 +89,18 @@ var _ = Describe("Helm Chart uses Capabilities", Ordered, func() {
 			})
 		})
 
-		It("config map from chart is deployed", func() {
+		It("config map from chart is deployed with capabilities", func() {
 			cm := corev1.ConfigMap{}
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: env.namespace, Name: "test-simple-chart-config"}, &cm)
 				return err == nil
 			}).Should(BeTrue())
+
+			Expect(cm.Data["name"]).To(Equal("example-value"))
+			Expect(cm.Data["kubeVersion"]).ToNot(BeEmpty())
+			Expect(cm.Data["apiVersions"]).ToNot(BeEmpty())
+			Expect(cm.Data["apiVersions"]).To(ContainSubstring("apps/v1"))
+			Expect(cm.Data["helmVersion"]).ToNot(BeEmpty())
 		})
 	})
 
