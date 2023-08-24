@@ -1,12 +1,16 @@
 package bundledeployment
 
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../controller/mocks/dynamic_mock.go -package mocks k8s.io/client-go/dynamic Interface,NamespaceableResourceInterface
+
 import (
 	"errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
+
 	"github.com/rancher/fleet/internal/cmd/controller/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
