@@ -211,9 +211,7 @@ func spinUpGitServer(k kubectl.Command, wg *sync.WaitGroup) {
 		fail(fmt.Errorf("apply git server service: %s with error %v", out, err))
 	}
 
-	if err := waitForPodReady(k, "git-server"); err != nil {
-		fail(fmt.Errorf("wait for git server pod to be ready: %v", err))
-	}
+	waitForPodReady(k, "git-server")
 
 	fmt.Println("git server up.")
 }
@@ -264,9 +262,7 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		failHelm(fmt.Errorf("apply Zot service: %s with error %v", out, err))
 	}
 
-	if err := waitForPodReady(k, "zot"); err != nil {
-		failHelm(fmt.Errorf("wait for Zot pod to be ready: %v", err))
-	}
+	waitForPodReady(k, "zot")
 
 	fmt.Println("Helm registry up.")
 }
@@ -288,9 +284,7 @@ func spinUpChartMuseum(k kubectl.Command, wg *sync.WaitGroup) {
 		failChartMuseum(fmt.Errorf("apply ChartMuseum service: %s with error %v", out, err))
 	}
 
-	if err := waitForPodReady(k, "chartmuseum"); err != nil {
-		failChartMuseum(fmt.Errorf("wait for ChartMuseum pod to be ready: %v", err))
-	}
+	waitForPodReady(k, "chartmuseum")
 
 	fmt.Println("ChartMuseum up.")
 }
@@ -308,13 +302,8 @@ func packageHelmChart() error {
 }
 
 // waitForPodReady waits until a pod with the specified appName app label is ready.
-func waitForPodReady(k kubectl.Command, appName string) error {
-	t := time.Now().Add(timeoutDuration)
-	for {
-		if time.Now().After(t) {
-			return fmt.Errorf("waitForPodReady (appName: %s): timed out after %v", appName, timeoutDuration)
-		}
-
+func waitForPodReady(k kubectl.Command, appName string) {
+	_ = eventually(func() (string, error) {
 		out, err := k.Run(
 			"wait",
 			"--for=condition=Ready",
@@ -326,11 +315,11 @@ func waitForPodReady(k kubectl.Command, appName string) error {
 
 		if err != nil {
 			fmt.Printf("waitForPodReady (appName: %s): %s, error: %v", appName, out, err)
-			continue
+			return "", err
 		}
 
-		return err
-	}
+		return "", nil
+	})
 }
 
 // fail prints err and exits.
