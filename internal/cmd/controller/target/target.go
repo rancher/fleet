@@ -412,17 +412,6 @@ func (t *Target) IsPaused() bool {
 		t.Bundle.Spec.Paused
 }
 
-// ResetDeployment replaces the BundleDeployment for the target with a new one
-func (t *Target) ResetDeployment() {
-	t.Deployment = &fleet.BundleDeployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      t.Bundle.Name,
-			Namespace: t.Cluster.Status.Namespace,
-			Labels:    t.BundleDeploymentLabels(t.Cluster.Namespace, t.Cluster.Name),
-		},
-	}
-}
-
 // BundleDeploymentLabels builds all labels for a bundledeployment
 func (t *Target) BundleDeploymentLabels(clusterNamespace string, clusterName string) map[string]string {
 	// remove labels starting with kubectl.kubernetes.io or containing
