@@ -6,18 +6,18 @@ package singlecluster_test
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 const (
@@ -27,13 +27,15 @@ const (
 
 var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
 	var (
-		tmpdir           string
+		tmpDir           string
 		clonedir         string
 		k                kubectl.Command
 		gh               *githelper.Git
 		clone            *git.Repository
 		repoName         string
 		inClusterRepoURL string
+		gitrepoName      string
+		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
 	)
 
 	BeforeEach(func() {
@@ -51,13 +53,15 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 		inClusterRepoURL = gh.GetInClusterURL(host, port, repoName)
 
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		clonedir = path.Join(tmpdir, repoName)
+		tmpDir, _ = os.MkdirTemp("", "fleet-")
+		clonedir = path.Join(tmpDir, repoName)
+
+		gitrepoName = testenv.RandomFilename("gitjob-test", r)
 	})
 
 	AfterEach(func() {
-		os.RemoveAll(tmpdir)
-		_, _ = k.Delete("gitrepo", "gitrepo-test")
+		_ = os.RemoveAll(tmpDir)
+		_, _ = k.Delete("gitrepo", gitrepoName)
 	})
 
 	When("updating a git repository monitored via polling", func() {
@@ -67,10 +71,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 		JustBeforeEach(func() {
 			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+				Name            string
 				Repo            string
 				Branch          string
 				PollingInterval string
 			}{
+				gitrepoName,
 				inClusterRepoURL,
 				gh.Branch,
 				"15s", // default
@@ -97,7 +103,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 			By("checking for the updated commit hash in gitrepo")
 			Eventually(func() string {
-				out, _ := k.Get("gitrepo", "gitrepo-test", "-o", "yaml")
+				out, _ := k.Get("gitrepo", gitrepoName, "-o", "yaml")
 				return out
 			}).Should(ContainSubstring("commit: " + commit))
 
@@ -116,12 +122,23 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 		JustBeforeEach(func() {
 			// Get git server pod name and create post-receive hook script from template
-			out, err := k.Get("pod", "-l", "app=git-server", "-o", "name")
-			Expect(err).ToNot(HaveOccurred())
+			var (
+				out string
+				err error
+			)
+			Eventually(func() string {
+				out, err = k.Get("pod", "-l", "app=git-server", "-o", "name")
+				if err != nil {
+					fmt.Printf("%v\n", err)
+					return ""
+				}
+				return out
+			}).Should(ContainSubstring("pod/git-server-"))
+			Expect(err).ToNot(HaveOccurred(), out)
 
 			gitServerPod := strings.TrimPrefix(strings.TrimSpace(out), "pod/")
 
-			hookScript := path.Join(tmpdir, "hook_script")
+			hookScript := path.Join(tmpDir, "hook_script")
 
 			err = testenv.Template(hookScript, testenv.AssetPath("gitrepo/post-receive.sh"), struct {
 				RepoURL string
@@ -155,10 +172,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			Expect(err).ToNot(HaveOccurred(), out)
 
 			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+				Name            string
 				Repo            string
 				Branch          string
 				PollingInterval string
 			}{
+				gitrepoName,
 				inClusterRepoURL,
 				gh.Branch,
 				"24h", // prevent polling
@@ -186,7 +205,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 			By("checking for the updated commit hash in gitrepo")
 			Eventually(func() string {
-				out, _ := k.Get("gitrepo", "gitrepo-test", "-o", "yaml")
+				out, _ := k.Get("gitrepo", gitrepoName, "-o", "yaml")
 				return out
 			}).Should(ContainSubstring("commit: " + commit))
 
@@ -195,7 +214,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				out, _ := k.Namespace("default").Get("deployments")
 				return out
 			}).Should(ContainSubstring("newsleep"))
-		})
+		}, Label("webhook"))
 	})
 })
 

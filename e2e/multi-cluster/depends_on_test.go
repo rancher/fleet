@@ -2,14 +2,15 @@ package multicluster_test
 
 import (
 	"encoding/json"
+	"math/rand"
 	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Bundle Depends On", Label("difficult"), func() {
@@ -63,7 +64,7 @@ var _ = Describe("Bundle Depends On", Label("difficult"), func() {
 		BeforeEach(func() {
 			required = "required"
 			dependsOn = "depends-on"
-			namespace = testenv.NewNamespaceName("bnm-nomatch")
+			namespace = testenv.NewNamespaceName("bnm-nomatch", rand.New(rand.NewSource(GinkgoRandomSeed())))
 			asset = "multi-cluster/bundle-depends-on.yaml"
 			data = TemplateData{dependsOn, env.Namespace, namespace}
 		})

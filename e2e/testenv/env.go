@@ -56,9 +56,12 @@ func (e *Env) getShellEnv() {
 
 // NewNamespaceName returns a name for a namespace that is unique to the test
 // run. e.g. as a targetNamespace for workloads
-func NewNamespaceName(name string) string {
-	rand.Seed(time.Now().UnixNano())
+func NewNamespaceName(name string, s rand.Source) string {
 	p := make([]byte, 12)
-	rand.Read(p) // nolint:gosec // Non-crypto use
+	r := rand.New(s) // nolint:gosec // non-crypto usage
+	_, err := r.Read(p)
+	if err != nil {
+		panic(err)
+	}
 	return fmt.Sprintf("test-%.20s-%.12s", name, hex.EncodeToString(p))
 }

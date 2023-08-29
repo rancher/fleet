@@ -11,4 +11,11 @@ after=$(cat $ref)
 # necessary to make rancher/gitjob interpret the call as a push event coming from Github
 github_header="X-GitHub-Event: push"
 
-curl gitjob.cattle-fleet-system.svc.cluster.local -H "$github_header" -d "{\"ref\": \"$ref\", \"after\": \"$after\", \"repository\": {\"html_url\": \"{{.RepoURL}}\"}}"
+curl \
+    --retry-delay 5 \
+    --retry 12 \
+    --fail-with-body gitjob.cattle-fleet-system.svc.cluster.local \
+    -H "$github_header" \
+    -d "{\"ref\": \"$ref\", \"after\": \"$after\", \"repository\": {\"html_url\": \"{{.RepoURL}}\"}}"
+
+echo "Webhook sent successfully"
