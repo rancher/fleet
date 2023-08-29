@@ -12,14 +12,30 @@ import (
 )
 
 var (
-	Ready       BundleState = "Ready"
-	NotReady    BundleState = "NotReady"
+	// Ready: Bundles have been deployed and all resources are ready.
+	Ready BundleState = "Ready"
+	// NotReady: Bundles have been deployed and some resources are not
+	// ready.
+	NotReady BundleState = "NotReady"
+	// WaitApplied: Bundles have been synced from Fleet controller and
+	// downstream cluster, but are waiting to be deployed.
 	WaitApplied BundleState = "WaitApplied"
-	ErrApplied  BundleState = "ErrApplied"
-	OutOfSync   BundleState = "OutOfSync"
-	Pending     BundleState = "Pending"
-	Modified    BundleState = "Modified"
+	// ErrApplied: Bundles have been synced from the Fleet controller and
+	// the downstream cluster, but there were some errors when deploying
+	// the Bundle.
+	ErrApplied BundleState = "ErrApplied"
+	// OutOfSync: Bundles have been synced from Fleet controller, but
+	// downstream agent hasn't synced the change yet.
+	OutOfSync BundleState = "OutOfSync"
+	// Pending: Bundles are being processed by Fleet controller.
+	Pending BundleState = "Pending"
+	// Modified: Bundles have been deployed and all resources are ready,
+	// but there are some changes that were not made from the Git
+	// Repository.
+	Modified BundleState = "Modified"
 
+	// StateRank ranks the state, e.g. so the highest ranked non-ready
+	// state can be reported in a summary.
 	StateRank = map[BundleState]int{
 		ErrApplied:  7,
 		WaitApplied: 6,
@@ -40,6 +56,15 @@ type BundleState string
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// Bundle contains the resources of an application and its deployment options.
+// It will be deployed as a Helm chart to target clusters.
+//
+// When a GitRepo is scanned it will produce one or more bundles. Bundles are
+// a collection of resources that get deployed to a cluster. Bundle is the
+// fundamental deployment unit used in Fleet. The contents of a Bundle may be
+// Kubernetes manifests, Kustomize configuration, or Helm charts. Regardless
+// of the source the contents are dynamically rendered into a Helm chart by
+// the agent and installed into the downstream cluster as a helm release.
 type Bundle struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -51,6 +76,7 @@ type Bundle struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// BundleNamespaceMapping maps bundles to clusters in other namespaces.
 type BundleNamespaceMapping struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -74,9 +100,10 @@ type BundleSpec struct {
 	Resources []BundleResource `json:"resources,omitempty"`
 
 	// Targets refer to the clusters which will be deployed to.
+	// Targets are evaluated in order and the first one to match is used.
 	Targets []BundleTarget `json:"targets,omitempty"`
 
-	// TargetRestrictions restrict which clusters the bundle will be deployed to.
+	// TargetRestrictions is an allow list, which controls if a bundledeployment is created for a target.
 	TargetRestrictions []BundleTargetRestriction `json:"targetRestrictions,omitempty"`
 
 	// DependsOn refers to the bundles which must be ready before this bundle can be deployed.
@@ -84,32 +111,65 @@ type BundleSpec struct {
 }
 
 type BundleRef struct {
-	Name     string                `json:"name,omitempty"`
+	// Name of the bundle.
+	Name string `json:"name,omitempty"`
+	// Selector matching bundle's labels.
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
+// BundleResource contains the content of a single resource from the bundle, like a YAML manifest.
 type BundleResource struct {
-	Name     string `json:"name,omitempty"`
-	Content  string `json:"content,omitempty"`
+	// Name of the resource, can include the bundle's internal path.
+	Name string `json:"name,omitempty"`
+	// The content of the resource, can be compressed.
+	Content string `json:"content,omitempty"`
+	// Encoding is either empty or "base64+gz".
 	Encoding string `json:"encoding,omitempty"`
 }
 
+// RolloverStrategy controls the rollout of the bundle across clusters.
 type RolloutStrategy struct {
-	MaxUnavailable           *intstr.IntOrString `json:"maxUnavailable,omitempty"`
+	// A number or percentage of clusters that can be unavailable during an update
+	// of a bundle. This follows the same basic approach as a deployment rollout
+	// strategy. Once the number of clusters meets unavailable state update will be
+	// paused. Default value is 100% which doesn't take effect on update.
+	// default: 100%
+	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
+	// A number or percentage of cluster partitions that can be unavailable during
+	// an update of a bundle.
+	// default: 0
 	MaxUnavailablePartitions *intstr.IntOrString `json:"maxUnavailablePartitions,omitempty"`
-	AutoPartitionSize        *intstr.IntOrString `json:"autoPartitionSize,omitempty"`
-	Partitions               []Partition         `json:"partitions,omitempty"`
+	// A number of percentage of how to automatically partition clusters if not
+	// specific partitioning strategy is configured.
+	// default: 25%
+	AutoPartitionSize *intstr.IntOrString `json:"autoPartitionSize,omitempty"`
+	// A list of definitions of partitions.  If any target clusters do not match
+	// the configuration they are added to partitions at the end following the
+	// autoPartitionSize.
+	Partitions []Partition `json:"partitions,omitempty"`
 }
 
+// Partition defines a separate rollout strategy for a set of clusters.
 type Partition struct {
-	Name                 string                `json:"name,omitempty"`
-	MaxUnavailable       *intstr.IntOrString   `json:"maxUnavailable,omitempty"`
-	ClusterName          string                `json:"clusterName,omitempty"`
-	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
-	ClusterGroup         string                `json:"clusterGroup,omitempty"`
+	// A user friend name given to the partition used for Display (optional).
+	Name string `json:"name,omitempty"`
+	// A number or percentage of clusters that can be unavailable in this
+	// partition before this partition is treated as done.
+	// default: 10%
+	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
+	// ClusterName is the name of a cluster to include in this partition
+	ClusterName string `json:"clusterName,omitempty"`
+	// Selector matching cluster labels to include in this partition
+	ClusterSelector *metav1.LabelSelector `json:"clusterSelector,omitempty"`
+	// A cluster group name to include in this partition
+	ClusterGroup string `json:"clusterGroup,omitempty"`
+	// Selector matching cluster group labels to include in this partition
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 }
 
+// BundleTargetRestriction is used internally by Fleet and should not be modified.
+// It acts as an allow list, to prevent the creation of BundleDeployments from
+// Targets created by TargetCustomizations in fleet.yaml.
 type BundleTargetRestriction struct {
 	Name                 string                `json:"name,omitempty"`
 	ClusterName          string                `json:"clusterName,omitempty"`
@@ -118,85 +178,179 @@ type BundleTargetRestriction struct {
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 }
 
+// BundleTarget declares clusters to deploy to. Fleet will merge the
+// BundleDeploymentOptions from customizations into this struct.
 type BundleTarget struct {
 	BundleDeploymentOptions
-	Name                 string                `json:"name,omitempty"`
-	ClusterName          string                `json:"clusterName,omitempty"`
-	ClusterSelector      *metav1.LabelSelector `json:"clusterSelector,omitempty"`
-	ClusterGroup         string                `json:"clusterGroup,omitempty"`
+	// Name of target. This value is largely for display and logging. If
+	// not specified a default name of the format "target000" will be used
+	Name string `json:"name,omitempty"`
+	// ClusterName to match a specific cluster by name that will be
+	// selected
+	ClusterName string `json:"clusterName,omitempty"`
+	// ClusterSelector is a selector to match clusters. The structure is
+	// the standard metav1.LabelSelector format. If clusterGroupSelector or
+	// clusterGroup is specified, clusterSelector will be used only to
+	// further refine the selection after clusterGroupSelector and
+	// clusterGroup is evaluated.
+	ClusterSelector *metav1.LabelSelector `json:"clusterSelector,omitempty"`
+	// ClusterGroup to match a specific cluster group by name.
+	ClusterGroup string `json:"clusterGroup,omitempty"`
+	// ClusterGroupSelector is a selector to match cluster groups.
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
-	DoNotDeploy          bool                  `json:"doNotDeploy,omitempty"`
+	// DoNotDeploy if set to true, will not deploy to this target.
+	DoNotDeploy bool `json:"doNotDeploy,omitempty"`
 }
 
+// BundleSummary contains the number of bundle deployments in each state and a
+// list of non-ready resources. It is used in the bundle, clustergroup, cluster
+// and gitrepo status.
 type BundleSummary struct {
-	NotReady          int                `json:"notReady,omitempty"`
-	WaitApplied       int                `json:"waitApplied,omitempty"`
-	ErrApplied        int                `json:"errApplied,omitempty"`
-	OutOfSync         int                `json:"outOfSync,omitempty"`
-	Modified          int                `json:"modified,omitempty"`
-	Ready             int                `json:"ready"`
-	Pending           int                `json:"pending,omitempty"`
-	DesiredReady      int                `json:"desiredReady"`
+	// NotReady is the number of bundle deployments that have been deployed
+	// where some resources are not ready.
+	NotReady int `json:"notReady,omitempty"`
+	// WaitApplied is the number of bundle deployments that have been
+	// synced from Fleet controller and downstream cluster, but are waiting
+	// to be deployed.
+	WaitApplied int `json:"waitApplied,omitempty"`
+	// ErrApplied is the number of bundle deployments that have been synced
+	// from the Fleet controller and the downstream cluster, but there were
+	// some errors when deploying the bundle.
+	ErrApplied int `json:"errApplied,omitempty"`
+	// OutOfSync is the number of bundle deployments that have been synced
+	// from Fleet controller, but downstream agent hasn't synced the change
+	// yet.
+	OutOfSync int `json:"outOfSync,omitempty"`
+	// Modified is the number of bundle deployments that have been deployed
+	// and all resources are ready, but there are some changes that were
+	// not made from the Git repository.
+	Modified int `json:"modified,omitempty"`
+	// Ready is the number of bundle deployments that have been deployed
+	// where all resources are ready.
+	Ready int `json:"ready"`
+	// Pending is the number of bundle deployments that are being processed
+	// by Fleet controller.
+	Pending int `json:"pending,omitempty"`
+	// DesiredReady is the number of bundle deployments that should be
+	// ready.
+	DesiredReady int `json:"desiredReady"`
+	// NonReadyClusters is a list of states, which is filled for a bundle
+	// that is not ready.
 	NonReadyResources []NonReadyResource `json:"nonReadyResources,omitempty"`
 }
 
+// NonReadyResource contains information about a bundle that is not ready for a
+// given state like "ErrApplied". It contains a list of non-ready or modified
+// resources and their state.
 type NonReadyResource struct {
-	Name           string           `json:"name,omitempty"`
-	State          BundleState      `json:"bundleState,omitempty"`
-	Message        string           `json:"message,omitempty"`
+	// Name is the name of the resource.
+	Name string `json:"name,omitempty"`
+	// State is the state of the resource, like e.g. "NotReady" or "ErrApplied".
+	State BundleState `json:"bundleState,omitempty"`
+	// Message contains information why the bundle is not ready.
+	Message string `json:"message,omitempty"`
+	// ModifiedStatus lists the state for each modified resource.
 	ModifiedStatus []ModifiedStatus `json:"modifiedStatus,omitempty"`
+	// NonReadyStatus lists the state for each non-ready resource.
 	NonReadyStatus []NonReadyStatus `json:"nonReadyStatus,omitempty"`
 }
 
 var (
-	BundleConditionReady               = "Ready"
-	BundleDeploymentConditionReady     = "Ready"
+	// BundleConditionReady is unused
+	BundleConditionReady = "Ready"
+	// BundleDeploymentConditionReady will result in ErrApplied if false.
+	BundleDeploymentConditionReady = "Ready"
+	// BundleDeploymentConditionInstalled indicates the bundledeployment has been installed.
 	BundleDeploymentConditionInstalled = "Installed"
-	BundleDeploymentConditionDeployed  = "Deployed"
+	// BundleDeploymentConditionDeployed will result in ErrApplied if false.
+	BundleDeploymentConditionDeployed = "Deployed"
 )
 
 type BundleStatus struct {
+	// Conditions is a list of wrangler conditions that describe the state
+	// of the bundle.
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 
-	Summary                  BundleSummary     `json:"summary,omitempty"`
-	NewlyCreated             int               `json:"newlyCreated,omitempty"`
-	Unavailable              int               `json:"unavailable"`
-	UnavailablePartitions    int               `json:"unavailablePartitions"`
-	MaxUnavailable           int               `json:"maxUnavailable"`
-	MaxUnavailablePartitions int               `json:"maxUnavailablePartitions"`
-	MaxNew                   int               `json:"maxNew,omitempty"`
-	PartitionStatus          []PartitionStatus `json:"partitions,omitempty"`
-	Display                  BundleDisplay     `json:"display,omitempty"`
+	// Summary contains the number of bundle deployments in each state and
+	// a list of non-ready resources.
+	Summary BundleSummary `json:"summary,omitempty"`
+	// NewlyCreated is the number of bundles that have been created, not updated.
+	NewlyCreated int `json:"newlyCreated,omitempty"`
+	// Unavailable is the number of bundles that are not ready or where the
+	// AppliedDeploymentID in the status does not match the DeploymentID
+	// from the spec.
+	Unavailable int `json:"unavailable"`
+	// UnavailablePartitions is the number of unavailable partitions.
+	UnavailablePartitions int `json:"unavailablePartitions"`
+	// MaxUnavailable is the maximum number of unavailable deployments. See
+	// rollout configuration.
+	MaxUnavailable int `json:"maxUnavailable"`
+	// MaxUnavailablePartitions is the maximum number of unavailable
+	// partitions. The rollout configuration defines a maximum number or
+	// percentage of unavailable partitions.
+	MaxUnavailablePartitions int `json:"maxUnavailablePartitions"`
+	// MaxNew is always 50. A bundle change can only stage 50
+	// bundledeployments at a time.
+	MaxNew int `json:"maxNew,omitempty"`
+	// PartitionStatus lists the status of each partition.
+	PartitionStatus []PartitionStatus `json:"partitions,omitempty"`
+	// Display contains the number of ready, desiredready clusters and a
+	// summary state for the bundle's resources.
+	Display BundleDisplay `json:"display,omitempty"`
 	// ResourceKey lists resources, which will likely be deployed. The
 	// actual list of resources on a cluster might differ, depending on the
 	// helm chart, value templating, etc..
-	ResourceKey        []ResourceKey `json:"resourceKey,omitempty"`
-	ObservedGeneration int64         `json:"observedGeneration"`
+	ResourceKey []ResourceKey `json:"resourceKey,omitempty"`
+	// ObservedGeneration is the current generation of the bundle.
+	ObservedGeneration int64 `json:"observedGeneration"`
 }
 
+// ResourceKey lists resources, which will likely be deployed.
 type ResourceKey struct {
-	Kind       string `json:"kind,omitempty"`
+	// Kind is the k8s api kind of the resource.
+	Kind string `json:"kind,omitempty"`
+	// APIVersion is the k8s api version of the resource.
 	APIVersion string `json:"apiVersion,omitempty"`
-	Namespace  string `json:"namespace,omitempty"`
-	Name       string `json:"name,omitempty"`
+	// Namespace is the namespace of the resource.
+	Namespace string `json:"namespace,omitempty"`
+	// Name is the name of the resource.
+	Name string `json:"name,omitempty"`
 }
 
+// BundleDisplay contains the number of ready, desiredready clusters and a
+// summary state for the bundle.
 type BundleDisplay struct {
+	// ReadyClusters is a string in the form "%d/%d", that described the
+	// number of clusters that are ready vs. the number of clusters desired
+	// to be ready.
 	ReadyClusters string `json:"readyClusters,omitempty"`
-	State         string `json:"state,omitempty"`
+	// State is a summary state for the bundle, calculated over the non-ready resources.
+	State string `json:"state,omitempty"`
 }
 
+// PartitionStatus is the status of a single rollout partition.
 type PartitionStatus struct {
-	Name           string        `json:"name,omitempty"`
-	Count          int           `json:"count,omitempty"`
-	MaxUnavailable int           `json:"maxUnavailable,omitempty"`
-	Unavailable    int           `json:"unavailable,omitempty"`
-	Summary        BundleSummary `json:"summary,omitempty"`
+	// Name is the name of the partition.
+	Name string `json:"name,omitempty"`
+	// Count is the number of clusters in the partition.
+	Count int `json:"count,omitempty"`
+	// MaxUnavailable is the maximum number of unavailable clusters in the partition.
+	MaxUnavailable int `json:"maxUnavailable,omitempty"`
+	// Unavailable is the number of unavailable clusters in the partition.
+	Unavailable int `json:"unavailable,omitempty"`
+	// Summary is a summary state for the partition, calculated over its non-ready resources.
+	Summary BundleSummary `json:"summary,omitempty"`
 }
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// BundleDeployment is used internally by Fleet and should not be used directly.
+// When a Bundle is deployed to a cluster an instance of a Bundle is called a
+// BundleDeployment. A BundleDeployment represents the state of that Bundle on
+// a specific cluster with its cluster specific customizations. The Fleet agent
+// is only aware of BundleDeployment resources that are created for the cluster
+// the agent is managing.
 type BundleDeployment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -230,7 +384,7 @@ type BundleDeploymentOptions struct {
 	ForceSyncGeneration int64 `json:"forceSyncGeneration,omitempty"`
 
 	// YAML options, if using raw YAML these are names that map to
-	// overlays/{name} that will be used to replace or patch a resource.
+	// overlays/{name} files that will be used to replace or patch a resource.
 	YAML *YAMLOptions `json:"yaml,omitempty"`
 
 	// Diff can be used to ignore the modified state of objects which are amended at runtime.
@@ -253,32 +407,57 @@ type BundleDeploymentOptions struct {
 }
 
 type DiffOptions struct {
+	// ComparePatches match a resource and remove fields from the check for modifications.
 	ComparePatches []ComparePatch `json:"comparePatches,omitempty"`
 }
 
+// ComparePatch matches a resource and removes fields from the check for modifications.
 type ComparePatch struct {
-	Kind         string      `json:"kind,omitempty"`
-	APIVersion   string      `json:"apiVersion,omitempty"`
-	Namespace    string      `json:"namespace,omitempty"`
-	Name         string      `json:"name,omitempty"`
-	Operations   []Operation `json:"operations,omitempty"`
-	JsonPointers []string    `json:"jsonPointers,omitempty"`
+	// Kind is the kind of the resource to match.
+	Kind string `json:"kind,omitempty"`
+	// APIVersion is the apiVersion of the resource to match.
+	APIVersion string `json:"apiVersion,omitempty"`
+	// Namespace is the namespace of the resource to match.
+	Namespace string `json:"namespace,omitempty"`
+	// Name is the name of the resource to match.
+	Name string `json:"name,omitempty"`
+	// Operations remove a JSON path from the resource.
+	Operations []Operation `json:"operations,omitempty"`
+	// JSONPointers is normally empty.
+	JsonPointers []string `json:"jsonPointers,omitempty"`
 }
 
+// Operation of a ComparePatch, usually "remove".
 type Operation struct {
-	Op    string `json:"op,omitempty"`
-	Path  string `json:"path,omitempty"`
+	// Op is usually "remove"
+	Op string `json:"op,omitempty"`
+	// Path is the JSON path to remove.
+	Path string `json:"path,omitempty"`
+	// Value is usually empty.
 	Value string `json:"value,omitempty"`
 }
 
+// YAMLOptions, if using raw YAML these are names that map to
+// overlays/{name} files that will be used to replace or patch a resource.
 type YAMLOptions struct {
+	// Overlays is a list of names that maps to folders in "overlays/".
+	// If you wish to customize the file ./subdir/resource.yaml then a file
+	// ./overlays/myoverlay/subdir/resource.yaml will replace the base
+	// file.
+	// A file named ./overlays/myoverlay/subdir/resource_patch.yaml will patch the base file.
 	Overlays []string `json:"overlays,omitempty"`
 }
 
+// KustomizeOptions for the deployment.
 type KustomizeOptions struct {
+	// Dir points to a custom folder for kustomize resources. This folder must contain
+	// a kustomization.yaml file.
 	Dir string `json:"dir,omitempty"`
 }
 
+// HelmOptions for the deployment. For helm based bundles, all options can be,
+// otherwise some options are ignored. For example ReleaseName works with all
+// bundle types.
 type HelmOptions struct {
 	// Chart can refer to any go-getter URL or OCI registry based helm
 	// chart URL. The chart will be downloaded.
@@ -331,6 +510,7 @@ type HelmOptions struct {
 
 // IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
 type IgnoreOptions struct {
+	// Conditions is a list of conditions to be ignored when monitoring the Bundle.
 	Conditions []map[string]string `json:"conditions,omitempty"`
 }
 
@@ -361,19 +541,30 @@ type SecretKeySelector struct {
 }
 
 type LocalObjectReference struct {
+	// Name of a resource in the same namespace as the referent.
 	Name string `json:"name"`
 }
 
 type BundleDeploymentSpec struct {
-	Paused             bool                    `json:"paused,omitempty"`
-	StagedOptions      BundleDeploymentOptions `json:"stagedOptions,omitempty"`
-	StagedDeploymentID string                  `json:"stagedDeploymentID,omitempty"`
-	Options            BundleDeploymentOptions `json:"options,omitempty"`
-	DeploymentID       string                  `json:"deploymentID,omitempty"`
-	DependsOn          []BundleRef             `json:"dependsOn,omitempty"`
-	CorrectDrift       CorrectDrift            `json:"correctDrift,omitempty"`
+	// Paused if set to true, will stop any BundleDeployments from being
+	// updated. It will be marked as out of sync.
+	Paused bool `json:"paused,omitempty"`
+	// They are the deployment options, that are staged for the next
+	// deployment.
+	StagedOptions BundleDeploymentOptions `json:"stagedOptions,omitempty"`
+	// StagedDeploymentID is the ID of the staged deployment.
+	StagedDeploymentID string `json:"stagedDeploymentID,omitempty"`
+	// Options are the deployment options, that are currently applied.
+	Options BundleDeploymentOptions `json:"options,omitempty"`
+	// DeploymentID is the ID of the currently applied deployment.
+	DeploymentID string `json:"deploymentID,omitempty"`
+	// DependsOn refers to the bundles which must be ready before this bundle can be deployed.
+	DependsOn []BundleRef `json:"dependsOn,omitempty"`
+	// CorrectDrift specifies how drift correction should work.
+	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
 }
 
+// BundleDeploymentResource contains the metadata of a deployed resource.
 type BundleDeploymentResource struct {
 	Kind       string      `json:"kind,omitempty"`
 	APIVersion string      `json:"apiVersion,omitempty"`
@@ -403,6 +594,7 @@ type BundleDeploymentDisplay struct {
 	State     string `json:"state,omitempty"`
 }
 
+// NonReadyStatus is used to report the status of a resource that is not ready. It includes a summary.
 type NonReadyStatus struct {
 	UID        types.UID       `json:"uid,omitempty"`
 	Kind       string          `json:"kind,omitempty"`
@@ -429,6 +621,8 @@ func name(apiVersion, kind, namespace, name string) string {
 	return fmt.Sprintf("%s.%s %s/%s", strings.ToLower(kind), strings.SplitN(apiVersion, "/", 2)[0], namespace, name)
 }
 
+// ModifiedStatus is used to report the status of a resource that is modified.
+// It indicates if the modification was a create, a delete or a patch.
 type ModifiedStatus struct {
 	Kind       string `json:"kind,omitempty"`
 	APIVersion string `json:"apiVersion,omitempty"`
@@ -453,9 +647,14 @@ func (in ModifiedStatus) String() string {
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// Content is used internally by Fleet and should not be used directly. It
+// contains the resources from a bundle for a specific target cluster.
 type Content struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// Content is a byte array, which contains the manifests of a bundle.
+	// The bundle resources are copied into the bundledeployment's content
+	// resource, so the downstream agent can deploy them.
 	Content []byte `json:"content,omitempty"`
 }

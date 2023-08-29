@@ -22,6 +22,8 @@ func NewFactory(bundleCache fleetcontrollers.BundleCache) *Factory {
 	}
 }
 
+// Render lists all bundles for this GitRepo and returns a list of
+// GitRepoResource states for every resources
 func (b *Factory) Render(namespace, name string, bundleErrorState string) ([]fleet.GitRepoResource, []string) {
 	var (
 		resources []fleet.GitRepoResource
