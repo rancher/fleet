@@ -116,6 +116,8 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              disableDNS:
+                type: boolean
               forceSyncGeneration:
                 type: integer
               helm:
@@ -526,6 +528,8 @@ spec:
                           nullable: true
                           type: array
                       type: object
+                    disableDNS:
+                      type: boolean
                     doNotDeploy:
                       type: boolean
                     forceSyncGeneration:
@@ -1085,6 +1089,8 @@ spec:
                         nullable: true
                         type: array
                     type: object
+                  disableDNS:
+                    type: boolean
                   forceSyncGeneration:
                     type: integer
                   helm:
@@ -1273,6 +1279,8 @@ spec:
                         nullable: true
                         type: array
                     type: object
+                  disableDNS:
+                    type: boolean
                   forceSyncGeneration:
                     type: integer
                   helm:

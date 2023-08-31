@@ -410,6 +410,9 @@ type BundleDeploymentOptions struct {
 
 	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
 	NamespaceAnnotations *map[string]string `json:"namespaceAnnotations,omitempty"`
+
+	// DisableDNS can be used to customize Helm's EnableDNS option, which Fleet sets to `true` by default.
+	DisableDNS bool `json:"disableDNS,omitempty"`
 }
 
 type DiffOptions struct {
