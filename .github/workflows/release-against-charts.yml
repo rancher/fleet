@@ -35,7 +35,7 @@ jobs:
   create-rancher-charts-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{github.event.inputs.ref}}
