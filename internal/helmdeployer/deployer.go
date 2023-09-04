@@ -225,6 +225,12 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 		chart.Metadata.Annotations[CommitAnnotation] = manifest.Commit
 	}
 
+	if options.Helm.SkipSchemaValidation {
+		// TODO: instead of manipulating the chart object, use helm's own functionality when it's available:
+		//       https://github.com/helm/helm/pull/11510
+		chart.Schema = nil
+	}
+
 	if resources, err := h.install(bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
 	} else if h.template {
