@@ -142,6 +142,8 @@ spec:
                   repo:
                     nullable: true
                     type: string
+                  skipSchemaValidation:
+                    type: boolean
                   takeOwnership:
                     type: boolean
                   timeoutSeconds:
@@ -554,6 +556,8 @@ spec:
                         repo:
                           nullable: true
                           type: string
+                        skipSchemaValidation:
+                          type: boolean
                         takeOwnership:
                           type: boolean
                         timeoutSeconds:
@@ -1115,6 +1119,8 @@ spec:
                       repo:
                         nullable: true
                         type: string
+                      skipSchemaValidation:
+                        type: boolean
                       takeOwnership:
                         type: boolean
                       timeoutSeconds:
@@ -1303,6 +1309,8 @@ spec:
                       repo:
                         nullable: true
                         type: string
+                      skipSchemaValidation:
+                        type: boolean
                       takeOwnership:
                         type: boolean
                       timeoutSeconds:

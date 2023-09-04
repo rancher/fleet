@@ -515,6 +515,9 @@ type HelmOptions struct {
 
 	// DisableDNS can be used to customize Helm's EnableDNS option, which Fleet sets to `true` by default.
 	DisableDNS bool `json:"disableDNS,omitempty"`
+
+	// SkipSchemaValidation allows skipping schema validation against the chart values
+	SkipSchemaValidation bool `json:"skipSchemaValidation,omitempty"`
 }
 
 // IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
