@@ -410,9 +410,6 @@ type BundleDeploymentOptions struct {
 
 	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
 	NamespaceAnnotations *map[string]string `json:"namespaceAnnotations,omitempty"`
-
-	// DisableDNS can be used to customize Helm's EnableDNS option, which Fleet sets to `true` by default.
-	DisableDNS bool `json:"disableDNS,omitempty"`
 }
 
 type DiffOptions struct {
@@ -515,6 +512,9 @@ type HelmOptions struct {
 
 	// DisablePreProcess disables template processing in values
 	DisablePreProcess bool `json:"disablePreProcess,omitempty"`
+
+	// DisableDNS can be used to customize Helm's EnableDNS option, which Fleet sets to `true` by default.
+	DisableDNS bool `json:"disableDNS,omitempty"`
 }
 
 // IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
