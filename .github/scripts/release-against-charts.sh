@@ -27,8 +27,13 @@ if [ ! -f bin/charts-build-scripts ]; then
     make pull-scripts
 fi
 
-find ./packages/fleet/ -type f -exec sed -i -e "s/${PREV_FLEET_VERSION}/${NEW_FLEET_VERSION}/g" {} \;
-find ./packages/fleet/ -type f -exec sed -i -e "s/version: ${PREV_CHART_VERSION}/version: ${NEW_CHART_VERSION}/g" {} \;
+if grep -q "version: ${PREV_CHART_VERSION}" ./packages/fleet/fleet/package.yaml && grep -q "${PREV_FLEET_VERSION}" ./packages/fleet/fleet/package.yaml; then
+    find ./packages/fleet/ -type f -exec sed -i -e "s/${PREV_FLEET_VERSION}/${NEW_FLEET_VERSION}/g" {} \;
+    find ./packages/fleet/ -type f -exec sed -i -e "s/version: ${PREV_CHART_VERSION}/version: ${NEW_CHART_VERSION}/g" {} \;
+else
+    echo "Previous Fleet version references do not exist in ./packages/fleet/ so replacing it with the new version is not possible. Exiting..."
+    exit 1
+fi
 
 if [ "${REPLACE}" == "true" ]; then
     sed -i -e "s/${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}/${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" release.yaml
