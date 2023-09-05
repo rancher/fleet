@@ -11,8 +11,6 @@ permissions:
   contents: read
   packages: write
 
-env:
-
 jobs:
   nightly-release:
     runs-on: ubuntu-latest
