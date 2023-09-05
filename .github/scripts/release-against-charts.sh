@@ -54,7 +54,9 @@ git add packages/fleet release.yaml
 git commit -m "Updating to Fleet v${NEW_FLEET_VERSION}"
 
 if [ "${REPLACE}" == "true" ]; then
-for i in fleet fleet-crd fleet-agent; do CHART=$i VERSION=${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION} make remove; done
+    for i in fleet fleet-crd fleet-agent; do
+        CHART=$i VERSION=${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION} make remove
+    done
 fi
 
 PACKAGE=fleet make charts
