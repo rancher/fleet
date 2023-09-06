@@ -47,6 +47,8 @@ jobs:
           repository: rancher/charts
           ref: ${{github.event.inputs.charts_ref}}
           path: charts
+      - name: Install dependencies
+        run: sudo snap install yq --channel=v4/stable
       - name: Run release script
         run: ./fleet/.github/scripts/release-against-charts.sh ${{github.event.inputs.prev_fleet}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.prev_chart}}  ${{github.event.inputs.new_chart}}  ${{github.event.inputs.should_replace}}
       - name: Create Pull Request
