@@ -35,20 +35,16 @@ else
     exit 1
 fi
 
-if [ "${REPLACE}" == "true" ]; then
-    for i in fleet fleet-crd fleet-agent; do
+for i in fleet fleet-crd fleet-agent; do
+    if [ "${REPLACE}" == "true" ]; then
         yq --inplace "del( .${i}.[] | select(. == \"${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}\") )" release.yaml
-        yq --inplace ".${i} += \"${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}\"" release.yaml
-    done
-else
-    for i in fleet fleet-crd fleet-agent; do
-        yq --inplace ".${i} += \"${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}\"" release.yaml
-    done
-fi
+    fi
+    yq --inplace ".${i} += \"${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}\"" release.yaml
+done
 
 # Follow the currently applied no identation style for arrays in release.yaml,
 # which is not possible with yq v4 atm: https://github.com/mikefarah/yq/issues/1309
-sed -i "s/^  -/-/g" release.yaml
+sed -i "s/^  -/-/" release.yaml
 
 git add packages/fleet release.yaml
 git commit -m "Updating to Fleet v${NEW_FLEET_VERSION}"
