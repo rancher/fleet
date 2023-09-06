@@ -81,7 +81,8 @@ type ClusterGroupDisplay struct {
 	// number of bundles that are ready vs. the number of bundles desired
 	// to be ready.
 	ReadyBundles string `json:"readyBundles,omitempty"`
-	// State is a summary state for the cluster group, calculated over the non-ready resources.
+	// State is a summary state for the cluster group, showing "NotReady" if
+	// there are non-ready resources.
 	State string `json:"state,omitempty"`
 }
 

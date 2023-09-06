@@ -255,13 +255,19 @@ type NonReadyResource struct {
 }
 
 var (
-	// BundleConditionReady is unused
+	// BundleConditionReady is unused. A "Ready" condition on a bundle
+	// indicates that its resources are ready and the dependencies are
+	// fulfilled.
 	BundleConditionReady = "Ready"
-	// BundleDeploymentConditionReady will result in ErrApplied if false.
+	// BundleDeploymentConditionReady is the condition that displays for
+	// status in general and it is used for the readiness of resources.
 	BundleDeploymentConditionReady = "Ready"
-	// BundleDeploymentConditionInstalled indicates the bundledeployment has been installed.
+	// BundleDeploymentConditionInstalled indicates the bundledeployment
+	// has been installed.
 	BundleDeploymentConditionInstalled = "Installed"
-	// BundleDeploymentConditionDeployed will result in ErrApplied if false.
+	// BundleDeploymentConditionDeployed is used by the bundledeployment
+	// controller. It is true if the handler returns no error and false if
+	// an error is returned.
 	BundleDeploymentConditionDeployed = "Deployed"
 )
 
@@ -423,7 +429,7 @@ type ComparePatch struct {
 	Name string `json:"name,omitempty"`
 	// Operations remove a JSON path from the resource.
 	Operations []Operation `json:"operations,omitempty"`
-	// JSONPointers is normally empty.
+	// JSONPointers ignore diffs at a certain JSON path.
 	JsonPointers []string `json:"jsonPointers,omitempty"`
 }
 

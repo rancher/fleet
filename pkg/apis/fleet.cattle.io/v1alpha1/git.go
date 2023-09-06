@@ -110,11 +110,13 @@ type GitTarget struct {
 }
 
 type GitRepoStatus struct {
-	// ObservedGeneration is the current generation of the resource in the cluster.
+	// ObservedGeneration is the current generation of the resource in the cluster. It is copied from k8s
+	// metadata.Generation. The value is incremented for all changes, except for changes to .metadata or .status.
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Commit is the Git commit hash from the last gitjob run.
 	Commit string `json:"commit,omitempty"`
-	// ReadyClusters is the lowest number of clusters that are ready over all the bundles of this GitRepo.
+	// ReadyClusters is the lowest number of clusters that are ready over
+	// all the bundles of this GitRepo.
 	ReadyClusters int `json:"readyClusters"`
 	// DesiredReadyClusters	is the number of clusters that should be ready for bundles of this GitRepo.
 	DesiredReadyClusters int `json:"desiredReadyClusters"`
