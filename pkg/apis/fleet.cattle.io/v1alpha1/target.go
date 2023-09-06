@@ -38,7 +38,7 @@ var (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterGroup is stored selector to target a group of clusters.
+// ClusterGroup is a stored selector to target a group of clusters.
 type ClusterGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -59,7 +59,7 @@ type ClusterGroupStatus struct {
 	NonReadyClusterCount int `json:"nonReadyClusterCount"`
 	// NonReadyClusters is a list of cluster names that are not ready.
 	NonReadyClusters []string `json:"nonReadyClusters,omitempty"`
-	// Conditions is a list of conditions and their status for the cluster group.
+	// Conditions is a list of conditions and their statuses for the cluster group.
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 	// Summary is a summary of the bundle deployments and their resources
 	// in the cluster group.
@@ -73,11 +73,11 @@ type ClusterGroupStatus struct {
 }
 
 type ClusterGroupDisplay struct {
-	// ReadyClusters is a string in the form "%d/%d", that described the
+	// ReadyClusters is a string in the form "%d/%d", that describes the
 	// number of clusters that are ready vs. the number of clusters desired
 	// to be ready.
 	ReadyClusters string `json:"readyClusters,omitempty"`
-	// ReadyBundles is a string in the form "%d/%d", that described the
+	// ReadyBundles is a string in the form "%d/%d", that describes the
 	// number of bundles that are ready vs. the number of bundles desired
 	// to be ready.
 	ReadyBundles string `json:"readyBundles,omitempty"`
@@ -88,7 +88,7 @@ type ClusterGroupDisplay struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Cluster corresponds to a kubernetes cluster. Fleet deploys bundles to targeted clusters.
+// Cluster corresponds to a Kubernetes cluster. Fleet deploys bundles to targeted clusters.
 // Clusters to which Fleet deploys manifests are referred to as downstream
 // clusters. In the single cluster use case, the Fleet manager Kubernetes
 // cluster is both the manager and downstream cluster at the same time.
@@ -163,7 +163,7 @@ type ClusterStatus struct {
 	// AgentDeployedGeneration is the generation of the agent that is currently deployed.
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
 	// AgentMigrated is always set to true after importing a cluster. If
-	// false, it will trigger a migration. Old Fleet agents, don't have
+	// false, it will trigger a migration. Old agents don't have
 	// this in their status.
 	AgentMigrated bool `json:"agentMigrated,omitempty"`
 	// AgentNamespaceMigrated is always set to true after importing a
@@ -202,11 +202,11 @@ type ClusterStatus struct {
 }
 
 type ClusterDisplay struct {
-	// ReadyBundles is a string in the form "%d/%d", that described the
+	// ReadyBundles is a string in the form "%d/%d", that describes the
 	// number of bundles that are ready vs. the number of bundles desired
 	// to be ready.
 	ReadyBundles string `json:"readyBundles,omitempty"`
-	// ReadyNodes is a string in the form "%d/%d", that described the
+	// ReadyNodes is a string in the form "%d/%d", that describes the
 	// number of nodes that are ready vs. the number of expected nodes.
 	ReadyNodes string `json:"readyNodes,omitempty"`
 	// SampleNode is the name of one of the nodes that are ready. If no
@@ -237,7 +237,7 @@ type AgentStatus struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterRegistration is used internally by fleet and should not be used directly.
+// ClusterRegistration is used internally by Fleet and should not be used directly.
 type ClusterRegistration struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

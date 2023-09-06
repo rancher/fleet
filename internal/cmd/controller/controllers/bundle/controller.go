@@ -343,7 +343,7 @@ func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets 
 
 	for _, partition := range partitions {
 		for _, target := range partition.Targets {
-			// for a new bundledeployment, only stage the firsts maxNew (50) targets
+			// for a new bundledeployment, only stage the first maxNew (50) targets
 			if target.Deployment == nil && status.NewlyCreated < status.MaxNew {
 				status.NewlyCreated++
 				target.Deployment = &fleet.BundleDeployment{

@@ -14,7 +14,7 @@ var (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// GitRepo describes a git repository that is wachted by Fleet.
+// GitRepo describes a git repository that is watched by Fleet.
 // The resource contains the necessary information to deploy the repo, or parts
 // of it, to target clusters.
 type GitRepo struct {
@@ -44,10 +44,10 @@ type GitRepoSpec struct {
 	// It is expected the secret be of type "kubernetes.io/basic-auth" or "kubernetes.io/ssh-auth".
 	ClientSecretName string `json:"clientSecretName,omitempty"`
 
-	// HelmSecretName contains the auth secret for private helm repository.
+	// HelmSecretName contains the auth secret for a private Helm repository.
 	HelmSecretName string `json:"helmSecretName,omitempty"`
 
-	// HelmSecretNameForPaths contains the auth secret for private helm repository for each path.
+	// HelmSecretNameForPaths contains the auth secret for private Helm repository for each path.
 	HelmSecretNameForPaths string `json:"helmSecretNameForPaths,omitempty"`
 
 	// HelmRepoURLRegex Helm credentials will be used if the helm repo matches this regex
@@ -61,11 +61,11 @@ type GitRepoSpec struct {
 	InsecureSkipTLSverify bool `json:"insecureSkipTLSVerify,omitempty"`
 
 	// Paths is the directories relative to the git repo root that contain resources to be applied.
-	// Path globbing is support, for example ["charts/*"] will match all folders as a subdirectory of charts/
+	// Path globbing is supported, for example ["charts/*"] will match all folders as a subdirectory of charts/
 	// If empty, "/" is the default.
 	Paths []string `json:"paths,omitempty"`
 
-	// Paused this cause changes in Git to not be propagated down to the clusters but instead mark
+	// Paused, when true, causes changes in Git not to be propagated down to the clusters but instead to mark
 	// resources as OutOfSync.
 	Paused bool `json:"paused,omitempty"`
 
@@ -84,7 +84,7 @@ type GitRepoSpec struct {
 	// ImageScanInterval is the interval of syncing scanned images and writing back to git repo.
 	ImageSyncInterval *metav1.Duration `json:"imageScanInterval,omitempty"`
 
-	// Commit specifies how to commit to the git repo when new image is scanned and write back to git repo.
+	// Commit specifies how to commit to the git repo when a new image is scanned and written back to git repo.
 	// +required
 	ImageScanCommit CommitSpec `json:"imageScanCommit,omitempty"`
 
@@ -101,7 +101,7 @@ type GitTarget struct {
 	Name string `json:"name,omitempty"`
 	// ClusterName is the name of a cluster.
 	ClusterName string `json:"clusterName,omitempty"`
-	// ClusterSelector is a label selector to select  clusters.
+	// ClusterSelector is a label selector to select clusters.
 	ClusterSelector *metav1.LabelSelector `json:"clusterSelector,omitempty"`
 	// ClusterGroup is the name of a cluster group in the same namespace as the clusters.
 	ClusterGroup string `json:"clusterGroup,omitempty"`
@@ -124,7 +124,7 @@ type GitRepoStatus struct {
 	Summary BundleSummary `json:"summary,omitempty"`
 	// Display contains a human readable summary of the status.
 	Display GitRepoDisplay `json:"display,omitempty"`
-	// Conditions is a list of wrangler conditions that describe the state
+	// Conditions is a list of Wrangler conditions that describe the state
 	// of the GitRepo.
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 	// Resources contains metadata about the resources of each bundle.
@@ -159,13 +159,13 @@ type GitRepoResourceCounts struct {
 }
 
 type GitRepoDisplay struct {
-	// ReadyBundleDeployments is a string in the form "%d/%d", that described the
+	// ReadyBundleDeployments is a string in the form "%d/%d", that describes the
 	// number of ready bundledeployments over the total number of bundledeployments.
 	ReadyBundleDeployments string `json:"readyBundleDeployments,omitempty"`
 	// State is the state of the GitRepo, e.g. "GitUpdating" or the maximal
 	// BundleState according to StateRank.
 	State string `json:"state,omitempty"`
-	// Message  contains the relevant message from the deployment conditions.
+	// Message contains the relevant message from the deployment conditions.
 	Message string `json:"message,omitempty"`
 	// Error is true if a message is present.
 	Error bool `json:"error,omitempty"`

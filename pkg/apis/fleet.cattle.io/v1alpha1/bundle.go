@@ -60,11 +60,11 @@ type BundleState string
 // It will be deployed as a Helm chart to target clusters.
 //
 // When a GitRepo is scanned it will produce one or more bundles. Bundles are
-// a collection of resources that get deployed to a cluster. Bundle is the
+// a collection of resources that get deployed to one or more cluster(s). Bundle is the
 // fundamental deployment unit used in Fleet. The contents of a Bundle may be
 // Kubernetes manifests, Kustomize configuration, or Helm charts. Regardless
 // of the source the contents are dynamically rendered into a Helm chart by
-// the agent and installed into the downstream cluster as a helm release.
+// the agent and installed into the downstream cluster as a Helm release.
 type Bundle struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -117,7 +117,7 @@ type BundleRef struct {
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 }
 
-// BundleResource contains the content of a single resource from the bundle, like a YAML manifest.
+// BundleResource represents the content of a single resource from the bundle, like a YAML manifest.
 type BundleResource struct {
 	// Name of the resource, can include the bundle's internal path.
 	Name string `json:"name,omitempty"`
@@ -139,7 +139,7 @@ type RolloutStrategy struct {
 	// an update of a bundle.
 	// default: 0
 	MaxUnavailablePartitions *intstr.IntOrString `json:"maxUnavailablePartitions,omitempty"`
-	// A number of percentage of how to automatically partition clusters if not
+	// A number or percentage of how to automatically partition clusters if no
 	// specific partitioning strategy is configured.
 	// default: 25%
 	AutoPartitionSize *intstr.IntOrString `json:"autoPartitionSize,omitempty"`
@@ -151,7 +151,7 @@ type RolloutStrategy struct {
 
 // Partition defines a separate rollout strategy for a set of clusters.
 type Partition struct {
-	// A user friend name given to the partition used for Display (optional).
+	// A user-friendly name given to the partition used for Display (optional).
 	Name string `json:"name,omitempty"`
 	// A number or percentage of clusters that can be unavailable in this
 	// partition before this partition is treated as done.
@@ -214,16 +214,15 @@ type BundleSummary struct {
 	// to be deployed.
 	WaitApplied int `json:"waitApplied,omitempty"`
 	// ErrApplied is the number of bundle deployments that have been synced
-	// from the Fleet controller and the downstream cluster, but there were
-	// some errors when deploying the bundle.
+	// from the Fleet controller and the downstream cluster, but with some
+	// errors when deploying the bundle.
 	ErrApplied int `json:"errApplied,omitempty"`
 	// OutOfSync is the number of bundle deployments that have been synced
-	// from Fleet controller, but downstream agent hasn't synced the change
-	// yet.
+	// from Fleet controller, but not yet by the downstream agent.
 	OutOfSync int `json:"outOfSync,omitempty"`
 	// Modified is the number of bundle deployments that have been deployed
-	// and all resources are ready, but there are some changes that were
-	// not made from the Git repository.
+	// and for which all resources are ready, but where some changes from the
+	// Git repository have not yet been synced.
 	Modified int `json:"modified,omitempty"`
 	// Ready is the number of bundle deployments that have been deployed
 	// where all resources are ready.
@@ -241,7 +240,7 @@ type BundleSummary struct {
 
 // NonReadyResource contains information about a bundle that is not ready for a
 // given state like "ErrApplied". It contains a list of non-ready or modified
-// resources and their state.
+// resources and their states.
 type NonReadyResource struct {
 	// Name is the name of the resource.
 	Name string `json:"name,omitempty"`
@@ -267,18 +266,19 @@ var (
 )
 
 type BundleStatus struct {
-	// Conditions is a list of wrangler conditions that describe the state
+	// Conditions is a list of Wrangler conditions that describe the state
 	// of the bundle.
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 
 	// Summary contains the number of bundle deployments in each state and
 	// a list of non-ready resources.
 	Summary BundleSummary `json:"summary,omitempty"`
-	// NewlyCreated is the number of bundles that have been created, not updated.
+	// NewlyCreated is the number of bundle deployments that have been created,
+	// not updated.
 	NewlyCreated int `json:"newlyCreated,omitempty"`
-	// Unavailable is the number of bundles that are not ready or where the
-	// AppliedDeploymentID in the status does not match the DeploymentID
-	// from the spec.
+	// Unavailable is the number of bundle deployments that are not ready or
+	// where the AppliedDeploymentID in the status does not match the
+	// DeploymentID from the spec.
 	Unavailable int `json:"unavailable"`
 	// UnavailablePartitions is the number of unavailable partitions.
 	UnavailablePartitions int `json:"unavailablePartitions"`
@@ -320,7 +320,7 @@ type ResourceKey struct {
 // BundleDisplay contains the number of ready, desiredready clusters and a
 // summary state for the bundle.
 type BundleDisplay struct {
-	// ReadyClusters is a string in the form "%d/%d", that described the
+	// ReadyClusters is a string in the form "%d/%d", that describes the
 	// number of clusters that are ready vs. the number of clusters desired
 	// to be ready.
 	ReadyClusters string `json:"readyClusters,omitempty"`
@@ -348,7 +348,7 @@ type PartitionStatus struct {
 // BundleDeployment is used internally by Fleet and should not be used directly.
 // When a Bundle is deployed to a cluster an instance of a Bundle is called a
 // BundleDeployment. A BundleDeployment represents the state of that Bundle on
-// a specific cluster with its cluster specific customizations. The Fleet agent
+// a specific cluster with its cluster-specific customizations. The Fleet agent
 // is only aware of BundleDeployment resources that are created for the cluster
 // the agent is managing.
 type BundleDeployment struct {
@@ -448,14 +448,14 @@ type YAMLOptions struct {
 	Overlays []string `json:"overlays,omitempty"`
 }
 
-// KustomizeOptions for the deployment.
+// KustomizeOptions for a deployment.
 type KustomizeOptions struct {
 	// Dir points to a custom folder for kustomize resources. This folder must contain
 	// a kustomization.yaml file.
 	Dir string `json:"dir,omitempty"`
 }
 
-// HelmOptions for the deployment. For helm based bundles, all options can be,
+// HelmOptions for the deployment. For Helm-based bundles, all options can be,
 // otherwise some options are ignored. For example ReleaseName works with all
 // bundle types.
 type HelmOptions struct {
@@ -547,10 +547,11 @@ type LocalObjectReference struct {
 
 type BundleDeploymentSpec struct {
 	// Paused if set to true, will stop any BundleDeployments from being
-	// updated. It will be marked as out of sync.
+	// updated. If true, BundleDeployments will be marked as out of sync
+	// when changes are detected.
 	Paused bool `json:"paused,omitempty"`
-	// They are the deployment options, that are staged for the next
-	// deployment.
+	// StagedOptions are the deployment options, that are staged for
+	// the next deployment.
 	StagedOptions BundleDeploymentOptions `json:"stagedOptions,omitempty"`
 	// StagedDeploymentID is the ID of the staged deployment.
 	StagedDeploymentID string `json:"stagedDeploymentID,omitempty"`
