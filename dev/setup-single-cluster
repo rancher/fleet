@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+export DEFAULT_CONFIG="dev/env.single-cluster-defaults"
+export CUSTOM_CONFIG_FILE="env.single-cluster"
+
+# shellcheck source=dev/setup-cluster-config
+source ./dev/setup-cluster-config
+
+# Cleans with settings sourced, so it should be rather selective.
+./dev/k3d-act-clean
+
+./dev/setup-k3d
+./dev/build-fleet
+./dev/import-images-k3d
+./dev/setup-fleet
+
+# needed for gitrepo tests
+./dev/import-images-tests-k3d
+./dev/create-zot-certs 'FleetCI-RootCA' # for OCI tests
+./e2e/testenv/infra/infra setup
