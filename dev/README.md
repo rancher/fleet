@@ -142,3 +142,176 @@ incompatible way at any day.
 
 This will download and prepare setup-envtest, then it will execute all the
 integration tests.
+
+## Running Github Actions locally
+
+Sometimes, it may be beneficial to be able to run the Github Action tests using
+the same configuration which is used remotely. To do this, you can use
+[nektos/act](https://github.com/nektos/act).
+
+### Requirements
+
+- [Docker](https://www.docker.com/)
+- [act](https://github.com/nektos/act#installation)
+
+### Installation
+
+To install `act`, please follow the [instructions on the official Github
+repository](https://github.com/nektos/act#installation).
+
+### Configuration
+
+#### Container Image
+
+Unlike Github Actions, `act` will use container images for running the tests
+locally. The container image that will be used depends on the type of the
+Github Action Runner for the specific action. You can see which images are being
+used for which runner [here](https://github.com/nektos/act#runners). Most tests require `ubuntu-latest`.
+
+The containers are available in difference sizes:
+
+- Micro
+- Medium
+- Large
+
+The default container image for Ubuntu, which is required for most actions, does
+not contain all necessary tools. They are [intentionally
+incomplete](https://github.com/nektos/act#default-runners-are-intentionally-incomplete).
+Instead, the large container image needs to be used (read on for an
+alternative).
+
+To change the container image used for Ubuntu, you will need to create a
+configuration file `$HOME/.actrc`.
+
+```shell
+-P ubuntu-latest=catthehacker/ubuntu:full-latest
+```
+
+While the medium-sized container image has a size of only 1.1GB, the large
+container image is significantly larger, approximately 40GB in size. If this is
+a concern, you can create your own container image using the following
+`Dockerfile`. This will result in a container image of about 700MB, while still
+including all the necessary tools to run both single and multi-cluster tests of
+fleet.
+
+```Dockerfile
+FROM ubuntu:22.04
+
+ARG BUILDARCH=amd64
+
+RUN apt update && apt upgrade -y
+RUN apt install -y wget curl git jq nodejs
+
+WORKDIR /tmp
+
+RUN curl -fsSL -o get_docker.sh \
+            https://get.docker.com && \
+        chmod 700 get_docker.sh && \
+        ./get_docker.sh && rm get_docker.sh
+
+RUN wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${BUILDARCH} -O /usr/bin/yq \
+        && chmod +x /usr/bin/yq
+
+RUN curl -fsSL -o get_helm.sh \
+            https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && \
+        chmod 700 get_helm.sh && \
+        ./get_helm.sh
+
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${BUILDARCH}/kubectl" && \
+        chmod +x ./kubectl && \
+        mv ./kubectl /usr/local/bin/kubectl
+
+```
+
+Please also note, that the default behavior of `act` is to always pull images.
+You can either use the `--pull=false` flag when running `act` or you will need
+to upload this container image to a container registry. In any case, you need to
+specify the container image to be used in the `$HOME/.actrc` file.
+
+#### Github Token
+
+Some tests may require a Github token to be set. While this seems a bit odd,
+this can already be necessary in cases where `act` uses the Github API to fetch
+repositories for a simple checkout action.
+
+You can create a personal access token by following the [instructions on the
+Github
+website](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token).
+
+### Running the tests
+
+The tests are run by simply calling `act`, **but this is not recommended**, as
+it starts all available tests in parallel. Usually, you would use `act -l` to
+get a list of all jobs with workflows and possible events, then choose one using
+`act <event-name> -j <job-name>`. But even this can start more tests in parallel
+than you may like (like this could the case for `e2e-fleet-test`, for instance).
+Therefore, we recommend you use the `-W` flag instead to run a specific workflow
+file.
+
+For example:
+
+```shell
+act -W .github/workflows/e2e-multicluster-ci.yml
+```
+
+Sometimes a test has a conditions, which will prevent some tests (but not
+necessarily all) from running. For instance, this is the case for the acceptance
+tests, which are part of the `e2e-multicluster-ci.yml` workflow. They will only
+run if the `schedule` event is passed. To also run those tests, you need to pass
+the `schedule` event to `act` as such:
+
+```shell
+act schedule -W .github/workflows/e2e-multicluster-ci.yml
+```
+
+### Troubleshooting
+
+#### DNS Resolution
+
+The DNS resolution depends on the configuration of the host system. This means
+that, if the host is configured to point to itself (e.g., `127.0.1.1`), DNS
+resolution might not work out-of-the-box. This is due to the use of containers
+to emulate the environment of a GitHub Action. The container gets the Docker
+socket passed through, but the containers created from within this container may
+not be able to reach the this local DNS address of the host.
+
+If you have such a DNS server configured on your host, which points to a local
+DNS server, you can configure a separate DNS server for Docker. After that, you
+will need to restart the Docker daemon. You can configure the DNS for Docker in
+`/etc/docker/daemon.json`, e.g.:
+
+```json
+{
+    "dns": [
+        "1.1.1.1"
+    ]
+}
+```
+
+#### Changes aren't applied
+
+If you find yourself in the situation that changes you made to the environment
+do not seem to be applied, it might be that `act` did not remove its own
+container image and simply re-used it. You can remove it yourself, either by
+
+- removing it manually using `docker rm <container>`, or
+- by running `act` with the `--rm` option. This may be inconvenient, because it
+  will also remove the container in case of any errors, so will not be able to
+  inspect the container for issues.
+
+This container image will have `act` in his name.
+
+#### Using `act` fails
+
+**Error: The runs.using key in action.yml must be one of: [composite docker node12 node16], got node20**
+
+[action-tmate](https://github.com/mxschmitt/action-tmate) was updated recently
+and switched the value of `runs.using` from `node16` in version
+[3.16](https://github.com/mxschmitt/action-tmate/blob/v3.16/action.yml) to
+`node20` in version
+[3.17](https://github.com/mxschmitt/action-tmate/blob/v3.17/action.yml#L7),
+which is not yet supported by `act`! But an issue for act with a [corresponding
+PR](https://github.com/nektos/act/pull/1988) already exists.
+
+A temporary workaround is to comment the step in the workflow file out which
+includes `tmate`.
