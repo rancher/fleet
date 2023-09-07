@@ -27,34 +27,32 @@ if [ ! -f bin/charts-build-scripts ]; then
     make pull-scripts
 fi
 
-find ./packages/fleet/ -type f -exec sed -i -e "s/${PREV_FLEET_VERSION}/${NEW_FLEET_VERSION}/g" {} \;
-find ./packages/fleet/ -type f -exec sed -i -e "s/version: ${PREV_CHART_VERSION}/version: ${NEW_CHART_VERSION}/g" {} \;
-
-if [ "${REPLACE}" == "true" ]; then
-    sed -i -e "s/${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}/${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" release.yaml
+if grep -q "version: ${PREV_CHART_VERSION}" ./packages/fleet/fleet/package.yaml && grep -q "${PREV_FLEET_VERSION}" ./packages/fleet/fleet/package.yaml; then
+    find ./packages/fleet/ -type f -exec sed -i -e "s/${PREV_FLEET_VERSION}/${NEW_FLEET_VERSION}/g" {} \;
+    find ./packages/fleet/ -type f -exec sed -i -e "s/version: ${PREV_CHART_VERSION}/version: ${NEW_CHART_VERSION}/g" {} \;
 else
-    if grep -q "fleet:" release.yaml; then
-        sed -i -e "s/- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}/- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}\n- ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" release.yaml
-    else
-        cat <<< "fleet:
-- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}
-- ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}
-fleet-agent:
-- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}
-- ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}
-fleet-crd:
-- ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}
-- ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}" >> release.yaml
-    # remove empty line above fleet
-    sed -i -z -e  "s/[[:space:]]*\nfleet:/\nfleet:/g" release.yaml
-    fi
+    echo "Previous Fleet version references do not exist in ./packages/fleet/ so replacing it with the new version is not possible. Exiting..."
+    exit 1
 fi
+
+for i in fleet fleet-crd fleet-agent; do
+    if [ "${REPLACE}" == "true" ]; then
+        yq --inplace "del( .${i}.[] | select(. == \"${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}\") )" release.yaml
+    fi
+    yq --inplace ".${i} += \"${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}\"" release.yaml
+done
+
+# Follow the currently applied no identation style for arrays in release.yaml,
+# which is not possible with yq v4 atm: https://github.com/mikefarah/yq/issues/1309
+sed -i "s/^  -/-/" release.yaml
 
 git add packages/fleet release.yaml
 git commit -m "Updating to Fleet v${NEW_FLEET_VERSION}"
 
 if [ "${REPLACE}" == "true" ]; then
-for i in fleet fleet-crd fleet-agent; do CHART=$i VERSION=${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION} make remove; done
+    for i in fleet fleet-crd fleet-agent; do
+        CHART=$i VERSION=${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION} make remove
+    done
 fi
 
 PACKAGE=fleet make charts
