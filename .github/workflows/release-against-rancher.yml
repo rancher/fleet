@@ -34,6 +34,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
+  SETUP_GO_VERSION: '1.21.*
 
 jobs:
   create-rancher-pr:
@@ -53,8 +54,7 @@ jobs:
           path: rancher
       - uses: actions/setup-go@v4
         with:
-          go-version-file: 'go.mod'
-          check-latest: true
+          go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Run release script
         run: ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.prev_fleet}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.prev_chart}}  ${{github.event.inputs.new_chart}}  ${{github.event.inputs.should_bump_api}}
       - name: Create Pull Request
