@@ -1,0 +1,10 @@
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: helm-options-disabledns
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: disable-dns-test
+  paths:
+  - helm-disable-dns/set
+  - helm-disable-dns/not-set
