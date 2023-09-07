@@ -9,7 +9,7 @@ on:
       rancher_ref:
         description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.7)"
         required: true
-        default: "release/v2.7"
+        default: "release/v2.8"
       prev_fleet:
         description: "Previous Fleet version (e.g. 0.6.0-rc.3)"
         required: true
