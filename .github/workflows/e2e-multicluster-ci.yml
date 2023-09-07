@@ -116,14 +116,30 @@ jobs:
 
           token=$(kubectl get secret -n fleet-default second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
           ca=$(kubectl get secret -n cattle-fleet-system fleet-controller-bootstrap-token -o go-template='{{index .data "ca.crt" | base64decode}}')
+          apiServerIP=$(kubectl get node k3d-upstream-server-0 -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 
-          kubectl config use-context k3d-downstream
-          helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \
-            --set-string labels.env=test \
-            --set apiServerCA="$ca" \
-            --set apiServerURL="https://172.18.0.1.omg.howdoi.website:6443" \
-            --set clusterNamespace="fleet-default" \
-            --set token="$token"
+          # agent initiated cluster registration
+          helm \
+            --kube-context k3d-downstream \
+            -n cattle-fleet-system \
+              upgrade \
+                --install \
+                --create-namespace \
+                --wait \
+              fleet-agent charts/fleet-agent \
+                --set-string labels.env=test \
+                --set apiServerCA="$ca" \
+                --set apiServerURL="https://$apiServerIP:6443" \
+                --set clusterNamespace="fleet-default" \
+                --set token="$token"
+
+          echo "waiting for downstream cluster to be registered..."
+          { grep -q -m 1 "k3d-downstream"; kill $!; } < <(kubectl get cluster -n fleet-default -w)
+
+          echo "waiting for cluster to report being ready..."
+          while [ $(kubectl -n fleet-default get cluster -o jsonpath='{.items[0].status.summary.ready}') -ne 1 ]; do
+            sleep 1
+          done
       -
         name: E2E tests
         env:
