@@ -38,7 +38,7 @@ var (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ClusterGroup is a stored selector to target a group of clusters.
+// ClusterGroup is a re-usable selector to target a group of clusters.
 type ClusterGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
