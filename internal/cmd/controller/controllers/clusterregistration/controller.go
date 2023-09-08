@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/rancher/fleet/internal/cmd/controller/controllers/resources"
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/secret"
 	"github.com/rancher/fleet/internal/config"
 	fname "github.com/rancher/fleet/internal/name"
@@ -262,7 +263,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			},
 		},
 		// cluster role "fleet-bundle-deployment" created when
-		// fleet-controller starts, see pkg/controllers/data.go
+		// fleet-controller starts
 		&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      request.Name,
@@ -281,11 +282,11 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
 				Kind:     "ClusterRole",
-				Name:     "fleet-bundle-deployment",
+				Name:     resources.BundleDeploymentClusterRole,
 			},
 		},
 		// cluster role "fleet-content" created when fleet-controller
-		// starts, see pkg/controllers/data.go
+		// starts
 		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name.SafeConcatName(request.Name, "content"),
@@ -303,7 +304,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
 				Kind:     "ClusterRole",
-				Name:     "fleet-content",
+				Name:     resources.ContentClusterRole,
 			},
 		},
 	}, status, nil
