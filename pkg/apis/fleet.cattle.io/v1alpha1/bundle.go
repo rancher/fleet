@@ -461,9 +461,9 @@ type KustomizeOptions struct {
 	Dir string `json:"dir,omitempty"`
 }
 
-// HelmOptions for the deployment. For Helm-based bundles, all options can be,
-// otherwise some options are ignored. For example ReleaseName works with all
-// bundle types.
+// HelmOptions for the deployment. For Helm-based bundles, all options can be
+// used, otherwise some options are ignored. For example ReleaseName works with
+// all bundle types.
 type HelmOptions struct {
 	// Chart can refer to any go-getter URL or OCI registry based helm
 	// chart URL. The chart will be downloaded.
