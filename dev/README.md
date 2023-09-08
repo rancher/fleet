@@ -19,8 +19,10 @@ production systems.
 These commands should set up k3d and the fleet standalone images for single
 cluster tests and run those.
 
-    source dev/setup-single-cluster
-    ginkgo e2e/single-cluster
+```bash
+source dev/setup-single-cluster
+ginkgo e2e/single-cluster
+```
 
 Optional flags to `ginkgo` for reporting on long-running tests:
 `--poll-progress-after=10s --poll-progress-interval=10s`.
@@ -29,8 +31,10 @@ For multi-cluster tests we need to configure two clusters. You also need to make
 the upstream clusters API accessible to the downstream cluster. The default URL
 in `dev/setup-fleet-downstream` should work with most systems.
 
-    source dev/setup-multi-cluster
-    ginkgo e2e/multi-cluster
+```bash
+source dev/setup-multi-cluster
+ginkgo e2e/multi-cluster
+```
 
 ### Testing changes incrementally
 
@@ -38,8 +42,10 @@ To test changes incrementally, rebuild just one binary, update the image in k3d
 and restart the controller. Make sure you have sourced the right configuration
 for the current setup.
 
-    dev/update-agent-k3d
-    dev/update-controller-k3d
+```bash
+dev/update-agent-k3d
+dev/update-controller-k3d
+```
 
 ## Configuration
 
@@ -73,46 +79,47 @@ instead of the custom configuration in `env.single-cluster` and
 
 ### A list of all environment variables
 
-    # use fleet-default for fleet in Rancher, fleet-local for standalone
-    export FLEET_E2E_NS=fleet-local
-    export FLEET_E2E_NS_DOWNSTREAM=fleet-default
+```bash
+# use fleet-default for fleet in Rancher, fleet-local for standalone
+export FLEET_E2E_NS=fleet-local
+export FLEET_E2E_NS_DOWNSTREAM=fleet-default
 
-    # running single-cluster tests in Rancher Desktop
-    #export FLEET_E2E_CLUSTER=rancher-desktop
-    #export FLEET_E2E_CLUSTER_DOWNSTREAM=rancher-desktop
+# running single-cluster tests in Rancher Desktop
+#export FLEET_E2E_CLUSTER=rancher-desktop
+#export FLEET_E2E_CLUSTER_DOWNSTREAM=rancher-desktop
 
-    # running single-cluster tests in k3d (setup-k3d)
-    #export FLEET_E2E_CLUSTER=k3d-upstream
-    #export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-upstream
+# running single-cluster tests in k3d (setup-k3d)
+#export FLEET_E2E_CLUSTER=k3d-upstream
+#export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-upstream
 
-    # running multi-cluster tests in k3d (setup-k3ds)
-    #export FLEET_E2E_CLUSTER=k3d-upstream
-    #export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-downstream
+# running multi-cluster tests in k3d (setup-k3ds)
+#export FLEET_E2E_CLUSTER=k3d-upstream
+#export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-downstream
 
-    # for running tests on darwin/arm64
-    #export GOARCH=arm64
+# for running tests on darwin/arm64
+#export GOARCH=arm64
 
-    # needed for gitrepo tests, which are currently disabled but part of the
-    # single-cluster tests
+# needed for gitrepo tests, which are currently disabled but part of the
+# single-cluster tests
 
-    #export FORCE_GIT_SERVER_BUILD="yes" # set to an empty value to skip rebuilds
-    #export GIT_REPO_USER="git"
-    #export GIT_REPO_URL="git@github.com:yourprivate/repo.git"
-    #export GIT_REPO_HOST="github.com"
-    #export GIT_SSH_KEY="$HOME/.ssh/id_ecdsa_test"
-    #export GIT_SSH_PUBKEY="$HOME/.ssh/id_ecdsa_test.pub"
-    #export GIT_HTTP_USER="fleet-ci"
-    #export GIT_HTTP_PASSWORD="foo"
+#export FORCE_GIT_SERVER_BUILD="yes" # set to an empty value to skip rebuilds
+#export GIT_REPO_USER="git"
+#export GIT_REPO_URL="git@github.com:yourprivate/repo.git"
+#export GIT_REPO_HOST="github.com"
+#export GIT_SSH_KEY="$HOME/.ssh/id_ecdsa_test"
+#export GIT_SSH_PUBKEY="$HOME/.ssh/id_ecdsa_test.pub"
+#export GIT_HTTP_USER="fleet-ci"
+#export GIT_HTTP_PASSWORD="foo"
 
-    # needed for OCI tests, which are part of the single-cluster tests
+# needed for OCI tests, which are part of the single-cluster tests
 
-    #export CI_OCI_USERNAME="fleet-ci"
-    #export CI_OCI_PASSWORD="foo"
-    #export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
+#export CI_OCI_USERNAME="fleet-ci"
+#export CI_OCI_PASSWORD="foo"
+#export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
 
-    # optional, for selecting Helm versions (see [Troubleshooting](#troubleshooting))
-    #export HELM_PATH="/usr/bin/helm"
-
+# optional, for selecting Helm versions (see [Troubleshooting](#troubleshooting))
+#export HELM_PATH="/usr/bin/helm"
+```
 ### Troubleshooting
 
 If running the `infra setup` script returns an error about flag
@@ -131,7 +138,9 @@ incompatible way at any day.
 
 ## Run integration tests
 
-    ./dev/run-integration-tests.sh
+```bash
+./dev/run-integration-tests.sh
+```
 
 This will download and prepare setup-envtest, then it will execute all the
 integration tests.
