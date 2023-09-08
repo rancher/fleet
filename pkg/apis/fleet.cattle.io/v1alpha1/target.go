@@ -168,7 +168,7 @@ type ClusterStatus struct {
 	// this in their status.
 	AgentMigrated bool `json:"agentMigrated,omitempty"`
 	// AgentNamespaceMigrated is always set to true after importing a
-	// cluster. If false, it will trigger a migration. Old Fleet agents,
+	// cluster. If false, it will trigger a migration. Old Fleet agents
 	// don't have this in their status.
 	AgentNamespaceMigrated bool `json:"agentNamespaceMigrated,omitempty"`
 	// CattleNamespaceMigrated is always set to true after importing a
