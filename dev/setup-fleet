@@ -11,8 +11,8 @@ if [ ! -d ./charts/fleet ]; then
 fi
 
 # single cluster
-host=$( docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' k3d-$cluster_name-server-0 )
-ca=$( kubectl config view --flatten -o jsonpath='{.clusters[?(@.name == "k3d-$cluster_name")].cluster.certificate-authority-data}' | base64 -d )
+host=$( docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "k3d-$cluster_name-server-0" )
+ca=$( kubectl config view --flatten -o jsonpath='{.clusters[?(@.name == "k3d-'"$cluster_name"'")].cluster.certificate-authority-data}' | base64 -d )
 server="https://$host:6443"
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-crd charts/fleet-crd
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait --reset-values \
