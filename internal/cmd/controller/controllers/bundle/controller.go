@@ -343,9 +343,18 @@ func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets 
 
 	for _, partition := range partitions {
 		for _, target := range partition.Targets {
-			if target.Deployment == nil {
-				resetDeployment(target, status)
+			// for a new bundledeployment, only stage the first maxNew (50) targets
+			if target.Deployment == nil && status.NewlyCreated < status.MaxNew {
+				status.NewlyCreated++
+				target.Deployment = &fleet.BundleDeployment{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      target.Bundle.Name,
+						Namespace: target.Cluster.Status.Namespace,
+						Labels:    target.BundleDeploymentLabels(target.Cluster.Namespace, target.Cluster.Name),
+					},
+				}
 			}
+			// stage targets that have a Deployment struct
 			if target.Deployment != nil {
 				// NOTE merged options from targets.Targets() are set to be staged
 				target.Deployment.Spec.StagedOptions = target.Options
@@ -354,7 +363,7 @@ func (h *handler) updateStatusAndTargets(status *fleet.BundleStatus, allTargets 
 		}
 
 		for _, currentTarget := range partition.Targets {
-			// NOTE this will propagate the merged options to the current deployment
+			// NOTE this will propagate the staged, merged options to the current deployment
 			updateTarget(currentTarget, status, &partition.Status)
 		}
 
@@ -397,16 +406,6 @@ func updateTarget(t *target.Target, status *fleet.BundleStatus, partitionStatus 
 		t.Deployment.Spec.DeploymentID = t.Deployment.Spec.StagedDeploymentID
 		t.Deployment.Spec.Options = t.Deployment.Spec.StagedOptions
 	}
-}
-
-// resetDeployment resets target's Deployment with a new one and updates status accordingly
-func resetDeployment(target *target.Target, status *fleet.BundleStatus) {
-	if status.NewlyCreated >= status.MaxNew {
-		return
-	}
-
-	status.NewlyCreated++
-	target.ResetDeployment()
 }
 
 func updateDisplay(status *fleet.BundleStatus) {

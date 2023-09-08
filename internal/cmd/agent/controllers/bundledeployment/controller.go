@@ -64,7 +64,7 @@ func Register(ctx context.Context,
 
 	fleetcontrollers.RegisterBundleDeploymentStatusHandler(ctx,
 		bdController,
-		"Deployed",
+		condition.Cond(fleet.BundleDeploymentConditionDeployed),
 		"bundle-deploy",
 		h.DeployBundle)
 

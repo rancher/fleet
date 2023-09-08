@@ -130,20 +130,6 @@ func size(bundle *fleet.Bundle) (int, error) {
 	return len(marshalled), nil
 }
 
-type fleetYAML struct {
-	Name   string            `json:"name,omitempty"`
-	Labels map[string]string `json:"labels,omitempty"`
-	fleet.BundleSpec
-	TargetCustomizations []fleet.BundleTarget `json:"targetCustomizations,omitempty"`
-	ImageScans           []imageScan          `json:"imageScans,omitempty"`
-	OverrideTargets      []fleet.GitTarget    `json:"overrideTargets,omitempty"`
-}
-
-type imageScan struct {
-	Name string `json:"name,omitempty"`
-	fleet.ImageScanSpec
-}
-
 // read reads the fleet.yaml from the bundleSpecReader and loads all resources
 func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if opts == nil {
@@ -159,7 +145,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		return nil, nil, err
 	}
 
-	fy := &fleetYAML{}
+	fy := &fleet.FleetYAML{}
 	if err := yaml.Unmarshal(bytes, fy); err != nil {
 		return nil, nil, err
 	}
