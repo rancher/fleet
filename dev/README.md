@@ -85,40 +85,38 @@ export FLEET_E2E_NS=fleet-local
 export FLEET_E2E_NS_DOWNSTREAM=fleet-default
 
 # running single-cluster tests in Rancher Desktop
-#export FLEET_E2E_CLUSTER=rancher-desktop
-#export FLEET_E2E_CLUSTER_DOWNSTREAM=rancher-desktop
+export FLEET_E2E_CLUSTER=rancher-desktop
+export FLEET_E2E_CLUSTER_DOWNSTREAM=rancher-desktop
 
 # running single-cluster tests in k3d (setup-k3d)
-#export FLEET_E2E_CLUSTER=k3d-upstream
-#export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-upstream
+export FLEET_E2E_CLUSTER=k3d-upstream
+export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-upstream
 
 # running multi-cluster tests in k3d (setup-k3ds)
-#export FLEET_E2E_CLUSTER=k3d-upstream
-#export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-downstream
+export FLEET_E2E_CLUSTER=k3d-upstream
+export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-downstream
 
 # for running tests on darwin/arm64
-#export GOARCH=arm64
+export GOARCH=arm64
 
 # needed for gitrepo tests, which are currently disabled but part of the
 # single-cluster tests
-
-#export FORCE_GIT_SERVER_BUILD="yes" # set to an empty value to skip rebuilds
-#export GIT_REPO_USER="git"
-#export GIT_REPO_URL="git@github.com:yourprivate/repo.git"
-#export GIT_REPO_HOST="github.com"
-#export GIT_SSH_KEY="$HOME/.ssh/id_ecdsa_test"
-#export GIT_SSH_PUBKEY="$HOME/.ssh/id_ecdsa_test.pub"
-#export GIT_HTTP_USER="fleet-ci"
-#export GIT_HTTP_PASSWORD="foo"
+export FORCE_GIT_SERVER_BUILD="yes" # set to an empty value to skip rebuilds
+export GIT_REPO_USER="git"
+export GIT_REPO_URL="git@github.com:yourprivate/repo.git"
+export GIT_REPO_HOST="github.com"
+export GIT_SSH_KEY="$HOME/.ssh/id_ecdsa_test"
+export GIT_SSH_PUBKEY="$HOME/.ssh/id_ecdsa_test.pub"
+export GIT_HTTP_USER="fleet-ci"
+export GIT_HTTP_PASSWORD="foo"
 
 # needed for OCI tests, which are part of the single-cluster tests
-
-#export CI_OCI_USERNAME="fleet-ci"
-#export CI_OCI_PASSWORD="foo"
-#export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
+export CI_OCI_USERNAME="fleet-ci"
+export CI_OCI_PASSWORD="foo"
+export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
 
 # optional, for selecting Helm versions (see [Troubleshooting](#troubleshooting))
-#export HELM_PATH="/usr/bin/helm"
+export HELM_PATH="/usr/bin/helm"
 ```
 ### Troubleshooting
 
