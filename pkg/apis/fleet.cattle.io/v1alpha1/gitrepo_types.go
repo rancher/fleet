@@ -12,6 +12,9 @@ var (
 )
 
 // +genclient
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:singular=gitrepo,path=gitrepos,scope=namespaced
+// +kubebuilder:subresource:status
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // GitRepo describes a git repository that is watched by Fleet.
@@ -33,18 +36,22 @@ type GitRepoSpec struct {
 	Branch string `json:"branch,omitempty"`
 
 	// Revision A specific commit or tag to operate on.
+	// +optional
 	Revision string `json:"revision,omitempty"`
 
 	// Ensure that all resources are created in this namespace
 	// Any cluster scoped resource will be rejected if this is set
 	// Additionally this namespace will be created on demand.
+	// +optional
 	TargetNamespace string `json:"targetNamespace,omitempty"`
 
 	// ClientSecretName is the name of the client secret to be used to connect to the repo
 	// It is expected the secret be of type "kubernetes.io/basic-auth" or "kubernetes.io/ssh-auth".
+	// +optional
 	ClientSecretName string `json:"clientSecretName,omitempty"`
 
 	// HelmSecretName contains the auth secret for a private Helm repository.
+	// +optional
 	HelmSecretName string `json:"helmSecretName,omitempty"`
 
 	// HelmSecretNameForPaths contains the auth secret for private Helm repository for each path.
@@ -67,6 +74,7 @@ type GitRepoSpec struct {
 
 	// Paused, when true, causes changes in Git not to be propagated down to the clusters but instead to mark
 	// resources as OutOfSync.
+	// +optional
 	Paused bool `json:"paused,omitempty"`
 
 	// ServiceAccount used in the downstream cluster for deployment.
@@ -174,6 +182,8 @@ type GitRepoDisplay struct {
 }
 
 // +genclient
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // GitRepoRestriction is a resource that can optionally be used to restrict

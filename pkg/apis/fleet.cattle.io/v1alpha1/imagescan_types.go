@@ -7,6 +7,8 @@ import (
 )
 
 // +genclient
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type ImageScan struct {

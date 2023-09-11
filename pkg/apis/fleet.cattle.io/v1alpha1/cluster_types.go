@@ -36,6 +36,8 @@ var (
 )
 
 // +genclient
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterGroup is a re-usable selector to target a group of clusters.
@@ -87,6 +89,8 @@ type ClusterGroupDisplay struct {
 }
 
 // +genclient
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Cluster corresponds to a Kubernetes cluster. Fleet deploys bundles to targeted clusters.
@@ -103,6 +107,7 @@ type Cluster struct {
 
 type ClusterSpec struct {
 	// Paused if set to true, will stop any BundleDeployments from being updated.
+	// +optional
 	Paused bool `json:"paused,omitempty"`
 
 	// ClientID is a unique string that will identify the cluster. It can
@@ -236,6 +241,8 @@ type AgentStatus struct {
 }
 
 // +genclient
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterRegistration is used internally by Fleet and should not be used directly.
@@ -270,6 +277,8 @@ type ClusterRegistrationStatus struct {
 }
 
 // +genclient
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterRegistrationToken is used by agents to register a new cluster.
