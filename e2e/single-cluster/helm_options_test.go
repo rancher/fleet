@@ -25,7 +25,6 @@ var _ = Describe("Helm deploy options", func() {
 	AfterEach(func() {
 		out, err := k.Delete("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
-
 	})
 
 	Describe("DisableDNS", func() {
