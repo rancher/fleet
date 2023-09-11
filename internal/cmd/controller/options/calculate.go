@@ -78,6 +78,7 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 		result.Helm.TakeOwnership = result.Helm.TakeOwnership || custom.Helm.TakeOwnership
 		result.Helm.DisablePreProcess = result.Helm.DisablePreProcess || custom.Helm.DisablePreProcess
 		result.Helm.WaitForJobs = result.Helm.WaitForJobs || custom.Helm.WaitForJobs
+		result.Helm.DisableDNS = result.Helm.DisableDNS || custom.Helm.DisableDNS
 	}
 	if custom.Kustomize != nil {
 		if result.Kustomize == nil {

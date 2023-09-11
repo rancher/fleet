@@ -126,6 +126,8 @@ spec:
                   chart:
                     nullable: true
                     type: string
+                  disableDNS:
+                    type: boolean
                   disablePreProcess:
                     type: boolean
                   force:
@@ -538,6 +540,8 @@ spec:
                         chart:
                           nullable: true
                           type: string
+                        disableDNS:
+                          type: boolean
                         disablePreProcess:
                           type: boolean
                         force:
@@ -1095,6 +1099,8 @@ spec:
                       chart:
                         nullable: true
                         type: string
+                      disableDNS:
+                        type: boolean
                       disablePreProcess:
                         type: boolean
                       force:
@@ -1283,6 +1289,8 @@ spec:
                       chart:
                         nullable: true
                         type: string
+                      disableDNS:
+                        type: boolean
                       disablePreProcess:
                         type: boolean
                       force:

@@ -512,6 +512,9 @@ type HelmOptions struct {
 
 	// DisablePreProcess disables template processing in values
 	DisablePreProcess bool `json:"disablePreProcess,omitempty"`
+
+	// DisableDNS can be used to customize Helm's EnableDNS option, which Fleet sets to `true` by default.
+	DisableDNS bool `json:"disableDNS,omitempty"`
 }
 
 // IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
