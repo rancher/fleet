@@ -1,0 +1,7 @@
+helm:
+  releaseName: enabled
+  takeOwnership: true
+  atomic: true
+  force: true
+  waitForJobs: true
+  disablePreProcess: true
