@@ -69,7 +69,7 @@ cluster tests.
     go build -o . ./...
     cd -
 
-    ./e2e/testenv/infra setup
+    ./e2e/testenv/infra/infra setup
 
     ginkgo e2e/single-cluster
 

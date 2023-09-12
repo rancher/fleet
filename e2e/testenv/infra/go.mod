@@ -4,7 +4,11 @@ go 1.21
 
 toolchain go1.21.0
 
-replace github.com/rancher/fleet v0.0.0 => ../../../
+replace github.com/rancher/fleet => ../../../
+
+replace github.com/rancher/fleet/pkg/apis => ../../../pkg/apis
+
+replace k8s.io/client-go => k8s.io/client-go v0.27.4
 
 require (
 	github.com/rancher/fleet v0.0.0
