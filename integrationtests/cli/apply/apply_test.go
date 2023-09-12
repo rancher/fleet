@@ -222,5 +222,22 @@ var _ = Describe("Fleet apply", Ordered, func() {
 				}).Should(BeTrue())
 			})
 		})
+
+		When("passes along helm options with a kustomize bundle", func() {
+			BeforeEach(func() {
+				name = "helm_options_kustomize"
+				options = apply.Options{Output: gbytes.NewBuffer()}
+				dirs = []string{cli.AssetsPath + name}
+			})
+
+			It("publishes the flag in the bundle options", func() {
+				Eventually(func() bool {
+					bundle, err := cli.GetBundleFromOutput(options.Output)
+					Expect(err).NotTo(HaveOccurred())
+					return bundle.Spec.Helm.TakeOwnership &&
+						bundle.Spec.Helm.ReleaseName == "kustomize"
+				}).Should(BeTrue())
+			})
+		})
 	})
 })
