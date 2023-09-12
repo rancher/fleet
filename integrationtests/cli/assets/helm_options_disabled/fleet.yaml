@@ -1,0 +1,7 @@
+helm:
+  releaseName: disabled
+  takeOwnership: false
+  atomic: false
+  force: false
+  waitForJobs: false
+  disablePreProcess: false
