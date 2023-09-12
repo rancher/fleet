@@ -33,17 +33,13 @@ type FleetManager struct {
 }
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
+	setupDebug()
 	setupCpuPprof(cmd.Context())
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
-	debugConfig.MustSetupDebug()
 	if err := start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops, f.DisableBootstrap); err != nil {
 		return err
-	}
-
-	if debugConfig.Debug {
-		agent.DebugLevel = debugConfig.DebugLevel
 	}
 
 	<-cmd.Context().Done()
@@ -55,6 +51,14 @@ func App() *cobra.Command {
 		Version: version.FriendlyVersion(),
 	})
 	return command.AddDebug(cmd, &debugConfig)
+}
+
+// setupDebug parses debug flags and configures the relevant log levels
+func setupDebug() {
+	debugConfig.MustSetupDebug()
+	if debugConfig.Debug {
+		agent.DebugLevel = debugConfig.DebugLevel
+	}
 }
 
 // setupCpuPprof starts a goroutine that captures a cpu pprof profile
