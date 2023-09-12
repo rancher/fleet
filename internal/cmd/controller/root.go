@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"runtime/pprof"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -56,7 +57,11 @@ func App() *cobra.Command {
 // setupDebug parses debug flags and configures the relevant log levels
 func setupDebug() {
 	debugConfig.MustSetupDebug()
-	if debugConfig.Debug {
+
+	// if debug is enabled in controller, enable in agents too (unless otherwise specified)
+	propagateDebug, _ := strconv.ParseBool(os.Getenv("FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS"))
+	if propagateDebug && debugConfig.Debug {
+		agent.DebugEnabled = true
 		agent.DebugLevel = debugConfig.DebugLevel
 	}
 }

@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -20,7 +19,8 @@ import (
 )
 
 var (
-	DebugLevel = 0
+	DebugEnabled bool
+	DebugLevel   = 0
 )
 
 const (
@@ -89,10 +89,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 		},
 	}
 
-	// if debug is enabled in controller, enable in agents too (unless otherwise specified)
-	propagateDebug, _ := strconv.ParseBool(os.Getenv("FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS"))
-	debug := logrus.IsLevelEnabled(logrus.DebugLevel) && propagateDebug
-	deployment := agentDeployment(namespace, agentScope, opts, debug)
+	deployment := agentDeployment(namespace, agentScope, opts)
 
 	networkPolicy := &networkv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -132,7 +129,7 @@ func resolve(global, prefix, image string) string {
 	return image
 }
 
-func agentDeployment(namespace string, agentScope string, opts ManifestOptions, debug bool) *appsv1.Deployment {
+func agentDeployment(namespace string, agentScope string, opts ManifestOptions) *appsv1.Deployment {
 	name := DefaultName
 	serviceAccount := DefaultName
 	image := resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
@@ -213,7 +210,7 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions, 
 		},
 	}
 
-	if !debug {
+	if !DebugEnabled {
 		for _, container := range dep.Spec.Template.Spec.Containers {
 			container.SecurityContext = &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &[]bool{false}[0],
@@ -247,7 +244,7 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions, 
 		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, opts.AgentEnvVars...)
 	}
 
-	if debug {
+	if DebugEnabled {
 		dep.Spec.Template.Spec.Containers[0].Command = []string{
 			"fleetagent",
 			"--debug",
