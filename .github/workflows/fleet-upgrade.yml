@@ -1,4 +1,4 @@
-# Upgrade from latest released fleet to dev version
+# Upgrade Fleet standalone from latest released to dev version
 name: Upgrade Fleet Standalone to HEAD
 
 on:
@@ -23,7 +23,7 @@ jobs:
     strategy:
       matrix:
         k3s_version:
-          - v1.22.10-k3s1
+          - v1.27.5-k3s1
     steps:
       -
         uses: actions/checkout@v4
@@ -54,7 +54,7 @@ jobs:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
           cluster-name: "upstream"
           args: >-
-            --agents 3
+            --agents 1
             --network "nw01"
             --image docker.io/rancher/k3s:${{matrix.k3s_version}}
       -

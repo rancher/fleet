@@ -1,4 +1,4 @@
-# Upgrade fleet in specific Rancher versions to latest fleet release and run MC tests
+# Upgrade Fleet in specific Rancher versions to latest fleet release and run MC tests
 name: Upgrade Fleet in Rancher to Latest Release
 
 on:
@@ -30,21 +30,19 @@ jobs:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
-          # 1.19 not working in k3d: failed to find memory cgroup
-          #- v1.19.16-k3s1
-          - v1.20.15-k3s1
-          - v1.24.1-k3s1
+          - v1.24.17-k3s1
+          - v1.28.1-k3s1
         rancher_version:
-          - v2.5.16 # k3s: 1.19 - 1.20
-          - v2.6.11  # k3s: 1.20 - 1.24
-          - v2.7.3  # k3s: 1.23 - 1.24
+          - v2.6.13  # k3s: 1.20 - 1.24
+          - v2.7.6
+          - v2.7.7-rc5
         fleet_version:
-          - "0.7.0-rc.2"
+          - "0.9.0-rc.1"
         exclude:
-          - k3s_version: v1.20.15-k3s1
-            rancher_version: v2.7.3
           - k3s_version: v1.24.1-k3s1
-            rancher_version: v2.5.16
+            rancher_version: v2.7.7-rc5
+          - k3s_version: v1.28.1-k3s1
+            rancher_version: v2.6.13
 
     steps:
       -
