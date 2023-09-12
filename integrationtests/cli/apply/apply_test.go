@@ -192,7 +192,12 @@ var _ = Describe("Fleet apply", Ordered, func() {
 				Eventually(func() bool {
 					bundle, err := cli.GetBundleFromOutput(options.Output)
 					Expect(err).NotTo(HaveOccurred())
-					return bundle.Spec.Helm.TakeOwnership && bundle.Spec.Helm.Atomic && bundle.Spec.Helm.Force && bundle.Spec.Helm.WaitForJobs && bundle.Spec.Helm.DisablePreProcess && bundle.Spec.Helm.ReleaseName == "enabled"
+					return bundle.Spec.Helm.TakeOwnership &&
+						bundle.Spec.Helm.Atomic &&
+						bundle.Spec.Helm.Force &&
+						bundle.Spec.Helm.WaitForJobs &&
+						bundle.Spec.Helm.DisablePreProcess &&
+						bundle.Spec.Helm.ReleaseName == "enabled"
 				}).Should(BeTrue())
 			})
 		})
@@ -208,7 +213,12 @@ var _ = Describe("Fleet apply", Ordered, func() {
 				Eventually(func() bool {
 					bundle, err := cli.GetBundleFromOutput(options.Output)
 					Expect(err).NotTo(HaveOccurred())
-					return bundle.Spec.Helm.TakeOwnership == false && bundle.Spec.Helm.Atomic == false && bundle.Spec.Helm.Force == false && bundle.Spec.Helm.WaitForJobs == false && bundle.Spec.Helm.DisablePreProcess == false && bundle.Spec.Helm.ReleaseName == "disabled"
+					return bundle.Spec.Helm.TakeOwnership == false &&
+						bundle.Spec.Helm.Atomic == false &&
+						bundle.Spec.Helm.Force == false &&
+						bundle.Spec.Helm.WaitForJobs == false &&
+						bundle.Spec.Helm.DisablePreProcess == false &&
+						bundle.Spec.Helm.ReleaseName == "disabled"
 				}).Should(BeTrue())
 			})
 		})
