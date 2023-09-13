@@ -8,7 +8,6 @@ This section contains information on releasing Fleet.
 ## Updating Fleet Components
 
 This process is now mostly automated:
-1. Update [rancher/build-tekton](https://github.com/rancher/build-tekton) if necessary
 1. Run an UpdateCLI Github [workflow](https://github.com/rancher/gitjob/actions/workflows/updatecli.yml) in
    [rancher/gitjob](https://github.com/rancher/gitjob), which generates a PR to bump its `rancher/tekton-utils` image
    version to the one generated when merging `rancher/build-tekton` changes

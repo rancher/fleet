@@ -14,7 +14,6 @@ essentials="rancher/kubectl
 rancher/machine
 rancher/pause
 rancher/system-upgrade-controller
-rancher/tekton-utils
 rancher/thanosio-thanos
 rancher/webhook-receiver
 rancher/rancher-webhook"
