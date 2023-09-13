@@ -6,14 +6,14 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
-	"github.com/rancher/fleet/internal/cmd/controller/mocks"
+	"github.com/rancher/wrangler/pkg/generic/fake"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	applycorev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 const (
@@ -29,8 +29,8 @@ var secret = corev1.Secret{
 }
 
 func TestGet(t *testing.T) {
-	ctlr := gomock.NewController(t)
-	mockCache := mocks.NewMockSecretCache(ctlr)
+	ctrl := gomock.NewController(t)
+	mockCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 	secretClient := NewSecretClient(mockCache, nil, secretNamespace)
 	mockCache.EXPECT().Get(secretNamespace, secretName).Return(&secret, nil)
 
@@ -45,8 +45,8 @@ func TestGet(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	ctlr := gomock.NewController(t)
-	mockCache := mocks.NewMockSecretCache(ctlr)
+	ctrl := gomock.NewController(t)
+	mockCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 	secretClient := NewSecretClient(mockCache, nil, secretNamespace)
 	labelSelector, err := labels.Parse("foo=bar")
 	if err != nil {
@@ -65,7 +65,7 @@ func TestList(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	client := fake.NewSimpleClientset()
+	client := k8sfake.NewSimpleClientset()
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	secretCreated, err := secretClient.Create(context.TODO(), &secret, metav1.CreateOptions{})
 
@@ -85,7 +85,7 @@ func TestUpdate(t *testing.T) {
 		},
 		Data: map[string][]byte{"test": []byte("data")},
 	}
-	client := fake.NewSimpleClientset(&secret)
+	client := k8sfake.NewSimpleClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	secretUpdated, err := secretClient.Update(context.TODO(), &secretUpdate, metav1.UpdateOptions{})
 
@@ -98,7 +98,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	client := fake.NewSimpleClientset(&secret)
+	client := k8sfake.NewSimpleClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	err := secretClient.Delete(context.TODO(), secretName, metav1.DeleteOptions{})
 
@@ -108,7 +108,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestDeleteCollection(t *testing.T) {
-	client := fake.NewSimpleClientset(&secret)
+	client := k8sfake.NewSimpleClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	err := secretClient.DeleteCollection(context.TODO(), metav1.DeleteOptions{}, metav1.ListOptions{FieldSelector: "name=" + secretName})
 
@@ -118,7 +118,7 @@ func TestDeleteCollection(t *testing.T) {
 }
 
 func TestWatch(t *testing.T) {
-	client := fake.NewSimpleClientset(&secret)
+	client := k8sfake.NewSimpleClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	watch, err := secretClient.Watch(context.TODO(), metav1.ListOptions{FieldSelector: "name=" + secretName})
 
@@ -138,7 +138,7 @@ func TestPatch(t *testing.T) {
 		},
 		Data: map[string][]byte{"test": []byte("content")},
 	}
-	client := fake.NewSimpleClientset(&secret)
+	client := k8sfake.NewSimpleClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	patch := []byte(`{"data":{"test":"Y29udGVudA=="}}`) // "content", base64-encoded
 	secretPatched, err := secretClient.Patch(context.TODO(), secretName, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
@@ -159,7 +159,7 @@ func TestApply(t *testing.T) {
 		},
 		Data: map[string][]byte{"test": []byte("content")},
 	}
-	client := fake.NewSimpleClientset(&secret)
+	client := k8sfake.NewSimpleClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
 	secretName := "test"
 	secretApplied, err := secretClient.Apply(context.TODO(), &applycorev1.SecretApplyConfiguration{

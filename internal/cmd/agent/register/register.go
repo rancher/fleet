@@ -105,6 +105,13 @@ func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Con
 	}, nil
 }
 
+// coreInterface is a subset of corecontrollers.Interface
+type coreInterface interface {
+	ConfigMap() corecontrollers.ConfigMapController
+	Namespace() corecontrollers.NamespaceController
+	Secret() corecontrollers.SecretController
+}
+
 // runRegistration reads the cattle-fleet-system/fleet-agent-bootstrap secret and
 // waits for the registration secret to appear on the management cluster to
 // create a new fleet-agent secret.
@@ -116,7 +123,7 @@ func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Con
 // Finally uses the client from the config (service account: fleet-agent), to
 // update the "fleet-agent" secret with a new kubeconfig from the registration
 // secret. The new kubeconfig can then be used to query bundledeployments.
-func runRegistration(ctx context.Context, k8s corecontrollers.Interface, namespace, clusterID string) (*corev1.Secret, error) {
+func runRegistration(ctx context.Context, k8s coreInterface, namespace, clusterID string) (*corev1.Secret, error) {
 	secret, err := k8s.Secret().Get(namespace, config.AgentBootstrapConfigName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, config.AgentBootstrapConfigName, err)
