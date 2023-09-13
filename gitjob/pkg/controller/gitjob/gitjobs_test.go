@@ -5,12 +5,15 @@ package gitjob
 //go:generate mockgen --build_flags=--mod=mod -destination=internal/mocks/secrets_cache_mock.go -package=mocks github.com/rancher/wrangler/pkg/generated/controllers/core/v1 SecretCache
 
 import (
-	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	mocks "github.com/rancher/gitjob/internal/mocks"
+
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+
+	"github.com/golang/mock/gomock"
+	"github.com/rancher/wrangler/pkg/generic/fake"
 	"github.com/rancher/wrangler/pkg/kstatus"
+	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -18,8 +21,8 @@ var _ = Describe("Gitjob Controller", func() {
 	var (
 		h          Handler
 		gitjob     *v1.GitJob
-		jobmock    *mocks.MockJobClient
-		gitjobmock *mocks.MockGitJobController
+		jobmock    *fake.MockClientInterface[*batchv1.Job, *batchv1.JobList]
+		gitjobmock *fake.MockControllerInterface[*v1.GitJob, *v1.GitJobList]
 		background = metav1.DeletePropagationBackground
 	)
 
@@ -44,8 +47,8 @@ var _ = Describe("Gitjob Controller", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 
-		jobmock = mocks.NewMockJobClient(ctrl)
-		gitjobmock = mocks.NewMockGitJobController(ctrl)
+		jobmock = fake.NewMockClientInterface[*batchv1.Job, *batchv1.JobList](ctrl)
+		gitjobmock = fake.NewMockControllerInterface[*v1.GitJob, *v1.GitJobList](ctrl)
 		gitjobmock.EXPECT().EnqueueAfter(gomock.Any(), gomock.Any(), gomock.Any())
 
 		h = Handler{
