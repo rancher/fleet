@@ -1,8 +1,5 @@
 name: golangci-lint
 
-env:
-  SETUP_GO_VERSION: '1.19.*'
-
 on:
   push:
     branches:
@@ -22,7 +19,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.SETUP_GO_VERSION }}
+          go-version-file: 'go.mod'
+          check-latest: true
 
       - name: Generate Golang
         run: |
