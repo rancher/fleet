@@ -21,6 +21,7 @@ package v1
 import (
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -43,6 +44,6 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) GitJob() GitJobController {
-	return NewGitJobController(schema.GroupVersionKind{Group: "gitjob.cattle.io", Version: "v1", Kind: "GitJob"}, "gitjobs", true, c.controllerFactory)
+func (v *version) GitJob() GitJobController {
+	return generic.NewController[*v1.GitJob, *v1.GitJobList](schema.GroupVersionKind{Group: "gitjob.cattle.io", Version: "v1", Kind: "GitJob"}, "gitjobs", true, v.controllerFactory)
 }
