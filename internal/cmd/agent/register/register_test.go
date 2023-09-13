@@ -1,7 +1,5 @@
 package register
 
-//go:generate mockgen --build_flags=--mod=mod -destination=../mocks/controller_interface_mock.go -package mocks github.com/rancher/wrangler/pkg/generated/controllers/core/v1 Interface,ConfigMapController,SecretController
-
 import (
 	"context"
 	"net/http"
@@ -10,25 +8,34 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/generic/fake"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/rancher/fleet/internal/cmd/agent/mocks"
 )
+
+type mockCoreInterface struct {
+	corecontrollers.ConfigMapController
+	corecontrollers.NamespaceController
+	corecontrollers.SecretController
+}
+
+func (c mockCoreInterface) ConfigMap() corecontrollers.ConfigMapController {
+	return c.ConfigMapController
+}
+func (c mockCoreInterface) Namespace() corecontrollers.NamespaceController {
+	return c.NamespaceController
+}
+func (c mockCoreInterface) Secret() corecontrollers.SecretController {
+	return c.SecretController
+}
 
 // This is a smoke test, preventing regressions for https://github.com/rancher/rancher/issues/43012 where adding a label
 // to cluster registration labels would panic, causing the Fleet agent to crash, if the map of labels was nil.
 func TestRunRegistrationLabelSmokeTest(t *testing.T) {
 	namespace := "my-namespace"
-
-	ctrl := gomock.NewController(t)
-	mockCoreController := mocks.NewMockInterface(ctrl)
-
-	mockSecretController := mocks.NewMockSecretController(ctrl)
-	mockCoreController.EXPECT().Secret().Return(mockSecretController)
-
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -38,13 +45,17 @@ func TestRunRegistrationLabelSmokeTest(t *testing.T) {
 			"clusterNamespace": []byte(namespace),
 		},
 	}
+
+	ctrl := gomock.NewController(t)
+	mockSecretController := fake.NewMockControllerInterface[*corev1.Secret, *corev1.SecretList](ctrl)
 	mockSecretController.EXPECT().Get(namespace, "fleet-agent-bootstrap", metav1.GetOptions{}).Return(&secret, nil)
 
-	mockConfigMapController := mocks.NewMockConfigMapController(ctrl)
+	mockConfigMapController := fake.NewMockControllerInterface[*corev1.ConfigMap, *corev1.ConfigMapList](ctrl)
 	mockConfigMapController.EXPECT().Get(secret.Namespace, "fleet-agent", metav1.GetOptions{}).
 		Return(nil, &apierrors.StatusError{ErrStatus: metav1.Status{Reason: metav1.StatusReasonNotFound}})
 
-	mockCoreController.EXPECT().ConfigMap().Return(mockConfigMapController)
+	var mockNamespaceController corecontrollers.NamespaceController // not used
+	mockCoreController := mockCoreInterface{mockConfigMapController, mockNamespaceController, mockSecretController}
 
 	http.DefaultClient.Timeout = 100 * time.Millisecond // no need to wait longer, the API server URL is a dummy.
 	agentSecret, err := runRegistration(context.Background(), mockCoreController, namespace, "my-clusterID")

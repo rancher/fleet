@@ -1,22 +1,19 @@
 package manageagent
 
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/namespace_mock.go -package=mocks github.com/rancher/wrangler/pkg/generated/controllers/core/v1 NamespaceController
-
 import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/rancher/fleet/internal/cmd/controller/mocks"
-
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
+	"github.com/rancher/wrangler/pkg/generic/fake"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 func TestOnClusterChangeAffinity(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	namespaces := mocks.NewMockNamespaceController(ctrl)
+	namespaces := fake.NewMockNonNamespacedControllerInterface[*corev1.Namespace, *corev1.NamespaceList](ctrl)
 	h := &handler{namespaces: namespaces}
 
 	// defaultAffinity from the manifest in manifest.go
@@ -111,7 +108,7 @@ func TestOnClusterChangeAffinity(t *testing.T) {
 
 func TestOnClusterChangeResources(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	namespaces := mocks.NewMockNamespaceController(ctrl)
+	namespaces := fake.NewMockNonNamespacedControllerInterface[*corev1.Namespace, *corev1.NamespaceList](ctrl)
 	h := &handler{namespaces: namespaces}
 
 	customResources := corev1.ResourceRequirements{
@@ -180,7 +177,7 @@ func TestOnClusterChangeResources(t *testing.T) {
 
 func TestOnClusterChangeTolerations(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	namespaces := mocks.NewMockNamespaceController(ctrl)
+	namespaces := fake.NewMockNonNamespacedControllerInterface[*corev1.Namespace, *corev1.NamespaceList](ctrl)
 	h := &handler{namespaces: namespaces}
 
 	// defaultTolerations from the manifest in manifest.go
