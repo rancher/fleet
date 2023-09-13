@@ -4,6 +4,13 @@ go 1.21
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
+
+	// TODO: remove this and update gitjob after https://github.com/rancher/gitjob/pull/312 is merged
+	github.com/rancher/gitjob => github.com/rancher/gitjob v0.1.97-0.20231017104353-976ffabfdbd4
+	github.com/rancher/gitjob/pkg/apis => github.com/rancher/gitjob/pkg/apis v0.0.0-20231017104353-976ffabfdbd4
+
+	github.com/rancher/wrangler => github.com/rancher/wrangler v1.1.1-0.20230831050635-df1bd5aae9df
+
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.12.3-fleet1
 	k8s.io/api => k8s.io/api v0.27.4
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.27.4
@@ -51,10 +58,11 @@ require (
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.28.1
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/fleet/pkg/apis v0.0.0-20221227210133-6ea88ca2fbcc
-	github.com/rancher/gitjob v0.1.77
-	github.com/rancher/lasso v0.0.0-20230810170912-a86ba6c749aa
-	github.com/rancher/wrangler v1.1.1
+	github.com/rancher/fleet/pkg/apis v0.0.0-00010101000000-000000000000
+	github.com/rancher/gitjob v0.0.0-00010101000000-000000000000
+	github.com/rancher/gitjob/pkg/apis v0.0.0-00010101000000-000000000000
+	github.com/rancher/lasso v0.0.0-20230830164424-d684fdeb6f29
+	github.com/rancher/wrangler v1.1.1-0.20230831050635-df1bd5aae9df
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
@@ -186,10 +194,10 @@ require (
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.14.0 // indirect
+	github.com/prometheus/client_golang v1.16.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
-	github.com/prometheus/common v0.37.0 // indirect
-	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/prometheus/common v0.42.0 // indirect
+	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rubenv/sql-migrate v1.3.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -233,9 +241,9 @@ require (
 	k8s.io/apiserver v0.27.4 // indirect
 	k8s.io/code-generator v0.27.4 // indirect
 	k8s.io/component-base v0.27.4 // indirect
-	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
+	k8s.io/gengo v0.0.0-20230306165830-ab3349d207d4 // indirect
 	k8s.io/kubectl v0.27.3 // indirect
-	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5 // indirect
+	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2 // indirect
 	oras.land/oras-go v1.2.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
