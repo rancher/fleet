@@ -9,7 +9,6 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '1.19.*'
 
 jobs:
   integration-test:
@@ -20,7 +19,8 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.SETUP_GO_VERSION }}
+          go-version-file: 'go.mod'
+          check-latest: true
 
       - name: integration-test
         run: go test -v ./integrationtests/...
