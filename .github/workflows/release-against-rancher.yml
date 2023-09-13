@@ -10,20 +10,12 @@ on:
         description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.7)"
         required: true
         default: "release/v2.8"
-      prev_fleet:
-        description: "Previous Fleet version (e.g. 0.6.0-rc.3)"
-        required: true
-        default: ""
       new_fleet:
-        description: "New Fleet version"
-        required: true
-        default: ""
-      prev_chart:
-        description: "Previous Rancher Chart version (e.g. 101.1.0)"
+        description: "New Fleet version (e.g. 0.8.0-rc.3)"
         required: true
         default: ""
       new_chart:
-        description: "New Rancher Chart version"
+        description: "New Rancher Chart version (e.g. 103.1.0)"
         required: true
         default: ""
       should_bump_api:
@@ -56,7 +48,7 @@ jobs:
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Run release script
-        run: ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.prev_fleet}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.prev_chart}}  ${{github.event.inputs.new_chart}}  ${{github.event.inputs.should_bump_api}}
+        run: ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:

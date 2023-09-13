@@ -4,11 +4,9 @@
 
 set -ue
 
-PREV_FLEET_VERSION="$1"   # e.g. 0.6.0-rc.3
-NEW_FLEET_VERSION="$2"
-PREV_CHART_VERSION="$3"   # e.g. 101.1.0
-NEW_CHART_VERSION="$4"
-BUMP_API="$5"             # bump api if `true`
+NEW_FLEET_VERSION="$1"    # e.g. 0.6.0-rc.3
+NEW_CHART_VERSION="$2"    # e.g. 101.1.0
+BUMP_API="$3"             # bump api if `true`
 
 bump_fleet_api() {
     COMMIT=$1
@@ -30,7 +28,7 @@ if [ ! -e ~/.gitconfig ]; then
     git config --global user.email fleet@suse.de
 fi
 
-sed -i -e "s/ENV CATTLE_FLEET_MIN_VERSION=${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}/ENV CATTLE_FLEET_MIN_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" package/Dockerfile
+sed -i -e "s/ENV CATTLE_FLEET_MIN_VERSION=.*$/ENV CATTLE_FLEET_MIN_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" package/Dockerfile
 
 git add package/Dockerfile
 
