@@ -36,9 +36,7 @@ else
 fi
 
 for i in fleet fleet-crd fleet-agent; do
-    if [ "${REPLACE}" == "true" ]; then
-        yq --inplace "del( .${i}.[] | select(. == \"${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}\") )" release.yaml
-    fi
+    yq --inplace "del( .${i}.[] | select(. == \"${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}\") )" release.yaml
     yq --inplace ".${i} += \"${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}\"" release.yaml
 done
 
