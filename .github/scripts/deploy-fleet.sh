@@ -2,6 +2,13 @@
 
 set -euxo pipefail
 
+function eventually {
+  for _ in $(seq 1 3); do
+    "$@" && return 0
+  done
+  return 1
+}
+
 # usage: ./deploy-fleet.sh ghcr.io/rancher/fleet:sha-49f6f81 ghcr.io/rancher/fleet-agent:1h
 if [ $# -ge 2 ] && [ -n "$1" ] && [ -n "$2" ]; then
   fleetRepo="${1%:*}"
@@ -15,9 +22,14 @@ else
   agentTag="dev"
 fi
 
-helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-crd charts/fleet-crd
-helm upgrade --install fleet charts/fleet \
-  -n cattle-fleet-system --create-namespace --wait \
+eventually helm upgrade --install fleet-crd charts/fleet-crd \
+  --atomic \
+  -n cattle-fleet-system \
+  --create-namespace
+eventually helm upgrade --install fleet charts/fleet \
+  --atomic \
+  -n cattle-fleet-system \
+  --create-namespace \
   --set image.repository="$fleetRepo" \
   --set image.tag="$fleetTag" \
   --set agentImage.repository="$agentRepo" \
