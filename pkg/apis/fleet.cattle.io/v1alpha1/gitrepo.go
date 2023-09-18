@@ -173,34 +173,6 @@ type GitRepoDisplay struct {
 	Error bool `json:"error,omitempty"`
 }
 
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// GitRepoRestriction is a resource that can optionally be used to restrict
-// the options of GitRepos in the same namespace.
-type GitRepoRestriction struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	// DefaultServiceAccount overrides the GitRepo's default service account.
-	DefaultServiceAccount string `json:"defaultServiceAccount,omitempty"`
-	// AllowedServiceAccounts is a list of service accounts that GitRepos are allowed to use.
-	AllowedServiceAccounts []string `json:"allowedServiceAccounts,omitempty"`
-	// AllowedRepoPatterns is a list of regex patterns that restrict the
-	// valid values of the Repo field of a GitRepo.
-	AllowedRepoPatterns []string `json:"allowedRepoPatterns,omitempty"`
-
-	// DefaultClientSecretName overrides the GitRepo's default client secret.
-	DefaultClientSecretName string `json:"defaultClientSecretName,omitempty"`
-	// AllowedClientSecretNames is a list of client secret names that GitRepos are allowed to use.
-	AllowedClientSecretNames []string `json:"allowedClientSecretNames,omitempty"`
-
-	// AllowedTargetNamespaces restricts TargetNamespace to the given
-	// namespaces. If AllowedTargetNamespaces is set, TargetNamespace must
-	// be set.
-	AllowedTargetNamespaces []string `json:"allowedTargetNamespaces,omitempty"`
-}
-
 // GitRepoResource contains metadata about the resources of a bundle.
 type GitRepoResource struct {
 	// APIVersion is the API version of the resource.
@@ -246,6 +218,20 @@ type ResourcePerClusterState struct {
 	Patch *GenericMap `json:"patch,omitempty"`
 	// ClusterID is the id of the cluster.
 	ClusterID string `json:"clusterId,omitempty"`
+}
+
+// CommitSpec specifies how to commit changes to the git repository
+type CommitSpec struct {
+	// AuthorName gives the name to provide when making a commit
+	// +required
+	AuthorName string `json:"authorName"`
+	// AuthorEmail gives the email to provide when making a commit
+	// +required
+	AuthorEmail string `json:"authorEmail"`
+	// MessageTemplate provides a template for the commit message,
+	// into which will be interpolated the details of the change made.
+	// +optional
+	MessageTemplate string `json:"messageTemplate,omitempty"`
 }
 
 type CorrectDrift struct {

@@ -51,20 +51,6 @@ type ImageScanSpec struct {
 	Policy ImagePolicyChoice `json:"policy"`
 }
 
-// CommitSpec specifies how to commit changes to the git repository
-type CommitSpec struct {
-	// AuthorName gives the name to provide when making a commit
-	// +required
-	AuthorName string `json:"authorName"`
-	// AuthorEmail gives the email to provide when making a commit
-	// +required
-	AuthorEmail string `json:"authorEmail"`
-	// MessageTemplate provides a template for the commit message,
-	// into which will be interpolated the details of the change made.
-	// +optional
-	MessageTemplate string `json:"messageTemplate,omitempty"`
-}
-
 // ImagePolicyChoice is a union of all the types of policy that can be
 // supplied.
 type ImagePolicyChoice struct {
