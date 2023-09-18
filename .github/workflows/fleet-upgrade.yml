@@ -87,7 +87,8 @@ jobs:
       -
         name: Import Images Into k3d
         run: |
-          k3d image import rancher/fleet:dev rancher/fleet-agent:dev -c upstream
+          ./.github/scripts/k3d-import-retry.sh k3d-upstream fleet \
+            rancher/fleet:dev rancher/fleet-agent:dev -c upstream
       -
         name: Verify Example Workload
         run: |
