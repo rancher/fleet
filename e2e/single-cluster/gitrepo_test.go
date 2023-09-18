@@ -164,12 +164,16 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			// Copy the script into the repo on the server pod
 			hookPathInRepo := fmt.Sprintf("/srv/git/%s/hooks/post-receive", repoName)
 
-			out, err = k.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func() error {
+				out, err = k.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
+				return err
+			}).Should(Not(HaveOccurred()), out)
 
 			// Make hook script executable
-			out, err = k.Run("exec", gitServerPod, "--", "chmod", "+x", hookPathInRepo)
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func() error {
+				out, err = k.Run("exec", gitServerPod, "--", "chmod", "+x", hookPathInRepo)
+				return err
+			}).ShouldNot(HaveOccurred(), out)
 
 			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
 				Name            string
