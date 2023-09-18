@@ -52,6 +52,7 @@ These commands should set up k3d, and the fleet standalone images for single
 cluster tests.
 
     export FLEET_E2E_NS=fleet-local
+    export FLEET_E2E_NS_DOWNSTREAM=fleet-default
     export FLEET_E2E_CLUSTER=k3d-upstream
     export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-upstream
 
@@ -59,7 +60,7 @@ cluster tests.
     dev/build-fleet
     dev/import-images-k3d
 
-    # needed for gitrepo tests
+    # Needed for gitrepo tests
     dev/import-images-tests-k3d
     dev/create-zot-certs 'FleetCI-RootCA' # for OCI tests
     dev/setup-fleet
