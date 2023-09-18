@@ -7,6 +7,8 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // ClusterGroup is a re-usable selector to target a group of clusters.
 type ClusterGroup struct {

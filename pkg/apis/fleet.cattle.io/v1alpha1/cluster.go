@@ -37,6 +37,8 @@ var (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // Cluster corresponds to a Kubernetes cluster. Fleet deploys bundles to targeted clusters.
 // Clusters to which Fleet deploys manifests are referred to as downstream

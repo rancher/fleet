@@ -6,6 +6,8 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // GitRepoRestriction is a resource that can optionally be used to restrict
 // the options of GitRepos in the same namespace.

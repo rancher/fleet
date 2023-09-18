@@ -6,6 +6,8 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // ClusterRegistrationToken is used by agents to register a new cluster.
 type ClusterRegistrationToken struct {

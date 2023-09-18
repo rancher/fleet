@@ -16,6 +16,8 @@ const MaxHelmReleaseNameLen = 53
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // BundleDeployment is used internally by Fleet and should not be used directly.
 // When a Bundle is deployed to a cluster an instance of a Bundle is called a

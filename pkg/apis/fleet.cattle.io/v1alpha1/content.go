@@ -7,6 +7,8 @@ import (
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // Content is used internally by Fleet and should not be used directly. It
 // contains the resources from a bundle for a specific target cluster.

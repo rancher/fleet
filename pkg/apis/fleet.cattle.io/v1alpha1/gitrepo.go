@@ -13,6 +13,8 @@ var (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // GitRepo describes a git repository that is watched by Fleet.
 // The resource contains the necessary information to deploy the repo, or parts

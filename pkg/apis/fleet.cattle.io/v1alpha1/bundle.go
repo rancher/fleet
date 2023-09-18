@@ -46,6 +46,8 @@ type BundleState string
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // Bundle contains the resources of an application and its deployment options.
 // It will be deployed as a Helm chart to target clusters.

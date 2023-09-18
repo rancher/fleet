@@ -6,6 +6,8 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // ClusterRegistration is used internally by Fleet and should not be used directly.
 type ClusterRegistration struct {
