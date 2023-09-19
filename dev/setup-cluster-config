@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -ex
+
+if [ "$1" = "teardown" ]; then
+    ./e2e/testenv/infra/infra teardown
+    exit 0
+fi
+
+if [ ! -f "$DEFAULT_CONFIG" ]; then
+    echo >&2 "Run this from the root of the repo"
+    exit 1
+fi
+
+if [ -n "$FLEET_TEST_CONFIG" ]; then
+    if [ ! -f "$FLEET_TEST_CONFIG" ]; then
+        echo >&2 "File not found: \$FLEET_TEST_CONFIG: $FLEET_TEST_CONFIG"
+        exit 1
+    fi
+    echo "Using custom config file: $FLEET_TEST_CONFIG"
+    # shellcheck source=/dev/null
+    source "$FLEET_TEST_CONFIG"
+elif [ -f "$CUSTOM_CONFIG_FILE" ]; then
+    echo "Using custom config file: $CUSTOM_CONFIG_FILE"
+    # shellcheck source=/dev/null
+    source "$CUSTOM_CONFIG_FILE"
+else
+    echo "Using default config file: $DEFAULT_CONFIG"
+    # shellcheck source=/dev/null
+    source "$DEFAULT_CONFIG"
+fi
