@@ -77,10 +77,7 @@ jobs:
       -
         name: Import Images Into k3d
         run: |
-          ./.github/scripts/k3d-import-retry.sh k3d-k3s-default fleet \
-            rancher/fleet:dev rancher/fleet-agent:dev
-          ./.github/scripts/k3d-import-retry.sh k3d-k3s-default nginx-git \
-            nginx-git:test
+          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev nginx-git:test
       -
         name: Deploy Fleet
         run: |
