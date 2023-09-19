@@ -112,6 +112,10 @@ type ClusterSpec struct {
 	// KubeConfigSecret is the name of the secret containing the kubeconfig for the downstream cluster.
 	KubeConfigSecret string `json:"kubeConfigSecret,omitempty"`
 
+	// KubeConfigSecretNamespace is the namespace of the secret containing the kubeconfig for the downstream cluster.
+	// If unset, it will be assumed the secret can be found in the namespace that the Cluster object resides within.
+	KubeConfigSecretNamespace string `json:"kubeConfigSecretNamespace,omitempty"`
+
 	// RedeployAgentGeneration can be used to force redeploying the agent.
 	RedeployAgentGeneration int64 `json:"redeployAgentGeneration,omitempty"`
 
