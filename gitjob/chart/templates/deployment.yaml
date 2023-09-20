@@ -16,11 +16,12 @@ spec:
         - image: "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag }}"
           name: gitjob
           args:
+          - gitjob
+          - --gitjob-image
+          - "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag }}"
           {{- if .Values.debug }}
           - --debug
           {{- end }}
-          - --tekton-image
-          - "{{ template "system_default_registry" . }}{{ .Values.tekton.repository }}:{{ .Values.tekton.tag }}"
           env:
             - name: NAMESPACE
               valueFrom:

@@ -22,7 +22,12 @@ jobs:
           go-version-file: 'go.mod'
           check-latest: true
 
-      - name: integration-test
+      - name: gitjob integration-test
         run: go test -v ./integrationtests/...
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: true
+          
+      - name: git cloner integration-test
+        run: go test -v ./cmd/gitcloner/integrationtests/...
         env:
           TESTCONTAINERS_RYUK_DISABLED: true

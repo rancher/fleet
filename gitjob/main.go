@@ -47,8 +47,8 @@ func main() {
 			Value: ":8080",
 		},
 		cli.StringFlag{
-			Name:  "tekton-image",
-			Value: "rancher/tekton-utils:dev",
+			Name:  "gitjob-image",
+			Value: "rancher/gitjob:dev",
 		},
 		cli.BoolTFlag{
 			Name: "debug",
@@ -85,8 +85,7 @@ func run(c *cli.Context) {
 	if err := cont.Start(ctx); err != nil {
 		logrus.Fatal(err)
 	}
-
-	cont.Image = c.String("tekton-image")
+	cont.Image = c.String("gitjob-image")
 
 	go func() {
 		leader.RunOrDie(ctx, c.String("namespace"), "gitjob", cont.K8s, func(ctx context.Context) {

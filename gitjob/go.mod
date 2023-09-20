@@ -12,6 +12,7 @@ require (
 	github.com/go-git/go-git/v5 v5.8.1
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/golang/mock v1.6.0
+	github.com/google/go-cmp v0.5.9
 	github.com/gorilla/mux v1.8.0
 	github.com/onsi/ginkgo/v2 v2.12.0
 	github.com/onsi/gomega v1.27.10
@@ -21,6 +22,8 @@ require (
 	github.com/rancher/steve v0.0.0-20220628235427-dbf9ef88ce8f
 	github.com/rancher/wrangler v1.1.1
 	github.com/sirupsen/logrus v1.9.3
+	github.com/spf13/cobra v1.7.0
+	github.com/stretchr/testify v1.8.4
 	// Do not bump testcontainers version. This will cause conflicts with go.opentelemetry.io because of a very old version
 	// found in steve. This is used just for testing.
 	github.com/testcontainers/testcontainers-go v0.13.0
@@ -35,8 +38,6 @@ require (
 	k8s.io/client-go v12.0.0+incompatible
 	sigs.k8s.io/cli-utils v0.33.0
 )
-
-require github.com/stretchr/testify v1.8.4
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
@@ -76,13 +77,13 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
-	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

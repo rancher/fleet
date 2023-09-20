@@ -4,5 +4,7 @@ RUN zypper -n update && \
     zypper -n clean -a
 RUN useradd -u 1000 -U -m gitjob
 COPY bin/gitjob /usr/bin/
+COPY bin/gitcloner /usr/bin
 USER 1000
-ENTRYPOINT ["catatonit", "--", "gitjob"]
+ENTRYPOINT ["catatonit", "--"]
+CMD ["gitjob"]
