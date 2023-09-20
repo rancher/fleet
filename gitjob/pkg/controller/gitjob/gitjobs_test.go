@@ -2,16 +2,16 @@ package gitjob
 
 //go:generate mockgen --build_flags=--mod=mod -destination=internal/mocks/job_client_mock.go -package=mocks github.com/rancher/wrangler/pkg/generated/controllers/batch/v1 JobClient
 //go:generate mockgen --build_flags=--mod=mod -destination=internal/mocks/gitjob_controller_mock.go -package=mocks github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1 GitJobController
+//go:generate mockgen --build_flags=--mod=mod -destination=internal/mocks/secrets_cache_mock.go -package=mocks github.com/rancher/wrangler/pkg/generated/controllers/core/v1 SecretCache
 
 import (
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	mocks "github.com/rancher/gitjob/internal/mocks"
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/kstatus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("Gitjob Controller", func() {

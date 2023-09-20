@@ -50,6 +50,7 @@ jobs:
         name: Build Binaries
         run: |
           go build -o "bin/gitjob"
+          go build -o bin/gitcloner ./cmd/gitcloner
       -
         name: Build Docker Images
         run: |
