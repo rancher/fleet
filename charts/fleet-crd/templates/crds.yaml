@@ -2501,6 +2501,9 @@ spec:
               kubeConfigSecret:
                 nullable: true
                 type: string
+              kubeConfigSecretNamespace:
+                nullable: true
+                type: string
               paused:
                 type: boolean
               privateRepoURL:

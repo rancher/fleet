@@ -229,12 +229,19 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		cluster.Spec.ClientID == "" {
 		return status, nil
 	}
-	secret, err := i.secrets.Get(cluster.Namespace, cluster.Spec.KubeConfigSecret)
+
+	kubeConfigSecretNamespace := cluster.Namespace
+	if cluster.Spec.KubeConfigSecretNamespace != "" {
+		kubeConfigSecretNamespace = cluster.Spec.KubeConfigSecretNamespace
+	}
+	logrus.Debugf("Cluster import for '%s/%s'. Getting kubeconfig from secret in namespace %s", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace)
+
+	secret, err := i.secrets.Get(kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
 	if err != nil {
 		return status, err
 	}
 
-	logrus.Debugf("Cluster import for '%s/%s'. Setting up agent with kubeconfig from secret '%s'", cluster.Namespace, cluster.Name, cluster.Spec.KubeConfigSecret)
+	logrus.Debugf("Cluster import for '%s/%s'. Setting up agent with kubeconfig from secret '%s/%s'", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
 	var (
 		cfg          = config.Get()
 		apiServerURL = string(secret.Data["apiServerURL"])
