@@ -85,13 +85,13 @@ func (b *BundleMapping) Namespaces() ([]*corev1.Namespace, error) {
 }
 
 type bundleSet struct {
-	bundleKeys sets.String
+	bundleKeys sets.Set[string]
 	bundleMap  map[string]*fleet.Bundle
 }
 
 func newBundleSet() *bundleSet {
 	return &bundleSet{
-		bundleKeys: sets.NewString(),
+		bundleKeys: sets.New[string](),
 		bundleMap:  map[string]*fleet.Bundle{},
 	}
 }
@@ -99,7 +99,7 @@ func newBundleSet() *bundleSet {
 func (b *bundleSet) bundles() []*fleet.Bundle {
 	var result []*fleet.Bundle
 	// list is sorted
-	for _, key := range b.bundleKeys.List() {
+	for _, key := range sets.List(b.bundleKeys) {
 		result = append(result, b.bundleMap[key])
 	}
 	return result

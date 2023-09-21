@@ -185,7 +185,7 @@ func WithSetters(inpath, outpath string, scans []*v1alpha1.ImageScan) error {
 func setAll(filter *SetAllCallback, callback func(file, setterName string, node *yaml.RNode)) kio.Filter {
 	return kio.FilterFunc(
 		func(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
-			filesToUpdate := sets.String{}
+			filesToUpdate := sets.Set[string]{}
 			for i := range nodes {
 				path, _, err := kioutil.GetFileAnnotations(nodes[i])
 				if err != nil {
