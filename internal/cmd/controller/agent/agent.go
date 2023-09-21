@@ -24,9 +24,9 @@ import (
 type Options struct {
 	ManifestOptions
 	ConfigOptions
-	CA   []byte
-	Host string
-	NoCA bool // unused
+	APIServerCA  []byte
+	APIServerURL string
+	NoCA         bool // unused
 }
 
 // AgentWithConfig returns the agent manifest. It includes an updated agent
@@ -86,11 +86,11 @@ func agentBootstrapSecret(ctx context.Context, agentNamespace, controllerNamespa
 		return nil, err
 	}
 
-	if opts.Host != "" {
-		data["apiServerURL"] = []byte(opts.Host)
+	if opts.APIServerURL != "" {
+		data["apiServerURL"] = []byte(opts.APIServerURL)
 	}
-	if len(opts.CA) > 0 {
-		data["apiServerCA"] = opts.CA
+	if len(opts.APIServerCA) > 0 {
+		data["apiServerCA"] = opts.APIServerCA
 	}
 
 	return &v1.Secret{
