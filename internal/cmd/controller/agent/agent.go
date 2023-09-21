@@ -88,10 +88,10 @@ func agentBootstrapSecret(ctx context.Context, agentNamespace, controllerNamespa
 	}
 
 	if opts.APIServerURL != "" {
-		data["apiServerURL"] = []byte(opts.APIServerURL)
+		data[config.APIServerURLKey] = []byte(opts.APIServerURL)
 	}
 	if len(opts.APIServerCA) > 0 {
-		data["apiServerCA"] = opts.APIServerCA
+		data[config.APIServerCAKey] = opts.APIServerCA
 	}
 
 	return &v1.Secret{

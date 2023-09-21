@@ -20,6 +20,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
 	"github.com/rancher/wrangler/pkg/apply"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/name"
@@ -244,8 +245,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	logrus.Debugf("Cluster import for '%s/%s'. Setting up agent with kubeconfig from secret '%s/%s'", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
 	var (
 		cfg          = config.Get()
-		apiServerURL = string(secret.Data["apiServerURL"])
-		apiServerCA  = secret.Data["apiServerCA"]
+		apiServerURL = string(secret.Data[config.APIServerURLKey])
+		apiServerCA  = secret.Data[config.APIServerCAKey]
 	)
 
 	if apiServerURL == "" {

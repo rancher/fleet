@@ -31,6 +31,14 @@ const (
 	// KubeConfigSecretValueKey is the key in the kubeconfig secret, which
 	// contains the kubeconfig for the downstream cluster.
 	KubeConfigSecretValueKey = "value"
+	// APIServerURLKey is the key which contains the API server URL of the
+	// upstream server. It is used in the controller config, the kubeconfig
+	// secret of a cluster, the cluster registration secret "import-NAME"
+	// and the fleet-agent-bootstrap secret.
+	APIServerURLKey = "apiServerURL"
+	// APIServerCAKey is the key which contains the CA of the upstream
+	// server.
+	APIServerCAKey = "apiServerCA"
 )
 
 var (

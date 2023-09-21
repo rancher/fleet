@@ -230,8 +230,8 @@ func (h *handler) clusterRegistrationSecret(token *fleet.ClusterRegistrationToke
 
 	values := map[string]interface{}{
 		"clusterNamespace":            token.Namespace,
-		"apiServerURL":                config.Get().APIServerURL,
-		"apiServerCA":                 string(config.Get().APIServerCA),
+		config.APIServerURLKey:        config.Get().APIServerURL,
+		config.APIServerCAKey:         string(config.Get().APIServerCA),
 		"token":                       string(secret.Data["token"]), // from service account
 		"systemRegistrationNamespace": h.systemRegistrationNamespace,
 	}

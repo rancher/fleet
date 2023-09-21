@@ -35,8 +35,6 @@ const (
 	Kubeconfig          = "kubeconfig"
 	Token               = "token"
 	Values              = "values"
-	APIServerURL        = "apiServerURL"
-	APIServerCA         = "apiServerCA"
 	DeploymentNamespace = "deploymentNamespace"
 	ClusterNamespace    = "clusterNamespace"
 	ClusterName         = "clusterName"
@@ -255,6 +253,7 @@ func values(data map[string][]byte) map[string][]byte {
 	if len(values) == 0 {
 		return data
 	}
+	// never reached? FIXME maybe use config.KubeConfigValuesKey or config.ImportTokenSecretValuesKey
 
 	newData := map[string]interface{}{}
 	if err := yaml.Unmarshal(values, &newData); err != nil {
@@ -274,8 +273,8 @@ func values(data map[string][]byte) map[string][]byte {
 // creates a clientConfig to access the upstream cluster
 func createClientConfigFromSecret(secret *corev1.Secret) clientcmd.ClientConfig {
 	data := values(secret.Data)
-	apiServerURL := string(data[APIServerURL])
-	apiServerCA := data[APIServerCA]
+	apiServerURL := string(data[config.APIServerURLKey])
+	apiServerCA := data[config.APIServerCAKey]
 	namespace := string(data[ClusterNamespace])
 	token := string(data[Token])
 
