@@ -69,6 +69,5 @@ helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-ag
   # --set image.tag=v0.3.9  \
   # --set agentImage.tag=v0.3.9 \
   # --set gitjob.gitjob.tag=v0.1.26 \
-  # --set gitjob.tekton.tag=v0.1.5 \
 
 kubectl config use-context "$upstream_ctx"
