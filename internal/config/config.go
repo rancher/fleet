@@ -25,6 +25,12 @@ const (
 	// contains the manager and agent
 	DefaultNamespace       = "cattle-fleet-system"
 	LegacyDefaultNamespace = "fleet-system"
+	// ImportTokenSecretValuesKey is the key in the import token secret,
+	// which contains the values for cluster registration.
+	ImportTokenSecretValuesKey = "values"
+	// KubeConfigSecretValueKey is the key in the kubeconfig secret, which
+	// contains the kubeconfig for the downstream cluster.
+	KubeConfigSecretValueKey = "value"
 )
 
 var (

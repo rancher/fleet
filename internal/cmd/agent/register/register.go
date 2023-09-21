@@ -270,6 +270,8 @@ func values(data map[string][]byte) map[string][]byte {
 	return data
 }
 
+// createClientConfigFromSecret reads the fleet-agent-bootstrap secret and
+// creates a clientConfig to access the upstream cluster
 func createClientConfigFromSecret(secret *corev1.Secret) clientcmd.ClientConfig {
 	data := values(secret.Data)
 	apiServerURL := string(data[APIServerURL])

@@ -164,9 +164,9 @@ func (h *handler) buildSecret(bootstrapNamespace string, cfg clientcmd.ClientCon
 			},
 		},
 		Data: map[string][]byte{
-			"value":        value,
-			"apiServerURL": []byte(host),
-			"apiServerCA":  ca,
+			config.KubeConfigSecretValueKey: value,
+			"apiServerURL":                  []byte(host),
+			"apiServerCA":                   ca,
 		},
 	}, nil
 }

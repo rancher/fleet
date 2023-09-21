@@ -260,7 +260,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		apiServerCA = cfg.APIServerCA
 	}
 
-	restConfig, err := i.restConfigFromKubeConfig(secret.Data["value"])
+	restConfig, err := i.restConfigFromKubeConfig(secret.Data[config.KubeConfigSecretValueKey])
 	if err != nil {
 		return status, err
 	}

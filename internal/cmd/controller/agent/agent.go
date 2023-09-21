@@ -79,7 +79,8 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 	return objs, err
 }
 
-// agentBootstrapSecret creates the fleet-agent-bootstrap secret
+// agentBootstrapSecret creates the fleet-agent-bootstrap secret from the
+// import-token-local secret and adds the APIServer options.
 func agentBootstrapSecret(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) (*v1.Secret, error) {
 	data, err := getToken(ctx, controllerNamespace, tokenName, client)
 	if err != nil {
@@ -115,7 +116,8 @@ func getToken(ctx context.Context, controllerNamespace, tokenName string, client
 		return nil, err
 	}
 
-	values := secret.Data["values"]
+	// unmarshal kubeconfig yaml from values key
+	values := secret.Data[config.ImportTokenSecretValuesKey]
 	if len(values) == 0 {
 		return nil, fmt.Errorf("failed to find \"values\" on secret %s/%s", client.Namespace, secretName)
 	}
