@@ -5,6 +5,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func init() {
+	SchemeBuilder.Register(&GitRepo{}, &GitRepoList{})
+}
+
 var (
 	RepoLabel            = "fleet.cattle.io/repo-name"
 	BundleLabel          = "fleet.cattle.io/bundle-name"
@@ -30,6 +34,15 @@ type GitRepo struct {
 
 	Spec   GitRepoSpec   `json:"spec,omitempty"`
 	Status GitRepoStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// GitRepoList contains a list of GitRepo
+type GitRepoList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []GitRepo `json:"items"`
 }
 
 type GitRepoSpec struct {

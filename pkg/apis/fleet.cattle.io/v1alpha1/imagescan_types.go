@@ -6,6 +6,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func init() {
+	SchemeBuilder.Register(&ImageScan{}, &ImageScanList{})
+}
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
@@ -19,6 +23,15 @@ type ImageScan struct {
 
 	Spec   ImageScanSpec   `json:"spec,omitempty"`
 	Status ImageScanStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// ImageScanList contains a list of ImageScan
+type ImageScanList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ImageScan `json:"items"`
 }
 
 // API is taken from https://github.com/fluxcd/image-reflector-controller

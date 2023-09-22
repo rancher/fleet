@@ -10,6 +10,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+const BundleDeploymentResourceNamePlural = "bundledeployments"
+
+func init() {
+	SchemeBuilder.Register(&BundleDeployment{}, &BundleDeploymentList{})
+}
+
 // MaxHelmReleaseNameLen is the maximum length of a Helm release name.
 // See https://github.com/helm/helm/blob/293b50c65d4d56187cd4e2f390f0ada46b4c4737/pkg/chartutil/validate_name.go#L54-L61
 const MaxHelmReleaseNameLen = 53
@@ -34,6 +40,15 @@ type BundleDeployment struct {
 
 	Spec   BundleDeploymentSpec   `json:"spec,omitempty"`
 	Status BundleDeploymentStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// BundleDeploymentList contains a list of BundleDeployment
+type BundleDeploymentList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []BundleDeployment `json:"items"`
 }
 
 type BundleDeploymentOptions struct {

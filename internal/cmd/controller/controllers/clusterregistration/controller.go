@@ -16,7 +16,6 @@ import (
 	"github.com/rancher/fleet/internal/config"
 	fname "github.com/rancher/fleet/internal/name"
 	"github.com/rancher/fleet/internal/registration"
-	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -235,8 +234,8 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 			Rules: []rbacv1.PolicyRule{
 				{
 					Verbs:         []string{"patch"},
-					APIGroups:     []string{fleetgroup.GroupName},
-					Resources:     []string{fleet.ClusterResourceName + "/status"},
+					APIGroups:     []string{fleet.SchemeGroupVersion.Group},
+					Resources:     []string{fleet.ClusterResourceNamePlural + "/status"},
 					ResourceNames: []string{cluster.Name},
 				},
 			},

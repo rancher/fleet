@@ -11,7 +11,6 @@ import (
 
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/secret"
 	"github.com/rancher/fleet/internal/config"
-	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
@@ -154,8 +153,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			Rules: []rbacv1.PolicyRule{
 				{
 					Verbs:     []string{"create"},
-					APIGroups: []string{fleetgroup.GroupName},
-					Resources: []string{fleet.ClusterRegistrationResourceName},
+					APIGroups: []string{fleet.SchemeGroupVersion.Group},
+					Resources: []string{fleet.ClusterRegistrationResourceNamePlural},
 				},
 			},
 		},

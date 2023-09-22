@@ -1,7 +1,6 @@
 package resources
 
 import (
-	fleetgroup "github.com/rancher/fleet/pkg/apis/fleet.cattle.io"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v2/pkg/apply"
@@ -27,13 +26,13 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 			Rules: []rbacv1.PolicyRule{
 				{
 					Verbs:     []string{"get", "list", "watch"},
-					APIGroups: []string{fleetgroup.GroupName},
-					Resources: []string{fleet.BundleDeploymentResourceName},
+					APIGroups: []string{fleet.SchemeGroupVersion.Group},
+					Resources: []string{fleet.BundleDeploymentResourceNamePlural},
 				},
 				{
 					Verbs:     []string{"update"},
-					APIGroups: []string{fleetgroup.GroupName},
-					Resources: []string{fleet.BundleDeploymentResourceName + "/status"},
+					APIGroups: []string{fleet.SchemeGroupVersion.Group},
+					Resources: []string{fleet.BundleDeploymentResourceNamePlural + "/status"},
 				},
 			},
 		},
@@ -45,8 +44,8 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 			Rules: []rbacv1.PolicyRule{
 				{
 					Verbs:     []string{"get"},
-					APIGroups: []string{fleetgroup.GroupName},
-					Resources: []string{fleet.ContentResourceName},
+					APIGroups: []string{fleet.SchemeGroupVersion.Group},
+					Resources: []string{fleet.ContentResourceNamePlural},
 				},
 			},
 		},
