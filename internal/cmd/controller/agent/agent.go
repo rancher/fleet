@@ -80,7 +80,7 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 }
 
 // agentBootstrapSecret creates the fleet-agent-bootstrap secret from the
-// import-token-local secret and adds the APIServer options.
+// import-token-<clusterName> secret and adds the APIServer options.
 func agentBootstrapSecret(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) (*v1.Secret, error) {
 	data, err := getToken(ctx, controllerNamespace, tokenName, client)
 	if err != nil {

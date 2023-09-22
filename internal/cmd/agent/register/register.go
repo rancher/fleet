@@ -105,10 +105,10 @@ func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Con
 	}, nil
 }
 
-// runRegistration reads the cattle-fleet-system/fleet-agent-bootstrap and
+// runRegistration reads the cattle-fleet-system/fleet-agent-bootstrap secret and
 // waits for the registration secret to appear on the management cluster to
 // create a new fleet-agent secret.
-// It uses the provided fleet-agent-bootstrap token to build a
+// It uses the token provided in fleet-agent-bootstrap to build a
 // kubeconfig and create a ClusterRegistration on the management cluster.
 // Then it waits up to 30 minutes for the registration secret
 // "c-clientID-clientRandom" to appear in the systemRegistrationNamespace on

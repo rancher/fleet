@@ -82,7 +82,7 @@ type Config struct {
 	// +optional
 	ClientID string `json:"clientID,omitempty"`
 
-	// APIServerURL is the URL of the fleet-controllers k8s API server. It
+	// APIServerURL is the URL of the fleet-controller's k8s API server. It
 	// can be empty, if the value is provided in the cluster's kubeconfig
 	// secret instead. The value is copied into the fleet-agent-bootstrap
 	// secret on the downstream cluster.
