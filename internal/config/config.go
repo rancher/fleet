@@ -25,6 +25,20 @@ const (
 	// contains the manager and agent
 	DefaultNamespace       = "cattle-fleet-system"
 	LegacyDefaultNamespace = "fleet-system"
+	// ImportTokenSecretValuesKey is the key in the import token secret,
+	// which contains the values for cluster registration.
+	ImportTokenSecretValuesKey = "values"
+	// KubeConfigSecretValueKey is the key in the kubeconfig secret, which
+	// contains the kubeconfig for the downstream cluster.
+	KubeConfigSecretValueKey = "value"
+	// APIServerURLKey is the key which contains the API server URL of the
+	// upstream server. It is used in the controller config, the kubeconfig
+	// secret of a cluster, the cluster registration secret "import-NAME"
+	// and the fleet-agent-bootstrap secret.
+	APIServerURLKey = "apiServerURL"
+	// APIServerCAKey is the key which contains the CA of the upstream
+	// server.
+	APIServerCAKey = "apiServerCA"
 )
 
 var (
@@ -37,6 +51,9 @@ var (
 	callbackLock sync.Mutex
 )
 
+// Config is the config for the fleet manager and agent. Each use slightly
+// different fields from this struct. It is stored as JSON in configmaps under
+// the 'config' key.
 type Config struct {
 	// AgentImage defaults to rancher/fleet-agent:version if empty, can include a prefixed SystemDefaultRegistry
 	AgentImage           string `json:"agentImage,omitempty"`
@@ -53,12 +70,37 @@ type Config struct {
 	// ManageAgent if present and set to false, no bundles will be created to manage agents
 	ManageAgent *bool `json:"manageAgent,omitempty"`
 
-	Labels                          map[string]string `json:"labels,omitempty"`
-	ClientID                        string            `json:"clientID,omitempty"`
-	APIServerURL                    string            `json:"apiServerURL,omitempty"`
-	APIServerCA                     []byte            `json:"apiServerCA,omitempty"`
-	Bootstrap                       Bootstrap         `json:"bootstrap,omitempty"`
-	IgnoreClusterRegistrationLabels bool              `json:"ignoreClusterRegistrationLabels,omitempty"`
+	// Labels are copied to the cluster registration resource. In detail:
+	// fleet-controller will copy the labels to the fleet-agent's config,
+	// fleet-agent copies the labels to the cluster registration resource,
+	// when fleet-controller accepts the registration, the labels are
+	// copied to the cluster resource.
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// ClientID of the cluster to associate with. Used by the agent only.
+	// +optional
+	ClientID string `json:"clientID,omitempty"`
+
+	// APIServerURL is the URL of the fleet-controller's k8s API server. It
+	// can be empty, if the value is provided in the cluster's kubeconfig
+	// secret instead. The value is copied into the fleet-agent-bootstrap
+	// secret on the downstream cluster.
+	// +optional
+	APIServerURL string `json:"apiServerURL,omitempty"`
+
+	// APIServerCA is the CA bundle used to connect to the
+	// fleet-controllers k8s API server. It can be empty, if the value is
+	// provided in the cluster's kubeconfig secret instead. The value is
+	// copied into the fleet-agent-bootstrap secret on the downstream
+	// cluster.
+	// +optional
+	APIServerCA []byte `json:"apiServerCA,omitempty"`
+
+	Bootstrap Bootstrap `json:"bootstrap,omitempty"`
+
+	// IgnoreClusterRegistrationLabels if set to true, the labels on the cluster registration resource will not be copied to the cluster resource.
+	IgnoreClusterRegistrationLabels bool `json:"ignoreClusterRegistrationLabels,omitempty"`
 }
 
 type Bootstrap struct {

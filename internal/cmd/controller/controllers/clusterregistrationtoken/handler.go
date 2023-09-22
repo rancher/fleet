@@ -88,7 +88,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		return nil, status, err
 	} else if len(sa.Secrets) > 0 {
 		status.SecretName = token.Name
-		secrets, err = h.getValuesYAMLSecret(token, sa.Secrets[0].Name)
+		secrets, err = h.clusterRegistrationSecret(token, sa.Secrets[0].Name)
 		if err != nil {
 			return nil, status, err
 		}
@@ -117,7 +117,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		}
 
 		status.SecretName = token.Name
-		secrets, err = h.getValuesYAMLSecret(token, secretCreated.Name)
+		secrets, err = h.clusterRegistrationSecret(token, secretCreated.Name)
 		if err != nil {
 			return nil, status, err
 		}
@@ -214,7 +214,11 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 	}, secrets...), status, nil
 }
 
-func (h *handler) getValuesYAMLSecret(token *fleet.ClusterRegistrationToken, secretName string) ([]runtime.Object, error) {
+// clusterRegistrationSecret fetches the "clusterregistrationtoken" service
+// account's secret and returns the cluster registration values secret, e.g.
+// 'import-token-NAME'. The returned secret is of the type
+// "fleet.cattle.io/cluster-registration-values".
+func (h *handler) clusterRegistrationSecret(token *fleet.ClusterRegistrationToken, secretName string) ([]runtime.Object, error) {
 	if secretName == "" {
 		return nil, nil
 	}
@@ -226,9 +230,9 @@ func (h *handler) getValuesYAMLSecret(token *fleet.ClusterRegistrationToken, sec
 
 	values := map[string]interface{}{
 		"clusterNamespace":            token.Namespace,
-		"apiServerURL":                config.Get().APIServerURL,
-		"apiServerCA":                 string(config.Get().APIServerCA),
-		"token":                       string(secret.Data["token"]),
+		config.APIServerURLKey:        config.Get().APIServerURL,
+		config.APIServerCAKey:         string(config.Get().APIServerCA),
+		"token":                       string(secret.Data["token"]), // from service account
 		"systemRegistrationNamespace": h.systemRegistrationNamespace,
 	}
 
@@ -254,7 +258,7 @@ func (h *handler) getValuesYAMLSecret(token *fleet.ClusterRegistrationToken, sec
 			},
 			Immutable: nil,
 			Data: map[string][]byte{
-				"values": data,
+				config.ImportTokenSecretValuesKey: data,
 			},
 			Type: "fleet.cattle.io/cluster-registration-values",
 		},

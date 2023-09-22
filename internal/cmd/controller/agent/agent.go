@@ -24,9 +24,9 @@ import (
 type Options struct {
 	ManifestOptions
 	ConfigOptions
-	CA   []byte
-	Host string
-	NoCA bool // unused
+	APIServerCA  []byte
+	APIServerURL string
+	NoCA         bool // unused
 }
 
 // AgentWithConfig returns the agent manifest. It includes an updated agent
@@ -79,18 +79,19 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 	return objs, err
 }
 
-// agentBootstrapSecret creates the fleet-agent-bootstrap secret
+// agentBootstrapSecret creates the fleet-agent-bootstrap secret from the
+// import-token-<clusterName> secret and adds the APIServer options.
 func agentBootstrapSecret(ctx context.Context, agentNamespace, controllerNamespace string, client *client.Client, tokenName string, opts *Options) (*v1.Secret, error) {
 	data, err := getToken(ctx, controllerNamespace, tokenName, client)
 	if err != nil {
 		return nil, err
 	}
 
-	if opts.Host != "" {
-		data["apiServerURL"] = []byte(opts.Host)
+	if opts.APIServerURL != "" {
+		data[config.APIServerURLKey] = []byte(opts.APIServerURL)
 	}
-	if len(opts.CA) > 0 {
-		data["apiServerCA"] = opts.CA
+	if len(opts.APIServerCA) > 0 {
+		data[config.APIServerCAKey] = opts.APIServerCA
 	}
 
 	return &v1.Secret{
@@ -115,7 +116,8 @@ func getToken(ctx context.Context, controllerNamespace, tokenName string, client
 		return nil, err
 	}
 
-	values := secret.Data["values"]
+	// unmarshal kubeconfig yaml from values key
+	values := secret.Data[config.ImportTokenSecretValuesKey]
 	if len(values) == 0 {
 		return nil, fmt.Errorf("failed to find \"values\" on secret %s/%s", client.Namespace, secretName)
 	}

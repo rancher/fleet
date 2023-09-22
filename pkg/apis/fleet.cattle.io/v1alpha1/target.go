@@ -110,6 +110,8 @@ type ClusterSpec struct {
 	ClientID string `json:"clientID,omitempty"`
 
 	// KubeConfigSecret is the name of the secret containing the kubeconfig for the downstream cluster.
+	// It can optionally contain a APIServerURL and CA to override the
+	// values in the fleet-controller's configmap.
 	KubeConfigSecret string `json:"kubeConfigSecret,omitempty"`
 
 	// KubeConfigSecretNamespace is the namespace of the secret containing the kubeconfig for the downstream cluster.

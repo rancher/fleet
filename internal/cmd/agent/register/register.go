@@ -35,8 +35,6 @@ const (
 	Kubeconfig          = "kubeconfig"
 	Token               = "token"
 	Values              = "values"
-	APIServerURL        = "apiServerURL"
-	APIServerCA         = "apiServerCA"
 	DeploymentNamespace = "deploymentNamespace"
 	ClusterNamespace    = "clusterNamespace"
 	ClusterName         = "clusterName"
@@ -107,18 +105,10 @@ func tryRegister(ctx context.Context, namespace, clusterID string, cfg *rest.Con
 	}, nil
 }
 
-// runRegistration reads the cattle-fleet-system/fleet-agent-bootstrap and
+// runRegistration reads the cattle-fleet-system/fleet-agent-bootstrap secret and
 // waits for the registration secret to appear on the management cluster to
-// create a new fleet-agent secret
-func runRegistration(ctx context.Context, k8s corecontrollers.Interface, namespace, clusterID string) (*corev1.Secret, error) {
-	secret, err := k8s.Secret().Get(namespace, config.AgentBootstrapConfigName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, config.AgentBootstrapConfigName, err)
-	}
-	return createAgentSecret(ctx, clusterID, k8s, secret)
-}
-
-// createAgentSecret uses the provided fleet-agent-bootstrap token to build a
+// create a new fleet-agent secret.
+// It uses the token provided in fleet-agent-bootstrap to build a
 // kubeconfig and create a ClusterRegistration on the management cluster.
 // Then it waits up to 30 minutes for the registration secret
 // "c-clientID-clientRandom" to appear in the systemRegistrationNamespace on
@@ -126,7 +116,12 @@ func runRegistration(ctx context.Context, k8s corecontrollers.Interface, namespa
 // Finally uses the client from the config (service account: fleet-agent), to
 // update the "fleet-agent" secret with a new kubeconfig from the registration
 // secret. The new kubeconfig can then be used to query bundledeployments.
-func createAgentSecret(ctx context.Context, clusterID string, k8s corecontrollers.Interface, secret *corev1.Secret) (*corev1.Secret, error) {
+func runRegistration(ctx context.Context, k8s corecontrollers.Interface, namespace, clusterID string) (*corev1.Secret, error) {
+	secret, err := k8s.Secret().Get(namespace, config.AgentBootstrapConfigName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, config.AgentBootstrapConfigName, err)
+	}
+
 	clientConfig := createClientConfigFromSecret(secret)
 
 	ns, _, err := clientConfig.Namespace()
@@ -255,6 +250,7 @@ func values(data map[string][]byte) map[string][]byte {
 	if len(values) == 0 {
 		return data
 	}
+	// never reached? FIXME maybe use config.KubeConfigValuesKey or config.ImportTokenSecretValuesKey
 
 	newData := map[string]interface{}{}
 	if err := yaml.Unmarshal(values, &newData); err != nil {
@@ -270,10 +266,12 @@ func values(data map[string][]byte) map[string][]byte {
 	return data
 }
 
+// createClientConfigFromSecret reads the fleet-agent-bootstrap secret and
+// creates a clientConfig to access the upstream cluster
 func createClientConfigFromSecret(secret *corev1.Secret) clientcmd.ClientConfig {
 	data := values(secret.Data)
-	apiServerURL := string(data[APIServerURL])
-	apiServerCA := data[APIServerCA]
+	apiServerURL := string(data[config.APIServerURLKey])
+	apiServerCA := data[config.APIServerCAKey]
 	namespace := string(data[ClusterNamespace])
 	token := string(data[Token])
 
