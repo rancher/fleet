@@ -67,7 +67,7 @@ type Bundle struct {
 }
 
 type BundleSpec struct {
-	BundleDeploymentOptions
+	BundleDeploymentOptions `json:",inline"`
 
 	// Paused if set to true, will stop any BundleDeployments from being updated. It will be marked as out of sync.
 	Paused bool `json:"paused,omitempty"`
@@ -162,7 +162,7 @@ type BundleTargetRestriction struct {
 // BundleTarget declares clusters to deploy to. Fleet will merge the
 // BundleDeploymentOptions from customizations into this struct.
 type BundleTarget struct {
-	BundleDeploymentOptions
+	BundleDeploymentOptions `json:",inline"`
 	// Name of target. This value is largely for display and logging. If
 	// not specified a default name of the format "target000" will be used
 	Name string `json:"name,omitempty"`
