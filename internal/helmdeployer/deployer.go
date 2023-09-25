@@ -9,15 +9,15 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/pkg/durations"
+	"github.com/rancher/fleet/internal/helmdeployer/helmcache"
 	"github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/rancher/fleet/internal/helmdeployer/kustomize"
 	"github.com/rancher/fleet/internal/helmdeployer/rawyaml"
@@ -77,12 +77,6 @@ type Helm struct {
 	defaultNamespace string
 	labelPrefix      string
 	labelSuffix      string
-	releaseCache     cache.Store
-}
-
-func releaseKeyfunc(obj interface{}) (string, error) {
-	r := obj.(*release.Release)
-	return fmt.Sprintf("%s/%s-%d", r.Namespace, r.Name, r.Version), nil
 }
 
 type Resources struct {
@@ -109,14 +103,15 @@ func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, gette
 		serviceAccountCache: serviceAccountCache,
 		configmapCache:      configmapCache,
 		secretCache:         secretCache,
-		releaseCache:        cache.NewTTLStore(releaseKeyfunc, durations.ReleaseCacheTTL),
 		labelPrefix:         labelPrefix,
 		labelSuffix:         labelSuffix,
 	}
-	if err := h.globalCfg.Init(getter, "", "secrets", logrus.Infof); err != nil {
+	cfg, err := h.createCfg("")
+	if err != nil {
 		return nil, err
 	}
-	h.globalCfg.Releases.MaxHistory = MaxHelmHistory
+	h.globalCfg = cfg
+
 	return h, nil
 }
 
@@ -344,7 +339,7 @@ func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 	kClient := kube.New(getter)
 	kClient.Namespace = namespace
 
-	err = cfg.Init(getter, namespace, "secrets", logrus.Infof)
+	cfg, err = h.createCfg(namespace)
 	cfg.Releases.MaxHistory = MaxHelmHistory
 	cfg.KubeClient = kClient
 
@@ -589,63 +584,22 @@ func getReleaseNameVersionAndNamespace(bundleID, resourcesID string) (string, in
 }
 
 func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.Release, error) {
-	key := &release.Release{
-		Namespace: namespace,
-		Name:      releaseName,
-		Version:   version,
-	}
+	hist := action.NewHistory(&h.globalCfg)
 
-	object, found, err := h.releaseCache.Get(key)
-	if err != nil {
+	releases, err := hist.Run(releaseName)
+	if err == driver.ErrReleaseNotFound {
+		return nil, ErrNoRelease
+	} else if err != nil {
 		return nil, err
 	}
-	if !found {
-		// cache MISS, query Helm's storage
-		hist := action.NewHistory(&h.globalCfg)
-		releases, err := hist.Run(releaseName)
-		if err == driver.ErrReleaseNotFound {
-			return nil, ErrNoRelease
-		} else if err != nil {
-			return nil, err
-		}
 
-		// opportunistically cache all releases in the storage with that name
-		for _, release := range releases {
-			err := h.releaseCache.Add(release)
-			if err != nil {
-				return nil, err
-			}
+	for _, release := range releases {
+		if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
+			return release, nil
 		}
-
-		// return the right one if found
-		for _, release := range releases {
-			if release.Name == releaseName && release.Version == version && release.Namespace == namespace {
-				return release, nil
-			}
-		}
-
-		// desired release was not found in Helm's storage. Put a "dummy" in the cache to remember it was not found
-		err = h.releaseCache.Add(&release.Release{
-			Namespace: namespace,
-			Name:      releaseName,
-			Version:   version,
-			Manifest:  "release not found",
-		})
-		if err != nil {
-			return nil, err
-		}
-		return nil, ErrNoRelease
 	}
 
-	// cache HIT
-	rel := object.(*release.Release)
-	if rel.Manifest == "release not found" {
-		// but it was actually a "dummy". Return not found
-		return nil, ErrNoRelease
-	}
-
-	// happy case
-	return rel, nil
+	return nil, ErrNoRelease
 }
 
 func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
@@ -808,6 +762,26 @@ func (h *Helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dr
 	}
 	_, err = u.Run(releaseName)
 	return err
+}
+
+func (h *Helm) createCfg(namespace string) (action.Configuration, error) {
+	kc := kube.New(h.getter)
+	kc.Log = logrus.Infof
+	clientSet, err := kc.Factory.KubernetesClientSet()
+	if err != nil {
+		return action.Configuration{}, err
+	}
+	driver := driver.NewSecrets(helmcache.NewSecretClient(h.secretCache, clientSet, namespace))
+	driver.Log = logrus.Infof
+	store := storage.Init(driver)
+	store.MaxHistory = MaxHelmHistory
+
+	return action.Configuration{
+		RESTClientGetter: h.getter,
+		Releases:         store,
+		KubeClient:       kc,
+		Log:              logrus.Infof,
+	}, nil
 }
 
 func deleteHistory(cfg action.Configuration, bundleID string) error {
