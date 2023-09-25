@@ -3,3 +3,4 @@ extend-exclude = ["go.mod"]
 
 [default.extend-identifiers]
 "passin" = "passin"
+"ANDed" = "ANDed"
