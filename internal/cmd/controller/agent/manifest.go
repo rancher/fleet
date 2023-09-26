@@ -68,6 +68,10 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 					APIGroups: []string{rbacv1.APIGroupAll},
 					Resources: []string{rbacv1.ResourceAll},
 				},
+				{
+					Verbs:           []string{rbacv1.VerbAll},
+					NonResourceURLs: []string{rbacv1.ResourceAll},
+				},
 			},
 		},
 		&rbacv1.ClusterRoleBinding{
