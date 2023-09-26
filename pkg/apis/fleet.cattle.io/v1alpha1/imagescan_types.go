@@ -8,6 +8,8 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 type ImageScan struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -49,20 +51,6 @@ type ImageScanSpec struct {
 	// selecting the most recent image
 	// +required
 	Policy ImagePolicyChoice `json:"policy"`
-}
-
-// CommitSpec specifies how to commit changes to the git repository
-type CommitSpec struct {
-	// AuthorName gives the name to provide when making a commit
-	// +required
-	AuthorName string `json:"authorName"`
-	// AuthorEmail gives the email to provide when making a commit
-	// +required
-	AuthorEmail string `json:"authorEmail"`
-	// MessageTemplate provides a template for the commit message,
-	// into which will be interpolated the details of the change made.
-	// +optional
-	MessageTemplate string `json:"messageTemplate,omitempty"`
 }
 
 // ImagePolicyChoice is a union of all the types of policy that can be

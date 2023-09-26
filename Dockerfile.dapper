@@ -6,6 +6,9 @@ ENV ARCH $DAPPER_HOST_ARCH
 RUN zypper -n install git docker vim wget
 RUN curl -sL https://get.helm.sh/helm-v3.9.3-linux-${ARCH}.tar.gz | tar xvzf - -C /usr/local/bin --strip-components=1
 
+# Temporarily needed for running cmd/codegen/hack/patch_crd_descriptions.sh
+RUN zypper -n install jq python3-pip && python3 -m pip install yq
+
 ENV DAPPER_ENV REPO TAG DRONE_TAG CROSS DEBUG
 ENV DAPPER_SOURCE /go/src/github.com/rancher/fleet/
 ENV DAPPER_OUTPUT ./bin ./dist

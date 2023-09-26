@@ -2,7 +2,7 @@ package v1alpha1
 
 import (
 	"github.com/rancher/wrangler/pkg/genericcondition"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -37,57 +37,8 @@ var (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// ClusterGroup is a re-usable selector to target a group of clusters.
-type ClusterGroup struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   ClusterGroupSpec   `json:"spec"`
-	Status ClusterGroupStatus `json:"status"`
-}
-
-type ClusterGroupSpec struct {
-	// Selector is a label selector, used to select clusters for this group.
-	Selector *metav1.LabelSelector `json:"selector,omitempty"`
-}
-
-type ClusterGroupStatus struct {
-	// ClusterCount is the number of clusters in the cluster group.
-	ClusterCount int `json:"clusterCount"`
-	// NonReadyClusterCount is the number of clusters that are not ready.
-	NonReadyClusterCount int `json:"nonReadyClusterCount"`
-	// NonReadyClusters is a list of cluster names that are not ready.
-	NonReadyClusters []string `json:"nonReadyClusters,omitempty"`
-	// Conditions is a list of conditions and their statuses for the cluster group.
-	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
-	// Summary is a summary of the bundle deployments and their resources
-	// in the cluster group.
-	Summary BundleSummary `json:"summary,omitempty"`
-	// Display contains the number of ready, desiredready clusters and a
-	// summary state for the bundle's resources.
-	Display ClusterGroupDisplay `json:"display,omitempty"`
-	// ResourceCounts contains the number of resources in each state over
-	// all bundles in the cluster group.
-	ResourceCounts GitRepoResourceCounts `json:"resourceCounts,omitempty"`
-}
-
-type ClusterGroupDisplay struct {
-	// ReadyClusters is a string in the form "%d/%d", that describes the
-	// number of clusters that are ready vs. the number of clusters desired
-	// to be ready.
-	ReadyClusters string `json:"readyClusters,omitempty"`
-	// ReadyBundles is a string in the form "%d/%d", that describes the
-	// number of bundles that are ready vs. the number of bundles desired
-	// to be ready.
-	ReadyBundles string `json:"readyBundles,omitempty"`
-	// State is a summary state for the cluster group, showing "NotReady" if
-	// there are non-ready resources.
-	State string `json:"state,omitempty"`
-}
-
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // Cluster corresponds to a Kubernetes cluster. Fleet deploys bundles to targeted clusters.
 // Clusters to which Fleet deploys manifests are referred to as downstream
@@ -122,7 +73,7 @@ type ClusterSpec struct {
 	RedeployAgentGeneration int64 `json:"redeployAgentGeneration,omitempty"`
 
 	// AgentEnvVars are extra environment variables to be added to the agent deployment.
-	AgentEnvVars []v1.EnvVar `json:"agentEnvVars,omitempty"`
+	AgentEnvVars []corev1.EnvVar `json:"agentEnvVars,omitempty"`
 
 	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system.
 	AgentNamespace string `json:"agentNamespace,omitempty"`
@@ -134,14 +85,14 @@ type ClusterSpec struct {
 	TemplateValues *GenericMap `json:"templateValues,omitempty"`
 
 	// AgentTolerations defines an extra set of Tolerations to be added to the Agent deployment.
-	AgentTolerations []v1.Toleration `json:"agentTolerations,omitempty"`
+	AgentTolerations []corev1.Toleration `json:"agentTolerations,omitempty"`
 
 	// AgentAffinity overrides the default affinity for the cluster's agent
 	// deployment. If this value is nil the default affinity is used.
-	AgentAffinity *v1.Affinity `json:"agentAffinity,omitempty"`
+	AgentAffinity *corev1.Affinity `json:"agentAffinity,omitempty"`
 
 	// AgentResources sets the resources for the cluster's agent deployment.
-	AgentResources *v1.ResourceRequirements `json:"agentResources,omitempty"`
+	AgentResources *corev1.ResourceRequirements `json:"agentResources,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -239,63 +190,4 @@ type AgentStatus struct {
 	// ReadyNodes contains the names of ready nodes. The list is limited to
 	// at most 3 names.
 	ReadyNodeNames []string `json:"readyNodeNames"`
-}
-
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// ClusterRegistration is used internally by Fleet and should not be used directly.
-type ClusterRegistration struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   ClusterRegistrationSpec   `json:"spec,omitempty"`
-	Status ClusterRegistrationStatus `json:"status,omitempty"`
-}
-
-type ClusterRegistrationSpec struct {
-	// ClientID is a unique string that will identify the cluster. The
-	// agent either uses the configured ID or the kubeSystem.UID.
-	ClientID string `json:"clientID,omitempty"`
-	// ClientRandom is a random string that the agent generates. When
-	// fleet-controller grants a registration, it creates a registration
-	// secret with this string in the name.
-	ClientRandom string `json:"clientRandom,omitempty"`
-	// ClusterLabels are copied to the cluster resource during the registration.
-	ClusterLabels map[string]string `json:"clusterLabels,omitempty"`
-}
-
-type ClusterRegistrationStatus struct {
-	// ClusterName is only set after the registration is being processed by
-	// fleet-controller.
-	ClusterName string `json:"clusterName,omitempty"`
-	// Granted is set to true, if the request service account is present
-	// and its token secret exists. This happens directly before creating
-	// the registration secret, roles and rolebindings.
-	Granted bool `json:"granted,omitempty"`
-}
-
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// ClusterRegistrationToken is used by agents to register a new cluster.
-type ClusterRegistrationToken struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   ClusterRegistrationTokenSpec   `json:"spec,omitempty"`
-	Status ClusterRegistrationTokenStatus `json:"status,omitempty"`
-}
-
-type ClusterRegistrationTokenSpec struct {
-	// TTL is the time to live for the token. It is used to calculate the
-	// expiration time. If the token expires, it will be deleted.
-	TTL *metav1.Duration `json:"ttl,omitempty"`
-}
-
-type ClusterRegistrationTokenStatus struct {
-	// Expires is the time when the token expires.
-	Expires *metav1.Time `json:"expires,omitempty"`
-	// SecretName is the name of the secret containing the token.
-	SecretName string `json:"secretName,omitempty"`
 }
