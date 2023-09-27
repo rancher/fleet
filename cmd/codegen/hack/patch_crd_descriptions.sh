@@ -18,7 +18,7 @@ run_yq() {
     image="fleet-codegen-hack:yq"
     log "yq (from https://github.com/kislyuk/yq) is missing, building a helper docker image ($image)..."
 
-    docker build -t $image - << EOF
+    docker build -t $image - >&2 << EOF
 FROM bitnami/python:3.10
 
 RUN install_packages jq
