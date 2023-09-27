@@ -162,6 +162,9 @@ func registerBundleDeploymentController(cfg *rest.Config, namespace string, look
 	err = factory.Start(ctx, 50)
 	Expect(err).ToNot(HaveOccurred())
 
+	err = coreFactory.Start(ctx, 50)
+	Expect(err).ToNot(HaveOccurred())
+
 	return factory.Fleet().V1alpha1().BundleDeployment()
 }
 
