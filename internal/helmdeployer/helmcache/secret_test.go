@@ -140,7 +140,7 @@ func TestPatch(t *testing.T) {
 	}
 	client := fake.NewSimpleClientset(&secret)
 	secretClient := NewSecretClient(nil, client, secretNamespace)
-	patch := []byte(`{"data":{"test":"Y29udGVudA=="}}`)
+	patch := []byte(`{"data":{"test":"Y29udGVudA=="}}`) // "content", base64-encoded
 	secretPatched, err := secretClient.Patch(context.TODO(), secretName, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 
 	if err != nil {

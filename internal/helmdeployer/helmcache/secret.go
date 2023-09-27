@@ -23,7 +23,7 @@ func NewSecretClient(cache corecontrollers.SecretCache, client kubernetes.Interf
 	return &SecretClient{cache, client, namespace}
 }
 
-func (s *SecretClient) Create(ctx context.Context, secret *v1.Secret, opts metav1.CreateOptions) (result *v1.Secret, err error) {
+func (s *SecretClient) Create(ctx context.Context, secret *v1.Secret, opts metav1.CreateOptions) (*v1.Secret, error) {
 	return s.client.CoreV1().Secrets(s.namespace).Create(ctx, secret, opts)
 }
 
