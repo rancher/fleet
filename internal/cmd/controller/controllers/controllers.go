@@ -21,6 +21,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/git"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/image"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/manageagent"
+	"github.com/rancher/fleet/internal/cmd/controller/controllers/resources"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
@@ -80,7 +81,14 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 
 	systemRegistrationNamespace := fleetns.SystemRegistrationNamespace(systemNamespace)
 
-	if err := applyBootstrapResources(systemNamespace, systemRegistrationNamespace, appCtx); err != nil {
+	if err := resources.ApplyBootstrapResources(
+		systemNamespace,
+		systemRegistrationNamespace,
+		appCtx.Apply.
+			WithSetID("fleet-bootstrap-data").
+			WithDynamicLookup().
+			WithNoDeleteGVK(fleetns.GVK()),
+	); err != nil {
 		return err
 	}
 
