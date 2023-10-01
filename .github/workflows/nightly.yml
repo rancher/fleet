@@ -78,7 +78,7 @@ jobs:
           tags: ${{ env.VERSION }}
       -
         name: Build and push controller
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: package/Dockerfile
@@ -97,7 +97,7 @@ jobs:
           tags: ${{ env.VERSION }}
       -
         name: Build and push agent
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: package/Dockerfile.agent
