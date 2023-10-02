@@ -15,7 +15,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/gorilla/mux v1.8.0
 	github.com/onsi/ginkgo/v2 v2.12.1
-	github.com/onsi/gomega v1.27.10
+	github.com/onsi/gomega v1.28.0
 	github.com/otiai10/copy v1.12.0
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rancher/lasso v0.0.0-20221227210133-6ea88ca2fbcc
