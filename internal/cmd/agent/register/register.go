@@ -166,6 +166,9 @@ func runRegistration(ctx context.Context, k8s corecontrollers.Interface, namespa
 	}
 
 	// add the name of the pod that created the registration for debugging
+	if cfg.Labels == nil {
+		cfg.Labels = map[string]string{}
+	}
 	cfg.Labels["fleet.cattle.io/created-by-agent-pod"] = os.Getenv("HOSTNAME")
 
 	logrus.Infof("Creating clusterregistration with id '%s' for new token", clusterID)
