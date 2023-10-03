@@ -8,11 +8,8 @@ This section contains information on releasing Fleet.
 ## Updating Fleet Components
 
 This process is now mostly automated:
-1. Run an UpdateCLI Github [workflow](https://github.com/rancher/gitjob/actions/workflows/updatecli.yml) in
-   [rancher/gitjob](https://github.com/rancher/gitjob), which generates a PR to bump its `rancher/tekton-utils` image
-   version to the one generated when merging `rancher/build-tekton` changes
-1. Approve and merge the PR created by that workflow, which publishes a new image version
-1. Run a similar UpdateCLI [workflow](https://github.com/rancher/fleet/actions/workflows/updatecli.yml) in
+1. Update [rancher/gitjob](https://github.com/rancher/gitjob) if necessary
+1. Run an UpdateCLI Github [workflow](https://github.com/rancher/fleet/actions/workflows/updatecli.yml) in
    [rancher/fleet](https://github.com/rancher/fleet) to bump its `rancher/gitjob` dependency version
 1. Approve and merge the PR created by that workflow
 1. Update and tag [rancher/fleet](https://github.com/rancher/fleet) (usually as a release candidate) to use those
