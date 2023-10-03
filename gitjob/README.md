@@ -208,10 +208,6 @@ You can choose which event to send when creating the webhook. Gitjob currently s
 
 API types are defined in [here](./pkg/apis/gitjob.cattle.io/v1/types.go)
 
-## Contribution
-
-Part of this project is built upon [Tekton](https://github.com/tektoncd).
-
 ## License
 Copyright (c) 2020 [Rancher Labs, Inc.](http://rancher.com)
 
