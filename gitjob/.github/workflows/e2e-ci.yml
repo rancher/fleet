@@ -26,7 +26,7 @@ jobs:
           - v1.22.10-k3s1
     steps:
       -
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       -
