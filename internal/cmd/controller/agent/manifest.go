@@ -133,17 +133,17 @@ func resolve(global, prefix, image string) string {
 	return image
 }
 
-func agentDeployment(namespace string, agentScope string, opts ManifestOptions) *appsv1.Deployment {
+func agentDeployment(namespace string, agentScope string, opts ManifestOptions) *appsv1.StatefulSet {
 	name := DefaultName
 	serviceAccount := DefaultName
 	image := resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
 
-	dep := &appsv1.Deployment{
+	dep := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
-		Spec: appsv1.DeploymentSpec{
+		Spec: appsv1.StatefulSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app": name,
