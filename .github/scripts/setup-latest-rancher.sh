@@ -15,6 +15,7 @@ helm upgrade rancher rancher-latest/rancher \
   --install --wait \
   --create-namespace \
   --namespace cattle-system \
+  --set replicas=1 \
   --set hostname="$external_ip" \
   --set bootstrapPassword=admin \
   --set "extraEnv[0].name=CATTLE_SERVER_URL" \
