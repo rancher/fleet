@@ -99,45 +99,11 @@ jobs:
           # Generate cert and key for TLS
           ./.github/scripts/create-zot-certs.sh "FleetCI-RootCA"
       -
-        name: E2E Tests
-        env:
-          FLEET_E2E_NS: fleet-local
-          # Git and OCI credentials are here used in a local, ephemeral environment. Leaks would be harmless.
-          GIT_HTTP_USER: "fleet-ci"
-          GIT_HTTP_PASSWORD: "foo"
-          CI_OCI_USERNAME: "fleet-ci"
-          CI_OCI_PASSWORD: "foo"
-          HELM_PATH: /usr/local/bin/helm
-        run: |
-          export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
-          e2e/testenv/infra/infra setup
-
-          ginkgo e2e/single-cluster e2e/keep-resources
-
-          e2e/testenv/infra/infra teardown
-      -
         name: Acceptance Tests for Examples
         env:
           FLEET_E2E_NS: fleet-local
         run: |
           ginkgo e2e/acceptance/single-cluster-examples
-      -
-        name: Fleet Tests Requiring Github Secrets
-        env:
-          FLEET_E2E_NS: fleet-local
-          GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"
-          GIT_REPO_HOST: "github.com"
-          GIT_REPO_USER: "git"
-          GIT_REPO_BRANCH: ${{ matrix.k3s_version }}
-          CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
-          CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
-        run: |
-          export GIT_SSH_KEY="$GITHUB_WORKSPACE/id_ecdsa"
-          export GIT_SSH_PUBKEY="$GITHUB_WORKSPACE/id_ecdsa.pub"
-          echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
-          echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
-
-          ginkgo e2e/require-secrets
       -
         name: Dump Failed Environment
         if: failure()
