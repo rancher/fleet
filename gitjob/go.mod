@@ -31,7 +31,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.13.0
 	github.com/urfave/cli v1.22.14
 	github.com/whilp/git-urls v1.0.0
-	golang.org/x/crypto v0.13.0
+	golang.org/x/crypto v0.14.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.27.4
@@ -129,8 +129,8 @@ require (
 	golang.org/x/net v0.15.0 // indirect
 	golang.org/x/oauth2 v0.4.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/sys v0.12.0 // indirect
-	golang.org/x/term v0.12.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/term v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	golang.org/x/tools v0.13.0 // indirect
