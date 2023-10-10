@@ -44,7 +44,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 	})
 
 	When("creating a gitrepo resource", func() {
-		Context("containing a private OCI-based helm chart", func() {
+		Context("containing a private OCI-based helm chart", Label("oci-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth"
 				k = env.Kubectl.Namespace(env.Namespace)
@@ -59,7 +59,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 				}).Should(ContainSubstring("sleeper-"))
 			})
 		})
-		Context("containing a private HTTP-based helm chart with repo path", func() {
+		Context("containing a private HTTP-based helm chart with repo path", Label("helm-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-repo-path"
 				k = env.Kubectl.Namespace(env.Namespace)
@@ -74,7 +74,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 				}).Should(ContainSubstring("sleeper-"))
 			})
 		})
-		Context("containing a private HTTP-based helm chart with chart path", func() {
+		Context("containing a private HTTP-based helm chart with chart path", Label("helm-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-chart-path"
 				k = env.Kubectl.Namespace(env.Namespace)
