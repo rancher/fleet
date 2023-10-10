@@ -47,10 +47,10 @@ func eventually(f func() (string, error)) string {
 
 // setupCmd represents the setup command
 var setupCmd = &cobra.Command{
-	Use:   "setup",
+	Use:   "setup [--git-server=(true|false)|--helm-registry=(true|false)|--chart-museum=(true|false)]",
 	Short: "Set up an end-to-end test environment",
 	Long: `This sets up the git server, Helm registry and associated resources needed to run end-to-end tests.
-Parallelism is used when possible to save time.`,
+If no argument is specified, then the whole infra is set up at once. Parallelism is used when possible to save time.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Setting up test environment...")
 
@@ -84,122 +84,152 @@ Parallelism is used when possible to save time.`,
 			fail(fmt.Errorf("package Helm chart: %v", err))
 		}
 
-		var wgGit, wgHelm, wgChartMuseum sync.WaitGroup
-		wgGit.Add(1)
-		wgHelm.Add(1)
-		wgChartMuseum.Add(1)
-
-		go spinUpGitServer(k, &wgGit)
-		go spinUpHelmRegistry(k, &wgHelm)
-		go spinUpChartMuseum(k, &wgChartMuseum)
-
-		wgHelm.Wait()
-
-		// Login and push a Helm chart to our local Helm registry
-		helmClient, err := registry.NewClient()
-		if err != nil {
-			fail(fmt.Errorf("create Helm registry client: %v", err))
+		// Only act on specified components, unless none is specified in which case all are affected.
+		if !withGitServer && !withHelmRegistry && !withChartMuseum {
+			withGitServer, withHelmRegistry, withChartMuseum = true, true, true
 		}
 
-		externalIP := os.Getenv("external_ip")
-		if externalIP == "" {
-			externalIP = eventually(func() (string, error) {
-				return k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+		var wgGit, wgHelm, wgChartMuseum sync.WaitGroup
+
+		if withGitServer {
+			wgGit.Add(1)
+			go spinUpGitServer(k, &wgGit)
+		}
+
+		var chartArchive []byte
+		var externalIP string
+
+		if withChartMuseum || withHelmRegistry {
+			chartArchive, err = os.ReadFile("sleeper-chart-0.1.0.tgz")
+			if err != nil {
+				fail(fmt.Errorf("read packaged Helm chart: %v", err))
+			}
+
+			externalIP = os.Getenv("external_ip")
+
+			out, err := k.Create(
+				"secret", "tls", "helm-tls",
+				"--cert", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.crt"),
+				"--key", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.key"),
+			)
+			if err != nil && !strings.Contains(out, "already exists") {
+				fail(fmt.Errorf("create helm-tls secret: %s with error %v", out, err))
+			}
+		}
+
+		if withHelmRegistry {
+			wgHelm.Add(1)
+			go spinUpHelmRegistry(k, &wgHelm)
+			wgHelm.Wait()
+
+			// Login and push a Helm chart to our local Helm registry
+			helmClient, err := registry.NewClient()
+			if err != nil {
+				fail(fmt.Errorf("create Helm registry client: %v", err))
+			}
+
+			if externalIP == "" {
+				externalIP = eventually(func() (string, error) {
+					return k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+				})
+			}
+			helmHost := fmt.Sprintf("%s:5000", externalIP)
+
+			fmt.Printf("logging into Helm registry at %s...\n", helmHost)
+			_ = eventually(func() (string, error) {
+				err := helmClient.Login(
+					helmHost,
+					registry.LoginOptBasicAuth("fleet-ci", "foo"),
+					registry.LoginOptInsecure(true),
+				)
+				if err != nil {
+					return "", fmt.Errorf("logging into Helm registry: %v", err)
+				}
+
+				return "", nil
+			})
+
+			fmt.Println("determining Helm binary path...")
+			helmPath := os.Getenv("HELM_PATH")
+			if helmPath == "" {
+				helmPath = "/usr/bin/helm" // prevents eg. ~/.rd/bin/helm from being used, without support for skipping TLS
+			}
+
+			fmt.Println("pushing Helm chart to registry...")
+			pushCmd := exec.Command(
+				helmPath,
+				"push",
+				"sleeper-chart-0.1.0.tgz",
+				fmt.Sprintf("oci://%s", helmHost),
+				"--insecure-skip-tls-verify",
+			)
+			if _, err := pushCmd.Output(); err != nil {
+				fail(fmt.Errorf("push to Helm registry: %v with output %s", err, pushCmd.Stderr))
+			}
+
+			/*
+				// TODO enable this when the Helm library supports `--insecure-skip-tls-verify`
+				if _, err := helmClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", helmHost)); err != nil {
+					fail(fmt.Errorf("push to Helm registry: %v", err))
+				}
+			*/
+		}
+
+		if withChartMuseum {
+			wgChartMuseum.Add(1)
+			go spinUpChartMuseum(k, &wgChartMuseum)
+
+			// Push chart to ChartMuseum
+			wgChartMuseum.Wait()
+
+			if externalIP == "" {
+				externalIP = eventually(func() (string, error) {
+					return k.Get("service", "chartmuseum-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+				})
+			}
+
+			_ = eventually(func() (string, error) {
+				SSLCfg := &tls.Config{
+					InsecureSkipVerify: true, // works around having to install or reference a CA cert
+				}
+
+				client := http.Client{
+					Timeout: 10 * time.Second,
+					Transport: &http.Transport{
+						TLSClientConfig:       SSLCfg,
+						IdleConnTimeout:       10 * time.Second,
+						ExpectContinueTimeout: 1 * time.Second,
+					},
+				}
+
+				cmAddr := fmt.Sprintf("https://%s:8081/api/charts", externalIP)
+
+				req, err := http.NewRequest(http.MethodPost, cmAddr, bytes.NewReader(chartArchive))
+				if err != nil {
+					fail(fmt.Errorf("create POST request to ChartMuseum: %v", err))
+				}
+
+				req.SetBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD"))
+
+				resp, err := client.Do(req)
+				if err != nil {
+					return "", fmt.Errorf("POST request to ChartMuseum failed: %v", err)
+				}
+				defer resp.Body.Close()
+
+				if resp.StatusCode != http.StatusCreated {
+					return "", fmt.Errorf("POST response status code from ChartMuseum: %d", resp.StatusCode)
+				}
+				fmt.Println("successfully posted Helm chart to ChartMuseum")
+
+				return "", nil
 			})
 		}
 
-		helmHost := fmt.Sprintf("%s:5000", externalIP)
-
-		fmt.Printf("logging into Helm registry at %s...\n", helmHost)
-		_ = eventually(func() (string, error) {
-			err := helmClient.Login(
-				helmHost,
-				registry.LoginOptBasicAuth("fleet-ci", "foo"),
-				registry.LoginOptInsecure(true),
-			)
-			if err != nil {
-				return "", fmt.Errorf("logging into Helm registry: %v", err)
-			}
-
-			return "", nil
-		})
-
-		fmt.Println("determining Helm binary path...")
-		helmPath := os.Getenv("HELM_PATH")
-		if helmPath == "" {
-			helmPath = "/usr/bin/helm" // prevents eg. ~/.rd/bin/helm from being used, without support for skipping TLS
+		if withGitServer {
+			wgGit.Wait()
 		}
-
-		fmt.Println("pushing Helm chart to registry...")
-		pushCmd := exec.Command(
-			helmPath,
-			"push",
-			"sleeper-chart-0.1.0.tgz",
-			fmt.Sprintf("oci://%s", helmHost),
-			"--insecure-skip-tls-verify",
-		)
-		if _, err := pushCmd.Output(); err != nil {
-			fail(fmt.Errorf("push to Helm registry: %v with output %s", err, pushCmd.Stderr))
-		}
-
-		chartArchive, err := os.ReadFile("sleeper-chart-0.1.0.tgz")
-		if err != nil {
-			fail(fmt.Errorf("read packaged Helm chart: %v", err))
-		}
-
-		/*
-			// TODO enable this when the Helm library supports `--insecure-skip-tls-verify`
-			if _, err := helmClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", helmHost)); err != nil {
-				fail(fmt.Errorf("push to Helm registry: %v", err))
-			}
-		*/
-
-		// Push chart to ChartMuseum
-		wgChartMuseum.Wait()
-
-		_ = eventually(func() (string, error) {
-			SSLCfg := &tls.Config{
-				InsecureSkipVerify: true, // works around having to install or reference a CA cert
-			}
-
-			client := http.Client{
-				Timeout: 10 * time.Second,
-				Transport: &http.Transport{
-					TLSClientConfig:       SSLCfg,
-					IdleConnTimeout:       10 * time.Second,
-					ExpectContinueTimeout: 1 * time.Second,
-				},
-			}
-
-			cmAddr := fmt.Sprintf("https://%s:8081/api/charts", externalIP)
-
-			req, err := http.NewRequest(http.MethodPost, cmAddr, bytes.NewReader(chartArchive))
-			if err != nil {
-				fail(fmt.Errorf("create POST request to ChartMuseum: %v", err))
-			}
-
-			req.SetBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD"))
-
-			resp, err := client.Do(req)
-			if err != nil {
-				return "", fmt.Errorf("POST request to ChartMuseum failed: %v", err)
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode != http.StatusCreated {
-				return "", fmt.Errorf("POST response status code from ChartMuseum: %d", resp.StatusCode)
-			}
-			fmt.Println("successfully posted Helm chart to ChartMuseum")
-
-			return "", nil
-		})
-
-		wgGit.Wait()
 	},
-}
-
-func init() {
-	rootCmd.AddCommand(setupCmd)
 }
 
 func spinUpGitServer(k kubectl.Command, wg *sync.WaitGroup) {
@@ -235,15 +265,6 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	)
 	if err != nil {
 		failHelm(fmt.Errorf("create helm-secret: %s with error %v", out, err))
-	}
-
-	out, err = k.Create(
-		"secret", "tls", "helm-tls",
-		"--cert", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.crt"),
-		"--key", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.key"),
-	)
-	if err != nil {
-		failHelm(fmt.Errorf("create helm-tls secret: %s with error %v", out, err))
 	}
 
 	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_secret.yaml"))
