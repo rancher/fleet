@@ -10,9 +10,10 @@ import (
 
 // teardownCmd represents the teardown command
 var teardownCmd = &cobra.Command{
-	Use:   "teardown [--git-server=(true|false)|--helm-registry=(true|false)|--chart-museum=(true|false)]",
+	Use:   "teardown [--git-server=(true|false)|--helm-registry=(true|false)|--oci-registry=(true|false)]",
 	Short: "Tear down an end-to-end test environment",
-	Long:  `This tears down the git server, Helm registry and associated resources needed to run end-to-end tests.`,
+	Long: `This tears down the git server, Helm registry, OCI registry, either separately or together, and
+	associated resources needed to run end-to-end tests.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Tearing down test environment...")
 
@@ -20,8 +21,8 @@ var teardownCmd = &cobra.Command{
 		k := env.Kubectl.Namespace(env.Namespace)
 
 		// Only act on specified components, unless none is specified in which case all are affected.
-		if !withGitServer && !withHelmRegistry && !withChartMuseum {
-			withGitServer, withHelmRegistry, withChartMuseum = true, true, true
+		if !withGitServer && !withHelmRegistry && !withOCIRegistry {
+			withGitServer, withOCIRegistry, withHelmRegistry = true, true, true
 		}
 
 		_, _ = k.Delete("gitrepo", "helm")
@@ -31,19 +32,19 @@ var teardownCmd = &cobra.Command{
 			_, _ = k.Delete("service", "git-service")
 		}
 
-		if withHelmRegistry {
+		if withOCIRegistry {
 			_, _ = k.Delete("configmap", "zot-config")
 			_, _ = k.Delete("deployment", "zot")
 			_, _ = k.Delete("service", "zot-service")
 			_, _ = k.Delete("secret", "zot-htpasswd")
 		}
 
-		if withChartMuseum {
+		if withHelmRegistry {
 			_, _ = k.Delete("deployment", "chartmuseum")
 			_, _ = k.Delete("service", "chartmuseum-service")
 		}
 
-		if withHelmRegistry && withChartMuseum {
+		if withHelmRegistry && withOCIRegistry {
 			_, _ = k.Delete("secret", "helm-tls")
 			_, _ = k.Delete("secret", "helm-secret")
 		}
