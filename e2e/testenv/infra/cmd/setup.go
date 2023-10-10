@@ -116,6 +116,16 @@ var setupCmd = &cobra.Command{
 			if err != nil && !strings.Contains(out, "already exists") {
 				fail(fmt.Errorf("create helm-tls secret: %s with error %v", out, err))
 			}
+
+			out, err = k.Create(
+				"secret", "generic", "helm-secret",
+				"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+				"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+				"--from-file=cacerts="+path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "root.crt"),
+			)
+			if err != nil && !strings.Contains(out, "already exists") {
+				fail(fmt.Errorf("create helm-secret: %s with error %v", out, err))
+			}
 		}
 
 		if withOCIRegistry {
@@ -258,17 +268,7 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		fail(fmt.Errorf("spin up OCI registry: %v", err))
 	}
 
-	out, err := k.Create(
-		"secret", "generic", "helm-secret",
-		"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
-		"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-		"--from-file=cacerts="+path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "root.crt"),
-	)
-	if err != nil && !strings.Contains(out, "already exists") {
-		failOCI(fmt.Errorf("create helm-secret: %s with error %v", out, err))
-	}
-
-	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_secret.yaml"))
+	out, err := k.Apply("-f", testenv.AssetPath("helm/zot_secret.yaml"))
 	if err != nil {
 		failOCI(fmt.Errorf("create Zot htpasswd secret: %s with error %v", out, err))
 	}
