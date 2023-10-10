@@ -12,7 +12,7 @@ var (
 		Short: "root test env command",
 		Long:  `This command should not be run directly.`,
 	}
-	withGitServer, withHelmRegistry, withChartMuseum bool
+	withGitServer, withHelmRegistry, withOCIRegistry bool
 )
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -30,5 +30,5 @@ func init() {
 
 	rootCmd.PersistentFlags().BoolVarP(&withGitServer, "git-server", "g", false, "with git server")
 	rootCmd.PersistentFlags().BoolVarP(&withHelmRegistry, "helm-registry", "r", false, "with Helm registry")
-	rootCmd.PersistentFlags().BoolVarP(&withChartMuseum, "chart-museum", "c", false, "with ChartMuseum")
+	rootCmd.PersistentFlags().BoolVarP(&withOCIRegistry, "oci-registry", "c", false, "with OCI registry")
 }

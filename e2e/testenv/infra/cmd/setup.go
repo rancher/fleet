@@ -47,10 +47,11 @@ func eventually(f func() (string, error)) string {
 
 // setupCmd represents the setup command
 var setupCmd = &cobra.Command{
-	Use:   "setup [--git-server=(true|false)|--helm-registry=(true|false)|--chart-museum=(true|false)]",
+	Use:   "setup [--git-server=(true|false)|--helm-registry=(true|false)|--oci-registry=(true|false)]",
 	Short: "Set up an end-to-end test environment",
-	Long: `This sets up the git server, Helm registry and associated resources needed to run end-to-end tests.
-If no argument is specified, then the whole infra is set up at once. Parallelism is used when possible to save time.`,
+	Long: `This sets up the git server, Helm registry, OCI registry and associated resources needed to run
+	end-to-end tests. If no argument is specified, then the whole infra is set up at once. Parallelism is used when
+	possible to save time.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Setting up test environment...")
 
@@ -85,11 +86,11 @@ If no argument is specified, then the whole infra is set up at once. Parallelism
 		}
 
 		// Only act on specified components, unless none is specified in which case all are affected.
-		if !withGitServer && !withHelmRegistry && !withChartMuseum {
-			withGitServer, withHelmRegistry, withChartMuseum = true, true, true
+		if !withGitServer && !withHelmRegistry && !withOCIRegistry {
+			withGitServer, withHelmRegistry, withOCIRegistry = true, true, true
 		}
 
-		var wgGit, wgHelm, wgChartMuseum sync.WaitGroup
+		var wgGit, wgHelm, wgOCI sync.WaitGroup
 
 		if withGitServer {
 			wgGit.Add(1)
@@ -99,7 +100,7 @@ If no argument is specified, then the whole infra is set up at once. Parallelism
 		var chartArchive []byte
 		var externalIP string
 
-		if withChartMuseum || withHelmRegistry {
+		if withHelmRegistry || withOCIRegistry {
 			chartArchive, err = os.ReadFile("sleeper-chart-0.1.0.tgz")
 			if err != nil {
 				fail(fmt.Errorf("read packaged Helm chart: %v", err))
@@ -117,15 +118,15 @@ If no argument is specified, then the whole infra is set up at once. Parallelism
 			}
 		}
 
-		if withHelmRegistry {
-			wgHelm.Add(1)
-			go spinUpHelmRegistry(k, &wgHelm)
-			wgHelm.Wait()
+		if withOCIRegistry {
+			wgOCI.Add(1)
+			go spinUpOCIRegistry(k, &wgOCI)
+			wgOCI.Wait()
 
-			// Login and push a Helm chart to our local Helm registry
-			helmClient, err := registry.NewClient()
+			// Login and push a Helm chart to our local OCI registry
+			OCIClient, err := registry.NewClient()
 			if err != nil {
-				fail(fmt.Errorf("create Helm registry client: %v", err))
+				fail(fmt.Errorf("create OCI registry client: %v", err))
 			}
 
 			if externalIP == "" {
@@ -133,17 +134,17 @@ If no argument is specified, then the whole infra is set up at once. Parallelism
 					return k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 				})
 			}
-			helmHost := fmt.Sprintf("%s:5000", externalIP)
+			OCIHost := fmt.Sprintf("%s:5000", externalIP)
 
-			fmt.Printf("logging into Helm registry at %s...\n", helmHost)
+			fmt.Printf("logging into OCI registry at %s...\n", OCIHost)
 			_ = eventually(func() (string, error) {
-				err := helmClient.Login(
-					helmHost,
+				err := OCIClient.Login(
+					OCIHost,
 					registry.LoginOptBasicAuth("fleet-ci", "foo"),
 					registry.LoginOptInsecure(true),
 				)
 				if err != nil {
-					return "", fmt.Errorf("logging into Helm registry: %v", err)
+					return "", fmt.Errorf("logging into OCI registry: %v", err)
 				}
 
 				return "", nil
@@ -160,7 +161,7 @@ If no argument is specified, then the whole infra is set up at once. Parallelism
 				helmPath,
 				"push",
 				"sleeper-chart-0.1.0.tgz",
-				fmt.Sprintf("oci://%s", helmHost),
+				fmt.Sprintf("oci://%s", OCIHost),
 				"--insecure-skip-tls-verify",
 			)
 			if _, err := pushCmd.Output(); err != nil {
@@ -169,18 +170,18 @@ If no argument is specified, then the whole infra is set up at once. Parallelism
 
 			/*
 				// TODO enable this when the Helm library supports `--insecure-skip-tls-verify`
-				if _, err := helmClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", helmHost)); err != nil {
-					fail(fmt.Errorf("push to Helm registry: %v", err))
+				if _, err := OCIClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", OCIHost)); err != nil {
+					fail(fmt.Errorf("push to OCI registry: %v", err))
 				}
 			*/
 		}
 
-		if withChartMuseum {
-			wgChartMuseum.Add(1)
-			go spinUpChartMuseum(k, &wgChartMuseum)
+		if withHelmRegistry {
+			wgHelm.Add(1)
+			go spinUpHelmRegistry(k, &wgHelm)
 
 			// Push chart to ChartMuseum
-			wgChartMuseum.Wait()
+			wgHelm.Wait()
 
 			if externalIP == "" {
 				externalIP = eventually(func() (string, error) {
@@ -250,11 +251,11 @@ func spinUpGitServer(k kubectl.Command, wg *sync.WaitGroup) {
 	fmt.Println("git server up.")
 }
 
-func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
+func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	failHelm := func(err error) {
-		fail(fmt.Errorf("spin up Helm registry: %v", err))
+	failOCI := func(err error) {
+		fail(fmt.Errorf("spin up OCI registry: %v", err))
 	}
 
 	out, err := k.Create(
@@ -263,36 +264,36 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
 		"--from-file=cacerts="+path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "root.crt"),
 	)
-	if err != nil {
-		failHelm(fmt.Errorf("create helm-secret: %s with error %v", out, err))
+	if err != nil && !strings.Contains(out, "already exists") {
+		failOCI(fmt.Errorf("create helm-secret: %s with error %v", out, err))
 	}
 
 	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_secret.yaml"))
 	if err != nil {
-		failHelm(fmt.Errorf("create Zot htpasswd secret: %s with error %v", out, err))
+		failOCI(fmt.Errorf("create Zot htpasswd secret: %s with error %v", out, err))
 	}
 
 	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_configmap.yaml"))
 	if err != nil {
-		failHelm(fmt.Errorf("apply Zot config map: %s with error %v", out, err))
+		failOCI(fmt.Errorf("apply Zot config map: %s with error %v", out, err))
 	}
 
 	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_deployment.yaml"))
 	if err != nil {
-		failHelm(fmt.Errorf("apply Zot deployment: %s with error %v", out, err))
+		failOCI(fmt.Errorf("apply Zot deployment: %s with error %v", out, err))
 	}
 
 	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_service.yaml"))
 	if err != nil {
-		failHelm(fmt.Errorf("apply Zot service: %s with error %v", out, err))
+		failOCI(fmt.Errorf("apply Zot service: %s with error %v", out, err))
 	}
 
 	waitForPodReady(k, "zot")
 
-	fmt.Println("Helm registry up.")
+	fmt.Println("OCI registry up.")
 }
 
-func spinUpChartMuseum(k kubectl.Command, wg *sync.WaitGroup) {
+func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	failChartMuseum := func(err error) {
