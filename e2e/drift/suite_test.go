@@ -10,7 +10,7 @@ import (
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "E2E Suite for Single-Cluster Examples")
+	RunSpecs(t, "E2E Suite for drift correction")
 }
 
 var (
