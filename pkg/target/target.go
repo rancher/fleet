@@ -48,7 +48,7 @@ const (
 	clusterLabelPrefix        = "global.fleet.clusterLabels."
 
 	// Indexer name for indexing bundledeployments by their respective bundles
-	byBundle = "IndexByBundle"
+	byBundle = "fleet.byBundle"
 )
 
 type Manager struct {
