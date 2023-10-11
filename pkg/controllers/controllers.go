@@ -228,6 +228,18 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.GitRepo(),
 		appCtx.ImageScan())
 
+	// Enabling the index by hash for any type we apply to
+	if err := apply.AddHashIndexer(
+		appCtx.Bundle().Informer(),
+		appCtx.BundleDeployment().Informer(),
+		appCtx.Cluster().Informer(),
+		appCtx.ClusterRegistrationToken().Informer(),
+		appCtx.ClusterRegistration().Informer(),
+		appCtx.ClusterGroup().Informer(),
+	); err != nil {
+		return err
+	}
+
 	leader.RunOrDie(ctx, systemNamespace, "fleet-controller-lock", appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {
 			logrus.Fatal(err)
