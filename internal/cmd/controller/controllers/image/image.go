@@ -219,7 +219,8 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 	lock.Lock()
 	defer lock.Unlock()
 	// todo: maybe we should preserve the dir
-	tmp, err := os.MkdirTemp("", fmt.Sprintf("%s-%s", gitrepo.Namespace, gitrepo.Name))
+	tmp := fmt.Sprintf("%s-%s", gitrepo.Namespace, gitrepo.Name)
+	err = os.Mkdir(tmp, os.ModePerm)
 	if err != nil {
 		kstatus.SetError(gitrepo, err.Error())
 		return status, err
@@ -290,12 +291,13 @@ func (h handler) onChangeGitRepo(gitrepo *v1alpha1.GitRepo, status v1alpha1.GitR
 }
 
 func setupKnownHosts(gitrepo *v1alpha1.GitRepo, data []byte) error {
-	tmpdir, err := os.MkdirTemp("", fmt.Sprintf("ssh-%s-%s-", gitrepo.Namespace, gitrepo.Name))
-	if err != nil {
+	sshDir := fmt.Sprintf("ssh-%s-%s-", gitrepo.Namespace, gitrepo.Name)
+	err := os.Mkdir(sshDir, os.ModePerm)
+	if err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}
 
-	known := path.Join(tmpdir, "known_hosts")
+	known := path.Join(sshDir, "known_hosts")
 	err = os.Setenv("SSH_KNOWN_HOSTS", known)
 	if err != nil {
 		return err

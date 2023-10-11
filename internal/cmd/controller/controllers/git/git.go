@@ -474,6 +474,15 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 									WorkingDir:      "/workspace/source",
 									VolumeMounts:    volumeMounts,
 									Env:             envs,
+									SecurityContext: &corev1.SecurityContext{
+										AllowPrivilegeEscalation: &[]bool{false}[0],
+										Privileged:               &[]bool{false}[0],
+										RunAsNonRoot:             &[]bool{true}[0],
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+										Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+									},
 								},
 							},
 							NodeSelector: map[string]string{"kubernetes.io/os": "linux"},

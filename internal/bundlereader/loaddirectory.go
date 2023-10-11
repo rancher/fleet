@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/go-getter"
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/internal/content"
+	"github.com/rancher/fleet/internal/name"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/downloader"
@@ -182,11 +183,13 @@ func loadDirectory(ctx context.Context, compress bool, prefix, base, source, ver
 
 // GetContent uses go-getter (and Helm for OCI) to read the files from directories and servers.
 func GetContent(ctx context.Context, base, source, version string, auth Auth) (map[string][]byte, error) {
-	temp, err := os.MkdirTemp("", "fleet")
+	// use a unique tmp file name
+	tmp := name.Hex(base+source+version, 24)
+	err := os.Mkdir(tmp, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(temp)
+	defer os.RemoveAll(tmp)
 
 	orgSource := source
 
@@ -194,13 +197,13 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth) (m
 	// until this is implemented we use Helm to download charts from OCI based registries
 	// and provide the downloaded file to go-getter locally
 	if hasOCIURL.MatchString(source) {
-		source, err = downloadOCIChart(source, version, temp, auth)
+		source, err = downloadOCIChart(source, version, tmp, auth)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	temp = filepath.Join(temp, "content")
+	temp := filepath.Join(tmp, "content")
 
 	base, err = filepath.Abs(base)
 	if err != nil {
