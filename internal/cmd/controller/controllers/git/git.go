@@ -474,6 +474,16 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 									WorkingDir:      "/workspace/source",
 									VolumeMounts:    volumeMounts,
 									Env:             envs,
+									SecurityContext: &corev1.SecurityContext{
+										AllowPrivilegeEscalation: &[]bool{false}[0],
+										ReadOnlyRootFilesystem:   &[]bool{true}[0],
+										Privileged:               &[]bool{false}[0],
+										RunAsNonRoot:             &[]bool{true}[0],
+										SeccompProfile: &corev1.SeccompProfile{
+											Type: corev1.SeccompProfileTypeRuntimeDefault,
+										},
+										Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+									},
 								},
 							},
 							NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
@@ -600,9 +610,14 @@ func volumes(
 	gitrepo *fleet.GitRepo,
 	configMap *corev1.ConfigMap,
 ) ([]corev1.Volume, []corev1.VolumeMount) {
+	const (
+		emptyDirVolumeName = "fleet-empty-dir"
+		configVolumeName   = "config"
+	)
+
 	volumes := []corev1.Volume{
 		{
-			Name: "config",
+			Name: configVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
@@ -611,12 +626,22 @@ func volumes(
 				},
 			},
 		},
+		{
+			Name: emptyDirVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
 	}
 
 	volumeMounts := []corev1.VolumeMount{
 		{
-			Name:      "config",
+			Name:      configVolumeName,
 			MountPath: "/run/config",
+		},
+		{
+			Name:      emptyDirVolumeName,
+			MountPath: "/tmp",
 		},
 	}
 
