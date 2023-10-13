@@ -3,7 +3,7 @@ module github.com/rancher/fleet
 go 1.19
 
 // Use changes from https://github.com/rancher/wrangler/pull/324
-replace github.com/rancher/wrangler => github.com/aruiz14/wrangler v1.1.2-0.20231011162916-0fc2de307f49
+replace github.com/rancher/wrangler => github.com/aruiz14/wrangler v1.1.2-0.20231013094521-a5a0006ce136
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
