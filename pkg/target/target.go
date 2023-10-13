@@ -46,6 +46,9 @@ var (
 const (
 	maxTemplateRecursionDepth = 50
 	clusterLabelPrefix        = "global.fleet.clusterLabels."
+
+	// Indexer name for indexing bundledeployments by their respective bundles
+	byBundleIndexerName = "fleet.byBundle"
 )
 
 type Manager struct {
@@ -66,6 +69,17 @@ func New(
 	namespaceCache corecontrollers.NamespaceCache,
 	contentStore manifest.Store,
 	bundleDeployments fleetcontrollers.BundleDeploymentCache) *Manager {
+
+	bundleDeployments.AddIndexer(byBundleIndexerName, func(bd *fleet.BundleDeployment) ([]string, error) {
+		if bdLabels := bd.GetLabels(); bdLabels != nil {
+			bundleNamespace := bdLabels[fleet.BundleNamespaceLabel]
+			bundleName := bdLabels[fleet.BundleLabel]
+			if bundleNamespace != "" && bundleName != "" {
+				return []string{bundleNamespace + "/" + bundleName}, nil
+			}
+		}
+		return nil, nil
+	})
 
 	return &Manager{
 		clusterGroups:               clusterGroups,
@@ -191,8 +205,8 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, b
 	return
 }
 
-func (m *Manager) GetBundleDeploymentsForBundleInCluster(app *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(deploymentLabelsForSelector(app)))
+func (m *Manager) GetBundleDeploymentsForBundleInCluster(bundle *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
+	bundleDeployments, err := m.bundleDeploymentCache.GetByIndex(byBundleIndexerName, bundleIndexKey(bundle))
 	if err != nil {
 		return nil, err
 	}
@@ -374,7 +388,7 @@ func toDict(values map[string]string) map[string]interface{} {
 
 // foldInDeployments adds the existing bundledeployments to the targets.
 func (m *Manager) foldInDeployments(bundle *fleet.Bundle, targets []*Target) error {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(deploymentLabelsForSelector(bundle)))
+	bundleDeployments, err := m.bundleDeploymentCache.GetByIndex(byBundleIndexerName, bundleIndexKey(bundle))
 	if err != nil {
 		return err
 	}
@@ -406,9 +420,13 @@ func deploymentLabelsForNewBundle(bundle *fleet.Bundle) map[string]string {
 
 func deploymentLabelsForSelector(bundle *fleet.Bundle) map[string]string {
 	return map[string]string{
-		"fleet.cattle.io/bundle-name":      bundle.Name,
-		"fleet.cattle.io/bundle-namespace": bundle.Namespace,
+		fleet.BundleLabel:          bundle.Name,
+		fleet.BundleNamespaceLabel: bundle.Namespace,
 	}
+}
+
+func bundleIndexKey(bundle *fleet.Bundle) string {
+	return bundle.Namespace + "/" + bundle.Name
 }
 
 type Target struct {
