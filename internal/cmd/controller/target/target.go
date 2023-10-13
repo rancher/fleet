@@ -13,10 +13,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	kyaml "sigs.k8s.io/yaml"
-
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
@@ -24,15 +20,17 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
+	"github.com/Masterminds/sprig/v3"
+	"github.com/pkg/errors"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/yaml"
-
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
-
-	"github.com/Masterminds/sprig/v3"
+	kyaml "sigs.k8s.io/yaml"
 )
 
 var (
@@ -45,6 +43,7 @@ var (
 const (
 	maxTemplateRecursionDepth = 50
 	clusterLabelPrefix        = "global.fleet.clusterLabels."
+	byBundleIndexerName       = "fleet.byBundle"
 )
 
 type Manager struct {
@@ -65,6 +64,16 @@ func New(
 	namespaceCache corecontrollers.NamespaceCache,
 	contentStore manifest.Store,
 	bundleDeployments fleetcontrollers.BundleDeploymentCache) *Manager {
+	bundleDeployments.AddIndexer(byBundleIndexerName, func(bd *fleet.BundleDeployment) ([]string, error) {
+		if bdLabels := bd.GetLabels(); bdLabels != nil {
+			bundleNamespace := bdLabels[fleet.BundleNamespaceLabel]
+			bundleName := bdLabels[fleet.BundleLabel]
+			if bundleNamespace != "" && bundleName != "" {
+				return []string{bundleNamespace + "/" + bundleName}, nil
+			}
+		}
+		return nil, nil
+	})
 
 	return &Manager{
 		clusterGroups:               clusterGroups,
@@ -193,15 +202,13 @@ func (m *Manager) BundlesForCluster(cluster *fleet.Cluster) (bundlesToRefresh, b
 }
 
 func (m *Manager) GetBundleDeploymentsForBundleInCluster(bundle *fleet.Bundle, cluster *fleet.Cluster) (result []*fleet.BundleDeployment, err error) {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(labels.Set{
-		fleet.BundleLabel:          bundle.Name,
-		fleet.BundleNamespaceLabel: bundle.Namespace,
-		fleet.ClusterLabel:         cluster.Name,
-	}))
-
+	bundleDeployments, err := m.bundleDeploymentCache.GetByIndex(byBundleIndexerName, bundleIndexKey(bundle))
 	if err != nil {
 		return nil, err
 	}
+	bundleDeployments = slices.DeleteFunc(bundleDeployments, func(bd *fleet.BundleDeployment) bool {
+		return bd.Labels[fleet.ClusterLabel] != cluster.Name
+	})
 
 	return bundleDeployments, nil
 }
@@ -378,10 +385,7 @@ func toDict(values map[string]string) map[string]interface{} {
 
 // foldInDeployments adds the existing bundledeployments to the targets.
 func (m *Manager) foldInDeployments(bundle *fleet.Bundle, targets []*Target) error {
-	bundleDeployments, err := m.bundleDeploymentCache.List("", labels.SelectorFromSet(labels.Set{
-		fleet.BundleLabel:          bundle.Name,
-		fleet.BundleNamespaceLabel: bundle.Namespace,
-	}))
+	bundleDeployments, err := m.bundleDeploymentCache.GetByIndex(byBundleIndexerName, bundleIndexKey(bundle))
 	if err != nil {
 		return err
 	}
@@ -396,6 +400,10 @@ func (m *Manager) foldInDeployments(bundle *fleet.Bundle, targets []*Target) err
 	}
 
 	return nil
+}
+
+func bundleIndexKey(bundle *fleet.Bundle) string {
+	return bundle.Namespace + "/" + bundle.Name
 }
 
 type Target struct {
