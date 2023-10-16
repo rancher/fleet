@@ -32,6 +32,7 @@ const (
 	bundleCAFile            = "additional-ca.crt"
 	gitCredentialVolumeName = "git-credential" // #nosec G101 this is not a credential
 	gitClonerVolumeName     = "git-cloner"
+	emptyDirVolumeName      = "git-cloner-empty-dir"
 )
 
 func Register(ctx context.Context, cont *types.Context) {
@@ -189,12 +190,19 @@ func (h Handler) generateJob(obj *v1.GitJob) (*batchv1.Job, error) {
 		return nil, err
 	}
 	job.Spec.Template.Spec.InitContainers = []corev1.Container{initContainer}
-	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
-		Name: gitClonerVolumeName,
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes,
+		corev1.Volume{
+			Name: gitClonerVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		}, corev1.Volume{
+			Name: emptyDirVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
 		},
-	})
+	)
 
 	if obj.Spec.Git.CABundle != nil {
 		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
@@ -246,6 +254,10 @@ func (h Handler) generateInitContainer(obj *v1.GitJob) (corev1.Container, error)
 		{
 			Name:      gitClonerVolumeName,
 			MountPath: "/workspace",
+		},
+		{
+			Name:      emptyDirVolumeName,
+			MountPath: "/tmp",
 		},
 	}
 	if obj.Spec.Git.Branch != "" {
@@ -299,5 +311,15 @@ func (h Handler) generateInitContainer(obj *v1.GitJob) (corev1.Container, error)
 		Image:        h.image,
 		Name:         "gitcloner-initializer",
 		VolumeMounts: volumeMounts,
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: &[]bool{false}[0],
+			ReadOnlyRootFilesystem:   &[]bool{true}[0],
+			Privileged:               &[]bool{false}[0],
+			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+			RunAsNonRoot:             &[]bool{true}[0],
+			SeccompProfile: &corev1.SeccompProfile{
+				Type: corev1.SeccompProfileTypeRuntimeDefault,
+			},
+		},
 	}, nil
 }

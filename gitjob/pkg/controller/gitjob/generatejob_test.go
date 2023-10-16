@@ -15,6 +15,17 @@ import (
 func TestGenerateJob(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
+	securityContext := &corev1.SecurityContext{
+		AllowPrivilegeEscalation: &[]bool{false}[0],
+		ReadOnlyRootFilesystem:   &[]bool{true}[0],
+		Privileged:               &[]bool{false}[0],
+		Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+		RunAsNonRoot:             &[]bool{true}[0],
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: corev1.SeccompProfileTypeRuntimeDefault,
+		},
+	}
+
 	tests := map[string]struct {
 		gitjob                 *v1.GitJob
 		secret                 corev1controller.SecretCache
@@ -39,12 +50,23 @@ func TestGenerateJob(t *testing.T) {
 							Name:      gitClonerVolumeName,
 							MountPath: "/workspace",
 						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
 					},
+					SecurityContext: securityContext,
 				},
 			},
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
@@ -76,15 +98,26 @@ func TestGenerateJob(t *testing.T) {
 							MountPath: "/workspace",
 						},
 						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+						{
 							Name:      gitCredentialVolumeName,
 							MountPath: "/gitjob/credentials",
 						},
 					},
+					SecurityContext: securityContext,
 				},
 			},
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
@@ -125,15 +158,26 @@ func TestGenerateJob(t *testing.T) {
 							MountPath: "/workspace",
 						},
 						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+						{
 							Name:      gitCredentialVolumeName,
 							MountPath: "/gitjob/ssh",
 						},
 					},
+					SecurityContext: securityContext,
 				},
 			},
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
@@ -174,15 +218,26 @@ func TestGenerateJob(t *testing.T) {
 							MountPath: "/workspace",
 						},
 						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+						{
 							Name:      bundleCAVolumeName,
 							MountPath: "/gitjob/cabundle",
 						},
 					},
+					SecurityContext: securityContext,
 				},
 			},
 			expectedVolumes: []corev1.Volume{
 				{
 					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
@@ -221,7 +276,12 @@ func TestGenerateJob(t *testing.T) {
 							Name:      gitClonerVolumeName,
 							MountPath: "/workspace",
 						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
 					},
+					SecurityContext: securityContext,
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -231,25 +291,33 @@ func TestGenerateJob(t *testing.T) {
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
 				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
 			},
 		},
 	}
 
-	for _, test := range tests {
-		h := Handler{
-			image:   "test",
-			secrets: test.secret,
-		}
-		job, err := h.generateJob(test.gitjob)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !cmp.Equal(job.Spec.Template.Spec.InitContainers, test.expectedInitContainers) {
-			t.Fatalf("expected initContainers: %v, got: %v", test.expectedInitContainers, job.Spec.Template.Spec.InitContainers)
-		}
-		if !cmp.Equal(job.Spec.Template.Spec.Volumes, test.expectedVolumes) {
-			t.Fatalf("expected volumes: %v, got: %v", test.expectedVolumes, job.Spec.Template.Spec.Volumes)
-		}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			h := Handler{
+				image:   "test",
+				secrets: test.secret,
+			}
+			job, err := h.generateJob(test.gitjob)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !cmp.Equal(job.Spec.Template.Spec.InitContainers, test.expectedInitContainers) {
+				t.Fatalf("expected initContainers: %v, got: %v", test.expectedInitContainers, job.Spec.Template.Spec.InitContainers)
+			}
+			if !cmp.Equal(job.Spec.Template.Spec.Volumes, test.expectedVolumes) {
+				t.Fatalf("expected volumes: %v, got: %v", test.expectedVolumes, job.Spec.Template.Spec.Volumes)
+			}
+		})
 	}
 }
 
