@@ -22,9 +22,9 @@ var _ = Describe("Keep resources", func() {
 		out, err := k.Apply("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
 		Eventually(func() string {
-			out, _ := k.Namespace(namespace).Get("pods")
+			out, _ := k.Namespace(namespace).Get("configmaps")
 			return out
-		}).Should(ContainSubstring("frontend-"))
+		}).Should(ContainSubstring("app-config"))
 	})
 
 	When("GitRepo does not contain keepResources", func() {
@@ -38,7 +38,7 @@ var _ = Describe("Keep resources", func() {
 			Expect(err).ToNot(HaveOccurred(), out)
 
 			Eventually(func() string {
-				out, _ := k.Namespace(namespace).Get("deployments", "frontend")
+				out, _ := k.Namespace(namespace).Get("configmap", "app-config")
 				return out
 			}).Should(ContainSubstring("Error from server (NotFound)"))
 		})
@@ -62,7 +62,7 @@ var _ = Describe("Keep resources", func() {
 
 			By("checking resources are not deleted")
 			Eventually(func() string {
-				out, _ := k.Namespace(namespace).Get("deployments", "frontend", "-o", "yaml")
+				out, _ := k.Namespace(namespace).Get("configmap", "app-config", "-o", "yaml")
 				return out
 			}).Should(SatisfyAll(
 				Not(ContainSubstring("Error from server (NotFound)")),

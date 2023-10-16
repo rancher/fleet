@@ -3,10 +3,10 @@ apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: dont-keep
 spec:
-  repo: https://github.com/rancher/fleet-examples
+  repo: https://github.com/rancher/fleet-test-data
   branch: master
   paths:
-  - simple
+  - helm-verify
   targetNamespace: do-not-keep-resources
   targets:
     - clusterSelector:
