@@ -8,15 +8,10 @@ package target
 import (
 	"bytes"
 	"fmt"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"text/template"
-
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	kyaml "sigs.k8s.io/yaml"
 
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -25,15 +20,17 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
+	"github.com/Masterminds/sprig/v3"
+	"github.com/pkg/errors"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/yaml"
-
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
-
-	"github.com/Masterminds/sprig/v3"
+	kyaml "sigs.k8s.io/yaml"
 )
 
 var (
