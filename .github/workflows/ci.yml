@@ -27,15 +27,6 @@ jobs:
           go-version-file: 'go.mod'
           check-latest: true
       -
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-      -
         name: unit-test
         run: go test -shuffle=on $(go list ./... | grep -v -e /e2e -e /integrationtests)
       -
