@@ -15,7 +15,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/mux v1.8.0
-	github.com/onsi/ginkgo/v2 v2.12.1
+	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.28.0
 	github.com/otiai10/copy v1.14.0
 	github.com/pkg/errors v0.9.1 // indirect
