@@ -1,7 +1,8 @@
 ARG BUILD_ENV=dapper
 
 FROM registry.suse.com/bci/bci-base:15.5.36.5.39 AS base
-RUN zypper in --no-recommends -y git bash openssh && groupadd -g 1000 fleet-apply && useradd -u 1000 -g 1000 -m fleet-apply; rm -fr /var/cache/* /var/log/*log
+USER 1000
+RUN zypper in --no-recommends -y git bash openssh; zypper -n clean -a && rm -rf /tmp/* /var/tmp/* /usr/share/doc/packages/* /var/cache/* /var/log/*log
 COPY package/log.sh /usr/bin/
 
 FROM base AS copy_dapper
