@@ -3,9 +3,9 @@ module github.com/rancher/gitjob/pkg/apis
 go 1.21
 
 require (
-	github.com/rancher/wrangler v1.1.1-0.20230831050635-df1bd5aae9df
-	k8s.io/api v0.27.4
-	k8s.io/apimachinery v0.27.4
+	github.com/rancher/wrangler v1.1.1-0.20230830082531-ef1a21e4a1e9
+	k8s.io/api v0.28.0
+	k8s.io/apimachinery v0.28.0
 )
 
 require (
