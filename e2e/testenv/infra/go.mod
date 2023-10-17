@@ -8,7 +8,7 @@ replace github.com/rancher/fleet => ../../../
 
 replace github.com/rancher/fleet/pkg/apis => ../../../pkg/apis
 
-replace k8s.io/client-go => k8s.io/client-go v0.27.4
+replace k8s.io/client-go => k8s.io/client-go v0.28.0
 
 require (
 	github.com/rancher/fleet v0.0.0
@@ -49,8 +49,8 @@ require (
 	github.com/opencontainers/image-spec v1.1.0-rc3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.16.0 // indirect
-	github.com/prometheus/client_model v0.3.0 // indirect
-	github.com/prometheus/common v0.42.0 // indirect
+	github.com/prometheus/client_model v0.4.0 // indirect
+	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/rancher/gitjob v0.1.82 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
