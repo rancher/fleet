@@ -52,8 +52,11 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-    - refs/head/master
-    - refs/tags/*
+      include:
+      - refs/head/master
+      - refs/tags/*
+      exclude:
+      - refs/tags/*-debug-*
     event:
     - tag
 - name: upload-tag
@@ -161,8 +164,11 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-    - refs/head/master
-    - refs/tags/*
+      include:
+      - refs/head/master
+      - refs/tags/*
+      exclude:
+      - refs/tags/*-debug-*
     event:
     - tag
 - name: docker-publish-agent
@@ -245,8 +251,11 @@ steps:
     instance:
     - drone-publish.rancher.io
     ref:
-    - refs/head/master
-    - refs/tags/*
+      include:
+      - refs/head/master
+      - refs/tags/*
+      exclude:
+      - refs/tags/*-debug-*
     event:
     - tag
 - name: docker-publish-agent
