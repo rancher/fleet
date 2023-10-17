@@ -38,6 +38,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+const fleetHomeDir = "/fleet-home"
+
 var (
 	two = int32(2)
 )
@@ -652,7 +654,7 @@ func volumes(
 		},
 		{
 			Name:      emptyDirHomeVolumeName,
-			MountPath: "/home/fleet-apply",
+			MountPath: fleetHomeDir,
 		},
 	}
 
@@ -767,7 +769,12 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 		}
 	}
 
-	var env []corev1.EnvVar
+	env := []corev1.EnvVar{
+		{
+			Name:  "HOME",
+			Value: fleetHomeDir,
+		},
+	}
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
 		helmArgs := []string{
 			"--helm-credentials-by-path-file",
