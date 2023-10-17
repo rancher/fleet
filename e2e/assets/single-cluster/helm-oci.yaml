@@ -4,6 +4,7 @@ metadata:
   name: helm
 spec:
   repo: https://github.com/rancher/fleet-test-data
+  branch: helm-oci-configmap-chart
   paths:
   - helm-oci
   targets:
