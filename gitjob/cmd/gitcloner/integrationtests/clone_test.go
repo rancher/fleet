@@ -38,6 +38,7 @@ const (
 	gogsHTTPSPort = "3000"
 	gogsSSHPort   = "22"
 	testRepoName  = "test-repo"
+	timeout       = 60 * time.Second
 )
 
 var (
@@ -57,7 +58,7 @@ var _ = Describe("Applying a git job gets content from git repo", func() {
 
 	When("Cloning an https repo", func() {
 		JustBeforeEach(func() {
-			container, err := createGogsContainer()
+			container, err := createGogsContainerWithHTTPS()
 			Expect(err).NotTo(HaveOccurred())
 			url, err := getHTTPSURL(context.Background(), container)
 			Expect(err).NotTo(HaveOccurred())
@@ -210,7 +211,7 @@ var _ = Describe("Applying a git job gets content from git repo", func() {
 		var tmpKey string
 
 		JustBeforeEach(func() {
-			container, err := createGogsContainer()
+			container, err := createGogsContainerWithHTTPS()
 			Expect(err).NotTo(HaveOccurred())
 			url, err := getHTTPSURL(context.Background(), container)
 			Expect(err).NotTo(HaveOccurred())
@@ -264,8 +265,8 @@ var _ = Describe("Applying a git job gets content from git repo", func() {
 	})
 })
 
-// createGogsContainer creates a container that runs gogs. It creates a certificate for tls, and stores the ca bundle in gogsCABundle
-func createGogsContainer() (testcontainers.Container, error) {
+// createGogsContainerWithHTTPS creates a container that runs gogs. It creates a certificate for tls, and stores the ca bundle in gogsCABundle
+func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 	tmpDir := createTempFolder()
 	err := cp.Copy("assets/gitserver", tmpDir)
 	if err != nil {
@@ -290,7 +291,7 @@ func createGogsContainer() (testcontainers.Container, error) {
 		return nil, err
 	}
 
-	// create ca bundle
+	// create ca bundle and certs needed for https
 	_, err = container.Exec(context.Background(), []string{"./gogs", "cert", "-ca=true", "-duration=8760h0m0s", "-host=localhost"})
 	if err != nil {
 		return nil, err
@@ -308,12 +309,23 @@ func createGogsContainer() (testcontainers.Container, error) {
 		return nil, err
 	}
 
+	// restart gogs container to make sure https certs are picked
+	err = container.Stop(context.Background(), &[]time.Duration{timeout}[0])
+	if err != nil {
+		return nil, err
+	}
+	err = container.Start(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
 	url, err := getHTTPSURL(context.Background(), container)
 	if err != nil {
 		return nil, err
 	}
 
-	// create access token, we need to wait until the http server is available
+	// create access token, we need to wait until the https server is available. We can't check this in testcontainers.WaitFor
+	// because we need to create the certificates first.
 	Eventually(func() error {
 		c := gogs.NewClient(url, "")
 		//nolint:gosec // need insecure TLS option for testing
@@ -332,7 +344,7 @@ func createGogsContainer() (testcontainers.Container, error) {
 		gogsClient.SetHTTPClient(httpClient)
 
 		return nil
-	}, "30s", "200ms").ShouldNot(HaveOccurred())
+	}, timeout, "200ms").ShouldNot(HaveOccurred())
 
 	return container, nil
 }
