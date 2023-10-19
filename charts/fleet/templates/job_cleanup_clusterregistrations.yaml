@@ -15,10 +15,21 @@ spec:
     spec:
       serviceAccountName: fleet-controller
       restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsGroup: 1000
+        runAsUser: 1000
       containers:
       - name: cleanup
         image: "{{ template "system_default_registry" . }}{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+          privileged: false
         command:
         - fleet
         args:
