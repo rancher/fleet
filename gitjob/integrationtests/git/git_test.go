@@ -40,6 +40,7 @@ const (
 	gogsFingerPrint = "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOLWGeeq/e1mK/zH47UeQeMtdh+NEz6j7xp5cAINcV2pPWgAsuyh5dumMv1RkC1rr0pmWekCoMnR2c4+PllRqrQ="
 	gogsUser        = "test"
 	gogsPass        = "pass"
+	startupTimeout  = 60 * time.Second
 )
 
 var (
@@ -257,7 +258,10 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 	req := testcontainers.ContainerRequest{
 		Image:        "gogs/gogs:0.13",
 		ExposedPorts: []string{"3000/tcp", "22/tcp"},
-		WaitingFor:   wait.ForHTTP("/").WithPort("3000/tcp"),
+		WaitingFor: wait.ForAll(
+			wait.ForHTTP("/").WithPort("3000/tcp").WithStartupTimeout(startupTimeout),
+			wait.ForListeningPort("22/tcp").WithStartupTimeout(startupTimeout),
+		),
 		Mounts: testcontainers.ContainerMounts{
 			{
 				Source: testcontainers.GenericBindMountSource{HostPath: tmpDir},
