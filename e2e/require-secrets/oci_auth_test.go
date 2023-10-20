@@ -51,7 +51,8 @@ var _ = Describe("Single Cluster Examples", func() {
 	When("creating a gitrepo resource", func() {
 		Context("containing a private oci based helm chart", func() {
 			BeforeEach(func() {
-				asset = "single-cluster/helm-with-auth.yaml"
+				//asset = "single-cluster/helm-with-auth.yaml"
+				asset = "single-cluster/helm-with-auth2.yaml"
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				out, err := k.Create(
