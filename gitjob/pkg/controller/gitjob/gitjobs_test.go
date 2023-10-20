@@ -7,8 +7,8 @@ import (
 	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 
 	"github.com/golang/mock/gomock"
-	"github.com/rancher/wrangler/pkg/generic/fake"
-	"github.com/rancher/wrangler/pkg/kstatus"
+	"github.com/rancher/wrangler/v2/pkg/generic/fake"
+	"github.com/rancher/wrangler/v2/pkg/kstatus"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
