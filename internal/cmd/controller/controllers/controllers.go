@@ -10,13 +10,11 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/bootstrap"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/bundle"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/cleanup"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/cluster"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/clustergroup"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/clusterregistration"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/clusterregistrationtoken"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/config"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/content"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/display"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/git"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/image"
@@ -144,11 +142,6 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Cluster(),
 		appCtx.ClusterGroup())
 
-	content.Register(ctx,
-		appCtx.Content(),
-		appCtx.BundleDeployment(),
-		appCtx.Core.Namespace())
-
 	clusterregistrationtoken.Register(ctx,
 		systemNamespace,
 		systemRegistrationNamespace,
@@ -161,30 +154,6 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Core.ServiceAccount(),
 		appCtx.Core.Secret().Cache(),
 		appCtx.Core.Secret())
-
-	cleanup.Register(ctx,
-		appCtx.Apply.WithCacheTypes(
-			appCtx.Core.Secret(),
-			appCtx.Core.ServiceAccount(),
-			appCtx.RBAC.Role(),
-			appCtx.RBAC.RoleBinding(),
-			appCtx.RBAC.ClusterRole(),
-			appCtx.RBAC.ClusterRoleBinding(),
-			appCtx.Bundle(),
-			appCtx.ClusterRegistrationToken(),
-			appCtx.ClusterRegistration(),
-			appCtx.ClusterGroup(),
-			appCtx.Cluster(),
-			appCtx.Core.Namespace()),
-		appCtx.Core.Secret(),
-		appCtx.Core.ServiceAccount(),
-		appCtx.BundleDeployment(),
-		appCtx.RBAC.Role(),
-		appCtx.RBAC.RoleBinding(),
-		appCtx.RBAC.ClusterRole(),
-		appCtx.RBAC.ClusterRoleBinding(),
-		appCtx.Core.Namespace(),
-		appCtx.Cluster().Cache())
 
 	manageagent.Register(ctx,
 		systemNamespace,
@@ -246,7 +215,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 	return nil
 }
 
-func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
+func ControllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
 	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(durations.FailureRateLimiterBase, durations.FailureRateLimiterMax)
 	clusterRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(durations.SlowFailureRateLimiterBase, durations.SlowFailureRateLimiterMax)
 	clientFactory, err := client.NewSharedClientFactory(rest, nil)
@@ -272,7 +241,7 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 	}
 	client.RateLimiter = ratelimit.None
 
-	scf, err := controllerFactory(client)
+	scf, err := ControllerFactory(client)
 	if err != nil {
 		return nil, err
 	}

@@ -17,6 +17,7 @@ import (
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agent"
+	"github.com/rancher/fleet/internal/cmd/controller/cleanup"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/version"
 )
@@ -58,9 +59,12 @@ func (r *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func App() *cobra.Command {
-	return command.Command(&FleetManager{}, cobra.Command{
+	cmd := command.Command(&FleetManager{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
+	cmd.AddCommand(cleanup.App())
+
+	return cmd
 }
 
 // setupCpuPprof starts a goroutine that captures a cpu pprof profile
