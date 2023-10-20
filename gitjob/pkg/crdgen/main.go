@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
-	"github.com/rancher/wrangler/pkg/crd"
-	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
-	"github.com/rancher/wrangler/pkg/schemas/openapi"
-	"github.com/rancher/wrangler/pkg/yaml"
+	"github.com/rancher/wrangler/v2/pkg/crd"
+	_ "github.com/rancher/wrangler/v2/pkg/generated/controllers/apiextensions.k8s.io"
+	"github.com/rancher/wrangler/v2/pkg/schemas/openapi"
+	"github.com/rancher/wrangler/v2/pkg/yaml"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )

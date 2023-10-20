@@ -11,13 +11,13 @@ import (
 	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/gitjob/pkg/git"
 	"github.com/rancher/gitjob/pkg/types"
-	"github.com/rancher/wrangler/pkg/apply"
+	"github.com/rancher/wrangler/v2/pkg/apply"
 	"github.com/sirupsen/logrus"
 
-	batchv1controller "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
-	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler/pkg/kstatus"
-	"github.com/rancher/wrangler/pkg/name"
+	batchv1controller "github.com/rancher/wrangler/v2/pkg/generated/controllers/batch/v1"
+	corev1controller "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v2/pkg/kstatus"
+	"github.com/rancher/wrangler/v2/pkg/name"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"

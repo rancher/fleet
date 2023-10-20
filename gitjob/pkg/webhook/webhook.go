@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/gitjob/pkg/types"
-	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	corev1controller "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/go-playground/webhooks.v5/bitbucket"
 	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"

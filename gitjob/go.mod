@@ -21,7 +21,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rancher/gitjob/pkg/apis v0.0.0-00010101000000-000000000000
 	github.com/rancher/lasso v0.0.0-20230830164424-d684fdeb6f29
-	github.com/rancher/wrangler v1.1.1-0.20230830082531-ef1a21e4a1e9
+	github.com/rancher/wrangler/v2 v2.1.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
