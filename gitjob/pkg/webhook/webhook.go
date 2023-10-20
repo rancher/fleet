@@ -12,7 +12,6 @@ import (
 	"github.com/gorilla/mux"
 	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/gitjob/pkg/types"
-	"github.com/rancher/steve/pkg/aggregation"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/go-playground/webhooks.v5/bitbucket"
@@ -259,11 +258,6 @@ func HandleHooks(ctx context.Context, rContext *types.Context) http.Handler {
 	webhook := New(ctx, rContext)
 	root.UseEncodedPath()
 	root.Handle("/", webhook)
-	aggregation.Watch(ctx,
-		rContext.Core.Core().V1().Secret(),
-		rContext.Namespace,
-		"steve-aggregation",
-		root)
 	return root
 }
 
