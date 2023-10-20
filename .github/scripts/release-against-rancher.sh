@@ -28,7 +28,7 @@ if [ ! -e ~/.gitconfig ]; then
     git config --global user.email fleet@suse.de
 fi
 
-sed -i -e "s/ENV CATTLE_FLEET_MIN_VERSION=.*$/ENV CATTLE_FLEET_MIN_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" package/Dockerfile
+sed -i -e "s/ENV CATTLE_FLEET_VERSION=.*$/ENV CATTLE_FLEET_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" package/Dockerfile
 
 git add package/Dockerfile
 
