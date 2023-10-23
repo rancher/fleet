@@ -44,12 +44,12 @@ require (
 	github.com/go-logr/logr v1.2.4
 	github.com/gobwas/glob v0.2.3
 	github.com/golang/mock v1.6.0
-	github.com/google/go-cmp v0.5.9
+	github.com/google/go-cmp v0.6.0
 	github.com/google/go-containerregistry v0.15.2
 	github.com/hashicorp/go-getter v1.7.2
 	github.com/jpillora/backoff v1.0.0
 	github.com/onsi/ginkgo/v2 v2.13.0
-	github.com/onsi/gomega v1.28.0
+	github.com/onsi/gomega v1.28.1
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0-20221227210133-6ea88ca2fbcc
 	github.com/rancher/gitjob v0.1.77
