@@ -5,12 +5,6 @@ go 1.21
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
 
-	// TODO: remove this and update gitjob after https://github.com/rancher/gitjob/pull/312 is merged
-	github.com/rancher/gitjob => github.com/rancher/gitjob v0.1.97-0.20231017104353-8b33d24664fe
-	github.com/rancher/gitjob/pkg/apis => github.com/rancher/gitjob/pkg/apis v0.0.0-20231017104353-8b33d24664fe
-
-	github.com/rancher/wrangler => github.com/rancher/wrangler v1.1.1-0.20230830082531-ef1a21e4a1e9
-
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.12.3-fleet1
 	k8s.io/api => k8s.io/api v0.28.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.28.0
@@ -60,10 +54,9 @@ require (
 	github.com/onsi/gomega v1.28.1
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0-00010101000000-000000000000
-	github.com/rancher/gitjob v0.0.0-00010101000000-000000000000
-	github.com/rancher/gitjob/pkg/apis v0.0.0-00010101000000-000000000000
+	github.com/rancher/gitjob v0.1.103
+	github.com/rancher/gitjob/pkg/apis v0.0.0-20231020154220-e390284bfd00
 	github.com/rancher/lasso v0.0.0-20230830164424-d684fdeb6f29
-	github.com/rancher/wrangler v1.1.1-0.20230831050635-df1bd5aae9df
 	github.com/rancher/wrangler/v2 v2.1.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0

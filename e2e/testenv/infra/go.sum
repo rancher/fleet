@@ -171,8 +171,8 @@ github.com/prometheus/procfs v0.0.2/go.mod h1:TjEm7ze935MbeOT/UhFTIMYKhuLP4wbCsT
 github.com/prometheus/procfs v0.0.3/go.mod h1:4A/X28fw3Fc593LaREMrKMqOKvUAntwMDaekg4FpcdQ=
 github.com/prometheus/procfs v0.10.1 h1:kYK1Va/YMlutzCGazswoHKo//tZVlFpKYh+PymziUAg=
 github.com/prometheus/procfs v0.10.1/go.mod h1:nwNm2aOCAYw8uTR/9bWRREkZFxAUcWzPHWJq+XBB/FM=
-github.com/rancher/gitjob v0.1.82 h1:f7fG4kMGQ1KXck62SzYREhlMMvOJbjoGHRcndPEWjiE=
-github.com/rancher/gitjob v0.1.82/go.mod h1:619BQTeCn47vg0LUeZyzHzxRNnlvgISge3RMhbgWg0I=
+github.com/rancher/gitjob v0.1.103 h1:s8HB5d1cVMl+XcUMnbGfDrDf1C2P0NJOsVO4ZiebxVM=
+github.com/rancher/gitjob v0.1.103/go.mod h1:ySp7tcP5DOpoTnxFoyCoadiBdXd8rR+urWf1s/0xC10=
 github.com/rogpeppe/go-internal v1.11.0 h1:cWPaGQEPrBb5/AsnsZesgZZ9yb1OQ+GOISoDNXVBh4M=
 github.com/rogpeppe/go-internal v1.11.0/go.mod h1:ddIwULY96R17DhadqLgMfk9H9tvdUzkipdSkR5nkCZA=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
