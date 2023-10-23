@@ -290,7 +290,9 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	apply = apply.WithSetOwnerReference(false, false)
+	apply = apply.
+		WithFastApply().
+		WithSetOwnerReference(false, false)
 
 	k8s, err := kubernetes.NewForConfig(client)
 	if err != nil {
