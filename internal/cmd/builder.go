@@ -135,18 +135,16 @@ func Command(obj Runnable, cmd cobra.Command) *cobra.Command {
 			panic("Unknown kind on field " + fieldType.Name + " on " + objValue.Type().Name())
 		}
 
-		if env != nil {
-			for _, env := range env {
-				envs = append(envs, func() {
-					v := os.Getenv(env)
-					if v != "" {
-						fv, err := flags.GetString(name)
-						if err == nil && (fv == "" || fv == defValue) {
-							flags.Set(name, v)
-						}
+		for _, env := range env {
+			envs = append(envs, func() {
+				v := os.Getenv(env)
+				if v != "" {
+					fv, err := flags.GetString(name)
+					if err == nil && (fv == "" || fv == defValue) {
+						_ = flags.Set(name, v)
 					}
-				})
-			}
+				}
+			})
 		}
 	}
 
