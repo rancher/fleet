@@ -11,7 +11,7 @@ import (
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/wrangler/pkg/genericcondition"
+	"github.com/rancher/wrangler/v2/pkg/genericcondition"
 )
 
 type handler struct {

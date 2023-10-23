@@ -822,6 +822,8 @@ github.com/rancher/lasso v0.0.0-20230830164424-d684fdeb6f29 h1:+kige/h8/LnzWgPjB
 github.com/rancher/lasso v0.0.0-20230830164424-d684fdeb6f29/go.mod h1:kgk9kJVMj9FIrrXU0iyM6u/9Je4bEjPImqswkTVaKsQ=
 github.com/rancher/wrangler v1.1.1-0.20230830082531-ef1a21e4a1e9 h1:Ly24W5vzo5lY++FQeuKYF1Hneq4JLgf8Vb23/hRXdDc=
 github.com/rancher/wrangler v1.1.1-0.20230830082531-ef1a21e4a1e9/go.mod h1:XzP4tZsV3hRksIZHaeglVtMFgz3YNh3q/TgKdP37Sl8=
+github.com/rancher/wrangler/v2 v2.1.1 h1:EWAg2UNm+6EEACsUf/Pc7lcjswFpfkU2mCaQdxUkRPM=
+github.com/rancher/wrangler/v2 v2.1.1/go.mod h1:LgpEqT2ATL0MevUsL5rohrAEU419MIPeswsMNHw35d4=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6SoW27p1b0cqNHllgS5HIMJraePCO15w5zCzIWYg=

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/pkg/yaml"
+	"github.com/rancher/wrangler/v2/pkg/yaml"
 )
 
 const (
