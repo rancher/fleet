@@ -14,12 +14,10 @@ import (
 )
 
 func NewCleanUp() *cobra.Command {
-	cmd := command.Command(&CleanUp{}, cobra.Command{
+	return command.Command(&CleanUp{}, cobra.Command{
 		Use:   "cleanup [flags]",
 		Short: "Clean up outdated cluster registrations",
 	})
-	command.AddDebug(cmd, &Debug)
-	return cmd
 }
 
 type CleanUp struct {

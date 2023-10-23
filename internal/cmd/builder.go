@@ -10,8 +10,6 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/rancher/wrangler/v2/pkg/signals"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -67,13 +65,6 @@ func Name(obj interface{}) string {
 	commandName := strings.Replace(objValue.Type().Name(), "Command", "", 1)
 	commandName, _ = name(commandName, "", "")
 	return commandName
-}
-
-func Main(cmd *cobra.Command) {
-	ctx := signals.SetupSignalContext()
-	if err := cmd.ExecuteContext(ctx); err != nil {
-		logrus.Fatal(err)
-	}
 }
 
 // Command populates a cobra.Command object by extracting args from struct tags of the

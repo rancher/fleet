@@ -3,6 +3,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -20,11 +21,8 @@ import (
 	"github.com/rancher/fleet/pkg/version"
 )
 
-var (
-	debugConfig command.DebugConfig
-)
-
 type FleetManager struct {
+	command.DebugConfig
 	Kubeconfig       string `usage:"Kubeconfig file"`
 	Namespace        string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
 	DisableGitops    bool   `usage:"disable gitops components" name:"disable-gitops"`
@@ -32,7 +30,6 @@ type FleetManager struct {
 }
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
-	setupDebug()
 	setupCpuPprof(cmd.Context())
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
@@ -45,23 +42,25 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func App() *cobra.Command {
-	cmd := command.Command(&FleetManager{}, cobra.Command{
-		Version: version.FriendlyVersion(),
-	})
-	return command.AddDebug(cmd, &debugConfig)
-}
-
-// setupDebug parses debug flags and configures the relevant log levels
-func setupDebug() {
-	debugConfig.MustSetupDebug()
+func (r *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
+	if err := r.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to setup debug logging: %w", err)
+	}
 
 	// if debug is enabled in controller, enable in agents too (unless otherwise specified)
 	propagateDebug, _ := strconv.ParseBool(os.Getenv("FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS"))
-	if propagateDebug && debugConfig.Debug {
+	if propagateDebug && r.Debug {
 		agent.DebugEnabled = true
-		agent.DebugLevel = debugConfig.DebugLevel
+		agent.DebugLevel = r.DebugLevel
 	}
+
+	return nil
+}
+
+func App() *cobra.Command {
+	return command.Command(&FleetManager{}, cobra.Command{
+		Version: version.FriendlyVersion(),
+	})
 }
 
 // setupCpuPprof starts a goroutine that captures a cpu pprof profile
