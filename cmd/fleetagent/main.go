@@ -6,9 +6,14 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/agent"
 
-	command "github.com/rancher/wrangler-cli"
+	"github.com/rancher/wrangler/pkg/signals"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	command.Main(agent.App())
+	ctx := signals.SetupSignalContext()
+	cmd := agent.App()
+	if err := cmd.ExecuteContext(ctx); err != nil {
+		logrus.Fatal(err)
+	}
 }

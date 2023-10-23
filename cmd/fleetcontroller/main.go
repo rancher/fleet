@@ -6,11 +6,16 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller"
 
-	command "github.com/rancher/wrangler-cli"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/networking.k8s.io"
+	"github.com/rancher/wrangler/pkg/signals"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	command.Main(controller.App())
+	ctx := signals.SetupSignalContext()
+	cmd := controller.App()
+	if err := cmd.ExecuteContext(ctx); err != nil {
+		logrus.Fatal(err)
+	}
 }

@@ -55,7 +55,6 @@ require (
 	github.com/rancher/gitjob v0.1.77
 	github.com/rancher/lasso v0.0.0-20230810170912-a86ba6c749aa
 	github.com/rancher/wrangler v1.1.1
-	github.com/rancher/wrangler-cli v0.0.0-20220624114648-479c5692ba22
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
@@ -235,7 +234,6 @@ require (
 	k8s.io/code-generator v0.27.4 // indirect
 	k8s.io/component-base v0.27.4 // indirect
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
-	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kubectl v0.27.3 // indirect
 	k8s.io/utils v0.0.0-20230220204549-a5ecb0141aa5 // indirect
 	oras.land/oras-go v1.2.3 // indirect

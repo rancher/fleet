@@ -7,13 +7,13 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/rancher/wrangler/pkg/yaml"
 	"github.com/spf13/cobra"
 
 	"github.com/rancher/fleet/internal/bundlereader"
+	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
-	command "github.com/rancher/wrangler-cli"
-	"github.com/rancher/wrangler/pkg/yaml"
 )
 
 type readFile func(name string) ([]byte, error)

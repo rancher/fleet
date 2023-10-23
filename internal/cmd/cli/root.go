@@ -5,9 +5,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rancher/fleet/internal/client"
+	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/pkg/version"
-
-	command "github.com/rancher/wrangler-cli"
 )
 
 type Getter interface {
