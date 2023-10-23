@@ -4,12 +4,12 @@ package main
 import (
 	_ "net/http/pprof"
 
-	"github.com/rancher/fleet/internal/cmd/controller"
-
-	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
-	_ "github.com/rancher/wrangler/pkg/generated/controllers/networking.k8s.io"
-	"github.com/rancher/wrangler/pkg/signals"
+	_ "github.com/rancher/wrangler/v2/pkg/generated/controllers/apiextensions.k8s.io"
+	_ "github.com/rancher/wrangler/v2/pkg/generated/controllers/networking.k8s.io"
+	"github.com/rancher/wrangler/v2/pkg/signals"
 	"github.com/sirupsen/logrus"
+
+	"github.com/rancher/fleet/internal/cmd/controller"
 )
 
 func main() {
