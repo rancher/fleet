@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/match"
-	command "github.com/rancher/wrangler-cli"
 )
 
 func NewTest() *cobra.Command {
