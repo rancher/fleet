@@ -12,14 +12,12 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agent"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/version"
-
-	command "github.com/rancher/wrangler-cli"
 )
 
 var (

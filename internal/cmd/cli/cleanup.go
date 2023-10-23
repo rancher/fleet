@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/cleanup"
-	command "github.com/rancher/wrangler-cli"
 )
 
 func NewCleanUp() *cobra.Command {
