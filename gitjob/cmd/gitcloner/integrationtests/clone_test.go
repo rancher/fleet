@@ -292,11 +292,11 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 	}
 
 	// create ca bundle and certs needed for https
-	_, err = container.Exec(context.Background(), []string{"./gogs", "cert", "-ca=true", "-duration=8760h0m0s", "-host=localhost"})
+	_, _, err = container.Exec(context.Background(), []string{"./gogs", "cert", "-ca=true", "-duration=8760h0m0s", "-host=localhost"})
 	if err != nil {
 		return nil, err
 	}
-	_, err = container.Exec(context.Background(), []string{"chown", "git:git", "cert.pem", "key.pem"})
+	_, _, err = container.Exec(context.Background(), []string{"chown", "git:git", "cert.pem", "key.pem"})
 	if err != nil {
 		return nil, err
 	}
