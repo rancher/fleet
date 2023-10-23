@@ -16,7 +16,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/mux v1.8.0
 	github.com/onsi/ginkgo/v2 v2.13.0
-	github.com/onsi/gomega v1.28.0
+	github.com/onsi/gomega v1.28.1
 	github.com/otiai10/copy v1.14.0
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rancher/gitjob/pkg/apis v0.0.0-00010101000000-000000000000
