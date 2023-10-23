@@ -19,12 +19,10 @@ import (
 type readFile func(name string) ([]byte, error)
 
 func NewApply() *cobra.Command {
-	cmd := command.Command(&Apply{}, cobra.Command{
+	return command.Command(&Apply{}, cobra.Command{
 		Use:   "apply [flags] BUNDLE_NAME PATH...",
 		Short: "Render a bundle into a Kubernetes resource and apply it in the Fleet Manager",
 	})
-	command.AddDebug(cmd, &Debug)
-	return cmd
 }
 
 type Apply struct {

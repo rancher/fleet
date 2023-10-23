@@ -7,20 +7,12 @@ import (
 	"fmt"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 )
 
 type DebugConfig struct {
-	Debug      bool
-	DebugLevel int
-}
-
-func (c *DebugConfig) MustSetupDebug() {
-	err := c.SetupDebug()
-	if err != nil {
-		panic("failed to setup debug logging: " + err.Error())
-	}
+	Debug      bool `usage:"Turn on debug logging"`
+	DebugLevel int  `usage:"If debugging is enabled, set klog -v=X"`
 }
 
 func (c *DebugConfig) SetupDebug() error {
@@ -42,10 +34,4 @@ func (c *DebugConfig) SetupDebug() error {
 	}
 
 	return nil
-}
-
-func AddDebug(cmd *cobra.Command, config *DebugConfig) *cobra.Command {
-	cmd.Flags().BoolVar(&config.Debug, "debug", false, "Turn on debug logging")
-	cmd.Flags().IntVar(&config.DebugLevel, "debug-level", 0, "If debugging is enabled, set klog -v=X")
-	return cmd
 }

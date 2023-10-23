@@ -10,12 +10,10 @@ import (
 )
 
 func NewTest() *cobra.Command {
-	cmd := command.Command(&Test{}, cobra.Command{
+	return command.Command(&Test{}, cobra.Command{
 		Args:  cobra.MaximumNArgs(1),
 		Short: "Match a bundle to a target and render the output",
 	})
-	command.AddDebug(cmd, &Debug)
-	return cmd
 }
 
 type Test struct {

@@ -12,11 +12,8 @@ import (
 	"github.com/rancher/fleet/pkg/version"
 )
 
-var (
-	debugConfig command.DebugConfig
-)
-
 type FleetAgent struct {
+	command.DebugConfig
 	Kubeconfig      string `usage:"kubeconfig file"`
 	Namespace       string `usage:"namespace to watch" env:"NAMESPACE"`
 	AgentScope      string `usage:"An identifier used to scope the agent bundleID names, typically the same as namespace" env:"AGENT_SCOPE"`
@@ -28,7 +25,9 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
 
-	debugConfig.MustSetupDebug()
+	if err := a.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to setup debug logging: %w", err)
+	}
 	var (
 		opts options
 		err  error
@@ -51,8 +50,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 }
 
 func App() *cobra.Command {
-	cmd := command.Command(&FleetAgent{}, cobra.Command{
+	return command.Command(&FleetAgent{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
-	return command.AddDebug(cmd, &debugConfig)
 }
