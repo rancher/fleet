@@ -70,7 +70,7 @@ var _ = Describe("Helm Chart Values", func() {
 			Expect(t).To(HaveKeyWithValue("name", "name-local"))
 			Expect(t).To(HaveKeyWithValue("namespace", ContainSubstring("fleet-local")))
 			Expect(t).To(HaveKey("annotations"))
-			Expect(t["annotations"]).To(Equal(`{"app":"fleet","more":"data"}`))
+			Expect(t["annotations"]).To(ContainSubstring(`{"app":"fleet","more":"data","randomNumber":`))
 			Expect(t).To(HaveKeyWithValue("image", "rancher/mirrored-library-busybox:1.34.1"))
 			Expect(t).To(HaveKeyWithValue("imagePullPolicy", "IfNotPresent"))
 			Expect(t).To(HaveKeyWithValue("clusterValues", "{}"))
@@ -92,6 +92,7 @@ var _ = Describe("Helm Chart Values", func() {
 			Expect(d.Spec.Template.Annotations).To(SatisfyAll(
 				HaveKeyWithValue("app", "fleet"),
 				HaveKeyWithValue("more", "data"),
+				HaveKeyWithValue("randomNumber", MatchRegexp("[0-9]{3}")),
 			))
 			Expect(d.Spec.Template.Labels).To(HaveKeyWithValue("name", "local"))
 			Expect(d.Spec.Template.Labels).To(HaveKeyWithValue("policy", ""))
