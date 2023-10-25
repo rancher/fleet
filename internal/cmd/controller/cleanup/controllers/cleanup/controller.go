@@ -23,6 +23,9 @@ type handler struct {
 	apply      apply.Apply
 	clusters   fleetcontrollers.ClusterCache
 	namespaces corecontrollers.NamespaceClient
+	bundles    fleetcontrollers.BundleController
+	images     fleetcontrollers.ImageScanController
+	gitRepo    fleetcontrollers.GitRepoCache
 }
 
 func Register(ctx context.Context, apply apply.Apply,
@@ -34,11 +37,17 @@ func Register(ctx context.Context, apply apply.Apply,
 	clusterRole rbaccontrollers.ClusterRoleController,
 	clusterRoleBinding rbaccontrollers.ClusterRoleBindingController,
 	namespaces corecontrollers.NamespaceController,
-	clusterCache fleetcontrollers.ClusterCache) {
+	clusterCache fleetcontrollers.ClusterCache,
+	bundles fleetcontrollers.BundleController,
+	images fleetcontrollers.ImageScanController,
+	gitRepo fleetcontrollers.GitRepoCache) {
 	h := &handler{
 		apply:      apply,
 		clusters:   clusterCache,
 		namespaces: namespaces,
+		bundles:    bundles,
+		images:     images,
+		gitRepo:    gitRepo,
 	}
 
 	bundledeployment.OnChange(ctx, "managed-cleanup", func(_ string, obj *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
@@ -91,6 +100,8 @@ func Register(ctx context.Context, apply apply.Apply,
 	})
 
 	namespaces.OnChange(ctx, "managed-namespace-cleanup", h.cleanupNamespace)
+	bundles.OnChange(ctx, "bundle-orphan", h.OnPurgeOrphaned)
+	images.OnChange(ctx, "imagescan-orphan", h.OnPurgeOrphanedImageScan)
 }
 
 func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.Namespace, error) {
@@ -124,4 +135,43 @@ func (h *handler) cleanup(obj runtime.Object) error {
 		return nil
 	}
 	return err
+}
+
+func (h *handler) OnPurgeOrphaned(key string, bundle *fleet.Bundle) (*fleet.Bundle, error) {
+	if bundle == nil {
+		return bundle, nil
+	}
+	logrus.Debugf("OnPurgeOrphaned for bundle '%s' change, checking if gitrepo still exists", bundle.Name)
+
+	repo := bundle.Labels[fleet.RepoLabel]
+	if repo == "" {
+		return nil, nil
+	}
+
+	_, err := h.gitRepo.Get(bundle.Namespace, repo)
+	if apierrors.IsNotFound(err) {
+		return nil, h.bundles.Delete(bundle.Namespace, bundle.Name, nil)
+	} else if err != nil {
+		return nil, err
+	}
+
+	return bundle, nil
+}
+
+func (h *handler) OnPurgeOrphanedImageScan(key string, image *fleet.ImageScan) (*fleet.ImageScan, error) {
+	if image == nil || image.DeletionTimestamp != nil {
+		return image, nil
+	}
+	logrus.Debugf("OnPurgeOrphanedImageScan for image '%s' change, checking if gitrepo still exists", image.Name)
+
+	repo := image.Spec.GitRepoName
+
+	_, err := h.gitRepo.Get(image.Namespace, repo)
+	if apierrors.IsNotFound(err) {
+		return nil, h.images.Delete(image.Namespace, image.Name, nil)
+	} else if err != nil {
+		return nil, err
+	}
+
+	return image, nil
 }

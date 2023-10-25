@@ -21,7 +21,6 @@ import (
 	"github.com/rancher/wrangler/v2/pkg/generic"
 	"github.com/rancher/wrangler/v2/pkg/relatedresource"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -75,8 +74,6 @@ func Register(ctx context.Context,
 
 	relatedresource.Watch(ctx, "app", h.resolveBundle, bundles, bundleDeployments)
 	clusters.OnChange(ctx, "app", h.OnClusterChange)
-	bundles.OnChange(ctx, "bundle-orphan", h.OnPurgeOrphaned)
-	images.OnChange(ctx, "imagescan-orphan", h.OnPurgeOrphanedImageScan)
 }
 
 func (h *handler) resolveBundle(_ string, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
@@ -128,45 +125,6 @@ func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Clus
 	logrus.Debugf("OnClusterChange for cluster '%s' took %s", cluster.Name, elapsed)
 
 	return cluster, nil
-}
-
-func (h *handler) OnPurgeOrphaned(key string, bundle *fleet.Bundle) (*fleet.Bundle, error) {
-	if bundle == nil {
-		return bundle, nil
-	}
-	logrus.Debugf("OnPurgeOrphaned for bundle '%s' change, checking if gitrepo still exists", bundle.Name)
-
-	repo := bundle.Labels[fleet.RepoLabel]
-	if repo == "" {
-		return nil, nil
-	}
-
-	_, err := h.gitRepo.Get(bundle.Namespace, repo)
-	if apierrors.IsNotFound(err) {
-		return nil, h.bundles.Delete(bundle.Namespace, bundle.Name, nil)
-	} else if err != nil {
-		return nil, err
-	}
-
-	return bundle, nil
-}
-
-func (h *handler) OnPurgeOrphanedImageScan(key string, image *fleet.ImageScan) (*fleet.ImageScan, error) {
-	if image == nil || image.DeletionTimestamp != nil {
-		return image, nil
-	}
-	logrus.Debugf("OnPurgeOrphanedImageScan for image '%s' change, checking if gitrepo still exists", image.Name)
-
-	repo := image.Spec.GitRepoName
-
-	_, err := h.gitRepo.Get(image.Namespace, repo)
-	if apierrors.IsNotFound(err) {
-		return nil, h.images.Delete(image.Namespace, image.Name, nil)
-	} else if err != nil {
-		return nil, err
-	}
-
-	return image, nil
 }
 
 func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus) ([]runtime.Object, fleet.BundleStatus, error) {

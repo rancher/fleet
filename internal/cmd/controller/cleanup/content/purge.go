@@ -18,49 +18,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type handler struct {
-	content          fleetcontrollers.ContentController
-	bundleDeployment fleetcontrollers.BundleDeploymentController
-	namespaces       corecontrollers.NamespaceClient
-}
-
 type contentRef struct {
 	safeToDelete    bool
 	markForDeletion bool
 	bundleCount     int
 }
 
-func Register(ctx context.Context,
-	content fleetcontrollers.ContentController,
-	bundleDeployment fleetcontrollers.BundleDeploymentController,
-	namespaces corecontrollers.NamespaceController) {
-
-	h := &handler{
-		content:          content,
-		bundleDeployment: bundleDeployment,
-		namespaces:       namespaces,
-	}
-
-	go func() {
-		h.purgeOrphaned(ctx)
-	}()
-
+// PurgeOrphanedInBackground cleans up all orphan contents in a different goroutine. It checks all contents every 5 minutes.
+func PurgeOrphanedInBackground(ctx context.Context, content fleetcontrollers.ContentController, bundleDeployment fleetcontrollers.BundleDeploymentController, namespaceClient corecontrollers.NamespaceClient) {
+	go purgeOrphaned(ctx, content, bundleDeployment, namespaceClient)
 }
 
-func (h *handler) purgeOrphaned(ctx context.Context) {
-
+func purgeOrphaned(ctx context.Context, content fleetcontrollers.ContentController, bundleDeployment fleetcontrollers.BundleDeploymentController, namespaceClient corecontrollers.NamespaceClient) {
 	deleteRefs := make(map[string]*contentRef)
 
 	for range ticker.Context(ctx, durations.ContentPurgeInterval) {
 		logrus.Debugf("Checking for orphaned content objects")
-		namespaces, err := h.namespaces.List(metav1.ListOptions{})
+		namespaces, err := namespaceClient.List(metav1.ListOptions{})
 		if err != nil {
-			logrus.Warnf("Error reading namespaces %v", err)
+			logrus.Warnf("Error reading namespaceClient %v", err)
 			continue
 		}
 		var bundleDeployments []fleet.BundleDeployment
 		for _, ns := range namespaces.Items {
-			nsBundleDeployments, err := h.bundleDeployment.List(ns.Name, metav1.ListOptions{})
+			nsBundleDeployments, err := bundleDeployment.List(ns.Name, metav1.ListOptions{})
 			if err != nil {
 				logrus.Warnf("Error listing bundle deployments %v", err)
 				continue
@@ -70,7 +51,7 @@ func (h *handler) purgeOrphaned(ctx context.Context) {
 
 		contentRefs := make(map[string]*contentRef)
 
-		contents, err := h.content.List(metav1.ListOptions{})
+		contents, err := content.List(metav1.ListOptions{})
 		if err != nil {
 			logrus.Warnf("Error reading contents %v", err)
 			continue
@@ -118,7 +99,7 @@ func (h *handler) purgeOrphaned(ctx context.Context) {
 		for contentName, dr := range deleteRefs {
 			if dr.safeToDelete {
 				logrus.Infof("Deleting orphaned content[%s]", contentName)
-				if err := h.content.Delete(contentName, &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
+				if err := content.Delete(contentName, &metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
 					logrus.Warnf("Error deleting contentbundle %v", err)
 				} else {
 					delete(deleteRefs, contentName)
