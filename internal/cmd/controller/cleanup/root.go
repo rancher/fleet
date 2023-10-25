@@ -9,16 +9,11 @@ import (
 )
 
 type CleanUp struct {
-	command.DebugConfig
 	Kubeconfig string `usage:"kubeconfig file"`
 	Namespace  string `usage:"namespace to watch" env:"NAMESPACE"`
 }
 
 func (c *CleanUp) Run(cmd *cobra.Command, args []string) error {
-	if err := c.SetupDebug(); err != nil {
-		return fmt.Errorf("failed to setup debug logging: %w", err)
-	}
-
 	if c.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
 	}
