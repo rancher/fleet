@@ -17,12 +17,7 @@ func (c *CleanUp) Run(cmd *cobra.Command, args []string) error {
 	if c.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
 	}
-	if err := start(cmd.Context(), c.Kubeconfig, c.Namespace); err != nil {
-		return err
-	}
-	<-cmd.Context().Done()
-
-	return nil
+	return start(cmd.Context(), c.Kubeconfig, c.Namespace)
 }
 
 func App() *cobra.Command {
