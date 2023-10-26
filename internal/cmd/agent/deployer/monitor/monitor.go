@@ -1,24 +1,20 @@
-package deployer
+package monitor
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 
-	jsonpatch "github.com/evanphx/json-patch"
-
 	"github.com/pkg/errors"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diffnormalize"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/resource"
-	fleetnorm "github.com/rancher/fleet/internal/cmd/agent/deployer/normalizers"
+	"github.com/sirupsen/logrus"
+
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/plan"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
 	"github.com/rancher/wrangler/v2/pkg/apply"
-	"github.com/rancher/wrangler/v2/pkg/merr"
 	"github.com/rancher/wrangler/v2/pkg/objectset"
 	"github.com/rancher/wrangler/v2/pkg/summary"
-	"github.com/sirupsen/logrus"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,130 +22,31 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// plan first does a dry run of the apply to get the difference between the
-// desired and live state. It relies on the bundledeployment's bundle diff
-// patches to ignore changes.
-func (m *Manager) plan(bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (apply.Plan, error) {
-	if ns == "" {
-		ns = m.defaultNamespace
-	}
-
-	a := m.getApply(bd, ns)
-	plan, err := a.DryRun(objs...)
-	if err != nil {
-		return plan, err
-	}
-
-	desired := objectset.NewObjectSet(objs...).ObjectsByGVK()
-	live := objectset.NewObjectSet(plan.Objects...).ObjectsByGVK()
-
-	norms, err := m.normalizers(live, bd)
-	if err != nil {
-		return plan, err
-	}
-
-	var errs []error
-	for gvk, objs := range plan.Update {
-		for key := range objs {
-			desiredObj := desired[gvk][key]
-			if desiredObj == nil {
-				desiredKey := key
-				// if different namespace options to guess if resource is namespaced or not
-				if desiredKey.Namespace == "" {
-					desiredKey.Namespace = ns
-				} else {
-					desiredKey.Namespace = ""
-				}
-				desiredObj = desired[gvk][desiredKey]
-				if desiredObj == nil {
-					continue
-				}
-			}
-			desiredObj.(*unstructured.Unstructured).SetNamespace(key.Namespace)
-
-			actualObj := live[gvk][key]
-			if actualObj == nil {
-				continue
-			}
-
-			diffResult, err := diff.Diff(desiredObj.(*unstructured.Unstructured), actualObj.(*unstructured.Unstructured),
-				diff.WithNormalizer(norms),
-				diff.IgnoreAggregatedRoles(true))
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			if !diffResult.Modified {
-				delete(plan.Update[gvk], key)
-				continue
-			}
-			patch, err := jsonpatch.CreateMergePatch(diffResult.NormalizedLive, diffResult.PredictedLive)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-			plan.Update.Add(gvk, key.Namespace, key.Name, string(patch))
-		}
-		if len(errs) > 0 {
-			return plan, merr.NewErrors(errs...)
-		}
-	}
-	return plan, nil
+type Monitor struct {
+	defaultNamespace           string
+	deployer                   *helmdeployer.Helm
+	apply                      apply.Apply
+	labelPrefix                string
+	labelSuffix                string
+	bundleDeploymentController fleetcontrollers.BundleDeploymentController
 }
 
-func (m *Manager) normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (diff.Normalizer, error) {
-	var ignore []resource.ResourceIgnoreDifferences
-	jsonPatchNorm := &fleetnorm.JSONPatchNormalizer{}
-	if bd.Spec.Options.Diff != nil {
-		for _, patch := range bd.Spec.Options.Diff.ComparePatches {
-			groupVersion, err := schema.ParseGroupVersion(patch.APIVersion)
-			if err != nil {
-				return nil, err
-			}
-			ignore = append(ignore, resource.ResourceIgnoreDifferences{
-				Namespace:    patch.Namespace,
-				Name:         patch.Name,
-				Kind:         patch.Kind,
-				Group:        groupVersion.Group,
-				JSONPointers: patch.JsonPointers,
-			})
-
-			for _, op := range patch.Operations {
-				// compile each operation by itself so that one failing operation doesn't block the others
-				patchData, err := json.Marshal([]interface{}{op})
-				if err != nil {
-					return nil, err
-				}
-				gvk := schema.FromAPIVersionAndKind(patch.APIVersion, patch.Kind)
-				key := objectset.ObjectKey{
-					Name:      patch.Name,
-					Namespace: patch.Namespace,
-				}
-				jsonPatchNorm.Add(gvk, key, patchData)
-			}
-		}
+func New(defaultNamespace string,
+	labelPrefix, labelSuffix string,
+	deployer *helmdeployer.Helm,
+	apply apply.Apply) *Monitor {
+	return &Monitor{
+		defaultNamespace: defaultNamespace,
+		labelPrefix:      labelPrefix,
+		labelSuffix:      labelSuffix,
+		deployer:         deployer,
+		apply:            apply.WithDynamicLookup(),
 	}
-
-	ignoreNorm, err := diffnormalize.NewDiffNormalizer(ignore, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	norm := fleetnorm.New(live, ignoreNorm, jsonPatchNorm)
-	return norm, nil
-}
-
-func (m *Manager) getApply(bd *fleet.BundleDeployment, ns string) apply.Apply {
-	apply := m.apply
-	return apply.
-		WithIgnorePreviousApplied().
-		WithSetID(helmdeployer.GetSetID(bd.Name, m.labelPrefix, m.labelSuffix)).
-		WithDefaultNamespace(ns)
 }
 
 // UpdateBundleDeploymentStatus updates the status with information from the
 // helm release history and an apply dry run.
-func (m *Manager) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet.BundleDeployment) error {
+func (m *Monitor) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet.BundleDeployment) error {
 	resources, err := m.deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
 		return err
@@ -159,7 +56,18 @@ func (m *Manager) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet
 		return err
 	}
 
-	plan, err := m.plan(bd, resources.DefaultNamespace, resources.Objects...)
+	ns := resources.DefaultNamespace
+	if ns == "" {
+		ns = m.defaultNamespace
+	}
+	apply := plan.GetApply(m.apply, plan.Options{
+		LabelPrefix:      m.labelPrefix,
+		LabelSuffix:      m.labelSuffix,
+		DefaultNamespace: ns,
+		Name:             bd.Name,
+	})
+
+	plan, err := plan.Plan(apply, bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
 		return err
 	}
@@ -210,18 +118,6 @@ func (m *Manager) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet
 	}
 
 	return nil
-}
-
-func isNamespaced(mapper meta.RESTMapper, gvk schema.GroupVersionKind) bool {
-	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return true
-	}
-	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
-}
-
-func sortKey(f fleet.ModifiedStatus) string {
-	return f.APIVersion + "/" + f.Kind + "/" + f.Namespace + "/" + f.Name
 }
 
 func modified(plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
@@ -382,4 +278,16 @@ func shouldExcludeCondition(conditions map[string]interface{}, ignoredConditions
 	}
 
 	return true
+}
+
+func isNamespaced(mapper meta.RESTMapper, gvk schema.GroupVersionKind) bool {
+	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return true
+	}
+	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
+}
+
+func sortKey(f fleet.ModifiedStatus) string {
+	return f.APIVersion + "/" + f.Kind + "/" + f.Namespace + "/" + f.Name
 }

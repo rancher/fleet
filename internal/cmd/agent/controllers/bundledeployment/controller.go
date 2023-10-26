@@ -14,6 +14,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/internal/cmd/agent/trigger"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -38,28 +41,39 @@ var nsResource = schema.GroupVersionResource{Group: "", Version: "v1", Resource:
 type handler struct {
 	cleanupOnce sync.Once
 
-	ctx           context.Context
-	trigger       *trigger.Trigger
-	deployManager *deployer.Manager
-	bdController  fleetcontrollers.BundleDeploymentController
-	restMapper    meta.RESTMapper
-	dynamic       dynamic.Interface
+	ctx     context.Context
+	trigger *trigger.Trigger
+
+	Deployer    *deployer.Deployer
+	Monitor     *monitor.Monitor
+	DriftDetect *driftdetect.DriftDetect
+	Cleanup     *cleanup.Cleanup
+
+	bdController fleetcontrollers.BundleDeploymentController
+	restMapper   meta.RESTMapper
+	dynamic      dynamic.Interface
 }
 
 func Register(ctx context.Context,
 	trigger *trigger.Trigger,
 	restMapper meta.RESTMapper,
 	dynamic dynamic.Interface,
-	deployManager *deployer.Manager,
+	deployer *deployer.Deployer,
+	cleanup *cleanup.Cleanup,
+	monitor *monitor.Monitor,
+	driftDetect *driftdetect.DriftDetect,
 	bdController fleetcontrollers.BundleDeploymentController) {
 
 	h := &handler{
-		ctx:           ctx,
-		trigger:       trigger,
-		deployManager: deployManager,
-		bdController:  bdController,
-		restMapper:    restMapper,
-		dynamic:       dynamic,
+		ctx:          ctx,
+		trigger:      trigger,
+		Deployer:     deployer,
+		Cleanup:      cleanup,
+		Monitor:      monitor,
+		DriftDetect:  driftDetect,
+		bdController: bdController,
+		restMapper:   restMapper,
+		dynamic:      dynamic,
 	}
 
 	fleetcontrollers.RegisterBundleDeploymentStatusHandler(ctx,
@@ -75,12 +89,12 @@ func Register(ctx context.Context,
 		h.MonitorBundle)
 
 	bdController.OnChange(ctx, "bundle-trigger", h.Trigger)
-	bdController.OnChange(ctx, "bundle-cleanup", h.Cleanup)
+	bdController.OnChange(ctx, "bundle-cleanup", h.CleanupReleases)
 }
 
 func (h *handler) garbageCollect() {
 	for {
-		if err := h.deployManager.Cleanup(); err != nil {
+		if err := h.Cleanup.Cleanup(); err != nil {
 			logrus.Errorf("failed to cleanup orphaned releases: %v", err)
 		}
 		select {
@@ -91,7 +105,7 @@ func (h *handler) garbageCollect() {
 	}
 }
 
-func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
+func (h *handler) CleanupReleases(key string, bd *fleet.BundleDeployment) (*fleet.BundleDeployment, error) {
 	h.cleanupOnce.Do(func() {
 		go h.garbageCollect()
 	})
@@ -99,7 +113,7 @@ func (h *handler) Cleanup(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 	if bd != nil {
 		return bd, nil
 	}
-	return nil, h.deployManager.Delete(key)
+	return nil, h.Deployer.Delete(key)
 }
 
 func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDeploymentStatus) (fleet.BundleDeploymentStatus, error) {
@@ -115,7 +129,7 @@ func (h *handler) DeployBundle(bd *fleet.BundleDeployment, status fleet.BundleDe
 	}
 
 	logrus.Infof("Deploying bundle %s/%s", bd.Namespace, bd.Name)
-	release, err := h.deployManager.Deploy(bd)
+	release, err := h.Deployer.Deploy(bd)
 	if err != nil {
 		// When an error from DeployBundle is returned it causes DeployBundle
 		// to requeue and keep trying to deploy on a loop. If there is something
@@ -356,7 +370,7 @@ func (h *handler) Trigger(key string, bd *fleet.BundleDeployment) (*fleet.Bundle
 
 	logrus.Debugf("Triggering for bundledeployment '%s'", key)
 
-	resources, err := h.deployManager.AllResources(bd)
+	resources, err := h.DriftDetect.AllResources(bd)
 	if err != nil {
 		return bd, err
 	}
@@ -436,7 +450,7 @@ func (h *handler) MonitorBundle(bd *fleet.BundleDeployment, status fleet.BundleD
 		return status, nil
 	}
 
-	err := h.deployManager.UpdateBundleDeploymentStatus(h.restMapper, bd)
+	err := h.Monitor.UpdateBundleDeploymentStatus(h.restMapper, bd)
 	if err != nil {
 
 		// Returning an error will cause MonitorBundle to requeue in a loop.

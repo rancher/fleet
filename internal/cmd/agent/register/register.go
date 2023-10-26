@@ -199,16 +199,17 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 		return nil, err
 	}
 
-	clusterID := ""
+	clientID := ""
 	if cfg.ClientID != "" {
-		clusterID = cfg.ClientID
+		clientID = cfg.ClientID
 	} else {
 		kubeSystem, err := k8s.Namespace().Get("kube-system", metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("cannot retrieve our kubeSystem.UID: %w", err)
 		}
 
-		clusterID = string(kubeSystem.UID)
+		// no configured id, client id is now "clusterID"
+		clientID = string(kubeSystem.UID)
 	}
 
 	// add the name of the pod that created the registration for debugging
@@ -217,20 +218,20 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 	}
 	cfg.Labels["fleet.cattle.io/created-by-agent-pod"] = os.Getenv("HOSTNAME")
 
-	logrus.Infof("Creating clusterregistration with id '%s' for new token", clusterID)
+	logrus.Infof("Creating clusterregistration with id '%s' for new token", clientID)
 	request, err := fc.Fleet().V1alpha1().ClusterRegistration().Create(&fleet.ClusterRegistration{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "request-",
 			Namespace:    ns,
 		},
 		Spec: fleet.ClusterRegistrationSpec{
-			ClientID:      clusterID,
+			ClientID:      clientID,
 			ClientRandom:  token,
 			ClusterLabels: cfg.Labels,
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("cannot create clusterregistration on management cluster for cluster id '%s': %w", clusterID, err)
+		return nil, fmt.Errorf("cannot create clusterregistration on management cluster for cluster id '%s': %w", clientID, err)
 	}
 
 	secretName := registration.SecretName(request.Spec.ClientID, request.Spec.ClientRandom)

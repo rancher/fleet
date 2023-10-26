@@ -10,6 +10,9 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/agent/controllers/bundledeployment"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/internal/cmd/agent/trigger"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
@@ -90,14 +93,25 @@ func Register(ctx context.Context,
 		trigger.New(ctx, appCtx.restMapper, appCtx.Dynamic),
 		appCtx.restMapper,
 		appCtx.Dynamic,
-		deployer.NewManager(
+		deployer.New(
+			manifest.NewLookup(appCtx.Fleet.Content()),
+			helmDeployer),
+		cleanup.New(
 			fleetNamespace,
+			defaultNamespace,
+			appCtx.Fleet.BundleDeployment().Cache(),
+			appCtx.Fleet.BundleDeployment(),
+			helmDeployer),
+		monitor.New(
 			defaultNamespace,
 			labelPrefix,
 			agentScope,
-			appCtx.Fleet.BundleDeployment().Cache(),
-			appCtx.Fleet.BundleDeployment(),
-			manifest.NewLookup(appCtx.Fleet.Content()),
+			helmDeployer,
+			appCtx.Apply),
+		driftdetect.New(
+			defaultNamespace,
+			labelPrefix,
+			agentScope,
 			helmDeployer,
 			appCtx.Apply),
 		appCtx.Fleet.BundleDeployment())
