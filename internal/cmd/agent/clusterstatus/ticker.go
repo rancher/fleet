@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type handler struct {
@@ -39,6 +40,8 @@ func Ticker(ctx context.Context,
 	nodes corecontrollers.NodeClient,
 	clusters fleetcontrollers.ClusterClient) {
 
+	logger := log.FromContext(ctx).WithName("clusterstatus").WithValues("cluster", clusterName, "interval", checkinInterval)
+
 	h := handler{
 		agentNamespace:   agentNamespace,
 		clusterName:      clusterName,
@@ -49,7 +52,7 @@ func Ticker(ctx context.Context,
 
 	go func() {
 		time.Sleep(durations.ClusterRegisterDelay)
-		logrus.Debug("Reporting cluster node status once")
+		logger.V(1).Info("Reporting cluster node status once")
 		if err := h.Update(); err != nil {
 			logrus.Errorf("failed to report cluster node status: %v", err)
 		}
@@ -59,7 +62,7 @@ func Ticker(ctx context.Context,
 			checkinInterval = durations.DefaultClusterCheckInterval
 		}
 		for range ticker.Context(ctx, checkinInterval) {
-			logrus.Debug("Reporting cluster node status")
+			logger.V(1).Info("Reporting cluster node status")
 			if err := h.Update(); err != nil {
 				logrus.Errorf("failed to report cluster node status: %v", err)
 			}

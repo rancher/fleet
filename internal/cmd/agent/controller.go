@@ -6,6 +6,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/agent/controllers"
 	"github.com/rancher/fleet/internal/cmd/agent/register"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/lasso/pkg/mapper"
