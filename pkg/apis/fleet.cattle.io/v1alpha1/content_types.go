@@ -9,6 +9,7 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
 // Content is used internally by Fleet and should not be used directly. It
 // contains the resources from a bundle for a specific target cluster.
@@ -19,5 +20,6 @@ type Content struct {
 	// Content is a byte array, which contains the manifests of a bundle.
 	// The bundle resources are copied into the bundledeployment's content
 	// resource, so the downstream agent can deploy them.
+	// +nullable
 	Content []byte `json:"content,omitempty"`
 }

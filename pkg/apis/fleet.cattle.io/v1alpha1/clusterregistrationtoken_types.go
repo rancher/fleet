@@ -8,6 +8,7 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Secret-Name",type=string,JSONPath=`.status.secretName`
 
 // ClusterRegistrationToken is used by agents to register a new cluster.
 type ClusterRegistrationToken struct {
@@ -21,6 +22,7 @@ type ClusterRegistrationToken struct {
 type ClusterRegistrationTokenSpec struct {
 	// TTL is the time to live for the token. It is used to calculate the
 	// expiration time. If the token expires, it will be deleted.
+	// +nullable
 	TTL *metav1.Duration `json:"ttl,omitempty"`
 }
 
@@ -28,5 +30,6 @@ type ClusterRegistrationTokenStatus struct {
 	// Expires is the time when the token expires.
 	Expires *metav1.Time `json:"expires,omitempty"`
 	// SecretName is the name of the secret containing the token.
+	// +nullable
 	SecretName string `json:"secretName,omitempty"`
 }

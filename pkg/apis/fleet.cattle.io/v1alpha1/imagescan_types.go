@@ -10,6 +10,8 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Repository",type=string,JSONPath=`.spec.image`
+// +kubebuilder:printcolumn:name="Latest",type=string,JSONPath=`.status.latestTag`
 
 type ImageScan struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -22,17 +24,21 @@ type ImageScan struct {
 // API is taken from https://github.com/fluxcd/image-reflector-controller
 type ImageScanSpec struct {
 	// TagName is the tag ref that needs to be put in manifest to replace fields
+	// +nullable
 	TagName string `json:"tagName,omitempty"`
 
 	// GitRepo reference name
+	// +nullable
 	GitRepoName string `json:"gitrepoName,omitempty"`
 
 	// Image is the name of the image repository
 	// +required
+	// +nullable
 	Image string `json:"image,omitempty"`
 
 	// Interval is the length of time to wait between
 	// scans of the image repository.
+	// +nullable
 	// +required
 	Interval metav1.Duration `json:"interval,omitempty"`
 
@@ -40,6 +46,7 @@ type ImageScanSpec struct {
 	// credentials to use for the image registry. The secret should be
 	// created with `kubectl create secret docker-registry`, or the
 	// equivalent.
+	// +nullable
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 
 	// This flag tells the controller to suspend subsequent image scans.
@@ -49,7 +56,7 @@ type ImageScanSpec struct {
 
 	// Policy gives the particulars of the policy to be followed in
 	// selecting the most recent image
-	// +required
+	// +optional
 	Policy ImagePolicyChoice `json:"policy"`
 }
 
@@ -59,9 +66,11 @@ type ImagePolicyChoice struct {
 	// SemVer gives a semantic version range to check against the tags
 	// available.
 	// +optional
+	// +nullable
 	SemVer *SemVerPolicy `json:"semver,omitempty"`
 	// Alphabetical set of rules to use for alphabetical ordering of the tags.
 	// +optional
+	// +nullable
 	Alphabetical *AlphabeticalPolicy `json:"alphabetical,omitempty"`
 }
 
@@ -69,7 +78,8 @@ type ImagePolicyChoice struct {
 type SemVerPolicy struct {
 	// Range gives a semver range for the image tag; the highest
 	// version within the range that's a tag yields the latest image.
-	// +required
+	// +optional
+	// +nullable
 	Range string `json:"range"`
 }
 
@@ -78,9 +88,8 @@ type AlphabeticalPolicy struct {
 	// Order specifies the sorting order of the tags. Given the letters of the
 	// alphabet as tags, ascending order would select Z, and descending order
 	// would select A.
-	// +kubebuilder:default:="asc"
-	// +kubebuilder:validation:Enum=asc;desc
 	// +optional
+	// +nullable
 	Order string `json:"order,omitempty"`
 }
 
