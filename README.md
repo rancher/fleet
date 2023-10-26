@@ -24,7 +24,7 @@ Who needs documentation, let's just run this thing!
 
 ## Install
 
-Get helm if you don't have it.  Helm 3 is just a CLI and won't do bad insecure
+Get `helm` if you don't have it.  Helm 3 is just a CLI and won't do bad insecure
 things to your cluster.
 
 ```
@@ -54,7 +54,7 @@ metadata:
   # This namespace is special and auto-wired to deploy to the local cluster
   namespace: fleet-local
 spec:
-  # Everything from this repo will be ran in this cluster. You trust me right?
+  # Everything from this repo will be run in this cluster. You trust me right?
   repo: "https://github.com/rancher/fleet-examples"
   paths:
   - simple
