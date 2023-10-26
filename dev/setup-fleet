@@ -18,7 +18,7 @@ helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-cr
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait --reset-values \
   --set apiServerCA="$ca" \
   --set apiServerURL="$server" \
-  --set debug=true --set debugLevel=99 fleet charts/fleet
+  --set debug=true --set debugLevel=1 fleet charts/fleet
 
 # wait for controller and agent rollout
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
