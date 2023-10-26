@@ -12,6 +12,9 @@ import (
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/agent/controllers/bundledeployment"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/internal/cmd/agent/trigger"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
@@ -146,18 +149,29 @@ func registerBundleDeploymentController(cfg *rest.Config, namespace string, look
 	wranglerApply, err := apply.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-	deployManager := deployer.NewManager(
-		namespace,
-		namespace,
+	deployManager := deployer.New(
+		lookup,
+		helmDeployer)
+	cleanup := cleanup.New(
 		namespace,
 		namespace,
 		factory.Fleet().V1alpha1().BundleDeployment().Cache(),
 		factory.Fleet().V1alpha1().BundleDeployment(),
-		lookup,
+		helmDeployer)
+	monitor := monitor.New(
+		namespace,
+		namespace,
+		namespace,
+		helmDeployer,
+		wranglerApply)
+	driftdetect := driftdetect.New(
+		namespace,
+		namespace,
+		namespace,
 		helmDeployer,
 		wranglerApply)
 
-	bundledeployment.Register(ctx, trig, mapper, dyn, deployManager, factory.Fleet().V1alpha1().BundleDeployment())
+	bundledeployment.Register(ctx, trig, mapper, dyn, deployManager, cleanup, monitor, driftdetect, factory.Fleet().V1alpha1().BundleDeployment())
 
 	err = factory.Start(ctx, 50)
 	Expect(err).ToNot(HaveOccurred())

@@ -54,11 +54,13 @@ func TestRunRegistrationLabelSmokeTest(t *testing.T) {
 	mockConfigMapController.EXPECT().Get(secret.Namespace, "fleet-agent", metav1.GetOptions{}).
 		Return(nil, &apierrors.StatusError{ErrStatus: metav1.Status{Reason: metav1.StatusReasonNotFound}})
 
-	var mockNamespaceController corecontrollers.NamespaceController // not used
+	mockNamespaceController := fake.NewMockNonNamespacedControllerInterface[*corev1.Namespace, *corev1.NamespaceList](ctrl)
+	mockNamespaceController.EXPECT().Get("kube-system", metav1.GetOptions{}).Return(&corev1.Namespace{}, nil)
+
 	mockCoreController := mockCoreInterface{mockConfigMapController, mockNamespaceController, mockSecretController}
 
 	http.DefaultClient.Timeout = 100 * time.Millisecond // no need to wait longer, the API server URL is a dummy.
-	agentSecret, err := runRegistration(context.Background(), mockCoreController, namespace, "my-clusterID")
+	agentSecret, err := runRegistration(context.Background(), mockCoreController, namespace)
 
 	assert.Nil(t, agentSecret)
 	// expecting an error at cluster registration creation time because the API server URL is a dummy.
