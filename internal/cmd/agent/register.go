@@ -5,6 +5,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/agent/register"
@@ -24,15 +27,22 @@ type Register struct {
 }
 
 func (r *Register) Run(cmd *cobra.Command, args []string) error {
+	// provide a logger in the context to be compatible with controller-runtime
+	zopts := zap.Options{
+		Development: true,
+	}
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
+
 	clientConfig := kubeconfig.GetNonInteractiveClientConfig(r.Kubeconfig)
 	kc, err := clientConfig.ClientConfig()
 	if err != nil {
 		return err
 	}
 
-	logrus.Printf("starting registration on upstream cluster in namespace %s", r.Namespace)
+	setupLog.Info("starting registration on upstream cluster", "namespace", r.Namespace)
 
-	ctx, cancel := context.WithCancel(cmd.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	// try to register with upstream fleet controller by obtaining
 	// a kubeconfig for the upstream cluster
 	agentInfo, err := register.Register(ctx, r.Namespace, kc)
@@ -50,7 +60,7 @@ func (r *Register) Run(cmd *cobra.Command, args []string) error {
 		logrus.Fatal(err)
 	}
 
-	logrus.Printf("successfully registered with upstream cluster in namespace %s", ns)
+	setupLog.Info("successfully registered with upstream cluster", "namespace", ns)
 	cancel()
 
 	return nil

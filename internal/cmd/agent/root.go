@@ -7,6 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	ctrl "sigs.k8s.io/controller-runtime"
+	clog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/pkg/version"
 )
@@ -22,7 +26,15 @@ type FleetAgent struct {
 	AgentScope string `usage:"An identifier used to scope the agent bundleID names, typically the same as namespace" env:"AGENT_SCOPE"`
 }
 
+var setupLog = ctrl.Log.WithName("setup")
+
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
+	zopts := zap.Options{
+		Development: true,
+	}
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
+
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
@@ -34,7 +46,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	if a.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
 	}
-	if err := start(cmd.Context(), a.Kubeconfig, a.Namespace, a.AgentScope); err != nil {
+	if err := start(ctx, a.Kubeconfig, a.Namespace, a.AgentScope); err != nil {
 		return err
 	}
 

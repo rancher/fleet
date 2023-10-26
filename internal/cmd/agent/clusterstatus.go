@@ -9,6 +9,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/agent/clusterstatus"
@@ -39,7 +42,12 @@ type ClusterStatus struct {
 }
 
 func (cs *ClusterStatus) Run(cmd *cobra.Command, args []string) error {
-	ctx := cmd.Context()
+	// provide a logger in the context to be compatible with controller-runtime
+	zopts := zap.Options{
+		Development: true,
+	}
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	var err error
 	var checkinInterval time.Duration
