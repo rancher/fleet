@@ -24,6 +24,7 @@ import (
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/genericcondition"
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
@@ -33,6 +34,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -380,6 +382,12 @@ func (h *handler) OnChange(gitrepo *fleet.GitRepo, status fleet.GitRepoStatus) (
 	}
 	status.Resources, status.ResourceErrors = h.display.Render(gitrepo.Namespace, gitrepo.Name, bundleErrorState)
 	status = countResources(status)
+
+	if equality.Semantic.DeepEqual(gitrepo.Status, status) {
+		logrus.Debugf("OnChange GitRepo %s/%s status unchanged, skipping apply", gitrepo.Namespace, gitrepo.Name)
+		return nil, status, generic.ErrSkip
+	}
+
 	volumes, volumeMounts := volumes(gitrepo, configMap)
 	args, envs := argsAndEnvs(gitrepo)
 	return []runtime.Object{
