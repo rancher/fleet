@@ -12,8 +12,8 @@ import (
 
 	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/cmd/controller/agent"
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
 	"github.com/rancher/fleet/internal/cmd/controller/connection"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/manageagent"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/helmdeployer"

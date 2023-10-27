@@ -11,8 +11,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/resources"
-	secretutil "github.com/rancher/fleet/internal/cmd/controller/secret"
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/resources"
+	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	"github.com/rancher/fleet/internal/config"
 	fname "github.com/rancher/fleet/internal/name"
 	"github.com/rancher/fleet/internal/registration"

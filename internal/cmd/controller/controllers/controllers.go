@@ -8,19 +8,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/bootstrap"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/bundle"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/cluster"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/clustergroup"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/clusterregistration"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/clusterregistrationtoken"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/config"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/display"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/git"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/image"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/manageagent"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/resources"
-	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/durations"
@@ -71,22 +63,9 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool, disableBootstrap bool) error {
+func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool) error {
 	appCtx, err := newContext(cfg)
 	if err != nil {
-		return err
-	}
-
-	systemRegistrationNamespace := fleetns.SystemRegistrationNamespace(systemNamespace)
-
-	if err := resources.ApplyBootstrapResources(
-		systemNamespace,
-		systemRegistrationNamespace,
-		appCtx.Apply.
-			WithSetID("fleet-bootstrap-data").
-			WithDynamicLookup().
-			WithNoDeleteGVK(fleetns.GVK()),
-	); err != nil {
 		return err
 	}
 
@@ -98,36 +77,6 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		return err
 	}
 
-	clusterregistration.Register(ctx,
-		appCtx.Apply.WithCacheTypes(
-			appCtx.RBAC.ClusterRole(),
-			appCtx.RBAC.ClusterRoleBinding(),
-		),
-		systemNamespace,
-		systemRegistrationNamespace,
-		appCtx.Core.ServiceAccount(),
-		appCtx.Core.Secret(),
-		appCtx.RBAC.Role(),
-		appCtx.RBAC.RoleBinding(),
-		appCtx.ClusterRegistration(),
-		appCtx.Cluster())
-
-	cluster.Register(ctx,
-		appCtx.BundleDeployment(),
-		appCtx.ClusterGroup().Cache(),
-		appCtx.Cluster(),
-		appCtx.GitRepo().Cache(),
-		appCtx.Core.Namespace(),
-		appCtx.ClusterRegistration())
-
-	cluster.RegisterImport(ctx,
-		systemNamespace,
-		appCtx.Core.Secret().Cache(),
-		appCtx.Cluster(),
-		appCtx.ClusterRegistrationToken(),
-		appCtx.Bundle(),
-		appCtx.Core.Namespace())
-
 	bundle.Register(ctx,
 		appCtx.Apply,
 		appCtx.RESTMapper,
@@ -137,30 +86,6 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.ImageScan(),
 		appCtx.GitRepo().Cache(),
 		appCtx.BundleDeployment())
-
-	clustergroup.Register(ctx,
-		appCtx.Cluster(),
-		appCtx.ClusterGroup())
-
-	clusterregistrationtoken.Register(ctx,
-		systemNamespace,
-		systemRegistrationNamespace,
-		appCtx.Apply.WithCacheTypes(
-			appCtx.Core.Secret(),
-			appCtx.Core.ServiceAccount(),
-			appCtx.RBAC.Role(),
-			appCtx.RBAC.RoleBinding()),
-		appCtx.ClusterRegistrationToken(),
-		appCtx.Core.ServiceAccount(),
-		appCtx.Core.Secret().Cache(),
-		appCtx.Core.Secret())
-
-	manageagent.Register(ctx,
-		systemNamespace,
-		appCtx.Apply,
-		appCtx.Core.Namespace(),
-		appCtx.Cluster(),
-		appCtx.Bundle())
 
 	if !disableGitops {
 		git.Register(ctx,
@@ -176,21 +101,6 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 			appCtx.Bundle(),
 			appCtx.ImageScan(),
 			appCtx.GitRepo(),
-			appCtx.Core.Secret().Cache())
-	}
-
-	if !disableBootstrap {
-		bootstrap.Register(ctx,
-			systemNamespace,
-			appCtx.Apply.WithCacheTypes(
-				appCtx.GitRepo(),
-				appCtx.Cluster(),
-				appCtx.ClusterGroup(),
-				appCtx.Core.Namespace(),
-				appCtx.Core.Secret()),
-			appCtx.ClientConfig,
-			appCtx.Core.ServiceAccount().Cache(),
-			appCtx.Core.Secret(),
 			appCtx.Core.Secret().Cache())
 	}
 

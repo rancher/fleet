@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
+
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -24,10 +26,9 @@ import (
 
 type FleetManager struct {
 	command.DebugConfig
-	Kubeconfig       string `usage:"Kubeconfig file"`
-	Namespace        string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
-	DisableGitops    bool   `usage:"disable gitops components" name:"disable-gitops"`
-	DisableBootstrap bool   `usage:"disable local cluster components" name:"disable-bootstrap"`
+	Kubeconfig    string `usage:"Kubeconfig file"`
+	Namespace     string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
+	DisableGitops bool   `usage:"disable gitops components" name:"disable-gitops"`
 }
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
@@ -35,7 +36,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
-	if err := start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops, f.DisableBootstrap); err != nil {
+	if err := start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops); err != nil {
 		return err
 	}
 
@@ -63,6 +64,7 @@ func App() *cobra.Command {
 		Version: version.FriendlyVersion(),
 	})
 	cmd.AddCommand(cleanup.App())
+	cmd.AddCommand(agentmanagement.App())
 
 	return cmd
 }
