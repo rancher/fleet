@@ -44,5 +44,3 @@ fi
 ${CONTROLLERGEN} crd webhook paths="./pkg/apis/..." output:stdout > $CRDS_YAML
 # Sort
 run_yq  --slurp --sort-keys --explicit-start --yaml-output -i 'sort_by(.metadata.name)[]' $CRDS_YAML
-# Set spec.preserveUnknownFields=false since it can't be done with controller-gen https://github.com/kubernetes-sigs/controller-tools/issues/476
-run_yq -yi '.spec.preserveUnknownFields=false' $CRDS_YAML

@@ -1,3 +1,4 @@
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
@@ -875,7 +876,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -1011,7 +1011,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -2538,7 +2537,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -2883,7 +2881,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -2965,7 +2962,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -3031,7 +3027,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -4519,7 +4514,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -4568,7 +4562,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -4655,7 +4648,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -5299,7 +5291,6 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -5468,4 +5459,3 @@ spec:
       storage: true
       subresources:
         status: {}
-  preserveUnknownFields: false
