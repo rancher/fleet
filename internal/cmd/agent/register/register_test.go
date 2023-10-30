@@ -61,6 +61,7 @@ func TestRunRegistrationLabelSmokeTest(t *testing.T) {
 	agentSecret, err := runRegistration(context.Background(), mockCoreController, namespace, "my-clusterID")
 
 	assert.Nil(t, agentSecret)
-	// expecting a timeout at cluster registration creation time because the API server URL is a dummy.
-	assert.Regexp(t, regexp.MustCompile("cannot create clusterregistration.*timeout"), err.Error())
+	// expecting an error at cluster registration creation time because the API server URL is a dummy.
+	// this may be a timeout or a simple 'connection refused' error.
+	assert.Regexp(t, regexp.MustCompile("cannot create clusterregistration.*"), err.Error())
 }
