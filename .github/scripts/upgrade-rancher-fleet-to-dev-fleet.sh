@@ -45,6 +45,6 @@ sleep 5
 { grep -E -q -m 1 "fleet-agent-c.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-default -w)
 
 kubectl config use-context k3d-downstream
-kubectl -n cattle-fleet-system rollout status deploy/fleet-agent
+kubectl -n cattle-fleet-system rollout status statefulset/fleet-agent
 
 helm list -A

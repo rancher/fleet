@@ -32,10 +32,10 @@ func TestImageResolve(t *testing.T) {
 	}
 }
 
-func getDeploymentFromManifests(namespace string, scope string, opts ManifestOptions) *appsv1.Deployment {
+func getAgentFromManifests(namespace string, scope string, opts ManifestOptions) *appsv1.StatefulSet {
 	objects := Manifest(namespace, scope, opts)
 	for _, obj := range objects {
-		dep, ok := obj.(*appsv1.Deployment)
+		dep, ok := obj.(*appsv1.StatefulSet)
 		if ok {
 			return dep
 		}
@@ -92,13 +92,13 @@ func TestManifestAgentTolerations(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			agentDeployment := getDeploymentFromManifests(namespace, scope, testCase.getOpts())
-			if agentDeployment == nil {
+			agent := getAgentFromManifests(namespace, scope, testCase.getOpts())
+			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
 
-			if !cmp.Equal(agentDeployment.Spec.Template.Spec.Tolerations, testCase.expectedTolerations, cmpOpt) {
-				t.Fatalf("tolerations were not as expected: %v", agentDeployment.Spec.Template.Spec.Tolerations)
+			if !cmp.Equal(agent.Spec.Template.Spec.Tolerations, testCase.expectedTolerations, cmpOpt) {
+				t.Fatalf("tolerations were not as expected: %v", agent.Spec.Template.Spec.Tolerations)
 			}
 		})
 	}
@@ -152,13 +152,13 @@ func TestManifestAgentAffinity(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			agentDeployment := getDeploymentFromManifests(namespace, "", testCase.getOpts())
-			if agentDeployment == nil {
+			agent := getAgentFromManifests(namespace, "", testCase.getOpts())
+			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
 
-			if !cmp.Equal(agentDeployment.Spec.Template.Spec.Affinity, testCase.expectedAffinity) {
-				t.Fatalf("affinity was not as expected: %v %v", testCase.expectedAffinity, agentDeployment.Spec.Template.Spec.Affinity)
+			if !cmp.Equal(agent.Spec.Template.Spec.Affinity, testCase.expectedAffinity) {
+				t.Fatalf("affinity was not as expected: %v %v", testCase.expectedAffinity, agent.Spec.Template.Spec.Affinity)
 			}
 		})
 	}
@@ -204,13 +204,13 @@ func TestManifestAgentResources(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			agentDeployment := getDeploymentFromManifests(namespace, "", testCase.getOpts())
-			if agentDeployment == nil {
+			agent := getAgentFromManifests(namespace, "", testCase.getOpts())
+			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
 
-			if !reflect.DeepEqual(agentDeployment.Spec.Template.Spec.Containers[0].Resources, testCase.expectedResources) {
-				t.Fatalf("resources was not as expected: %v %v", testCase.expectedResources, agentDeployment.Spec.Template.Spec.Containers[0].Resources)
+			if !reflect.DeepEqual(agent.Spec.Template.Spec.Containers[0].Resources, testCase.expectedResources) {
+				t.Fatalf("resources was not as expected: %v %v", testCase.expectedResources, agent.Spec.Template.Spec.Containers[0].Resources)
 			}
 		})
 	}
