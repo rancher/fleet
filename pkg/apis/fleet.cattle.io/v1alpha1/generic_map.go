@@ -29,8 +29,29 @@ func deepCopyMap(src, dest map[string]interface{}) {
 			destValue := make(map[string]interface{}, len(value))
 			deepCopyMap(value, destValue)
 			dest[key] = destValue
+		case []any:
+			destValue := make([]any, len(value))
+			deepCopySlice(value, destValue)
+			dest[key] = destValue
 		default:
 			dest[key] = value
+		}
+	}
+}
+
+func deepCopySlice(src, dest []any) {
+	for i := range src {
+		switch value := src[i].(type) {
+		case map[string]interface{}:
+			destValue := make(map[string]interface{}, len(value))
+			deepCopyMap(value, destValue)
+			dest[i] = destValue
+		case []any:
+			destValue := make([]any, len(value))
+			deepCopySlice(value, destValue)
+			dest[i] = destValue
+		default:
+			dest[i] = value
 		}
 	}
 }
