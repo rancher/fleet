@@ -24,12 +24,7 @@ FROM bitnami/python:3.10
 RUN install_packages jq
 RUN python -m pip install yq
 EOF
-    container_id=$(docker create --rm -i -v ${PWD}:${PWD}:ro -w ${PWD} -v ${tmpdir}:${tmpdir} ${image} yq $@ )
-    if [ -n "${COPY_FILE}" ] ; then
-      # When running on CI, docker-in-docker may be used, so the generated input file, which is outside the working directory, is not mounted and not available
-      docker cp "${COPY_FILE}" "${container_id}:${COPY_FILE}"
-    fi
-    docker start -ai "${container_id}"
+    docker run --rm -i -v ${PWD}:${PWD} -w ${PWD} ${image} yq $@
   else
     yq $@
   fi
@@ -45,13 +40,6 @@ if ! $CONTROLLERGEN --version | grep -q "${CONTROLLERGEN_VERSION}" ; then
 fi
 
 # Run controller-gen
-CONTROLLERGEN_CRDS_YAML="${tmpdir}/crds-controllergen.yaml"
-${CONTROLLERGEN} crd webhook paths="./pkg/apis/..." output:stdout > "${CONTROLLERGEN_CRDS_YAML}"
-
-# Patch existing CRDs with the descriptions from controller-gen
-PATCHED_CRDS_YAML="${tmpdir}/crds-patched.yaml"
-COPY_FILE="${CONTROLLERGEN_CRDS_YAML}" run_yq -f cmd/codegen/hack/patch_crd_descriptions.jq "${CRDS_YAML}" "${CONTROLLERGEN_CRDS_YAML}" \
-  --slurp --sort-keys --explicit-start --yaml-output > "${PATCHED_CRDS_YAML}"
-
-# Override previous CRDs file
-cp "${PATCHED_CRDS_YAML}" "${CRDS_YAML}"
+${CONTROLLERGEN} crd webhook paths="./pkg/apis/..." output:stdout > $CRDS_YAML
+# Sort
+run_yq --slurp --sort-keys --explicit-start --yaml-output -i 'sort_by(.metadata.name)[]' $CRDS_YAML

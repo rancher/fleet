@@ -1,10 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
-	"github.com/rancher/fleet/pkg/crd"
 	controllergen "github.com/rancher/wrangler/v2/pkg/controller-gen"
 	"github.com/rancher/wrangler/v2/pkg/controller-gen/args"
 
@@ -16,14 +14,6 @@ import (
 )
 
 func main() {
-	if len(os.Args) > 2 && os.Args[1] == "crds" {
-		fmt.Println("Writing CRDs to", os.Args[2])
-		if err := crd.WriteFile(os.Args[2]); err != nil {
-			panic(err)
-		}
-		return
-	}
-
 	os.Unsetenv("GOPATH")
 	controllergen.Run(args.Options{
 		OutputPackage: "github.com/rancher/fleet/pkg/generated",

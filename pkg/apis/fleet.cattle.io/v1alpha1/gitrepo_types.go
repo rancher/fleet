@@ -16,6 +16,10 @@ var (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:categories=fleet,path=gitrepos
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Repo",type=string,JSONPath=`.spec.repo`
+// +kubebuilder:printcolumn:name="Commit",type=string,JSONPath=`.status.commit`
+// +kubebuilder:printcolumn:name="BundleDeployments-Ready",type=string,JSONPath=`.status.display.readyBundleDeployments`
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].message`
 
 // GitRepo describes a git repository that is watched by Fleet.
 // The resource contains the necessary information to deploy the repo, or parts
@@ -30,34 +34,43 @@ type GitRepo struct {
 
 type GitRepoSpec struct {
 	// Repo is a URL to a git repo to clone and index.
+	// +nullable
 	Repo string `json:"repo,omitempty"`
 
 	// Branch The git branch to follow.
+	// +nullable
 	Branch string `json:"branch,omitempty"`
 
 	// Revision A specific commit or tag to operate on.
+	// +nullable
 	Revision string `json:"revision,omitempty"`
 
 	// Ensure that all resources are created in this namespace
 	// Any cluster scoped resource will be rejected if this is set
 	// Additionally this namespace will be created on demand.
+	// +nullable
 	TargetNamespace string `json:"targetNamespace,omitempty"`
 
 	// ClientSecretName is the name of the client secret to be used to connect to the repo
 	// It is expected the secret be of type "kubernetes.io/basic-auth" or "kubernetes.io/ssh-auth".
+	// +nullable
 	ClientSecretName string `json:"clientSecretName,omitempty"`
 
 	// HelmSecretName contains the auth secret for a private Helm repository.
+	// +nullable
 	HelmSecretName string `json:"helmSecretName,omitempty"`
 
 	// HelmSecretNameForPaths contains the auth secret for private Helm repository for each path.
+	// +nullable
 	HelmSecretNameForPaths string `json:"helmSecretNameForPaths,omitempty"`
 
 	// HelmRepoURLRegex Helm credentials will be used if the helm repo matches this regex
 	// Credentials will always be used if this is empty or not provided.
+	// +nullable
 	HelmRepoURLRegex string `json:"helmRepoURLRegex,omitempty"`
 
 	// CABundle is a PEM encoded CA bundle which will be used to validate the repo's certificate.
+	// +nullable
 	CABundle []byte `json:"caBundle,omitempty"`
 
 	// InsecureSkipTLSverify will use insecure HTTPS to clone the repo.
@@ -66,6 +79,7 @@ type GitRepoSpec struct {
 	// Paths is the directories relative to the git repo root that contain resources to be applied.
 	// Path globbing is supported, for example ["charts/*"] will match all folders as a subdirectory of charts/
 	// If empty, "/" is the default.
+	// +nullable
 	Paths []string `json:"paths,omitempty"`
 
 	// Paused, when true, causes changes in Git not to be propagated down to the clusters but instead to mark
@@ -73,12 +87,14 @@ type GitRepoSpec struct {
 	Paused bool `json:"paused,omitempty"`
 
 	// ServiceAccount used in the downstream cluster for deployment.
+	// +nullable
 	ServiceAccount string `json:"serviceAccount,omitempty"`
 
 	// Targets is a list of targets this repo will deploy to.
 	Targets []GitTarget `json:"targets,omitempty"`
 
 	// PollingInterval is how often to check git for new updates.
+	// +nullable
 	PollingInterval *metav1.Duration `json:"pollingInterval,omitempty"`
 
 	// Increment this number to force a redeployment of contents from Git.
@@ -101,27 +117,36 @@ type GitRepoSpec struct {
 // GitTarget is a cluster or cluster group to deploy to.
 type GitTarget struct {
 	// Name is the name of this target.
+	// +nullable
 	Name string `json:"name,omitempty"`
 	// ClusterName is the name of a cluster.
+	// +nullable
 	ClusterName string `json:"clusterName,omitempty"`
 	// ClusterSelector is a label selector to select clusters.
+	// +nullable
 	ClusterSelector *metav1.LabelSelector `json:"clusterSelector,omitempty"`
 	// ClusterGroup is the name of a cluster group in the same namespace as the clusters.
+	// +nullable
 	ClusterGroup string `json:"clusterGroup,omitempty"`
 	// ClusterGroupSelector is a label selector to select cluster groups.
+	// +nullable
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 }
 
 type GitRepoStatus struct {
 	// ObservedGeneration is the current generation of the resource in the cluster. It is copied from k8s
 	// metadata.Generation. The value is incremented for all changes, except for changes to .metadata or .status.
+	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Commit is the Git commit hash from the last gitjob run.
+	// +nullable
 	Commit string `json:"commit,omitempty"`
 	// ReadyClusters is the lowest number of clusters that are ready over
 	// all the bundles of this GitRepo.
+	// +optional
 	ReadyClusters int `json:"readyClusters"`
 	// DesiredReadyClusters	is the number of clusters that should be ready for bundles of this GitRepo.
+	// +optional
 	DesiredReadyClusters int `json:"desiredReadyClusters"`
 	// GitJobStatus is the status of the last GitJob run, e.g. "Current" if there was no error.
 	GitJobStatus string `json:"gitJobStatus,omitempty"`
@@ -145,21 +170,29 @@ type GitRepoStatus struct {
 // GitRepoResourceCounts contains the number of resources in each state.
 type GitRepoResourceCounts struct {
 	// Ready is the number of ready resources.
+	// +optional
 	Ready int `json:"ready"`
 	// DesiredReady is the number of resources that should be ready.
+	// +optional
 	DesiredReady int `json:"desiredReady"`
 	// WaitApplied is the number of resources that are waiting to be applied.
+	// +optional
 	WaitApplied int `json:"waitApplied"`
 	// Modified is the number of resources that have been modified.
+	// +optional
 	Modified int `json:"modified"`
 	// Orphaned is the number of orphaned resources.
+	// +optional
 	Orphaned int `json:"orphaned"`
 	// Missing is the number of missing resources.
+	// +optional
 	Missing int `json:"missing"`
 	// Unknown is the number of resources in an unknown state.
+	// +optional
 	Unknown int `json:"unknown"`
 	// NotReady is the number of not ready resources. Resources are not
 	// ready if they do not match any other state.
+	// +optional
 	NotReady int `json:"notReady"`
 }
 
@@ -226,14 +259,17 @@ type ResourcePerClusterState struct {
 // CommitSpec specifies how to commit changes to the git repository
 type CommitSpec struct {
 	// AuthorName gives the name to provide when making a commit
-	// +required
+	// +optional
+	// +nullable
 	AuthorName string `json:"authorName"`
 	// AuthorEmail gives the email to provide when making a commit
-	// +required
+	// +optional
+	// +nullable
 	AuthorEmail string `json:"authorEmail"`
 	// MessageTemplate provides a template for the commit message,
 	// into which will be interpolated the details of the change made.
 	// +optional
+	// +nullable
 	MessageTemplate string `json:"messageTemplate,omitempty"`
 }
 

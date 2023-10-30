@@ -14,6 +14,8 @@ type BundleNamespaceMapping struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	BundleSelector    *metav1.LabelSelector `json:"bundleSelector,omitempty"`
+	// +nullable
+	BundleSelector *metav1.LabelSelector `json:"bundleSelector,omitempty"`
+	// +nullable
 	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
 }

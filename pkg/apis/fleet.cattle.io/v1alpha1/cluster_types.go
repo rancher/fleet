@@ -39,6 +39,11 @@ var (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Bundles-Ready",type=string,JSONPath=`.status.display.readyBundles`
+// +kubebuilder:printcolumn:name="Nodes-Ready",type=string,JSONPath=`.status.display.readyNodes`
+// +kubebuilder:printcolumn:name="Sample-Node",type=string,JSONPath=`.status.display.sampleNode`
+// +kubebuilder:printcolumn:name="Last-Seen",type=string,JSONPath=`.status.agent.lastSeen`
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].message`
 
 // Cluster corresponds to a Kubernetes cluster. Fleet deploys bundles to targeted clusters.
 // Clusters to which Fleet deploys manifests are referred to as downstream
@@ -58,15 +63,18 @@ type ClusterSpec struct {
 
 	// ClientID is a unique string that will identify the cluster. It can
 	// either be predefined, or generated when importing the cluster.
+	// +nullable
 	ClientID string `json:"clientID,omitempty"`
 
 	// KubeConfigSecret is the name of the secret containing the kubeconfig for the downstream cluster.
 	// It can optionally contain a APIServerURL and CA to override the
 	// values in the fleet-controller's configmap.
+	// +nullable
 	KubeConfigSecret string `json:"kubeConfigSecret,omitempty"`
 
 	// KubeConfigSecretNamespace is the namespace of the secret containing the kubeconfig for the downstream cluster.
 	// If unset, it will be assumed the secret can be found in the namespace that the Cluster object resides within.
+	// +nullable
 	KubeConfigSecretNamespace string `json:"kubeConfigSecretNamespace,omitempty"`
 
 	// RedeployAgentGeneration can be used to force redeploying the agent.
@@ -76,9 +84,11 @@ type ClusterSpec struct {
 	AgentEnvVars []corev1.EnvVar `json:"agentEnvVars,omitempty"`
 
 	// AgentNamespace defaults to the system namespace, e.g. cattle-fleet-system.
+	// +nullable
 	AgentNamespace string `json:"agentNamespace,omitempty"`
 
 	// PrivateRepoURL prefixes the image name and overrides a global repo URL from the agents config.
+	// +nullable
 	PrivateRepoURL string `json:"privateRepoURL,omitempty"`
 
 	// TemplateValues defines a cluster specific mapping of values to be sent to fleet.yaml values templating.
@@ -89,8 +99,10 @@ type ClusterSpec struct {
 
 	// AgentAffinity overrides the default affinity for the cluster's agent
 	// deployment. If this value is nil the default affinity is used.
+	// +nullable
 	AgentAffinity *corev1.Affinity `json:"agentAffinity,omitempty"`
 
+	// +nullable
 	// AgentResources sets the resources for the cluster's agent deployment.
 	AgentResources *corev1.ResourceRequirements `json:"agentResources,omitempty"`
 }
@@ -109,16 +121,21 @@ type ClusterStatus struct {
 	// ResourceCounts is an aggregate over the GitRepoResourceCounts.
 	ResourceCounts GitRepoResourceCounts `json:"resourceCounts,omitempty"`
 	// ReadyGitRepos is the number of gitrepos for this cluster that are ready.
+	// +optional
 	ReadyGitRepos int `json:"readyGitRepos"`
 	// DesiredReadyGitRepos is the number of gitrepos for this cluster that
 	// are desired to be ready.
+	// +optional
 	DesiredReadyGitRepos int `json:"desiredReadyGitRepos"`
 
 	// AgentEnvVarsHash is a hash of the agent's env vars, used to detect changes.
+	// +nullable
 	AgentEnvVarsHash string `json:"agentEnvVarsHash,omitempty"`
 	// AgentPrivateRepoURL is the private repo URL for the agent that is currently used.
+	// +nullable
 	AgentPrivateRepoURL string `json:"agentPrivateRepoURL,omitempty"`
 	// AgentDeployedGeneration is the generation of the agent that is currently deployed.
+	// +nullable
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
 	// AgentMigrated is always set to true after importing a cluster. If
 	// false, it will trigger a migration. Old agents don't have
@@ -138,9 +155,11 @@ type ClusterStatus struct {
 	AgentAffinityHash string `json:"agentAffinityHash,omitempty"`
 	// AgentResourcesHash is a hash of the agent's resources configuration,
 	// used to detect changes.
+	// +nullable
 	AgentResourcesHash string `json:"agentResourcesHash,omitempty"`
 	// AgentTolerationsHash is a hash of the agent's tolerations
 	// configuration, used to detect changes.
+	// +nullable
 	AgentTolerationsHash string `json:"agentTolerationsHash,omitempty"`
 	// AgentConfigChanged is set to true if any of the agent configuration
 	// changed, like the API server URL or CA. Setting it to true will
@@ -149,8 +168,10 @@ type ClusterStatus struct {
 
 	// APIServerURL is the currently used URL of the API server that the
 	// cluster uses to connect to upstream.
+	// +nullable
 	APIServerURL string `json:"apiServerURL,omitempty"`
 	// APIServerCAHash is a hash of the upstream API server CA, used to detect changes.
+	// +nullable
 	APIServerCAHash string `json:"apiServerCAHash,omitempty"`
 
 	// Display contains the number of ready bundles, nodes and a summary state.
@@ -177,17 +198,25 @@ type ClusterDisplay struct {
 type AgentStatus struct {
 	// LastSeen is the last time the agent checked in to update the status
 	// of the cluster resource.
+	// +nullable
+	// +optional
 	LastSeen metav1.Time `json:"lastSeen"`
 	// Namespace is the namespace of the agent deployment, e.g. "cattle-fleet-system".
+	// +nullable
+	// +optional
 	Namespace string `json:"namespace"`
 	// NonReadyNodes is the number of nodes that are not ready.
+	// +optional
 	NonReadyNodes int `json:"nonReadyNodes"`
 	// ReadyNodes is the number of nodes that are ready.
+	// +optional
 	ReadyNodes int `json:"readyNodes"`
 	// NonReadyNode contains the names of non-ready nodes. The list is
 	// limited to at most 3 names.
+	// +optional
 	NonReadyNodeNames []string `json:"nonReadyNodeNames"`
 	// ReadyNodes contains the names of ready nodes. The list is limited to
 	// at most 3 names.
+	// +optional
 	ReadyNodeNames []string `json:"readyNodeNames"`
 }
