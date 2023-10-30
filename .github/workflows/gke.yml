@@ -135,11 +135,17 @@ jobs:
           echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
           ./.github/scripts/deploy-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}
       -
-        name: Fleet Examples Tests
+        name: Fleet E2E Tests
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo --label-filter="!infra-setup" e2e/single-cluster
+          ginkgo --label-filter="!infra-setup" e2e/single-cluster e2e/keep-resources
+      -
+        name: Acceptance Tests for Examples
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
+          ginkgo e2e/acceptance/single-cluster-examples
       -
         name: Fleet Tests Requiring Github Secrets
         # These tests can't run for PRs, because PRs don't have access to the secrets
