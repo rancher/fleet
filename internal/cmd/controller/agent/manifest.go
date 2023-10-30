@@ -93,7 +93,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 		},
 	}
 
-	deployment := agentDeployment(namespace, agentScope, opts)
+	agent := agentApp(namespace, agentScope, opts)
 
 	networkPolicy := &networkv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -117,7 +117,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 
 	var objs []runtime.Object
 	objs = append(objs, clusterRole...)
-	objs = append(objs, admin, defaultSa, deployment, networkPolicy)
+	objs = append(objs, admin, defaultSa, agent, networkPolicy)
 
 	return objs
 }
@@ -133,17 +133,17 @@ func resolve(global, prefix, image string) string {
 	return image
 }
 
-func agentDeployment(namespace string, agentScope string, opts ManifestOptions) *appsv1.Deployment {
+func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1.StatefulSet {
 	name := DefaultName
 	serviceAccount := DefaultName
 	image := resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
 
-	dep := &appsv1.Deployment{
+	app := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
-		Spec: appsv1.DeploymentSpec{
+		Spec: appsv1.StatefulSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app": name,
@@ -258,7 +258,7 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions) 
 	}
 
 	if !DebugEnabled {
-		dep.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
+		app.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 			RunAsUser:    &[]int64{1000}[0],
 			RunAsGroup:   &[]int64{1000}[0],
@@ -266,20 +266,20 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions) 
 	}
 
 	// additional tolerations from cluster
-	dep.Spec.Template.Spec.Tolerations = append(dep.Spec.Template.Spec.Tolerations, opts.AgentTolerations...)
+	app.Spec.Template.Spec.Tolerations = append(app.Spec.Template.Spec.Tolerations, opts.AgentTolerations...)
 
 	// overwrite affinity if present on cluster
 	if opts.AgentAffinity != nil {
-		dep.Spec.Template.Spec.Affinity = opts.AgentAffinity
+		app.Spec.Template.Spec.Affinity = opts.AgentAffinity
 	}
 
 	// modify containers via pointers to the containers
 	var containers []*corev1.Container
-	for i := range dep.Spec.Template.Spec.Containers {
-		containers = append(containers, &dep.Spec.Template.Spec.Containers[i])
+	for i := range app.Spec.Template.Spec.Containers {
+		containers = append(containers, &app.Spec.Template.Spec.Containers[i])
 	}
-	for i := range dep.Spec.Template.Spec.InitContainers {
-		containers = append(containers, &dep.Spec.Template.Spec.InitContainers[i])
+	for i := range app.Spec.Template.Spec.InitContainers {
+		containers = append(containers, &app.Spec.Template.Spec.InitContainers[i])
 	}
 	for _, container := range containers {
 		// set resources if present on cluster
@@ -304,7 +304,7 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions) 
 		}
 	}
 
-	return dep
+	return app
 }
 
 func serviceAccount(namespace, name string) *corev1.ServiceAccount {

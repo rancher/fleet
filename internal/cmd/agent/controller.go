@@ -10,14 +10,12 @@ import (
 
 	"github.com/rancher/lasso/pkg/mapper"
 	"github.com/rancher/wrangler/v2/pkg/kubeconfig"
-	"github.com/rancher/wrangler/v2/pkg/leader"
 	"github.com/rancher/wrangler/v2/pkg/ratelimit"
 	"github.com/rancher/wrangler/v2/pkg/ticker"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
@@ -34,54 +32,44 @@ func start(ctx context.Context, kubeConfig, namespace, agentScope string) error 
 		return err
 	}
 
-	// try to claim leadership lease without rate limiting
-	localConfig := rest.CopyConfig(kc)
-	localConfig.RateLimiter = ratelimit.None
-	k8s, err := kubernetes.NewForConfig(localConfig)
+	agentInfo, err := register.Get(ctx, namespace, kc)
 	if err != nil {
-		return err
+		logrus.Fatal(err)
 	}
 
-	leader.RunOrDie(ctx, namespace, "fleet-agent-lock", k8s, func(ctx context.Context) {
-		agentInfo, err := register.Get(ctx, namespace, kc)
-		if err != nil {
-			logrus.Fatal(err)
-		}
+	fleetNamespace, _, err := agentInfo.ClientConfig.Namespace()
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
-		fleetNamespace, _, err := agentInfo.ClientConfig.Namespace()
-		if err != nil {
-			logrus.Fatal(err)
-		}
+	fleetRESTConfig, err := agentInfo.ClientConfig.ClientConfig()
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
-		fleetRESTConfig, err := agentInfo.ClientConfig.ClientConfig()
-		if err != nil {
-			logrus.Fatal(err)
-		}
+	fleetMapper, mapper, discovery, err := newMappers(ctx, fleetRESTConfig, clientConfig)
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
-		fleetMapper, mapper, discovery, err := newMappers(ctx, fleetRESTConfig, clientConfig)
-		if err != nil {
-			logrus.Fatal(err)
-		}
+	appCtx, err := controllers.NewAppContext(
+		fleetNamespace, namespace, agentInfo.ClusterNamespace, agentInfo.ClusterName,
+		fleetRESTConfig, clientConfig, fleetMapper, mapper, discovery)
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
-		appCtx, err := controllers.NewAppContext(
-			fleetNamespace, namespace, agentInfo.ClusterNamespace, agentInfo.ClusterName,
-			fleetRESTConfig, clientConfig, fleetMapper, mapper, discovery)
-		if err != nil {
-			logrus.Fatal(err)
-		}
+	err = controllers.Register(ctx,
+		appCtx,
+		fleetNamespace, defaultNamespace,
+		agentScope)
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
-		err = controllers.Register(ctx,
-			appCtx,
-			fleetNamespace, defaultNamespace,
-			agentScope)
-		if err != nil {
-			logrus.Fatal(err)
-		}
-
-		if err := appCtx.Start(ctx); err != nil {
-			logrus.Fatal(err)
-		}
-	})
+	if err := appCtx.Start(ctx); err != nil {
+		logrus.Fatal(err)
+	}
 
 	return nil
 }
