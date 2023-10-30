@@ -24,8 +24,7 @@ FROM bitnami/python:3.10
 RUN install_packages jq
 RUN python -m pip install yq
 EOF
-    container_id=$(docker create --rm -i -v ${PWD}:${PWD} -w ${PWD} -v ${tmpdir}:${tmpdir} ${image} yq $@ )
-    docker start -ai "${container_id}"
+    docker run --rm -i -v ${PWD}:${PWD} -w ${PWD} ${image} yq $@
   else
     yq $@
   fi
