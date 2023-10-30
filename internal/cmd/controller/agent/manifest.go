@@ -157,6 +157,27 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions) 
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: serviceAccount,
+					InitContainers: []corev1.Container{
+						{
+							Name:            name + "-register",
+							Image:           image,
+							ImagePullPolicy: corev1.PullPolicy(opts.AgentImagePullPolicy),
+							Env: []corev1.EnvVar{
+								{
+									Name: "NAMESPACE",
+									ValueFrom: &corev1.EnvVarSource{
+										FieldRef: &corev1.ObjectFieldSelector{
+											FieldPath: "metadata.namespace",
+										},
+									},
+								},
+							},
+							Command: []string{
+								"fleetagent",
+								"register",
+							},
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:            name,
@@ -172,7 +193,29 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions) 
 									},
 								},
 								{Name: "AGENT_SCOPE", Value: agentScope},
+							},
+							Command: []string{
+								"fleetagent",
+							},
+						},
+						{
+							Name:            name + "-clusterstatus",
+							Image:           image,
+							ImagePullPolicy: corev1.PullPolicy(opts.AgentImagePullPolicy),
+							Env: []corev1.EnvVar{
+								{
+									Name: "NAMESPACE",
+									ValueFrom: &corev1.EnvVarSource{
+										FieldRef: &corev1.ObjectFieldSelector{
+											FieldPath: "metadata.namespace",
+										},
+									},
+								},
 								{Name: "CHECKIN_INTERVAL", Value: opts.CheckinInterval},
+							},
+							Command: []string{
+								"fleetagent",
+								"clusterstatus",
 							},
 						},
 					},
@@ -215,14 +258,6 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions) 
 	}
 
 	if !DebugEnabled {
-		for _, container := range dep.Spec.Template.Spec.Containers {
-			container.SecurityContext = &corev1.SecurityContext{
-				AllowPrivilegeEscalation: &[]bool{false}[0],
-				ReadOnlyRootFilesystem:   &[]bool{true}[0],
-				Privileged:               &[]bool{false}[0],
-				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-			}
-		}
 		dep.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 			RunAsUser:    &[]int64{1000}[0],
@@ -238,22 +273,34 @@ func agentDeployment(namespace string, agentScope string, opts ManifestOptions) 
 		dep.Spec.Template.Spec.Affinity = opts.AgentAffinity
 	}
 
-	// set resources if present on cluster
-	if opts.AgentResources != nil {
-		dep.Spec.Template.Spec.Containers[0].Resources = *opts.AgentResources
+	// modify containers via pointers to the containers
+	var containers []*corev1.Container
+	for i := range dep.Spec.Template.Spec.Containers {
+		containers = append(containers, &dep.Spec.Template.Spec.Containers[i])
 	}
-
-	// additional env vars from cluster
-	if opts.AgentEnvVars != nil {
-		dep.Spec.Template.Spec.Containers[0].Env = append(dep.Spec.Template.Spec.Containers[0].Env, opts.AgentEnvVars...)
+	for i := range dep.Spec.Template.Spec.InitContainers {
+		containers = append(containers, &dep.Spec.Template.Spec.InitContainers[i])
 	}
+	for _, container := range containers {
+		// set resources if present on cluster
+		if opts.AgentResources != nil {
+			container.Resources = *opts.AgentResources
+		}
 
-	if DebugEnabled {
-		dep.Spec.Template.Spec.Containers[0].Command = []string{
-			"fleetagent",
-			"--debug",
-			"--debug-level",
-			strconv.Itoa(DebugLevel),
+		// additional env vars from cluster
+		if opts.AgentEnvVars != nil {
+			container.Env = append(container.Env, opts.AgentEnvVars...)
+		}
+
+		if DebugEnabled {
+			container.Command = append(container.Command, "--debug", "--debug-level", strconv.Itoa(DebugLevel))
+		} else {
+			container.SecurityContext = &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &[]bool{false}[0],
+				ReadOnlyRootFilesystem:   &[]bool{true}[0],
+				Privileged:               &[]bool{false}[0],
+				Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+			}
 		}
 	}
 

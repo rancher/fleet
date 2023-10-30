@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -12,12 +11,15 @@ import (
 	"github.com/rancher/fleet/pkg/version"
 )
 
+type UpstreamOptions struct {
+	Kubeconfig string `usage:"kubeconfig file for agent's cluster"`
+	Namespace  string `usage:"system namespace is the namespace, the agent runs in, e.g. cattle-fleet-system" env:"NAMESPACE"`
+}
+
 type FleetAgent struct {
 	command.DebugConfig
-	Kubeconfig      string `usage:"kubeconfig file"`
-	Namespace       string `usage:"namespace to watch" env:"NAMESPACE"`
-	AgentScope      string `usage:"An identifier used to scope the agent bundleID names, typically the same as namespace" env:"AGENT_SCOPE"`
-	CheckinInterval string `usage:"How often to post cluster status" env:"CHECKIN_INTERVAL"`
+	UpstreamOptions
+	AgentScope string `usage:"An identifier used to scope the agent bundleID names, typically the same as namespace" env:"AGENT_SCOPE"`
 }
 
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
@@ -28,29 +30,23 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	if err := a.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
-	var (
-		opts options
-		err  error
-	)
 
-	if a.CheckinInterval != "" {
-		opts.CheckinInterval, err = time.ParseDuration(a.CheckinInterval)
-		if err != nil {
-			return err
-		}
-	}
 	if a.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
 	}
-	if err := start(cmd.Context(), a.Kubeconfig, a.Namespace, a.AgentScope, &opts); err != nil {
+	if err := start(cmd.Context(), a.Kubeconfig, a.Namespace, a.AgentScope); err != nil {
 		return err
 	}
+
 	<-cmd.Context().Done()
 	return nil
 }
 
 func App() *cobra.Command {
-	return command.Command(&FleetAgent{}, cobra.Command{
+	root := command.Command(&FleetAgent{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
+	root.AddCommand(NewClusterStatus())
+	root.AddCommand(NewRegister())
+	return root
 }

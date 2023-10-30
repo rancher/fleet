@@ -1,5 +1,5 @@
-// Package cluster updates the cluster.fleet.cattle.io status in the upstream cluster with the current node status.
-package cluster
+// Package clusterstatus updates the cluster.fleet.cattle.io status in the upstream cluster with the current node status.
+package clusterstatus
 
 import (
 	"context"
@@ -19,7 +19,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -27,17 +26,17 @@ type handler struct {
 	agentNamespace   string
 	clusterName      string
 	clusterNamespace string
-	nodes            corecontrollers.NodeCache
+	nodes            corecontrollers.NodeClient
 	clusters         fleetcontrollers.ClusterClient
 	reported         fleet.AgentStatus
 }
 
-func Register(ctx context.Context,
+func Ticker(ctx context.Context,
 	agentNamespace string,
 	clusterNamespace string,
 	clusterName string,
 	checkinInterval time.Duration,
-	nodes corecontrollers.NodeCache,
+	nodes corecontrollers.NodeClient,
 	clusters fleetcontrollers.ClusterClient) {
 
 	h := handler{
@@ -50,6 +49,7 @@ func Register(ctx context.Context,
 
 	go func() {
 		time.Sleep(durations.ClusterRegisterDelay)
+		logrus.Debug("Reporting cluster node status once")
 		if err := h.Update(); err != nil {
 			logrus.Errorf("failed to report cluster node status: %v", err)
 		}
@@ -59,6 +59,7 @@ func Register(ctx context.Context,
 			checkinInterval = durations.DefaultClusterCheckInterval
 		}
 		for range ticker.Context(ctx, checkinInterval) {
+			logrus.Debug("Reporting cluster node status")
 			if err := h.Update(); err != nil {
 				logrus.Errorf("failed to report cluster node status: %v", err)
 			}
@@ -68,12 +69,12 @@ func Register(ctx context.Context,
 
 // Update the cluster.fleet.cattle.io status in the upstream cluster with the current node status
 func (h *handler) Update() error {
-	nodes, err := h.nodes.List(labels.Everything())
+	nodes, err := h.nodes.List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
 
-	ready, nonReady := sortReadyUnready(nodes)
+	ready, nonReady := sortReadyUnready(nodes.Items)
 
 	agentStatus := fleet.AgentStatus{
 		LastSeen:      metav1.Now(),
@@ -114,7 +115,7 @@ func (h *handler) Update() error {
 	return nil
 }
 
-func sortReadyUnready(nodes []*corev1.Node) (ready []string, nonReady []string) {
+func sortReadyUnready(nodes []corev1.Node) (ready []string, nonReady []string) {
 	var (
 		masterNodeNames         []string
 		nonReadyMasterNodeNames []string
