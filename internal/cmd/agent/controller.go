@@ -23,21 +23,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type options struct {
-	DefaultNamespace string
-	ClusterID        string
-	CheckinInterval  time.Duration
-}
+// defaultNamespace is the namespace to use for resources that don't specify a namespace, e.g. "default"
+const defaultNamespace = "default"
 
 // start the fleet agent
-func start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *options) error {
-	if opts == nil {
-		opts = &options{}
-	}
-	if opts.DefaultNamespace == "" {
-		opts.DefaultNamespace = "default"
-	}
-
+func start(ctx context.Context, kubeConfig, namespace, agentScope string) error {
 	clientConfig := kubeconfig.GetNonInteractiveClientConfig(kubeConfig)
 	kc, err := clientConfig.ClientConfig()
 	if err != nil {
@@ -53,9 +43,7 @@ func start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *
 	}
 
 	leader.RunOrDie(ctx, namespace, "fleet-agent-lock", k8s, func(ctx context.Context) {
-		// try to register with upstream fleet controller by obtaining
-		// a kubeconfig for the upstream cluster
-		agentInfo, err := register.Register(ctx, namespace, opts.ClusterID, kc)
+		agentInfo, err := register.Get(ctx, namespace, kc)
 		if err != nil {
 			logrus.Fatal(err)
 		}
@@ -84,9 +72,8 @@ func start(ctx context.Context, kubeConfig, namespace, agentScope string, opts *
 
 		err = controllers.Register(ctx,
 			appCtx,
-			fleetNamespace, opts.DefaultNamespace,
-			agentScope,
-			opts.CheckinInterval)
+			fleetNamespace, defaultNamespace,
+			agentScope)
 		if err != nil {
 			logrus.Fatal(err)
 		}

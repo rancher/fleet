@@ -3,14 +3,12 @@ package controllers
 
 import (
 	"context"
-	"time"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/rancher/fleet/internal/cmd/agent/controllers/bundledeployment"
-	"github.com/rancher/fleet/internal/cmd/agent/controllers/cluster"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
 	"github.com/rancher/fleet/internal/cmd/agent/trigger"
 	"github.com/rancher/fleet/internal/helmdeployer"
@@ -75,8 +73,7 @@ func (a *AppContext) Start(ctx context.Context) error {
 
 func Register(ctx context.Context,
 	appCtx *AppContext,
-	fleetNamespace, defaultNamespace, agentScope string,
-	checkinInterval time.Duration) error {
+	fleetNamespace, defaultNamespace, agentScope string) error {
 
 	labelPrefix := "fleet"
 	if defaultNamespace != "" {
@@ -104,14 +101,6 @@ func Register(ctx context.Context,
 			helmDeployer,
 			appCtx.Apply),
 		appCtx.Fleet.BundleDeployment())
-
-	cluster.Register(ctx,
-		appCtx.AgentNamespace,
-		appCtx.ClusterNamespace,
-		appCtx.ClusterName,
-		checkinInterval,
-		appCtx.Core.Node().Cache(),
-		appCtx.Fleet.Cluster())
 
 	return nil
 }
