@@ -22,7 +22,7 @@ func (in *GenericMap) DeepCopyInto(out *GenericMap) {
 	deepCopyMap(in.Data, out.Data)
 }
 
-// deepCopyMap will recursively copy each entry from src into dest, ensuring that nested maps and slices are copies as well
+// deepCopyMap will recursively copy each entry from src into dest, ensuring that nested maps and slices are copied as well
 //
 // NOTE: The implementation relies on GenericMap's data being loaded from a JSON or YAML via Unmarshal, which produces map[string]interface{} and []interface{} types.
 // The recursive copy won't work with other variants as pointers or specific value types.
@@ -43,7 +43,7 @@ func deepCopyMap(src, dest map[string]interface{}) {
 	}
 }
 
-// deepCopyMap will recursively copy each entry from src into dest, ensuring that nested maps and slices are copies as well
+// deepCopySlice will recursively copy each entry from src into dest, ensuring that nested maps and slices are copied as well
 // It assumes that both slices have the same capacity.
 func deepCopySlice(src, dest []interface{}) {
 	for i := range src {
