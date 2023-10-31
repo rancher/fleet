@@ -33,8 +33,8 @@ func deepCopyMap(src, dest map[string]interface{}) {
 			destValue := make(map[string]interface{}, len(value))
 			deepCopyMap(value, destValue)
 			dest[key] = destValue
-		case []any:
-			destValue := make([]any, len(value))
+		case []interface{}:
+			destValue := make([]interface{}, len(value))
 			deepCopySlice(value, destValue)
 			dest[key] = destValue
 		default:
@@ -45,15 +45,15 @@ func deepCopyMap(src, dest map[string]interface{}) {
 
 // deepCopyMap will recursively copy each entry from src into dest, ensuring that nested maps and slices are copies as well
 // It assumes that both slices have the same capacity.
-func deepCopySlice(src, dest []any) {
+func deepCopySlice(src, dest []interface{}) {
 	for i := range src {
 		switch value := src[i].(type) {
 		case map[string]interface{}:
 			destValue := make(map[string]interface{}, len(value))
 			deepCopyMap(value, destValue)
 			dest[i] = destValue
-		case []any:
-			destValue := make([]any, len(value))
+		case []interface{}:
+			destValue := make([]interface{}, len(value))
 			deepCopySlice(value, destValue)
 			dest[i] = destValue
 		default:
