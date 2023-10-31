@@ -29,7 +29,7 @@ var _ = Describe("BundleDiffs", func() {
 		}
 
 		if out == "" {
-			return nil, apierrors.NewNotFound(v1alpha1.SchemeGroupVersion.WithResource("bundledeployment").GroupResource(), repo)
+			return nil, apierrors.NewNotFound(v1alpha1.Resource("bundledeployment"), repo)
 		}
 
 		status := &v1alpha1.BundleDeploymentStatus{}
