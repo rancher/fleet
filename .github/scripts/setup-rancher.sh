@@ -35,3 +35,4 @@ kubectl -n cattle-system rollout status deploy/rancher
 # wait for rancher to create fleet namespace, deployment and controller
 { grep -q -m 1 "fleet"; kill $!; } < <(kubectl get deployments -n "$fleetns" -w)
 kubectl -n "$fleetns" rollout status deploy/fleet-controller
+{ grep -E -q -m 1 "fleet-agent-local.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-local -w)
