@@ -4,6 +4,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const ClusterRegistrationResourceNamePlural = "clusterregistrations"
+
+func init() {
+	SchemeBuilder.Register(&ClusterRegistration{}, &ClusterRegistrationList{})
+}
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
@@ -18,6 +24,15 @@ type ClusterRegistration struct {
 
 	Spec   ClusterRegistrationSpec   `json:"spec,omitempty"`
 	Status ClusterRegistrationStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// ClusterRegistrationList contains a list of ClusterRegistration
+type ClusterRegistrationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ClusterRegistration `json:"items"`
 }
 
 type ClusterRegistrationSpec struct {

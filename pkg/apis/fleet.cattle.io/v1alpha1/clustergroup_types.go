@@ -5,6 +5,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func init() {
+	SchemeBuilder.Register(&ClusterGroup{}, &ClusterGroupList{})
+}
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
@@ -23,6 +27,15 @@ type ClusterGroup struct {
 	Spec ClusterGroupSpec `json:"spec"`
 	// +optional
 	Status ClusterGroupStatus `json:"status"`
+}
+
+// +kubebuilder:object:root=true
+
+// ClusterGroupList contains a list of ClusterGroup
+type ClusterGroupList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ClusterGroup `json:"items"`
 }
 
 type ClusterGroupSpec struct {

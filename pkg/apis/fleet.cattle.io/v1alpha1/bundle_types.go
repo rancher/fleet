@@ -6,6 +6,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+func init() {
+	SchemeBuilder.Register(&Bundle{}, &BundleList{})
+}
+
 var (
 	// Ready: Bundles have been deployed and all resources are ready.
 	Ready BundleState = "Ready"
@@ -68,6 +72,15 @@ type Bundle struct {
 	Spec BundleSpec `json:"spec"`
 	// +optional
 	Status BundleStatus `json:"status"`
+}
+
+// +kubebuilder:object:root=true
+
+// BundleList contains a list of Bundle
+type BundleList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Bundle `json:"items"`
 }
 
 type BundleSpec struct {

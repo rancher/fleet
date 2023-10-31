@@ -40,6 +40,7 @@ if ! $CONTROLLERGEN --version | grep -q "${CONTROLLERGEN_VERSION}" ; then
 fi
 
 # Run controller-gen
+${CONTROLLERGEN} object:headerFile=scripts/boilerplate.go.txt,year="$(date +%Y)" paths="./pkg/apis/..."
 ${CONTROLLERGEN} crd webhook paths="./pkg/apis/..." output:stdout > $CRDS_YAML
 # Sort
 run_yq --slurp --sort-keys --explicit-start --yaml-output -i 'sort_by(.metadata.name)[]' $CRDS_YAML

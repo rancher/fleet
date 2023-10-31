@@ -6,6 +6,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func init() {
+	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
+}
+
+const ClusterResourceNamePlural = "clusters"
+
 var (
 	// ClusterConditionReady indicates that all bundles in this cluster
 	// have been deployed and all resources are ready.
@@ -55,6 +61,15 @@ type Cluster struct {
 
 	Spec   ClusterSpec   `json:"spec,omitempty"`
 	Status ClusterStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// ClusterList contains a list of Cluster
+type ClusterList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Cluster `json:"items"`
 }
 
 type ClusterSpec struct {

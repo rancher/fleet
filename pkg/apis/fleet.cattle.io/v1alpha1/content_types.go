@@ -4,6 +4,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const ContentResourceNamePlural = "contents"
+
+func init() {
+	SchemeBuilder.Register(&Content{}, &ContentList{})
+}
+
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -22,4 +28,13 @@ type Content struct {
 	// resource, so the downstream agent can deploy them.
 	// +nullable
 	Content []byte `json:"content,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// ContentList contains a list of Content
+type ContentList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Content `json:"items"`
 }

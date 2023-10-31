@@ -4,6 +4,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func init() {
+	SchemeBuilder.Register(&GitRepoRestriction{}, &GitRepoRestrictionList{})
+}
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
@@ -40,4 +44,13 @@ type GitRepoRestriction struct {
 	// be set.
 	// +nullable
 	AllowedTargetNamespaces []string `json:"allowedTargetNamespaces,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// GitRepoRestrictionList contains a list of GitRepoRestriction
+type GitRepoRestrictionList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []GitRepoRestriction `json:"items"`
 }

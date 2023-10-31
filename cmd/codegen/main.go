@@ -23,7 +23,6 @@ func main() {
 				Types: []interface{}{
 					"./pkg/apis/fleet.cattle.io/v1alpha1",
 				},
-				GenerateTypes: true,
 			},
 		},
 	})
