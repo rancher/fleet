@@ -62,7 +62,7 @@ jobs:
           go build -gcflags='all=-N -l' -o bin/fleetagent-linux-arm64 ./cmd/fleetagent
       -
         id: meta-fleet
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/rancher/fleet
@@ -81,7 +81,7 @@ jobs:
           labels: ${{ steps.meta-fleet.outputs.labels }}
       -
         id: meta-fleet-agent
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/rancher/fleet-agent
