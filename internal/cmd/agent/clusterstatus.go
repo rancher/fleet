@@ -3,7 +3,6 @@ package agent
 import (
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -61,7 +60,8 @@ func (cs *ClusterStatus) Run(cmd *cobra.Command, args []string) error {
 	clientConfig := kubeconfig.GetNonInteractiveClientConfig(cs.Kubeconfig)
 	kc, err := clientConfig.ClientConfig()
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get kubeconfig")
+		return err
 	}
 
 	// without rate limiting
@@ -72,49 +72,57 @@ func (cs *ClusterStatus) Run(cmd *cobra.Command, args []string) error {
 	setupLog.Info("Fetching kubeconfig for upstream cluster from registration", "namespace", cs.Namespace)
 	agentInfo, err := register.Get(ctx, cs.Namespace, localConfig)
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get kubeconfig from upstream cluster")
+		return err
 	}
 
 	// set up factory for upstream cluster
 	fleetNamespace, _, err := agentInfo.ClientConfig.Namespace()
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get namespace from upstream cluster")
+		return err
 	}
 
 	fleetRESTConfig, err := agentInfo.ClientConfig.ClientConfig()
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get kubeconfig from upstream cluster")
+		return err
 	}
 
 	//  now we have both configs
 	fleetMapper, mapper, _, err := newMappers(ctx, fleetRESTConfig, clientConfig)
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get mappers")
+		return err
 	}
 
 	fleetSharedFactory, err := newSharedControllerFactory(fleetRESTConfig, fleetMapper, fleetNamespace)
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to build shared controller factory")
+		return err
 	}
 
 	fleetFactory, err := fleet.NewFactoryFromConfigWithOptions(fleetRESTConfig, &fleet.FactoryOptions{
 		SharedControllerFactory: fleetSharedFactory,
 	})
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to build fleet factory")
+		return err
 	}
 
 	// set up factory for local cluster
 	localFactory, err := newSharedControllerFactory(localConfig, mapper, "")
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to build shared controller factory")
+		return err
 	}
 
 	coreFactory, err := core.NewFactoryFromConfigWithOptions(localConfig, &core.FactoryOptions{
 		SharedControllerFactory: localFactory,
 	})
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to build core factory")
+		return err
 	}
 
 	setupLog.Info("Starting cluster status ticker", "checkin interval", checkinInterval.String(), "cluster namespace", agentInfo.ClusterNamespace, "cluster name", agentInfo.ClusterName)
