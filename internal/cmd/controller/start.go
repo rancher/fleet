@@ -8,7 +8,7 @@ import (
 	"github.com/rancher/wrangler/v2/pkg/ratelimit"
 )
 
-func start(ctx context.Context, systemNamespace string, kubeconfigFile string, disableGitops bool, disableBootstrap bool) error {
+func start(ctx context.Context, systemNamespace string, kubeconfigFile string, disableGitops bool) error {
 	cfg := kubeconfig.GetNonInteractiveClientConfig(kubeconfigFile)
 	clientConfig, err := cfg.ClientConfig()
 	if err != nil {
@@ -17,5 +17,5 @@ func start(ctx context.Context, systemNamespace string, kubeconfigFile string, d
 
 	clientConfig.RateLimiter = ratelimit.None
 
-	return controllers.Register(ctx, systemNamespace, cfg, disableGitops, disableBootstrap)
+	return controllers.Register(ctx, systemNamespace, cfg, disableGitops)
 }

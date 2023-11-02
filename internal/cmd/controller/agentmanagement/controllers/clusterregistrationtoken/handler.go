@@ -9,7 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	secretutil "github.com/rancher/fleet/internal/cmd/controller/secret"
+	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"

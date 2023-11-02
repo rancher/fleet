@@ -51,9 +51,6 @@ spec:
         {{- if not .Values.gitops.enabled }}
         - --disable-gitops
         {{- end }}
-        {{- if not .Values.bootstrap.enabled }}
-        - --disable-bootstrap
-        {{- end }}
         {{- if .Values.debug }}
         - --debug
         - --debug-level
@@ -89,6 +86,37 @@ spec:
         command:
         - fleetcontroller
         - cleanup
+        {{- if .Values.debug }}
+        - --debug
+        - --debug-level
+        - {{ quote .Values.debugLevel }}
+        {{- else }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          privileged: false
+          capabilities:
+            drop:
+            - ALL
+        {{- end }}
+      - env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        {{- if .Values.debug }}
+        - name: CATTLE_DEV_MODE
+          value: "true"
+        {{- end }}
+        image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
+        name: fleet-agentmanagement
+        imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
+        command:
+        - fleetcontroller
+        - agentmanagement
+        {{- if not .Values.bootstrap.enabled }}
+        - --disable-bootstrap
+        {{- end }}
         {{- if .Values.debug }}
         - --debug
         - --debug-level

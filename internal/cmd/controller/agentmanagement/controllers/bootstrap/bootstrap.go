@@ -8,8 +8,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
-	secretutil "github.com/rancher/fleet/internal/cmd/controller/secret"
 	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/apply"

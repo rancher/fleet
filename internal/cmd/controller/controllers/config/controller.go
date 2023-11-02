@@ -11,6 +11,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// Register watches for changes in the config. Both fleetcontroller and agentmanagement needs to register this since it
+// is used in both programs.
 func Register(ctx context.Context,
 	namespace string,
 	cm corecontrollers.ConfigMapController) error {
