@@ -28,20 +28,24 @@ type FleetAgent struct {
 
 var setupLog = ctrl.Log.WithName("setup")
 
+func (a *FleetAgent) PersistentPre(_ *cobra.Command, _ []string) error {
+	if err := a.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to setup debug logging: %w", err)
+	}
+	return nil
+}
+
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	zopts := zap.Options{
 		Development: true,
 	}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+
 	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
 
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
-
-	if err := a.SetupDebug(); err != nil {
-		return fmt.Errorf("failed to setup debug logging: %w", err)
-	}
 
 	if a.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")

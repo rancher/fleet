@@ -7,8 +7,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/controllers"
 	"github.com/rancher/fleet/internal/cmd/agent/register"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/lasso/pkg/mapper"
 	"github.com/rancher/wrangler/v2/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v2/pkg/ratelimit"
@@ -35,29 +33,34 @@ func start(ctx context.Context, kubeConfig, namespace, agentScope string) error 
 
 	agentInfo, err := register.Get(ctx, namespace, kc)
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get registration for upstream cluster")
+		return err
 	}
 
 	fleetNamespace, _, err := agentInfo.ClientConfig.Namespace()
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get namespace from upstream cluster")
+		return err
 	}
 
 	fleetRESTConfig, err := agentInfo.ClientConfig.ClientConfig()
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get kubeconfig for upstream cluster")
+		return err
 	}
 
 	fleetMapper, mapper, discovery, err := newMappers(ctx, fleetRESTConfig, clientConfig)
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get mappers")
+		return err
 	}
 
 	appCtx, err := controllers.NewAppContext(
 		fleetNamespace, namespace, agentInfo.ClusterNamespace, agentInfo.ClusterName,
 		fleetRESTConfig, clientConfig, fleetMapper, mapper, discovery)
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to create app context")
+		return err
 	}
 
 	err = controllers.Register(ctx,
@@ -65,11 +68,13 @@ func start(ctx context.Context, kubeConfig, namespace, agentScope string) error 
 		fleetNamespace, defaultNamespace,
 		agentScope)
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to register controllers")
+		return err
 	}
 
 	if err := appCtx.Start(ctx); err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to start app context")
+		return err
 	}
 
 	return nil

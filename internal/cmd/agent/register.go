@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -43,25 +42,29 @@ func (r *Register) Run(cmd *cobra.Command, args []string) error {
 	setupLog.Info("starting registration on upstream cluster", "namespace", r.Namespace)
 
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// try to register with upstream fleet controller by obtaining
 	// a kubeconfig for the upstream cluster
 	agentInfo, err := register.Register(ctx, r.Namespace, kc)
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to register with upstream cluster")
+		return err
 	}
 
 	ns, _, err := agentInfo.ClientConfig.Namespace()
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get namespace from upstream cluster")
+		return err
 	}
 
 	_, err = agentInfo.ClientConfig.ClientConfig()
 	if err != nil {
-		logrus.Fatal(err)
+		setupLog.Error(err, "failed to get kubeconfig from upstream cluster")
+		return err
 	}
 
 	setupLog.Info("successfully registered with upstream cluster", "namespace", ns)
-	cancel()
 
 	return nil
 }
