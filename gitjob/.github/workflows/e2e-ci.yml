@@ -72,8 +72,6 @@ jobs:
       -
         name: Deploy
         run: |
-          # FIXME this generates a template file, can't copy it into crd/
-          go run pkg/crdgen/main.go > chart/templates/crds.yaml
           HELM_VERSION=v0.0.0
           sed -i \
               -e "s/version:.*/version: $HELM_VERSION/" \

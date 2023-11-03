@@ -18,15 +18,12 @@ require (
 	github.com/onsi/ginkgo/v2 v2.13.0
 	github.com/onsi/gomega v1.28.1
 	github.com/otiai10/copy v1.14.0
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rancher/gitjob/pkg/apis v0.0.0-00010101000000-000000000000
 	github.com/rancher/lasso v0.0.0-20230830164424-d684fdeb6f29
 	github.com/rancher/wrangler/v2 v2.1.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
-	// Do not bump testcontainers version. This will cause conflicts with go.opentelemetry.io because of a very old version
-	// found in steve. This is used just for testing.
 	github.com/testcontainers/testcontainers-go v0.25.0
 	github.com/urfave/cli v1.22.14
 	github.com/whilp/git-urls v1.0.0
@@ -34,7 +31,6 @@ require (
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.28.3
-	k8s.io/apiextensions-apiserver v0.28.0
 	k8s.io/apimachinery v0.28.3
 	k8s.io/client-go v12.0.0+incompatible
 	sigs.k8s.io/cli-utils v0.33.0
@@ -60,7 +56,7 @@ require (
 	github.com/docker/docker v24.0.7+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/emicklei/go-restful/v3 v3.10.1 // indirect
+	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
@@ -101,6 +97,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0-rc4 // indirect
 	github.com/opencontainers/runc v1.1.5 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/client_golang v1.16.0 // indirect
@@ -135,11 +132,11 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/code-generator v0.28.0 // indirect
-	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
+	k8s.io/apiextensions-apiserver v0.28.3 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2 // indirect
+	sigs.k8s.io/controller-runtime v0.16.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect

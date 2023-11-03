@@ -6,9 +6,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+func init() {
+	SchemeBuilder.Register(&GitJob{}, &GitJobList{})
+}
 
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 type GitJob struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -26,7 +29,7 @@ type GitEvent struct {
 	// Last sync time
 	LastSyncedTime metav1.Time `json:"lastSyncedTime,omitempty"`
 
-	GithubMeta
+	GithubMeta `json:",inline"`
 }
 
 type GithubMeta struct {
@@ -56,7 +59,7 @@ type GitJobSpec struct {
 
 type GitInfo struct {
 	// Git credential metadata
-	Credential
+	Credential `json:",inline"`
 
 	// Git provider model to fetch commit. Can be polling(regular git fetch)/webhook(github webhook)
 	Provider string `json:"provider,omitempty"`
@@ -86,7 +89,7 @@ type Credential struct {
 }
 
 type GitJobStatus struct {
-	GitEvent
+	GitEvent `json:",inline"`
 
 	// Status of job launched by controller
 	JobStatus string `json:"jobStatus,omitempty" column:"name=JOBSTATUS,type=string,jsonpath=.status.jobStatus"`
@@ -99,4 +102,13 @@ type GitJobStatus struct {
 
 	// Condition of the resource
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
+}
+
+//+kubebuilder:object:root=true
+
+// GitJobList contains a list of CronJob
+type GitJobList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []GitJob `json:"items"`
 }

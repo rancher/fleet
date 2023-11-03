@@ -1,6 +1,4 @@
-//go:generate go run pkg/codegen/cleanup/main.go
-//go:generate go run pkg/codegen/main.go
-
+//go:generate bash ./scripts/controller-gen-generate.sh
 package main
 
 import (
