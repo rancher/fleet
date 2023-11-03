@@ -11,7 +11,6 @@ cd $(dirname $0)/..
 rm -rf build/chart
 mkdir -p build dist/artifacts
 cp -rf chart build/
-rm -rf build/chart/crds
 
 sed -i \
     -e 's/version:.*/version: '${HELM_VERSION}'/' \
@@ -22,6 +21,4 @@ sed -i \
     -e 's/tag: ${VERSION}/tag: '${HELM_TAG}'/' \
     build/chart/values.yaml
 
-mkdir build/chart/crds
-go run pkg/crdgen/main.go > ./build/chart/templates/crds.yaml
 helm package -d ./dist/artifacts ./build/chart
