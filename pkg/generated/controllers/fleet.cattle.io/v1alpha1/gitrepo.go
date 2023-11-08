@@ -283,6 +283,7 @@ func RegisterGitRepoGeneratingHandler(ctx context.Context, controller GitRepoCon
 		apply:                    apply,
 		name:                     name,
 		gvk:                      controller.GroupVersionKind(),
+		seen:                     make(map[string]struct{}),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
@@ -342,6 +343,7 @@ type gitRepoGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  map[string]struct{}
 }
 
 func (a *gitRepoGeneratingHandler) Remove(key string, obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error) {
@@ -352,6 +354,7 @@ func (a *gitRepoGeneratingHandler) Remove(key string, obj *v1alpha1.GitRepo) (*v
 	obj = &v1alpha1.GitRepo{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
+	delete(a.seen, key)
 
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
@@ -365,7 +368,7 @@ func (a *gitRepoGeneratingHandler) Handle(obj *v1alpha1.GitRepo, status v1alpha1
 	}
 
 	objs, newStatus, err := a.GitRepoGeneratingHandler(obj, status)
-	if err != nil {
+	if err != nil || !a.shouldApply(obj, newStatus) {
 		return newStatus, err
 	}
 
@@ -373,4 +376,13 @@ func (a *gitRepoGeneratingHandler) Handle(obj *v1alpha1.GitRepo, status v1alpha1
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+}
+
+func (a *gitRepoGeneratingHandler) shouldApply(obj *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) bool {
+	key := obj.Namespace + "/" + obj.Name
+	if _, seen := a.seen[key]; !seen {
+		a.seen[key] = struct{}{}
+		return true
+	}
+	return !equality.Semantic.DeepEqual(obj.Status, status)
 }

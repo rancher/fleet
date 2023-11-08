@@ -283,6 +283,7 @@ func RegisterClusterGeneratingHandler(ctx context.Context, controller ClusterCon
 		apply:                    apply,
 		name:                     name,
 		gvk:                      controller.GroupVersionKind(),
+		seen:                     make(map[string]struct{}),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
@@ -342,6 +343,7 @@ type clusterGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  map[string]struct{}
 }
 
 func (a *clusterGeneratingHandler) Remove(key string, obj *v1alpha1.Cluster) (*v1alpha1.Cluster, error) {
@@ -352,6 +354,7 @@ func (a *clusterGeneratingHandler) Remove(key string, obj *v1alpha1.Cluster) (*v
 	obj = &v1alpha1.Cluster{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
+	delete(a.seen, key)
 
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
@@ -365,7 +368,7 @@ func (a *clusterGeneratingHandler) Handle(obj *v1alpha1.Cluster, status v1alpha1
 	}
 
 	objs, newStatus, err := a.ClusterGeneratingHandler(obj, status)
-	if err != nil {
+	if err != nil || !a.shouldApply(obj, newStatus) {
 		return newStatus, err
 	}
 
@@ -373,4 +376,13 @@ func (a *clusterGeneratingHandler) Handle(obj *v1alpha1.Cluster, status v1alpha1
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+}
+
+func (a *clusterGeneratingHandler) shouldApply(obj *v1alpha1.Cluster, status v1alpha1.ClusterStatus) bool {
+	key := obj.Namespace + "/" + obj.Name
+	if _, seen := a.seen[key]; !seen {
+		a.seen[key] = struct{}{}
+		return true
+	}
+	return !equality.Semantic.DeepEqual(obj.Status, status)
 }
