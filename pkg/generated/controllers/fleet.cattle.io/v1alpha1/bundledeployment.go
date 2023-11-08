@@ -283,6 +283,7 @@ func RegisterBundleDeploymentGeneratingHandler(ctx context.Context, controller B
 		apply:                             apply,
 		name:                              name,
 		gvk:                               controller.GroupVersionKind(),
+		seen:                              make(map[string]struct{}),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
@@ -342,6 +343,7 @@ type bundleDeploymentGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  map[string]struct{}
 }
 
 func (a *bundleDeploymentGeneratingHandler) Remove(key string, obj *v1alpha1.BundleDeployment) (*v1alpha1.BundleDeployment, error) {
@@ -352,6 +354,7 @@ func (a *bundleDeploymentGeneratingHandler) Remove(key string, obj *v1alpha1.Bun
 	obj = &v1alpha1.BundleDeployment{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
+	delete(a.seen, key)
 
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
@@ -365,7 +368,7 @@ func (a *bundleDeploymentGeneratingHandler) Handle(obj *v1alpha1.BundleDeploymen
 	}
 
 	objs, newStatus, err := a.BundleDeploymentGeneratingHandler(obj, status)
-	if err != nil {
+	if err != nil || !a.shouldApply(obj, newStatus) {
 		return newStatus, err
 	}
 
@@ -373,4 +376,13 @@ func (a *bundleDeploymentGeneratingHandler) Handle(obj *v1alpha1.BundleDeploymen
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+}
+
+func (a *bundleDeploymentGeneratingHandler) shouldApply(obj *v1alpha1.BundleDeployment, status v1alpha1.BundleDeploymentStatus) bool {
+	key := obj.Namespace + "/" + obj.Name
+	if _, seen := a.seen[key]; !seen {
+		a.seen[key] = struct{}{}
+		return true
+	}
+	return !equality.Semantic.DeepEqual(obj.Status, status)
 }
