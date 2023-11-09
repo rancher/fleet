@@ -20,6 +20,7 @@ package v1alpha1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -283,7 +284,6 @@ func RegisterGitRepoGeneratingHandler(ctx context.Context, controller GitRepoCon
 		apply:                    apply,
 		name:                     name,
 		gvk:                      controller.GroupVersionKind(),
-		seen:                     make(map[string]struct{}),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
@@ -343,7 +343,7 @@ type gitRepoGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
-	seen  map[string]struct{}
+	seen  sync.Map
 }
 
 func (a *gitRepoGeneratingHandler) Remove(key string, obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error) {
@@ -354,7 +354,8 @@ func (a *gitRepoGeneratingHandler) Remove(key string, obj *v1alpha1.GitRepo) (*v
 	obj = &v1alpha1.GitRepo{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
-	delete(a.seen, key)
+
+	a.seen.Delete(key)
 
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
@@ -368,21 +369,28 @@ func (a *gitRepoGeneratingHandler) Handle(obj *v1alpha1.GitRepo, status v1alpha1
 	}
 
 	objs, newStatus, err := a.GitRepoGeneratingHandler(obj, status)
-	if err != nil || !a.shouldApply(obj, newStatus) {
+	if err != nil || !a.isNewResourceVersion(obj) {
 		return newStatus, err
 	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err == nil {
+		a.seenResourceVersion(obj)
+	}
+	return newStatus, err
 }
 
-func (a *gitRepoGeneratingHandler) shouldApply(obj *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) bool {
+func (a *gitRepoGeneratingHandler) isNewResourceVersion(obj *v1alpha1.GitRepo) bool {
+	// Apply once per resource version
 	key := obj.Namespace + "/" + obj.Name
-	if _, seen := a.seen[key]; !seen {
-		a.seen[key] = struct{}{}
-		return true
-	}
-	return !equality.Semantic.DeepEqual(obj.Status, status)
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+func (a *gitRepoGeneratingHandler) seenResourceVersion(obj *v1alpha1.GitRepo) {
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

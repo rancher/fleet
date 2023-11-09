@@ -3,7 +3,7 @@ module github.com/rancher/fleet
 go 1.19
 
 // Use changes from https://github.com/aruiz14/wrangler/commits/v1.1.1-debug-1842
-replace github.com/rancher/wrangler => github.com/aruiz14/wrangler v1.1.2-0.20231108100522-b20191ad7a9c
+replace github.com/rancher/wrangler => github.com/aruiz14/wrangler v1.1.2-0.20231110122435-02fe77e237ec
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
