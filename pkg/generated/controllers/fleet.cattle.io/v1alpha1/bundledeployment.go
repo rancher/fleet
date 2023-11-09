@@ -20,6 +20,7 @@ package v1alpha1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -283,7 +284,6 @@ func RegisterBundleDeploymentGeneratingHandler(ctx context.Context, controller B
 		apply:                             apply,
 		name:                              name,
 		gvk:                               controller.GroupVersionKind(),
-		seen:                              make(map[string]struct{}),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
@@ -343,7 +343,7 @@ type bundleDeploymentGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
-	seen  map[string]struct{}
+	seen  sync.Map
 }
 
 func (a *bundleDeploymentGeneratingHandler) Remove(key string, obj *v1alpha1.BundleDeployment) (*v1alpha1.BundleDeployment, error) {
@@ -354,7 +354,8 @@ func (a *bundleDeploymentGeneratingHandler) Remove(key string, obj *v1alpha1.Bun
 	obj = &v1alpha1.BundleDeployment{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
-	delete(a.seen, key)
+
+	a.seen.Delete(key)
 
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
@@ -368,21 +369,28 @@ func (a *bundleDeploymentGeneratingHandler) Handle(obj *v1alpha1.BundleDeploymen
 	}
 
 	objs, newStatus, err := a.BundleDeploymentGeneratingHandler(obj, status)
-	if err != nil || !a.shouldApply(obj, newStatus) {
+	if err != nil || !a.isNewResourceVersion(obj) {
 		return newStatus, err
 	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err == nil {
+		a.seenResourceVersion(obj)
+	}
+	return newStatus, err
 }
 
-func (a *bundleDeploymentGeneratingHandler) shouldApply(obj *v1alpha1.BundleDeployment, status v1alpha1.BundleDeploymentStatus) bool {
+func (a *bundleDeploymentGeneratingHandler) isNewResourceVersion(obj *v1alpha1.BundleDeployment) bool {
+	// Apply once per resource version
 	key := obj.Namespace + "/" + obj.Name
-	if _, seen := a.seen[key]; !seen {
-		a.seen[key] = struct{}{}
-		return true
-	}
-	return !equality.Semantic.DeepEqual(obj.Status, status)
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+func (a *bundleDeploymentGeneratingHandler) seenResourceVersion(obj *v1alpha1.BundleDeployment) {
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

@@ -20,6 +20,7 @@ package v1alpha1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -283,7 +284,6 @@ func RegisterClusterRegistrationTokenGeneratingHandler(ctx context.Context, cont
 		apply: apply,
 		name:  name,
 		gvk:   controller.GroupVersionKind(),
-		seen:  make(map[string]struct{}),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
@@ -343,7 +343,7 @@ type clusterRegistrationTokenGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
-	seen  map[string]struct{}
+	seen  sync.Map
 }
 
 func (a *clusterRegistrationTokenGeneratingHandler) Remove(key string, obj *v1alpha1.ClusterRegistrationToken) (*v1alpha1.ClusterRegistrationToken, error) {
@@ -354,7 +354,8 @@ func (a *clusterRegistrationTokenGeneratingHandler) Remove(key string, obj *v1al
 	obj = &v1alpha1.ClusterRegistrationToken{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
-	delete(a.seen, key)
+
+	a.seen.Delete(key)
 
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
@@ -368,21 +369,28 @@ func (a *clusterRegistrationTokenGeneratingHandler) Handle(obj *v1alpha1.Cluster
 	}
 
 	objs, newStatus, err := a.ClusterRegistrationTokenGeneratingHandler(obj, status)
-	if err != nil || !a.shouldApply(obj, newStatus) {
+	if err != nil || !a.isNewResourceVersion(obj) {
 		return newStatus, err
 	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err == nil {
+		a.seenResourceVersion(obj)
+	}
+	return newStatus, err
 }
 
-func (a *clusterRegistrationTokenGeneratingHandler) shouldApply(obj *v1alpha1.ClusterRegistrationToken, status v1alpha1.ClusterRegistrationTokenStatus) bool {
+func (a *clusterRegistrationTokenGeneratingHandler) isNewResourceVersion(obj *v1alpha1.ClusterRegistrationToken) bool {
+	// Apply once per resource version
 	key := obj.Namespace + "/" + obj.Name
-	if _, seen := a.seen[key]; !seen {
-		a.seen[key] = struct{}{}
-		return true
-	}
-	return !equality.Semantic.DeepEqual(obj.Status, status)
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+func (a *clusterRegistrationTokenGeneratingHandler) seenResourceVersion(obj *v1alpha1.ClusterRegistrationToken) {
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }
