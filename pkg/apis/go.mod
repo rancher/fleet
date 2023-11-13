@@ -6,7 +6,7 @@ require (
 	github.com/rancher/wrangler/v2 v2.1.1
 	k8s.io/api v0.28.3
 	k8s.io/apimachinery v0.28.3
-	sigs.k8s.io/controller-runtime v0.16.1
+	sigs.k8s.io/controller-runtime v0.16.3
 )
 
 require (
