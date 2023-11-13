@@ -28,8 +28,8 @@ github.com/onsi/ginkgo/v2 v2.11.0 h1:WgqUCUt/lT6yXoQ8Wef0fsNn5cAuMK7+KT9UFRz2tcU
 github.com/onsi/gomega v1.27.10 h1:naR28SdDFlqrG6kScpT8VWpu1xWY5nJRCF3XaYyBjhI=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/rancher/wrangler/v2 v2.1.1 h1:EWAg2UNm+6EEACsUf/Pc7lcjswFpfkU2mCaQdxUkRPM=
-github.com/rancher/wrangler/v2 v2.1.1/go.mod h1:LgpEqT2ATL0MevUsL5rohrAEU419MIPeswsMNHw35d4=
+github.com/rancher/wrangler/v2 v2.1.2 h1:XAiReB3caOAepsTHs12AwKVv4vBJkjLosZPXbbj/85E=
+github.com/rancher/wrangler/v2 v2.1.2/go.mod h1:LgpEqT2ATL0MevUsL5rohrAEU419MIPeswsMNHw35d4=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 github.com/spf13/pflag v1.0.5 h1:iy+VFUOCP1a+8yFto/drg2CJ5u0yRoB7fZw3DKv/JXA=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
