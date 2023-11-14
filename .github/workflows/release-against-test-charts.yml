@@ -5,7 +5,7 @@ on:
       ref:
         description: "Branch to use for GitHub action workflow"
         required: true
-        default: "master"
+        default: "main"
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
         required: true
@@ -162,3 +162,12 @@ jobs:
         run: |
           cd charts
           git push -u origin $target_branch
+
+  test-fleet-in-rancher:
+    uses: ./.github/workflows/e2e-rancher-upgrade-fleet-to-head-ci.yml
+    needs: push-test-rancher-charts
+    with:
+      ref: ${{ github.ref }}
+      cluster_name: fleet-test-rancher-k3s
+      destroy_runner: true
+      # TODO add chart branch and version parameters once supported by Rancher

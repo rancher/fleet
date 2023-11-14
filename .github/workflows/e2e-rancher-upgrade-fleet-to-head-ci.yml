@@ -1,16 +1,52 @@
-# Upgrade fleet in latest Rancher to dev version and run MC tests
-name: E2E Upgrade Fleet in Rancher To HEAD
+# Test fleet in Rancher with MC tests
+name: Test Fleet in Rancher
 
 on:
   schedule:
-    # Run everyday day at 1:00 PM
+    # Run everyday at 1:00 PM
     - cron:  '0 13 * * *'
-  workflow_dispatch:
+  workflow_call:
+    # Variables to set when calling this reusable workflow
+    secrets:
+      credentials:
+        description: Credentials to use to connect
+        required: true
+      pat_token:
+        # A token is needed to be able to add runner on the repo, maybe this can be changed later
+        # This token is linked to a personal account
+        # So in case of token issue you have to check (no specific order and for example):
+        # - the expiration date
+        # - if the account associated still exists
+        # - if the person still has access to the repo
+        description: PAT token used to add runner
+        required: true
     inputs:
       ref:
         description: "checkout git branch/tag"
         required: true
         default: "main"
+        type: string
+      cluster_name:
+        description: Name of the provisioned cluster
+        required: true
+        type: string
+      destroy_runner:
+        description: Destroy the auto-generated self-hosted runner
+        default: true
+        type: boolean
+      rancher_version:
+        description: Rancher Manager channel/version/head_version to use for installation
+        default: stable/latest/none
+        type: string
+      runner_template:
+        description: Runner template to use
+        default: fleet-qa-e2e-ci-runner-spot-leap-15-5-x86-64-template-v1
+        type: string
+      zone:
+        description: GCP zone to host the runner
+        default: europe-west3-a
+        type: string
+      # TODO add rancher charts branch + version parameters (when supported)
   push:
     tags: [ 'v*' ]
     paths-ignore:
@@ -23,63 +59,141 @@ env:
   SETUP_K3S_VERSION: 'v1.30.4-k3s1'
 
 jobs:
-  rancher-fleet-integration:
+  create-runner:
     runs-on: ubuntu-latest
+    outputs:
+      uuid: ${{ steps.generator.outputs.uuid }}
+      runner: ${{ steps.generator.outputs.runner }}
+      public_dns: ${{ steps.dns.outputs.public_dns }}
+    steps:
+      # actions/checkout MUST come before auth
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Generate UUID and Runner hostname
+        id: generator
+        run: |
+          # Note: keep runner name under 63 characters
+          UUID=$(uuidgen)
+          echo "uuid=${UUID//-}" >> ${GITHUB_OUTPUT}
+          echo "runner=fleet-ci-${UUID//-}" >> ${GITHUB_OUTPUT}
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.credentials }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Create runner
+        run: |
+          gcloud compute instances create ${{ steps.generator.outputs.runner }} \
+            --source-instance-template ${{ inputs.runner_template }} \
+            --zone ${{ inputs.zone }}
+
+      - name: Create GCP secrets
+        run: |
+          echo -n ${{ secrets.pat_token }} \
+            | gcloud secrets create PAT_TOKEN_${{ steps.generator.outputs.uuid }} --data-file=-
+          echo -n ${{ github.repository }} \
+            | gcloud secrets create GH_REPO_${{ steps.generator.outputs.uuid }} --data-file=-
+
+      - name: Get public dns name in GCP
+        id: dns
+        run: |
+          # Do a timed out loop here, as gcloud can sometimes fail
+          typeset -i i=0
+          while true; do
+            # Get public IP
+            PUBLIC_IP=$(gcloud compute instances list 2> /dev/null \
+                        | awk '/${{ steps.generator.outputs.runner }}/ {print $6}')
+            # Exit if we reach the timeout or if IP is set
+            if (( ++i > 10 )) || [[ -n "${PUBLIC_IP}" ]]; then
+              break
+            fi
+            # Wait a little before retrying
+            sleep 2
+          done
+          # XXX: do we need this?
+          # Get the public DNS
+          PUBLIC_DNS=$(host -l ${PUBLIC_IP} 2> /dev/null \
+                       | awk '{sub(/\.$/, ""); print $5}')
+          echo "public_dns=${PUBLIC_DNS}" >> ${GITHUB_OUTPUT}
+          # Raise an error if either IP and/or DNS are empty
+          if [[ -z "${PUBLIC_IP}" || -z "${PUBLIC_DNS}" ]]; then
+            echo "PUBLIC_IP and/or PUBLIC_DNS are empty!" >&2
+            false
+          fi
+
+  rancher-integration:
+    needs: create-runner
+    runs-on: ${{ needs.create-runner.outputs.uuid }}
 
     steps:
-      -
+      - name: Add paths into PATH
+        run: |
+          export PATH=/usr/local/bin:$PATH
+          export PATH=/home/gh-runner/.local/bin:$PATH
+
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
-      -
+
+      - name: Install Go
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
-      -
-        name: Install Ginkgo CLI
+
+      - name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
-      -
-        name: Install crust-gather CLI
+
+      - name: Install crust-gather CLI
         run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
-      -
+
+      - name: Set up build cache
         uses: actions/cache@v4
         id: rancher-cli-cache
         with:
-          path: /home/runner/.local/bin
-          key: ${{ runner.os }}-rancher-cli-2.6.0
-      -
-        name: Install Rancher CLI
+          path: /home/gh-runner/.local/bin
+          key: ${{ runner.os }}-rancher-cli
+
+      - name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
-          # download an older CLI to avoid https://github.com/rancher/rancher/issues/37574
-          mkdir -p /home/runner/.local/bin
-          wget -q https://github.com/rancher/cli/releases/download/v2.6.0/rancher-linux-amd64-v2.6.0.tar.gz
-          tar -xz --strip-components=2 -f rancher-linux-amd64-v2.6.0.tar.gz -C /home/runner/.local/bin
+          mkdir -p /home/gh-runner/.local/bin
+          latest_version=$(curl -ILs -o /dev/null -w %{url_effective} github.com/rancher/cli/releases/latest | sed 's,.*/,,')
+
+          wget -q https://github.com/rancher/cli/releases/download/$latest_version/rancher-linux-amd64-$latest_version.tar.gz
+          tar -xz --strip-components=2 -f rancher-linux-amd64-$latest_version.tar.gz -C /usr/local/bin
           rancher --version
-      -
-        name: Build fleet binaries
+
+      - name: Build fleet binaries
         run: |
           ./.github/scripts/build-fleet-binaries.sh
-      -
-        name: Set up QEMU
+
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-      -
-        name: Set up Docker Buildx
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      -
-        name: Get uuid
+
+      - name: Get uuid
         id: uuid
         run: echo "::set-output name=uuid::$(uuidgen)"
-      -
+
+      - name: Compute Fleet image metadata
         id: meta-fleet
         uses: docker/metadata-action@v5
         with:
           images: |
             ttl.sh/rancher/fleet-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
-      -
+
+      - name: Push Fleet image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -89,14 +203,16 @@ jobs:
           push: true
           tags: ${{ steps.meta-fleet.outputs.tags }}
           labels: ${{ steps.meta-fleet.outputs.labels }}
-      -
+
+      - name: Compute Fleet agent image metadata
         id: meta-fleet-agent
         uses: docker/metadata-action@v5
         with:
           images: |
             ttl.sh/rancher/fleet-agent-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
-      -
+
+      - name: Push Fleet agent image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -106,8 +222,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-fleet-agent.outputs.tags }}
           labels: ${{ steps.meta-fleet-agent.outputs.labels }}
-      -
-        name: Set up k3d control-plane cluster
+
+      - name: Set up k3d control-plane cluster
         uses: AbsaOSS/k3d-action@v2
         with:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
@@ -121,8 +237,8 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
-      -
-        name: Set up k3d downstream cluster
+
+      - name: Set up k3d downstream cluster
         uses: AbsaOSS/k3d-action@v2
         with:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
@@ -136,14 +252,33 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
-      -
-        name: Set up latest Rancher
+ 
+            # 1. Clone rancher/rancher
+      - name: Checkout rancher/rancher
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: rancher/rancher
+          path: rancher
+
+            # 2. Build and package Rancher
+      - name: Build and package Rancher
+        run: |
+          cd rancher
+          make build
+          make package
+          ./scripts/chart/ci
+
+            # 3. Push charts to $chartmuseum?
+            # 4. Run adapted version of setup-latest-rancher.sh
+      - name: Set up latest Rancher
         env:
           public_hostname: "172.18.0.1.sslip.io"
         run: |
+          # TODO edit script to use test branch?
           ./.github/scripts/setup-latest-rancher.sh
-      -
-        name: Register Rancher's downstream clusters
+
+      - name: Register Rancher's downstream clusters
         env:
           public_hostname: "172.18.0.1.sslip.io"
         run: |
@@ -167,22 +302,22 @@ jobs:
         run: |
           echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
           ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}
-      -
-        name: E2E tests for examples
+
+      - name: E2E tests for examples
         env:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
           ginkgo --github-output e2e/multi-cluster
-      -
-        name: Dump Failed Downstream Environment
+
+      - name: Dump Failed Downstream Environment
         if: failure()
         run: |
           kubectl config use-context k3d-downstream
           crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/downstream
-      -
-        name: Upload logs
+
+      - name: Upload logs
         uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -191,3 +326,28 @@ jobs:
             tmp/downstream
             tmp/upstream
           retention-days: 2
+
+  delete-runner:
+    if: ${{ success() }}
+    needs: [create-runner, rancher-integration]
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout MUST come before auth
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.credentials }}
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+      - name: Delete GCP secrets
+        run: |
+          gcloud --quiet secrets delete PAT_TOKEN_${{ needs.create-runner.outputs.uuid }} || true
+          gcloud --quiet secrets delete GH_REPO_${{ needs.create-runner.outputs.uuid }} || true
+      - name: Delete runner
+        if: ${{ always() && needs.create-runner.result == 'success' && inputs.destroy_runner == true }}
+        run: |
+          gcloud --quiet compute instances delete ${{ needs.create-runner.outputs.runner }} \
+            --delete-disks all \
+            --zone ${{ inputs.zone }}
