@@ -12,7 +12,7 @@ replace k8s.io/client-go => k8s.io/client-go v0.28.3
 
 require (
 	github.com/rancher/fleet v0.0.0
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	helm.sh/helm/v3 v3.12.3
 )
 
