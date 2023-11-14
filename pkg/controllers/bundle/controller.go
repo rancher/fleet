@@ -70,7 +70,8 @@ func Register(ctx context.Context,
 		"bundle",
 		h.OnBundleChange,
 		&generic.GeneratingHandlerOptions{
-			AllowClusterScoped: true,
+			AllowClusterScoped:            true,
+			UniqueApplyForResourceVersion: true,
 		})
 
 	relatedresource.Watch(ctx, "app", h.resolveApp, bundles, bundleDeployments)

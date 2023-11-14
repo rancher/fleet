@@ -355,7 +355,9 @@ func (a *clusterGeneratingHandler) Remove(key string, obj *v1alpha1.Cluster) (*v
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
-	a.seen.Delete(key)
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
 
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
@@ -384,6 +386,10 @@ func (a *clusterGeneratingHandler) Handle(obj *v1alpha1.Cluster, status v1alpha1
 }
 
 func (a *clusterGeneratingHandler) isNewResourceVersion(obj *v1alpha1.Cluster) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
 	// Apply once per resource version
 	key := obj.Namespace + "/" + obj.Name
 	previous, ok := a.seen.Load(key)
@@ -391,6 +397,10 @@ func (a *clusterGeneratingHandler) isNewResourceVersion(obj *v1alpha1.Cluster) b
 }
 
 func (a *clusterGeneratingHandler) seenResourceVersion(obj *v1alpha1.Cluster) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
 	key := obj.Namespace + "/" + obj.Name
 	a.seen.Store(key, obj.ResourceVersion)
 }

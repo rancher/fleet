@@ -355,7 +355,9 @@ func (a *gitRepoGeneratingHandler) Remove(key string, obj *v1alpha1.GitRepo) (*v
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
-	a.seen.Delete(key)
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
 
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
@@ -384,6 +386,10 @@ func (a *gitRepoGeneratingHandler) Handle(obj *v1alpha1.GitRepo, status v1alpha1
 }
 
 func (a *gitRepoGeneratingHandler) isNewResourceVersion(obj *v1alpha1.GitRepo) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
 	// Apply once per resource version
 	key := obj.Namespace + "/" + obj.Name
 	previous, ok := a.seen.Load(key)
@@ -391,6 +397,10 @@ func (a *gitRepoGeneratingHandler) isNewResourceVersion(obj *v1alpha1.GitRepo) b
 }
 
 func (a *gitRepoGeneratingHandler) seenResourceVersion(obj *v1alpha1.GitRepo) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
 	key := obj.Namespace + "/" + obj.Name
 	a.seen.Store(key, obj.ResourceVersion)
 }
