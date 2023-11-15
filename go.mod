@@ -2,6 +2,9 @@ module github.com/rancher/fleet
 
 go 1.19
 
+// Use changes from https://github.com/aruiz14/wrangler/commits/v1.1.1-debug-1842
+replace github.com/rancher/wrangler => github.com/aruiz14/wrangler v1.1.2-0.20231114174010-fc9db1ab5feb
+
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
 	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.11.1-rancher1

@@ -24,6 +24,7 @@ import (
 	v1 "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	corev1controller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/genericcondition"
 	"github.com/rancher/wrangler/pkg/kv"
 	"github.com/rancher/wrangler/pkg/name"
@@ -64,7 +65,15 @@ func Register(ctx context.Context,
 
 	gitRepos.OnChange(ctx, "gitjob-purge", h.DeleteOnChange)
 	// this will update the lastUpdateTime of the Accepted condition
-	fleetcontrollers.RegisterGitRepoGeneratingHandler(ctx, gitRepos, apply, "Accepted", "gitjobs", h.OnChange, nil)
+	fleetcontrollers.RegisterGitRepoGeneratingHandler(
+		ctx,
+		gitRepos,
+		apply,
+		"Accepted",
+		"gitjobs",
+		h.OnChange,
+		&generic.GeneratingHandlerOptions{UniqueApplyForResourceVersion: true},
+	)
 	// enqueue gitrepo when gitjob changes
 	relatedresource.Watch(ctx, "gitjobs",
 		relatedresource.OwnerResolver(true, fleet.SchemeGroupVersion.String(), "GitRepo"), gitRepos, gitJobs)
