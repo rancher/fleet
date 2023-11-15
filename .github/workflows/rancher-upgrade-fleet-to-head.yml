@@ -24,7 +24,7 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_K3D_VERSION: 'v5.6.0'
-  SETUP_K3S_VERSION: 'v1.28.3-k3s2'
+  SETUP_K3S_VERSION: 'v1.26.8-k3s1'
 
 jobs:
   rancher-fleet-integration:
