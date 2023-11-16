@@ -1,12 +1,7 @@
 #!/bin/sh
 set -ue
 
-for DIRECTORY in . ./pkg/apis ./e2e/testenv/infra; do
-    cd "$DIRECTORY"
-    go mod tidy
-    go mod verify
-    cd "$OLDPWD"
-done
+find . -name 'go.mod' -execdir go mod tidy \;
 
 if [ -n "$(git status --porcelain)" ]; then
     echo "go.mod is not up to date. Please 'run go mod tidy' and commit the changes."
