@@ -1,62 +1,9 @@
 <!-- Specify the issue ID that this pull request is solving -->
-Fix #XXX
+Fixes #XXX
+<!-- Make sure that the issue provides steps to reproduce it -->
 
 <!-- Describe the changes introduced by this pull request -->
 
 <!--
-  Please provide a unit or e2e test if possible.
-
-  To simplify the reviewing process of this pull request,
-  please explain how it should be tested.
-  The following is just an example
-
-## Test
-
-To test this pull request, you can run the following commands:
-
-```shell
-cd <to_package_directory>
-go test
-```
-
--->
-
-## Additional Information
-
-### Trade-off
-
-<!-- Please describe, if any, the trade-offs that you found acceptable in this pull request -->
-
-### Potential improvement
-
-<!-- Please describe, if any, potential improvement that you are envisioning -->
-
-<!-- Please Uncomment following block if looking for QA validation
-
-## Additional QA
-### Issue: <link the issue or issues this PR resolves here>
-< If your PR depends on changes from another pr link them here and describe why they are needed on your solution section. >
- 
-### Problem
-< Describe the root cause of the issue you are resolving. This may include what behavior is observed and why it is not desirable. If this is a new feature describe why we need this feature and how it will be used. >
- 
-### Solution
-< Describe what you changed to fix the issue. Relate your changes back to the original issue / feature and explain why this addresses the issue.>
- 
-### Testing
-< Note: Confirm if the repro steps in the GitHub issue are valid, if not, please update the issue with accurate repro steps. >
-
-### Engineering Testing
-#### Manual Testing
-< Describe what manual testing you did (if no testing was done, explain why). >
-
-#### Automated Testing
-<If you added/updated unit/integration/validation tests, describe what cases they cover and do not cover. >
-
-### QA Testing Considerations
-< Highlight areas or (additional) cases that QA should test w.r.t a fresh install as well as the upgrade scenarios >
- 
-#### Regressions Considerations
-< Dedicated section to specifically call out any areas that with higher chance of regressions caused by this change, include estimation of probability of regressions >
-
+  Please provide a unit, integration (`./integrationtests/`) or e2e (`./e2e/`) test if possible.
 -->
