@@ -188,6 +188,7 @@ jobs:
         name: Dump failed environment
         if: failure()
         run: |
+          sleep 300 # DEBUG
           ./.github/scripts/dump-failed-k3ds.sh
       -
         name: Upload logs
