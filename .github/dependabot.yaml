@@ -15,6 +15,13 @@ updates:
     labels:
       - "dependencies"
   -
+    package-ecosystem: "gomod"
+    directory: "/e2e/testenv/infra"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+  -
     package-ecosystem: "docker"
     directory: "/"
     schedule:
