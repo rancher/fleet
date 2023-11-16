@@ -1,6 +1,6 @@
 ARG BUILD_ENV=dapper
 
-FROM scratch AS base
+FROM registry.suse.com/bci/bci-micro:15.4 AS base
 USER 1000
 
 FROM base AS copy_dapper
