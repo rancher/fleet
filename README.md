@@ -20,7 +20,8 @@ deploy everything in the cluster. This gives a high degree of control, consisten
 the ability to scale, but to give one a high degree of control and visibility to exactly what is installed on the cluster.
 
 # Quick Start
-Who needs documentation, let's just run this thing!
+
+For more information, have a look at Fleet's [documentation](https://fleet.rancher.io/).
 
 ## Install
 
