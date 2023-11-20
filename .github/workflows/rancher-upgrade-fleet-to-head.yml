@@ -68,7 +68,7 @@ jobs:
         run: |
           UUID=$(uuidgen)
           echo "uuid=${UUID}" >> ${GITHUB_OUTPUT}
-          echo "runner=elemental-ci-${UUID}" >> ${GITHUB_OUTPUT}
+          echo "runner=fleet-ci-${UUID}" >> ${GITHUB_OUTPUT}
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
