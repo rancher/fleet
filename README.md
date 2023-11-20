@@ -28,6 +28,7 @@ For more information, have a look at Fleet's [documentation](https://fleet.ranch
 Get `helm` if you don't have it.  Helm 3 is just a CLI and won't do bad insecure
 things to your cluster.
 
+For instance, using Homebrew:
 ```
 brew install helm
 ```
@@ -66,7 +67,7 @@ kubectl apply -f example.yaml
 
 ## Get Status
 
-Get status of what fleet is doing
+Get status of what Fleet is doing:
 
 ```shell
 kubectl -n fleet-local get fleet
