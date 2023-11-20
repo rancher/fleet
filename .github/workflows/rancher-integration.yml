@@ -6,19 +6,6 @@ on:
     # Run everyday day at 1:00 PM
     - cron:  '0 13 * * *'
   workflow_dispatch:
-    secrets:
-      credentials:
-        description: Credentials to use to connect
-        required: true
-      pat_token:
-        # A token is needed to be able to add runner on the repo, maybe this can be changed later
-        # This token is linked to a personal account
-        # So in case of a token issue, you have to check (non-exhaustively, in no specific order):
-        # - the expiration date
-        # - if the associated account still exists
-        # - if the person still has access to the repo
-        description: PAT token used to add runner
-        required: true
     inputs:
       ref:
         description: "checkout git branch/tag"
