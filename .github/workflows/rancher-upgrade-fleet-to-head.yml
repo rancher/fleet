@@ -1,11 +1,21 @@
-# Upgrade fleet in latest Rancher to dev version and run MC tests
-name: Upgrade Fleet in Rancher To HEAD
+# Test fleet in Rancher with MC tests
+name: Test Fleet in Rancher
 
 on:
   schedule:
     # Run everyday day at 1:00 PM
     - cron:  '0 13 * * *'
   workflow_dispatch:
+    secrets:
+      pat_token:
+        # A token is needed to be able to add runner on the repo, maybe this can be changed later
+        # This token is linked to a personal account
+        # So in case of a token issue, you have to check (non-exhaustively, in no specific order):
+        # - the expiration date
+        # - if the associated account still exists
+        # - if the person still has access to the repo
+        description: PAT token used to add runner
+        required: true
     inputs:
       ref:
         description: "checkout git branch/tag"
@@ -15,6 +25,32 @@ on:
         description: 'Enable debugging via tmate'
         required: false
         default: "false"
+      cluster_name:
+        description: Name of the provisioned cluster
+        required: true
+        type: string
+      cluster_number:
+        description: Number of clusters to deploy in multi-cluster test
+        type: string
+      cluster_type:
+        description: Cluster type (empty if normal or hardened)
+        type: string
+      destroy_runner:
+        description: Destroy the auto-generated self-hosted runner
+        default: true
+        type: boolean
+      rancher_version:
+        description: Rancher Manager channel/version/head_version to use for installation
+        default: stable/latest/none
+        type: string
+      runner_template:
+        description: Runner template to use
+        default: fleet-e2e-ci-runner-x86-64-template
+        type: string
+      zone:
+        description: GCP zone to host the runner
+        default: us-central1-a
+        type: string
   push:
     tags: [ 'v*' ]
     paths-ignore:
@@ -27,8 +63,67 @@ env:
   SETUP_K3S_VERSION: 'v1.26.8-k3s1'
 
 jobs:
-  rancher-fleet-integration:
+  create-runner:
     runs-on: ubuntu-latest
+    outputs:
+      uuid: ${{ steps.generator.outputs.uuid }}
+      runner: ${{ steps.generator.outputs.runner }}
+      public_dns: ${{ steps.dns.outputs.public_dns }}
+    steps:
+      # actions/checkout MUST come before auth
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Generate UUID and Runner hostname
+        id: generator
+        run: |
+          UUID=$(uuidgen)
+          echo "uuid=${UUID}" >> ${GITHUB_OUTPUT}
+          echo "runner=elemental-ci-${UUID}" >> ${GITHUB_OUTPUT}
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.credentials }}
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+      - name: Create runner
+        run: |
+          gcloud compute instances create ${{ steps.generator.outputs.runner }} \
+            --source-instance-template ${{ inputs.runner_template }} \
+            --zone ${{ inputs.zone }}
+      - name: Create PAT token secret
+        run: |
+          echo -n ${{ secrets.pat_token }} \
+            | gcloud secrets create PAT_TOKEN_${{ steps.generator.outputs.uuid }} --data-file=-
+      - name: Get public dns name in GCP
+        id: dns
+        run: |
+          # Do a timed out loop here, as gcloud can sometimes fail
+          typeset -i i=0
+          while true; do
+            # Get public IP
+            PUBLIC_IP=$(gcloud compute instances list 2> /dev/null \
+                        | awk '/${{ steps.generator.outputs.runner }}/ {print $6}')
+            # Exit if we reach the timeout or if IP is set
+            if (( ++i > 10 )) || [[ -n "${PUBLIC_IP}" ]]; then
+              break
+            fi
+            # Wait a little before retrying
+            sleep 2
+          done
+          # XXX: do we need this?
+          # Get the public DNS
+          PUBLIC_DNS=$(host -l ${PUBLIC_IP} 2> /dev/null \
+                       | awk '{sub(/\.$/, ""); print $5}')
+          echo "public_dns=${PUBLIC_DNS}" >> ${GITHUB_OUTPUT}
+          # Raise an error if either IP and/or DNS are empty
+          if [[ -z "${PUBLIC_IP}" || -z "${PUBLIC_DNS}" ]]; then
+            echo "PUBLIC_IP and/or PUBLIC_DNS are empty!" >&2
+            false
+          fi
+
+  rancher-integration:
+    needs: create-runner
+    runs-on: ${{ needs.create-runner.outputs.uuid }}
 
     steps:
       -
@@ -200,3 +295,26 @@ jobs:
             tmp/*.json
             tmp/*.log
           retention-days: 2
+
+  delete-runner:
+    if: ${{ always() && needs.create-runner.result == 'success' && inputs.destroy_runner == true }}
+    needs: [create-runner, rancher-integration]
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout MUST come before auth
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.credentials }}
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+      - name: Delete PAT token secret
+        run: |
+          gcloud --quiet secrets delete PAT_TOKEN_${{ needs.create-runner.outputs.uuid }}
+      - name: Delete runner
+        run: |
+          gcloud --quiet compute instances delete ${{ needs.create-runner.outputs.runner }} \
+            --delete-disks all \
+            --zone ${{ inputs.zone }}
