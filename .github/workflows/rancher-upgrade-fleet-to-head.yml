@@ -7,6 +7,9 @@ on:
     - cron:  '0 13 * * *'
   workflow_dispatch:
     secrets:
+      credentials:
+        description: Credentials to use to connect
+        required: true
       pat_token:
         # A token is needed to be able to add runner on the repo, maybe this can be changed later
         # This token is linked to a personal account
