@@ -35,7 +35,7 @@ on:
         type: string
       runner_template:
         description: Runner template to use
-        default: fleet-e2e-ci-runner-x86-64-template
+        default: fleet-e2e-ci-runner-standard-x86-64-template-v1
         type: string
       zone:
         description: GCP zone to host the runner
