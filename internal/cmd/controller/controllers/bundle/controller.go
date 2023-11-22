@@ -131,10 +131,16 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	logrus.Debugf("OnBundleChange for bundle '%s', checking targets, calculating changes, building objects", bundle.Name)
 	start := time.Now()
 
-	manifest, err := manifest.New(bundle.Spec.Resources)
+	manifest := manifest.FromBundle(bundle)
+	if bundle.Generation != bundle.Status.ObservedGeneration {
+		manifest.ResetSHASum()
+	}
+
+	manifestDigest, err := manifest.SHASum()
 	if err != nil {
 		return nil, status, err
 	}
+	status.ResourcesSHA256Sum = manifestDigest
 
 	// this does not need to happen after merging the
 	// BundleDeploymentOptions, since 'fleet apply' already put the right
