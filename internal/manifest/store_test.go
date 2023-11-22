@@ -3,13 +3,15 @@ package manifest
 import (
 	"bytes"
 	"fmt"
+	"strings"
+	"testing"
+
 	"github.com/golang/mock/gomock"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/generic/fake"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"strings"
-	"testing"
+
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 func testManifest(t *testing.T, data string) *Manifest {
