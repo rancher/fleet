@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -16,51 +17,99 @@ import (
 type Manifest struct {
 	Commit    string                 `json:"-"`
 	Resources []fleet.BundleResource `json:"resources,omitempty"`
+	shasum    string
 	raw       []byte
-	digest    string
 }
 
-func New(resources []fleet.BundleResource) (*Manifest, error) {
-	m := &Manifest{
+func New(resources []fleet.BundleResource) *Manifest {
+	return &Manifest{
 		Resources: resources,
 	}
-	return m, nil
 }
 
-func readManifest(data []byte, digest string) (*Manifest, error) {
-	if digest != "" {
-		if _, err := sha256Matches(bytes.NewReader(data), digest); err != nil {
-			return nil, err
-		}
+func FromBundle(bundle *fleet.Bundle) *Manifest {
+	return &Manifest{
+		Resources: bundle.Spec.Resources,
+		shasum:    bundle.Status.ResourcesSHA256Sum,
 	}
+}
+
+func FromJSON(data []byte, expectedSHAsum string) (*Manifest, error) {
+	h := sha256.New()
+	r := io.TeeReader(bytes.NewReader(data), h)
 
 	var m Manifest
-	if err := json.Unmarshal(data, &m); err != nil {
+	if err := json.NewDecoder(r).Decode(&m); err != nil {
 		return nil, err
 	}
+	m.raw = data
+	m.shasum = hex.EncodeToString(h.Sum(nil))
+
+	if expectedSHAsum != "" && expectedSHAsum != m.shasum {
+		return nil, fmt.Errorf("content does not match hash got %s, expected %s", m.shasum, expectedSHAsum)
+	}
+
 	return &m, nil
 }
 
-func (m *Manifest) Content() ([]byte, string, error) {
-	if m.digest != "" {
-		return m.raw, m.digest, nil
-	}
+// encodeManifest serializes the provided Manifest and returns the byte array and its sha256sum
+func encodeManifest(m *Manifest) ([]byte, string, error) {
+	var buf bytes.Buffer
+	h := sha256.New()
+	out := io.MultiWriter(&buf, h)
 
-	buf := &bytes.Buffer{}
-	digest := sha256.New()
-	out := io.MultiWriter(buf, digest)
-	if err := m.Encode(out); err != nil {
+	if err := json.NewEncoder(out).Encode(m); err != nil {
 		return nil, "", err
 	}
-	m.raw = buf.Bytes()
-	m.digest = toSHA256ID(digest.Sum(nil))
-	return m.raw, m.digest, nil
+
+	return buf.Bytes(), hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func (m *Manifest) Encode(writer io.Writer) error {
-	return json.NewEncoder(writer).Encode(m)
+func (m *Manifest) load() error {
+	data, shasum, err := encodeManifest(m)
+	if err != nil {
+		return err
+	}
+	m.raw = data
+	m.shasum = shasum
+	return nil
 }
 
-func toSHA256ID(digest []byte) string {
-	return ("s-" + hex.EncodeToString(digest))[:63]
+// Content retrieves the JSON serialization of the bundle resources
+func (m *Manifest) Content() ([]byte, error) {
+	if m.raw == nil {
+		if err := m.load(); err != nil {
+			return nil, err
+		}
+	}
+	return m.raw, nil
+}
+
+// ResetSHASum removes stored data about calculated SHASum, forcing a recalculation on the next call to SHASum()
+func (m *Manifest) ResetSHASum() {
+	m.shasum = ""
+}
+
+// SHASum returns the SHA256 sum of the JSON serialization
+func (m *Manifest) SHASum() (string, error) {
+	if m.shasum == "" {
+		if err := m.load(); err != nil {
+			return "", err
+		}
+	}
+	return m.shasum, nil
+}
+
+// ID returns the name of the Content resource produced from this Manifest
+func (m *Manifest) ID() (string, error) {
+	shasum, err := m.SHASum()
+	if err != nil {
+		return "", err
+	}
+	return toSHA256ID(shasum), nil
+}
+
+// toSHA256ID generates a valid Kubernetes name (max length of 64) from a provided SHA256 sum
+func toSHA256ID(shasum string) string {
+	return ("s-" + shasum)[:63]
 }

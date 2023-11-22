@@ -26,10 +26,17 @@ func (l *lookup) Get(id string) (*Manifest, error) {
 		return nil, err
 	}
 
-	bytes, err := content.GUnzip(c.Content)
+	data, err := content.GUnzip(c.Content)
 	if err != nil {
 		return nil, err
 	}
+	digest := getAnnotation(c.GetAnnotations(), SHA256SumAnnotation)
+	return FromJSON(data, digest)
+}
 
-	return readManifest(bytes, id)
+func getAnnotation(annotations map[string]string, k string) string {
+	if annotations != nil {
+		return annotations[k]
+	}
+	return ""
 }
