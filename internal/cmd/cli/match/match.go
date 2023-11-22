@@ -70,13 +70,13 @@ func Match(ctx context.Context, opts *Options) error {
 		m := bm.Match(opts.ClusterName, map[string]map[string]string{
 			opts.ClusterGroup: opts.ClusterGroupLabels,
 		}, opts.ClusterLabels)
-		return printMatch(bundle, m, opts.Output)
+		return printMatch(ctx, bundle, m, opts.Output)
 	}
 
-	return printMatch(bundle, bm.MatchForTarget(opts.Target), opts.Output)
+	return printMatch(ctx, bundle, bm.MatchForTarget(opts.Target), opts.Output)
 }
 
-func printMatch(bundle *fleet.Bundle, target *fleet.BundleTarget, output io.Writer) error {
+func printMatch(ctx context.Context, bundle *fleet.Bundle, target *fleet.BundleTarget, output io.Writer) error {
 	if target == nil {
 		return errors.New("no match found")
 	}
@@ -89,7 +89,7 @@ func printMatch(bundle *fleet.Bundle, target *fleet.BundleTarget, output io.Writ
 
 	manifest := manifest.New(bundle.Spec.Resources)
 
-	objs, err := helmdeployer.Template(bundle.Name, manifest, opts)
+	objs, err := helmdeployer.Template(ctx, bundle.Name, manifest, opts)
 	if err != nil {
 		return err
 	}

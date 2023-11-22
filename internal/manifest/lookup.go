@@ -1,27 +1,25 @@
 package manifest
 
 import (
+	"context"
+
 	"github.com/rancher/fleet/internal/content"
-	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type Lookup interface {
-	Get(id string) (*Manifest, error)
+func NewLookup() *Lookup {
+	return &Lookup{}
 }
 
-func NewLookup(content fleetcontrollers.ContentClient) Lookup {
-	return &lookup{
-		content: content,
-	}
+type Lookup struct {
 }
 
-type lookup struct {
-	content fleetcontrollers.ContentClient
-}
-
-func (l *lookup) Get(id string) (*Manifest, error) {
-	c, err := l.content.Get(id, metav1.GetOptions{})
+func (l *Lookup) Get(ctx context.Context, client client.Reader, id string) (*Manifest, error) {
+	c := &fleet.Content{}
+	err := client.Get(ctx, types.NamespacedName{Name: id}, c)
 	if err != nil {
 		return nil, err
 	}

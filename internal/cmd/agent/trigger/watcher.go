@@ -17,23 +17,25 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
+type triggerFunc func(key string)
+
 type Trigger struct {
 	sync.RWMutex
 
 	ctx        context.Context
 	objectSets map[string]*objectset.ObjectSet
 	watches    map[schema.GroupVersionKind]*watcher
-	triggers   map[schema.GroupVersionKind]map[objectset.ObjectKey]map[string]func()
+	triggers   map[schema.GroupVersionKind]map[objectset.ObjectKey]map[string]triggerFunc
 	restMapper meta.RESTMapper
 	client     dynamic.Interface
 }
 
-func New(ctx context.Context, restMapper meta.RESTMapper, client dynamic.Interface) *Trigger {
+func New(ctx context.Context, client dynamic.Interface, restMapper meta.RESTMapper) *Trigger {
 	return &Trigger{
 		ctx:        ctx,
 		objectSets: map[string]*objectset.ObjectSet{},
 		watches:    map[schema.GroupVersionKind]*watcher{},
-		triggers:   map[schema.GroupVersionKind]map[objectset.ObjectKey]map[string]func(){},
+		triggers:   map[schema.GroupVersionKind]map[objectset.ObjectKey]map[string]triggerFunc{},
 		restMapper: restMapper,
 		client:     client,
 	}
@@ -62,7 +64,7 @@ func setNamespace(nsed bool, key objectset.ObjectKey, defaultNamespace string) o
 	return key
 }
 
-func (t *Trigger) OnChange(key string, defaultNamespace string, trigger func(), objs ...runtime.Object) error {
+func (t *Trigger) OnChange(key string, defaultNamespace string, trigger triggerFunc, objs ...runtime.Object) error {
 	t.Lock()
 	defer t.Unlock()
 
@@ -92,12 +94,12 @@ func (t *Trigger) OnChange(key string, defaultNamespace string, trigger func(), 
 			objectKey = setNamespace(gvkNSed[gvk], objectKey, defaultNamespace)
 			objectKeys, ok := t.triggers[gvk]
 			if !ok {
-				objectKeys = map[objectset.ObjectKey]map[string]func(){}
+				objectKeys = map[objectset.ObjectKey]map[string]triggerFunc{}
 				t.triggers[gvk] = objectKeys
 			}
 			funcs, ok := objectKeys[objectKey]
 			if !ok {
-				funcs = map[string]func(){}
+				funcs = map[string]triggerFunc{}
 				objectKeys[objectKey] = funcs
 			}
 			funcs[key] = trigger
@@ -130,7 +132,7 @@ func (t *Trigger) call(gvk schema.GroupVersionKind, key objectset.ObjectKey) {
 	defer t.RUnlock()
 
 	for _, f := range t.triggers[gvk][key] {
-		f()
+		f(key.String())
 	}
 }
 

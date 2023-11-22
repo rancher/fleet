@@ -1,18 +1,19 @@
 package monitor
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/plan"
+	"github.com/go-logr/logr"
+	aplan "github.com/rancher/fleet/internal/cmd/agent/deployer/plan"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v2/pkg/apply"
+	"github.com/rancher/wrangler/v2/pkg/condition"
 	"github.com/rancher/wrangler/v2/pkg/objectset"
 	"github.com/rancher/wrangler/v2/pkg/summary"
 
@@ -20,37 +21,128 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type Monitor struct {
-	defaultNamespace           string
-	deployer                   *helmdeployer.Helm
-	apply                      apply.Apply
-	labelPrefix                string
-	labelSuffix                string
-	bundleDeploymentController fleetcontrollers.BundleDeploymentController
+	apply  apply.Apply
+	mapper meta.RESTMapper
+
+	deployer *helmdeployer.Helm
+
+	defaultNamespace string
+	labelPrefix      string
+	labelSuffix      string
 }
 
-func New(defaultNamespace string,
-	labelPrefix, labelSuffix string,
-	deployer *helmdeployer.Helm,
-	apply apply.Apply) *Monitor {
+func New(apply apply.Apply, mapper meta.RESTMapper, deployer *helmdeployer.Helm, defaultNamespace string, labelSuffix string) *Monitor {
 	return &Monitor{
-		defaultNamespace: defaultNamespace,
-		labelPrefix:      labelPrefix,
-		labelSuffix:      labelSuffix,
+		apply:            apply,
+		mapper:           mapper,
 		deployer:         deployer,
-		apply:            apply.WithDynamicLookup(),
+		defaultNamespace: defaultNamespace,
+		labelPrefix:      defaultNamespace,
+		labelSuffix:      labelSuffix,
 	}
 }
 
-// UpdateBundleDeploymentStatus updates the status with information from the
-// helm release history and an apply dry run.
-func (m *Monitor) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet.BundleDeployment) error {
-	resources, err := m.deployer.Resources(bd.Name, bd.Status.Release)
-	if err != nil {
-		return err
+func ShouldRedeploy(bd *fleet.BundleDeployment) bool {
+	if IsAgent(bd) {
+		return true
 	}
+	if bd.Spec.Options.ForceSyncGeneration <= 0 {
+		return false
+	}
+	if bd.Status.SyncGeneration == nil {
+		return true
+	}
+	return *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration
+}
+
+func IsAgent(bd *fleet.BundleDeployment) bool {
+	return strings.HasPrefix(bd.Name, "fleet-agent")
+}
+
+func ShouldUpdateStatus(bd *fleet.BundleDeployment) bool {
+	if bd.Spec.DeploymentID != bd.Status.AppliedDeploymentID {
+		return false
+	}
+
+	// If the bundle failed to install the status should not be updated. Updating
+	// here would remove the condition message that was previously set on it.
+	if condition.Cond(fleet.BundleDeploymentConditionInstalled).IsFalse(bd) {
+		return false
+	}
+
+	return true
+}
+
+func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) (fleet.BundleDeploymentStatus, error) {
+	logger := log.FromContext(ctx).WithName("UpdateStatus")
+
+	// updateResources mutates bd.Status, so copy it first
+	origStatus := *bd.Status.DeepCopy()
+	bd = bd.DeepCopy()
+	err := m.updateFromResources(logger, bd, resources)
+	if err != nil {
+
+		// Returning an error will cause MonitorBundle to requeue in a loop.
+		// When there is no resourceID the error should be on the status. Without
+		// the ID we do not have the information to lookup the resources to
+		// compute the plan and discover the state of resources.
+		if err == helmdeployer.ErrNoResourceID {
+			return origStatus, nil
+		}
+
+		return origStatus, err
+	}
+	status := bd.Status
+
+	readyError := readyError(status)
+	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
+
+	status.SyncGeneration = &bd.Spec.Options.ForceSyncGeneration
+	if readyError != nil {
+		logger.Info("Status not ready", "error", readyError)
+	}
+
+	removePrivateFields(&status)
+	return status, nil
+}
+
+// removePrivateFields removes fields from the status, which won't be marshalled to JSON.
+// They would however trigger a status update in apply
+func removePrivateFields(s1 *fleet.BundleDeploymentStatus) {
+	for id := range s1.NonReadyStatus {
+		s1.NonReadyStatus[id].Summary.Relationships = nil
+		s1.NonReadyStatus[id].Summary.Attributes = nil
+	}
+}
+
+func readyError(status fleet.BundleDeploymentStatus) error {
+	if status.Ready && status.NonModified {
+		return nil
+	}
+
+	var msg string
+	if !status.Ready {
+		msg = "not ready"
+		if len(status.NonReadyStatus) > 0 {
+			msg = status.NonReadyStatus[0].String()
+		}
+	} else if !status.NonModified {
+		msg = "out of sync"
+		if len(status.ModifiedStatus) > 0 {
+			msg = status.ModifiedStatus[0].String()
+		}
+	}
+
+	return errors.New(msg)
+}
+
+// updateFromResources updates the status with information from the
+// helm release history and an apply dry run.
+func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) error {
 	resourcesPreviousRelease, err := m.deployer.ResourcesFromPreviousReleaseVersion(bd.Name, bd.Status.Release)
 	if err != nil {
 		return err
@@ -60,19 +152,23 @@ func (m *Monitor) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet
 	if ns == "" {
 		ns = m.defaultNamespace
 	}
-	apply := plan.GetApply(m.apply, plan.Options{
+	apply := aplan.GetApply(m.apply, aplan.Options{
 		LabelPrefix:      m.labelPrefix,
 		LabelSuffix:      m.labelSuffix,
 		DefaultNamespace: ns,
 		Name:             bd.Name,
 	})
 
-	plan, err := plan.Plan(apply, bd, resources.DefaultNamespace, resources.Objects...)
+	plan, err := apply.DryRun(resources.Objects...)
+	if err != nil {
+		return err
+	}
+	plan, err = aplan.Diff(plan, bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
 		return err
 	}
 
-	bd.Status.NonReadyStatus = nonReady(plan, bd.Spec.Options.IgnoreOptions)
+	bd.Status.NonReadyStatus = nonReady(logger, plan, bd.Spec.Options.IgnoreOptions)
 	bd.Status.ModifiedStatus = modified(plan, resourcesPreviousRelease)
 	bd.Status.Ready = false
 	bd.Status.NonModified = false
@@ -82,28 +178,18 @@ func (m *Monitor) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet
 	}
 	if len(bd.Status.ModifiedStatus) == 0 {
 		bd.Status.NonModified = true
-	} else if bd.Spec.CorrectDrift.Enabled {
-		err = m.deployer.RemoveExternalChanges(bd)
-		if err != nil {
-			// Update BundleDeployment status as wrangler doesn't update the status if error is not nil.
-			_, errStatus := m.bundleDeploymentController.UpdateStatus(bd)
-			if errStatus != nil {
-				return errors.Wrap(err, "error updating status when reconciling drift: "+errStatus.Error())
-			}
-			return errors.Wrapf(err, "error reconciling drift")
-		}
 	}
 
 	bd.Status.Resources = []fleet.BundleDeploymentResource{}
 	for _, obj := range plan.Objects {
-		m, err := meta.Accessor(obj)
+		ma, err := meta.Accessor(obj)
 		if err != nil {
 			return err
 		}
 
-		ns := m.GetNamespace()
+		ns := ma.GetNamespace()
 		gvk := obj.GetObjectKind().GroupVersionKind()
-		if ns == "" && isNamespaced(mapper, gvk) {
+		if ns == "" && isNamespaced(m.mapper, gvk) {
 			ns = resources.DefaultNamespace
 		}
 
@@ -112,12 +198,47 @@ func (m *Monitor) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet
 			Kind:       kind,
 			APIVersion: version,
 			Namespace:  ns,
-			Name:       m.GetName(),
-			CreatedAt:  m.GetCreationTimestamp(),
+			Name:       ma.GetName(),
+			CreatedAt:  ma.GetCreationTimestamp(),
 		})
 	}
 
 	return nil
+}
+
+func nonReady(logger logr.Logger, plan apply.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
+	defer func() {
+		sort.Slice(result, func(i, j int) bool {
+			return result[i].UID < result[j].UID
+		})
+	}()
+
+	for _, obj := range plan.Objects {
+		if len(result) >= 10 {
+			return result
+		}
+		if u, ok := obj.(*unstructured.Unstructured); ok {
+			if ignoreOptions.Conditions != nil {
+				if err := excludeIgnoredConditions(u, ignoreOptions); err != nil {
+					logger.Error(err, "failed to ignore conditions")
+				}
+			}
+
+			summary := summary.Summarize(u)
+			if !summary.IsReady() {
+				result = append(result, fleet.NonReadyStatus{
+					UID:        u.GetUID(),
+					Kind:       u.GetKind(),
+					APIVersion: u.GetAPIVersion(),
+					Namespace:  u.GetNamespace(),
+					Name:       u.GetName(),
+					Summary:    summary,
+				})
+			}
+		}
+	}
+
+	return result
 }
 
 func modified(plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
@@ -195,41 +316,6 @@ func isResourceInPreviousRelease(key objectset.ObjectKey, kind string, objsPrevi
 	}
 
 	return false
-}
-
-func nonReady(plan apply.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
-	defer func() {
-		sort.Slice(result, func(i, j int) bool {
-			return result[i].UID < result[j].UID
-		})
-	}()
-
-	for _, obj := range plan.Objects {
-		if len(result) >= 10 {
-			return result
-		}
-		if u, ok := obj.(*unstructured.Unstructured); ok {
-			if ignoreOptions.Conditions != nil {
-				if err := excludeIgnoredConditions(u, ignoreOptions); err != nil {
-					logrus.Errorf("failed to ignore conditions: %v", err)
-				}
-			}
-
-			summary := summary.Summarize(u)
-			if !summary.IsReady() {
-				result = append(result, fleet.NonReadyStatus{
-					UID:        u.GetUID(),
-					Kind:       u.GetKind(),
-					APIVersion: u.GetAPIVersion(),
-					Namespace:  u.GetNamespace(),
-					Name:       u.GetName(),
-					Summary:    summary,
-				})
-			}
-		}
-	}
-
-	return result
 }
 
 // excludeIgnoredConditions removes the conditions that are included in ignoreOptions from the object passed as a parameter

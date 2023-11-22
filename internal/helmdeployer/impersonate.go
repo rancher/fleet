@@ -1,22 +1,27 @@
 package helmdeployer
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/rancher/wrangler/v2/pkg/ratelimit"
+
+	corev1 "k8s.io/api/core/v1"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-func (h *Helm) getServiceAccount(name string) (string, string, error) {
+func (h *Helm) getServiceAccount(ctx context.Context, name string) (string, string, error) {
 	currentName := name
 	if currentName == "" {
 		currentName = DefaultServiceAccount
 	}
-	_, err := h.serviceAccountCache.Get(h.agentNamespace, currentName)
+	sa := &corev1.ServiceAccount{}
+	err := h.client.Get(ctx, types.NamespacedName{Namespace: h.agentNamespace, Name: currentName}, sa)
 	if apierror.IsNotFound(err) && name == "" {
 		// if we can't find the service account, but none was asked for, don't use any
 		return "", "", nil

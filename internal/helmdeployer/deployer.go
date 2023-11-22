@@ -2,15 +2,16 @@ package helmdeployer
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/helmdeployer/helmcache"
-	"github.com/sirupsen/logrus"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -27,14 +28,17 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v2/pkg/apply"
-	corecontrollers "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v2/pkg/kv"
 	"github.com/rancher/wrangler/v2/pkg/name"
 	"github.com/rancher/wrangler/v2/pkg/yaml"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -65,12 +69,10 @@ type postRender struct {
 }
 
 type Helm struct {
-	agentNamespace      string
-	serviceAccountCache corecontrollers.ServiceAccountCache
-	configmapCache      corecontrollers.ConfigMapCache
-	secretCache         corecontrollers.SecretCache
-	getter              genericclioptions.RESTClientGetter
-	globalCfg           action.Configuration
+	client         client.Client
+	agentNamespace string
+	getter         genericclioptions.RESTClientGetter
+	globalCfg      action.Configuration
 	// useGlobalCfg is only used by Template
 	useGlobalCfg     bool
 	template         bool
@@ -86,7 +88,7 @@ type Resources struct {
 }
 
 type DeployedBundle struct {
-	// BundleID is the bundle.Name
+	// BundleID is the bundledeployment.Name
 	BundleID string
 	// ReleaseName is actually in the form "namespace/release name"
 	ReleaseName string
@@ -94,19 +96,18 @@ type DeployedBundle struct {
 	KeepResources bool
 }
 
-func NewHelm(namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter,
-	serviceAccountCache corecontrollers.ServiceAccountCache, configmapCache corecontrollers.ConfigMapCache, secretCache corecontrollers.SecretCache) (*Helm, error) {
+// NewHelm returns a new helm deployer
+// * namespace is the system namespace, which is the namespace the agent is running in, e.g. cattle-fleet-system
+func NewHelm(ctx context.Context, client client.Client, namespace, defaultNamespace, labelPrefix, labelSuffix string, getter genericclioptions.RESTClientGetter) (*Helm, error) {
 	h := &Helm{
-		getter:              getter,
-		defaultNamespace:    defaultNamespace,
-		agentNamespace:      namespace,
-		serviceAccountCache: serviceAccountCache,
-		configmapCache:      configmapCache,
-		secretCache:         secretCache,
-		labelPrefix:         labelPrefix,
-		labelSuffix:         labelSuffix,
+		client:           client,
+		getter:           getter,
+		defaultNamespace: defaultNamespace,
+		agentNamespace:   namespace,
+		labelPrefix:      labelPrefix,
+		labelSuffix:      labelSuffix,
 	}
-	cfg, err := h.createCfg("")
+	cfg, err := h.createCfg(ctx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,8 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 	return bytes.NewBuffer(data), err
 }
 
-func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*Resources, error) {
+// Deploy deploys an unpacked content resource with helm. bundleID is the name of the bundledeployment.
+func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*Resources, error) {
 	if options.Helm == nil {
 		options.Helm = &fleet.HelmOptions{}
 	}
@@ -226,13 +228,13 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 		chart.Schema = nil
 	}
 
-	if resources, err := h.install(bundleID, manifest, chart, options, true); err != nil {
+	if resources, err := h.install(ctx, bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
 	} else if h.template {
 		return releaseToResources(resources)
 	}
 
-	release, err := h.install(bundleID, manifest, chart, options, false)
+	release, err := h.install(ctx, bundleID, manifest, chart, options, false)
 	if err != nil {
 		return nil, err
 	}
@@ -242,11 +244,11 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 
 // RemoveExternalChanges does a helm rollback to remove changes made outside of fleet.
 // It removes the helm history entry if the rollback fails.
-func (h *Helm) RemoveExternalChanges(bd *fleet.BundleDeployment) error {
-	logrus.Infof("Drift correction: rollback BundleDeployment %s", bd.Name)
+func (h *Helm) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeployment) error {
+	log.FromContext(ctx).WithName("RemoveExternalChanges").Info("Drift correction: rollback")
 
 	_, defaultNamespace, releaseName := h.getOpts(bd.Name, bd.Spec.Options)
-	cfg, err := h.getCfg(defaultNamespace, bd.Spec.Options.ServiceAccount)
+	cfg, err := h.getCfg(ctx, defaultNamespace, bd.Spec.Options.ServiceAccount)
 	if err != nil {
 		return err
 	}
@@ -314,7 +316,7 @@ func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 	return timeout, ns, name2.HelmReleaseName(bundleID)
 }
 
-func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuration, error) {
+func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string) (action.Configuration, error) {
 	var (
 		cfg    action.Configuration
 		getter = h.getter
@@ -324,7 +326,7 @@ func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 		return h.globalCfg, nil
 	}
 
-	serviceAccountNamespace, serviceAccountName, err := h.getServiceAccount(serviceAccountName)
+	serviceAccountNamespace, serviceAccountName, err := h.getServiceAccount(ctx, serviceAccountName)
 	if err != nil {
 		return cfg, err
 	}
@@ -339,7 +341,7 @@ func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 	kClient := kube.New(getter)
 	kClient.Namespace = namespace
 
-	cfg, err = h.createCfg(namespace)
+	cfg, err = h.createCfg(ctx, namespace)
 	cfg.Releases.MaxHistory = MaxHelmHistory
 	cfg.KubeClient = kClient
 
@@ -348,15 +350,17 @@ func (h *Helm) getCfg(namespace, serviceAccountName string) (action.Configuratio
 	return cfg, err
 }
 
-func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
+// install runs helm install or upgrade and supports dry running the action. Will run helm rollback in case of a failed upgrade.
+func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
+	logger := log.FromContext(ctx).WithName("HelmDeployer").WithName("install").WithValues("commit", manifest.Commit, "dry run", dryRun)
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
-	values, err := h.getValues(options, defaultNamespace)
+	values, err := h.getValues(ctx, options, defaultNamespace)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := h.getCfg(defaultNamespace, options.ServiceAccount)
+	cfg, err := h.getCfg(ctx, defaultNamespace, options.ServiceAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -367,7 +371,8 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	}
 
 	if uninstall {
-		if err := h.delete(bundleID, options, dryRun); err != nil {
+		logger.Info("Uninstalling helm release first")
+		if err := h.delete(ctx, bundleID, options, dryRun); err != nil {
 			return nil, err
 		}
 		if dryRun {
@@ -422,7 +427,7 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 			u.Wait = true
 		}
 		if !dryRun {
-			logrus.Infof("Helm: Installing %s", bundleID)
+			logger.Info("Installing helm release")
 		}
 		return u.Run(chart, values)
 	}
@@ -446,17 +451,17 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 		u.Wait = true
 	}
 	if !dryRun {
-		logrus.Infof("Helm: Upgrading %s", bundleID)
+		logger.Info("Upgrading helm release")
 	}
 	rel, err := u.Run(releaseName, chart, values)
 	if err != nil && err.Error() == HelmUpgradeInterruptedError {
-		logrus.Infof("Helm error: %s for %s. Doing a rollback", HelmUpgradeInterruptedError, bundleID)
+		logger.Info("Helm doing a rollback", "error", HelmUpgradeInterruptedError)
 		r := action.NewRollback(&cfg)
 		err = r.Run(releaseName)
 		if err != nil {
 			return nil, err
 		}
-		logrus.Debugf("Helm: retrying upgrade for %s after rollback", bundleID)
+		logger.V(1).Info("Retrying upgrade after rollback")
 
 		return u.Run(releaseName, chart, values)
 	}
@@ -464,7 +469,7 @@ func (h *Helm) install(bundleID string, manifest *manifest.Manifest, chart *char
 	return rel, err
 }
 
-func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
+func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOptions, defaultNamespace string) (map[string]interface{}, error) {
 	if options.Helm == nil {
 		return nil, nil
 	}
@@ -488,7 +493,8 @@ func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 				if key == "" {
 					key = DefaultKey
 				}
-				configMap, err := h.configmapCache.Get(namespace, name)
+				configMap := &corev1.ConfigMap{}
+				err := h.client.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, configMap)
 				if err != nil {
 					return nil, err
 				}
@@ -513,7 +519,8 @@ func (h *Helm) getValues(options fleet.BundleDeploymentOptions, defaultNamespace
 				if key == "" {
 					key = DefaultKey
 				}
-				secret, err := h.secretCache.Get(namespace, name)
+				secret := &corev1.Secret{}
+				err := h.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, secret)
 				if err != nil {
 					return nil, err
 				}
@@ -650,7 +657,7 @@ func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string)
 // Delete the release for the given bundleID. releaseName is a key in the
 // format "namespace/name". If releaseName is empty, search for a matching
 // release.
-func (h *Helm) Delete(bundleID, releaseName string) error {
+func (h *Helm) Delete(ctx context.Context, bundleID, releaseName string) error {
 	keepResources := false
 	deployments, err := h.ListDeployments()
 	if err != nil {
@@ -669,10 +676,11 @@ func (h *Helm) Delete(bundleID, releaseName string) error {
 		// Never found anything to delete
 		return nil
 	}
-	return h.deleteByRelease(bundleID, releaseName, keepResources)
+	return h.deleteByRelease(ctx, bundleID, releaseName, keepResources)
 }
 
-func (h *Helm) deleteByRelease(bundleID, releaseName string, keepResources bool) error {
+func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string, keepResources bool) error {
+	logger := log.FromContext(ctx).WithName("deleteByRelease").WithValues("release name", releaseName, "keep resources", keepResources)
 	releaseNamespace, releaseName := kv.Split(releaseName, "/")
 	rels, err := h.globalCfg.Releases.List(func(r *release.Release) bool {
 		return r.Namespace == releaseNamespace &&
@@ -697,19 +705,19 @@ func (h *Helm) deleteByRelease(bundleID, releaseName string, keepResources bool)
 		}
 	}
 
-	cfg, err := h.getCfg(releaseNamespace, serviceAccountName)
+	cfg, err := h.getCfg(ctx, releaseNamespace, serviceAccountName)
 	if err != nil {
 		return err
 	}
 
 	if strings.HasPrefix(bundleID, "fleet-agent") {
 		// Never uninstall the fleet-agent, just "forget" it
-		return deleteHistory(cfg, bundleID)
+		return deleteHistory(cfg, logger, bundleID)
 	}
 
 	if keepResources {
 		// don't delete resources, just delete the helm release secrets
-		return deleteHistory(cfg, bundleID)
+		return deleteHistory(cfg, logger, bundleID)
 	}
 
 	u := action.NewUninstall(&cfg)
@@ -717,7 +725,8 @@ func (h *Helm) deleteByRelease(bundleID, releaseName string, keepResources bool)
 	return err
 }
 
-func (h *Helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
+func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
+	logger := log.FromContext(ctx).WithName("HelmDeployer").WithName("delete").WithValues("dry run", dryRun)
 	timeout, _, releaseName := h.getOpts(bundleID, options)
 
 	r, err := h.globalCfg.Releases.Last(releaseName)
@@ -743,14 +752,14 @@ func (h *Helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dr
 	}
 
 	serviceAccountName := r.Chart.Metadata.Annotations[ServiceAccountNameAnnotation]
-	cfg, err := h.getCfg(r.Namespace, serviceAccountName)
+	cfg, err := h.getCfg(ctx, r.Namespace, serviceAccountName)
 	if err != nil {
 		return err
 	}
 
 	if strings.HasPrefix(bundleID, "fleet-agent") {
 		// Never uninstall the fleet-agent, just "forget" it
-		return deleteHistory(cfg, bundleID)
+		return deleteHistory(cfg, logger, bundleID)
 	}
 
 	u := action.NewUninstall(&cfg)
@@ -758,21 +767,25 @@ func (h *Helm) delete(bundleID string, options fleet.BundleDeploymentOptions, dr
 	u.Timeout = timeout
 
 	if !dryRun {
-		logrus.Infof("Helm: Uninstalling %s", bundleID)
+		logger.Info("Helm: Uninstalling")
 	}
 	_, err = u.Run(releaseName)
 	return err
 }
 
-func (h *Helm) createCfg(namespace string) (action.Configuration, error) {
+func (h *Helm) createCfg(ctx context.Context, namespace string) (action.Configuration, error) {
+	logger := log.FromContext(ctx).WithName("helmSDK")
+	info := func(format string, v ...interface{}) {
+		logger.V(1).Info(fmt.Sprintf(format, v...))
+	}
 	kc := kube.New(h.getter)
-	kc.Log = logrus.Infof
+	kc.Log = info
 	clientSet, err := kc.Factory.KubernetesClientSet()
 	if err != nil {
 		return action.Configuration{}, err
 	}
-	driver := driver.NewSecrets(helmcache.NewSecretClient(h.secretCache, clientSet, namespace))
-	driver.Log = logrus.Infof
+	driver := driver.NewSecrets(helmcache.NewSecretClient(h.client, clientSet, namespace))
+	driver.Log = info
 	store := storage.Init(driver)
 	store.MaxHistory = MaxHelmHistory
 
@@ -780,11 +793,11 @@ func (h *Helm) createCfg(namespace string) (action.Configuration, error) {
 		RESTClientGetter: h.getter,
 		Releases:         store,
 		KubeClient:       kc,
-		Log:              logrus.Infof,
+		Log:              info,
 	}, nil
 }
 
-func deleteHistory(cfg action.Configuration, bundleID string) error {
+func deleteHistory(cfg action.Configuration, logger logr.Logger, bundleID string) error {
 	releases, err := cfg.Releases.List(func(r *release.Release) bool {
 		return r.Name == bundleID && r.Chart.Metadata.Annotations[BundleIDAnnotation] == bundleID
 	})
@@ -792,7 +805,7 @@ func deleteHistory(cfg action.Configuration, bundleID string) error {
 		return err
 	}
 	for _, release := range releases {
-		logrus.Infof("Helm: Deleting release %s %d", release.Name, release.Version)
+		logger.Info("Helm: Deleting release", "releaseVersion", release.Version)
 		if _, err := cfg.Releases.Delete(release.Name, release.Version); err != nil {
 			return err
 		}
