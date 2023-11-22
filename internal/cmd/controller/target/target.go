@@ -254,7 +254,7 @@ func (m *Manager) getNamespacesForBundle(bundle *fleet.Bundle) ([]string, error)
 //
 // The returned target structs contain merged BundleDeploymentOptions.
 // Finally all existing bundledeployments are added to the targets.
-func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]*Target, error) {
+func (m *Manager) Targets(bundle *fleet.Bundle, manifestID string) ([]*Target, error) {
 	bm, err := matcher.New(bundle)
 	if err != nil {
 		return nil, err
@@ -299,7 +299,7 @@ func (m *Manager) Targets(bundle *fleet.Bundle, manifest *manifest.Manifest) ([]
 				return nil, err
 			}
 
-			deploymentID, err := options.DeploymentID(manifest, opts)
+			deploymentID, err := options.DeploymentID(manifestID, opts)
 			if err != nil {
 				return nil, err
 			}

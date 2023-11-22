@@ -139,11 +139,12 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	// this does not need to happen after merging the
 	// BundleDeploymentOptions, since 'fleet apply' already put the right
 	// resources into bundle.Spec.Resources
-	if _, err := h.targets.StoreManifest(manifest); err != nil {
+	manifestID, err := h.targets.StoreManifest(manifest)
+	if err != nil {
 		return nil, status, err
 	}
 
-	matchedTargets, err := h.targets.Targets(bundle, manifest)
+	matchedTargets, err := h.targets.Targets(bundle, manifestID)
 	if err != nil {
 		return nil, status, err
 	}

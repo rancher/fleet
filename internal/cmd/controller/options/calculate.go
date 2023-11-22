@@ -6,24 +6,18 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
-	"github.com/rancher/fleet/internal/manifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/data"
 )
 
 // DeploymentID hashes the options to a string
-func DeploymentID(manifest *manifest.Manifest, opts fleet.BundleDeploymentOptions) (string, error) {
-	_, digest, err := manifest.Content()
-	if err != nil {
-		return "", err
-	}
-
+func DeploymentID(manifestID string, opts fleet.BundleDeploymentOptions) (string, error) {
 	h := sha256.New()
 	if err := json.NewEncoder(h).Encode(&opts); err != nil {
 		return "", err
 	}
 
-	return digest + ":" + hex.EncodeToString(h.Sum(nil)), nil
+	return manifestID + ":" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // Merge overrides the 'base' options with the 'target customization' options, if 'custom' is present (pure function)
