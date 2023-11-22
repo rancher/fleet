@@ -65,6 +65,14 @@
         ]
       },
       {
+        "path": "internal/cmd/cli/cleanup/cleanup.go",
+        "text": "G601: Implicit memory aliasing in for loop."
+      },
+      {
+        "path": "internal/cmd/controller/controllers/bundle/controller.go",
+        "text": "G601: Implicit memory aliasing in for loop."
+      },
+      {
         "path": "_test.go",
         "linters": [
           "gocyclo",

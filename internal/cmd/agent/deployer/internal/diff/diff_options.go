@@ -3,8 +3,7 @@ package diff
 
 import (
 	"github.com/go-logr/logr"
-
-	"k8s.io/klog/v2/klogr"
+	"k8s.io/klog/v2/textlogger"
 )
 
 type Option func(*options)
@@ -21,7 +20,7 @@ func applyOptions(opts []Option) options {
 	o := options{
 		ignoreAggregatedRoles: false,
 		normalizer:            GetNoopNormalizer(),
-		log:                   klogr.New(),
+		log:                   textlogger.NewLogger(textlogger.NewConfig()),
 	}
 	for _, opt := range opts {
 		opt(&o)
