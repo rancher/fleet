@@ -335,6 +335,8 @@ type BundleStatus struct {
 	// ObservedGeneration is the current generation of the bundle.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
+	// ResourcesSHA256Sum corresponds to the JSON serialization of the .Spec.Resources field
+	ResourcesSHA256Sum string `json:"resourcesSHA256Sum,omitempty"`
 }
 
 // ResourceKey lists resources, which will likely be deployed.

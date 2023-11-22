@@ -2384,6 +2384,10 @@ spec:
                         type: string
                     type: object
                   type: array
+                resourcesSHA256Sum:
+                  description: ResourcesSHA256Sum corresponds to the JSON serialization
+                    of the .Spec.Resources field
+                  type: string
                 summary:
                   description: Summary contains the number of bundle deployments in
                     each state and a list of non-ready resources.
