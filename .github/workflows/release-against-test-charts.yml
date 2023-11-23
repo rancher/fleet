@@ -14,6 +14,8 @@ on:
         description: "Push to the following Rancher charts repo (which must exist)"
         required: true
         default: "rancher/fleet-test-data"
+      charts_target_branch:
+        description: "Use the following branch as a destination when pushing to the charts repo"
       prev_fleet:
         description: "Previous Fleet version (e.g. 0.6.0-rc.3)"
         required: true
@@ -53,17 +55,27 @@ jobs:
           repository: ${{github.event.inputs.charts_repo}}
           path: charts
 
+      - name: Compute target branch name
+        run: |
+          target_branch_name=${{github.event.inputs.charts_target_branch}}
+
+          if [ ${{github.event_name}} = 'pull_request' ]; then
+            target_branch_name=${{github.event.pull_request.head.ref}}
+          elif [ -z ${{github.event.inputs.charts_target_branch}} ]; then
+            target_branch_name=${{github.event.inputs.charts_base_branch}}-$(date +%Y%m%d%H%M%S)
+          fi
+
+          echo "target_branch=$target_branch_name" >> "$GITHUB_ENV"
+
       - name: Set up test charts repo with latest upstream state
         run: |
           cd charts
           # Add upstream remote and fetch from it
           git remote add -f upstream https://github.com/rancher/charts
 
-          # TODO compute branch name
-          custom_branch=foo
-          git checkout -b $custom_branch upstream/${{github.event.inputs.charts_base_branch}}
+          git checkout -b $target_branch upstream/${{github.event.inputs.charts_base_branch}}
           if [ $? -eq 128 ]; then # branch already exists
-            git checkout $custom_branch
+            git checkout $target_branch
             git rebase upstream/${{github.event.inputs.charts_base_branch}}
           fi
 
@@ -76,4 +88,4 @@ jobs:
       - name: Push to custom branch
         run: |
           cd charts
-          git push origin foo
+          git push origin $target_branch
