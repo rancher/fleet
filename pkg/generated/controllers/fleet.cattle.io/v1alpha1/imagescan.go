@@ -20,6 +20,7 @@ package v1alpha1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -127,6 +128,7 @@ type imageScanGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
 func (a *imageScanGeneratingHandler) Remove(key string, obj *v1alpha1.ImageScan) (*v1alpha1.ImageScan, error) {
@@ -137,6 +139,10 @@ func (a *imageScanGeneratingHandler) Remove(key string, obj *v1alpha1.ImageScan)
 	obj = &v1alpha1.ImageScan{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
+
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
 
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
@@ -150,12 +156,36 @@ func (a *imageScanGeneratingHandler) Handle(obj *v1alpha1.ImageScan, status v1al
 	}
 
 	objs, newStatus, err := a.ImageScanGeneratingHandler(obj, status)
-	if err != nil {
+	if err != nil || !a.isNewResourceVersion(obj) {
 		return newStatus, err
 	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err == nil {
+		a.seenResourceVersion(obj)
+	}
+	return newStatus, err
+}
+
+func (a *imageScanGeneratingHandler) isNewResourceVersion(obj *v1alpha1.ImageScan) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+func (a *imageScanGeneratingHandler) seenResourceVersion(obj *v1alpha1.ImageScan) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

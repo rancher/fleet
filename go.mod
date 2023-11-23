@@ -251,3 +251,5 @@ require (
 )
 
 replace github.com/json-iterator/go v1.1.10 => github.com/json-iterator/go v1.1.12
+
+replace github.com/rancher/wrangler/v2 => github.com/aruiz14/wrangler/v2 v2.1.1-0.20231123160640-9dd87242b681
