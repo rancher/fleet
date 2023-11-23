@@ -1,20 +1,21 @@
-package bundledeployment
+package deployer
 
 //go:generate mockgen --build_flags=--mod=mod -destination=../../../controller/mocks/dynamic_mock.go -package mocks k8s.io/client-go/dynamic Interface,NamespaceableResourceInterface
 
 import (
+	"context"
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
-
-	"github.com/rancher/fleet/internal/cmd/controller/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
@@ -33,13 +34,14 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			}},
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{"name": "test"},
+					Name:   "namespace1234",
+					Labels: map[string]string{"name": "namespace"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"name": "test", "optLabel1": "optValue1", "optLabel2": "optValue2"},
+					Labels:      map[string]string{"name": "namespace", "optLabel1": "optValue1", "optLabel2": "optValue2"},
 					Annotations: map[string]string{"optAnn1": "optValue1"},
 				},
 			},
@@ -54,14 +56,15 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			}},
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"nsLabel": "nsValue", "name": "test"},
+					Name:        "namespace1234",
+					Labels:      map[string]string{"nsLabel": "nsValue", "name": "namespace"},
 					Annotations: map[string]string{"nsAnn": "nsValue"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"optLabel": "optValue", "name": "test"},
+					Labels:      map[string]string{"optLabel": "optValue", "name": "namespace"},
 					Annotations: map[string]string{},
 				},
 			},
@@ -76,14 +79,15 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			}},
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"bdLabel": "nsValue"},
+					Name:        "namespace1234",
+					Labels:      map[string]string{"bdLabel": "nsValue", "name": "namespace"},
 					Annotations: map[string]string{"bdAnn": "nsValue"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"bdLabel": "labelUpdated"},
+					Labels:      map[string]string{"bdLabel": "labelUpdated", "name": "namespace"},
 					Annotations: map[string]string{"bdAnn": "annUpdated"},
 				},
 			},
@@ -92,29 +96,31 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDynamic := mocks.NewMockInterface(ctrl)
-			mockNamespaceableResourceInterface := mocks.NewMockNamespaceableResourceInterface(ctrl)
-			u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(&test.ns)
-			// Resource will be called twice, one time for UPDATE and another time for LIST
-			mockDynamic.EXPECT().Resource(gomock.Any()).Return(mockNamespaceableResourceInterface).Times(2)
-			mockNamespaceableResourceInterface.EXPECT().List(gomock.Any(), metav1.ListOptions{
-				LabelSelector: "name=namespace",
-			}).Return(&unstructured.UnstructuredList{
-				Items: []unstructured.Unstructured{{Object: u}},
-			}, nil).Times(1)
-			uns, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(&test.expectedNs)
-			mockNamespaceableResourceInterface.EXPECT().Update(gomock.Any(), &unstructured.Unstructured{Object: uns}, gomock.Any()).Times(1)
-
-			h := handler{
-				dynamic: mockDynamic,
+			scheme := runtime.NewScheme()
+			utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(&test.ns).Build()
+			h := Deployer{
+				client: client,
 			}
-			err := h.setNamespaceLabelsAndAnnotations(test.bd, test.release)
-
+			err := h.setNamespaceLabelsAndAnnotations(context.Background(), test.bd, test.release)
 			if err != nil {
 				t.Errorf("expected nil error: got %v", err)
+			}
+
+			ns := &corev1.Namespace{}
+			err = client.Get(context.Background(), types.NamespacedName{Name: test.ns.Name}, ns)
+			if err != nil {
+				t.Errorf("expected nil error: got %v", err)
+			}
+			for k, v := range test.expectedNs.Labels {
+				if ns.Labels[k] != v {
+					t.Errorf("expected label %s: %s, got %s", k, v, ns.Labels[k])
+				}
+			}
+			for k, v := range test.expectedNs.Annotations {
+				if ns.Annotations[k] != v {
+					t.Errorf("expected annotation %s: %s, got %s", k, v, ns.Annotations[k])
+				}
 			}
 		})
 	}
@@ -130,20 +136,14 @@ func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 	release := "test/foo/bar"
 	expectedErr := errors.New("namespace test not found")
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockDynamic := mocks.NewMockInterface(ctrl)
-	mockNamespaceableResourceInterface := mocks.NewMockNamespaceableResourceInterface(ctrl)
-	mockDynamic.EXPECT().Resource(gomock.Any()).Return(mockNamespaceableResourceInterface).Times(1)
-	mockNamespaceableResourceInterface.EXPECT().List(gomock.Any(), metav1.ListOptions{
-		LabelSelector: "name=test",
-	}).Return(&unstructured.UnstructuredList{
-		Items: []unstructured.Unstructured{},
-	}, nil).Times(1)
-	h := handler{
-		dynamic: mockDynamic,
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+	h := Deployer{
+		client: client,
 	}
-	err := h.setNamespaceLabelsAndAnnotations(bd, release)
+
+	err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, release)
 
 	if err.Error() != expectedErr.Error() {
 		t.Errorf("expected error %v: got %v", expectedErr, err)
