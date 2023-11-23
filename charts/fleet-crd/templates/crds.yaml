@@ -2384,7 +2384,7 @@ spec:
                         type: string
                     type: object
                   type: array
-                resourcesSHA256Sum:
+                resourcesSha256Sum:
                   description: ResourcesSHA256Sum corresponds to the JSON serialization
                     of the .Spec.Resources field
                   type: string
@@ -4561,6 +4561,9 @@ spec:
               type: string
             metadata:
               type: object
+            sha256sum:
+              description: SHA256Sum of the Content field
+              type: string
           type: object
       served: true
       storage: true

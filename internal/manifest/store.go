@@ -9,8 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const SHA256SumAnnotation = "fleet.cattle.io/bundle-resources-sha256sum"
-
 type Store interface {
 	Store(manifest *Manifest) (string, error)
 }
@@ -61,11 +59,9 @@ func (c *contentStore) createContents(id string, manifest *Manifest) error {
 	_, err = c.content.Create(&fleet.Content{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: id,
-			Annotations: map[string]string{
-				SHA256SumAnnotation: digest,
-			},
 		},
-		Content: compressed,
+		Content:   compressed,
+		SHA256Sum: digest,
 	})
 	return err
 }

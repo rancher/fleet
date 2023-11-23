@@ -2,14 +2,12 @@ package manifest
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/rancher/wrangler/v2/pkg/generic/fake"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
@@ -70,9 +68,9 @@ func Test_contentStore_Store(t *testing.T) {
 				client.EXPECT().Create(gomock.Any()).Times(0)
 			} else {
 				cache.EXPECT().Get(tt.want).Return(nil, apierrors.NewNotFound(fleet.Resource("Content"), tt.want))
-				client.EXPECT().Create(&metadataMatcher{
-					name:        tt.want,
-					annotations: map[string]string{"fleet.cattle.io/bundle-resources-sha256sum": checksum},
+				client.EXPECT().Create(&contentMatcher{
+					name:      tt.want,
+					sha256sum: checksum,
 				}).Times(1)
 			}
 
@@ -88,38 +86,32 @@ func Test_contentStore_Store(t *testing.T) {
 	}
 }
 
-type metadataMatcher struct {
-	name        string
-	annotations map[string]string
+type contentMatcher struct {
+	name      string
+	sha256sum string
 }
 
-func (m metadataMatcher) Matches(x interface{}) bool {
-	metadata, err := meta.Accessor(x)
-	if err != nil {
+func (m contentMatcher) Matches(x interface{}) bool {
+	content, ok := x.(*fleet.Content)
+	if !ok {
 		return false
 	}
-	if m.name != "" && m.name != metadata.GetName() {
+	if m.name != "" && m.name != content.Name {
 		return false
 	}
-	annotations := metadata.GetAnnotations()
-	for k, expected := range m.annotations {
-		if annotations == nil {
-			return false
-		}
-		if v, ok := annotations[k]; !ok || v != expected {
-			return false
-		}
+	if m.sha256sum != "" && m.sha256sum != content.SHA256Sum {
+		return false
 	}
 	return true
 }
 
-func (m metadataMatcher) String() string {
+func (m contentMatcher) String() string {
 	var s []string
 	if m.name != "" {
 		s = append(s, "name is "+m.name)
 	}
-	if len(m.annotations) != 0 {
-		s = append(s, fmt.Sprintf("annotations include: %v", m.annotations))
+	if m.sha256sum != "" {
+		s = append(s, "sha256sum is "+m.sha256sum)
 	}
 	return strings.Join(s, ";")
 }

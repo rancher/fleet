@@ -30,13 +30,5 @@ func (l *lookup) Get(id string) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	digest := getAnnotation(c.GetAnnotations(), SHA256SumAnnotation)
-	return FromJSON(data, digest)
-}
-
-func getAnnotation(annotations map[string]string, k string) string {
-	if annotations != nil {
-		return annotations[k]
-	}
-	return ""
+	return FromJSON(data, c.SHA256Sum)
 }
