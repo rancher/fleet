@@ -39,9 +39,9 @@ var _ = Describe("Single Cluster Deployments", func() {
 
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
-					out, _ := k.Namespace("fleet-helm-oci-example").Get("pods")
+					out, _ := k.Namespace("fleet-helm-oci-example").Get("configmaps")
 					return out
-				}).Should(ContainSubstring("frontend-"))
+				}).Should(ContainSubstring("fleet-test-configmap"))
 			})
 		})
 
