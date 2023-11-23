@@ -56,10 +56,8 @@ jobs:
       - name: Set up test charts repo with latest upstream state
         run: |
           cd charts
-          git remote update upstream
-          if [ $? -eq 1 ]; then # remote does not exist; add it and fetch
-            git remote add -f upstream git@github.com:rancher/charts
-          fi
+          # Add upstream remote and fetch from it
+          git remote add -f upstream https://github.com/rancher/charts
 
           # TODO compute branch name
           custom_branch=foo
@@ -77,6 +75,5 @@ jobs:
 
       - name: Push to custom branch
         run: |
-          git add .
-          git commit -m "[Test] Update Fleet charts to ${{github.event.inputs.new_fleet}}"
-          git push
+          cd charts
+          git push origin foo
