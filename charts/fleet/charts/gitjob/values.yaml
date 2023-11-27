@@ -1,6 +1,6 @@
 gitjob:
-  repository: rancher/gitjob
-  tag: v0.3.0
+  repository: raulcabm/gitjob
+  tag: controller-runtime11
 
 global:
   cattle:
