@@ -1,8 +1,6 @@
 package manifest
 
 import (
-	"sync"
-
 	"github.com/rancher/fleet/internal/content"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -23,35 +21,47 @@ func NewStore(content fleetcontrollers.ContentController) Store {
 }
 
 type contentStore struct {
-	sync.RWMutex
-
 	contentCache fleetcontrollers.ContentCache
 	content      fleetcontrollers.ContentClient
 }
 
 func (c *contentStore) Store(manifest *Manifest) (string, error) {
-	data, id, err := manifest.Content()
+	id, err := manifest.ID()
 	if err != nil {
 		return "", err
 	}
 
-	_, err = c.contentCache.Get(id)
-	if err == nil {
-		return id, nil
-	} else if !apierrors.IsNotFound(err) {
+	if _, err := c.contentCache.Get(id); err != nil && !apierrors.IsNotFound(err) {
 		return "", err
+	} else if err == nil {
+		return id, nil
 	}
 
+	return id, c.createContents(id, manifest)
+}
+
+func (c *contentStore) createContents(id string, manifest *Manifest) error {
+	data, err := manifest.Content()
+	if err != nil {
+		return err
+	}
+	digest, err := manifest.SHASum()
+	if err != nil {
+		return err
+	}
+
+	// Contents do not exist in the cluster
 	compressed, err := content.Gzip(data)
 	if err != nil {
-		return id, err
+		return err
 	}
 
 	_, err = c.content.Create(&fleet.Content{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: id,
 		},
-		Content: compressed,
+		Content:   compressed,
+		SHA256Sum: digest,
 	})
-	return id, err
+	return err
 }

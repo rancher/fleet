@@ -26,10 +26,9 @@ func (l *lookup) Get(id string) (*Manifest, error) {
 		return nil, err
 	}
 
-	bytes, err := content.GUnzip(c.Content)
+	data, err := content.GUnzip(c.Content)
 	if err != nil {
 		return nil, err
 	}
-
-	return readManifest(bytes, id)
+	return FromJSON(data, c.SHA256Sum)
 }

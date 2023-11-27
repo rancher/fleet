@@ -28,6 +28,9 @@ type Content struct {
 	// resource, so the downstream agent can deploy them.
 	// +nullable
 	Content []byte `json:"content,omitempty"`
+
+	// SHA256Sum of the Content field
+	SHA256Sum string `json:"sha256sum,omitempty"`
 }
 
 // +kubebuilder:object:root=true

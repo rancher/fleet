@@ -125,19 +125,19 @@ func toChart(m *manifest.Manifest, style bundlereader.Style) *manifest.Manifest 
 }
 
 func addChartYAML(name string, m, newManifest *manifest.Manifest) (*manifest.Manifest, error) {
-	_, hash, err := m.Content()
+	manifestID, err := m.ID()
 	if err != nil {
 		return nil, err
 	}
 
 	if newManifest.Commit != "" && len(newManifest.Commit) > 12 {
-		hash = "git-" + newManifest.Commit[:12]
+		manifestID = "git-" + newManifest.Commit[:12]
 	}
 
 	_, chartName := kv.RSplit(name, "/")
 	metadata := chart.Metadata{
 		Name:       chartName,
-		Version:    "v0.0.0+" + hash,
+		Version:    "v0.0.0+" + manifestID,
 		APIVersion: "v2",
 	}
 

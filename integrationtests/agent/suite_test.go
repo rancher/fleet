@@ -214,7 +214,7 @@ type lookup struct {
 }
 
 func (l *lookup) Get(id string) (*manifest.Manifest, error) {
-	return manifest.New(l.resources[id])
+	return manifest.New(l.resources[id]), nil
 }
 
 type specEnv struct {
