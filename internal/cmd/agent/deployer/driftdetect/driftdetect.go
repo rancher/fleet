@@ -2,7 +2,6 @@ package driftdetect
 
 import (
 	"context"
-	"math/rand"
 
 	"github.com/go-logr/logr"
 
@@ -73,8 +72,8 @@ func (d *DriftDetect) Refresh(logger logr.Logger, bdKey string, bd *fleet.Bundle
 	logger.V(1).Info("Adding OnChange for bundledeployment's resource list")
 	logger = logger.WithValues("key", bdKey, "initial resource version", bd.ResourceVersion)
 
+	handleID := int(bd.Generation)
 	handler := func(key string) {
-		handleID := rand.Int() % 10000 // nolint:gosec // Non-crypto use
 		logger := logger.WithValues("handleID", handleID, "triggered by", key)
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			// Can't enqueue directly, update bundledeployment instead
