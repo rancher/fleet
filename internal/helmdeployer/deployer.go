@@ -87,6 +87,7 @@ type Resources struct {
 	Objects          []runtime.Object `json:"objects,omitempty"`
 }
 
+// DeployedBundle is the link between a bundledeployment and a helm release
 type DeployedBundle struct {
 	// BundleID is the bundledeployment.Name
 	BundleID string
@@ -538,8 +539,10 @@ func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOpti
 	return values, nil
 }
 
-// ListDeployments returns a list of bundles by listing all helm releases via
+// ListDeployments returns a list of deployedBundles by listing all helm releases via
 // helm's storage driver (secrets)
+// It only returns deployedBundles for helm releases which have the
+// "fleet.cattle.io/bundle-id" annotation.
 func (h *Helm) ListDeployments() ([]DeployedBundle, error) {
 	list := action.NewList(&h.globalCfg)
 	list.All = true
@@ -553,12 +556,18 @@ func (h *Helm) ListDeployments() ([]DeployedBundle, error) {
 	)
 
 	for _, release := range releases {
+		// skip releases that don't have the bundleID annotation
 		d := release.Chart.Metadata.Annotations[BundleIDAnnotation]
 		if d == "" {
 			continue
 		}
 		ns := release.Chart.Metadata.Annotations[AgentNamespaceAnnotation]
-		if ns != "" && ns != h.agentNamespace {
+		// skip releases that don't have the agentNamespace annotation
+		if ns == "" {
+			continue
+		}
+		// skip releases from other agents
+		if ns != h.agentNamespace {
 			continue
 		}
 		// ignore error as keepResources should be false if annotation not found
@@ -654,10 +663,15 @@ func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string)
 	return releaseToResources(release)
 }
 
-// Delete the release for the given bundleID. releaseName is a key in the
-// format "namespace/name". If releaseName is empty, search for a matching
-// release.
-func (h *Helm) Delete(ctx context.Context, bundleID, releaseName string) error {
+// DeleteRelease deletes the release for the DeployedBundle.
+func (h *Helm) DeleteRelease(ctx context.Context, deployment DeployedBundle) error {
+	return h.deleteByRelease(ctx, deployment.BundleID, deployment.ReleaseName, deployment.KeepResources)
+}
+
+// Delete the release for the given bundleID. The bundleID is the name of the
+// bundledeployment.
+func (h *Helm) Delete(ctx context.Context, bundleID string) error {
+	releaseName := ""
 	keepResources := false
 	deployments, err := h.ListDeployments()
 	if err != nil {
@@ -665,9 +679,7 @@ func (h *Helm) Delete(ctx context.Context, bundleID, releaseName string) error {
 	}
 	for _, deployment := range deployments {
 		if deployment.BundleID == bundleID {
-			if releaseName == "" {
-				releaseName = deployment.ReleaseName
-			}
+			releaseName = deployment.ReleaseName
 			keepResources = deployment.KeepResources
 			break
 		}
