@@ -2,10 +2,13 @@ package singlecluster_test
 
 import (
 	"encoding/json"
+	"os"
+	"path"
 	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -16,7 +19,11 @@ import (
 
 var _ = Describe("BundleDiffs", func() {
 	var (
-		asset    string
+		asset           string
+		tmpdir          string
+		name            string
+		targetNamespace string
+
 		k        kubectl.Command
 		interval = 2 * time.Second
 		duration = 30 * time.Second
@@ -43,20 +50,40 @@ var _ = Describe("BundleDiffs", func() {
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
+
+		var err error
+		targetNamespace, err = utils.NewNamespaceName()
+		Expect(err).ToNot(HaveOccurred())
+		name = "bundle-diff-" + targetNamespace
 	})
 
 	JustBeforeEach(func() {
-		out, err := k.Apply("-f", testenv.AssetPath(asset))
+		tmpdir, _ = os.MkdirTemp("", "fleet-")
+		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
+		err := testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
+			Name            string
+			TargetNamespace string
+		}{
+			name,
+			targetNamespace,
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		out, err := k.Apply("-f", gitrepo)
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		DeferCleanup(func() {
-			out, err := k.Delete("-f", testenv.AssetPath(asset))
+			out, err := k.Delete("-f", gitrepo)
 			Expect(err).ToNot(HaveOccurred(), out)
+
+			os.RemoveAll(tmpdir)
+
+			_, _ = k.Delete("namespace", targetNamespace)
 
 			// test cases use the same namespace, so we have to
 			// make sure resources are cleaned up
 			Eventually(func() bool {
-				_, err := bundleDeploymentStatus("bundle-diffs-test")
+				_, err := bundleDeploymentStatus(name)
 				if err != nil && apierrors.IsNotFound(err) {
 					return true
 				}
@@ -74,7 +101,7 @@ var _ = Describe("BundleDiffs", func() {
 		JustBeforeEach(func() {
 			By("waiting for resources to be ready", func() {
 				Eventually(func() bool {
-					status, err := bundleDeploymentStatus("bundle-diffs-test")
+					status, err := bundleDeploymentStatus(name)
 					if err != nil || status == nil {
 						return false
 					}
@@ -82,7 +109,7 @@ var _ = Describe("BundleDiffs", func() {
 				}).Should(BeTrue())
 
 				Eventually(func() string {
-					out, _ := k.Namespace("bundle-diffs-example").Get("services")
+					out, _ := k.Namespace(targetNamespace).Get("services")
 
 					return out
 				}).Should(ContainSubstring("app-service"))
@@ -92,7 +119,7 @@ var _ = Describe("BundleDiffs", func() {
 		Context("modifying a ignored resource", func() {
 			JustBeforeEach(func() {
 				By("modifying the workload resources", func() {
-					kw := k.Namespace("bundle-diffs-example")
+					kw := k.Namespace(targetNamespace)
 					out, err := kw.Patch(
 						"service", "app-service",
 						"--type=json",
@@ -111,7 +138,7 @@ var _ = Describe("BundleDiffs", func() {
 
 			It("ignores changes", func() {
 				Consistently(func() bool {
-					status, err := bundleDeploymentStatus("bundle-diffs-test")
+					status, err := bundleDeploymentStatus(name)
 					if err != nil || status == nil {
 						return false
 					}
@@ -124,7 +151,7 @@ var _ = Describe("BundleDiffs", func() {
 		Context("modifying a monitored resource", func() {
 			JustBeforeEach(func() {
 				By("modifying a monitored value", func() {
-					kw := k.Namespace("bundle-diffs-example")
+					kw := k.Namespace(targetNamespace)
 					out, err := kw.Patch(
 						"service", "app-service",
 						"--type=json",
@@ -136,7 +163,7 @@ var _ = Describe("BundleDiffs", func() {
 
 			It("detects modifications", func() {
 				Eventually(func() bool {
-					status, err := bundleDeploymentStatus("bundle-diffs-test")
+					status, err := bundleDeploymentStatus(name)
 					if err != nil || status == nil {
 						return false
 					}

@@ -1,9 +1,8 @@
 kind: GitRepo
 apiVersion: fleet.cattle.io/v1alpha1
 metadata:
-  name: {{.Name}}
+  name: bundle-diffs-test
 spec:
-  targetNamespace: {{.TargetNamespace}}
   repo: https://github.com/rancher/fleet-test-data
   branch: master
   paths:
