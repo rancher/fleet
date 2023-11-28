@@ -3,8 +3,8 @@ apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: test-simple
 spec:
-  repo: https://github.com/rancher/fleet-examples
-  branch: test-simple
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
   paths:
     - simple-chart
     - simple-manifest
