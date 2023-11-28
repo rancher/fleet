@@ -62,7 +62,7 @@ jobs:
       -
         name: Create example workload
         run: |
-          kubectl apply -n fleet-local -f e2e/assets/single-cluster/bundle-diffs.yaml
+          kubectl apply -n fleet-local -f e2e/assets/installation/bundle-diffs.yaml
       -
         name: Build Fleet Binaries
         run: |
