@@ -78,7 +78,7 @@ var _ = Describe("BundleDiffs", func() {
 
 			os.RemoveAll(tmpdir)
 
-			k.Delete("namespace", targetNamespace)
+			_, _ = k.Delete("namespace", targetNamespace)
 
 			// test cases use the same namespace, so we have to
 			// make sure resources are cleaned up
