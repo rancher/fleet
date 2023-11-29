@@ -10,7 +10,7 @@ func init() {
 	SchemeBuilder.Register(&Bundle{}, &BundleList{})
 }
 
-var (
+const (
 	// Ready: Bundles have been deployed and all resources are ready.
 	Ready BundleState = "Ready"
 	// NotReady: Bundles have been deployed and some resources are not
@@ -32,7 +32,9 @@ var (
 	// but there are some changes that were not made from the Git
 	// Repository.
 	Modified BundleState = "Modified"
+)
 
+var (
 	// StateRank ranks the state, e.g. so the highest ranked non-ready
 	// state can be reported in a summary.
 	StateRank = map[BundleState]int{
@@ -274,7 +276,7 @@ type NonReadyResource struct {
 	NonReadyStatus []NonReadyStatus `json:"nonReadyStatus,omitempty"`
 }
 
-var (
+const (
 	// BundleConditionReady is unused. A "Ready" condition on a bundle
 	// indicates that its resources are ready and the dependencies are
 	// fulfilled.
