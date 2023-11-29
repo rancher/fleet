@@ -52,7 +52,7 @@ func (d *Deployer) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDe
 // mutate bd, instead it returns the modified status
 func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment) (fleet.BundleDeploymentStatus, error) {
 	status := bd.Status
-	logger := log.FromContext(ctx).WithName("DeployBundle").WithValues("deployment ID", bd.Spec.DeploymentID, "applied deployment ID", status.AppliedDeploymentID)
+	logger := log.FromContext(ctx).WithName("DeployBundle").WithValues("deploymentID", bd.Spec.DeploymentID, "appliedDeploymentID", status.AppliedDeploymentID)
 
 	if err := d.checkDependency(ctx, bd); err != nil {
 		logger.V(1).Info("Bundle has a dependency that is not ready", "error", err)
@@ -174,7 +174,7 @@ func (d *Deployer) fetchNamespace(ctx context.Context, releaseID string) (*corev
 	if len(list.Items) == 0 {
 		return nil, fmt.Errorf("namespace %s not found", namespace)
 	}
-	return list.Items[0], nil
+	return &list.Items[0], nil
 }
 
 // addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `name` labels added by Helm when creating the namespace.

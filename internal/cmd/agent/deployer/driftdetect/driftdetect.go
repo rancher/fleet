@@ -70,7 +70,7 @@ func (d *DriftDetect) Refresh(logger logr.Logger, bdKey string, bd *fleet.Bundle
 	}
 
 	logger.V(1).Info("Adding OnChange for bundledeployment's resource list")
-	logger = logger.WithValues("key", bdKey, "initial resource version", bd.ResourceVersion)
+	logger = logger.WithValues("key", bdKey, "initialResourceVersion", bd.ResourceVersion)
 
 	handleID := int(bd.Generation)
 	handler := func(key string) {
@@ -101,7 +101,7 @@ func (d *DriftDetect) requeueBD(logger logr.Logger, handleID int, namespace stri
 		return nil
 	}
 
-	logger = logger.WithValues("resource version", bd.ResourceVersion)
+	logger = logger.WithValues("resourceVersion", bd.ResourceVersion)
 	logger.V(1).Info("Going to update bundledeployment to trigger re-sync")
 
 	// This mechanism of triggering requeues for changes is not ideal.

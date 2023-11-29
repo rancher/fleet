@@ -352,7 +352,7 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string)
 
 // install runs helm install or upgrade and supports dry running the action. Will run helm rollback in case of a failed upgrade.
 func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
-	logger := log.FromContext(ctx).WithName("HelmDeployer").WithName("install").WithValues("commit", manifest.Commit, "dry run", dryRun)
+	logger := log.FromContext(ctx).WithName("HelmDeployer").WithName("install").WithValues("commit", manifest.Commit, "dryRun", dryRun)
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
 	values, err := h.getValues(ctx, options, defaultNamespace)
@@ -680,7 +680,7 @@ func (h *Helm) Delete(ctx context.Context, bundleID, releaseName string) error {
 }
 
 func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string, keepResources bool) error {
-	logger := log.FromContext(ctx).WithName("deleteByRelease").WithValues("release name", releaseName, "keep resources", keepResources)
+	logger := log.FromContext(ctx).WithName("deleteByRelease").WithValues("releaseName", releaseName, "keepResources", keepResources)
 	releaseNamespace, releaseName := kv.Split(releaseName, "/")
 	rels, err := h.globalCfg.Releases.List(func(r *release.Release) bool {
 		return r.Namespace == releaseNamespace &&
@@ -726,7 +726,7 @@ func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string
 }
 
 func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
-	logger := log.FromContext(ctx).WithName("HelmDeployer").WithName("delete").WithValues("dry run", dryRun)
+	logger := log.FromContext(ctx).WithName("HelmDeployer").WithName("delete").WithValues("dryRun", dryRun)
 	timeout, _, releaseName := h.getOpts(bundleID, options)
 
 	r, err := h.globalCfg.Releases.Last(releaseName)
