@@ -114,7 +114,6 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	resources, err := r.Deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
 		logger.V(1).Info("Failed to retrieve bundledeployment's resources")
-		// merr = append(merr, fmt.Errorf("failed retrieving resources: %w", err))
 		if err := updateStatus(ctx, logger, r.Client, req.NamespacedName, bd.Status); err != nil {
 			merr = append(merr, fmt.Errorf("failed to update the status: %w", err))
 		}

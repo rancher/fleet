@@ -98,18 +98,18 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 		})
 
-		It("BundleDeployment is not ready", func() {
+		It("Detects the BundleDeployment as not ready", func() {
 			bd := &v1alpha1.BundleDeployment{}
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Ready).To(BeFalse())
 		})
 
-		It("BundleDeployment will eventually be ready and non modified", func() {
+		It("Eventually updates the BundleDeployment to make it ready and non modified", func() {
 			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 		})
 
-		It("Resources from BundleDeployment are present in the cluster", func() {
+		It("Deploys resources from BundleDeployment to the cluster", func() {
 			svc, err := env.getService(svcName)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(svc.Name).NotTo(BeEmpty())

@@ -56,6 +56,7 @@ func (d *DriftDetect) Clear(bdKey string) error {
 	return d.trigger.Clear(bdKey)
 }
 
+// Refresh triggers a sync of all resources of the provided bd which may have drifted from their desired state.
 func (d *DriftDetect) Refresh(logger logr.Logger, bdKey string, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) error {
 	logger = logger.WithName("DriftDetect")
 	logger.V(1).Info("Refreshing drift detection")

@@ -80,13 +80,13 @@ func ShouldUpdateStatus(bd *fleet.BundleDeployment) bool {
 func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) (fleet.BundleDeploymentStatus, error) {
 	logger := log.FromContext(ctx).WithName("UpdateStatus")
 
-	// updateResources mutates bd.Status, so copy it first
+	// updateFromResources mutates bd.Status, so copy it first
 	origStatus := *bd.Status.DeepCopy()
 	bd = bd.DeepCopy()
 	err := m.updateFromResources(logger, bd, resources)
 	if err != nil {
 
-		// Returning an error will cause MonitorBundle to requeue in a loop.
+		// Returning an error will cause UpdateStatus to requeue in a loop.
 		// When there is no resourceID the error should be on the status. Without
 		// the ID we do not have the information to lookup the resources to
 		// compute the plan and discover the state of resources.
@@ -119,6 +119,8 @@ func removePrivateFields(s1 *fleet.BundleDeploymentStatus) {
 	}
 }
 
+// readyError returns an error based on the provided status.
+// That error is non-nil if the status corresponds to a non-ready or modified state of the bundle deployment.
 func readyError(status fleet.BundleDeploymentStatus) error {
 	if status.Ready && status.NonModified {
 		return nil
