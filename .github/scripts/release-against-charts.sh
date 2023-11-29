@@ -31,7 +31,8 @@ if grep -q "version: ${PREV_CHART_VERSION}" ./packages/fleet/fleet/package.yaml 
 
     if [[ $# -eq 6 && -n $CHART_URL ]]; then
         echo "### Custom chart URL: $CHART_URL"
-        find ./packages/fleet/ -type f -name 'package.yaml' -exec sed -i -e "s,^url:.*${NEW_FLEET_VERSION},url: $CHART_URL," {} \;
+        find ./packages/fleet/ -type f -name 'package.yaml' -exec sed -i -e "s/${PREV_FLEET_VERSION}/${NEW_FLEET_VERSION}/g;s,url: .*/,url: $CHART_URL/," {} \;
+
         # DEBUG
         find ./packages/fleet/ -type f -name 'package.yaml' -exec cat {} \;
     fi
