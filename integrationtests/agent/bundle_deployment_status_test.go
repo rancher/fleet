@@ -234,7 +234,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		})
 	})
 
-	When("Simulating how another operator creates a dynamic resource", func() {
+	When("Simulating how another operator modifies a dynamic resource", func() {
 		BeforeAll(func() {
 			namespace = createNamespace()
 			DeferCleanup(func() {
