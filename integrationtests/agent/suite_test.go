@@ -117,8 +117,9 @@ var _ = AfterSuite(func() {
 	Expect(testEnv.Stop()).ToNot(HaveOccurred())
 })
 
-// registerBundleDeploymentController registers a BundleDeploymentController that will watch for changes
-// just in the namespace provided. Resources are provided by the lookup parameter.
+// newReconciler creates a new BundleDeploymentReconciler that will watch for changes
+// in the test Fleet namespace, using configuration from the provided manager.
+// Resources are provided by the lookup parameter.
 func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *controller.BundleDeploymentReconciler {
 	upstreamClient := mgr.GetClient()
 	// re-use client, since this is a single cluster test
