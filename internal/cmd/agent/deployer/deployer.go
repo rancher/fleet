@@ -68,7 +68,7 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 		// cannot fix. Here we catch those errors and update the status to note
 		// the problem while skipping the constant requeuing.
 		if do, newStatus := deployErrToStatus(err, status); do {
-			// Setting the release to an empty string remove the previous
+			// Setting the release to an empty string removes the previous
 			// release name. When a deployment fails the release name is not
 			// returned. Keeping the old release name can lead to other functions
 			// looking up old data in the history and presenting the wrong status.
@@ -174,7 +174,7 @@ func (d *Deployer) fetchNamespace(ctx context.Context, releaseID string) (*corev
 	if len(list.Items) == 0 {
 		return nil, fmt.Errorf("namespace %s not found", namespace)
 	}
-	return list.Items[0].DeepCopy(), nil
+	return list.Items[0], nil
 }
 
 // addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `name` labels added by Helm when creating the namespace.

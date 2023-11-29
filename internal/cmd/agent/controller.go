@@ -84,7 +84,7 @@ func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agent
 
 	reconciler, err := newReconciler(ctx, localCtx, mgr, localConfig, systemNamespace, fleetNamespace, agentScope)
 	if err != nil {
-		setupLog.Error(err, "unable to setup bundledeployment reconciler")
+		setupLog.Error(err, "unable to set up bundledeployment reconciler")
 		return err
 	}
 
