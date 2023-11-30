@@ -174,7 +174,7 @@ func (m *Manager) UpdateBundleDeploymentStatus(mapper meta.RESTMapper, bd *fleet
 	}
 	if len(bd.Status.ModifiedStatus) == 0 {
 		bd.Status.NonModified = true
-	} else if bd.Spec.CorrectDrift.Enabled {
+	} else if bd.Spec.CorrectDrift != nil && bd.Spec.CorrectDrift.Enabled {
 		err = m.deployer.RemoveExternalChanges(bd)
 		if err != nil {
 			// Update BundleDeployment status as wrangler doesn't update the status if error is not nil.

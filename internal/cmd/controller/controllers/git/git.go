@@ -759,7 +759,7 @@ func argsAndEnvs(gitrepo *fleet.GitRepo) ([]string, []corev1.EnvVar) {
 		args = append(args, "--keep-resources")
 	}
 
-	if gitrepo.Spec.CorrectDrift.Enabled {
+	if gitrepo.Spec.CorrectDrift != nil && gitrepo.Spec.CorrectDrift.Enabled {
 		args = append(args, "--correct-drift")
 		if gitrepo.Spec.CorrectDrift.Force {
 			args = append(args, "--correct-drift-force")
