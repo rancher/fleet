@@ -39,6 +39,18 @@ spec:
         - name: FLEET_CPU_PPROF_PERIOD
           value: {{ quote .Values.cpuPprof.period }}
         {{- end }}
+        {{- if .Values.leaderElection.leaseDuration }}
+        - name: CATTLE_ELECTION_LEASE_DURATION
+          value: {{.Values.leaderElection.leaseDuration}}
+        {{- end }}
+        {{- if .Values.leaderElection.retryPeriod }}
+        - name: CATTLE_ELECTION_RETRY_PERIOD
+          value: {{.Values.leaderElection.retryPeriod}}
+        {{- end }}
+        {{- if .Values.leaderElection.renewDeadline }}
+        - name: CATTLE_ELECTION_RENEW_DEADLINE
+          value: {{.Values.leaderElection.renewDeadline}}
+        {{- end }}
         {{- if .Values.debug }}
         - name: CATTLE_DEV_MODE
           value: "true"
@@ -80,6 +92,18 @@ spec:
         - name: CATTLE_DEV_MODE
           value: "true"
         {{- end }}
+        {{- if .Values.leaderElection.leaseDuration }}
+        - name: CATTLE_ELECTION_LEASE_DURATION
+          value: {{.Values.leaderElection.leaseDuration}}
+        {{- end }}
+        {{- if .Values.leaderElection.retryPeriod }}
+        - name: CATTLE_ELECTION_RETRY_PERIOD
+          value: {{.Values.leaderElection.retryPeriod}}
+        {{- end }}
+        {{- if .Values.leaderElection.renewDeadline }}
+        - name: CATTLE_ELECTION_RENEW_DEADLINE
+          value: {{.Values.leaderElection.renewDeadline}}
+        {{- end }}
         image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
         name: fleet-cleanup
         imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
@@ -107,6 +131,18 @@ spec:
         {{- if .Values.debug }}
         - name: CATTLE_DEV_MODE
           value: "true"
+        {{- end }}
+        {{- if .Values.leaderElection.leaseDuration }}
+        - name: CATTLE_ELECTION_LEASE_DURATION
+          value: {{.Values.leaderElection.leaseDuration}}
+        {{- end }}
+        {{- if .Values.leaderElection.retryPeriod }}
+        - name: CATTLE_ELECTION_RETRY_PERIOD
+          value: {{.Values.leaderElection.retryPeriod}}
+        {{- end }}
+        {{- if .Values.leaderElection.renewDeadline }}
+        - name: CATTLE_ELECTION_RENEW_DEADLINE
+          value: {{.Values.leaderElection.renewDeadline}}
         {{- end }}
         image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
         name: fleet-agentmanagement
