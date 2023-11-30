@@ -1,49 +1,115 @@
 package cleanup
 
 import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/go-logr/logr"
+
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 
-	"github.com/sirupsen/logrus"
+	"github.com/rancher/wrangler/v2/pkg/kv"
+	"github.com/rancher/wrangler/v2/pkg/merr"
 
 	apierror "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type Cleanup struct {
-	fleetNamespace             string
-	defaultNamespace           string
-	bundleDeploymentCache      fleetcontrollers.BundleDeploymentCache
-	deployer                   *helmdeployer.Helm
-	bundleDeploymentController fleetcontrollers.BundleDeploymentController
+	client           client.Client
+	fleetNamespace   string
+	defaultNamespace string
+	helmDeployer     *helmdeployer.Helm
+	cleanupOnce      sync.Once
+
+	mapper meta.RESTMapper
+	// localDynamicClient is a dynamic client for the cluster the agent is running on (local cluster).
+	localDynamicClient *dynamic.DynamicClient
 }
 
-func New(fleetNamespace string,
-	defaultNamespace string,
-	bundleDeploymentCache fleetcontrollers.BundleDeploymentCache,
-	bundleDeploymentController fleetcontrollers.BundleDeploymentController,
-	deployer *helmdeployer.Helm) *Cleanup {
+func New(upstream client.Client, mapper meta.RESTMapper, localDynamicClient *dynamic.DynamicClient, deployer *helmdeployer.Helm, fleetNamespace string, defaultNamespace string) *Cleanup {
 	return &Cleanup{
-		fleetNamespace:             fleetNamespace,
-		defaultNamespace:           defaultNamespace,
-		bundleDeploymentCache:      bundleDeploymentCache,
-		deployer:                   deployer,
-		bundleDeploymentController: bundleDeploymentController,
+		client:             upstream,
+		mapper:             mapper,
+		localDynamicClient: localDynamicClient,
+		helmDeployer:       deployer,
+		fleetNamespace:     fleetNamespace,
+		defaultNamespace:   defaultNamespace,
 	}
 }
 
-func (m *Cleanup) Cleanup() error {
-	deployed, err := m.deployer.ListDeployments()
+func (c *Cleanup) OldAgent(ctx context.Context, modifiedStatuses []fleet.ModifiedStatus) error {
+	logger := log.FromContext(ctx).WithName("cleanupOldAgent")
+	var errs []error
+	for _, modified := range modifiedStatuses {
+		if modified.Delete {
+			gvk := schema.FromAPIVersionAndKind(modified.APIVersion, modified.Kind)
+			mapping, err := c.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("mapping resource for %s for agent cleanup: %w", gvk, err))
+				continue
+			}
+
+			logger.Info("Removing old agent resource", "namespace", modified.Namespace, "name", modified.Name, "gvk", gvk)
+			err = c.localDynamicClient.Resource(mapping.Resource).Namespace(modified.Namespace).Delete(ctx, modified.Name, metav1.DeleteOptions{})
+			if err != nil {
+				errs = append(errs, fmt.Errorf("deleting %s/%s for %s for agent cleanup: %w", modified.Namespace, modified.Name, gvk, err))
+				continue
+			}
+		}
+	}
+	return merr.NewErrors(errs...)
+}
+
+func (c *Cleanup) CleanupReleases(ctx context.Context, key string, bd *fleet.BundleDeployment) error {
+	c.cleanupOnce.Do(func() {
+		go c.garbageCollect(ctx)
+	})
+
+	if bd != nil {
+		return nil
+	}
+	return c.delete(ctx, key)
+}
+
+func (c *Cleanup) garbageCollect(ctx context.Context) {
+	logger := log.FromContext(ctx).WithName("garbageCollect")
+	for {
+		if err := c.cleanup(ctx, logger); err != nil {
+			logger.Error(err, "failed to cleanup orphaned releases")
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait.Jitter(durations.GarbageCollect, 1.0)):
+		}
+	}
+}
+
+func (c *Cleanup) cleanup(ctx context.Context, logger logr.Logger) error {
+	deployed, err := c.helmDeployer.ListDeployments()
 	if err != nil {
 		return err
 	}
 
 	for _, deployed := range deployed {
-		bundleDeployment, err := m.bundleDeploymentCache.Get(m.fleetNamespace, deployed.BundleID)
+		bundleDeployment := &fleet.BundleDeployment{}
+		err := c.client.Get(ctx, types.NamespacedName{Namespace: c.fleetNamespace, Name: deployed.BundleID}, bundleDeployment)
 		if apierror.IsNotFound(err) {
 			// found a helm secret, but no bundle deployment, so uninstall the release
-			logrus.Infof("Deleting orphan bundle ID %s, release %s", deployed.BundleID, deployed.ReleaseName)
-			if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
+			logger.Info("Deleting orphan bundle ID, helm uninstall", "bundleID", deployed.BundleID, "release", deployed.ReleaseName)
+			if err := c.helmDeployer.Delete(ctx, deployed.BundleID, deployed.ReleaseName); err != nil {
 				return err
 			}
 
@@ -52,11 +118,11 @@ func (m *Cleanup) Cleanup() error {
 			return err
 		}
 
-		key := m.releaseKey(bundleDeployment)
+		key := releaseKey(c.defaultNamespace, bundleDeployment)
 		if key != deployed.ReleaseName {
 			// found helm secret and bundle deployment for BundleID, but release name doesn't match, so delete the release
-			logrus.Infof("Deleting unknown bundle ID %s, release %s, expecting release %s", deployed.BundleID, deployed.ReleaseName, key)
-			if err := m.deployer.Delete(deployed.BundleID, deployed.ReleaseName); err != nil {
+			logger.Info("Deleting unknown bundle ID, helm uninstall", "bundleID", deployed.BundleID, "release", deployed.ReleaseName, "expectedRelease", key)
+			if err := c.helmDeployer.Delete(ctx, deployed.BundleID, deployed.ReleaseName); err != nil {
 				return err
 			}
 		}
@@ -65,9 +131,13 @@ func (m *Cleanup) Cleanup() error {
 	return nil
 }
 
+func (c *Cleanup) delete(ctx context.Context, bundleDeploymentKey string) error {
+	_, name := kv.RSplit(bundleDeploymentKey, "/")
+	return c.helmDeployer.Delete(ctx, name, "")
+}
+
 // releaseKey returns a deploymentKey from namespace+releaseName
-func (m *Cleanup) releaseKey(bd *fleet.BundleDeployment) string {
-	ns := m.defaultNamespace
+func releaseKey(ns string, bd *fleet.BundleDeployment) string {
 	if bd.Spec.Options.TargetNamespace != "" {
 		ns = bd.Spec.Options.TargetNamespace
 	} else if bd.Spec.Options.DefaultNamespace != "" {

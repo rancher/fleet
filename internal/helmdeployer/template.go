@@ -1,6 +1,7 @@
 package helmdeployer
 
 import (
+	"context"
 	"io"
 
 	"github.com/rancher/fleet/internal/manifest"
@@ -18,7 +19,7 @@ import (
 )
 
 // Template runs helm template and returns the resources as a list of objects, without applying them.
-func Template(bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) ([]runtime.Object, error) {
+func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) ([]runtime.Object, error) {
 	h := &Helm{
 		globalCfg:    action.Configuration{},
 		useGlobalCfg: true,
@@ -33,7 +34,7 @@ func Template(bundleID string, manifest *manifest.Manifest, options fleet.Bundle
 	h.globalCfg.Log = logrus.Infof
 	h.globalCfg.Releases = storage.Init(mem)
 
-	resources, err := h.Deploy(bundleID, manifest, options)
+	resources, err := h.Deploy(ctx, bundleID, manifest, options)
 	if err != nil {
 		return nil, err
 	}

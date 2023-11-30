@@ -82,7 +82,7 @@ func Get(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, e
 
 // Register creates a fleet-agent secret with the upstream kubeconfig, by
 // running the registration process with the upstream cluster.
-// To run the initial registration, the fleet-agent-bootstrap secret must exist
+// For the initial registration, the fleet-agent-bootstrap secret must exist
 // on the local cluster.
 func Register(ctx context.Context, namespace string, config *rest.Config) (*AgentInfo, error) {
 	for {

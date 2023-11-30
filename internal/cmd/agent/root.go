@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,13 +23,18 @@ type UpstreamOptions struct {
 
 type FleetAgent struct {
 	command.DebugConfig
-	UpstreamOptions
+	Namespace  string `usage:"system namespace is the namespace, the agent runs in, e.g. cattle-fleet-system" env:"NAMESPACE"`
 	AgentScope string `usage:"An identifier used to scope the agent bundleID names, typically the same as namespace" env:"AGENT_SCOPE"`
 }
 
-var setupLog = ctrl.Log.WithName("setup")
+var (
+	setupLog = ctrl.Log.WithName("setup")
+	zopts    = zap.Options{
+		Development: true,
+	}
+)
 
-func (a *FleetAgent) PersistentPre(_ *cobra.Command, _ []string) error {
+func (a *FleetAgent) PersistentPre(cmd *cobra.Command, _ []string) error {
 	if err := a.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
@@ -36,12 +42,13 @@ func (a *FleetAgent) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
-	zopts := zap.Options{
-		Development: true,
-	}
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
+
+	// for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
+	zopts.Development = a.Debug
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 
-	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
+	localConfig := ctrl.GetConfigOrDie()
 
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
@@ -50,7 +57,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	if a.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
 	}
-	if err := start(ctx, a.Kubeconfig, a.Namespace, a.AgentScope); err != nil {
+	if err := start(ctx, localConfig, a.Namespace, a.AgentScope); err != nil {
 		return err
 	}
 
@@ -62,6 +69,13 @@ func App() *cobra.Command {
 	root := command.Command(&FleetAgent{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
+	// add command line flags from zap and controller-runtime, which use
+	// goflags and convert them to pflags
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	zopts.BindFlags(fs)
+	ctrl.RegisterFlags(fs)
+	root.Flags().AddGoFlagSet(fs)
+
 	root.AddCommand(NewClusterStatus())
 	root.AddCommand(NewRegister())
 	return root

@@ -1,12 +1,17 @@
 package agent
 
 import (
+	"context"
 	"time"
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	memory "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -22,9 +27,11 @@ import (
 	cache2 "github.com/rancher/lasso/pkg/cache"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
+	"github.com/rancher/lasso/pkg/mapper"
 	"github.com/rancher/wrangler/v2/pkg/generated/controllers/core"
 	"github.com/rancher/wrangler/v2/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v2/pkg/ratelimit"
+	"github.com/rancher/wrangler/v2/pkg/ticker"
 )
 
 func NewClusterStatus() *cobra.Command {
@@ -160,4 +167,33 @@ func newSharedControllerFactory(config *rest.Config, mapper meta.RESTMapper, nam
 			v1alpha1.SchemeGroupVersion.WithKind("BundleDeployment"): slowRateLimiter,
 		},
 	}), nil
+}
+
+func newMappers(ctx context.Context, fleetRESTConfig *rest.Config, clientconfig clientcmd.ClientConfig) (meta.RESTMapper, meta.RESTMapper, discovery.CachedDiscoveryInterface, error) {
+	fleetMapper, err := mapper.New(fleetRESTConfig)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	client, err := clientconfig.ClientConfig()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	client.RateLimiter = ratelimit.None
+
+	d, err := discovery.NewDiscoveryClientForConfig(client)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	discovery := memory.NewMemCacheClient(d)
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discovery)
+
+	go func() {
+		for range ticker.Context(ctx, 30*time.Second) {
+			discovery.Invalidate()
+			mapper.Reset()
+		}
+	}()
+
+	return fleetMapper, mapper, discovery, nil
 }

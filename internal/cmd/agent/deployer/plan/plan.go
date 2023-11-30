@@ -35,15 +35,17 @@ func GetApply(apply apply.Apply, opts Options) apply.Apply {
 		WithDefaultNamespace(opts.DefaultNamespace)
 }
 
-// Plan first does a dry run of the apply to get the difference between the
-// desired and live state. It relies on the bundledeployment's bundle diff
-// patches to ignore changes.
-func Plan(a apply.Apply, bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (apply.Plan, error) {
+// DryRun does a dry run of the apply to get the difference between the
+// desired and live state.
+func DryRun(a apply.Apply, objs ...runtime.Object) (*apply.Plan, error) {
 	plan, err := a.DryRun(objs...)
-	if err != nil {
-		return plan, err
-	}
+	return &plan, err
+}
 
+// Diff factors the bundledeployment's bundle diff patches into the plan from
+// DryRun. This way, the status of the bundledeployment can be updated
+// accurately.
+func Diff(plan apply.Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (apply.Plan, error) {
 	desired := objectset.NewObjectSet(objs...).ObjectsByGVK()
 	live := objectset.NewObjectSet(plan.Objects...).ObjectsByGVK()
 

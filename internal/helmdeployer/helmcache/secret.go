@@ -3,7 +3,6 @@ package helmcache
 import (
 	"context"
 
-	corecontrollers "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -11,17 +10,21 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	applycorev1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // SecretClient implements methods to handle secrets. Get and list will be retrieved from the wrangler cache, the other calls
 // will be make to the Kubernetes API server.
 type SecretClient struct {
-	cache     corecontrollers.SecretCache
+	cache     client.Client
 	client    kubernetes.Interface
 	namespace string
 }
 
-func NewSecretClient(cache corecontrollers.SecretCache, client kubernetes.Interface, namespace string) *SecretClient {
+var _ corev1.SecretInterface = &SecretClient{}
+
+func NewSecretClient(cache client.Client, client kubernetes.Interface, namespace string) *SecretClient {
 	return &SecretClient{cache, client, namespace}
 }
 
@@ -45,30 +48,29 @@ func (s *SecretClient) DeleteCollection(ctx context.Context, opts metav1.DeleteO
 	return s.client.CoreV1().Secrets(s.namespace).DeleteCollection(ctx, opts, listOpts)
 }
 
-// Get gets a secret from the wrangler cache.
-func (s *SecretClient) Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Secret, error) {
-	return s.cache.Get(s.namespace, name)
+// Get gets a secret from the cache.
+func (s *SecretClient) Get(ctx context.Context, name string, _ metav1.GetOptions) (*v1.Secret, error) {
+	secret := &v1.Secret{}
+	err := s.cache.Get(ctx, types.NamespacedName{Namespace: s.namespace, Name: name}, secret)
+	return secret, err
 }
 
-// List lists secrets from the wrangler cache.
+// List lists secrets from the cache.
 func (s *SecretClient) List(ctx context.Context, opts metav1.ListOptions) (*v1.SecretList, error) {
 	labels, err := labels.Parse(opts.LabelSelector)
 	if err != nil {
 		return nil, err
 	}
-	secrets, err := s.cache.List(s.namespace, labels)
+	secrets := v1.SecretList{}
+	err = s.cache.List(ctx, &secrets, &client.ListOptions{
+		Namespace:     s.namespace,
+		LabelSelector: labels,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	var items []v1.Secret
-	for _, secret := range secrets {
-		items = append(items, *secret)
-	}
-
-	return &v1.SecretList{
-		Items: items,
-	}, nil
+	return &secrets, nil
 }
 
 // Watch watches a secret using a k8s client that calls the Kubernetes API server

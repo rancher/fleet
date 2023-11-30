@@ -288,7 +288,8 @@ var (
 	// BundleDeploymentConditionDeployed is used by the bundledeployment
 	// controller. It is true if the handler returns no error and false if
 	// an error is returned.
-	BundleDeploymentConditionDeployed = "Deployed"
+	BundleDeploymentConditionDeployed  = "Deployed"
+	BundleDeploymentConditionMonitored = "Monitored"
 )
 
 type BundleStatus struct {

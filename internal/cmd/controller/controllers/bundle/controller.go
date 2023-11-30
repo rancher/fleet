@@ -161,7 +161,7 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 	}
 
 	if status.ObservedGeneration != bundle.Generation {
-		if err := setResourceKey(&status, bundle, manifest, h.isNamespaced); err != nil {
+		if err := setResourceKey(context.Background(), &status, bundle, manifest, h.isNamespaced); err != nil {
 			updateDisplay(&status)
 			return nil, status, err
 		}
@@ -190,14 +190,14 @@ func (h *handler) isNamespaced(gvk schema.GroupVersionKind) bool {
 }
 
 // setResourceKey updates status.ResourceKey from the bundle, by running helm template (does not mutate bundle)
-func setResourceKey(status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *manifest.Manifest, isNSed func(schema.GroupVersionKind) bool) error {
+func setResourceKey(ctx context.Context, status *fleet.BundleStatus, bundle *fleet.Bundle, manifest *manifest.Manifest, isNSed func(schema.GroupVersionKind) bool) error {
 	seen := map[fleet.ResourceKey]struct{}{}
 
 	// iterate over the defined targets, from "targets.yaml", not the
 	// actually matched targets to avoid duplicates
 	for i := range bundle.Spec.Targets {
 		opts := options.Merge(bundle.Spec.BundleDeploymentOptions, bundle.Spec.Targets[i].BundleDeploymentOptions)
-		objs, err := helmdeployer.Template(bundle.Name, manifest, opts)
+		objs, err := helmdeployer.Template(ctx, bundle.Name, manifest, opts)
 		if err != nil {
 			logrus.Infof("While calculating status.ResourceKey, error running helm template for bundle %s with target options from %s: %v", bundle.Name, bundle.Spec.Targets[i].Name, err)
 			continue
