@@ -37,7 +37,9 @@ jobs:
           - v2.7.9
           #- v2.8.0-rc3
         fleet_version:
-          - imageTag: "v0.9.0"
+          -
+            # https://github.com/rancher/fleet/blob/release%2Fv0.9/charts/fleet/charts/gitjob/values.yaml#L3
+            gitjobTag: "v0.1.96"
             url: https://github.com/rancher/charts/raw/release-v2.8/assets/fleet/fleet-103.1.0+up0.9.0.tgz
             urlCRD: https://github.com/rancher/charts/raw/release-v2.8/assets/fleet-crd/fleet-crd-103.1.0+up0.9.0.tgz
           # - imageTag: "v0.9.0"
@@ -137,7 +139,7 @@ jobs:
         env:
           url_crd: ${{matrix.fleet_version.urlCRD}}
           url: ${{matrix.fleet_version.url}}
-          version: ${{matrix.fleet_version.imageTag}}
+          gitjobTag: ${{matrix.fleet_version.gitjobTag}}
           fleetns: "${{ matrix.rancher_version == 'v2.5.16' && 'fleet-system' || 'cattle-fleet-system' }}"
         run: |
           helm upgrade fleet-crd "$url_crd" --wait -n "$fleetns"
@@ -145,8 +147,8 @@ jobs:
 
           helm upgrade fleet "$url" \
             --wait -n "$fleetns" \
-            --set image.tag="$version" \
-            --set agentImage.tag="$version"
+            --reuse-values \
+            --set gitjob.gitjob.tag="$gitjobTag"
           until helm -n "$fleetns" status fleet | grep -q "STATUS: deployed"; do echo waiting for original fleet chart to be deployed; sleep 3; done
           kubectl -n "$fleetns" rollout status deploy/fleet-controller
 
