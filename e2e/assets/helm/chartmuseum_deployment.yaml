@@ -30,9 +30,9 @@ spec:
             - name: TLS_KEY
               value: /etc/chartmuseum/certs/tls.key
             - name: BASIC_AUTH_USER
-              value: fleet-ci
+              value: {{.User}}
             - name: BASIC_AUTH_PASS
-              value: foo
+              value: {{.Password}}
             - name: STORAGE
               value: local
           volumeMounts:
