@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
-	"github.com/rancher/gitjob/e2e/testenv"
 
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
@@ -42,7 +41,7 @@ func ApplyTemplate(k kubectl.Command, asset string, data interface{}) error {
 	defer os.RemoveAll(tmpdir)
 
 	output := path.Join(tmpdir, RandomFilename(asset, rand.New(rand.NewSource(ginkgo.GinkgoRandomSeed())))) // nolint:gosec // test code
-	if err := Template(output, testenv.AssetPath(asset), data); err != nil {
+	if err := Template(output, AssetPath(asset), data); err != nil {
 		return err
 	}
 	out, err := k.Apply("-f", output)
