@@ -135,15 +135,13 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 	disc := memory.NewMemCacheClient(d)
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(disc)
 	getter := &restClientGetter{cfg: cfg, discovery: disc, restMapper: mapper}
-	helmDeployer, _ := helmdeployer.NewHelm(
-		ctx,
-		localClient,
+	helmDeployer := helmdeployer.New(
 		systemNamespace,
 		defaultNamespace,
 		defaultNamespace,
 		agentScope,
-		getter,
 	)
+	_ = helmDeployer.Setup(ctx, localClient, getter)
 
 	// Build the deployer that the bundledeployment reconciler will use
 	deployer := deployer.New(

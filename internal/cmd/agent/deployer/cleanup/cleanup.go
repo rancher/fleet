@@ -98,7 +98,7 @@ func (c *Cleanup) garbageCollect(ctx context.Context) {
 }
 
 func (c *Cleanup) cleanup(ctx context.Context, logger logr.Logger) error {
-	deployed, err := c.helmDeployer.ListDeployments()
+	deployed, err := c.helmDeployer.ListDeployments(c.helmDeployer.NewListAction())
 	if err != nil {
 		return err
 	}
