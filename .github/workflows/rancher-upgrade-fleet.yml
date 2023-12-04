@@ -174,7 +174,7 @@ jobs:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-local
         run: |
-          ginkgo --label-filter="!difficult" e2e/multi-cluster
+          ginkgo e2e/multi-cluster
       -
         name: Dump failed environment
         if: failure()
