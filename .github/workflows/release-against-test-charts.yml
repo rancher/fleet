@@ -28,10 +28,6 @@ on:
         description: "Previous Rancher Chart version (e.g. 101.1.0)"
         required: true
         default: ""
-      new_chart:
-        description: "New Rancher Chart version"
-        required: true
-        default: ""
       should_replace:
         description: "Should the old Fleet version be replaced/removed? (e.g. true in case of release candidate bumps)"
         required: true
@@ -48,6 +44,48 @@ jobs:
           ref: ${{github.event.inputs.ref}}
           path: fleet
 
+      - name: Get UUID
+        id: uuid
+        run: echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata for Fleet controller image
+        id: meta-fleet
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ttl.sh/rancher-fleet-${{ steps.uuid.outputs.uuid }}
+          tags: type=raw,value=1h
+
+      - name: Build and push Fleet controller image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: package/Dockerfile
+          build-args: |
+            ARCH=${{ env.GOARCH }}
+          push: true
+          tags: ${{ steps.meta-fleet.outputs.tags }}
+          labels: ${{ steps.meta-fleet.outputs.labels }}
+
+      - name: Extract metadata for Fleet agent image
+        id: meta-fleet-agent
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ttl.sh/rancher-fleet-agent-${{ steps.uuid.outputs.uuid }}
+          tags: type=raw,value=1h
+
+      - name: Build and push Fleet agent image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: package/Dockerfile.agent
+          build-args: |
+            ARCH=${{ env.GOARCH }}
+          push: true
+          tags: ${{ steps.meta-fleet-agent.outputs.tags }}
+          labels: ${{ steps.meta-fleet-agent.outputs.labels }}
+
       - name: Checkout test charts repo
         uses: actions/checkout@v4
         with:
@@ -63,6 +101,12 @@ jobs:
             target_branch_name=${{github.event.pull_request.head.ref}}
           elif [ -z ${{github.event.inputs.charts_target_branch}} ]; then
             target_branch_name=${{github.event.inputs.charts_base_branch}}-$(date +%Y%m%d%H%M%S)
+          fi
+
+          # Append prefix if not present
+          prefix='fleetci-'
+          if [ "${target_branch_name/$prefix/}" = $target_branch_name ]; then
+            target_branch_name=$prefix$target_branch_name
           fi
 
           echo "target_branch=$target_branch_name" >> "$GITHUB_ENV"
@@ -83,7 +127,15 @@ jobs:
         run: sudo snap install yq --channel=v4/stable
 
       - name: Run release script
-        run: ./fleet/.github/scripts/release-against-charts.sh ${{github.event.inputs.prev_fleet}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.prev_chart}}  ${{github.event.inputs.new_chart}}  ${{github.event.inputs.should_replace}}
+        run: |
+          cd ./fleet
+          export FLEET_VERSION=9.9.9
+          # replace the version computation script to prevent our test version from being overwritten
+          echo 'echo "Skipping version computation in ./scripts/package-helm"' > ./scripts/version
+          ./scripts/package-helm
+          cd -
+
+          ./fleet/.github/scripts/release-against-test-charts.sh ${{github.event.inputs.prev_fleet}} $FLEET_VERSION ${{github.event.inputs.prev_chart}}  999.9.9+up$FLEET_VERSION ${{ steps.uuid.outputs.uuid }}
 
       - name: Push to custom branch
         run: |
