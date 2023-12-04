@@ -150,16 +150,17 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 	}
 
 	// Build the helm deployer, which uses a getter for local cluster's client-go client for helm SDK
-	getter := cli.New().RESTClientGetter() // uses local kubeconfig
-	helmDeployer, _ := helmdeployer.NewHelm(
-		ctx,
-		localClient,
+	helmDeployer := helmdeployer.New(
 		systemNamespace,
 		defaultNamespace,
 		defaultNamespace,
 		agentScope,
-		getter,
 	)
+	err = helmDeployer.Setup(ctx, localClient, cli.New().RESTClientGetter())
+	if err != nil {
+		setupLog.Error(err, "unable to setup local helm SDK client")
+		return nil, err
+	}
 
 	// Build the deployer that the bundledeployment reconciler will use
 	deployer := deployer.New(
