@@ -7,7 +7,7 @@ if [ ! -d ./.github/scripts ]; then
   exit 1
 fi
 
-external_ip="${external_ip-172.18.0.1.omg.howdoi.website}"
+public_hostname="${public_hostname-172.18.0.1.omg.howdoi.website}"
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
 
@@ -32,10 +32,10 @@ helm upgrade rancher rancher-latest/rancher --version "$version" \
   --create-namespace \
   --namespace cattle-system \
   --set replicas=1 \
-  --set hostname="$external_ip" \
+  --set hostname="$public_hostname" \
   --set bootstrapPassword=admin \
   --set "extraEnv[0].name=CATTLE_SERVER_URL" \
-  --set "extraEnv[0].value=https://$external_ip" \
+  --set "extraEnv[0].value=https://$public_hostname" \
   --set "extraEnv[1].name=CATTLE_BOOTSTRAP_PASSWORD" \
   --set "extraEnv[1].value=rancherpassword"
 
@@ -50,6 +50,6 @@ kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
 ./.github/scripts/wait-for-loadbalancer.sh
 
 export cluster_downstream="$downstream_ctx"
-./.github/scripts/register-downstream-clusters.sh "$external_ip"
+./.github/scripts/register-downstream-clusters.sh "$public_hostname"
 
 ./.github/scripts/label-downstream-cluster.sh
