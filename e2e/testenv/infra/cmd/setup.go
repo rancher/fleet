@@ -272,9 +272,11 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	var err error
 	htpasswd := "fleet-ci:$2y$05$0WcEGGqsUKcyPhBFU7l07uJ3ND121p/FQCY90Q.dcsZjTkr.b45Lm"
 	if os.Getenv("CI_OCI_USERNAME") != "" && os.Getenv("CI_OCI_PASSWORD") != "" {
-		if p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_PASSWORD")), bcrypt.MinCost); err == nil {
-			htpasswd = fmt.Sprintf("%s:%s", os.Getenv("CI_OCI_USERNAME"), string(p))
+		p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_PASSWORD")), bcrypt.MinCost)
+		if err != nil {
+			fail(fmt.Errorf("generate bcrypt password from env var: %v", err))
 		}
+		htpasswd = fmt.Sprintf("%s:%s", os.Getenv("CI_OCI_USERNAME"), string(p))
 	}
 
 	err = testenv.ApplyTemplate(k, "helm/zot_secret.yaml", struct{ HTTPPasswd string }{htpasswd})
