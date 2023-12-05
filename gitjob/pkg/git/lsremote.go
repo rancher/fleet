@@ -17,8 +17,8 @@ import (
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/go-git/go-git/v5/storage/memory"
+	giturls "github.com/rancher/gitjob/pkg/git-urls"
 	"github.com/sirupsen/logrus"
-	giturls "github.com/whilp/git-urls"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 )

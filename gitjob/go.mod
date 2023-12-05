@@ -26,7 +26,6 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/testcontainers/testcontainers-go v0.26.0
 	github.com/urfave/cli v1.22.14
-	github.com/whilp/git-urls v1.0.0
 	golang.org/x/crypto v0.16.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gotest.tools v2.2.0+incompatible
