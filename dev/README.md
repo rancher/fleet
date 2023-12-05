@@ -118,6 +118,24 @@ export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
 # optional, for selecting Helm versions (see [Troubleshooting](#troubleshooting))
 export HELM_PATH="/usr/bin/helm"
 ```
+
+### `public_hostname`
+
+Several scripts support the `public_hostname` configuration variable.
+The variable is set to a DNS record, which points to the public interface IP of the host.
+The k3d cluster is then set up with port forwardings, so that host ports are
+redirected to services inside the cluster.
+
+The default `public_hostname` is `172.18.0.1.omg.howdoi.website}`, which points
+to the default Docker network gateway. That gateway address might vary for
+custom networks, see for example: `docker network inspect fleet -f '{{(index .IPAM.Config0).Gateway}}'`.
+Careful, several internet routers provide "DNS rebind protection" and won't return an IP for `172.18.0.1.omg.howdoi.website`, unless the `omg.howdoi.website` domain is in an allow list.
+Any magic wildcard DNS resolver will do, or you can create an A record in your own DNS zone.
+
+The k3d cluster is set up with multiple port forwardings by the scripts: `-p '80:80@server:0' -p '443:443@server:0'`.
+More arguments can be provided via the `k3d_args` variable.
+
+
 ### Troubleshooting
 
 If running the `infra setup` script returns an error about flag
@@ -142,6 +160,30 @@ incompatible way at any day.
 
 This will download and prepare setup-envtest, then it will execute all the
 integration tests.
+
+## Local Infra Setup
+
+The local infra setup creates pods for
+* git server, using nginx with git-http-backend, port 8080/tcp
+* OCI repo server, using Zot, port 8081/tcp
+* container registry, using chartmuseum, port 5000/tcp
+
+To build and run the infra setup command do:
+
+```
+pushd e2e/testenv/infra
+  go build -o . ./...
+popd
+./e2e/testenv/infra/infra setup
+
+```
+
+The resulting deployments use a loadbalancer service, which means the host must be able to reach the loadbalancer IP.
+Therefore the infra setup doesn't work with the `public_hostname` config variable.
+This is not a problem, unless k3d is running in a VM and not on directly on the host.
+
+It is possible to override the loadbalancer IP by setting the `external_ip` environment variable.
+
 
 ## Running Github Actions locally
 
