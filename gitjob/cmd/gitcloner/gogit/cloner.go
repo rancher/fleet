@@ -10,8 +10,8 @@ import (
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/rancher/gitjob/cmd/gitcloner/cmd"
+	giturls "github.com/rancher/gitjob/pkg/git-urls"
 	"github.com/sirupsen/logrus"
-	giturls "github.com/whilp/git-urls"
 	"golang.org/x/crypto/ssh"
 )
 
