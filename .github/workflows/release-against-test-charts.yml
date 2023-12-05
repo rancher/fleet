@@ -36,6 +36,9 @@ on:
     branches:
       - 'test-fleet-in-latest-rancher' # hack to enable the workflow
 
+env:
+  GOARCH: amd64
+
 jobs:
   create-rancher-charts-pr:
     runs-on: ubuntu-latest
