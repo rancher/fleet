@@ -62,8 +62,8 @@ jobs:
       - name: Build and push Fleet controller image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: package/Dockerfile
+          context: ./fleet
+          file: ./fleet/package/Dockerfile
           build-args: |
             ARCH=${{ env.GOARCH }}
           push: true
@@ -81,8 +81,8 @@ jobs:
       - name: Build and push Fleet agent image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: package/Dockerfile.agent
+          context: ./fleet
+          file: ./fleet/package/Dockerfile.agent
           build-args: |
             ARCH=${{ env.GOARCH }}
           push: true
