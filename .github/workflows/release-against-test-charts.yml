@@ -50,6 +50,15 @@ jobs:
           ref: ${{github.event.inputs.ref}}
           path: fleet
 
+      - name: Build fleet binaries
+        run: |
+          cd ./fleet
+          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
+
+          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
+          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+          cd -
+
       - name: Get UUID
         id: uuid
         run: echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
