@@ -50,7 +50,7 @@ require (
 	github.com/google/go-containerregistry v0.17.0
 	github.com/hashicorp/go-getter v1.7.3
 	github.com/jpillora/backoff v1.0.0
-	github.com/onsi/ginkgo/v2 v2.13.1
+	github.com/onsi/ginkgo/v2 v2.13.2
 	github.com/onsi/gomega v1.30.0
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0-00010101000000-000000000000
