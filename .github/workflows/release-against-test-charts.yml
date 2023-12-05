@@ -32,6 +32,9 @@ on:
         description: "Should the old Fleet version be replaced/removed? (e.g. true in case of release candidate bumps)"
         required: true
         default: "true"
+  push:
+    branches:
+      - 'test-fleet-in-latest-rancher' # hack to enable the workflow
 
 jobs:
   create-rancher-charts-pr:
