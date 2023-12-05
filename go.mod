@@ -47,7 +47,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.6.0
-	github.com/google/go-containerregistry v0.15.2
+	github.com/google/go-containerregistry v0.17.0
 	github.com/hashicorp/go-getter v1.7.3
 	github.com/jpillora/backoff v1.0.0
 	github.com/onsi/ginkgo/v2 v2.13.1
