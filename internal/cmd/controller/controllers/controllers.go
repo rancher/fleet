@@ -32,7 +32,6 @@ import (
 	"github.com/rancher/wrangler/v2/pkg/generated/controllers/rbac"
 	rbaccontrollers "github.com/rancher/wrangler/v2/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/v2/pkg/leader"
-	"github.com/rancher/wrangler/v2/pkg/ratelimit"
 	"github.com/rancher/wrangler/v2/pkg/start"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -40,7 +39,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
-	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -55,7 +53,6 @@ type appContext struct {
 	TargetManager *target.Manager
 	RESTMapper    meta.RESTMapper
 	Apply         apply.Apply
-	ClientConfig  clientcmd.ClientConfig
 	starters      []start.Starter
 }
 
@@ -63,8 +60,8 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, disableGitops bool) error {
-	appCtx, err := newContext(cfg)
+func Register(ctx context.Context, systemNamespace string, client *rest.Config, disableGitops bool) error {
+	appCtx, err := newContext(client)
 	if err != nil {
 		return err
 	}
@@ -144,13 +141,7 @@ func ControllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 	}), nil
 }
 
-func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
-	client, err := cfg.ClientConfig()
-	if err != nil {
-		return nil, err
-	}
-	client.RateLimiter = ratelimit.None
-
+func newContext(client *rest.Config) (*appContext, error) {
 	scf, err := ControllerFactory(client)
 	if err != nil {
 		return nil, err
@@ -229,7 +220,6 @@ func newContext(cfg clientcmd.ClientConfig) (*appContext, error) {
 		Apply:         apply,
 		GitJob:        gitv,
 		TargetManager: targetManager,
-		ClientConfig:  cfg,
 		starters: []start.Starter{
 			core,
 			apps,
