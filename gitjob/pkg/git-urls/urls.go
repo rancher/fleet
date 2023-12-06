@@ -44,10 +44,6 @@ var (
 		"git+ssh",
 		"http",
 		"https",
-		"ftp",
-		"ftps",
-		"rsync",
-		"file",
 	)
 )
 
@@ -63,7 +59,6 @@ func Parse(rawurl string) (u *url.URL, err error) {
 	parsers := []Parser{
 		ParseTransport,
 		ParseScp,
-		ParseLocal,
 	}
 
 	// Apply each parser in turn; if the parser succeeds, accept its
@@ -116,16 +111,6 @@ func ParseScp(rawurl string) (*url.URL, error) {
 		Host:     m[2],
 		Path:     m[3],
 		RawQuery: rawquery,
-	}, nil
-}
-
-// ParseLocal parses rawurl into a URL object with a "file"
-// scheme. This will effectively never return an error.
-func ParseLocal(rawurl string) (*url.URL, error) {
-	return &url.URL{
-		Scheme: "file",
-		Host:   "",
-		Path:   rawurl,
 	}, nil
 }
 
