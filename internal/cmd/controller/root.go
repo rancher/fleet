@@ -3,6 +3,7 @@ package controller
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,7 +16,11 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
 
 	"github.com/spf13/cobra"
+
 	"k8s.io/apimachinery/pkg/util/wait"
+	ctrl "sigs.k8s.io/controller-runtime"
+	clog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agent"
@@ -31,18 +36,12 @@ type FleetManager struct {
 	DisableGitops bool   `usage:"disable gitops components" name:"disable-gitops"`
 }
 
-func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
-	setupCpuPprof(cmd.Context())
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
-	}()
-	if err := start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops); err != nil {
-		return err
+var (
+	setupLog = ctrl.Log.WithName("setup")
+	zopts    = zap.Options{
+		Development: true,
 	}
-
-	<-cmd.Context().Done()
-	return nil
-}
+)
 
 func (r *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := r.SetupDebug(); err != nil {
@@ -59,14 +58,38 @@ func (r *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
+func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
+	// for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
+	zopts.Development = f.Debug
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+
+	kubeconfig := ctrl.GetConfigOrDie()
+
+	setupCpuPprof(ctx)
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
+	}()
+	if err := start(ctx, f.Namespace, kubeconfig, f.DisableGitops); err != nil {
+		return err
+	}
+
+	<-cmd.Context().Done()
+	return nil
+}
+
 func App() *cobra.Command {
-	cmd := command.Command(&FleetManager{}, cobra.Command{
+	root := command.Command(&FleetManager{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
-	cmd.AddCommand(cleanup.App())
-	cmd.AddCommand(agentmanagement.App())
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	zopts.BindFlags(fs)
+	ctrl.RegisterFlags(fs)
+	root.Flags().AddGoFlagSet(fs)
 
-	return cmd
+	root.AddCommand(cleanup.App())
+	root.AddCommand(agentmanagement.App())
+	return root
 }
 
 // setupCpuPprof starts a goroutine that captures a cpu pprof profile

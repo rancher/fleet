@@ -3,13 +3,13 @@ package agent
 import (
 	"flag"
 	"fmt"
-	"log"
+	glog "log"
 	"net/http"
 
 	"github.com/spf13/cobra"
 
 	ctrl "sigs.k8s.io/controller-runtime"
-	clog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	command "github.com/rancher/fleet/internal/cmd"
@@ -42,16 +42,15 @@ func (a *FleetAgent) PersistentPre(cmd *cobra.Command, _ []string) error {
 }
 
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
-	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
-
 	// for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
 	zopts.Development = a.Debug
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	localConfig := ctrl.GetConfigOrDie()
 
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
+		glog.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
 
 	if a.Namespace == "" {
