@@ -20,18 +20,10 @@ on:
         description: "Previous Fleet version (e.g. 0.6.0-rc.3)"
         required: true
         default: ""
-      new_fleet:
-        description: "New Fleet version"
-        required: true
-        default: ""
       prev_chart:
         description: "Previous Rancher Chart version (e.g. 101.1.0)"
         required: true
         default: ""
-      should_replace:
-        description: "Should the old Fleet version be replaced/removed? (e.g. true in case of release candidate bumps)"
-        required: true
-        default: "true"
   push:
     branches:
       - 'test-fleet-in-latest-rancher' # hack to enable the workflow
