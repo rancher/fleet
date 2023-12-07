@@ -166,4 +166,4 @@ jobs:
       - name: Push to custom branch
         run: |
           cd charts
-          git push origin $target_branch
+          git push https://${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}@github.com/$charts_repo.git $target_branch
