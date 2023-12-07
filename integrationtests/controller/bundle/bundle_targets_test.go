@@ -5,34 +5,30 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	v1gen "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-)
-
-var (
-	env                        *specEnv
-	bundleController           v1gen.BundleController
-	clusterController          v1gen.ClusterController
-	bundleDeploymentController v1gen.BundleDeploymentController
-	clusterGroupController     v1gen.ClusterGroupController
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Bundle targets", Ordered, func() {
 	BeforeAll(func() {
-		env = specEnvs["targets"]
-		bundleController = env.fleet.V1alpha1().Bundle()
-		clusterController = env.fleet.V1alpha1().Cluster()
-		bundleDeploymentController = env.fleet.V1alpha1().BundleDeployment()
-		clusterGroupController = env.fleet.V1alpha1().ClusterGroup()
+		var err error
+		namespace, err = utils.NewNamespaceName()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: namespace},
+		})).ToNot(HaveOccurred())
 
 		createClustersAndClusterGroups()
 
 		DeferCleanup(func() {
-			Expect(env.k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: env.namespace}})).ToNot(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
 		})
 	})
 
@@ -45,17 +41,22 @@ var _ = Describe("Bundle targets", Ordered, func() {
 	)
 
 	JustBeforeEach(func() {
-		bundle, err := createBundle(bundleName, env.namespace, bundleController, targets, targetRestrictions)
+		bundle, err := createBundle(bundleName, namespace, targets, targetRestrictions)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bundle).To(Not(BeNil()))
 	})
 
 	AfterEach(func() {
-		Expect(bundleController.Delete(env.namespace, bundleName, nil)).NotTo(HaveOccurred())
-		bdList, err := bundleDeploymentController.List("", metav1.ListOptions{LabelSelector: labels.SelectorFromSet(bdLabels).String()})
+		Expect(k8sClient.Delete(ctx, &v1alpha1.Bundle{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: bundleName}})).NotTo(HaveOccurred())
+		bdList := &v1alpha1.BundleDeploymentList{}
+		err := k8sClient.List(ctx, bdList, client.MatchingLabelsSelector{Selector: labels.SelectorFromSet(bdLabels)})
 		Expect(err).NotTo(HaveOccurred())
 		for _, bd := range bdList.Items {
-			Expect(bundleDeploymentController.Delete(bd.Namespace, bd.Name, &metav1.DeleteOptions{})).NotTo(HaveOccurred())
+			err := k8sClient.Delete(ctx, &bd)
+			// BundleDeployments are now deleted in a loop by the controller, hence this delete operation
+			// should not be necessary. Pending further tests, we choose to ignore errors indicating that the bundle
+			// deployment has already been deleted here.
+			Expect(client.IgnoreNotFound(err)).NotTo(HaveOccurred())
 		}
 	})
 
@@ -64,7 +65,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			bundleName = "all"
 			bdLabels = map[string]string{
 				"fleet.cattle.io/bundle-name":      bundleName,
-				"fleet.cattle.io/bundle-namespace": env.namespace,
+				"fleet.cattle.io/bundle-namespace": namespace,
 			}
 			expectedNumberOfBundleDeployments = 3
 			// simulate targets in GitRepo. All targets in GitRepo are also added to targetRestrictions, which acts as a white list
@@ -91,7 +92,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			bundleName = "all-customized"
 			bdLabels = map[string]string{
 				"fleet.cattle.io/bundle-name":      bundleName,
-				"fleet.cattle.io/bundle-namespace": env.namespace,
+				"fleet.cattle.io/bundle-namespace": namespace,
 			}
 			expectedNumberOfBundleDeployments = 3
 			// simulate targets in fleet.yaml which are used for customization
@@ -135,7 +136,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			bundleName = "one-customized"
 			bdLabels = map[string]string{
 				"fleet.cattle.io/bundle-name":      bundleName,
-				"fleet.cattle.io/bundle-namespace": env.namespace,
+				"fleet.cattle.io/bundle-namespace": namespace,
 			}
 			expectedNumberOfBundleDeployments = 3
 			// simulate targets in fleet.yaml which are used for customization
@@ -193,7 +194,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			bundleName = "one-all-customized"
 			bdLabels = map[string]string{
 				"fleet.cattle.io/bundle-name":      bundleName,
-				"fleet.cattle.io/bundle-namespace": env.namespace,
+				"fleet.cattle.io/bundle-namespace": namespace,
 			}
 			expectedNumberOfBundleDeployments = 3
 			// simulate targets in fleet.yaml which are used for customization
@@ -249,7 +250,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			bundleName = "one-target-all-customized"
 			bdLabels = map[string]string{
 				"fleet.cattle.io/bundle-name":      bundleName,
-				"fleet.cattle.io/bundle-namespace": env.namespace,
+				"fleet.cattle.io/bundle-namespace": namespace,
 			}
 			expectedNumberOfBundleDeployments = 1
 			// simulate targets in fleet.yaml which are used for customization
@@ -294,7 +295,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			bundleName = "all"
 			bdLabels = map[string]string{
 				"fleet.cattle.io/bundle-name":      bundleName,
-				"fleet.cattle.io/bundle-namespace": env.namespace,
+				"fleet.cattle.io/bundle-namespace": namespace,
 			}
 			expectedNumberOfBundleDeployments = 3
 			targets = []v1alpha1.BundleTarget{
@@ -396,10 +397,10 @@ var _ = Describe("Bundle targets", Ordered, func() {
 
 func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[string]string, bundleName string) *v1alpha1.BundleDeploymentList {
 	var bdList *v1alpha1.BundleDeploymentList
-	var err error
 	bdLabels["fleet.cattle.io/bundle-name"] = bundleName
 	Eventually(func() int {
-		bdList, err = bundleDeploymentController.List("", metav1.ListOptions{LabelSelector: labels.SelectorFromSet(bdLabels).String()})
+		bdList = &v1alpha1.BundleDeploymentList{}
+		err := k8sClient.List(ctx, bdList, client.MatchingLabelsSelector{Selector: labels.SelectorFromSet(bdLabels)})
 		Expect(err).NotTo(HaveOccurred())
 
 		return len(bdList.Items)
@@ -410,7 +411,8 @@ func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[s
 
 func waitForBundleToBeReady(bundleName string) {
 	Eventually(func() bool {
-		bundle, err := bundleController.Get(env.namespace, bundleName, metav1.GetOptions{})
+		bundle := &v1alpha1.Bundle{}
+		err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: bundleName}, bundle)
 		Expect(err).NotTo(HaveOccurred())
 		for _, condition := range bundle.Status.Conditions {
 			if condition.Type == "Ready" && condition.Status == "True" {
@@ -432,27 +434,27 @@ func createClustersAndClusterGroups() {
 		clusterNs, err := utils.NewNamespaceName()
 		Expect(err).ToNot(HaveOccurred())
 		clusterNs = clusterNs + "cluster-" + cn
-		Expect(env.k8sClient.Create(ctx, &corev1.Namespace{
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: clusterNs,
 			},
 		})).ToNot(HaveOccurred())
 		DeferCleanup(func() {
-			Expect(env.k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNs}})).ToNot(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNs}})).ToNot(HaveOccurred())
 		})
 
-		clusterOne, err := createCluster(cn, env.namespace, clusterController, map[string]string{"cluster": cn, "env": "test"}, clusterNs)
+		clusterOne, err := createCluster(cn, namespace, map[string]string{"cluster": cn, "env": "test"}, clusterNs)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(clusterOne).To(Not(BeNil()))
 
-		clusterGroup, err := createClusterGroup(cn, env.namespace, clusterGroupController, &metav1.LabelSelector{
+		clusterGroup, err := createClusterGroup(cn, namespace, &metav1.LabelSelector{
 			MatchLabels: map[string]string{"cluster": cn},
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(clusterGroup).To(Not(BeNil()))
 	}
 
-	clusterGroupAll, err := createClusterGroup("all", env.namespace, clusterGroupController, &metav1.LabelSelector{
+	clusterGroupAll, err := createClusterGroup("all", namespace, &metav1.LabelSelector{
 		MatchLabels: map[string]string{"env": "test"},
 	})
 	Expect(err).NotTo(HaveOccurred())

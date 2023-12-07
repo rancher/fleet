@@ -50,7 +50,6 @@ var (
 	ctx       context.Context
 	cancel    context.CancelFunc
 	k8sClient client.Client
-	specEnvs  map[string]*specEnv
 )
 
 const (

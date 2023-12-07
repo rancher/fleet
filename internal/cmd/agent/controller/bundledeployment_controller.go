@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
@@ -114,8 +113,9 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	resources, err := r.Deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
 		logger.V(1).Info("Failed to retrieve bundledeployment's resources")
-		if err := updateStatus(ctx, logger, r.Client, req.NamespacedName, bd.Status); err != nil {
-			merr = append(merr, fmt.Errorf("failed to update the status: %w", err))
+		if statusErr := r.updateStatus(ctx, req.NamespacedName, bd.Status); statusErr != nil {
+			merr = append(merr, err)
+			merr = append(merr, fmt.Errorf("failed to update the status: %w", statusErr))
 		}
 		return ctrl.Result{}, errutil.NewAggregate(merr)
 	}
@@ -171,7 +171,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// final status update
 	logger.V(1).Info("Reconcile finished, updating the bundledeployment status")
-	err = updateStatus(ctx, logger, r.Client, req.NamespacedName, bd.Status)
+	err = r.updateStatus(ctx, req.NamespacedName, bd.Status)
 	if apierrors.IsNotFound(err) {
 		merr = append(merr, fmt.Errorf("bundledeployment has been deleted: %w", err))
 	} else if err != nil {
@@ -181,34 +181,16 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	return result, errutil.NewAggregate(merr)
 }
 
-func ignoreConflict(err error) error {
-	if apierrors.IsConflict(err) {
-		return nil
-	}
-	return err
-}
-
-// setCondition sets the condition and updates the timestamp, if the condition changed
-func setCondition(newStatus fleetv1.BundleDeploymentStatus, err error, cond condition.Cond) fleetv1.BundleDeploymentStatus {
-	cond.SetError(&newStatus, "", ignoreConflict(err))
-	return newStatus
-}
-
-func updateStatus(ctx context.Context, logger logr.Logger, client client.Client, nsn types.NamespacedName, status fleetv1.BundleDeploymentStatus) error {
-	err := retry.RetryOnConflict(DefaultRetry, func() error {
+func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, req types.NamespacedName, status fleetv1.BundleDeploymentStatus) error {
+	return retry.RetryOnConflict(DefaultRetry, func() error {
 		newBD := &fleetv1.BundleDeployment{}
-		err := client.Get(ctx, nsn, newBD)
+		err := r.Get(ctx, req, newBD)
 		if err != nil {
 			return err
 		}
 		newBD.Status = status
-		err = client.Status().Update(ctx, newBD)
-		if err != nil {
-			logger.V(1).Error(err, "Reconcile failed final update to bundledeployment status", "status", status)
-		}
-		return err
+		return r.Status().Update(ctx, newBD)
 	})
-	return err
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -237,4 +219,17 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				},
 			)).
 		Complete(r)
+}
+
+// setCondition sets the condition and updates the timestamp, if the condition changed
+func setCondition(newStatus fleetv1.BundleDeploymentStatus, err error, cond condition.Cond) fleetv1.BundleDeploymentStatus {
+	cond.SetError(&newStatus, "", ignoreConflict(err))
+	return newStatus
+}
+
+func ignoreConflict(err error) error {
+	if apierrors.IsConflict(err) {
+		return nil
+	}
+	return err
 }

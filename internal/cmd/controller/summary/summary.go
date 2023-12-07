@@ -1,4 +1,4 @@
-// Package summary provides a summary of a bundle's state.
+// Package summary provides a summary of a bundle's, gitrepo's or cluster's state.
 package summary
 
 import (

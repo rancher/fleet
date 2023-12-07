@@ -15,6 +15,10 @@ var (
 	BundleNamespaceLabel = "fleet.cattle.io/bundle-namespace"
 )
 
+const (
+	GitRepoAcceptedCondition = "Accepted"
+)
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
