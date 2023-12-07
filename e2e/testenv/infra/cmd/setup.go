@@ -141,9 +141,7 @@ var setupCmd = &cobra.Command{
 			}
 
 			if externalIP == "" {
-				externalIP = eventually(func() (string, error) {
-					return k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-				})
+				externalIP = waitForLoadbalancer(k, "zot-service")
 			}
 			OCIHost := fmt.Sprintf("%s:5000", externalIP)
 
@@ -195,9 +193,7 @@ var setupCmd = &cobra.Command{
 			wgHelm.Wait()
 
 			if externalIP == "" {
-				externalIP = eventually(func() (string, error) {
-					return k.Get("service", "chartmuseum-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-				})
+				externalIP = waitForLoadbalancer(k, "chartmuseum-service")
 			}
 
 			_ = eventually(func() (string, error) {
@@ -258,6 +254,7 @@ func spinUpGitServer(k kubectl.Command, wg *sync.WaitGroup) {
 	}
 
 	waitForPodReady(k, "git-server")
+	waitForLoadbalancer(k, "git-service")
 
 	fmt.Println("git server up.")
 }
@@ -365,6 +362,13 @@ func waitForPodReady(k kubectl.Command, appName string) {
 
 		return "", nil
 	})
+}
+
+func waitForLoadbalancer(k kubectl.Command, name string) string {
+	ip := eventually(func() (string, error) {
+		return k.Get("service", name, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+	})
+	return ip
 }
 
 // fail prints err and exits.
