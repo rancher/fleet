@@ -106,6 +106,11 @@ type AlphabeticalPolicy struct {
 	Order string `json:"order,omitempty"`
 }
 
+const (
+	ImageScanScanCondition = "ImageScanned"
+	ImageScanSyncCondition = "ImageSynced"
+)
+
 type ImageScanStatus struct {
 	// +optional
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`

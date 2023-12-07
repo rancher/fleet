@@ -62,9 +62,7 @@ type matcher struct {
 }
 
 func (a *BundleMatch) initMatcher() error {
-	var (
-		m = &matcher{}
-	)
+	m := &matcher{}
 
 	for i, target := range a.bundle.Spec.Targets {
 		clusterMatcher, err := NewClusterMatcher(target.ClusterName, target.ClusterGroup, target.ClusterGroupSelector, target.ClusterSelector)

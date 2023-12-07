@@ -1,7 +1,5 @@
 package deployer
 
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../controller/mocks/dynamic_mock.go -package mocks k8s.io/client-go/dynamic Interface,NamespaceableResourceInterface
-
 import (
 	"context"
 	"errors"

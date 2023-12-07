@@ -115,6 +115,8 @@ type Bootstrap struct {
 	Branch string `json:"branch,omitempty"`
 }
 
+// OnChange is used by agentmanagement to react to config changes. The callback is triggered by 'Set' via
+// the config controller during startup and when the configmap changes.
 func OnChange(ctx context.Context, f func(*Config) error) {
 	callbackLock.Lock()
 	defer callbackLock.Unlock()
@@ -131,7 +133,15 @@ func OnChange(ctx context.Context, f func(*Config) error) {
 	}()
 }
 
-func Set(cfg *Config) error {
+// Set doesn't trigger the callbacks, use SetAndTrigger for that. Set is used
+// by controller-runtime controllers.
+func Set(cfg *Config) {
+	config = cfg
+}
+
+// SetAndTrigger sets the config and triggers the callbacks. It is used by the
+// agentmanagement wrangler controllers.
+func SetAndTrigger(cfg *Config) error {
 	callbackLock.Lock()
 	defer callbackLock.Unlock()
 

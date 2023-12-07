@@ -26,7 +26,7 @@ func Register(ctx context.Context,
 		return err
 	}
 
-	return config.Set(cfg)
+	return config.SetAndTrigger(cfg)
 }
 
 func reloadConfig(namespace string, configMap *v1.ConfigMap) (*v1.ConfigMap, error) {
@@ -44,5 +44,5 @@ func reloadConfig(namespace string, configMap *v1.ConfigMap) (*v1.ConfigMap, err
 		return configMap, err
 	}
 
-	return configMap, config.Set(cfg)
+	return configMap, config.SetAndTrigger(cfg)
 }

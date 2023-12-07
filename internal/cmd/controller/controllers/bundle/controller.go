@@ -104,7 +104,7 @@ func (h *handler) OnClusterChange(_ string, cluster *fleet.Cluster) (*fleet.Clus
 		return nil, err
 	}
 	for _, bundle := range bundlesToCleanup {
-		bundleDeployments, err := h.targets.GetBundleDeploymentsForBundleInCluster(bundle, cluster)
+		bundleDeployments, err := h.targets.BundleDeploymentsForBundleInCluster(bundle, cluster)
 		if err != nil {
 			return nil, err
 		}

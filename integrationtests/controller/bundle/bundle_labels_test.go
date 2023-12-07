@@ -3,37 +3,35 @@ package agent
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	v1gen "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Bundle labels", func() {
-
-	var (
-		env                        *specEnv
-		bundleController           v1gen.BundleController
-		clusterController          v1gen.ClusterController
-		bundleDeploymentController v1gen.BundleDeploymentController
-	)
-
 	BeforeEach(func() {
-		env = specEnvs["labels"]
-		bundleController = env.fleet.V1alpha1().Bundle()
-		clusterController = env.fleet.V1alpha1().Cluster()
-		bundleDeploymentController = env.fleet.V1alpha1().BundleDeployment()
+		var err error
+		namespace, err = utils.NewNamespaceName()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: namespace},
+		})).ToNot(HaveOccurred())
 
 		DeferCleanup(func() {
-			Expect(env.k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: env.namespace}})).ToNot(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
 		})
 	})
 
 	When("BundleDeployment labels are updated", func() {
 		BeforeEach(func() {
-			cluster, err := createCluster("cluster", env.namespace, clusterController, nil, env.namespace)
+			cluster, err := createCluster("cluster", namespace, nil, namespace)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster).To(Not(BeNil()))
 			targets := []v1alpha1.BundleTarget{
@@ -45,17 +43,22 @@ var _ = Describe("Bundle labels", func() {
 					ClusterName: "cluster",
 				},
 			}
-			bundle, err := createBundle("name", env.namespace, bundleController, targets, targets)
+			bundle, err := createBundle("name", namespace, targets, targets)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle).To(Not(BeNil()))
 		})
 
 		AfterEach(func() {
-			Expect(bundleController.Delete(env.namespace, "name", nil)).NotTo(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, &v1alpha1.Bundle{ObjectMeta: metav1.ObjectMeta{
+				Name:      "name",
+				Namespace: namespace,
+			}})).NotTo(HaveOccurred())
+
 		})
 
 		It("Bundle is created", func() {
-			bundle, err := bundleController.Get(env.namespace, "name", metav1.GetOptions{})
+			bundle := &v1alpha1.Bundle{}
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle).To(Not(BeNil()))
 
@@ -66,24 +69,24 @@ var _ = Describe("Bundle labels", func() {
 
 			By("BundleDeployment has the foo label from Bundle")
 			Eventually(func() bool {
-				bd, ok := expectedLabelValue(bundleDeploymentController, bdLabels, "foo", "bar")
+				bd, ok := expectedLabelValue(bdLabels, "foo", "bar")
 				if !ok {
 					return false
 				}
 				Expect(bd.Labels).To(HaveKeyWithValue("fleet.cattle.io/cluster", "cluster"))
-				Expect(bd.Labels).To(HaveKeyWithValue("fleet.cattle.io/cluster-namespace", env.namespace))
+				Expect(bd.Labels).To(HaveKeyWithValue("fleet.cattle.io/cluster-namespace", namespace))
 				return true
 			}).Should(BeTrue())
 
 			By("Modifying foo label in Bundle")
 			labelPatch := `[{"op":"add","path":"/metadata/labels/foo","value":"modified"}]`
-			bundle, err = bundleController.Patch(bundle.ObjectMeta.Namespace, bundle.Name, types.JSONPatchType, []byte(labelPatch))
+			err = k8sClient.Patch(ctx, bundle, client.RawPatch(types.JSONPatchType, []byte(labelPatch)))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle).To(Not(BeNil()))
 
 			By("Should modify foo label in BundleDeployment")
 			Eventually(func() bool {
-				_, ok := expectedLabelValue(bundleDeploymentController, bdLabels, "foo", "modified")
+				_, ok := expectedLabelValue(bdLabels, "foo", "modified")
 				return ok
 			}).Should(BeTrue())
 
@@ -91,8 +94,9 @@ var _ = Describe("Bundle labels", func() {
 	})
 })
 
-func expectedLabelValue(controller v1gen.BundleDeploymentController, bdLabels map[string]string, key, value string) (*v1alpha1.BundleDeployment, bool) {
-	list, err := controller.List("", metav1.ListOptions{LabelSelector: labels.SelectorFromSet(bdLabels).String()})
+func expectedLabelValue(bdLabels map[string]string, key, value string) (*v1alpha1.BundleDeployment, bool) {
+	list := &v1alpha1.BundleDeploymentList{}
+	err := k8sClient.List(ctx, list, client.MatchingLabelsSelector{Selector: labels.SelectorFromSet(bdLabels)})
 	Expect(err).NotTo(HaveOccurred())
 	if len(list.Items) == 1 {
 		return &list.Items[0], list.Items[0].Labels[key] == value

@@ -2,42 +2,38 @@ package agent
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers/bundle"
-	"github.com/rancher/fleet/internal/cmd/controller/target"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/fleet/internal/manifest"
-	"github.com/rancher/fleet/pkg/durations"
-	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
-	"github.com/rancher/lasso/pkg/cache"
-	lassoclient "github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/v2/pkg/apply"
-	"github.com/rancher/wrangler/v2/pkg/generated/controllers/core"
 
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/discovery/cached/memory"
+	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
+	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
+	"k8s.io/kubectl/pkg/scheme"
+
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var (
-	cfg      *rest.Config
-	testEnv  *envtest.Environment
-	ctx      context.Context
-	cancel   context.CancelFunc
-	specEnvs map[string]*specEnv
+	cfg       *rest.Config
+	testEnv   *envtest.Environment
+	ctx       context.Context
+	cancel    context.CancelFunc
+	k8sClient client.Client
+	namespace string
 )
 
 const (
@@ -51,6 +47,7 @@ func TestFleet(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
+
 	ctx, cancel = context.WithCancel(context.TODO())
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
@@ -62,25 +59,43 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	k8sClient, err := client.New(cfg, client.Options{})
+	utilruntime.Must(v1alpha1.AddToScheme(scheme.Scheme))
+	//+kubebuilder:scaffold:scheme
+
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	specEnvs = make(map[string]*specEnv, 2)
-	for _, id := range []string{"labels", "targets"} {
-		namespace, err := utils.NewNamespaceName()
-		Expect(err).ToNot(HaveOccurred())
-		fmt.Printf("Creating namespace %s\n", namespace)
-		Expect(k8sClient.Create(ctx, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-			},
-		})).ToNot(HaveOccurred())
-
-		fleet := registerBundleController(cfg, namespace)
-
-		specEnvs[id] = &specEnv{fleet: fleet, k8sClient: k8sClient, namespace: namespace}
+	zopts := zap.Options{
+		Development: true,
 	}
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:         scheme.Scheme,
+		LeaderElection: false,
+		Metrics:        metricsserver.Options{BindAddress: "0"},
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	// Set up the bundle reconciler
+	store := manifest.NewStore(mgr.GetClient())
+	builder := target.New(mgr.GetClient())
+
+	err = (&reconciler.BundleReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Builder: builder,
+		Store:   store,
+		Query:   builder,
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
+
+	go func() {
+		defer GinkgoRecover()
+		err = mgr.Start(ctx)
+		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
+	}()
 })
 
 var _ = AfterSuite(func() {
@@ -88,61 +103,64 @@ var _ = AfterSuite(func() {
 	Expect(testEnv.Stop()).ToNot(HaveOccurred())
 })
 
-func registerBundleController(cfg *rest.Config, namespace string) fleet.Interface {
-	d, err := discovery.NewDiscoveryClientForConfig(cfg)
-	Expect(err).ToNot(HaveOccurred())
-	disc := memory.NewMemCacheClient(d)
-	mapper := restmapper.NewDeferredDiscoveryRESTMapper(disc)
-	cf, err := lassoclient.NewSharedClientFactory(cfg, &lassoclient.SharedClientFactoryOptions{
-		Mapper: mapper,
-	})
-	Expect(err).ToNot(HaveOccurred())
+// createBundle copies all targets from the GitRepo into TargetRestrictions. TargetRestrictions acts as a whitelist to prevent
+// the creation of BundleDeployments from Targets created from the TargetCustomizations in the fleet.yaml
+// we replicate this behaviour here since this is run in an integration tests that runs just the BundleController.
+func createBundle(name, namespace string, targets []v1alpha1.BundleTarget, targetRestrictions []v1alpha1.BundleTarget) (*v1alpha1.Bundle, error) {
+	restrictions := []v1alpha1.BundleTargetRestriction{}
+	for _, r := range targetRestrictions {
+		restrictions = append(restrictions, v1alpha1.BundleTargetRestriction{
+			Name:                 r.Name,
+			ClusterName:          r.ClusterName,
+			ClusterSelector:      r.ClusterSelector,
+			ClusterGroup:         r.ClusterGroup,
+			ClusterGroupSelector: r.ClusterGroupSelector,
+		})
+	}
+	bundle := v1alpha1.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    map[string]string{"foo": "bar"},
+		},
+		Spec: v1alpha1.BundleSpec{
+			Targets:            targets,
+			TargetRestrictions: restrictions,
+		},
+	}
 
-	sharedFactory := controller.NewSharedControllerFactory(cache.NewSharedCachedFactory(cf, &cache.SharedCacheFactoryOptions{
-		DefaultNamespace: namespace,
-		DefaultResync:    durations.DefaultResyncAgent,
-	}), nil)
-
-	// this factory will watch Bundles just for the namespace provided
-	factory, err := fleet.NewFactoryFromConfigWithOptions(cfg, &fleet.FactoryOptions{
-		SharedControllerFactory: sharedFactory,
-	})
-	Expect(err).ToNot(HaveOccurred())
-
-	coreFactory, err := core.NewFactoryFromConfig(cfg)
-	Expect(err).ToNot(HaveOccurred())
-
-	wranglerApply, err := apply.NewForConfig(cfg)
-	Expect(err).ToNot(HaveOccurred())
-	wranglerApply = wranglerApply.WithSetOwnerReference(false, false)
-
-	targetManager := target.New(
-		factory.Fleet().V1alpha1().Cluster().Cache(),
-		factory.Fleet().V1alpha1().ClusterGroup().Cache(),
-		factory.Fleet().V1alpha1().Bundle().Cache(),
-		factory.Fleet().V1alpha1().BundleNamespaceMapping().Cache(),
-		coreFactory.Core().V1().Namespace().Cache(),
-		manifest.NewStore(factory.Fleet().V1alpha1().Content()),
-		factory.Fleet().V1alpha1().BundleDeployment().Cache())
-
-	bundle.Register(ctx,
-		wranglerApply,
-		mapper,
-		targetManager,
-		factory.Fleet().V1alpha1().Bundle(),
-		factory.Fleet().V1alpha1().Cluster(),
-		factory.Fleet().V1alpha1().ImageScan(),
-		factory.Fleet().V1alpha1().GitRepo().Cache(),
-		factory.Fleet().V1alpha1().BundleDeployment())
-
-	err = factory.Start(ctx, 50)
-	Expect(err).ToNot(HaveOccurred())
-
-	return factory.Fleet()
+	return &bundle, k8sClient.Create(ctx, &bundle)
 }
 
-type specEnv struct {
-	fleet     fleet.Interface
-	namespace string
-	k8sClient client.Client
+func createCluster(name, controllerNs string, labels map[string]string, clusterNs string) (*v1alpha1.Cluster, error) {
+	cluster := &v1alpha1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: controllerNs,
+			Labels:    labels,
+		},
+	}
+	err := k8sClient.Create(ctx, cluster)
+	if err != nil {
+		return nil, err
+	}
+	// Need to set the status.Namespace as it is needed to create a BundleDeployment.
+	// Namespace is set by the Cluster controller. We need to do it manually because we are running just the Bundle controller.
+	cluster.Status.Namespace = clusterNs
+	err = k8sClient.Status().Update(ctx, cluster)
+	return cluster, err
+}
+
+func createClusterGroup(name, namespace string, selector *metav1.LabelSelector) (*v1alpha1.ClusterGroup, error) {
+	cg := &v1alpha1.ClusterGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.ClusterGroupSpec{
+			Selector: selector,
+		},
+	}
+	err := k8sClient.Create(ctx, cg)
+	return cg, err
 }

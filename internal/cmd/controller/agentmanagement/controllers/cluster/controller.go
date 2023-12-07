@@ -3,11 +3,9 @@ package cluster
 
 import (
 	"context"
-	"sort"
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fname "github.com/rancher/fleet/internal/name"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -20,7 +18,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -33,11 +30,6 @@ type handler struct {
 	namespaces           corecontrollers.NamespaceController
 	gitRepos             fleetcontrollers.GitRepoCache
 	clusterRegistrations fleetcontrollers.ClusterRegistrationController
-}
-
-type repoKey struct {
-	repo string
-	ns   string
 }
 
 func Register(ctx context.Context,
@@ -138,58 +130,6 @@ func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterS
 	if status.Namespace == "" {
 		status.Namespace = clusterNamespace(cluster.Namespace, cluster.Name)
 	}
-
-	bundleDeployments, err := h.bundleDeployment.List(status.Namespace, labels.Everything())
-	if err != nil {
-		return status, err
-	}
-
-	status.DesiredReadyGitRepos = 0
-	status.ReadyGitRepos = 0
-	status.ResourceCounts = fleet.GitRepoResourceCounts{}
-	status.Summary = fleet.BundleSummary{}
-
-	sort.Slice(bundleDeployments, func(i, j int) bool {
-		return bundleDeployments[i].Name < bundleDeployments[j].Name
-	})
-
-	repos := map[repoKey]bool{}
-	for _, app := range bundleDeployments {
-		state := summary.GetDeploymentState(app)
-		summary.IncrementState(&status.Summary, app.Name, state, summary.MessageFromDeployment(app), app.Status.ModifiedStatus, app.Status.NonReadyStatus)
-		status.Summary.DesiredReady++
-
-		repo := app.Labels[fleet.RepoLabel]
-		ns := app.Labels[fleet.BundleNamespaceLabel]
-		if repo != "" && ns != "" {
-			repos[repoKey{repo: repo, ns: ns}] = (state == fleet.Ready) || repos[repoKey{repo: repo, ns: ns}]
-		}
-	}
-
-	allReady := true
-	for repo, ready := range repos {
-		gitrepo, err := h.gitRepos.Get(repo.ns, repo.repo)
-		if err == nil {
-			summary.IncrementResourceCounts(&status.ResourceCounts, gitrepo.Status.ResourceCounts)
-			status.DesiredReadyGitRepos++
-			if ready {
-				status.ReadyGitRepos++
-			} else {
-				allReady = false
-			}
-		}
-	}
-
-	if allReady && status.ResourceCounts.Ready != status.ResourceCounts.DesiredReady {
-		logrus.Debugf("Cluster %s/%s is not ready because not all gitrepos are ready: %d/%d, enqueue cluster again",
-			cluster.Namespace, cluster.Name, status.ResourceCounts.Ready, status.ResourceCounts.DesiredReady)
-
-		// Counts from gitrepo are out of sync with bundleDeployment state, retry in a number of seconds.
-		// Time depends on the rate limiter, see controllers.go newSharedControllerFactory()
-		h.clusters.Enqueue(cluster.Namespace, cluster.Name)
-	}
-
-	summary.SetReadyConditions(&status, "Bundle", status.Summary)
 	return status, h.createNamespace(cluster, status)
 }
 

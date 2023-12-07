@@ -8,7 +8,11 @@ import (
 	"github.com/rancher/wrangler/v2/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v2/pkg/leader"
 	"github.com/rancher/wrangler/v2/pkg/ratelimit"
+	"github.com/rancher/wrangler/v2/pkg/schemes"
+
 	"github.com/sirupsen/logrus"
+
+	v1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -24,6 +28,11 @@ func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap b
 	localConfig := rest.CopyConfig(kc)
 	localConfig.RateLimiter = ratelimit.None
 	k8s, err := kubernetes.NewForConfig(localConfig)
+	if err != nil {
+		return err
+	}
+
+	err = schemes.Register(v1.AddToScheme)
 	if err != nil {
 		return err
 	}

@@ -1,46 +1,45 @@
 package manifest
 
 import (
-	"github.com/rancher/fleet/internal/content"
+	"context"
 
+	"github.com/rancher/fleet/internal/content"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type Store interface {
-	Store(manifest *Manifest) (string, error)
-}
-
-func NewStore(content fleetcontrollers.ContentController) Store {
-	return &contentStore{
-		contentCache: content.Cache(),
-		content:      content,
+func NewStore(client client.Client) *ContentStore {
+	return &ContentStore{
+		client: client,
 	}
 }
 
-type contentStore struct {
-	contentCache fleetcontrollers.ContentCache
-	content      fleetcontrollers.ContentClient
+type ContentStore struct {
+	client client.Client
 }
 
-func (c *contentStore) Store(manifest *Manifest) (string, error) {
+// Store stores the manifest as a content resource and returns the name.
+// It copies the resources from the bundle to the content resource.
+func (c *ContentStore) Store(ctx context.Context, manifest *Manifest) (string, error) {
 	id, err := manifest.ID()
 	if err != nil {
 		return "", err
 	}
 
-	if _, err := c.contentCache.Get(id); err != nil && !apierrors.IsNotFound(err) {
+	if err := c.client.Get(ctx, types.NamespacedName{Name: id}, &fleet.Content{}); err != nil && !apierrors.IsNotFound(err) {
 		return "", err
 	} else if err == nil {
 		return id, nil
 	}
 
-	return id, c.createContents(id, manifest)
+	return id, c.createContents(ctx, id, manifest)
 }
 
-func (c *contentStore) createContents(id string, manifest *Manifest) error {
+func (c *ContentStore) createContents(ctx context.Context, id string, manifest *Manifest) error {
 	data, err := manifest.Content()
 	if err != nil {
 		return err
@@ -56,7 +55,7 @@ func (c *contentStore) createContents(id string, manifest *Manifest) error {
 		return err
 	}
 
-	_, err = c.content.Create(&fleet.Content{
+	err = c.client.Create(ctx, &fleet.Content{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: id,
 		},

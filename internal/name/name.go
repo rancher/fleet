@@ -93,7 +93,7 @@ func HelmReleaseName(str string) string {
 	if helmReleaseName.MatchString(str) && dnsLabelSafe.MatchString(str) {
 		short := Limit(str, v1alpha1.MaxHelmReleaseNameLen)
 		if short != str {
-			logrus.Debugf("shorten bundle name %v to %v", str, Limit(str, v1alpha1.MaxHelmReleaseNameLen))
+			logrus.Debugf("shorten bundle name %v to %v", str, short)
 		}
 		return short
 	}
