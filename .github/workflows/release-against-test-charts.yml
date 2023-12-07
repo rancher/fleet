@@ -148,7 +148,10 @@ jobs:
       - name: Run release script
         run: |
           cd ./fleet
-          export FLEET_VERSION=9.9.9
+          fleet_version=9.9.9
+          export HELM_VERSION=$fleet_version
+          export HELM_TAG=dev # should not matter, will be overwritten by the release script anyway
+
           # replace the version computation script to prevent our test version from being overwritten
           echo 'echo "Skipping version computation in ./scripts/package-helm"' > ./scripts/version
           ./scripts/package-helm
@@ -158,7 +161,7 @@ jobs:
           prev_fleet=${prev_full#*+up}
           prev_chart=${prev_full/+*}
 
-          ./fleet/.github/scripts/release-against-test-charts.sh $prev_fleet $FLEET_VERSION $prev_chart 999.9.9+up$FLEET_VERSION ${{ steps.uuid.outputs.uuid }}
+          ./fleet/.github/scripts/release-against-test-charts.sh $prev_fleet $fleet_version $prev_chart 999.9.9 ${{ steps.uuid.outputs.uuid }}
 
       - name: Push to custom branch
         run: |
