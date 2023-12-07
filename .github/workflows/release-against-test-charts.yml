@@ -13,7 +13,7 @@ on:
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
         required: true
-        default: "rancher/fleet-test-data"
+        default: "fleetrepoci/charts"
       charts_target_branch:
         description: "Use the following branch as a destination when pushing to the charts repo"
   push:
@@ -36,7 +36,7 @@ jobs:
           charts_base_branch=${tmp:-'dev-v2.8'}
 
           tmp=${{github.event.inputs.charts_repo}}
-          charts_repo=${tmp:-rancher/fleet-test-data}
+          charts_repo=${tmp:-fleetrepoci/charts}
 
           echo "ref=$ref" >> "$GITHUB_ENV"
           echo "charts_base_branch=$charts_base_branch" >> "$GITHUB_ENV"
@@ -166,4 +166,4 @@ jobs:
       - name: Push to custom branch
         run: |
           cd charts
-          git push https://${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}@github.com/$charts_repo.git $target_branch
+          git push https://${{secrets.CI_PUSH_TO_FLEETREPOCI}}@github.com/$charts_repo.git $target_branch
