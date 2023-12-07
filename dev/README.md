@@ -126,7 +126,7 @@ The variable is set to a DNS record, which points to the public interface IP of 
 The k3d cluster is then set up with port forwardings, so that host ports are
 redirected to services inside the cluster.
 
-The default `public_hostname` is `172.18.0.1.omg.howdoi.website}`, which points
+The default `public_hostname` is `172.18.0.1.omg.howdoi.website`, which points
 to the default Docker network gateway. That gateway address might vary for
 custom networks, see for example: `docker network inspect fleet -f '{{(index .IPAM.Config0).Gateway}}'`.
 Careful, several internet routers provide "DNS rebind protection" and won't return an IP for `172.18.0.1.omg.howdoi.website`, unless the `omg.howdoi.website` domain is in an allow list.
@@ -163,10 +163,10 @@ integration tests.
 
 ## Local Infra Setup
 
-The local infra setup creates pods for
+The local infra setup creates pods for:
 * git server, using nginx with git-http-backend, port 8080/tcp
 * OCI repo server, using Zot, port 8081/tcp
-* container registry, using chartmuseum, port 5000/tcp
+* Helm registry, using chartmuseum, port 5000/tcp
 
 To build and run the infra setup command do:
 
@@ -180,7 +180,7 @@ popd
 
 The resulting deployments use a loadbalancer service, which means the host must be able to reach the loadbalancer IP.
 Therefore the infra setup doesn't work with the `public_hostname` config variable.
-This is not a problem, unless k3d is running in a VM and not on directly on the host.
+This is not a problem, unless k3d is running in a VM and not directly on the host.
 
 It is possible to override the loadbalancer IP by setting the `external_ip` environment variable.
 
