@@ -36,6 +36,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		inClusterRepoURL string
 		gitrepoName      string
 		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
+		targetNamespace  string
 	)
 
 	BeforeEach(func() {
@@ -67,6 +68,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 	When("updating a git repository monitored via polling", func() {
 		BeforeEach(func() {
 			repoName = "repo"
+			targetNamespace = testenv.NewNamespaceName("target", r)
 		})
 
 		JustBeforeEach(func() {
@@ -75,11 +77,13 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				Repo            string
 				Branch          string
 				PollingInterval string
+				TargetNamespace string
 			}{
 				gitrepoName,
 				inClusterRepoURL,
 				gh.Branch,
-				"15s", // default
+				"15s",           // default
+				targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -90,7 +94,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		It("updates the deployment", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
-				out, _ := k.Namespace("default").Get("pods")
+				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
 			}).Should(ContainSubstring("sleeper-"))
 
@@ -109,7 +113,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 			By("checking the deployment's new name")
 			Eventually(func() string {
-				out, _ := k.Namespace("default").Get("deployments")
+				out, _ := k.Namespace(targetNamespace).Get("deployments")
 				return out
 			}).Should(ContainSubstring("newsleep"))
 		})
@@ -180,11 +184,13 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				Repo            string
 				Branch          string
 				PollingInterval string
+				TargetNamespace string
 			}{
 				gitrepoName,
 				inClusterRepoURL,
 				gh.Branch,
-				"24h", // prevent polling
+				"24h",           // prevent polling
+				targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -196,7 +202,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		It("updates the deployment", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
-				out, _ := k.Namespace("default").Get("pods")
+				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
 			}).Should(ContainSubstring("sleeper-"))
 
@@ -215,7 +221,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 			By("checking the deployment's new name")
 			Eventually(func() string {
-				out, _ := k.Namespace("default").Get("deployments")
+				out, _ := k.Namespace(targetNamespace).Get("deployments")
 				return out
 			}).Should(ContainSubstring("newsleep"))
 		}, Label("webhook"))
