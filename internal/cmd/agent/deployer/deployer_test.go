@@ -33,13 +33,13 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "namespace1234",
-					Labels: map[string]string{"name": "namespace"},
+					Labels: map[string]string{"kubernetes.io/metadata.name": "namespace"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"name": "namespace", "optLabel1": "optValue1", "optLabel2": "optValue2"},
+					Labels:      map[string]string{"kubernetes.io/metadata.name": "namespace", "optLabel1": "optValue1", "optLabel2": "optValue2"},
 					Annotations: map[string]string{"optAnn1": "optValue1"},
 				},
 			},
@@ -55,14 +55,14 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "namespace1234",
-					Labels:      map[string]string{"nsLabel": "nsValue", "name": "namespace"},
+					Labels:      map[string]string{"nsLabel": "nsValue", "kubernetes.io/metadata.name": "namespace"},
 					Annotations: map[string]string{"nsAnn": "nsValue"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"optLabel": "optValue", "name": "namespace"},
+					Labels:      map[string]string{"optLabel": "optValue", "kubernetes.io/metadata.name": "namespace"},
 					Annotations: map[string]string{},
 				},
 			},
@@ -78,14 +78,14 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        "namespace1234",
-					Labels:      map[string]string{"bdLabel": "nsValue", "name": "namespace"},
+					Labels:      map[string]string{"bdLabel": "nsValue", "kubernetes.io/metadata.name": "namespace"},
 					Annotations: map[string]string{"bdAnn": "nsValue"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"bdLabel": "labelUpdated", "name": "namespace"},
+					Labels:      map[string]string{"bdLabel": "labelUpdated", "kubernetes.io/metadata.name": "namespace"},
 					Annotations: map[string]string{"bdAnn": "annUpdated"},
 				},
 			},
