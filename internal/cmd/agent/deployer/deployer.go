@@ -166,7 +166,7 @@ func (d *Deployer) fetchNamespace(ctx context.Context, releaseID string) (*corev
 	namespace := strings.Split(releaseID, "/")[0]
 	list := &corev1.NamespaceList{}
 	err := d.client.List(ctx, list, client.MatchingLabels{
-		"name": namespace,
+		corev1.LabelMetadataName: namespace,
 	})
 	if err != nil {
 		return nil, err
@@ -184,9 +184,9 @@ func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]strin
 	}
 
 	// Delete labels not defined in the options.
-	// Keep the name label as it is added by helm when creating the namespace.
+	// Keep the corev1.LabelMetadataName label as it is added by kubernetes when creating the namespace.
 	for k := range nsLabels {
-		if _, ok := optLabels[k]; k != "name" && !ok {
+		if _, ok := optLabels[k]; k != corev1.LabelMetadataName && !ok {
 			delete(nsLabels, k)
 		}
 	}
