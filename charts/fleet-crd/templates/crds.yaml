@@ -50,6 +50,7 @@ spec:
                 correctDrift:
                   description: CorrectDrift specifies how drift correction should
                     work.
+                  nullable: true
                   properties:
                     enabled:
                       description: Enabled correct drift if true.
@@ -137,6 +138,7 @@ spec:
                     correctDrift:
                       description: CorrectDrift specifies how drift correction should
                         work.
+                      nullable: true
                       properties:
                         enabled:
                           description: Enabled correct drift if true.
@@ -441,6 +443,7 @@ spec:
                     correctDrift:
                       description: CorrectDrift specifies how drift correction should
                         work.
+                      nullable: true
                       properties:
                         enabled:
                           description: Enabled correct drift if true.
@@ -1081,6 +1084,7 @@ spec:
                 correctDrift:
                   description: CorrectDrift specifies how drift correction should
                     work.
+                  nullable: true
                   properties:
                     enabled:
                       description: Enabled correct drift if true.
@@ -1847,6 +1851,7 @@ spec:
                       correctDrift:
                         description: CorrectDrift specifies how drift correction should
                           work.
+                        nullable: true
                         properties:
                           enabled:
                             description: Enabled correct drift if true.
@@ -4920,6 +4925,7 @@ spec:
                 correctDrift:
                   description: CorrectDrift specifies how drift correction should
                     work.
+                  nullable: true
                   properties:
                     enabled:
                       description: Enabled correct drift if true.
