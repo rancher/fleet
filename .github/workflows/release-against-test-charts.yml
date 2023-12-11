@@ -166,4 +166,4 @@ jobs:
       - name: Push to custom branch
         run: |
           cd charts
-          git push https://${{secrets.CI_PUSH_TO_FLEETREPOCI}}@github.com/$charts_repo.git $target_branch
+          git push https://${{secrets.CI_PUSH_TO_FLEETREPOCI}}@github.com/$charts_repo $target_branch
