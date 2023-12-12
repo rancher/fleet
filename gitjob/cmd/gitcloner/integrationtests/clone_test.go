@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rancher/gitjob/cmd/gitcloner/cmd"
+	"github.com/rancher/gitjob/cmd/gitcloner/gogit"
+
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -21,8 +24,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	cp "github.com/otiai10/copy"
-	"github.com/rancher/gitjob/cmd/gitcloner/cmd"
-	"github.com/rancher/gitjob/cmd/gitcloner/gogit"
 	"github.com/testcontainers/testcontainers-go"
 	"golang.org/x/crypto/ssh"
 )
@@ -253,8 +254,9 @@ var _ = Describe("Applying a git job gets content from git repo", func() {
 
 			JustBeforeEach(func() {
 				c := gogit.NewCloner()
-				cloneErr = c.CloneRepo(opts)
-				Expect(cloneErr).NotTo(HaveOccurred())
+				Eventually(func() error {
+					return c.CloneRepo(opts)
+				}).ShouldNot(HaveOccurred())
 			})
 
 			It("clones the README.md file", func() {

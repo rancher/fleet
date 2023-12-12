@@ -1,4 +1,18 @@
 {
+  "linters-settings": {
+    "revive": {
+      "rules": [
+        {
+          "name": "blank-imports",
+          "severity": "warning"
+        },
+        {
+          "name": "unexported-return",
+          "severity": "warning"
+        }
+      ]
+    }
+  },
   "linters": {
     "disable-all": true,
     "enable": [

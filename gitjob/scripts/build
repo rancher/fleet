@@ -18,14 +18,12 @@ if [ "$(uname)" = "Linux" ]; then
     fi
 fi
 
-LINKFLAGS="-X github.com/rancher/gitjob.Version=$VERSION"
-LINKFLAGS="-X github.com/rancher/gitjob.GitCommit=$COMMIT $LINKFLAGS"
-CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/gitjob
-CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$LINKFLAGS $OTHER_LINKFLAGS" -o bin/gitcloner ./cmd/gitcloner
+CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$OTHER_LINKFLAGS" -o bin/gitjob
+CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$OTHER_LINKFLAGS" -o bin/gitcloner ./cmd/gitcloner
 
 if [ "$CROSS" = "true" ] && [ "$ARCH" = "amd64" ]; then
-    GOOS=darwin go build -gcflags="all=${GCFLAGS}" -ldflags "$LINKFLAGS" -o bin/gitjob-darwin
-    GOOS=windows go build -gcflags="all=${GCFLAGS}" -ldflags "$LINKFLAGS" -o bin/gitjob-windows
-    GOOS=darwin go build -gcflags="all=${GCFLAGS}" -ldflags "$LINKFLAGS" -o bin/gitcloner-darwin ./cmd/gitcloner
-    GOOS=windows go build -gcflags="all=${GCFLAGS}" -ldflags "$LINKFLAGS" -o bin/gitcloner-windows ./cmd/gitcloner
+    GOOS=darwin go build -gcflags="all=${GCFLAGS}" -o bin/gitjob-darwin
+    GOOS=windows go build -gcflags="all=${GCFLAGS}" -o bin/gitjob-windows
+    GOOS=darwin go build -gcflags="all=${GCFLAGS}" -o bin/gitcloner-darwin ./cmd/gitcloner
+    GOOS=windows go build -gcflags="all=${GCFLAGS}" -o bin/gitcloner-windows ./cmd/gitcloner
 fi

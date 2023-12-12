@@ -2,100 +2,144 @@ package webhook
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 
+	"github.com/go-logr/logr"
+	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/gorilla/mux"
+	corev1 "k8s.io/api/core/v1"
+	kcache "k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+
 	"github.com/Masterminds/semver/v3"
 	gogsclient "github.com/gogits/go-gogs-client"
-	"github.com/gorilla/mux"
-	v1controller "github.com/rancher/gitjob/pkg/generated/controllers/gitjob.cattle.io/v1"
-	"github.com/rancher/gitjob/pkg/types"
-	corev1controller "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
+	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/go-playground/webhooks.v5/bitbucket"
 	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"
 	"gopkg.in/go-playground/webhooks.v5/github"
 	"gopkg.in/go-playground/webhooks.v5/gitlab"
 	"gopkg.in/go-playground/webhooks.v5/gogs"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	ktypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	webhookSecretName = "gitjob-webhook" //nolint:gosec // this is a resource name
-
-	githubKey          = "github"
-	gitlabKey          = "gitlab"
-	bitbucketKey       = "bitbucket"
-	bitbucketServerKey = "bitbucket-server"
-	gogsKey            = "gogs"
+	webhookSecretName          = "gitjob-webhook" //nolint:gosec // this is a resource name
+	webhookDefaultSyncInterval = 3600
+	githubKey                  = "github"
+	gitlabKey                  = "gitlab"
+	bitbucketKey               = "bitbucket"
+	bitbucketServerKey         = "bitbucket-server"
+	gogsKey                    = "gogs"
 
 	branchRefPrefix = "refs/heads/"
 	tagRefPrefix    = "refs/tags/"
 )
 
 type Webhook struct {
-	gitjobs   v1controller.GitJobController
-	secrets   corev1controller.SecretController
-	namespace string
-
+	client          client.Client
+	namespace       string
 	github          *github.Webhook
 	gitlab          *gitlab.Webhook
 	bitbucket       *bitbucket.Webhook
 	bitbucketServer *bitbucketserver.Webhook
 	gogs            *gogs.Webhook
+	log             logr.Logger
 }
 
-func New(ctx context.Context, rContext *types.Context) *Webhook {
+func New(namespace string, client client.Client) (*Webhook, error) {
 	webhook := &Webhook{
-		gitjobs:   rContext.Gitjob.Gitjob().V1().GitJob(),
-		secrets:   rContext.Core.Core().V1().Secret(),
-		namespace: rContext.Namespace,
+		client:    client,
+		namespace: namespace,
+		log:       ctrl.Log.WithName("webhook"),
+	}
+	err := webhook.initGitProviders()
+	if err != nil {
+		return nil, err
 	}
 
-	rContext.Core.Core().V1().Secret().OnChange(ctx, "webhook-secret", webhook.onSecretChange)
-	return webhook
+	return webhook, nil
 }
 
-func (w *Webhook) onSecretChange(_ string, secret *corev1.Secret) (*corev1.Secret, error) {
-	if secret == nil || secret.DeletionTimestamp != nil {
-		return nil, nil
+func (w *Webhook) initGitProviders() error {
+	var err error
+
+	w.github, err = github.New()
+	if err != nil {
+		return err
+	}
+	w.gitlab, err = gitlab.New()
+	if err != nil {
+		return err
+	}
+	w.bitbucket, err = bitbucket.New()
+	if err != nil {
+		return err
+	}
+	w.bitbucketServer, err = bitbucketserver.New()
+	if err != nil {
+		return err
+	}
+	w.gogs, err = gogs.New()
+	if err != nil {
+		return err
 	}
 
+	return nil
+}
+
+func (w *Webhook) onSecretChange(obj interface{}) error {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		return fmt.Errorf("expected secret object but got %T", obj)
+	}
 	if secret.Name != webhookSecretName && secret.Namespace != w.namespace {
-		return nil, nil
+		return nil
 	}
 
 	var err error
-	w.github, err = github.New(github.Options.Secret(string(secret.Data[githubKey])))
+	github, err := github.New(github.Options.Secret(string(secret.Data[githubKey])))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	w.gitlab, err = gitlab.New(gitlab.Options.Secret(string(secret.Data[gitlabKey])))
+	w.github = github
+	gitlab, err := gitlab.New(gitlab.Options.Secret(string(secret.Data[gitlabKey])))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	w.bitbucket, err = bitbucket.New(bitbucket.Options.UUID(string(secret.Data[bitbucketKey])))
+	w.gitlab = gitlab
+	bitbucket, err := bitbucket.New(bitbucket.Options.UUID(string(secret.Data[bitbucketKey])))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	w.bitbucketServer, err = bitbucketserver.New(bitbucketserver.Options.Secret(string(secret.Data[bitbucketServerKey])))
+	w.bitbucket = bitbucket
+	bitbucketServer, err := bitbucketserver.New(bitbucketserver.Options.Secret(string(secret.Data[bitbucketServerKey])))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	w.gogs, err = gogs.New(gogs.Options.Secret(string(secret.Data[gogsKey])))
+	w.bitbucketServer = bitbucketServer
+	gogs, err := gogs.New(gogs.Options.Secret(string(secret.Data[gogsKey])))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return nil, nil
+	w.gogs = gogs
+
+	return nil
 }
 
 func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// credit from https://github.com/argoproj/argo-cd/blob/97003caebcaafe1683e71934eb483a88026a4c33/util/webhook/webhook.go#L327-L350
 	var payload interface{}
 	var err error
+	ctx := r.Context()
 
 	switch {
 	//Gogs needs to be checked before Github since it carries both Gogs and (incompatible) Github headers
@@ -170,7 +214,8 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		revision = t.After
 	}
 
-	gitjobs, err := w.gitjobs.Cache().List("", labels.Everything())
+	var gitJobList v1.GitJobList
+	err = w.client.List(ctx, &gitJobList, &client.ListOptions{LabelSelector: labels.Everything()})
 	if err != nil {
 		logAndReturn(rw, err)
 		return
@@ -188,7 +233,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			logAndReturn(rw, err)
 			return
 		}
-		for _, gitjob := range gitjobs {
+		for _, gitjob := range gitJobList.Items {
 			if gitjob.Spec.Git.Revision != "" {
 				continue
 			}
@@ -223,21 +268,22 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			dp := gitjob.DeepCopy()
-			if dp.Status.Commit != revision && revision != "" {
-				dp.Status.Commit = revision
-				newObj, err := w.gitjobs.UpdateStatus(dp)
-				if err != nil {
+			if gitjob.Status.Commit != revision && revision != "" {
+				if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+					var gitJobFomCluster v1.GitJob
+					err := w.client.Get(ctx, ktypes.NamespacedName{Name: gitjob.Name, Namespace: gitjob.Namespace}, &gitJobFomCluster)
+					if err != nil {
+						return err
+					}
+					gitJobFomCluster.Status.Commit = revision
+					// if syncInterval is not set and webhook is configured, set it to 1 hour
+					if gitjob.Spec.SyncInterval == 0 {
+						gitJobFomCluster.Spec.SyncInterval = webhookDefaultSyncInterval
+					}
+					return w.client.Status().Update(ctx, &gitJobFomCluster)
+				}); err != nil {
 					logAndReturn(rw, err)
 					return
-				}
-				// if syncInterval is not set and webhook is configured, set it to 1 hour
-				if newObj.Spec.SyncInterval == 0 {
-					newObj.Spec.SyncInterval = 3600
-					if _, err := w.gitjobs.Update(newObj); err != nil {
-						logAndReturn(rw, err)
-						return
-					}
 				}
 			}
 		}
@@ -246,19 +292,53 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	rw.Write([]byte("succeeded"))
 }
 
+func HandleHooks(ctx context.Context, namespace string, client client.Client, clientCache cache.Cache) (http.Handler, error) {
+	root := mux.NewRouter()
+	webhook, err := New(namespace, client)
+	if err != nil {
+		return nil, err
+	}
+	root.UseEncodedPath()
+	root.Handle("/", webhook)
+
+	var secret corev1.Secret
+	informer, err := clientCache.GetInformer(ctx, &secret)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			err := webhook.onSecretChange(obj)
+			if err != nil {
+				webhook.log.Error(err, "new secret added")
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			err := webhook.initGitProviders()
+			if err != nil {
+				webhook.log.Error(err, "secret deleted")
+			}
+		},
+		UpdateFunc: func(_, newObj interface{}) {
+			err := webhook.onSecretChange(newObj)
+			if err != nil {
+				webhook.log.Error(err, "secret updated")
+			}
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return root, nil
+}
+
 func logAndReturn(rw http.ResponseWriter, err error) {
 	logrus.Errorf("Webhook processing failed: %s", err)
 	rw.WriteHeader(500)
 	rw.Write([]byte(err.Error()))
 	return
-}
-
-func HandleHooks(ctx context.Context, rContext *types.Context) http.Handler {
-	root := mux.NewRouter()
-	webhook := New(ctx, rContext)
-	root.UseEncodedPath()
-	root.Handle("/", webhook)
-	return root
 }
 
 // git ref docs: https://git-scm.com/book/en/v2/Git-Internals-Git-References

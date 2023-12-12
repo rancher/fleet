@@ -14,6 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/rancher/gitjob/pkg/mocks"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -28,8 +35,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"golang.org/x/crypto/ssh"
 	v1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 /*
@@ -50,6 +55,8 @@ var (
 )
 
 func TestLatestCommit_NoAuth(t *testing.T) {
+	ctlr := gomock.NewController(t)
+	defer ctlr.Finish()
 	ctx := context.Background()
 	container, url, err := createGogsContainer(ctx, createTempFolder(t))
 	require.NoError(t, err)
@@ -88,8 +95,10 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			secretGetter := &secretGetterMock{err: kerrors.NewNotFound(schema.GroupResource{}, "notfound")}
-			latestCommit, err := git.LatestCommit(test.gitjob, secretGetter)
+			f := git.Fetch{}
+			client := mocks.NewMockClient(ctlr)
+			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound"))
+			latestCommit, err := f.LatestCommit(ctx, test.gitjob, client)
 			if err != test.expectedErr {
 				t.Errorf("expecter error is: %v, but got %v", test.expectedErr, err)
 			}
@@ -102,6 +111,8 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 }
 
 func TestLatestCommit_BasicAuth(t *testing.T) {
+	ctlr := gomock.NewController(t)
+	defer ctlr.Finish()
 	ctx := context.Background()
 	container, url, err := createGogsContainer(ctx, createTempFolder(t))
 	require.NoError(t, err)
@@ -141,11 +152,16 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			secret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      git.DefaultSecretName,
+					Namespace: test.gitjob.Namespace,
+				},
 				Data: map[string][]byte{v1.BasicAuthUsernameKey: []byte(gogsUser), v1.BasicAuthPasswordKey: []byte(gogsPass)},
 				Type: v1.SecretTypeBasicAuth,
 			}
-			secretGetter := &secretGetterMock{secret: secret}
-			latestCommit, err := git.LatestCommit(test.gitjob, secretGetter)
+			f := git.Fetch{}
+			client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
+			latestCommit, err := f.LatestCommit(ctx, test.gitjob, client)
 			if err != test.expectedErr {
 				t.Errorf("expecter error is: %v, but got %v", test.expectedErr, err)
 			}
@@ -157,6 +173,8 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 }
 
 func TestLatestCommitSSH(t *testing.T) {
+	ctlr := gomock.NewController(t)
+	defer ctlr.Finish()
 	ctx := context.Background()
 	container, _, err := createGogsContainer(ctx, createTempFolder(t))
 	require.NoError(t, err)
@@ -230,14 +248,19 @@ func TestLatestCommitSSH(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			secret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      git.DefaultSecretName,
+					Namespace: test.gitjob.Namespace,
+				},
 				Data: map[string][]byte{
 					v1.SSHAuthPrivateKey: []byte(privateKey),
 					"known_hosts":        test.knownHosts,
 				},
 				Type: v1.SecretTypeSSHAuth,
 			}
-			secretGetter := &secretGetterMock{secret: secret}
-			latestCommit, err := git.LatestCommit(test.gitjob, secretGetter)
+			client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
+			f := git.Fetch{}
+			latestCommit, err := f.LatestCommit(ctx, test.gitjob, client)
 
 			if !reflect.DeepEqual(err, test.expectedErr) {
 				t.Errorf("expecter error is: %v, but got %v", test.expectedErr, err)
@@ -451,16 +474,4 @@ func terminateContainer(ctx context.Context, container testcontainers.Container,
 	if err := container.Terminate(ctx); err != nil {
 		t.Fatalf("failed to terminate container: %s", err.Error())
 	}
-}
-
-type secretGetterMock struct {
-	secret *v1.Secret
-	err    error
-}
-
-func (s *secretGetterMock) Get(string, string) (*v1.Secret, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	return s.secret, nil
 }

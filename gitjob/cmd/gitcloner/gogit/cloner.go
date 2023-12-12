@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/rancher/gitjob/cmd/gitcloner/cmd"
+
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
-	"github.com/rancher/gitjob/cmd/gitcloner/cmd"
+
 	giturls "github.com/rancher/gitjob/pkg/git-urls"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"

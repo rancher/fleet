@@ -23,10 +23,12 @@ jobs:
           check-latest: true
 
       - name: gitjob integration-test
-        run: go test -v ./integrationtests/...
         env:
+          SETUP_ENVTEST_VER: v0.0.0-20221214170741-69f093833822
+          ENVTEST_K8S_VERSION: 1.25
           TESTCONTAINERS_RYUK_DISABLED: true
-          
+        run: ./.github/scripts/run-integration-tests.sh
+
       - name: git cloner integration-test
         run: go test -v ./cmd/gitcloner/integrationtests/...
         env:
