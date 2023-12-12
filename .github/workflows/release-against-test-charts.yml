@@ -112,6 +112,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{secrets.CI_PUSH_TO_FLEETREPOCI}}
           repository: ${{ env.charts_repo }}
           path: charts
 
@@ -169,4 +170,4 @@ jobs:
       - name: Push to custom branch
         run: |
           cd charts
-          git push https://${{secrets.CI_PUSH_TO_FLEETREPOCI}}@github.com/$charts_repo $target_branch
+          git push -u origin $target_branch
