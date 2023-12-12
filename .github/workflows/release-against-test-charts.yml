@@ -23,6 +23,9 @@ on:
 env:
   GOARCH: amd64
 
+permissions:
+  contents: write
+
 jobs:
   create-rancher-charts-pr:
     runs-on: ubuntu-latest
