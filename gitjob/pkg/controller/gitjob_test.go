@@ -1,21 +1,92 @@
-package gitjob
+//go:generate mockgen --build_flags=--mod=mod -destination=../mocks/poller_mock.go -package=mocks github.com/rancher/gitjob/pkg/controller GitPoller
+//go:generate mockgen --build_flags=--mod=mod -destination=../mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+
+package controller
 
 import (
+	"context"
 	"testing"
 
-	v1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+	"github.com/google/go-cmp/cmp"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/golang/mock/gomock"
-	"github.com/google/go-cmp/cmp"
-	corev1controller "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler/v2/pkg/generic/fake"
-	corev1 "k8s.io/api/core/v1"
+	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+	"github.com/rancher/gitjob/pkg/mocks"
+	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
-func TestGenerateJob(t *testing.T) {
-	ctrl := gomock.NewController(t)
+func TestReconcile_AddOrModifyGitRepoWatchIsCalled_WhenGitRepoIsCreatedOrModified(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	scheme := runtime.NewScheme()
+	utilruntime.Must(gitjobv1.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	gitJob := gitjobv1.GitJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gitjob",
+			Namespace: "default",
+		},
+	}
+	namespacedName := types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}
+	ctx := context.TODO()
+	client := mocks.NewMockClient(mockCtrl)
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	statusClient.EXPECT().Update(ctx, gomock.Any())
+	client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	client.EXPECT().Status().Return(statusClient)
+	poller := mocks.NewMockGitPoller(mockCtrl)
+	poller.EXPECT().AddOrModifyGitRepoWatch(ctx, gomock.Any()).Times(1)
+	poller.EXPECT().CleanUpWatches(ctx).Times(0)
 
+	r := GitJobReconciler{
+		Client:    client,
+		Scheme:    scheme,
+		Image:     "",
+		GitPoller: poller,
+	}
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+}
+
+func TestReconcile_PurgeWatchesIsCalled_WhenGitRepoIsCreatedOrModified(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	scheme := runtime.NewScheme()
+	utilruntime.Must(gitjobv1.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	ctx := context.TODO()
+	namespacedName := types.NamespacedName{Name: "gitJob", Namespace: "default"}
+	client := mocks.NewMockClient(mockCtrl)
+	client.EXPECT().Get(ctx, namespacedName, gomock.Any()).Times(1).Return(errors.NewNotFound(schema.GroupResource{}, "NotFound"))
+	poller := mocks.NewMockGitPoller(mockCtrl)
+	poller.EXPECT().AddOrModifyGitRepoWatch(ctx, gomock.Any()).Times(0)
+	poller.EXPECT().CleanUpWatches(ctx).Times(1)
+
+	r := GitJobReconciler{
+		Client:    client,
+		Scheme:    scheme,
+		Image:     "",
+		GitPoller: poller,
+	}
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+}
+
+func TestNewJob(t *testing.T) {
 	securityContext := &corev1.SecurityContext{
 		AllowPrivilegeEscalation: &[]bool{false}[0],
 		ReadOnlyRootFilesystem:   &[]bool{true}[0],
@@ -26,17 +97,26 @@ func TestGenerateJob(t *testing.T) {
 			Type: corev1.SeccompProfileTypeRuntimeDefault,
 		},
 	}
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	scheme := runtime.NewScheme()
+	utilruntime.Must(gitjobv1.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	ctx := context.TODO()
+	poller := mocks.NewMockGitPoller(mockCtrl)
+	poller.EXPECT().AddOrModifyGitRepoWatch(ctx, gomock.Any()).AnyTimes()
+	poller.EXPECT().CleanUpWatches(ctx).AnyTimes()
 
 	tests := map[string]struct {
-		gitjob                 *v1.GitJob
-		secret                 corev1controller.SecretCache
+		gitjob                 *gitjobv1.GitJob
+		client                 client.Client
 		expectedInitContainers []corev1.Container
 		expectedVolumes        []corev1.Volume
 		expectedErr            error
 	}{
 		"simple (no credentials, no ca, no skip tls)": {
-			gitjob: &v1.GitJob{
-				Spec: v1.GitJobSpec{Git: v1.GitInfo{Repo: "repo"}},
+			gitjob: &gitjobv1.GitJob{
+				Spec: gitjobv1.GitJobSpec{Git: gitjobv1.GitInfo{Repo: "repo"}},
 			},
 			expectedInitContainers: []corev1.Container{
 				{
@@ -73,13 +153,14 @@ func TestGenerateJob(t *testing.T) {
 					},
 				},
 			},
+			client: fake.NewFakeClient(),
 		},
 		"http credentials": {
-			gitjob: &v1.GitJob{
-				Spec: v1.GitJobSpec{
-					Git: v1.GitInfo{
+			gitjob: &gitjobv1.GitJob{
+				Spec: gitjobv1.GitJobSpec{
+					Git: gitjobv1.GitInfo{
 						Repo: "repo",
-						Credential: v1.Credential{
+						Credential: gitjobv1.Credential{
 							ClientSecretName: "secretName",
 						},
 					},
@@ -132,14 +213,14 @@ func TestGenerateJob(t *testing.T) {
 					},
 				},
 			},
-			secret: httpSecretMock(ctrl),
+			client: httpSecretMock(),
 		},
 		"ssh credentials": {
-			gitjob: &v1.GitJob{
-				Spec: v1.GitJobSpec{
-					Git: v1.GitInfo{
+			gitjob: &gitjobv1.GitJob{
+				Spec: gitjobv1.GitJobSpec{
+					Git: gitjobv1.GitInfo{
 						Repo: "repo",
-						Credential: v1.Credential{
+						Credential: gitjobv1.Credential{
 							ClientSecretName: "secretName",
 						},
 					},
@@ -192,13 +273,13 @@ func TestGenerateJob(t *testing.T) {
 					},
 				},
 			},
-			secret: sshSecretMock(ctrl),
+			client: sshSecretMock(),
 		},
 		"custom CA": {
-			gitjob: &v1.GitJob{
-				Spec: v1.GitJobSpec{
-					Git: v1.GitInfo{
-						Credential: v1.Credential{
+			gitjob: &gitjobv1.GitJob{
+				Spec: gitjobv1.GitJobSpec{
+					Git: gitjobv1.GitInfo{
+						Credential: gitjobv1.Credential{
 							CABundle: []byte("ca"),
 						},
 						Repo: "repo",
@@ -254,10 +335,10 @@ func TestGenerateJob(t *testing.T) {
 			},
 		},
 		"skip tls": {
-			gitjob: &v1.GitJob{
-				Spec: v1.GitJobSpec{
-					Git: v1.GitInfo{
-						Credential: v1.Credential{
+			gitjob: &gitjobv1.GitJob{
+				Spec: gitjobv1.GitJobSpec{
+					Git: gitjobv1.GitInfo{
+						Credential: gitjobv1.Credential{
 							InsecureSkipTLSverify: true,
 						},
 						Repo: "repo",
@@ -304,11 +385,13 @@ func TestGenerateJob(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			h := Handler{
-				image:   "test",
-				secrets: test.secret,
+			r := GitJobReconciler{
+				Client:    test.client,
+				Scheme:    scheme,
+				Image:     "test",
+				GitPoller: poller,
 			}
-			job, err := h.generateJob(test.gitjob)
+			job, err := r.newJob(ctx, test.gitjob)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -322,29 +405,29 @@ func TestGenerateJob(t *testing.T) {
 	}
 }
 
-func httpSecretMock(ctrl *gomock.Controller) corev1controller.SecretCache {
-	secretmock := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-	secretmock.EXPECT().Get(gomock.Any(), gomock.Any()).Return(&corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{},
+func httpSecretMock() client.Client {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+
+	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
 		Data: map[string][]byte{
 			corev1.BasicAuthUsernameKey: []byte("user"),
 			corev1.BasicAuthPasswordKey: []byte("pass"),
 		},
 		Type: corev1.SecretTypeBasicAuth,
-	}, nil)
-
-	return secretmock
+	}).Build()
 }
 
-func sshSecretMock(ctrl *gomock.Controller) corev1controller.SecretCache {
-	secretmock := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
-	secretmock.EXPECT().Get(gomock.Any(), gomock.Any()).Return(&corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{},
+func sshSecretMock() client.Client {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+
+	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
 		Data: map[string][]byte{
 			corev1.SSHAuthPrivateKey: []byte("ssh key"),
 		},
 		Type: corev1.SecretTypeSSHAuth,
-	}, nil)
-
-	return secretmock
+	}).Build()
 }
