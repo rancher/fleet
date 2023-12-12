@@ -163,7 +163,11 @@ jobs:
 
           ./fleet/.github/scripts/release-against-test-charts.sh $prev_fleet $fleet_version $prev_chart 999.9.9 ${{ steps.uuid.outputs.uuid }}
 
+          cd ./charts
+
       - name: Push to custom branch
-        run: |
-          cd charts
-          git push https://${{secrets.CI_PUSH_TO_FLEETREPOCI}}@github.com/$charts_repo $target_branch
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{secrets.CI_PUSH_TO_FLEETREPOCI}}
+          branch: $target_branch
+          repository: $charts_repo
