@@ -27,7 +27,7 @@ permissions:
   contents: write
 
 jobs:
-  create-rancher-charts-pr:
+  push-test-rancher-charts:
     runs-on: ubuntu-latest
     steps:
       - name: Set environment variables
@@ -171,3 +171,13 @@ jobs:
         run: |
           cd charts
           git push -u origin $target_branch
+
+  test-fleet-in-rancher:
+    uses: ./.github/workflows/rancher-integration.yml
+    secrets:
+      pat_token: ${{ secrets.GITHUB_TOKEN }}
+    with:
+      ref: ${{ github.ref }}
+      cluster_name: fleet-test-rancher-k3s
+      destroy_runner: true
+      # TODO add chart branch and version parameters once supported by Rancher
