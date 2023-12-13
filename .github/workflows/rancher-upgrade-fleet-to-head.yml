@@ -22,10 +22,12 @@ on:
         description: "checkout git branch/tag"
         required: true
         default: "main"
+        type: string
       enable_tmate:
         description: 'Enable debugging via tmate'
         required: false
-        default: "false"
+        default: false
+        type: boolean
       cluster_name:
         description: Name of the provisioned cluster
         required: true
