@@ -81,3 +81,9 @@ propagateDebugSettingsToAgents: true
 
 migrations:
   clusterRegistrationCleanup: true
+
+## Leader election configuration
+leaderElection:
+  leaseDuration: 30s
+  retryPeriod: 10s
+  renewDeadline: 25s
