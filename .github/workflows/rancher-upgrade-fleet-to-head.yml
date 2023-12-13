@@ -5,7 +5,18 @@ on:
   schedule:
     # Run everyday day at 1:00 PM
     - cron:  '0 13 * * *'
-  workflow_dispatch:
+  workflow_call:
+    # Variables to set when calling this reusable workflow
+    secrets:
+      pat_token:
+        # A token is needed to be able to add runner on the repo, maybe this can be changed later
+        # This token is linked to a personal account
+        # So in case of token issue you have to check (no specific order and for example):
+        # - the expiration date
+        # - if the account associated still exists
+        # - if the person still has access to the repo
+        description: PAT token used to add runner
+        required: true
     inputs:
       ref:
         description: "checkout git branch/tag"
@@ -18,12 +29,6 @@ on:
       cluster_name:
         description: Name of the provisioned cluster
         required: true
-        type: string
-      cluster_number:
-        description: Number of clusters to deploy in multi-cluster test
-        type: string
-      cluster_type:
-        description: Cluster type (empty if normal or hardened)
         type: string
       destroy_runner:
         description: Destroy the auto-generated self-hosted runner
@@ -41,6 +46,7 @@ on:
         description: GCP zone to host the runner
         default: us-central1-a
         type: string
+      # TODO add rancher charts branch + version parameters (when supported)
   push:
     tags: [ 'v*' ]
     paths-ignore:
@@ -72,7 +78,7 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: ${{ secrets.credentials }}
+          credentials_json: '${{ secrets.CI_GOOGLE_CREDENTIALS }}'
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
       - name: Create runner
@@ -235,6 +241,7 @@ jobs:
         env:
           public_hostname: "172.18.0.1.omg.howdoi.website"
         run: |
+          # TODO edit script to use test branch?
           ./.github/scripts/setup-latest-rancher.sh
       -
         name: Register Rancher's downstream clusters
@@ -297,7 +304,7 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: ${{ secrets.credentials }}
+          credentials_json: ${{ secrets.CI_GOOGLE_CREDENTIALS }}
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
       - name: Delete PAT token secret
