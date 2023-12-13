@@ -8,6 +8,9 @@ on:
   workflow_call:
     # Variables to set when calling this reusable workflow
     secrets:
+      credentials:
+        description: Credentials to use to connect
+        required: true
       pat_token:
         # A token is needed to be able to add runner on the repo, maybe this can be changed later
         # This token is linked to a personal account
@@ -77,10 +80,12 @@ jobs:
           UUID=$(uuidgen)
           echo "uuid=${UUID}" >> ${GITHUB_OUTPUT}
           echo "runner=fleet-ci-${UUID}" >> ${GITHUB_OUTPUT}
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: '${{ secrets.CI_GOOGLE_CREDENTIALS }}'
+          credentials_json: ${{ secrets.credentials }}
+
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
       - name: Create runner
@@ -306,7 +311,7 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: ${{ secrets.CI_GOOGLE_CREDENTIALS }}
+          credentials_json: ${{ secrets.credentials }}
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
       - name: Delete PAT token secret

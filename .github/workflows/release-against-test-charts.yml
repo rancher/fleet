@@ -166,6 +166,7 @@ jobs:
   test-fleet-in-rancher:
     uses: ./.github/workflows/rancher-integration.yml
     secrets:
+      credentials: ${{ secrets.CI_GOOGLE_CREDENTIALS }}
       pat_token: ${{ secrets.GITHUB_TOKEN }}
     with:
       ref: ${{ github.ref }}
