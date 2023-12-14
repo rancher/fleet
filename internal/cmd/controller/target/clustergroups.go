@@ -1,11 +1,12 @@
 package target
 
 import (
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sync"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 type clusterGroupEntry struct {
@@ -53,7 +54,6 @@ func (s *ClusterGroupStore) Store(key string, cg *fleet.ClusterGroup) {
 
 	entry := newEntry(cg)
 	s.setEntry(key, entry)
-	return
 }
 
 func (s *ClusterGroupStore) setEntry(key string, entry *clusterGroupEntry) {
@@ -61,7 +61,6 @@ func (s *ClusterGroupStore) setEntry(key string, entry *clusterGroupEntry) {
 	defer s.mu.Unlock()
 
 	s.store[key] = entry
-	return
 }
 
 func (s *ClusterGroupStore) Delete(key string) {
