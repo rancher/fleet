@@ -133,6 +133,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.BundleDeployment())
 
 	clustergroup.Register(ctx,
+		appCtx.TargetManager.ClusterGroupStore,
 		appCtx.Cluster(),
 		appCtx.ClusterGroup())
 
