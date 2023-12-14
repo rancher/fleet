@@ -54,6 +54,7 @@ type Manager struct {
 	bundleNamespaceMappingCache fleetcontrollers.BundleNamespaceMappingCache
 	namespaceCache              corecontrollers.NamespaceCache
 	contentStore                manifest.Store
+	ClusterGroupStore           *ClusterGroupStore
 }
 
 func New(
@@ -78,6 +79,7 @@ func New(
 	return &Manager{
 		clusterGroups:               clusterGroups,
 		clusters:                    clusters,
+		ClusterGroupStore:           newClusterGroupStore(),
 		bundleDeploymentCache:       bundleDeployments,
 		bundleNamespaceMappingCache: bundleNamespaceMappingCache,
 		bundleCache:                 bundles,
@@ -114,15 +116,16 @@ func (m *Manager) clusterGroupsForCluster(cluster *fleet.Cluster) (result []*fle
 	}
 
 	for _, cg := range cgs {
-		if cg.Spec.Selector == nil {
+		// Dynamically building selectors is expensive, only do it on ClusterGroup changes
+		sel, err := m.ClusterGroupStore.GetSelector(cg)
+		if sel == nil {
+			if err != nil {
+				logrus.Errorf("invalid selector on clusterGroup %s/%s [%v]: %v", cg.Namespace, cg.Name,
+					cg.Spec.Selector, err)
+			}
 			continue
 		}
-		sel, err := metav1.LabelSelectorAsSelector(cg.Spec.Selector)
-		if err != nil {
-			logrus.Errorf("invalid selector on clusterGroup %s/%s [%v]: %v", cg.Namespace, cg.Name,
-				cg.Spec.Selector, err)
-			continue
-		}
+
 		if sel.Matches(labels.Set(cluster.Labels)) {
 			result = append(result, cg)
 		}

@@ -3,6 +3,7 @@ package clustergroup
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sort"
 
 	"github.com/sirupsen/logrus"
@@ -16,7 +17,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
+type Store interface {
+	Store(string, *fleet.ClusterGroup)
+	Delete(string)
+}
+
 type handler struct {
+	store              Store
 	clusterGroupsCache fleetcontrollers.ClusterGroupCache
 	clusterGroups      fleetcontrollers.ClusterGroupController
 	clusterCache       fleetcontrollers.ClusterCache
@@ -24,10 +31,12 @@ type handler struct {
 }
 
 func Register(ctx context.Context,
+	store Store,
 	clusters fleetcontrollers.ClusterController,
 	clusterGroups fleetcontrollers.ClusterGroupController) {
 
 	h := &handler{
+		store:              store,
 		clusterGroupsCache: clusterGroups.Cache(),
 		clusterGroups:      clusterGroups,
 		clusterCache:       clusters.Cache(),
@@ -40,6 +49,8 @@ func Register(ctx context.Context,
 		"cluster-group",
 		h.OnClusterGroup)
 	clusters.OnChange(ctx, "cluster-group-trigger", h.OnClusterChange)
+
+	clusterGroups.AddGenericHandler(ctx, "cluster-group-store", h.UpdateClusterGroupStore)
 }
 
 func (h *handler) OnClusterChange(key string, cluster *fleet.Cluster) (*fleet.Cluster, error) {
@@ -128,4 +139,16 @@ func (h *handler) OnClusterGroup(clusterGroup *fleet.ClusterGroup, status fleet.
 
 	summary.SetReadyConditions(&status, "Bundle", status.Summary)
 	return status, nil
+}
+
+func (h *handler) UpdateClusterGroupStore(key string, obj runtime.Object) (runtime.Object, error) {
+	if obj == nil {
+		h.store.Delete(key)
+		return obj, nil
+	}
+
+	if cg, ok := obj.(*fleet.ClusterGroup); ok {
+		h.store.Store(key, cg)
+	}
+	return obj, nil
 }
