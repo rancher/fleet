@@ -9,21 +9,23 @@ import (
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/controllers/bundle"
+	"github.com/rancher/fleet/internal/cmd/controller/controllers/clustergroup"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/fleet/internal/manifest"
-	"github.com/rancher/fleet/pkg/durations"
-	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	"github.com/rancher/lasso/pkg/cache"
 	lassoclient "github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
 
+	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/pkg/durations"
+	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/rest"
@@ -124,6 +126,12 @@ func registerBundleController(cfg *rest.Config, namespace string) fleet.Interfac
 		coreFactory.Core().V1().Namespace().Cache(),
 		manifest.NewStore(factory.Fleet().V1alpha1().Content()),
 		factory.Fleet().V1alpha1().BundleDeployment().Cache())
+
+	clustergroup.Register(ctx,
+		targetManager.ClusterGroupStore,
+		factory.Fleet().V1alpha1().Cluster(),
+		factory.Fleet().V1alpha1().ClusterGroup(),
+	)
 
 	bundle.Register(ctx,
 		wranglerApply,
