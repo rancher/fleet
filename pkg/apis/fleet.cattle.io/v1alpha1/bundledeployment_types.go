@@ -96,7 +96,7 @@ type BundleDeploymentOptions struct {
 	IgnoreOptions `json:"ignore,omitempty"`
 
 	// CorrectDrift specifies how drift correction should work.
-	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
+	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
 
 	// NamespaceLabels are labels that will be appended to the namespace created by Fleet.
 	// +nullable
@@ -303,7 +303,7 @@ type BundleDeploymentSpec struct {
 	// +nullable
 	DependsOn []BundleRef `json:"dependsOn,omitempty"`
 	// CorrectDrift specifies how drift correction should work.
-	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
+	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
 }
 
 // BundleDeploymentResource contains the metadata of a deployed resource.
