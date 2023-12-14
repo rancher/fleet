@@ -72,11 +72,9 @@ func (s *ClusterGroupStore) Delete(key string) {
 
 func (s *ClusterGroupStore) GetSelector(cg *fleet.ClusterGroup) (labels.Selector, error) {
 	key := cg.Namespace + "/" + cg.Name
+
 	entry, found := s.getEntry(key)
-	if !found {
-		return nil, nil
-	}
-	if !entry.sameAs(cg) {
+	if !found || !entry.sameAs(cg) {
 		entry = newEntry(cg)
 		s.setEntry(key, entry)
 	}
