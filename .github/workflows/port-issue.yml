@@ -15,7 +15,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          if gh api orgs/${GITHUB_REPOSITORY_OWNER}/members | jq -e --arg GITHUB_ACTOR "$GITHUB_ACTOR" '.[] | select(.login == $GITHUB_ACTOR)' > /dev/null; then
+          if gh api orgs/${GITHUB_REPOSITORY_OWNER}/members --paginate | jq -e --arg GITHUB_ACTOR "$GITHUB_ACTOR" '.[] | select(.login == $GITHUB_ACTOR)' > /dev/null; then
               echo "${GITHUB_ACTOR} is a member"
               echo "is_member=true" >> $GITHUB_ENV
           else
@@ -75,7 +75,7 @@ jobs:
               DELIMITER=""
               NEW_ASSIGNEES=""
               for ASSIGNEE in $ASSIGNEES; do
-                  if gh api orgs/${GITHUB_REPOSITORY_OWNER}/members | jq -e --arg GITHUB_ACTOR "$GITHUB_ACTOR" '.[] | select(.login == $GITHUB_ACTOR)' > /dev/null; then
+                  if gh api orgs/${GITHUB_REPOSITORY_OWNER}/members --paginate | jq -e --arg GITHUB_ACTOR "$GITHUB_ACTOR" '.[] | select(.login == $GITHUB_ACTOR)' > /dev/null; then
                       echo "${ASSIGNEE} is a member, adding to assignees"
                       NEW_ASSIGNEES="${NEW_ASSIGNEES}${DELIMITER}${ASSIGNEE}"
                       DELIMITER=","
