@@ -30,7 +30,8 @@ fi
 
 if [ -e build.yaml ]; then
     sed -i -e "s/fleetVersion: .*$/fleetVersion: ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/" build.yaml
-    git add build.yaml
+    go generate
+    git add build.yaml pkg/buildconfig/constants.go
 else
     sed -i -e "s/ENV CATTLE_FLEET_VERSION=.*$/ENV CATTLE_FLEET_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/" package/Dockerfile
     sed -i -e "s/ENV CATTLE_FLEET_MIN_VERSION=.*$/ENV CATTLE_FLEET_MIN_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/" package/Dockerfile
