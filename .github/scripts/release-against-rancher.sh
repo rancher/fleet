@@ -33,6 +33,7 @@ if [ -e build.yaml ]; then
     git add build.yaml
 else
     sed -i -e "s/ENV CATTLE_FLEET_VERSION=.*$/ENV CATTLE_FLEET_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/" package/Dockerfile
+    sed -i -e "s/ENV CATTLE_FLEET_MIN_VERSION=.*$/ENV CATTLE_FLEET_MIN_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/" package/Dockerfile
     git add package/Dockerfile
 fi
 
