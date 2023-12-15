@@ -28,9 +28,13 @@ if [ ! -e ~/.gitconfig ]; then
     git config --global user.email fleet@suse.de
 fi
 
-sed -i -e "s/ENV CATTLE_FLEET_VERSION=.*$/ENV CATTLE_FLEET_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/g" package/Dockerfile
-
-git add package/Dockerfile
+if [ -e build.yaml ]; then
+    sed -i -e "s/fleetVersion: .*$/fleetVersion: ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/" build.yaml
+    git add build.yaml
+else
+    sed -i -e "s/ENV CATTLE_FLEET_VERSION=.*$/ENV CATTLE_FLEET_VERSION=${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/" package/Dockerfile
+    git add package/Dockerfile
+fi
 
 if [ "${BUMP_API}" == "true" ]; then
     pushd ../fleet > /dev/null
