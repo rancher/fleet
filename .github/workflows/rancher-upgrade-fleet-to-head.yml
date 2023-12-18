@@ -58,7 +58,7 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_K3D_VERSION: 'v5.6.0'
-  SETUP_K3S_VERSION: 'v1.26.8-k3s1'
+  SETUP_K3S_VERSION: 'v1.26.10-k3s2'
 
 jobs:
   create-runner:
@@ -90,10 +90,12 @@ jobs:
           gcloud compute instances create ${{ steps.generator.outputs.runner }} \
             --source-instance-template ${{ inputs.runner_template }} \
             --zone ${{ inputs.zone }}
-      - name: Create PAT token secret
+      - name: Create GCP token secrets
         run: |
           echo -n ${{ secrets.pat_token }} \
             | gcloud secrets create PAT_TOKEN_${{ steps.generator.outputs.uuid }} --data-file=-
+          echo -n ${{ github.repository }} \
+            | gcloud secrets create GH_REPO_${{ steps.generator.outputs.uuid }} --data-file=-
       - name: Get public dns name in GCP
         id: dns
         run: |
