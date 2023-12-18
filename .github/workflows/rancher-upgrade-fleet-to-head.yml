@@ -123,7 +123,7 @@ jobs:
 
   rancher-integration:
     needs: create-runner
-    runs-on: ${{ needs.create-runner.outputs.uuid }}
+    runs-on: ${{ needs.create-runner.outputs.runner }}
 
     steps:
       -
