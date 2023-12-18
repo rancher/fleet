@@ -74,9 +74,10 @@ jobs:
       - name: Generate UUID and Runner hostname
         id: generator
         run: |
+          # Note: keep runner name under 63 characters
           UUID=$(uuidgen)
-          echo "uuid=${UUID}" >> ${GITHUB_OUTPUT}
-          echo "runner=fleet-ci-${UUID}" >> ${GITHUB_OUTPUT}
+          echo "uuid=${UUID//-}" >> ${GITHUB_OUTPUT}
+          echo "runner=fleet-ci-${UUID//-}" >> ${GITHUB_OUTPUT}
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
@@ -90,7 +91,7 @@ jobs:
           gcloud compute instances create ${{ steps.generator.outputs.runner }} \
             --source-instance-template ${{ inputs.runner_template }} \
             --zone ${{ inputs.zone }}
-      - name: Create GCP token secrets
+      - name: Create GCP secrets
         run: |
           echo -n ${{ secrets.pat_token }} \
             | gcloud secrets create PAT_TOKEN_${{ steps.generator.outputs.uuid }} --data-file=-
@@ -300,7 +301,7 @@ jobs:
           retention-days: 2
 
   delete-runner:
-    if: ${{ always() && needs.create-runner.result == 'success' && inputs.destroy_runner == true }}
+    if: ${{ always() }}
     needs: [create-runner, rancher-integration]
     runs-on: ubuntu-latest
     steps:
@@ -313,10 +314,12 @@ jobs:
           credentials_json: ${{ secrets.credentials }}
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
-      - name: Delete PAT token secret
+      - name: Delete GCP secrets
         run: |
-          gcloud --quiet secrets delete PAT_TOKEN_${{ needs.create-runner.outputs.uuid }}
+          gcloud --quiet secrets delete PAT_TOKEN_${{ needs.create-runner.outputs.uuid }} || true
+          gcloud --quiet secrets delete GH_REPO_${{ needs.create-runner.outputs.uuid }} || true
       - name: Delete runner
+        if: ${{ always() && needs.create-runner.result == 'success' && inputs.destroy_runner == true }}
         run: |
           gcloud --quiet compute instances delete ${{ needs.create-runner.outputs.runner }} \
             --delete-disks all \
