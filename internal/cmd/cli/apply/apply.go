@@ -181,7 +181,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 		Auth:             opts.Auth,
 		HelmRepoURLRegex: opts.HelmRepoURLRegex,
 		KeepResources:    opts.KeepResources,
-		CorrectDrift: fleet.CorrectDrift{
+		CorrectDrift: &fleet.CorrectDrift{
 			Enabled:         opts.CorrectDrift,
 			Force:           opts.CorrectDriftForce,
 			KeepFailHistory: opts.CorrectDriftKeepFailHistory,

@@ -124,7 +124,7 @@ type GitRepoSpec struct {
 	KeepResources bool `json:"keepResources,omitempty"`
 
 	// CorrectDrift specifies how drift correction should work.
-	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
+	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
 }
 
 // GitTarget is a cluster or cluster group to deploy to.
