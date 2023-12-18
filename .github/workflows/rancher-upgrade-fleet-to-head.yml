@@ -2,9 +2,6 @@
 name: Test Fleet in Rancher
 
 on:
-  schedule:
-    # Run every day at 1:00 PM
-    - cron:  '0 13 * * *'
   workflow_call:
     # Variables to set when calling this reusable workflow
     secrets:
