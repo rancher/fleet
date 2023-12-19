@@ -2,7 +2,6 @@ package helmdeployer
 
 import (
 	"bytes"
-	corev1 "k8s.io/api/core/v1"
 	"testing"
 
 	"github.com/rancher/fleet/internal/manifest"
@@ -12,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/kube"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
