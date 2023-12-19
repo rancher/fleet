@@ -42,7 +42,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/go-git/go-billy/v5 v5.5.0
-	github.com/go-git/go-git/v5 v5.10.0
+	github.com/go-git/go-git/v5 v5.11.0
 	github.com/go-logr/logr v1.3.0
 	github.com/gobwas/glob v0.2.3
 	github.com/golang/mock v1.6.0
@@ -50,11 +50,11 @@ require (
 	github.com/google/go-containerregistry v0.17.0
 	github.com/hashicorp/go-getter v1.7.3
 	github.com/jpillora/backoff v1.0.0
-	github.com/onsi/ginkgo/v2 v2.13.1
+	github.com/onsi/ginkgo/v2 v2.13.2
 	github.com/onsi/gomega v1.30.0
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0-00010101000000-000000000000
-	github.com/rancher/gitjob v0.1.108
+	github.com/rancher/gitjob v0.6.0
 	github.com/rancher/gitjob/pkg/apis v0.0.0-20231020154220-e390284bfd00
 	github.com/rancher/lasso v0.0.0-20230830164424-d684fdeb6f29
 	github.com/rancher/wrangler/v2 v2.1.2
@@ -96,7 +96,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/Microsoft/hcsshim v0.11.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230828082145-3c4c8a2d2371 // indirect
-	github.com/acomagu/bufpipe v1.0.4 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/aws/aws-sdk-go v1.44.122 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -201,7 +200,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
-	github.com/skeema/knownhosts v1.2.0 // indirect
+	github.com/skeema/knownhosts v1.2.1 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
@@ -220,7 +219,7 @@ require (
 	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/mod v0.13.0 // indirect
-	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.13.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/term v0.15.0 // indirect
