@@ -73,12 +73,12 @@ func TestValuesFrom(t *testing.T) {
 
 func TestPostRenderer_Run_DeleteCRDs(t *testing.T) {
 	tests := map[string]struct {
-		crd                 *apiextensionsv1.CustomResourceDefinition
+		obj                 kruntime.Object
 		opts                v1alpha1.BundleDeploymentOptions
 		expectedAnnotations map[string]string
 	}{
 		"default (no DeleteCRDResources specified)": {
-			crd: &apiextensionsv1.CustomResourceDefinition{
+			obj: &apiextensionsv1.CustomResourceDefinition{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       CRDKind,
 					APIVersion: "apiextensions.k8s.io/v1",
@@ -91,7 +91,7 @@ func TestPostRenderer_Run_DeleteCRDs(t *testing.T) {
 			},
 		},
 		"DeleteCRDResources set to true": {
-			crd: &apiextensionsv1.CustomResourceDefinition{
+			obj: &apiextensionsv1.CustomResourceDefinition{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       CRDKind,
 					APIVersion: "apiextensions.k8s.io/v1",
@@ -105,7 +105,7 @@ func TestPostRenderer_Run_DeleteCRDs(t *testing.T) {
 			},
 		},
 		"DeleteCRDResources set to false": {
-			crd: &apiextensionsv1.CustomResourceDefinition{
+			obj: &apiextensionsv1.CustomResourceDefinition{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       CRDKind,
 					APIVersion: "apiextensions.k8s.io/v1",
@@ -119,11 +119,24 @@ func TestPostRenderer_Run_DeleteCRDs(t *testing.T) {
 				"objectset.rio.cattle.io/id": "-",
 			},
 		},
+		"Annotation not added for non CRDs resources": {
+			obj: &corev1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind: "Pod",
+				},
+			},
+			opts: v1alpha1.BundleDeploymentOptions{
+				DeleteCRDResources: false,
+			},
+			expectedAnnotations: map[string]string{
+				"objectset.rio.cattle.io/id": "-",
+			},
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			data, err := yaml.ToBytes([]kruntime.Object{test.crd})
+			data, err := yaml.ToBytes([]kruntime.Object{test.obj})
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
