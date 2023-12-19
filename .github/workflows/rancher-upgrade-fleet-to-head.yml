@@ -93,7 +93,7 @@ jobs:
             --zone ${{ inputs.zone }}
       - name: Create GCP secrets
         run: |
-          echo -n ${{ secrets.pat_token }} \
+          echo -n ${{ secrets.GITHUB_TOKEN }} \
             | gcloud secrets create PAT_TOKEN_${{ steps.generator.outputs.uuid }} --data-file=-
           echo -n ${{ github.repository }} \
             | gcloud secrets create GH_REPO_${{ steps.generator.outputs.uuid }} --data-file=-
