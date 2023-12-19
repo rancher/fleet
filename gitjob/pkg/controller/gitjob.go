@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -313,6 +314,7 @@ func (r *GitJobReconciler) newJob(ctx context.Context, obj *v1.GitJob) (*batchv1
 				Value: obj.Status.Event,
 			},
 		)
+		job.Spec.Template.Spec.Containers[i].Env = append(job.Spec.Template.Spec.Containers[i].Env, proxyEnvVars()...)
 	}
 
 	return job, nil
@@ -384,6 +386,7 @@ func (r *GitJobReconciler) generateInitContainer(ctx context.Context, obj *v1.Gi
 		Image:        r.Image,
 		Name:         "gitcloner-initializer",
 		VolumeMounts: volumeMounts,
+		Env:          proxyEnvVars(),
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: &[]bool{false}[0],
 			ReadOnlyRootFilesystem:   &[]bool{true}[0],
@@ -400,4 +403,15 @@ func (r *GitJobReconciler) generateInitContainer(ctx context.Context, obj *v1.Gi
 // isJobError returns true if the conditions from kstatus.SetError, used by job controller, are matched
 func isJobError(obj *v1.GitJob) bool {
 	return kstatus.Reconciling.IsFalse(obj) && kstatus.Stalled.IsTrue(obj) && obj.Status.JobStatus == status.FailedStatus.String()
+}
+
+func proxyEnvVars() []corev1.EnvVar {
+	var envVars []corev1.EnvVar
+	for _, envVar := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"} {
+		if val, ok := os.LookupEnv(envVar); ok {
+			envVars = append(envVars, corev1.EnvVar{Name: envVar, Value: val})
+		}
+	}
+
+	return envVars
 }

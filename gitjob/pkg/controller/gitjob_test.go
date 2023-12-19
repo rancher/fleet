@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -400,6 +401,157 @@ func TestNewJob(t *testing.T) {
 			}
 			if !cmp.Equal(job.Spec.Template.Spec.Volumes, test.expectedVolumes) {
 				t.Fatalf("expected volumes: %v, got: %v", test.expectedVolumes, job.Spec.Template.Spec.Volumes)
+			}
+		})
+	}
+}
+
+func TestGenerateJob_EnvVars(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	ctx := context.TODO()
+	poller := mocks.NewMockGitPoller(mockCtrl)
+	poller.EXPECT().AddOrModifyGitRepoWatch(ctx, gomock.Any()).AnyTimes()
+	poller.EXPECT().CleanUpWatches(ctx).AnyTimes()
+
+	tests := map[string]struct {
+		gitjob                       *gitjobv1.GitJob
+		osEnv                        map[string]string
+		expectedContainerEnvVars     []corev1.EnvVar
+		expectedInitContainerEnvVars []corev1.EnvVar
+	}{
+		"no proxy": {
+			gitjob: &gitjobv1.GitJob{
+				Spec: gitjobv1.GitJobSpec{
+					JobSpec: batchv1.JobSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Env: []corev1.EnvVar{{
+											Name:  "foo",
+											Value: "bar",
+										}},
+									},
+								},
+							},
+						},
+					},
+				},
+				Status: gitjobv1.GitJobStatus{
+					GitEvent: gitjobv1.GitEvent{
+						Commit: "commit",
+						GithubMeta: gitjobv1.GithubMeta{
+							Event: "event",
+						},
+					},
+				},
+			},
+			expectedContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "foo",
+					Value: "bar",
+				},
+				{
+					Name:  "COMMIT",
+					Value: "commit",
+				},
+				{
+					Name:  "EVENT_TYPE",
+					Value: "event",
+				},
+			},
+		},
+		"proxy": {
+			gitjob: &gitjobv1.GitJob{
+				Spec: gitjobv1.GitJobSpec{
+					JobSpec: batchv1.JobSpec{
+						Template: corev1.PodTemplateSpec{
+							Spec: corev1.PodSpec{
+								Containers: []corev1.Container{
+									{
+										Env: []corev1.EnvVar{{
+											Name:  "foo",
+											Value: "bar",
+										}},
+									},
+								},
+							},
+						},
+					},
+				},
+				Status: gitjobv1.GitJobStatus{
+					GitEvent: gitjobv1.GitEvent{
+						Commit: "commit",
+						GithubMeta: gitjobv1.GithubMeta{
+							Event: "event",
+						},
+					},
+				},
+			},
+			expectedContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "foo",
+					Value: "bar",
+				},
+				{
+					Name:  "COMMIT",
+					Value: "commit",
+				},
+				{
+					Name:  "EVENT_TYPE",
+					Value: "event",
+				},
+				{
+					Name:  "HTTP_PROXY",
+					Value: "httpProxy",
+				},
+				{
+					Name:  "HTTPS_PROXY",
+					Value: "httpsProxy",
+				},
+			},
+			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "HTTP_PROXY",
+					Value: "httpProxy",
+				},
+				{
+					Name:  "HTTPS_PROXY",
+					Value: "httpsProxy",
+				},
+			},
+			osEnv: map[string]string{"HTTP_PROXY": "httpProxy", "HTTPS_PROXY": "httpsProxy"},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			r := GitJobReconciler{
+				Client:    fake.NewFakeClient(),
+				Image:     "test",
+				GitPoller: poller,
+			}
+			for k, v := range test.osEnv {
+				err := os.Setenv(k, v)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			}
+			job, err := r.newJob(ctx, test.gitjob)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !cmp.Equal(job.Spec.Template.Spec.Containers[0].Env, test.expectedContainerEnvVars) {
+				t.Errorf("unexpected envVars. expected %v, but got %v", test.expectedContainerEnvVars, job.Spec.Template.Spec.Containers[0].Env)
+			}
+			if !cmp.Equal(job.Spec.Template.Spec.InitContainers[0].Env, test.expectedInitContainerEnvVars) {
+				t.Errorf("unexpected envVars. expected %v, but got %v", test.expectedInitContainerEnvVars, job.Spec.Template.Spec.InitContainers[0].Env)
+			}
+			for k := range test.osEnv {
+				err := os.Unsetenv(k)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
 			}
 		})
 	}

@@ -7,7 +7,7 @@ ENV HELM_URL_V3=https://get.helm.sh/helm-${HELM_VERSION}-linux-${ARCH}.tar.gz
 
 RUN zypper -n install git docker vim wget jq
 RUN if [ "${ARCH}" == "amd64" ]; then \
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.52.2; \
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.55.1; \
     fi
 RUN mkdir /usr/tmp && \
     curl ${HELM_URL_V3} | tar xvzf - --strip-components=1 -C /usr/tmp/ && \
