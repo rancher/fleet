@@ -157,7 +157,7 @@ spec:
                       nullable: true
                       type: string
                     deleteCRDResources:
-                      description: DeleteCRDResources deletes CDRs. Warning! this
+                      description: DeleteCRDResources deletes CRDs. Warning! this
                         will also delete all your Custom Resources.
                       type: boolean
                     diff:
@@ -459,7 +459,7 @@ spec:
                       nullable: true
                       type: string
                     deleteCRDResources:
-                      description: DeleteCRDResources deletes CDRs. Warning! this
+                      description: DeleteCRDResources deletes CRDs. Warning! this
                         will also delete all your Custom Resources.
                       type: boolean
                     diff:
@@ -1094,7 +1094,7 @@ spec:
                   nullable: true
                   type: string
                 deleteCRDResources:
-                  description: DeleteCRDResources deletes CDRs. Warning! this will
+                  description: DeleteCRDResources deletes CRDs. Warning! this will
                     also delete all your Custom Resources.
                   type: boolean
                 dependsOn:
@@ -1840,7 +1840,7 @@ spec:
                         nullable: true
                         type: string
                       deleteCRDResources:
-                        description: DeleteCRDResources deletes CDRs. Warning! this
+                        description: DeleteCRDResources deletes CRDs. Warning! this
                           will also delete all your Custom Resources.
                         type: boolean
                       diff:
