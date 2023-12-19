@@ -4,9 +4,14 @@ import (
 	"context"
 
 	"github.com/rancher/fleet/internal/cmd/controller/cleanup/controllers/cleanup"
-	"github.com/rancher/fleet/internal/cmd/controller/controllers"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
+
+	"github.com/rancher/lasso/pkg/cache"
+	"github.com/rancher/lasso/pkg/client"
+	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/v2/pkg/apply"
 	"github.com/rancher/wrangler/v2/pkg/generated/controllers/core"
 	corecontrollers "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
@@ -14,10 +19,15 @@ import (
 	rbaccontrollers "github.com/rancher/wrangler/v2/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/v2/pkg/ratelimit"
 	"github.com/rancher/wrangler/v2/pkg/start"
+
 	"github.com/sirupsen/logrus"
+
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/workqueue"
 )
 
 type AppContext struct {
@@ -79,7 +89,7 @@ func NewAppContext(cfg clientcmd.ClientConfig) (*AppContext, error) {
 	}
 	client.RateLimiter = ratelimit.None
 
-	scf, err := controllers.ControllerFactory(client)
+	scf, err := controllerFactory(client)
 	if err != nil {
 		return nil, err
 	}
@@ -132,4 +142,23 @@ func NewAppContext(cfg clientcmd.ClientConfig) (*AppContext, error) {
 			rbac,
 		},
 	}, nil
+}
+
+func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
+	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(durations.FailureRateLimiterBase, durations.FailureRateLimiterMax)
+	clusterRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(durations.SlowFailureRateLimiterBase, durations.SlowFailureRateLimiterMax)
+	clientFactory, err := client.NewSharedClientFactory(rest, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	cacheFactory := cache.NewSharedCachedFactory(clientFactory, nil)
+	return controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{
+		DefaultRateLimiter:     rateLimit,
+		DefaultWorkers:         50,
+		SyncOnlyChangedObjects: true,
+		KindRateLimiter: map[schema.GroupVersionKind]workqueue.RateLimiter{
+			v1alpha1.SchemeGroupVersion.WithKind("Cluster"): clusterRateLimiter,
+		},
+	}), nil
 }
