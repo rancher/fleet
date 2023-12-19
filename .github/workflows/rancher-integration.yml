@@ -46,7 +46,7 @@ on:
         type: string
       zone:
         description: GCP zone to host the runner
-        default: us-central1-a
+        default: europe-west3-a
         type: string
       # TODO add rancher charts branch + version parameters (when supported)
   push:
