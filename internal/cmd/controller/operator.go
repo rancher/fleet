@@ -12,11 +12,14 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
@@ -71,6 +74,14 @@ func start(
 		LeaseDuration:           leaderOpts.LeaseDuration,
 		RenewDeadline:           leaderOpts.RenewDeadline,
 		RetryPeriod:             leaderOpts.RetryPeriod,
+		Cache: cache.Options{
+			// restrict ListWatch for configmaps to the fleet namespace, e.g. cattle-fleet-system
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.ConfigMap{}: {
+					Namespaces: map[string]cache.Config{systemNamespace: {}},
+				},
+			},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

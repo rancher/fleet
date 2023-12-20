@@ -70,7 +70,6 @@ func (r *ConfigReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.
 // SetupWithManager sets up the controller with the Manager.
 func (r *ConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		// TODO Maybe we can limit this Watch to the system namespace?
 		For(&corev1.ConfigMap{}).
 		WithEventFilter(
 			// we do not trigger for status changes
