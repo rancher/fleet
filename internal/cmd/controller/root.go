@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 
 	"github.com/spf13/cobra"
 
@@ -23,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	command "github.com/rancher/fleet/internal/cmd"
-	"github.com/rancher/fleet/internal/cmd/controller/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/cleanup"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/version"
