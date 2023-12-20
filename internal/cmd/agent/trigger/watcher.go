@@ -4,6 +4,7 @@ package trigger
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/rancher/wrangler/v2/pkg/objectset"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -23,6 +24,11 @@ type Trigger struct {
 	triggers   map[schema.GroupVersionKind]map[objectset.ObjectKey]map[string]func()
 	restMapper meta.RESTMapper
 	client     dynamic.Interface
+
+	// seenGenerations keeps a registry of the object UIDs and the latest observed generation, if any
+	// Uses sync.Map for a safe concurrent usage.
+	// Uses atomic.Int64 as values in order to stick to the first use case described at https://pkg.go.dev/sync#Map
+	seenGenerations sync.Map
 }
 
 func New(ctx context.Context, restMapper meta.RESTMapper, client dynamic.Interface) *Trigger {
@@ -122,7 +128,27 @@ func (t *Trigger) OnChange(key string, defaultNamespace string, trigger func(), 
 	return nil
 }
 
-func (t *Trigger) call(gvk schema.GroupVersionKind, obj metav1.Object) {
+func (t *Trigger) call(gvk schema.GroupVersionKind, obj metav1.Object, deleted bool) {
+	// If this type populates Generation metadata, use it to filter events that didn't modify that field
+	if currentGeneration := obj.GetGeneration(); currentGeneration != 0 {
+		uid := obj.GetUID()
+		if deleted {
+			t.seenGenerations.Delete(uid)
+		} else {
+			var previous *atomic.Int64
+			if value, ok := t.seenGenerations.Load(uid); ok {
+				previous = value.(*atomic.Int64)
+			} else {
+				previous = new(atomic.Int64)
+				t.seenGenerations.Store(uid, previous)
+			}
+
+			if previousGeneration := previous.Swap(currentGeneration); previousGeneration == currentGeneration {
+				return
+			}
+		}
+	}
+
 	t.RLock()
 	defer t.RUnlock()
 
@@ -208,7 +234,8 @@ func (w *watcher) Start(ctx context.Context) {
 			switch event.Type {
 			// Only trigger for Modified or Deleted objects, ignore the rest
 			case watch.Modified, watch.Deleted:
-				w.t.call(w.gvk, obj)
+				deleted := event.Type == watch.Deleted
+				w.t.call(w.gvk, obj, deleted)
 			}
 		}
 	}
