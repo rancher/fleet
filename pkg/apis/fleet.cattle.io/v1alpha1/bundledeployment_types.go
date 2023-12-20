@@ -78,6 +78,9 @@ type BundleDeploymentOptions struct {
 
 	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
 	NamespaceAnnotations *map[string]string `json:"namespaceAnnotations,omitempty"`
+
+	// DeleteCRDResources deletes CRDs. Warning! this will also delete all your Custom Resources.
+	DeleteCRDResources bool `json:"deleteCRDResources,omitempty"`
 }
 
 type DiffOptions struct {

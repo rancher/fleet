@@ -46,6 +46,7 @@ const (
 	KeepResourcesAnnotation      = "fleet.cattle.io/keep-resources"
 	HelmUpgradeInterruptedError  = "another operation (install/upgrade/rollback) is in progress"
 	MaxHelmHistory               = 2
+	CRDKind                      = "CustomResourceDefinition"
 )
 
 var (
@@ -166,6 +167,10 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 		if err != nil {
 			return nil, err
 		}
+		if !p.opts.DeleteCRDResources &&
+			obj.GetObjectKind().GroupVersionKind().Kind == CRDKind {
+			annotations[kube.ResourcePolicyAnno] = kube.KeepPolicy
+		}
 		m.SetLabels(mergeMaps(m.GetLabels(), labels))
 		m.SetAnnotations(mergeMaps(m.GetAnnotations(), annotations))
 
@@ -185,7 +190,6 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 			m.SetNamespace(p.opts.TargetNamespace)
 		}
 	}
-
 	data, err = yaml.ToBytes(objs)
 	return bytes.NewBuffer(data), err
 }
