@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -61,7 +60,7 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 	defer ctlr.Finish()
 	ctx := context.Background()
 	container, url, err := createGogsContainer(ctx, createTempFolder(t))
-	require.NoError(t, err)
+	require.NoError(t, err, "creating gogs container failed")
 	defer terminateContainer(ctx, container, t)
 
 	tests := map[string]struct {
@@ -117,7 +116,7 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 	defer ctlr.Finish()
 	ctx := context.Background()
 	container, url, err := createGogsContainer(ctx, createTempFolder(t))
-	require.NoError(t, err)
+	require.NoError(t, err, "creating gogs container failed")
 	defer terminateContainer(ctx, container, t)
 
 	tests := map[string]struct {
@@ -175,16 +174,17 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 }
 
 func TestLatestCommitSSH(t *testing.T) {
+	require := require.New(t)
 	ctlr := gomock.NewController(t)
 	defer ctlr.Finish()
 	ctx := context.Background()
 	container, _, err := createGogsContainer(ctx, createTempFolder(t))
-	require.NoError(t, err)
+	require.NoError(err, "creating gogs container failed")
 	defer terminateContainer(ctx, container, t)
 	privateKey, err := createAndAddKeys()
-	require.NoError(t, err)
+	require.NoError(err)
 	sshPort, err := container.MappedPort(ctx, "22")
-	require.NoError(t, err)
+	require.NoError(err)
 	gogsKnownHosts := []byte("[localhost]:" + sshPort.Port() + " " + gogsFingerPrint)
 
 	tests := map[string]struct {
@@ -264,8 +264,11 @@ func TestLatestCommitSSH(t *testing.T) {
 			f := git.Fetch{}
 			latestCommit, err := f.LatestCommit(ctx, test.gitjob, client)
 
-			if !reflect.DeepEqual(err, test.expectedErr) {
-				t.Errorf("expecter error is: %v, but got %v", test.expectedErr, err)
+			// works with nil and wrapped errors
+			if test.expectedErr == nil {
+				require.NoError(err)
+			} else {
+				require.Contains(test.expectedErr.Error(), err.Error())
 			}
 
 			if latestCommit != test.expectedCommit {
