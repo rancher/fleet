@@ -14,27 +14,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/rancher/gitjob/pkg/mocks"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
+
 	"github.com/gogits/go-gogs-client"
 	cp "github.com/otiai10/copy"
-	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
-	"github.com/rancher/gitjob/pkg/git"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
+
+	gitjobv1 "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+	"github.com/rancher/gitjob/pkg/git"
+	"github.com/rancher/gitjob/pkg/mocks"
+
 	v1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 /*
