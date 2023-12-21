@@ -24,8 +24,8 @@ require (
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
 	github.com/testcontainers/testcontainers-go v0.26.0
-	golang.org/x/crypto v0.16.0
 	go.uber.org/mock v0.4.0
+	golang.org/x/crypto v0.17.0
 	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
 	golang.org/x/sync v0.4.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
