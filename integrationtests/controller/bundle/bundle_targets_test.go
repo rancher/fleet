@@ -1,4 +1,4 @@
-package agent
+package bundle
 
 import (
 	"strings"
@@ -21,14 +21,14 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		var err error
 		namespace, err = utils.NewNamespaceName()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(k8sClient.Create(ctx, &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{Name: namespace},
-		})).ToNot(HaveOccurred())
+
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
+		Expect(k8sClient.Create(ctx, ns)).ToNot(HaveOccurred())
 
 		createClustersAndClusterGroups()
 
 		DeferCleanup(func() {
-			Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, ns)).ToNot(HaveOccurred())
 		})
 	})
 

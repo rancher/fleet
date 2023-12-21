@@ -1,4 +1,4 @@
-package agent
+package bundle
 
 import (
 	"context"
@@ -28,11 +28,12 @@ import (
 )
 
 var (
-	cfg       *rest.Config
-	testEnv   *envtest.Environment
-	ctx       context.Context
 	cancel    context.CancelFunc
+	cfg       *rest.Config
+	ctx       context.Context
 	k8sClient client.Client
+	testEnv   *envtest.Environment
+
 	namespace string
 )
 
@@ -57,19 +58,14 @@ var _ = BeforeSuite(func() {
 	var err error
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
-	Expect(cfg).NotTo(BeNil())
 
 	utilruntime.Must(v1alpha1.AddToScheme(scheme.Scheme))
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(k8sClient).NotTo(BeNil())
 
-	zopts := zap.Options{
-		Development: true,
-	}
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:         scheme.Scheme,

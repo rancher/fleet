@@ -1,4 +1,4 @@
-package agent
+package bundle
 
 import (
 	. "github.com/onsi/ginkgo/v2"
