@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/pkg/durations"
-	"github.com/rancher/wrangler/v2/pkg/objectset"
 
+	"github.com/rancher/wrangler/v2/pkg/objectset"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -125,10 +125,11 @@ func (t *Trigger) OnChange(key string, defaultNamespace string, trigger func(), 
 	return nil
 }
 
-func (t *Trigger) call(gvk schema.GroupVersionKind, key objectset.ObjectKey) {
+func (t *Trigger) call(gvk schema.GroupVersionKind, obj metav1.Object) {
 	t.RLock()
 	defer t.RUnlock()
 
+	key := objectset.ObjectKey{Namespace: obj.GetNamespace(), Name: obj.GetName()}
 	for _, f := range t.triggers[gvk][key] {
 		f()
 	}
@@ -200,21 +201,17 @@ func (w *watcher) Start(ctx context.Context) {
 		w.Unlock()
 
 		for event := range resp.ResultChan() {
-			meta, err := meta.Accessor(event.Object)
-			var key objectset.ObjectKey
-			if err == nil {
-				resourceVersion = meta.GetResourceVersion()
-				key.Name = meta.GetName()
-				key.Namespace = meta.GetNamespace()
+			obj, err := meta.Accessor(event.Object)
+			if err != nil {
+				continue
 			}
 
+			// Store resource version for later resuming if watching is interrupted
+			resourceVersion = obj.GetResourceVersion()
+
 			switch event.Type {
-			case watch.Added:
-				fallthrough
-			case watch.Modified:
-				fallthrough
-			case watch.Deleted:
-				w.t.call(w.gvk, key)
+			case watch.Added, watch.Modified, watch.Deleted:
+				w.t.call(w.gvk, obj)
 			}
 		}
 	}
