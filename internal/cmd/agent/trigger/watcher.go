@@ -210,7 +210,8 @@ func (w *watcher) Start(ctx context.Context) {
 			resourceVersion = obj.GetResourceVersion()
 
 			switch event.Type {
-			case watch.Added, watch.Modified, watch.Deleted:
+			// Only trigger for Modified or Deleted objects, ignore the rest
+			case watch.Modified, watch.Deleted:
 				w.t.call(w.gvk, obj)
 			}
 		}
