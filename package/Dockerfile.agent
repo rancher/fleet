@@ -1,10 +1,12 @@
 ARG BUILD_ENV=dapper
 
-FROM registry.suse.com/bci/bci-base:15.5.36.5.66 AS base
+FROM registry.suse.com/suse/git:2.35 AS base
 COPY package/log.sh /usr/bin/
-# Remove curl to reduce vulnerability count in scans
 # Create non-root user and group
-RUN zypper rm -y curl && zypper in -y pwdutils && groupadd -g 1000 fleet-apply && useradd -u 1000 -g fleet-apply fleet-apply
+RUN echo "fleet-apply:x:1000:1000::/home/fleet-apply:/bin/bash" >> /etc/passwd && \
+    echo "fleet-apply:x:1000:" >> /etc/group && \
+    mkdir /home/fleet-apply && \
+    chown -R fleet-apply:fleet-apply /home/fleet-apply
 
 FROM base AS copy_dapper
 ONBUILD ARG ARCH
