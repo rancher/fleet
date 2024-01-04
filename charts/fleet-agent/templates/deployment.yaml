@@ -3,6 +3,7 @@ kind: StatefulSet
 metadata:
   name: fleet-agent
 spec:
+  serviceName: fleet-agent
   selector:
     matchLabels:
       app: fleet-agent

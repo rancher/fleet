@@ -149,6 +149,7 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 					"app": name,
 				},
 			},
+			ServiceName: name,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
