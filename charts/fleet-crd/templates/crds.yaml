@@ -156,6 +156,10 @@ spec:
                         enforce or lock down the deployment to a specific namespace.
                       nullable: true
                       type: string
+                    deleteCRDResources:
+                      description: DeleteCRDResources deletes CRDs. Warning! this
+                        will also delete all your Custom Resources.
+                      type: boolean
                     diff:
                       description: Diff can be used to ignore the modified state of
                         objects which are amended at runtime.
@@ -454,6 +458,10 @@ spec:
                         enforce or lock down the deployment to a specific namespace.
                       nullable: true
                       type: string
+                    deleteCRDResources:
+                      description: DeleteCRDResources deletes CRDs. Warning! this
+                        will also delete all your Custom Resources.
+                      type: boolean
                     diff:
                       description: Diff can be used to ignore the modified state of
                         objects which are amended at runtime.
@@ -1085,6 +1093,10 @@ spec:
                     or lock down the deployment to a specific namespace.
                   nullable: true
                   type: string
+                deleteCRDResources:
+                  description: DeleteCRDResources deletes CRDs. Warning! this will
+                    also delete all your Custom Resources.
+                  type: boolean
                 dependsOn:
                   description: DependsOn refers to the bundles which must be ready
                     before this bundle can be deployed.
@@ -1827,6 +1839,10 @@ spec:
                           namespace.
                         nullable: true
                         type: string
+                      deleteCRDResources:
+                        description: DeleteCRDResources deletes CRDs. Warning! this
+                          will also delete all your Custom Resources.
+                        type: boolean
                       diff:
                         description: Diff can be used to ignore the modified state
                           of objects which are amended at runtime.

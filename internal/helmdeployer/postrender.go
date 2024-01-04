@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"helm.sh/helm/v3/pkg/kube"
+
 	"helm.sh/helm/v3/pkg/chart"
 
 	"github.com/rancher/fleet/internal/helmdeployer/kustomize"
@@ -17,6 +19,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 )
+
+const CRDKind = "CustomResourceDefinition"
 
 type postRender struct {
 	labelPrefix string
@@ -78,6 +82,10 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 		m, err := meta.Accessor(obj)
 		if err != nil {
 			return nil, err
+		}
+		if !p.opts.DeleteCRDResources &&
+			obj.GetObjectKind().GroupVersionKind().Kind == CRDKind {
+			annotations[kube.ResourcePolicyAnno] = kube.KeepPolicy
 		}
 		m.SetLabels(mergeMaps(m.GetLabels(), labels))
 		m.SetAnnotations(mergeMaps(m.GetAnnotations(), annotations))
