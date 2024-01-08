@@ -24,7 +24,6 @@ const (
 	RestConfigTimeout              = time.Second * 15
 	ServiceTokenSleep              = time.Second * 2
 	TokenClusterEnqueueDelay       = time.Second * 2
-	TriggerSleep                   = time.Second * 2
 	DefaultCpuPprofPeriod          = time.Minute
 	ReleaseCacheTTL                = time.Minute * 5
 )

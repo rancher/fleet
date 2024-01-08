@@ -4,9 +4,6 @@ package trigger
 import (
 	"context"
 	"sync"
-	"time"
-
-	"github.com/rancher/fleet/pkg/durations"
 
 	"github.com/rancher/wrangler/v2/pkg/objectset"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -186,7 +183,6 @@ func (w *watcher) Start(ctx context.Context) {
 		}
 		w.Unlock()
 
-		time.Sleep(durations.TriggerSleep)
 		resp, err := w.client.Resource(w.gvr).Watch(ctx, metav1.ListOptions{
 			AllowWatchBookmarks: true,
 			ResourceVersion:     resourceVersion,
