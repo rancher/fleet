@@ -142,7 +142,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			}
 		}
 
-		if len(bd.Status.ModifiedStatus) > 0 && monitor.IsAgent(bd) && monitor.ShouldRedeploy(bd) {
+		if len(bd.Status.ModifiedStatus) > 0 && monitor.ShouldRedeployAgent(bd) {
 			bd.Status.AppliedDeploymentID = ""
 			if err := r.Cleanup.OldAgent(ctx, status.ModifiedStatus); err != nil {
 				merr = append(merr, fmt.Errorf("failed cleaning old agent: %w", err))
