@@ -20,6 +20,7 @@ package v1alpha1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -263,10 +264,14 @@ func (c *gitRepoCache) GetByIndex(indexName, key string) (result []*v1alpha1.Git
 	return result, nil
 }
 
+// GitRepoStatusHandler is executed for every added or modified GitRepo. Should return the new status to be updated
 type GitRepoStatusHandler func(obj *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) (v1alpha1.GitRepoStatus, error)
 
+// GitRepoGeneratingHandler is the top-level handler that is executed for every GitRepo event. It extends GitRepoStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type GitRepoGeneratingHandler func(obj *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) ([]runtime.Object, v1alpha1.GitRepoStatus, error)
 
+// RegisterGitRepoStatusHandler configures a GitRepoController to execute a GitRepoStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterGitRepoStatusHandler(ctx context.Context, controller GitRepoController, condition condition.Cond, name string, handler GitRepoStatusHandler) {
 	statusHandler := &gitRepoStatusHandler{
 		client:    controller,
@@ -276,6 +281,8 @@ func RegisterGitRepoStatusHandler(ctx context.Context, controller GitRepoControl
 	controller.AddGenericHandler(ctx, name, FromGitRepoHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterGitRepoGeneratingHandler configures a GitRepoController to execute a GitRepoGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterGitRepoGeneratingHandler(ctx context.Context, controller GitRepoController, apply apply.Apply,
 	condition condition.Cond, name string, handler GitRepoGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &gitRepoGeneratingHandler{
@@ -297,6 +304,7 @@ type gitRepoStatusHandler struct {
 	handler   GitRepoStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *gitRepoStatusHandler) sync(key string, obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +350,10 @@ type gitRepoGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *gitRepoGeneratingHandler) Remove(key string, obj *v1alpha1.GitRepo) (*v1alpha1.GitRepo, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +363,17 @@ func (a *gitRepoGeneratingHandler) Remove(key string, obj *v1alpha1.GitRepo) (*v
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured GitRepoGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *gitRepoGeneratingHandler) Handle(obj *v1alpha1.GitRepo, status v1alpha1.GitRepoStatus) (v1alpha1.GitRepoStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +383,41 @@ func (a *gitRepoGeneratingHandler) Handle(obj *v1alpha1.GitRepo, status v1alpha1
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *gitRepoGeneratingHandler) isNewResourceVersion(obj *v1alpha1.GitRepo) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *gitRepoGeneratingHandler) storeResourceVersion(obj *v1alpha1.GitRepo) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }
