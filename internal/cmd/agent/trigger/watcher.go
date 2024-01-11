@@ -5,6 +5,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/rancher/wrangler/v2/pkg/objectset"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -13,6 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/rancher/fleet/pkg/durations"
 )
 
 type Trigger struct {
@@ -225,6 +228,7 @@ func (w *watcher) Start(ctx context.Context) {
 		})
 		if err != nil {
 			resourceVersion = ""
+			time.Sleep(durations.WatchErrorRetrySleep)
 			continue
 		}
 
