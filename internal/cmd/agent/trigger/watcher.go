@@ -132,9 +132,13 @@ func (t *Trigger) call(gvk schema.GroupVersionKind, obj metav1.Object, deleted b
 	// If this type populates Generation metadata, use it to filter events that didn't modify that field
 	if currentGeneration := obj.GetGeneration(); currentGeneration != 0 {
 		uid := obj.GetUID()
+		// if the object is being deleted, just forget about it and execute the callback
 		if deleted {
 			t.seenGenerations.Delete(uid)
 		} else {
+			// keep a map of UID -> generation, using sync.Map and atomic.Int64 for safe concurrent usage
+			// - sync.Map entries are never modified after created, a pointer is used as value
+			// - using atomic.Int64 as values allows safely comparing and updating the current Generation value
 			var previous *atomic.Int64
 			if value, ok := t.seenGenerations.Load(uid); ok {
 				previous = value.(*atomic.Int64)
@@ -143,6 +147,7 @@ func (t *Trigger) call(gvk schema.GroupVersionKind, obj metav1.Object, deleted b
 				t.seenGenerations.Store(uid, previous)
 			}
 
+			// Set current generation and retrieve the previous value. if unchanged, do nothing and return early
 			if previousGeneration := previous.Swap(currentGeneration); previousGeneration == currentGeneration {
 				return
 			}
@@ -200,15 +205,20 @@ type watcher struct {
 }
 
 func (w *watcher) Start(ctx context.Context) {
+	// resourceVersion is used as a checkpoint if the Watch operation is interrupted.
+	// the for loop will resume watching with a non-empty resource version to avoid missing or repeating events
 	resourceVersion := ""
 	for {
 		w.Lock()
 		if w.stopped {
+			// The Watch operation was intentionally stopped, exit the loop
 			w.Unlock()
-			break
+			return
 		}
 		w.Unlock()
 
+		// Watch is non-blocking, the response allows consuming the events or stopping
+		// An error may mean the connection could not be established for some reason
 		resp, err := w.client.Resource(w.gvr).Watch(ctx, metav1.ListOptions{
 			AllowWatchBookmarks: true,
 			ResourceVersion:     resourceVersion,
@@ -223,6 +233,7 @@ func (w *watcher) Start(ctx context.Context) {
 		w.Unlock()
 
 		for event := range resp.ResultChan() {
+			// Not all events include a Kubernetes object payload (see the event.Event godoc), filter those out.
 			obj, err := meta.Accessor(event.Object)
 			if err != nil {
 				continue
