@@ -24,7 +24,6 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '1.19.*'
   SETUP_K3D_VERSION: 'v5.5.1'
   SETUP_K3S_VERSION: 'v1.24.1-k3s1'
 
@@ -34,23 +33,15 @@ jobs:
 
     steps:
       -
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
       -
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.SETUP_GO_VERSION }}
-      -
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          go-version-file: 'go.mod'
+          check-latest: true
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
@@ -78,23 +69,23 @@ jobs:
           go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
       -
         name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
       -
         name: Get uuid
         id: uuid
         run: echo "::set-output name=uuid::$(uuidgen)"
       -
         id: meta-fleet
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ttl.sh/rancher/fleet-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
       -
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: package/Dockerfile
@@ -105,13 +96,13 @@ jobs:
           labels: ${{ steps.meta-fleet.outputs.labels }}
       -
         id: meta-fleet-agent
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ttl.sh/rancher/fleet-agent-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
       -
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: package/Dockerfile.agent
@@ -195,7 +186,7 @@ jobs:
           ./.github/scripts/dump-failed-k3ds.sh
       -
         name: Upload logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: gha-fleet-rancher-logs-${{ github.sha }}-${{ github.run_id }}
