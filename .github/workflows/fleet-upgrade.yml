@@ -15,7 +15,6 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '1.19.*'
   SETUP_K3D_VERSION: 'v5.5.1'
 
 jobs:
@@ -27,22 +26,14 @@ jobs:
           - v1.22.10-k3s1
     steps:
       -
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.SETUP_GO_VERSION }}
-      -
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          go-version-file: 'go.mod'
+          check-latest: true
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
@@ -110,7 +101,7 @@ jobs:
           ./.github/scripts/dump-failed-k3ds.sh
       -
         name: Upload Logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
