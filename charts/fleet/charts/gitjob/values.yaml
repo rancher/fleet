@@ -1,6 +1,6 @@
 gitjob:
   repository: rancher/gitjob
-  tag: v0.1.76-security1
+  tag: v0.8.0
 
 tekton:
   repository: rancher/tekton-utils
