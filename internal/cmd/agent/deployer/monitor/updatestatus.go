@@ -46,8 +46,8 @@ func New(apply apply.Apply, mapper meta.RESTMapper, deployer *helmdeployer.Helm,
 	}
 }
 
-func ShouldRedeploy(bd *fleet.BundleDeployment) bool {
-	if IsAgent(bd) {
+func ShouldRedeployAgent(bd *fleet.BundleDeployment) bool {
+	if isAgent(bd) {
 		return true
 	}
 	if bd.Spec.Options.ForceSyncGeneration <= 0 {
@@ -59,7 +59,7 @@ func ShouldRedeploy(bd *fleet.BundleDeployment) bool {
 	return *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration
 }
 
-func IsAgent(bd *fleet.BundleDeployment) bool {
+func isAgent(bd *fleet.BundleDeployment) bool {
 	return strings.HasPrefix(bd.Name, "fleet-agent")
 }
 

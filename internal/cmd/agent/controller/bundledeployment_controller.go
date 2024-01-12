@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/durations"
 
 	"github.com/rancher/wrangler/v2/pkg/condition"
 
@@ -143,16 +142,10 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			}
 		}
 
-		// TODO is this needed with drift correction?
-		if len(bd.Status.ModifiedStatus) > 0 && monitor.ShouldRedeploy(bd) {
-			result.RequeueAfter = durations.MonitorBundleDelay
-			logger.Info("Redeploying, by resetting the appliedDeploymentID")
+		if len(bd.Status.ModifiedStatus) > 0 && monitor.ShouldRedeployAgent(bd) {
 			bd.Status.AppliedDeploymentID = ""
-
-			if monitor.IsAgent(bd) {
-				if err := r.Cleanup.OldAgent(ctx, status.ModifiedStatus); err != nil {
-					merr = append(merr, fmt.Errorf("failed cleaning old agent: %w", err))
-				}
+			if err := r.Cleanup.OldAgent(ctx, status.ModifiedStatus); err != nil {
+				merr = append(merr, fmt.Errorf("failed cleaning old agent: %w", err))
 			}
 		}
 	}
