@@ -1,18 +1,16 @@
 package target
 
-//go:generate mockgen --build_flags=--mod=mod -destination=../mocks/bundle_deployment_cache_mock.go -package=mocks github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1 BundleDeploymentCache
-
 import (
 	"fmt"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
-	"github.com/rancher/wrangler/pkg/yaml"
+	"github.com/rancher/wrangler/v2/pkg/generic/fake"
+	"github.com/rancher/wrangler/v2/pkg/yaml"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/rancher/fleet/internal/cmd/controller/mocks"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -545,7 +543,7 @@ func TestGetBundleDeploymentForBundleInCluster(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
-			mockBundleDeploymentCache := mocks.NewMockBundleDeploymentCache(ctrl)
+			mockBundleDeploymentCache := fake.NewMockCacheInterface[*v1alpha1.BundleDeployment](ctrl)
 
 			mockBundleDeploymentCache.EXPECT().AddIndexer(byBundleIndexerName, gomock.Any())
 			mockBundleDeploymentCache.EXPECT().GetByIndex(byBundleIndexerName, fmt.Sprintf("%s/%s", tc.bundleNamespace, tc.bundleName)).

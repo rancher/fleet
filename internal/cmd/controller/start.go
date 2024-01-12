@@ -6,8 +6,8 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/controllers"
 	"github.com/rancher/fleet/pkg/crd"
 
-	"github.com/rancher/wrangler/pkg/kubeconfig"
-	"github.com/rancher/wrangler/pkg/ratelimit"
+	"github.com/rancher/wrangler/v2/pkg/kubeconfig"
+	"github.com/rancher/wrangler/v2/pkg/ratelimit"
 )
 
 func start(ctx context.Context, systemNamespace string, kubeconfigFile string, disableGitops bool, disableBootstrap bool) error {
