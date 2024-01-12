@@ -70,6 +70,9 @@ spec:
                   backoffLimit:
                     nullable: true
                     type: integer
+                  backoffLimitPerIndex:
+                    nullable: true
+                    type: integer
                   completionMode:
                     nullable: true
                     type: string
@@ -79,6 +82,9 @@ spec:
                   manualSelector:
                     nullable: true
                     type: boolean
+                  maxFailedIndexes:
+                    nullable: true
+                    type: integer
                   parallelism:
                     nullable: true
                     type: integer
@@ -122,6 +128,9 @@ spec:
                         nullable: true
                         type: array
                     type: object
+                  podReplacementPolicy:
+                    nullable: true
+                    type: string
                   selector:
                     nullable: true
                     properties:
@@ -820,8 +829,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                             scheme:
                                               nullable: true
                                               type: string
@@ -833,8 +841,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                           type: object
                                       type: object
                                     preStop:
@@ -872,8 +879,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                             scheme:
                                               nullable: true
                                               type: string
@@ -885,8 +891,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                           type: object
                                       type: object
                                   type: object
@@ -936,8 +941,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                         scheme:
                                           nullable: true
                                           type: string
@@ -955,8 +959,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                       type: object
                                     terminationGracePeriodSeconds:
                                       nullable: true
@@ -1032,8 +1035,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                         scheme:
                                           nullable: true
                                           type: string
@@ -1051,8 +1053,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                       type: object
                                     terminationGracePeriodSeconds:
                                       nullable: true
@@ -1060,8 +1061,29 @@ spec:
                                     timeoutSeconds:
                                       type: integer
                                   type: object
+                                resizePolicy:
+                                  items:
+                                    properties:
+                                      resourceName:
+                                        nullable: true
+                                        type: string
+                                      restartPolicy:
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  nullable: true
+                                  type: array
                                 resources:
                                   properties:
+                                    claims:
+                                      items:
+                                        properties:
+                                          name:
+                                            nullable: true
+                                            type: string
+                                        type: object
+                                      nullable: true
+                                      type: array
                                     limits:
                                       additionalProperties:
                                         nullable: true
@@ -1075,6 +1097,9 @@ spec:
                                       nullable: true
                                       type: object
                                   type: object
+                                restartPolicy:
+                                  nullable: true
+                                  type: string
                                 securityContext:
                                   nullable: true
                                   properties:
@@ -1204,8 +1229,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                         scheme:
                                           nullable: true
                                           type: string
@@ -1223,8 +1247,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                       type: object
                                     terminationGracePeriodSeconds:
                                       nullable: true
@@ -1472,8 +1495,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                             scheme:
                                               nullable: true
                                               type: string
@@ -1485,8 +1507,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                           type: object
                                       type: object
                                     preStop:
@@ -1524,8 +1545,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                             scheme:
                                               nullable: true
                                               type: string
@@ -1537,8 +1557,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                           type: object
                                       type: object
                                   type: object
@@ -1588,8 +1607,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                         scheme:
                                           nullable: true
                                           type: string
@@ -1607,8 +1625,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                       type: object
                                     terminationGracePeriodSeconds:
                                       nullable: true
@@ -1684,8 +1701,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                         scheme:
                                           nullable: true
                                           type: string
@@ -1703,8 +1719,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                       type: object
                                     terminationGracePeriodSeconds:
                                       nullable: true
@@ -1712,8 +1727,29 @@ spec:
                                     timeoutSeconds:
                                       type: integer
                                   type: object
+                                resizePolicy:
+                                  items:
+                                    properties:
+                                      resourceName:
+                                        nullable: true
+                                        type: string
+                                      restartPolicy:
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  nullable: true
+                                  type: array
                                 resources:
                                   properties:
+                                    claims:
+                                      items:
+                                        properties:
+                                          name:
+                                            nullable: true
+                                            type: string
+                                        type: object
+                                      nullable: true
+                                      type: array
                                     limits:
                                       additionalProperties:
                                         nullable: true
@@ -1727,6 +1763,9 @@ spec:
                                       nullable: true
                                       type: object
                                   type: object
+                                restartPolicy:
+                                  nullable: true
+                                  type: string
                                 securityContext:
                                   nullable: true
                                   properties:
@@ -1856,8 +1895,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                         scheme:
                                           nullable: true
                                           type: string
@@ -1875,8 +1913,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                       type: object
                                     terminationGracePeriodSeconds:
                                       nullable: true
@@ -2129,8 +2166,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                             scheme:
                                               nullable: true
                                               type: string
@@ -2142,8 +2178,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                           type: object
                                       type: object
                                     preStop:
@@ -2181,8 +2216,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                             scheme:
                                               nullable: true
                                               type: string
@@ -2194,8 +2228,7 @@ spec:
                                               nullable: true
                                               type: string
                                             port:
-                                              nullable: true
-                                              type: string
+                                              x-kubernetes-int-or-string: true
                                           type: object
                                       type: object
                                   type: object
@@ -2245,8 +2278,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                         scheme:
                                           nullable: true
                                           type: string
@@ -2264,8 +2296,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                       type: object
                                     terminationGracePeriodSeconds:
                                       nullable: true
@@ -2341,8 +2372,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                         scheme:
                                           nullable: true
                                           type: string
@@ -2360,8 +2390,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                       type: object
                                     terminationGracePeriodSeconds:
                                       nullable: true
@@ -2369,8 +2398,29 @@ spec:
                                     timeoutSeconds:
                                       type: integer
                                   type: object
+                                resizePolicy:
+                                  items:
+                                    properties:
+                                      resourceName:
+                                        nullable: true
+                                        type: string
+                                      restartPolicy:
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  nullable: true
+                                  type: array
                                 resources:
                                   properties:
+                                    claims:
+                                      items:
+                                        properties:
+                                          name:
+                                            nullable: true
+                                            type: string
+                                        type: object
+                                      nullable: true
+                                      type: array
                                     limits:
                                       additionalProperties:
                                         nullable: true
@@ -2384,6 +2434,9 @@ spec:
                                       nullable: true
                                       type: object
                                   type: object
+                                restartPolicy:
+                                  nullable: true
+                                  type: string
                                 securityContext:
                                   nullable: true
                                   properties:
@@ -2513,8 +2566,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                         scheme:
                                           nullable: true
                                           type: string
@@ -2532,8 +2584,7 @@ spec:
                                           nullable: true
                                           type: string
                                         port:
-                                          nullable: true
-                                          type: string
+                                          x-kubernetes-int-or-string: true
                                       type: object
                                     terminationGracePeriodSeconds:
                                       nullable: true
@@ -2634,6 +2685,24 @@ spec:
                               type: object
                             nullable: true
                             type: array
+                          resourceClaims:
+                            items:
+                              properties:
+                                name:
+                                  nullable: true
+                                  type: string
+                                source:
+                                  properties:
+                                    resourceClaimName:
+                                      nullable: true
+                                      type: string
+                                    resourceClaimTemplateName:
+                                      nullable: true
+                                      type: string
+                                  type: object
+                              type: object
+                            nullable: true
+                            type: array
                           restartPolicy:
                             nullable: true
                             type: string
@@ -2643,6 +2712,15 @@ spec:
                           schedulerName:
                             nullable: true
                             type: string
+                          schedulingGates:
+                            items:
+                              properties:
+                                name:
+                                  nullable: true
+                                  type: string
+                              type: object
+                            nullable: true
+                            type: array
                           securityContext:
                             nullable: true
                             properties:
@@ -3161,9 +3239,21 @@ spec:
                                                 name:
                                                   nullable: true
                                                   type: string
+                                                namespace:
+                                                  nullable: true
+                                                  type: string
                                               type: object
                                             resources:
                                               properties:
+                                                claims:
+                                                  items:
+                                                    properties:
+                                                      name:
+                                                        nullable: true
+                                                        type: string
+                                                    type: object
+                                                  nullable: true
+                                                  type: array
                                                 limits:
                                                   additionalProperties:
                                                     nullable: true
@@ -3824,6 +3914,9 @@ spec:
                 backoffLimit:
                   nullable: true
                   type: integer
+                backoffLimitPerIndex:
+                  nullable: true
+                  type: integer
                 completionMode:
                   nullable: true
                   type: string
@@ -3833,6 +3926,9 @@ spec:
                 manualSelector:
                   nullable: true
                   type: boolean
+                maxFailedIndexes:
+                  nullable: true
+                  type: integer
                 parallelism:
                   nullable: true
                   type: integer
@@ -3876,6 +3972,9 @@ spec:
                       nullable: true
                       type: array
                   type: object
+                podReplacementPolicy:
+                  nullable: true
+                  type: string
                 selector:
                   nullable: true
                   properties:
@@ -4574,8 +4673,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             nullable: true
                                             type: string
@@ -4587,8 +4685,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                     type: object
                                   preStop:
@@ -4626,8 +4723,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             nullable: true
                                             type: string
@@ -4639,8 +4735,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                     type: object
                                 type: object
@@ -4690,8 +4785,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                       scheme:
                                         nullable: true
                                         type: string
@@ -4709,8 +4803,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                     type: object
                                   terminationGracePeriodSeconds:
                                     nullable: true
@@ -4786,8 +4879,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                       scheme:
                                         nullable: true
                                         type: string
@@ -4805,8 +4897,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                     type: object
                                   terminationGracePeriodSeconds:
                                     nullable: true
@@ -4814,8 +4905,29 @@ spec:
                                   timeoutSeconds:
                                     type: integer
                                 type: object
+                              resizePolicy:
+                                items:
+                                  properties:
+                                    resourceName:
+                                      nullable: true
+                                      type: string
+                                    restartPolicy:
+                                      nullable: true
+                                      type: string
+                                  type: object
+                                nullable: true
+                                type: array
                               resources:
                                 properties:
+                                  claims:
+                                    items:
+                                      properties:
+                                        name:
+                                          nullable: true
+                                          type: string
+                                      type: object
+                                    nullable: true
+                                    type: array
                                   limits:
                                     additionalProperties:
                                       nullable: true
@@ -4829,6 +4941,9 @@ spec:
                                     nullable: true
                                     type: object
                                 type: object
+                              restartPolicy:
+                                nullable: true
+                                type: string
                               securityContext:
                                 nullable: true
                                 properties:
@@ -4958,8 +5073,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                       scheme:
                                         nullable: true
                                         type: string
@@ -4977,8 +5091,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                     type: object
                                   terminationGracePeriodSeconds:
                                     nullable: true
@@ -5226,8 +5339,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             nullable: true
                                             type: string
@@ -5239,8 +5351,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                     type: object
                                   preStop:
@@ -5278,8 +5389,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             nullable: true
                                             type: string
@@ -5291,8 +5401,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                     type: object
                                 type: object
@@ -5342,8 +5451,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                       scheme:
                                         nullable: true
                                         type: string
@@ -5361,8 +5469,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                     type: object
                                   terminationGracePeriodSeconds:
                                     nullable: true
@@ -5438,8 +5545,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                       scheme:
                                         nullable: true
                                         type: string
@@ -5457,8 +5563,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                     type: object
                                   terminationGracePeriodSeconds:
                                     nullable: true
@@ -5466,8 +5571,29 @@ spec:
                                   timeoutSeconds:
                                     type: integer
                                 type: object
+                              resizePolicy:
+                                items:
+                                  properties:
+                                    resourceName:
+                                      nullable: true
+                                      type: string
+                                    restartPolicy:
+                                      nullable: true
+                                      type: string
+                                  type: object
+                                nullable: true
+                                type: array
                               resources:
                                 properties:
+                                  claims:
+                                    items:
+                                      properties:
+                                        name:
+                                          nullable: true
+                                          type: string
+                                      type: object
+                                    nullable: true
+                                    type: array
                                   limits:
                                     additionalProperties:
                                       nullable: true
@@ -5481,6 +5607,9 @@ spec:
                                     nullable: true
                                     type: object
                                 type: object
+                              restartPolicy:
+                                nullable: true
+                                type: string
                               securityContext:
                                 nullable: true
                                 properties:
@@ -5610,8 +5739,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                       scheme:
                                         nullable: true
                                         type: string
@@ -5629,8 +5757,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                     type: object
                                   terminationGracePeriodSeconds:
                                     nullable: true
@@ -5883,8 +6010,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             nullable: true
                                             type: string
@@ -5896,8 +6022,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                     type: object
                                   preStop:
@@ -5935,8 +6060,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                           scheme:
                                             nullable: true
                                             type: string
@@ -5948,8 +6072,7 @@ spec:
                                             nullable: true
                                             type: string
                                           port:
-                                            nullable: true
-                                            type: string
+                                            x-kubernetes-int-or-string: true
                                         type: object
                                     type: object
                                 type: object
@@ -5999,8 +6122,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                       scheme:
                                         nullable: true
                                         type: string
@@ -6018,8 +6140,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                     type: object
                                   terminationGracePeriodSeconds:
                                     nullable: true
@@ -6095,8 +6216,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                       scheme:
                                         nullable: true
                                         type: string
@@ -6114,8 +6234,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                     type: object
                                   terminationGracePeriodSeconds:
                                     nullable: true
@@ -6123,8 +6242,29 @@ spec:
                                   timeoutSeconds:
                                     type: integer
                                 type: object
+                              resizePolicy:
+                                items:
+                                  properties:
+                                    resourceName:
+                                      nullable: true
+                                      type: string
+                                    restartPolicy:
+                                      nullable: true
+                                      type: string
+                                  type: object
+                                nullable: true
+                                type: array
                               resources:
                                 properties:
+                                  claims:
+                                    items:
+                                      properties:
+                                        name:
+                                          nullable: true
+                                          type: string
+                                      type: object
+                                    nullable: true
+                                    type: array
                                   limits:
                                     additionalProperties:
                                       nullable: true
@@ -6138,6 +6278,9 @@ spec:
                                     nullable: true
                                     type: object
                                 type: object
+                              restartPolicy:
+                                nullable: true
+                                type: string
                               securityContext:
                                 nullable: true
                                 properties:
@@ -6267,8 +6410,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                       scheme:
                                         nullable: true
                                         type: string
@@ -6286,8 +6428,7 @@ spec:
                                         nullable: true
                                         type: string
                                       port:
-                                        nullable: true
-                                        type: string
+                                        x-kubernetes-int-or-string: true
                                     type: object
                                   terminationGracePeriodSeconds:
                                     nullable: true
@@ -6388,6 +6529,24 @@ spec:
                             type: object
                           nullable: true
                           type: array
+                        resourceClaims:
+                          items:
+                            properties:
+                              name:
+                                nullable: true
+                                type: string
+                              source:
+                                properties:
+                                  resourceClaimName:
+                                    nullable: true
+                                    type: string
+                                  resourceClaimTemplateName:
+                                    nullable: true
+                                    type: string
+                                type: object
+                            type: object
+                          nullable: true
+                          type: array
                         restartPolicy:
                           nullable: true
                           type: string
@@ -6397,6 +6556,15 @@ spec:
                         schedulerName:
                           nullable: true
                           type: string
+                        schedulingGates:
+                          items:
+                            properties:
+                              name:
+                                nullable: true
+                                type: string
+                            type: object
+                          nullable: true
+                          type: array
                         securityContext:
                           nullable: true
                           properties:
@@ -6915,9 +7083,21 @@ spec:
                                               name:
                                                 nullable: true
                                                 type: string
+                                              namespace:
+                                                nullable: true
+                                                type: string
                                             type: object
                                           resources:
                                             properties:
+                                              claims:
+                                                items:
+                                                  properties:
+                                                    name:
+                                                      nullable: true
+                                                      type: string
+                                                  type: object
+                                                nullable: true
+                                                type: array
                                               limits:
                                                 additionalProperties:
                                                   nullable: true
