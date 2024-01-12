@@ -22,9 +22,9 @@ import (
 	"github.com/rancher/lasso/pkg/cache"
 	lassoclient "github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/generated/controllers/core"
-	"github.com/rancher/wrangler/pkg/genericcondition"
+	"github.com/rancher/wrangler/v2/pkg/apply"
+	"github.com/rancher/wrangler/v2/pkg/generated/controllers/core"
+	"github.com/rancher/wrangler/v2/pkg/genericcondition"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

@@ -20,262 +20,54 @@ package v1alpha1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v2/pkg/apply"
+	"github.com/rancher/wrangler/v2/pkg/condition"
+	"github.com/rancher/wrangler/v2/pkg/generic"
+	"github.com/rancher/wrangler/v2/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type ClusterRegistrationHandler func(string, *v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error)
-
+// ClusterRegistrationController interface for managing ClusterRegistration resources.
 type ClusterRegistrationController interface {
-	generic.ControllerMeta
-	ClusterRegistrationClient
-
-	OnChange(ctx context.Context, name string, sync ClusterRegistrationHandler)
-	OnRemove(ctx context.Context, name string, sync ClusterRegistrationHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() ClusterRegistrationCache
+	generic.ControllerInterface[*v1alpha1.ClusterRegistration, *v1alpha1.ClusterRegistrationList]
 }
 
+// ClusterRegistrationClient interface for managing ClusterRegistration resources in Kubernetes.
 type ClusterRegistrationClient interface {
-	Create(*v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error)
-	Update(*v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error)
-	UpdateStatus(*v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.ClusterRegistration, error)
-	List(namespace string, opts metav1.ListOptions) (*v1alpha1.ClusterRegistrationList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.ClusterRegistration, err error)
+	generic.ClientInterface[*v1alpha1.ClusterRegistration, *v1alpha1.ClusterRegistrationList]
 }
 
+// ClusterRegistrationCache interface for retrieving ClusterRegistration resources in memory.
 type ClusterRegistrationCache interface {
-	Get(namespace, name string) (*v1alpha1.ClusterRegistration, error)
-	List(namespace string, selector labels.Selector) ([]*v1alpha1.ClusterRegistration, error)
-
-	AddIndexer(indexName string, indexer ClusterRegistrationIndexer)
-	GetByIndex(indexName, key string) ([]*v1alpha1.ClusterRegistration, error)
+	generic.CacheInterface[*v1alpha1.ClusterRegistration]
 }
 
-type ClusterRegistrationIndexer func(obj *v1alpha1.ClusterRegistration) ([]string, error)
-
-type clusterRegistrationController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewClusterRegistrationController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ClusterRegistrationController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &clusterRegistrationController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromClusterRegistrationHandlerToHandler(sync ClusterRegistrationHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1alpha1.ClusterRegistration
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1alpha1.ClusterRegistration))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *clusterRegistrationController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1alpha1.ClusterRegistration))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateClusterRegistrationDeepCopyOnChange(client ClusterRegistrationClient, obj *v1alpha1.ClusterRegistration, handler func(obj *v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error)) (*v1alpha1.ClusterRegistration, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *clusterRegistrationController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *clusterRegistrationController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *clusterRegistrationController) OnChange(ctx context.Context, name string, sync ClusterRegistrationHandler) {
-	c.AddGenericHandler(ctx, name, FromClusterRegistrationHandlerToHandler(sync))
-}
-
-func (c *clusterRegistrationController) OnRemove(ctx context.Context, name string, sync ClusterRegistrationHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromClusterRegistrationHandlerToHandler(sync)))
-}
-
-func (c *clusterRegistrationController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *clusterRegistrationController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *clusterRegistrationController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *clusterRegistrationController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *clusterRegistrationController) Cache() ClusterRegistrationCache {
-	return &clusterRegistrationCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *clusterRegistrationController) Create(obj *v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error) {
-	result := &v1alpha1.ClusterRegistration{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *clusterRegistrationController) Update(obj *v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error) {
-	result := &v1alpha1.ClusterRegistration{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *clusterRegistrationController) UpdateStatus(obj *v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error) {
-	result := &v1alpha1.ClusterRegistration{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *clusterRegistrationController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *clusterRegistrationController) Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.ClusterRegistration, error) {
-	result := &v1alpha1.ClusterRegistration{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *clusterRegistrationController) List(namespace string, opts metav1.ListOptions) (*v1alpha1.ClusterRegistrationList, error) {
-	result := &v1alpha1.ClusterRegistrationList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *clusterRegistrationController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *clusterRegistrationController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1alpha1.ClusterRegistration, error) {
-	result := &v1alpha1.ClusterRegistration{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type clusterRegistrationCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *clusterRegistrationCache) Get(namespace, name string) (*v1alpha1.ClusterRegistration, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1alpha1.ClusterRegistration), nil
-}
-
-func (c *clusterRegistrationCache) List(namespace string, selector labels.Selector) (ret []*v1alpha1.ClusterRegistration, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.ClusterRegistration))
-	})
-
-	return ret, err
-}
-
-func (c *clusterRegistrationCache) AddIndexer(indexName string, indexer ClusterRegistrationIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1alpha1.ClusterRegistration))
-		},
-	}))
-}
-
-func (c *clusterRegistrationCache) GetByIndex(indexName, key string) (result []*v1alpha1.ClusterRegistration, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1alpha1.ClusterRegistration, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1alpha1.ClusterRegistration))
-	}
-	return result, nil
-}
-
+// ClusterRegistrationStatusHandler is executed for every added or modified ClusterRegistration. Should return the new status to be updated
 type ClusterRegistrationStatusHandler func(obj *v1alpha1.ClusterRegistration, status v1alpha1.ClusterRegistrationStatus) (v1alpha1.ClusterRegistrationStatus, error)
 
+// ClusterRegistrationGeneratingHandler is the top-level handler that is executed for every ClusterRegistration event. It extends ClusterRegistrationStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type ClusterRegistrationGeneratingHandler func(obj *v1alpha1.ClusterRegistration, status v1alpha1.ClusterRegistrationStatus) ([]runtime.Object, v1alpha1.ClusterRegistrationStatus, error)
 
+// RegisterClusterRegistrationStatusHandler configures a ClusterRegistrationController to execute a ClusterRegistrationStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterClusterRegistrationStatusHandler(ctx context.Context, controller ClusterRegistrationController, condition condition.Cond, name string, handler ClusterRegistrationStatusHandler) {
 	statusHandler := &clusterRegistrationStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromClusterRegistrationHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterClusterRegistrationGeneratingHandler configures a ClusterRegistrationController to execute a ClusterRegistrationGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterClusterRegistrationGeneratingHandler(ctx context.Context, controller ClusterRegistrationController, apply apply.Apply,
 	condition condition.Cond, name string, handler ClusterRegistrationGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &clusterRegistrationGeneratingHandler{
@@ -297,6 +89,7 @@ type clusterRegistrationStatusHandler struct {
 	handler   ClusterRegistrationStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *clusterRegistrationStatusHandler) sync(key string, obj *v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +135,10 @@ type clusterRegistrationGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *clusterRegistrationGeneratingHandler) Remove(key string, obj *v1alpha1.ClusterRegistration) (*v1alpha1.ClusterRegistration, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +148,17 @@ func (a *clusterRegistrationGeneratingHandler) Remove(key string, obj *v1alpha1.
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured ClusterRegistrationGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *clusterRegistrationGeneratingHandler) Handle(obj *v1alpha1.ClusterRegistration, status v1alpha1.ClusterRegistrationStatus) (v1alpha1.ClusterRegistrationStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +168,41 @@ func (a *clusterRegistrationGeneratingHandler) Handle(obj *v1alpha1.ClusterRegis
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *clusterRegistrationGeneratingHandler) isNewResourceVersion(obj *v1alpha1.ClusterRegistration) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *clusterRegistrationGeneratingHandler) storeResourceVersion(obj *v1alpha1.ClusterRegistration) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

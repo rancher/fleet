@@ -20,262 +20,54 @@ package v1alpha1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v2/pkg/apply"
+	"github.com/rancher/wrangler/v2/pkg/condition"
+	"github.com/rancher/wrangler/v2/pkg/generic"
+	"github.com/rancher/wrangler/v2/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type ImageScanHandler func(string, *v1alpha1.ImageScan) (*v1alpha1.ImageScan, error)
-
+// ImageScanController interface for managing ImageScan resources.
 type ImageScanController interface {
-	generic.ControllerMeta
-	ImageScanClient
-
-	OnChange(ctx context.Context, name string, sync ImageScanHandler)
-	OnRemove(ctx context.Context, name string, sync ImageScanHandler)
-	Enqueue(namespace, name string)
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	Cache() ImageScanCache
+	generic.ControllerInterface[*v1alpha1.ImageScan, *v1alpha1.ImageScanList]
 }
 
+// ImageScanClient interface for managing ImageScan resources in Kubernetes.
 type ImageScanClient interface {
-	Create(*v1alpha1.ImageScan) (*v1alpha1.ImageScan, error)
-	Update(*v1alpha1.ImageScan) (*v1alpha1.ImageScan, error)
-	UpdateStatus(*v1alpha1.ImageScan) (*v1alpha1.ImageScan, error)
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-	Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.ImageScan, error)
-	List(namespace string, opts metav1.ListOptions) (*v1alpha1.ImageScanList, error)
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.ImageScan, err error)
+	generic.ClientInterface[*v1alpha1.ImageScan, *v1alpha1.ImageScanList]
 }
 
+// ImageScanCache interface for retrieving ImageScan resources in memory.
 type ImageScanCache interface {
-	Get(namespace, name string) (*v1alpha1.ImageScan, error)
-	List(namespace string, selector labels.Selector) ([]*v1alpha1.ImageScan, error)
-
-	AddIndexer(indexName string, indexer ImageScanIndexer)
-	GetByIndex(indexName, key string) ([]*v1alpha1.ImageScan, error)
+	generic.CacheInterface[*v1alpha1.ImageScan]
 }
 
-type ImageScanIndexer func(obj *v1alpha1.ImageScan) ([]string, error)
-
-type imageScanController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
-}
-
-func NewImageScanController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) ImageScanController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &imageScanController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
-	}
-}
-
-func FromImageScanHandlerToHandler(sync ImageScanHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1alpha1.ImageScan
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1alpha1.ImageScan))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
-}
-
-func (c *imageScanController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1alpha1.ImageScan))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateImageScanDeepCopyOnChange(client ImageScanClient, obj *v1alpha1.ImageScan, handler func(obj *v1alpha1.ImageScan) (*v1alpha1.ImageScan, error)) (*v1alpha1.ImageScan, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *imageScanController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *imageScanController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *imageScanController) OnChange(ctx context.Context, name string, sync ImageScanHandler) {
-	c.AddGenericHandler(ctx, name, FromImageScanHandlerToHandler(sync))
-}
-
-func (c *imageScanController) OnRemove(ctx context.Context, name string, sync ImageScanHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromImageScanHandlerToHandler(sync)))
-}
-
-func (c *imageScanController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *imageScanController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *imageScanController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *imageScanController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *imageScanController) Cache() ImageScanCache {
-	return &imageScanCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *imageScanController) Create(obj *v1alpha1.ImageScan) (*v1alpha1.ImageScan, error) {
-	result := &v1alpha1.ImageScan{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *imageScanController) Update(obj *v1alpha1.ImageScan) (*v1alpha1.ImageScan, error) {
-	result := &v1alpha1.ImageScan{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *imageScanController) UpdateStatus(obj *v1alpha1.ImageScan) (*v1alpha1.ImageScan, error) {
-	result := &v1alpha1.ImageScan{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *imageScanController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *imageScanController) Get(namespace, name string, options metav1.GetOptions) (*v1alpha1.ImageScan, error) {
-	result := &v1alpha1.ImageScan{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *imageScanController) List(namespace string, opts metav1.ListOptions) (*v1alpha1.ImageScanList, error) {
-	result := &v1alpha1.ImageScanList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *imageScanController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *imageScanController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1alpha1.ImageScan, error) {
-	result := &v1alpha1.ImageScan{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type imageScanCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *imageScanCache) Get(namespace, name string) (*v1alpha1.ImageScan, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1alpha1.ImageScan), nil
-}
-
-func (c *imageScanCache) List(namespace string, selector labels.Selector) (ret []*v1alpha1.ImageScan, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1alpha1.ImageScan))
-	})
-
-	return ret, err
-}
-
-func (c *imageScanCache) AddIndexer(indexName string, indexer ImageScanIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1alpha1.ImageScan))
-		},
-	}))
-}
-
-func (c *imageScanCache) GetByIndex(indexName, key string) (result []*v1alpha1.ImageScan, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1alpha1.ImageScan, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1alpha1.ImageScan))
-	}
-	return result, nil
-}
-
+// ImageScanStatusHandler is executed for every added or modified ImageScan. Should return the new status to be updated
 type ImageScanStatusHandler func(obj *v1alpha1.ImageScan, status v1alpha1.ImageScanStatus) (v1alpha1.ImageScanStatus, error)
 
+// ImageScanGeneratingHandler is the top-level handler that is executed for every ImageScan event. It extends ImageScanStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type ImageScanGeneratingHandler func(obj *v1alpha1.ImageScan, status v1alpha1.ImageScanStatus) ([]runtime.Object, v1alpha1.ImageScanStatus, error)
 
+// RegisterImageScanStatusHandler configures a ImageScanController to execute a ImageScanStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterImageScanStatusHandler(ctx context.Context, controller ImageScanController, condition condition.Cond, name string, handler ImageScanStatusHandler) {
 	statusHandler := &imageScanStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromImageScanHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterImageScanGeneratingHandler configures a ImageScanController to execute a ImageScanGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterImageScanGeneratingHandler(ctx context.Context, controller ImageScanController, apply apply.Apply,
 	condition condition.Cond, name string, handler ImageScanGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &imageScanGeneratingHandler{
@@ -297,6 +89,7 @@ type imageScanStatusHandler struct {
 	handler   ImageScanStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *imageScanStatusHandler) sync(key string, obj *v1alpha1.ImageScan) (*v1alpha1.ImageScan, error) {
 	if obj == nil {
 		return obj, nil
@@ -342,8 +135,10 @@ type imageScanGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *imageScanGeneratingHandler) Remove(key string, obj *v1alpha1.ImageScan) (*v1alpha1.ImageScan, error) {
 	if obj != nil {
 		return obj, nil
@@ -353,12 +148,17 @@ func (a *imageScanGeneratingHandler) Remove(key string, obj *v1alpha1.ImageScan)
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured ImageScanGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *imageScanGeneratingHandler) Handle(obj *v1alpha1.ImageScan, status v1alpha1.ImageScanStatus) (v1alpha1.ImageScanStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -368,9 +168,41 @@ func (a *imageScanGeneratingHandler) Handle(obj *v1alpha1.ImageScan, status v1al
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *imageScanGeneratingHandler) isNewResourceVersion(obj *v1alpha1.ImageScan) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *imageScanGeneratingHandler) storeResourceVersion(obj *v1alpha1.ImageScan) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

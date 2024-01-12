@@ -21,7 +21,8 @@ package v1alpha1
 import (
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/lasso/pkg/controller"
-	"github.com/rancher/wrangler/pkg/schemes"
+	"github.com/rancher/wrangler/v2/pkg/generic"
+	"github.com/rancher/wrangler/v2/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -53,36 +54,46 @@ type version struct {
 	controllerFactory controller.SharedControllerFactory
 }
 
-func (c *version) Bundle() BundleController {
-	return NewBundleController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Bundle"}, "bundles", true, c.controllerFactory)
+func (v *version) Bundle() BundleController {
+	return generic.NewController[*v1alpha1.Bundle, *v1alpha1.BundleList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Bundle"}, "bundles", true, v.controllerFactory)
 }
-func (c *version) BundleDeployment() BundleDeploymentController {
-	return NewBundleDeploymentController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "BundleDeployment"}, "bundledeployments", true, c.controllerFactory)
+
+func (v *version) BundleDeployment() BundleDeploymentController {
+	return generic.NewController[*v1alpha1.BundleDeployment, *v1alpha1.BundleDeploymentList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "BundleDeployment"}, "bundledeployments", true, v.controllerFactory)
 }
-func (c *version) BundleNamespaceMapping() BundleNamespaceMappingController {
-	return NewBundleNamespaceMappingController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "BundleNamespaceMapping"}, "bundlenamespacemappings", true, c.controllerFactory)
+
+func (v *version) BundleNamespaceMapping() BundleNamespaceMappingController {
+	return generic.NewController[*v1alpha1.BundleNamespaceMapping, *v1alpha1.BundleNamespaceMappingList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "BundleNamespaceMapping"}, "bundlenamespacemappings", true, v.controllerFactory)
 }
-func (c *version) Cluster() ClusterController {
-	return NewClusterController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Cluster"}, "clusters", true, c.controllerFactory)
+
+func (v *version) Cluster() ClusterController {
+	return generic.NewController[*v1alpha1.Cluster, *v1alpha1.ClusterList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Cluster"}, "clusters", true, v.controllerFactory)
 }
-func (c *version) ClusterGroup() ClusterGroupController {
-	return NewClusterGroupController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterGroup"}, "clustergroups", true, c.controllerFactory)
+
+func (v *version) ClusterGroup() ClusterGroupController {
+	return generic.NewController[*v1alpha1.ClusterGroup, *v1alpha1.ClusterGroupList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterGroup"}, "clustergroups", true, v.controllerFactory)
 }
-func (c *version) ClusterRegistration() ClusterRegistrationController {
-	return NewClusterRegistrationController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterRegistration"}, "clusterregistrations", true, c.controllerFactory)
+
+func (v *version) ClusterRegistration() ClusterRegistrationController {
+	return generic.NewController[*v1alpha1.ClusterRegistration, *v1alpha1.ClusterRegistrationList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterRegistration"}, "clusterregistrations", true, v.controllerFactory)
 }
-func (c *version) ClusterRegistrationToken() ClusterRegistrationTokenController {
-	return NewClusterRegistrationTokenController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterRegistrationToken"}, "clusterregistrationtokens", true, c.controllerFactory)
+
+func (v *version) ClusterRegistrationToken() ClusterRegistrationTokenController {
+	return generic.NewController[*v1alpha1.ClusterRegistrationToken, *v1alpha1.ClusterRegistrationTokenList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ClusterRegistrationToken"}, "clusterregistrationtokens", true, v.controllerFactory)
 }
-func (c *version) Content() ContentController {
-	return NewContentController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Content"}, "contents", false, c.controllerFactory)
+
+func (v *version) Content() ContentController {
+	return generic.NewNonNamespacedController[*v1alpha1.Content, *v1alpha1.ContentList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Content"}, "contents", v.controllerFactory)
 }
-func (c *version) GitRepo() GitRepoController {
-	return NewGitRepoController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "GitRepo"}, "gitrepos", true, c.controllerFactory)
+
+func (v *version) GitRepo() GitRepoController {
+	return generic.NewController[*v1alpha1.GitRepo, *v1alpha1.GitRepoList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "GitRepo"}, "gitrepos", true, v.controllerFactory)
 }
-func (c *version) GitRepoRestriction() GitRepoRestrictionController {
-	return NewGitRepoRestrictionController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "GitRepoRestriction"}, "gitreporestrictions", true, c.controllerFactory)
+
+func (v *version) GitRepoRestriction() GitRepoRestrictionController {
+	return generic.NewController[*v1alpha1.GitRepoRestriction, *v1alpha1.GitRepoRestrictionList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "GitRepoRestriction"}, "gitreporestrictions", true, v.controllerFactory)
 }
-func (c *version) ImageScan() ImageScanController {
-	return NewImageScanController(schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ImageScan"}, "imagescans", true, c.controllerFactory)
+
+func (v *version) ImageScan() ImageScanController {
+	return generic.NewController[*v1alpha1.ImageScan, *v1alpha1.ImageScanList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ImageScan"}, "imagescans", true, v.controllerFactory)
 }

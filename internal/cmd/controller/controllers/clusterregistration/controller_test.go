@@ -1,25 +1,17 @@
 package clusterregistration
 
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/service_account_cache_mock.go -package=mocks github.com/rancher/wrangler/pkg/generated/controllers/core/v1 ServiceAccountCache
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/secret_cache_mock.go -package=mocks github.com/rancher/wrangler/pkg/generated/controllers/core/v1 SecretCache
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/secret_controller_mock.go -package=mocks github.com/rancher/wrangler/pkg/generated/controllers/core/v1 SecretController
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/cluster_client_mock.go -package=mocks github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1 ClusterClient
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/cluster_cache_mock.go -package=mocks github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1 ClusterCache
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/cluster_registration_controller_mock.go -package=mocks github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1 ClusterRegistrationController
-
 import (
 	"fmt"
 
 	"github.com/golang/mock/gomock"
-
-	"github.com/rancher/fleet/internal/cmd/controller/mocks"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/pkg/generic"
-
+	"github.com/rancher/wrangler/v2/pkg/generic"
+	"github.com/rancher/wrangler/v2/pkg/generic/fake"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -32,12 +24,12 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 		cluster *fleet.Cluster
 		sa      *corev1.ServiceAccount
 
-		saCache                       *mocks.MockServiceAccountCache
-		secretCache                   *mocks.MockSecretCache
-		secretController              *mocks.MockSecretController
-		clusterClient                 *mocks.MockClusterClient
-		clusterRegistrationController *mocks.MockClusterRegistrationController
-		clusterCache                  *mocks.MockClusterCache
+		saCache                       *fake.MockCacheInterface[*corev1.ServiceAccount]
+		secretCache                   *fake.MockCacheInterface[*corev1.Secret]
+		secretController              *fake.MockControllerInterface[*corev1.Secret, *corev1.SecretList]
+		clusterClient                 *fake.MockClientInterface[*fleet.Cluster, *fleet.ClusterList]
+		clusterRegistrationController *fake.MockControllerInterface[*fleet.ClusterRegistration, *fleet.ClusterRegistrationList]
+		clusterCache                  *fake.MockCacheInterface[*fleet.Cluster]
 		h                             *handler
 		notFound                      = errors.NewNotFound(schema.GroupResource{}, "")
 		anError                       = fmt.Errorf("an error occurred")
@@ -45,12 +37,12 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
-		saCache = mocks.NewMockServiceAccountCache(ctrl)
-		secretCache = mocks.NewMockSecretCache(ctrl)
-		secretController = mocks.NewMockSecretController(ctrl)
-		clusterClient = mocks.NewMockClusterClient(ctrl)
-		clusterRegistrationController = mocks.NewMockClusterRegistrationController(ctrl)
-		clusterCache = mocks.NewMockClusterCache(ctrl)
+		saCache = fake.NewMockCacheInterface[*corev1.ServiceAccount](ctrl)
+		secretCache = fake.NewMockCacheInterface[*corev1.Secret](ctrl)
+		secretController = fake.NewMockControllerInterface[*corev1.Secret, *corev1.SecretList](ctrl)
+		clusterClient = fake.NewMockClientInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
+		clusterRegistrationController = fake.NewMockControllerInterface[*fleet.ClusterRegistration, *fleet.ClusterRegistrationList](ctrl)
+		clusterCache = fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
 
 		h = &handler{
 			systemNamespace:             "fleet-system",

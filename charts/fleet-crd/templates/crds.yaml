@@ -1455,7 +1455,7 @@ spec:
                         partition clusters if no specific partitioning strategy is
                         configured. default: 25%'
                       nullable: true
-                      type: string
+                      x-kubernetes-int-or-string: true
                     maxUnavailable:
                       description: 'A number or percentage of clusters that can be
                         unavailable during an update of a bundle. This follows the
@@ -1464,13 +1464,13 @@ spec:
                         be paused. Default value is 100% which doesn''t take effect
                         on update. default: 100%'
                       nullable: true
-                      type: string
+                      x-kubernetes-int-or-string: true
                     maxUnavailablePartitions:
                       description: 'A number or percentage of cluster partitions that
                         can be unavailable during an update of a bundle. default:
                         0'
                       nullable: true
-                      type: string
+                      x-kubernetes-int-or-string: true
                     partitions:
                       description: A list of definitions of partitions.  If any target
                         clusters do not match the configuration they are added to
@@ -1595,7 +1595,7 @@ spec:
                               can be unavailable in this partition before this partition
                               is treated as done. default: 10%'
                             nullable: true
-                            type: string
+                            x-kubernetes-int-or-string: true
                           name:
                             description: A user-friendly name given to the partition
                               used for Display (optional).
