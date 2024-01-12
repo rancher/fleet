@@ -44,7 +44,7 @@ jobs:
           repository: rancher/rancher
           ref: ${{github.event.inputs.rancher_ref}}
           path: rancher
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Run release script
