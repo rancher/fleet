@@ -20,6 +20,7 @@ jobs:
         with:
           go-version-file: 'go.mod'
           check-latest: true
+          cache: false
 
       - name: Generate Golang
         run: |
