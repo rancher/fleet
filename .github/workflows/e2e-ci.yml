@@ -27,7 +27,7 @@ jobs:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
-          - v1.27.5-k3s1
+          - v1.29.0-k3s1
           - v1.24.17-k3s1
     steps:
       -
