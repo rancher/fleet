@@ -15,11 +15,7 @@ bump_fleet_api() {
     go mod tidy
 }
 
-if [ -z "${GITHUB_WORKSPACE:-}" ]; then
-    CHARTS_DIR="$(dirname -- "$0")/../../../rancher"
-else
-    CHARTS_DIR="${GITHUB_WORKSPACE}/rancher"
-fi
+CHARTS_DIR=${CHARTS_DIR-"$(dirname -- "$0")/../../../rancher"}
 
 pushd "${CHARTS_DIR}" > /dev/null
 

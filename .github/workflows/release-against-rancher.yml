@@ -48,7 +48,9 @@ jobs:
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Run release script
-        run: ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
+        run: |
+          export CHARTS_DIR="${GITHUB_WORKSPACE}/rancher"
+          ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
