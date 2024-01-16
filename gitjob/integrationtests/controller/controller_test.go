@@ -155,9 +155,56 @@ var _ = Describe("GitJob controller", func() {
 			gitJobName = "force-deletion"
 		})
 
-		It("Verifies that the Job is deleted", func() {
+		It("Verifies that the Job is recreated", func() {
 			Eventually(func() bool {
-				return errors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, &job))
+				newJob := &batchv1.Job{}
+				_ = k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, newJob)
+
+				return string(job.UID) != string(newJob.UID)
+			}).Should(BeTrue())
+		})
+	})
+
+	When("User performs an update in a Job argument", func() {
+		var (
+			gitJob     v1.GitJob
+			gitJobName string
+			job        batchv1.Job
+			jobName    string
+		)
+
+		JustBeforeEach(func() {
+			gitJob = createGitJob(gitJobName)
+			Expect(k8sClient.Create(ctx, &gitJob)).ToNot(HaveOccurred())
+			Expect(simulateGitPollerUpdatingCommitInStatus(gitJob, commit)).ToNot(HaveOccurred())
+			Eventually(func() error {
+				jobName = name.SafeConcatName(gitJobName, name.Hex(repo+commit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, &job)
+			}).Should(Not(HaveOccurred()))
+
+			// change args parameter, this will change the Generation field. This simulates changing fleet apply parameters.
+			Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				var gitJobFomCluster v1.GitJob
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFomCluster)
+				if err != nil {
+					return err
+				}
+				gitJobFomCluster.Spec.JobSpec.Template.Spec.Containers[0].Args = []string{"-v"}
+
+				return k8sClient.Update(ctx, &gitJobFomCluster)
+			})).ToNot(HaveOccurred())
+		})
+
+		BeforeEach(func() {
+			gitJobName = "simulate-arg-update"
+		})
+
+		It("Verifies that the Job is recreated", func() {
+			Eventually(func() bool {
+				newJob := &batchv1.Job{}
+				_ = k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, newJob)
+
+				return string(job.UID) != string(newJob.UID)
 			}).Should(BeTrue())
 		})
 	})
