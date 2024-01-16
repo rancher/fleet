@@ -102,6 +102,10 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if err = r.updateStatus(ctx, &gitJob, &job); err != nil {
+		if errors.IsConflict(err) {
+			r.Log.Info("conflict updating status", "message", err)
+			return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
+		}
 		return ctrl.Result{}, fmt.Errorf("error updating gitjob status: %v", err)
 	}
 
@@ -218,7 +222,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitJob *v1.Git
 
 	// k8s Jobs are immutable. Recreate the job if the GitJob Spec has changed.
 	if gitJob.Generation != gitJob.Status.ObservedGeneration {
-		r.Log.Info("job deletion triggered because of generation has changed, and it was in an error state")
+		r.Log.Info("job deletion triggered because of generation change")
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 			return err
 		}
