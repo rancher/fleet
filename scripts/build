@@ -40,7 +40,7 @@ if [ "$CROSS" = "true" ]; then
     if [ -z "$LOCAL" ]; then
         LOCAL="false"
     fi
-    OS_ARCH=( "linux amd64" "linux arm64" "linux s390x" "darwin amd64" "windows amd64" )
+    OS_ARCH=( "linux amd64" "linux arm64" "darwin amd64" "windows amd64" )
     for i in "${OS_ARCH[@]}"; do
         set -- $i
         build-binaries ${1} ${2}
