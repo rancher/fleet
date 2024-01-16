@@ -95,13 +95,14 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err := r.createJob(ctx, &gitJob); err != nil {
 			return ctrl.Result{}, fmt.Errorf("error creating job: %v", err)
 		}
-	} else {
-		if err = r.updateStatus(ctx, &gitJob, &job); err != nil {
-			return ctrl.Result{}, fmt.Errorf("error updating gitjob status: %v", err)
-		}
+	} else if gitJob.Status.Commit != "" {
 		if err = r.deleteJobIfNeeded(ctx, &gitJob, &job); err != nil {
 			return ctrl.Result{}, fmt.Errorf("error deleting job: %v", err)
 		}
+	}
+
+	if err = r.updateStatus(ctx, &gitJob, &job); err != nil {
+		return ctrl.Result{}, fmt.Errorf("error updating gitjob status: %v", err)
 	}
 
 	return ctrl.Result{}, nil
@@ -162,56 +163,47 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitJob *v1.GitJob, 
 		return err
 	}
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitJobFomCluster v1.GitJob
+	gitJob.Status.JobStatus = result.Status.String()
+	for _, con := range result.Conditions {
+		condition.Cond(con.Type.String()).SetStatus(gitJob, string(con.Status))
+		condition.Cond(con.Type.String()).SetMessageIfBlank(gitJob, con.Message)
+		condition.Cond(con.Type.String()).Reason(gitJob, con.Reason)
+	}
 
-		err := r.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFomCluster)
+	if result.Status == status.FailedStatus {
+		selector := labels.SelectorFromSet(labels.Set{
+			"job-name": job.Name,
+		})
+		var podList corev1.PodList
+		err := r.Client.List(ctx, &podList, &client.ListOptions{LabelSelector: selector})
 		if err != nil {
 			return err
 		}
-
-		gitJobFomCluster.Status.JobStatus = result.Status.String()
-		for _, con := range result.Conditions {
-			condition.Cond(con.Type.String()).SetStatus(&gitJobFomCluster, string(con.Status))
-			condition.Cond(con.Type.String()).SetMessageIfBlank(&gitJobFomCluster, con.Message)
-			condition.Cond(con.Type.String()).Reason(&gitJobFomCluster, con.Reason)
-		}
-
-		if result.Status == status.FailedStatus {
-			selector := labels.SelectorFromSet(labels.Set{
-				"job-name": job.Name,
-			})
-			var podList corev1.PodList
-			err := r.Client.List(ctx, &podList, &client.ListOptions{LabelSelector: selector})
-			if err != nil {
-				return err
-			}
-			sort.Slice(podList.Items, func(i, j int) bool {
-				return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
-			})
-			terminationMessage := result.Message
-			if len(podList.Items) > 0 {
-				for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
-					if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
-						terminationMessage += podStatus.State.Terminated.Message
-					}
+		sort.Slice(podList.Items, func(i, j int) bool {
+			return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
+		})
+		terminationMessage := result.Message
+		if len(podList.Items) > 0 {
+			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
+				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
+					terminationMessage += podStatus.State.Terminated.Message
 				}
 			}
-			kstatus.SetError(&gitJobFomCluster, terminationMessage)
 		}
+		kstatus.SetError(gitJob, terminationMessage)
+	}
 
-		if result.Status == status.CurrentStatus {
-			if strings.Contains(result.Message, "Job Completed") {
-				gitJobFomCluster.Status.LastExecutedCommit = job.Annotations["commit"]
-			}
-			kstatus.SetActive(&gitJobFomCluster)
+	if result.Status == status.CurrentStatus {
+		if strings.Contains(result.Message, "Job Completed") {
+			gitJob.Status.LastExecutedCommit = job.Annotations["commit"]
 		}
+		kstatus.SetActive(gitJob)
+	}
 
-		gitJobFomCluster.Status.ObservedGeneration = gitJobFomCluster.Generation
-		gitJobFomCluster.Status.LastSyncedTime = metav1.Now()
+	gitJob.Status.ObservedGeneration = gitJob.Generation
+	gitJob.Status.LastSyncedTime = metav1.Now()
 
-		return r.Status().Update(ctx, &gitJobFomCluster)
-	})
+	return r.Status().Update(ctx, gitJob)
 }
 
 func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitJob *v1.GitJob, job *batchv1.Job) error {
@@ -224,8 +216,8 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitJob *v1.Git
 		}
 	}
 
-	// if the job failed, e.g. because a helm registry was unreachable, delete the old job
-	if isJobError(gitJob) && gitJob.Generation != gitJob.Status.ObservedGeneration {
+	// k8s Jobs are immutable. Recreate the job if the GitJob Spec has changed.
+	if gitJob.Generation != gitJob.Status.ObservedGeneration {
 		r.Log.Info("job deletion triggered because of generation has changed, and it was in an error state")
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 			return err
@@ -398,11 +390,6 @@ func (r *GitJobReconciler) generateInitContainer(ctx context.Context, obj *v1.Gi
 			},
 		},
 	}, nil
-}
-
-// isJobError returns true if the conditions from kstatus.SetError, used by job controller, are matched
-func isJobError(obj *v1.GitJob) bool {
-	return kstatus.Reconciling.IsFalse(obj) && kstatus.Stalled.IsTrue(obj) && obj.Status.JobStatus == status.FailedStatus.String()
 }
 
 func proxyEnvVars() []corev1.EnvVar {
