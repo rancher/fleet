@@ -10,11 +10,7 @@ PREV_CHART_VERSION="$3"   # e.g. 101.2.0
 NEW_CHART_VERSION="$4"
 REPLACE="$5"              # remove previous version if `true`, otherwise add new
 
-if [ -z "${GITHUB_WORKSPACE:-}" ]; then
-    CHARTS_DIR="$(dirname -- "$0")/../../../charts"
-else
-    CHARTS_DIR="${GITHUB_WORKSPACE}/charts"
-fi
+CHARTS_DIR=${CHARTS_DIR-"$(dirname -- "$0")/../../../charts"}
 
 pushd "${CHARTS_DIR}" > /dev/null
 
