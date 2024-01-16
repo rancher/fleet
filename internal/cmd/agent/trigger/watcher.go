@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
 
@@ -131,6 +132,13 @@ func (t *Trigger) OnChange(key string, defaultNamespace string, trigger func(), 
 	return nil
 }
 
+func (t *Trigger) storeObjectGeneration(uid types.UID, generation int64) *atomic.Int64 {
+	value := new(atomic.Int64)
+	value.Store(generation)
+	t.seenGenerations.Store(uid, value)
+	return value
+}
+
 func (t *Trigger) call(gvk schema.GroupVersionKind, obj metav1.Object, deleted bool) {
 	// If this type populates Generation metadata, use it to filter events that didn't modify that field
 	if currentGeneration := obj.GetGeneration(); currentGeneration != 0 {
@@ -146,8 +154,7 @@ func (t *Trigger) call(gvk schema.GroupVersionKind, obj metav1.Object, deleted b
 			if value, ok := t.seenGenerations.Load(uid); ok {
 				previous = value.(*atomic.Int64)
 			} else {
-				previous = new(atomic.Int64)
-				t.seenGenerations.Store(uid, previous)
+				previous = t.storeObjectGeneration(uid, currentGeneration)
 			}
 
 			// Set current generation and retrieve the previous value. if unchanged, do nothing and return early
@@ -247,7 +254,12 @@ func (w *watcher) Start(ctx context.Context) {
 			resourceVersion = obj.GetResourceVersion()
 
 			switch event.Type {
-			// Only trigger for Modified or Deleted objects, ignore the rest
+			// Just initialize the seen generations.
+			case watch.Added:
+				if generation := obj.GetGeneration(); generation != 0 {
+					w.t.storeObjectGeneration(obj.GetUID(), generation)
+				}
+			// Only trigger for Modified or Deleted objects.
 			case watch.Modified, watch.Deleted:
 				deleted := event.Type == watch.Deleted
 				w.t.call(w.gvk, obj, deleted)
