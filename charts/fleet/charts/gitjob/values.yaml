@@ -1,6 +1,6 @@
 gitjob:
   repository: rancher/gitjob
-  tag: v0.8.0
+  tag: v0.8.1
 
 tekton:
   repository: rancher/tekton-utils
