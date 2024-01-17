@@ -83,7 +83,13 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient).NotTo(BeNil())
 
 	specEnvs = make(map[string]*specEnv, 2)
-	for id, f := range map[string]specResources{"capabilitybundle": capabilityBundleResources, "orphanbundle": orphanBundeResources} {
+	for id, f := range map[string]specResources{
+		"capabilitybundle": capabilityBundleResources,
+		"orphanbundle":     orphanBundeResources,
+		"watchertrigger": func() map[string][]v1alpha1.BundleResource {
+			return nil
+		},
+	} {
 		namespace, err := utils.NewNamespaceName()
 		Expect(err).ToNot(HaveOccurred())
 		fmt.Printf("Creating namespace %s\n", namespace)

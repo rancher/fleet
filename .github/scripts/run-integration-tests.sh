@@ -2,8 +2,8 @@
 
 set -euxo pipefail
 
-SETUP_ENVTEST_VER=${SETUP_ENVTEST_VER-v0.0.0-20221214170741-69f093833822}
-ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION-1.25}
+SETUP_ENVTEST_VER=${SETUP_ENVTEST_VER-v0.0.0-20240115093953-9e6e3b144a69}
+ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION-1.28}
 
 # install and prepare setup-envtest
 if ! command -v setup-envtest &> /dev/null
@@ -14,4 +14,4 @@ KUBEBUILDER_ASSETS=$(setup-envtest use --use-env -p path $ENVTEST_K8S_VERSION)
 export KUBEBUILDER_ASSETS
 
 # run integration tests
-go test ./integrationtests/...
+go test ./integrationtests/agent/...
