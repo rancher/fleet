@@ -150,16 +150,14 @@ func (t *Trigger) call(gvk schema.GroupVersionKind, obj metav1.Object, deleted b
 			// keep a map of UID -> generation, using sync.Map and atomic.Int64 for safe concurrent usage
 			// - sync.Map entries are never modified after created, a pointer is used as value
 			// - using atomic.Int64 as values allows safely comparing and updating the current Generation value
-			var previous *atomic.Int64
-			if value, ok := t.seenGenerations.Load(uid); ok {
-				previous = value.(*atomic.Int64)
+			if value, ok := t.seenGenerations.Load(uid); !ok {
+				t.storeObjectGeneration(uid, currentGeneration)
 			} else {
-				previous = t.storeObjectGeneration(uid, currentGeneration)
-			}
-
-			// Set current generation and retrieve the previous value. if unchanged, do nothing and return early
-			if previousGeneration := previous.Swap(currentGeneration); previousGeneration == currentGeneration {
-				return
+				previous := value.(*atomic.Int64)
+				// Set current generation and retrieve the previous value. if unchanged, do nothing and return early
+				if previousGeneration := previous.Swap(currentGeneration); previousGeneration == currentGeneration {
+					return
+				}
 			}
 		}
 	}
