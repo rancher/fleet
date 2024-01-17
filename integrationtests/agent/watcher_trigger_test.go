@@ -33,7 +33,6 @@ var _ = Describe("Watches for deployed resources", Ordered, func() {
 	})
 
 	registerResource := func(key string, objs ...runtime.Object) *int {
-		_ = triggr.Clear(key)
 		var count int
 		Expect(triggr.OnChange(key, env.namespace, func() {
 			count++
