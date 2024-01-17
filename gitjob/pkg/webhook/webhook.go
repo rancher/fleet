@@ -8,6 +8,9 @@ import (
 	"regexp"
 	"strings"
 
+	goPlaygroundAzuredevops "github.com/go-playground/webhooks/v6/azuredevops"
+	"github.com/rancher/gitjob/pkg/webhook/azuredevops"
+
 	"github.com/go-logr/logr"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -39,6 +42,8 @@ const (
 	bitbucketKey               = "bitbucket"
 	bitbucketServerKey         = "bitbucket-server"
 	gogsKey                    = "gogs"
+	azureUsername              = "azure-username"
+	azurePassword              = "azure-password"
 
 	branchRefPrefix = "refs/heads/"
 	tagRefPrefix    = "refs/tags/"
@@ -53,6 +58,7 @@ type Webhook struct {
 	bitbucketServer *bitbucketserver.Webhook
 	gogs            *gogs.Webhook
 	log             logr.Logger
+	azureDevops     *azuredevops.Webhook
 }
 
 func New(namespace string, client client.Client) (*Webhook, error) {
@@ -89,6 +95,10 @@ func (w *Webhook) initGitProviders() error {
 		return err
 	}
 	w.gogs, err = gogs.New()
+	if err != nil {
+		return err
+	}
+	w.azureDevops, err = azuredevops.New()
 	if err != nil {
 		return err
 	}
@@ -131,6 +141,11 @@ func (w *Webhook) onSecretChange(obj interface{}) error {
 		return err
 	}
 	w.gogs = gogs
+	azureDevops, err := azuredevops.New(azuredevops.Options.BasicAuth(string(secret.Data[azureUsername]), string(secret.Data[azurePassword])))
+	if err != nil {
+		return err
+	}
+	w.azureDevops = azureDevops
 
 	return nil
 }
@@ -153,6 +168,8 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		payload, err = w.bitbucket.Parse(r, bitbucket.RepoPushEvent)
 	case r.Header.Get("X-Event-Key") != "":
 		payload, err = w.bitbucketServer.Parse(r, bitbucketserver.RepositoryReferenceChangedEvent)
+	case r.Header.Get("X-Vss-Activityid") != "" || r.Header.Get("X-Vss-Subscriptionid") != "":
+		payload, err = w.azureDevops.Parse(r, goPlaygroundAzuredevops.GitPushEventType)
 	default:
 		logrus.Debug("Ignoring unknown webhook event")
 		return
@@ -212,6 +229,13 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		repoURLs = append(repoURLs, t.Repo.HTMLURL)
 		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.After
+	case goPlaygroundAzuredevops.GitPushEvent:
+		repoURLs = append(repoURLs, t.Resource.Repository.RemoteURL)
+		for _, refUpdate := range t.Resource.RefUpdates {
+			branch, tag = getBranchTagFromRef(refUpdate.Name)
+			revision = refUpdate.NewObjectID
+			break
+		}
 	}
 
 	var gitJobList v1.GitJobList
