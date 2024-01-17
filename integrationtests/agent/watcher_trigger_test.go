@@ -179,7 +179,6 @@ var _ = Describe("Watches for deployed resources", Ordered, func() {
 			}).Should(Equal(0))
 		})
 		It("is triggered on Spec changes", func() {
-			deploy.Spec.Paused = true
 			for i := 1; i <= 5; i++ {
 				deploy.Spec.Replicas = pointer.Int32(int32(i))
 				Expect(env.k8sClient.Update(ctx, deploy)).ToNot(HaveOccurred())
