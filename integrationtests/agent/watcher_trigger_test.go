@@ -178,7 +178,7 @@ var _ = Describe("Watches for deployed resources", Ordered, func() {
 				return *triggerCount
 			}).Should(Equal(0))
 		})
-		It("is triggered Spec is changed", func() {
+		It("is triggered on Spec changes", func() {
 			deploy.Spec.Paused = true
 			for i := 1; i <= 5; i++ {
 				deploy.Spec.Replicas = pointer.Int32(int32(i))
