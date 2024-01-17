@@ -132,11 +132,10 @@ func (t *Trigger) OnChange(key string, defaultNamespace string, trigger func(), 
 	return nil
 }
 
-func (t *Trigger) storeObjectGeneration(uid types.UID, generation int64) *atomic.Int64 {
+func (t *Trigger) storeObjectGeneration(uid types.UID, generation int64) {
 	value := new(atomic.Int64)
 	value.Store(generation)
 	t.seenGenerations.Store(uid, value)
-	return value
 }
 
 func (t *Trigger) call(gvk schema.GroupVersionKind, obj metav1.Object, deleted bool) {
