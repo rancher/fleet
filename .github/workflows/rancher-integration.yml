@@ -63,10 +63,7 @@ jobs:
       -
         name: Build fleet binaries
         run: |
-          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
-
-          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
-          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+          ./.github/scripts/build-fleet-binaries.sh
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v3

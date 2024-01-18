@@ -107,6 +107,26 @@ steps:
     - refs/tags/*
     event:
     - tag
+- name: docker-publish-gitjob
+  image: plugins/docker
+  settings:
+    dockerfile: package/Dockerfile.gitjob
+    password:
+      from_secret: docker_password
+    repo: "rancher/fleet-gitjob"
+    tag: "${DRONE_TAG}-linux-amd64"
+    username:
+      from_secret: docker_username
+    build_args:
+      - "ARCH=amd64"
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
 - name: docker-publish
   image: plugins/docker
   settings:
@@ -178,6 +198,26 @@ steps:
     password:
       from_secret: docker_password
     repo: "rancher/fleet-agent"
+    tag: "${DRONE_TAG}-linux-arm64"
+    username:
+      from_secret: docker_username
+    build_args:
+      - "ARCH=arm64"
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+- name: docker-publish-gitjob
+  image: plugins/docker
+  settings:
+    dockerfile: package/Dockerfile.gitjob
+    password:
+      from_secret: docker_password
+    repo: "rancher/fleet-gitjob"
     tag: "${DRONE_TAG}-linux-arm64"
     username:
       from_secret: docker_username
@@ -331,6 +371,22 @@ steps:
     password:
       from_secret: docker_password
     spec: manifest.tmpl
+  when:
+    instance:
+    - drone-publish.rancher.io
+    ref:
+    - refs/head/master
+    - refs/tags/*
+    event:
+    - tag
+- name: manifest-gitjob
+  image: plugins/manifest:1.0.2
+  settings:
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+    spec: manifest-gitjob.tmpl
   when:
     instance:
     - drone-publish.rancher.io
