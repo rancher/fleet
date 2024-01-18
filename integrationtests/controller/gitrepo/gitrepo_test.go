@@ -6,7 +6,7 @@ import (
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+	gitjob "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"

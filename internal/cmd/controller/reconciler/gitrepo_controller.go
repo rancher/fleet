@@ -9,7 +9,7 @@ import (
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	gitjob "github.com/rancher/gitjob/pkg/apis/gitjob.cattle.io/v1"
+	gitjob "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/wrangler/v2/pkg/condition"

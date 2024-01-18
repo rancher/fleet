@@ -48,17 +48,15 @@ jobs:
       -
         name: Build Fleet Binaries
         run: |
-          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
+          ./.github/scripts/build-fleet-binaries.sh
 
-          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
-          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
           cd e2e/testenv/infra
           go build -o . ./...
       -
         name: Build Docker Images
         run: |
-          docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
-          docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+          ./.github/scripts/build-fleet-images.sh
+
           DOCKER_BUILDKIT=1 docker build -f e2e/assets/gitrepo/Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" e2e/assets/gitrepo
       -
         name: Provision k3d Cluster
@@ -74,7 +72,7 @@ jobs:
       -
         name: Import Images Into k3d
         run: |
-          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev nginx-git:test
+          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev rancher/fleet-gitjob:dev nginx-git:test
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
@@ -152,6 +150,7 @@ jobs:
           echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
           ginkgo e2e/require-secrets
+          ginkgo e2e/gitjob
       -
         name: Dump Failed Environment
         if: failure()
