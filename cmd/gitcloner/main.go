@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/rancher/gitjob/cmd/gitcloner/cmd"
-	"github.com/rancher/gitjob/cmd/gitcloner/gogit"
+	"github.com/rancher/fleet/cmd/gitcloner/cmd"
+	"github.com/rancher/fleet/cmd/gitcloner/gogit"
 	"github.com/sirupsen/logrus"
 )
 
