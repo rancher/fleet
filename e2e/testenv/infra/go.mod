@@ -14,7 +14,7 @@ require (
 	github.com/rancher/fleet v0.0.0
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/crypto v0.17.0
-	helm.sh/helm/v3 v3.13.3
+	helm.sh/helm/v3 v3.14.0
 )
 
 require (
@@ -66,7 +66,7 @@ require (
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
 	google.golang.org/grpc v1.58.3 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	k8s.io/client-go v12.0.0+incompatible // indirect
