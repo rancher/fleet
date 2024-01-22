@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
-	aplan "github.com/rancher/fleet/internal/cmd/agent/deployer/plan"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -160,7 +159,7 @@ func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeploy
 	if err != nil {
 		return err
 	}
-	plan, err = aplan.Diff(plan, bd, resources.DefaultNamespace, resources.Objects...)
+	plan, err = applied.Diff(plan, bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
 		return err
 	}
