@@ -24,7 +24,7 @@ func (g *Getter) Get() (*Client, error) {
 	if g == nil {
 		return nil, fmt.Errorf("client is not configured, please set client getter")
 	}
-	return NewClient(g.Kubeconfig, g.Context, g.Namespace)
+	return newClient(g.Kubeconfig, g.Context, g.Namespace)
 }
 
 func (g *Getter) GetNamespace() string {
@@ -47,7 +47,7 @@ func NewGetter(kubeconfig, context, namespace string) *Getter {
 	}
 }
 
-func NewClient(kubeConfig, context, namespace string) (*Client, error) {
+func newClient(kubeConfig, context, namespace string) (*Client, error) {
 	cc := kubeconfig.GetNonInteractiveClientConfigWithContext(kubeConfig, context)
 	ns, _, err := cc.Namespace()
 	if err != nil {

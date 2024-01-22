@@ -6,6 +6,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/agent/controller"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
@@ -19,11 +20,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -140,7 +141,7 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 	upstreamClient := mgr.GetClient()
 
 	// Build client for local cluster
-	localCluster, localClient, err := newCluster(localCtx, localConfig, ctrl.Options{
+	localCluster, err := newCluster(localCtx, localConfig, ctrl.Options{
 		Scheme: localScheme,
 		Logger: mgr.GetLogger().WithName("local-cluster"),
 	})
@@ -148,6 +149,7 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 		setupLog.Error(err, "unable to build local cluster client")
 		return nil, err
 	}
+	localClient := localCluster.GetClient()
 
 	// Build the helm deployer, which uses a getter for local cluster's client-go client for helm SDK
 	helmDeployer := helmdeployer.New(
@@ -171,13 +173,17 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 	)
 
 	// Build the monitor to update the bundle deployment's status, calculates modified/non-modified
-	apply, mapper, localDynamic, err := LocalClients(ctx, localConfig)
+	localDynamic, err := dynamic.NewForConfig(localConfig)
+	if err != nil {
+		return nil, err
+	}
+	applied, err := applied.NewWithClient(localConfig)
 	if err != nil {
 		return nil, err
 	}
 	monitor := monitor.New(
-		apply,
-		mapper,
+		applied,
+		localClient.RESTMapper(),
 		helmDeployer,
 		defaultNamespace,
 		agentScope,
@@ -189,7 +195,7 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 		trigger,
 		upstreamClient,
 		mgr.GetAPIReader(),
-		apply,
+		applied,
 		defaultNamespace,
 		defaultNamespace,
 		agentScope,
@@ -198,7 +204,7 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 	// Build the clean up, which deletes helm releases
 	cleanup := cleanup.New(
 		upstreamClient,
-		mapper,
+		localClient.RESTMapper(),
 		localDynamic,
 		helmDeployer,
 		fleetNamespace,
@@ -226,13 +232,13 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 // This client is for the local cluster, not the upstream cluster. The upstream
 // cluster client is used by the manager to watch for changes to the
 // bundledeployments.
-func newCluster(ctx context.Context, config *rest.Config, options manager.Options) (cluster.Cluster, client.Client, error) {
+func newCluster(ctx context.Context, config *rest.Config, options manager.Options) (cluster.Cluster, error) {
 	cluster, err := cluster.New(config, func(clusterOptions *cluster.Options) {
 		clusterOptions.Scheme = options.Scheme
 		clusterOptions.Logger = options.Logger
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	go func() {
 		err := cluster.GetCache().Start(ctx)
@@ -243,5 +249,5 @@ func newCluster(ctx context.Context, config *rest.Config, options manager.Option
 	}()
 	cluster.GetCache().WaitForCacheSync(ctx)
 
-	return cluster, cluster.GetClient(), nil
+	return cluster, nil
 }

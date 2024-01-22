@@ -9,7 +9,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diffnormalize"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/resource"
 	fleetnorm "github.com/rancher/fleet/internal/cmd/agent/deployer/normalizers"
-	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v2/pkg/apply"
@@ -20,27 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-type Options struct {
-	LabelPrefix      string
-	LabelSuffix      string
-	DefaultNamespace string
-	Name             string
-}
-
-func GetApply(apply apply.Apply, opts Options) apply.Apply {
-	return apply.
-		WithIgnorePreviousApplied().
-		WithSetID(helmdeployer.GetSetID(opts.Name, opts.LabelPrefix, opts.LabelSuffix)).
-		WithDefaultNamespace(opts.DefaultNamespace)
-}
-
-// DryRun does a dry run of the apply to get the difference between the
-// desired and live state.
-func DryRun(a apply.Apply, objs ...runtime.Object) (*apply.Plan, error) {
-	plan, err := a.DryRun(objs...)
-	return &plan, err
-}
 
 // Diff factors the bundledeployment's bundle diff patches into the plan from
 // DryRun. This way, the status of the bundledeployment can be updated

@@ -9,12 +9,12 @@ import (
 
 	"helm.sh/helm/v3/pkg/chart"
 
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
 	"github.com/rancher/fleet/internal/helmdeployer/kustomize"
 	"github.com/rancher/fleet/internal/helmdeployer/rawyaml"
 	"github.com/rancher/fleet/internal/manifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v2/pkg/apply"
 	"github.com/rancher/wrangler/v2/pkg/yaml"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -72,8 +72,8 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 	}
 	objs = append(objs, yamlObjs...)
 
-	setID := GetSetID(p.bundleID, p.labelPrefix, p.labelSuffix)
-	labels, annotations, err := apply.GetLabelsAndAnnotations(setID, nil)
+	setID := applied.GetSetID(p.bundleID, p.labelPrefix, p.labelSuffix)
+	labels, annotations, err := applied.GetLabelsAndAnnotations(setID, nil)
 	if err != nil {
 		return nil, err
 	}
