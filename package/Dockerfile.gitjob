@@ -1,6 +1,6 @@
 FROM registry.suse.com/bci/bci-base:15.5
 RUN zypper -n update && \
-    zypper -n install openssh catatonit git && \
+    zypper -n install openssh catatonit git-core && \
     zypper -n clean -a
 RUN useradd -u 1000 -U -m gitjob
 COPY bin/gitjob /usr/bin/
