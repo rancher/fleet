@@ -5,18 +5,6 @@ This section contains information on releasing Fleet.
 
 ---
 
-## Updating Fleet Components
-
-This process is now mostly automated:
-1. Update [rancher/gitjob](https://github.com/rancher/gitjob) if necessary
-1. Run an UpdateCLI Github [workflow](https://github.com/rancher/fleet/actions/workflows/updatecli.yml) in
-   [rancher/fleet](https://github.com/rancher/fleet) to bump its `rancher/gitjob` dependency version
-1. Approve and merge the PR created by that workflow
-1. Update and tag [rancher/fleet](https://github.com/rancher/fleet) (usually as a release candidate) to use those
-   components in a released version of Fleet
-
----
-
 ## Cherry Picking Bug Fixes To Releases
 
 With releases happening on release branches, there are times where a bug fix needs to be handled on the `master` branch and pulled into a release that happens through a release branch.
