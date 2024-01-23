@@ -87,3 +87,16 @@ leaderElection:
   leaseDuration: 30s
   retryPeriod: 10s
   renewDeadline: 25s
+
+gitjob:
+  repository: rancher/fleet-gitjob
+  tag: dev
+  imagePullPolicy: IfNotPresent
+  nodeSelector:
+    kubernetes.io/os: linux
+
+  tolerations:
+    - key: cattle.io/os
+      operator: "Equal"
+      value: "linux"
+      effect: NoSchedule

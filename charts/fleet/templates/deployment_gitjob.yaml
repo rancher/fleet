@@ -39,11 +39,11 @@ spec:
             - name: CATTLE_DEV_MODE
               value: "true"
           {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.gitjob.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with .Values.gitjob.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
