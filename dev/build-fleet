@@ -25,3 +25,9 @@ docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARC
 go build -gcflags='all=-N -l' -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
 go build -gcflags='all=-N -l' -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
 docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+
+# gitjob
+go build -gcflags='all=-N -l' -o "bin/gitcloner" ./cmd/gitcloner
+go build -gcflags='all=-N -l' -o "bin/gitjob" ./cmd/gitjob
+
+docker build -f package/Dockerfile.gitjob -t rancher/fleet-gitjob:dev --build-arg="ARCH=$GOARCH" .
