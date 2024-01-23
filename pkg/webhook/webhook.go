@@ -272,7 +272,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				if tag == "" {
 					continue
 				}
-				contraints, err := semver.NewConstraint(gitjob.Spec.Git.OnTag)
+				constraints, err := semver.NewConstraint(gitjob.Spec.Git.OnTag)
 				if err != nil {
 					logrus.Warnf("Failed to parsing onTag semver from %s/%s, err: %v, skipping", gitjob.Namespace, gitjob.Name, err)
 					continue
@@ -282,7 +282,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					logrus.Warnf("Failed to parsing semver on incoming tag, err: %v, skipping", err)
 					continue
 				}
-				if !contraints.Check(v) {
+				if !constraints.Check(v) {
 					continue
 				}
 			} else if gitjob.Spec.Git.Branch != "" {
@@ -294,17 +294,23 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 			if gitjob.Status.Commit != revision && revision != "" {
 				if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-					var gitJobFomCluster v1.GitJob
-					err := w.client.Get(ctx, ktypes.NamespacedName{Name: gitjob.Name, Namespace: gitjob.Namespace}, &gitJobFomCluster)
+					var gitJobFromCluster v1.GitJob
+					err := w.client.Get(
+						ctx,
+						ktypes.NamespacedName{
+							Name:      gitjob.Name,
+							Namespace: gitjob.Namespace,
+						}, &gitJobFromCluster,
+					)
 					if err != nil {
 						return err
 					}
-					gitJobFomCluster.Status.Commit = revision
+					gitJobFromCluster.Status.Commit = revision
 					// if syncInterval is not set and webhook is configured, set it to 1 hour
 					if gitjob.Spec.SyncInterval == 0 {
-						gitJobFomCluster.Spec.SyncInterval = webhookDefaultSyncInterval
+						gitJobFromCluster.Spec.SyncInterval = webhookDefaultSyncInterval
 					}
-					return w.client.Status().Update(ctx, &gitJobFomCluster)
+					return w.client.Status().Update(ctx, &gitJobFromCluster)
 				}); err != nil {
 					logAndReturn(rw, err)
 					return

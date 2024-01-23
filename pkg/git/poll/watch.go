@@ -92,14 +92,14 @@ func (w *Watch) fetchLatestCommitAndUpdateStatus(ctx context.Context) {
 	if w.gitJob.Status.Commit != commit {
 		w.log.Info("new commit found", "gitjob name", w.gitJob.Name, "commit", commit)
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			var gitJobFomCluster v1.GitJob
-			err := w.client.Get(ctx, types.NamespacedName{Name: w.gitJob.Name, Namespace: w.gitJob.Namespace}, &gitJobFomCluster)
+			var gitJobFromCluster v1.GitJob
+			err := w.client.Get(ctx, types.NamespacedName{Name: w.gitJob.Name, Namespace: w.gitJob.Namespace}, &gitJobFromCluster)
 			if err != nil {
 				return err
 			}
-			gitJobFomCluster.Status.Commit = commit
+			gitJobFromCluster.Status.Commit = commit
 
-			return w.client.Status().Update(ctx, &gitJobFomCluster)
+			return w.client.Status().Update(ctx, &gitJobFromCluster)
 		}); err != nil {
 			w.log.Error(err, "error updating status when a new commit was found by polling", "gitjob", w.gitJob)
 		}

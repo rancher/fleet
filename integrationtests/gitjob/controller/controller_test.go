@@ -184,14 +184,14 @@ var _ = Describe("GitJob controller", func() {
 
 			// change args parameter, this will change the Generation field. This simulates changing fleet apply parameters.
 			Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				var gitJobFomCluster v1.GitJob
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFomCluster)
+				var gitJobFromCluster v1.GitJob
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFromCluster)
 				if err != nil {
 					return err
 				}
-				gitJobFomCluster.Spec.JobSpec.Template.Spec.Containers[0].Args = []string{"-v"}
+				gitJobFromCluster.Spec.JobSpec.Template.Spec.Containers[0].Args = []string{"-v"}
 
-				return k8sClient.Update(ctx, &gitJobFomCluster)
+				return k8sClient.Update(ctx, &gitJobFromCluster)
 			})).ToNot(HaveOccurred())
 		})
 
@@ -212,41 +212,41 @@ var _ = Describe("GitJob controller", func() {
 
 func simulateIncreaseForceUpdateGeneration(gitJob v1.GitJob) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitJobFomCluster v1.GitJob
-		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFomCluster)
+		var gitJobFromCluster v1.GitJob
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFromCluster)
 		if err != nil {
 			return err
 		}
-		gitJobFomCluster.Spec.ForceUpdateGeneration++
-		return k8sClient.Update(ctx, &gitJobFomCluster)
+		gitJobFromCluster.Spec.ForceUpdateGeneration++
+		return k8sClient.Update(ctx, &gitJobFromCluster)
 	})
 }
 
 func simulateIncreaseGitJobGeneration(gitJob v1.GitJob) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitJobFomCluster v1.GitJob
-		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFomCluster)
+		var gitJobFromCluster v1.GitJob
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFromCluster)
 		if err != nil {
 			return err
 		}
-		gitJobFomCluster.Spec.Git.ClientSecretName = "new"
-		return k8sClient.Update(ctx, &gitJobFomCluster)
+		gitJobFromCluster.Spec.Git.ClientSecretName = "new"
+		return k8sClient.Update(ctx, &gitJobFromCluster)
 	})
 }
 
 func simulateGitPollerUpdatingCommitInStatus(gitJob v1.GitJob, commit string) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitJobFomCluster v1.GitJob
-		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFomCluster)
+		var gitJobFromCluster v1.GitJob
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFromCluster)
 		if err != nil {
 			return err
 		}
-		gitJobFomCluster.Status = v1.GitJobStatus{
+		gitJobFromCluster.Status = v1.GitJobStatus{
 			GitEvent: v1.GitEvent{
 				Commit: commit,
 			},
 		}
-		return k8sClient.Status().Update(ctx, &gitJobFomCluster)
+		return k8sClient.Status().Update(ctx, &gitJobFromCluster)
 	})
 }
 

@@ -143,15 +143,15 @@ func (r *GitJobReconciler) createJob(ctx context.Context, gitJob *v1.GitJob) err
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitJobFomCluster v1.GitJob
-		err := r.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFomCluster)
+		var gitJobFromCluster v1.GitJob
+		err := r.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFromCluster)
 		if err != nil {
 			return err
 		}
-		gitJobFomCluster.Status.ObservedGeneration = gitJobFomCluster.Generation
-		gitJobFomCluster.Status.LastSyncedTime = metav1.Now()
+		gitJobFromCluster.Status.ObservedGeneration = gitJobFromCluster.Generation
+		gitJobFromCluster.Status.LastSyncedTime = metav1.Now()
 
-		return r.Status().Update(ctx, &gitJobFomCluster)
+		return r.Status().Update(ctx, &gitJobFromCluster)
 	})
 
 }

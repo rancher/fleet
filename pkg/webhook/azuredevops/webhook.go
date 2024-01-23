@@ -1,5 +1,6 @@
 // File copied from https://github.com/go-playground/webhooks/blob/master/azuredevops/azuredevops.go
-// TODO Basic Auth is added here since it's not available upstream. Remove ths file once https://github.com/go-playground/webhooks/pull/191 is merged
+// TODO Basic Auth is added here since it's not available upstream.
+// Remove this file once https://github.com/go-playground/webhooks/pull/191 is merged.
 
 package azuredevops
 
