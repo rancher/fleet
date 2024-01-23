@@ -54,8 +54,7 @@ jobs:
       -
         name: Build Docker Images
         run: |
-          docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
-          docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+          ./dev/build-fleet
           cd e2e/assets/gitrepo
           # Buildkit needed here for proper here-document support
           DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
@@ -73,7 +72,7 @@ jobs:
       -
         name: Import Images Into k3d
         run: |
-          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev nginx-git:test
+          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev rancher/fleet-gitjob:dev nginx-git:test
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}

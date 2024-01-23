@@ -47,8 +47,7 @@ jobs:
       -
         name: Build Docker Images
         run: |
-          docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
-          docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+          ./dev/build-fleet
       -
         name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
@@ -76,7 +75,7 @@ jobs:
       -
         name: Import Images Into k3d
         run: |
-          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev -c upstream
+          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev rancher/fleet-gitjob:dev -c upstream
           ./.github/scripts/k3d-import-retry.sh rancher/fleet-agent:dev -c downstream
       -
         name: Set Up Tmate Debug Session
