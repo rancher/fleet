@@ -26,8 +26,5 @@ jobs:
         name: go.mod
         run: ./.github/scripts/check-for-go-mod-changes.sh
       -
-        name: gitjob
-        run: ./.github/scripts/check-for-gitjob-changes.sh
-      -
         name: generate.go
         run: ./.github/scripts/check-for-auto-generated-changes.sh
