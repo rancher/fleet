@@ -88,7 +88,7 @@ func TestReconcile_PurgeWatchesIsCalled_WhenGitRepoIsCreatedOrModified(t *testin
 	}
 }
 
-func TestNewJob(t *testing.T) {
+func TestNewJob(t *testing.T) { // nolint:funlen
 	securityContext := &corev1.SecurityContext{
 		AllowPrivilegeEscalation: &[]bool{false}[0],
 		ReadOnlyRootFilesystem:   &[]bool{true}[0],

@@ -28,8 +28,8 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/fleet/internal/mocks"
-	"github.com/rancher/fleet/pkg/git"
 	gitjobv1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	"github.com/rancher/fleet/pkg/git"
 
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -351,11 +351,11 @@ func initRepo(url string, name string, private bool) (string, error) {
 	}
 	defer os.RemoveAll(tmp)
 
-	r, err := gogit.PlainInit(tmp, false)
-	if err != nil {
+	if _, err = gogit.PlainInit(tmp, false); err != nil {
 		return "", err
 	}
-	r, err = gogit.PlainOpen(tmp)
+
+	r, err := gogit.PlainOpen(tmp)
 	if err != nil {
 		return "", err
 	}

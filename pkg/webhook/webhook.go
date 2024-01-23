@@ -182,61 +182,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var revision, branch, tag string
-	var repoURLs []string
-	// credit from https://github.com/argoproj/argo-cd/blob/97003caebcaafe1683e71934eb483a88026a4c33/util/webhook/webhook.go#L84-L87
-	switch t := payload.(type) {
-	case github.PushPayload:
-		branch, tag = getBranchTagFromRef(t.Ref)
-		revision = t.After
-		repoURLs = append(repoURLs, t.Repository.HTMLURL)
-	case gitlab.PushEventPayload:
-		branch, tag = getBranchTagFromRef(t.Ref)
-		revision = t.CheckoutSHA
-		repoURLs = append(repoURLs, t.Project.WebURL)
-	case gitlab.TagEventPayload:
-		branch, tag = getBranchTagFromRef(t.Ref)
-		revision = t.CheckoutSHA
-		repoURLs = append(repoURLs, t.Project.WebURL)
-	// https://support.atlassian.com/bitbucket-cloud/docs/event-payloads/#Push
-	case bitbucket.RepoPushPayload:
-		repoURLs = append(repoURLs, t.Repository.Links.HTML.Href)
-		for _, change := range t.Push.Changes {
-			revision = change.New.Target.Hash
-			if change.New.Type == "branch" {
-				branch = change.New.Name
-			} else if change.New.Type == "tag" {
-				tag = change.New.Name
-			}
-			break
-		}
-	case bitbucketserver.RepositoryReferenceChangedPayload:
-		for _, l := range t.Repository.Links["clone"].([]interface{}) {
-			link := l.(map[string]interface{})
-			if link["name"] == "http" {
-				repoURLs = append(repoURLs, link["href"].(string))
-			}
-			if link["name"] == "ssh" {
-				repoURLs = append(repoURLs, link["href"].(string))
-			}
-		}
-		for _, change := range t.Changes {
-			revision = change.ToHash
-			branch, tag = getBranchTagFromRef(change.ReferenceId)
-			break
-		}
-	case gogsclient.PushPayload:
-		repoURLs = append(repoURLs, t.Repo.HTMLURL)
-		branch, tag = getBranchTagFromRef(t.Ref)
-		revision = t.After
-	case goPlaygroundAzuredevops.GitPushEvent:
-		repoURLs = append(repoURLs, t.Resource.Repository.RemoteURL)
-		for _, refUpdate := range t.Resource.RefUpdates {
-			branch, tag = getBranchTagFromRef(refUpdate.Name)
-			revision = refUpdate.NewObjectID
-			break
-		}
-	}
+	revision, branch, tag, repoURLs := parsePayload(payload)
 
 	var gitJobList v1.GitJobList
 	err = w.client.List(ctx, &gitJobList, &client.ListOptions{LabelSelector: labels.Everything()})
@@ -319,7 +265,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rw.WriteHeader(200)
-	rw.Write([]byte("succeeded"))
+	_, _ = rw.Write([]byte("succeeded"))
 }
 
 func HandleHooks(ctx context.Context, namespace string, client client.Client, clientCache cache.Cache) (http.Handler, error) {
@@ -367,8 +313,7 @@ func HandleHooks(ctx context.Context, namespace string, client client.Client, cl
 func logAndReturn(rw http.ResponseWriter, err error) {
 	logrus.Errorf("Webhook processing failed: %s", err)
 	rw.WriteHeader(500)
-	rw.Write([]byte(err.Error()))
-	return
+	_, _ = rw.Write([]byte(err.Error()))
 }
 
 // git ref docs: https://git-scm.com/book/en/v2/Git-Internals-Git-References
@@ -382,4 +327,66 @@ func getBranchTagFromRef(ref string) (string, string) {
 	}
 
 	return "", ""
+}
+
+// parsePayload extracts git information from a request payload, depending on its type.
+// Returns a revision, branch, tag and a slice of repo URLs.
+func parsePayload(payload interface{}) (revision, branch, tag string, repoURLs []string) {
+	// credit from https://github.com/argoproj/argo-cd/blob/97003caebcaafe1683e71934eb483a88026a4c33/util/webhook/webhook.go#L84-L87
+	switch t := payload.(type) {
+	case github.PushPayload:
+		branch, tag = getBranchTagFromRef(t.Ref)
+		revision = t.After
+		repoURLs = append(repoURLs, t.Repository.HTMLURL)
+	case gitlab.PushEventPayload:
+		branch, tag = getBranchTagFromRef(t.Ref)
+		revision = t.CheckoutSHA
+		repoURLs = append(repoURLs, t.Project.WebURL)
+	case gitlab.TagEventPayload:
+		branch, tag = getBranchTagFromRef(t.Ref)
+		revision = t.CheckoutSHA
+		repoURLs = append(repoURLs, t.Project.WebURL)
+	// https://support.atlassian.com/bitbucket-cloud/docs/event-payloads/#Push
+	case bitbucket.RepoPushPayload:
+		repoURLs = append(repoURLs, t.Repository.Links.HTML.Href)
+		if len(t.Push.Changes) == 0 {
+			break
+		}
+
+		change := t.Push.Changes[0]
+		revision = change.New.Target.Hash
+		if change.New.Type == "branch" {
+			branch = change.New.Name
+		} else if change.New.Type == "tag" {
+			tag = change.New.Name
+		}
+	case bitbucketserver.RepositoryReferenceChangedPayload:
+		for _, l := range t.Repository.Links["clone"].([]interface{}) {
+			link := l.(map[string]interface{})
+			if link["name"] == "http" {
+				repoURLs = append(repoURLs, link["href"].(string))
+			}
+			if link["name"] == "ssh" {
+				repoURLs = append(repoURLs, link["href"].(string))
+			}
+		}
+		for _, change := range t.Changes {
+			revision = change.ToHash
+			branch, tag = getBranchTagFromRef(change.ReferenceId)
+			break
+		}
+	case gogsclient.PushPayload:
+		repoURLs = append(repoURLs, t.Repo.HTMLURL)
+		branch, tag = getBranchTagFromRef(t.Ref)
+		revision = t.After
+	case goPlaygroundAzuredevops.GitPushEvent:
+		repoURLs = append(repoURLs, t.Resource.Repository.RemoteURL)
+		for _, refUpdate := range t.Resource.RefUpdates {
+			branch, tag = getBranchTagFromRef(refUpdate.Name)
+			revision = refUpdate.NewObjectID
+			break
+		}
+	}
+
+	return revision, branch, tag, repoURLs
 }
