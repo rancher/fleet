@@ -11,8 +11,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"go.uber.org/mock/gomock"
 
+	"github.com/rancher/fleet/internal/mocks"
 	gitjobv1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
-	"github.com/rancher/fleet/pkg/mocks"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
