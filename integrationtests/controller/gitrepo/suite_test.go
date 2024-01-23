@@ -51,7 +51,6 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml"),
-			filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "gitjobs-crds.yaml"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}

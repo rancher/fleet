@@ -43,7 +43,7 @@ var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
 	ctx, cancel = context.WithCancel(context.TODO())
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "gitjobs-crds.yaml")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
 		ErrorIfCRDPathMissing: true,
 	}
 
