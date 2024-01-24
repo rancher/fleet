@@ -1,12 +1,12 @@
 package target
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/pkg/errors"
 
-	"github.com/rancher/wrangler/v2/pkg/yaml"
-
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -42,7 +42,7 @@ func TestProcessLabelValues(t *testing.T) {
 	clusterLabels["name"] = "local"
 	clusterLabels["envType"] = "dev"
 
-	err := yaml.Unmarshal([]byte(bundleYaml), bundle)
+	err := yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(bundleYaml)).Decode(bundle)
 	if err != nil {
 		t.Fatalf("error during yaml parsing %v", err)
 	}
@@ -180,7 +180,7 @@ func TestProcessTemplateValues(t *testing.T) {
 	}
 
 	bundle := &v1alpha1.BundleSpec{}
-	err := yaml.Unmarshal([]byte(bundleYamlWithTemplate), bundle)
+	err := yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(bundleYamlWithTemplate)).Decode(bundle)
 	if err != nil {
 		t.Fatalf("error during yaml parsing %v", err)
 	}
@@ -330,13 +330,13 @@ spec:
 
 func getClusterAndBundle(bundleYaml string) (*v1alpha1.Cluster, *v1alpha1.BundleDeploymentOptions, error) {
 	cluster := &v1alpha1.Cluster{}
-	err := yaml.Unmarshal([]byte(clusterYamlWithTemplateValues), cluster)
+	err := yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(clusterYamlWithTemplateValues)).Decode(cluster)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error during cluster yaml parsing")
 	}
 
 	bundle := &v1alpha1.BundleDeploymentOptions{}
-	err = yaml.Unmarshal([]byte(bundleYaml), bundle)
+	err = yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(bundleYaml)).Decode(bundle)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error during bundle yaml parsing")
 	}

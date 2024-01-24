@@ -1,10 +1,12 @@
 package bundlereader
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/v2/pkg/yaml"
+
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 const (
@@ -36,12 +38,12 @@ func TestValueMerge(t *testing.T) {
 	first := &v1alpha1.GenericMap{}
 	second := &v1alpha1.GenericMap{}
 
-	err := yaml.Unmarshal([]byte(valuesOneYaml), first)
+	err := yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(valuesOneYaml)).Decode(first)
 	if err != nil {
 		t.Fatalf("error during valuesOneYaml parsing %v", err)
 	}
 
-	err = yaml.Unmarshal([]byte(valuesTwoYaml), second)
+	err = yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(valuesTwoYaml)).Decode(second)
 	if err != nil {
 		t.Fatalf("error during valuesTwoYaml parsing %v", err)
 	}
