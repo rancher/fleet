@@ -49,7 +49,7 @@ func NewWithClient(config *rest.Config) (*Applied, error) {
 
 // DryRun does a dry run of the apply to get the difference between the
 // desired and live state. It needs a client.
-// This adds the "objectset.rio.cattle.io/applied" annotations, which is used for tracking changes.
+// This adds the "objectset.rio.cattle.io/applied" annotation, which is used for tracking changes.
 func (a *Applied) DryRun(defaultNS string, setID string, objs ...runtime.Object) (apply.Plan, error) {
 	apply := a.apply.
 		WithIgnorePreviousApplied().
