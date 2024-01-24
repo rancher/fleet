@@ -32,7 +32,7 @@ func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
 }
 
 // GetLabelsAndAnnotations returns the labels and annotations, like
-// "objectset.rio.cattle.io/hash", to be able to use apply.DryRun
+// "objectset.rio.cattle.io/hash" and owners, to be able to use apply.DryRun
 func GetLabelsAndAnnotations(setID string, owner runtime.Object) (map[string]string, map[string]string, error) {
 	return apply.GetLabelsAndAnnotations(setID, owner)
 }
@@ -49,6 +49,7 @@ func NewWithClient(config *rest.Config) (*Applied, error) {
 
 // DryRun does a dry run of the apply to get the difference between the
 // desired and live state. It needs a client.
+// This adds the "objectset.rio.cattle.io/applied" annotations, which is used for tracking changes.
 func (a *Applied) DryRun(defaultNS string, setID string, objs ...runtime.Object) (apply.Plan, error) {
 	apply := a.apply.
 		WithIgnorePreviousApplied().
