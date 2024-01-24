@@ -1,6 +1,7 @@
 package helmdeployer
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strconv"
@@ -15,10 +16,9 @@ import (
 	"github.com/rancher/fleet/internal/manifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v2/pkg/yaml"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -287,7 +287,7 @@ func valuesFromSecret(name, namespace, key string, secret *corev1.Secret) (map[s
 	if !ok {
 		return nil, fmt.Errorf("key %s is missing from secret %s/%s, can't use it in valuesFrom", key, namespace, name)
 	}
-	if err := yaml.Unmarshal(values, &m); err != nil {
+	if err := yaml.NewYAMLToJSONDecoder(bytes.NewBuffer(values)).Decode(&m); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -303,7 +303,7 @@ func valuesFromConfigMap(name, namespace, key string, configMap *corev1.ConfigMa
 	if !ok {
 		return nil, fmt.Errorf("key %s is missing from configmap %s/%s, can't use it in valuesFrom", key, namespace, name)
 	}
-	if err := yaml.Unmarshal([]byte(values), &m); err != nil {
+	if err := yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(values)).Decode(&m); err != nil {
 		return nil, err
 	}
 	return m, nil

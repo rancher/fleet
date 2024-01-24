@@ -7,13 +7,14 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/rancher/wrangler/v2/pkg/yaml"
 	"github.com/spf13/cobra"
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
+
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 type readFile func(name string) ([]byte, error)
@@ -118,7 +119,7 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {
 			return err
 		}
 		var authByPath map[string]bundlereader.Auth
-		err = yaml.Unmarshal(file, &authByPath)
+		err = yaml.NewYAMLToJSONDecoder(bytes.NewBuffer(file)).Decode(&authByPath)
 		if err != nil {
 			return err
 		}

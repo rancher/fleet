@@ -2,6 +2,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -13,11 +14,10 @@ import (
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v2/pkg/yaml"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
@@ -123,7 +123,7 @@ func getToken(ctx context.Context, controllerNamespace, tokenName string, client
 	}
 
 	data := map[string]interface{}{}
-	if err := yaml.Unmarshal(values, &data); err != nil {
+	if err := yaml.NewYAMLToJSONDecoder(bytes.NewBuffer(values)).Decode(&data); err != nil {
 		return nil, err
 	}
 
