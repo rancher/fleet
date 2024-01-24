@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	aplan "github.com/rancher/fleet/internal/cmd/agent/deployer/plan"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -25,8 +25,8 @@ import (
 )
 
 type Monitor struct {
-	apply  apply.Apply
-	mapper meta.RESTMapper
+	applied *applied.Applied
+	mapper  meta.RESTMapper
 
 	deployer *helmdeployer.Helm
 
@@ -35,9 +35,9 @@ type Monitor struct {
 	labelSuffix      string
 }
 
-func New(apply apply.Apply, mapper meta.RESTMapper, deployer *helmdeployer.Helm, defaultNamespace string, labelSuffix string) *Monitor {
+func New(applied *applied.Applied, mapper meta.RESTMapper, deployer *helmdeployer.Helm, defaultNamespace string, labelSuffix string) *Monitor {
 	return &Monitor{
-		apply:            apply,
+		applied:          applied,
 		mapper:           mapper,
 		deployer:         deployer,
 		defaultNamespace: defaultNamespace,
@@ -154,18 +154,12 @@ func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeploy
 	if ns == "" {
 		ns = m.defaultNamespace
 	}
-	apply := aplan.GetApply(m.apply, aplan.Options{
-		LabelPrefix:      m.labelPrefix,
-		LabelSuffix:      m.labelSuffix,
-		DefaultNamespace: ns,
-		Name:             bd.Name,
-	})
 
-	plan, err := apply.DryRun(resources.Objects...)
+	plan, err := m.applied.DryRun(ns, applied.GetSetID(bd.Name, m.labelPrefix, m.labelSuffix), resources.Objects...)
 	if err != nil {
 		return err
 	}
-	plan, err = aplan.Diff(plan, bd, resources.DefaultNamespace, resources.Objects...)
+	plan, err = applied.Diff(plan, bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
 		return err
 	}

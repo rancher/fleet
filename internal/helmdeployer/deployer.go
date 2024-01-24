@@ -3,11 +3,9 @@ package helmdeployer
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/helmdeployer/helmcache"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/kube"
@@ -16,8 +14,6 @@ import (
 
 	name2 "github.com/rancher/fleet/internal/name"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
-	"github.com/rancher/wrangler/v2/pkg/name"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -80,21 +76,6 @@ func New(namespace, defaultNamespace, labelPrefix, labelSuffix string) *Helm {
 		labelPrefix:      labelPrefix,
 		labelSuffix:      labelSuffix,
 	}
-}
-
-// GetSetID constructs a identifier from the provided args, bundleID "fleet-agent" is special
-func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
-	// bundle is fleet-agent bundle, we need to use setID fleet-agent-bootstrap since it was applied with import controller
-	if strings.HasPrefix(bundleID, "fleet-agent") {
-		if labelSuffix == "" {
-			return config.AgentBootstrapConfigName
-		}
-		return name.SafeConcatName(config.AgentBootstrapConfigName, labelSuffix)
-	}
-	if labelSuffix != "" {
-		return name.SafeConcatName(labelPrefix, bundleID, labelSuffix)
-	}
-	return name.SafeConcatName(labelPrefix, bundleID)
 }
 
 func (h *Helm) Setup(ctx context.Context, client client.Client, getter genericclioptions.RESTClientGetter) error {
