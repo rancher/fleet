@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/cli/match"
 )
 
+// NewTest returns a subcommand to test bundle matching, deprecated
 func NewTest() *cobra.Command {
 	return command.Command(&Test{}, cobra.Command{
 		Args:       cobra.MaximumNArgs(1),

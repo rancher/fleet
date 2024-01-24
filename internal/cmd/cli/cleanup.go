@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/cli/cleanup"
 )
 
+// NewCleanup returns a subcommand to `cleanup` cluster registrations
 func NewCleanUp() *cobra.Command {
 	return command.Command(&CleanUp{}, cobra.Command{
 		Use:   "cleanup [flags]",

@@ -29,6 +29,9 @@ func App() *cobra.Command {
 		NewApply(),
 		NewTest(),
 		NewCleanUp(),
+
+		NewTarget(),
+		NewDeploy(),
 	)
 
 	return root
