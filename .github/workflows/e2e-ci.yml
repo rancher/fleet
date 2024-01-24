@@ -45,16 +45,15 @@ jobs:
       -
         name: Build Fleet Binaries
         run: |
-          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
+          ./.github/scripts/build-fleet-binaries.sh
 
-          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
-          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
           cd e2e/testenv/infra
           go build -o . ./...
       -
         name: Build Docker Images
         run: |
-          ./dev/build-fleet
+          ./.github/scripts/build-fleet-images.sh
+
           cd e2e/assets/gitrepo
           # Buildkit needed here for proper here-document support
           DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .

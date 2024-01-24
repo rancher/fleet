@@ -40,14 +40,11 @@ jobs:
       -
         name: Build Fleet Binaries
         run: |
-          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
-
-          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
-          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+          ./.github/scripts/build-fleet-binaries.sh
       -
         name: Build Docker Images
         run: |
-          ./dev/build-fleet
+          ./.github/scripts/build-fleet-images.sh
       -
         name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
