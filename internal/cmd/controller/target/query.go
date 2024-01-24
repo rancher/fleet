@@ -70,7 +70,7 @@ func (m *Manager) getBundlesInScopeForCluster(ctx context.Context, cluster *flee
 
 	for _, mapping := range mappings.Items {
 		mapping := mapping
-		matcher, err := NewBundleMapping(&mapping)
+		matcher, err := newBundleMapping(&mapping)
 		if err != nil {
 			logrus.Errorf("invalid BundleNamespaceMapping %s/%s skipping: %v", mapping.Namespace, mapping.Name, err)
 			continue

@@ -13,26 +13,44 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+// Summary calculates a fleet.BundleSummary from targets (pure function)
+func Summary(targets []*Target) fleet.BundleSummary {
+	var bundleSummary fleet.BundleSummary
+	for _, currentTarget := range targets {
+		cluster := currentTarget.Cluster.Namespace + "/" + currentTarget.Cluster.Name
+		summary.IncrementState(&bundleSummary, cluster, currentTarget.state(), currentTarget.message(), currentTarget.modified(), currentTarget.nonReady())
+		bundleSummary.DesiredReady++
+	}
+	return bundleSummary
+}
+
 // MaxUnavailable returns the maximum number of unavailable deployments given the targets rollout strategy (pure function)
 func MaxUnavailable(targets []*Target) (int, error) {
 	rollout := getRollout(targets)
 	return limit(len(targets), rollout.MaxUnavailable)
 }
 
-// MaxUnavailablePartitions returns the maximum number of unavailable partitions given the targets and partitions (pure function)
-func MaxUnavailablePartitions(partitions []Partition, targets []*Target) (int, error) {
-	rollout := getRollout(targets)
-	return limit(len(partitions), rollout.MaxUnavailablePartitions, &defMaxUnavailablePartitions)
+// Unavailable counts the number of targets that are not available (pure function)
+func Unavailable(targets []*Target) (count int) {
+	for _, target := range targets {
+		if target.Deployment == nil {
+			continue
+		}
+		if isUnavailable(target.Deployment) {
+			count++
+		}
+	}
+	return
 }
 
-// UpdateStatusUnavailable recomputes and sets the status.Unavailable counter and returns true if the partition
+// updateStatusUnavailable recomputes and sets the status.Unavailable counter and returns true if the partition
 // is unavailable, eg. there are more unavailable targets than the maximum set (does not mutate targets)
-func UpdateStatusUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
+func updateStatusUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
 	// Unavailable for a partition is stricter than unavailable for a target.
 	// For a partition a target must be available and update to date.
 	status.Unavailable = 0
 	for _, target := range targets {
-		if !upToDate(target) || IsUnavailable(target.Deployment) {
+		if !upToDate(target) || isUnavailable(target.Deployment) {
 			status.Unavailable++
 		}
 	}
@@ -52,49 +70,13 @@ func upToDate(target *Target) bool {
 	return true
 }
 
-// Unavailable counts the number of targets that are not available (pure function)
-func Unavailable(targets []*Target) (count int) {
-	for _, target := range targets {
-		if target.Deployment == nil {
-			continue
-		}
-		if IsUnavailable(target.Deployment) {
-			count++
-		}
-	}
-	return
-}
-
-// IsUnavailable checks if target is not available (pure function)
-func IsUnavailable(target *fleet.BundleDeployment) bool {
+// isUnavailable checks if target is not available (pure function)
+func isUnavailable(target *fleet.BundleDeployment) bool {
 	if target == nil {
 		return false
 	}
 	return target.Status.AppliedDeploymentID != target.Spec.DeploymentID ||
 		!target.Status.Ready
-}
-
-// Summary calculates a fleet.BundleSummary from targets (pure function)
-func Summary(targets []*Target) fleet.BundleSummary {
-	var bundleSummary fleet.BundleSummary
-	for _, currentTarget := range targets {
-		cluster := currentTarget.Cluster.Namespace + "/" + currentTarget.Cluster.Name
-		summary.IncrementState(&bundleSummary, cluster, currentTarget.state(), currentTarget.message(), currentTarget.modified(), currentTarget.nonReady())
-		bundleSummary.DesiredReady++
-	}
-	return bundleSummary
-}
-
-// getRollout returns the rollout strategy for the specified targets (pure function)
-func getRollout(targets []*Target) *fleet.RolloutStrategy {
-	var rollout *fleet.RolloutStrategy
-	if len(targets) > 0 {
-		rollout = targets[0].Bundle.Spec.RolloutStrategy
-	}
-	if rollout == nil {
-		rollout = &fleet.RolloutStrategy{}
-	}
-	return rollout
 }
 
 func limit(count int, val ...*intstr.IntOrString) (int, error) {
