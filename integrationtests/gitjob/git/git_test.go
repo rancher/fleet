@@ -53,15 +53,33 @@ var (
 	gogsClient              *gogs.Client
 	latestCommitPublicRepo  string
 	latestCommitPrivateRepo string
+	url                     string
+	container               testcontainers.Container
 )
+
+func TestMain(m *testing.M) {
+	teardown := setupSuite()
+	code := m.Run()
+	teardown()
+	os.Exit(code)
+}
+
+func setupSuite() func() {
+	ctx := context.Background()
+	var err error
+	t := &testing.T{}
+	container, url, err = createGogsContainer(ctx, createTempFolder(t))
+	require.NoError(t, err, "creating gogs container failed")
+
+	return func() {
+		terminateContainer(ctx, container, t)
+	}
+}
 
 func TestLatestCommit_NoAuth(t *testing.T) {
 	ctlr := gomock.NewController(t)
 	defer ctlr.Finish()
 	ctx := context.Background()
-	container, url, err := createGogsContainer(ctx, createTempFolder(t))
-	require.NoError(t, err, "creating gogs container failed")
-	defer terminateContainer(ctx, container, t)
 
 	tests := map[string]struct {
 		gitjob         *gitjobv1.GitJob
@@ -101,7 +119,7 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound"))
 			latestCommit, err := f.LatestCommit(ctx, test.gitjob, client)
 			if err != test.expectedErr {
-				t.Errorf("expecter error is: %v, but got %v", test.expectedErr, err)
+				t.Errorf("expected error is: %v, but got %v", test.expectedErr, err)
 			}
 			if latestCommit != test.expectedCommit {
 				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
@@ -115,9 +133,6 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 	ctlr := gomock.NewController(t)
 	defer ctlr.Finish()
 	ctx := context.Background()
-	container, url, err := createGogsContainer(ctx, createTempFolder(t))
-	require.NoError(t, err, "creating gogs container failed")
-	defer terminateContainer(ctx, container, t)
 
 	tests := map[string]struct {
 		gitjob         *gitjobv1.GitJob
@@ -178,9 +193,6 @@ func TestLatestCommitSSH(t *testing.T) {
 	ctlr := gomock.NewController(t)
 	defer ctlr.Finish()
 	ctx := context.Background()
-	container, _, err := createGogsContainer(ctx, createTempFolder(t))
-	require.NoError(err, "creating gogs container failed")
-	defer terminateContainer(ctx, container, t)
 	privateKey, err := createAndAddKeys()
 	require.NoError(err)
 	sshPort, err := container.MappedPort(ctx, "22")

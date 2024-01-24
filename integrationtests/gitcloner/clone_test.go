@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -47,7 +48,7 @@ var (
 	gogsCABundle []byte
 )
 
-var _ = Describe("Applying a git job gets content from git repo", func() {
+var _ = Describe("Applying a git job gets content from git repo", Ordered, func() {
 
 	var (
 		opts          *cmd.Options
@@ -55,17 +56,23 @@ var _ = Describe("Applying a git job gets content from git repo", func() {
 		cloneErr      error
 		tmp           string
 		initialCommit string
+		repoName      string
+		container     testcontainers.Container
 	)
+
+	BeforeAll(func() {
+		var err error
+		container, err = createGogsContainerWithHTTPS()
+		Expect(err).NotTo(HaveOccurred())
+	})
 
 	When("Cloning an https repo", func() {
 		JustBeforeEach(func() {
-			container, err := createGogsContainerWithHTTPS()
-			Expect(err).NotTo(HaveOccurred())
 			url, err := getHTTPSURL(context.Background(), container)
 			Expect(err).NotTo(HaveOccurred())
-			initialCommit, err = createRepo(url, "assets/repo", private)
+			repoName, initialCommit, err = createRepo(url, "assets/repo", private)
 			Expect(err).NotTo(HaveOccurred())
-			opts.Repo = url + "/test/" + testRepoName
+			opts.Repo = url + "/test/" + repoName
 			tmp = createTempFolder()
 			opts.Path = tmp
 		})
@@ -86,7 +93,7 @@ var _ = Describe("Applying a git job gets content from git repo", func() {
 
 			JustBeforeEach(func() {
 				c := gogit.NewCloner()
-				cloneErr := c.CloneRepo(opts)
+				cloneErr = c.CloneRepo(opts)
 				Expect(cloneErr).NotTo(HaveOccurred())
 			})
 
@@ -107,7 +114,7 @@ var _ = Describe("Applying a git job gets content from git repo", func() {
 			JustBeforeEach(func() {
 				c := gogit.NewCloner()
 				opts.Revision = initialCommit
-				cloneErr := c.CloneRepo(opts)
+				cloneErr = c.CloneRepo(opts)
 				Expect(cloneErr).NotTo(HaveOccurred())
 			})
 
@@ -212,15 +219,13 @@ var _ = Describe("Applying a git job gets content from git repo", func() {
 		var tmpKey string
 
 		JustBeforeEach(func() {
-			container, err := createGogsContainerWithHTTPS()
-			Expect(err).NotTo(HaveOccurred())
 			url, err := getHTTPSURL(context.Background(), container)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = createRepo(url, "assets/repo", private)
+			repoName, _, err = createRepo(url, "assets/repo", private)
 			Expect(err).NotTo(HaveOccurred())
 			sshURL, err := getSSHURL(context.Background(), container)
 			Expect(err).NotTo(HaveOccurred())
-			opts.Repo = sshURL + "/test/" + testRepoName
+			opts.Repo = sshURL + "/test/" + repoName
 			tmp = createTempFolder()
 			opts.Path = tmp
 			// create private key, and register public key in gogs
@@ -264,6 +269,10 @@ var _ = Describe("Applying a git job gets content from git repo", func() {
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
+	})
+
+	AfterAll(func() {
+		Expect(container.Terminate(context.Background())).NotTo(HaveOccurred())
 	})
 })
 
@@ -352,42 +361,45 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 }
 
 // createRepo creates a git repo for testing
-func createRepo(url string, path string, private bool) (string, error) {
+// returns the initial commit and a unique repo name.
+func createRepo(url string, path string, private bool) (string, string, error) {
+	repoName := fmt.Sprintf("%s%d", testRepoName, time.Now().UTC().UnixMicro())
+
 	_, err := gogsClient.CreateRepo(gogs.CreateRepoOption{
-		Name:    testRepoName,
+		Name:    repoName,
 		Private: private,
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	repoURL := url + "/" + gogsUser + "/" + testRepoName
+	repoURL := url + "/" + gogsUser + "/" + repoName
 
 	// add initial commit
-	tmp, err := os.MkdirTemp("", testRepoName)
+	tmp, err := os.MkdirTemp("", repoName)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer os.RemoveAll(tmp)
 
 	_, err = git.PlainInit(tmp, false)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	r, err := git.PlainOpen(tmp)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	w, err := r.Worktree()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	err = cp.Copy(path, tmp)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	_, err = w.Add(".")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	commit, err := w.Commit("test commit", &git.CommitOptions{
 		Author: &object.Signature{
@@ -397,11 +409,11 @@ func createRepo(url string, path string, private bool) (string, error) {
 		},
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	cfg, err := r.Config()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	cfg.Remotes["upstream"] = &config.RemoteConfig{
 		Name: "upstream",
@@ -409,7 +421,7 @@ func createRepo(url string, path string, private bool) (string, error) {
 	}
 	err = r.SetConfig(cfg)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	err = r.Push(&git.PushOptions{
 		RemoteName: "upstream",
@@ -421,10 +433,10 @@ func createRepo(url string, path string, private bool) (string, error) {
 		InsecureSkipTLS: true,
 	})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return commit.String(), nil
+	return repoName, commit.String(), nil
 }
 
 func getHTTPSURL(ctx context.Context, container testcontainers.Container) (string, error) {
