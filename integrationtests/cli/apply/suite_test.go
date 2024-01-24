@@ -19,5 +19,5 @@ func TestFleet(t *testing.T) {
 // simulates fleet cli execution
 func fleetApply(name string, dirs []string, options apply.Options) error {
 
-	return apply.Apply(context.Background(), client.NewGetter("", "", "fleet-local"), name, dirs, options)
+	return apply.CreateBundles(context.Background(), client.NewGetter("", "", "fleet-local"), name, dirs, options)
 }

@@ -106,7 +106,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		args = args[1:]
 	}
 
-	return apply.Apply(cmd.Context(), Client, name, args, opts)
+	return apply.CreateBundles(cmd.Context(), Client, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile

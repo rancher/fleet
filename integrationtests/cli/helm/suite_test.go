@@ -24,5 +24,5 @@ func fleetApply(dirs []string, options apply.Options) error {
 	buf = gbytes.NewBuffer()
 	options.Output = buf
 
-	return apply.Apply(context.Background(), client.NewGetter("", "", "fleet-local"), "helm", dirs, options)
+	return apply.CreateBundles(context.Background(), client.NewGetter("", "", "fleet-local"), "helm", dirs, options)
 }
