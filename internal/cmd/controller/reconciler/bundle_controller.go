@@ -12,7 +12,6 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -130,18 +129,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
 		// copy labels from Bundle as they might have changed
-		bd := &fleet.BundleDeployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      target.Deployment.Name,
-				Namespace: target.Deployment.Namespace,
-				Labels:    target.BundleDeploymentLabels(target.Cluster.Namespace, target.Cluster.Name),
-			},
-			Spec: target.Deployment.Spec,
-		}
-		bd.Spec.Paused = target.IsPaused()
-		bd.Spec.DependsOn = bundle.Spec.DependsOn
-		bd.Spec.CorrectDrift = target.Options.CorrectDrift
-
+		bd := target.BundleDeployment()
 		updated := bd.DeepCopy()
 		op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
 			bd.Spec = updated.Spec

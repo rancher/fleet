@@ -13,6 +13,7 @@ import (
 
 	"github.com/rancher/wrangler/v2/pkg/yaml"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -43,6 +44,23 @@ type Target struct {
 	Bundle        *fleet.Bundle
 	Options       fleet.BundleDeploymentOptions
 	DeploymentID  string
+}
+
+// BundleDeployment returns a new bd, it discards annotations, status, etc.
+// The labels are copied from the Bundle.
+func (t *Target) BundleDeployment() *fleet.BundleDeployment {
+	bd := &fleet.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.Deployment.Name,
+			Namespace: t.Deployment.Namespace,
+			Labels:    t.BundleDeploymentLabels(t.Cluster.Namespace, t.Cluster.Name),
+		},
+		Spec: t.Deployment.Spec,
+	}
+	bd.Spec.Paused = t.IsPaused()
+	bd.Spec.DependsOn = t.Bundle.Spec.DependsOn
+	bd.Spec.CorrectDrift = t.Options.CorrectDrift
+	return bd
 }
 
 func (t *Target) IsPaused() bool {
