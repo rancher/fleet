@@ -55,7 +55,7 @@ var _ = Describe("Gitjob Examples", func() {
 
 	When("referencing a private github repo via ssh", func() {
 		BeforeEach(func() {
-			keyPath := os.Getenv("GIT_SSH_KEY")
+			keyPath := os.Getenv("GIT_GITJOB_SSH_KEY")
 			out, err := k.Create(
 				"secret", "generic", "ssh-key-secret", "--type", "kubernetes.io/ssh-auth",
 				"--from-file=ssh-privatekey="+keyPath,
