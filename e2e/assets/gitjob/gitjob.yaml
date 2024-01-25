@@ -1,0 +1,25 @@
+apiVersion: gitjob.cattle.io/v1
+kind: GitJob
+metadata:
+  name: example
+spec:
+  git:
+    branch: master
+    repo: https://github.com/fleetrepoci/gitjobs-example
+  jobSpec:
+    template:
+      spec:
+        serviceAccountName: kubectl-apply
+        restartPolicy: "Never"
+        containers:
+        - image: "rancher/kubectl:v1.23.3"
+          name: kubectl-apply
+          command:
+          - kubectl
+          args:
+          - apply
+          - -f
+          - deployment.yaml
+          workingDir: /workspace/source
+
+
