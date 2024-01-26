@@ -1440,8 +1440,8 @@ k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 h1:aVUu9fTY98ivBPKR9Y5w/A
 k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00/go.mod h1:AsvuZPBlUDVuCdzJ87iajxtXuR9oktsTctW/R9wwouA=
 k8s.io/kubectl v0.29.0 h1:Oqi48gXjikDhrBF67AYuZRTcJV4lg2l42GmvsP7FmYI=
 k8s.io/kubectl v0.29.0/go.mod h1:0jMjGWIcMIQzmUaMgAzhSELv5WtHo2a8pq67DtviAJs=
-k8s.io/kubernetes v1.29.0 h1:DOLN7g8+nnAYBi8JHoW0+/MCrZKDPIqAxzLCXDXd0cg=
-k8s.io/kubernetes v1.29.0/go.mod h1:9kztbUQf9stVDcIYXx+BX3nuGCsAQDsuClkGMpPs3pA=
+k8s.io/kubernetes v1.29.1 h1:fxJFVb8uqbYZDYHpwIsAndBQs360cQGb0xa1gYFh3fo=
+k8s.io/kubernetes v1.29.1/go.mod h1:xZPKU0yO0CBbLTnbd+XGyRmmtmaVuJykDb8gNCkeeUE=
 k8s.io/utils v0.0.0-20230726121419-3b25d923346b h1:sgn3ZU783SCgtaSJjpcVVlRqd6GSnlTLKgpAAttJvpI=
 k8s.io/utils v0.0.0-20230726121419-3b25d923346b/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
 oras.land/oras-go v1.2.4 h1:djpBY2/2Cs1PV87GSJlxv4voajVOMZxqqtq9AB8YNvY=
