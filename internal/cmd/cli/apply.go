@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rancher/fleet/internal/bundlereader"
+	"github.com/rancher/fleet/internal/client"
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
@@ -27,6 +28,7 @@ func NewApply() *cobra.Command {
 }
 
 type Apply struct {
+	FleetClient
 	BundleInputArgs
 	OutputArgsNoDefault
 	Label                       map[string]string `usage:"Labels to apply to created bundles" short:"l"`
@@ -47,6 +49,14 @@ type Apply struct {
 	CorrectDrift                bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
 	CorrectDriftForce           bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
 	CorrectDriftKeepFailHistory bool              `usage:"Keep helm history for failed rollbacks" name:"correct-drift-keep-fail-history"`
+}
+
+func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
+	if err := r.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to setup debug logging: %w", err)
+	}
+	Client = client.NewGetter(r.Kubeconfig, r.Context, r.Namespace)
+	return nil
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
