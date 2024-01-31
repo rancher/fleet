@@ -159,6 +159,13 @@ jobs:
           echo "${{ secrets.CI_AKS_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
           ginkgo e2e/require-secrets
+
+          export GIT_GITJOB_SSH_KEY="$GITHUB_WORKSPACE/id_ed25519"
+          export GIT_GITJOB_SSH_PUBKEY="$GITHUB_WORKSPACE/id_ed25519.pub"
+          echo "${{ secrets.CI_GITJOB_SSH_KEY }}" > "$GIT_GITJOB_SSH_KEY"
+          echo "${{ secrets.CI_GITJOB_SSH_PUBKEY }}" > "$GIT_GITJOB_SSH_PUBKEY"
+
+          ginkgo e2e/gitjob
       -
         name: Delete AKS cluster
         # We always tear down the cluster, to avoid costs. Except when running
