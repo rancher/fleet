@@ -10,16 +10,20 @@ function eventually {
 }
 
 # usage: ./deploy-fleet.sh ghcr.io/rancher/fleet:sha-49f6f81 ghcr.io/rancher/fleet-agent:1h
-if [ $# -ge 2 ] && [ -n "$1" ] && [ -n "$2" ]; then
+if [ $# -ge 3 ] && [ -n "$1" ] && [ -n "$2" ] && [ -n "$3" ]; then
   fleetRepo="${1%:*}"
   fleetTag="${1#*:}"
   agentRepo="${2%:*}"
   agentTag="${2#*:}"
+  gitjobRepo="${3%:*}"
+  gitjobTag="${3#*:}"
 else
   fleetRepo="rancher/fleet"
   fleetTag="dev"
   agentRepo="rancher/fleet-agent"
   agentTag="dev"
+  gitjobRepo="rancher/fleet-gitjob"
+  gitjobTag="dev"
 fi
 
 eventually helm upgrade --install fleet-crd charts/fleet-crd \
@@ -34,7 +38,9 @@ eventually helm upgrade --install fleet charts/fleet \
   --set image.tag="$fleetTag" \
   --set agentImage.repository="$agentRepo" \
   --set agentImage.tag="$agentTag" \
-  --set agentImage.imagePullPolicy=IfNotPresent
+  --set agentImage.imagePullPolicy=IfNotPresent \
+  --set gitjob.repository="$gitjobRepo" \
+  --set gitjob.tag="$gitjobTag"
 
 # wait for controller and agent rollout
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
