@@ -68,11 +68,11 @@ type DeployedBundle struct {
 }
 
 // New returns a new helm deployer
-// * namespace is the system namespace, which is the namespace the agent is running in, e.g. cattle-fleet-system
-func New(namespace, defaultNamespace, labelPrefix, labelSuffix string) *Helm {
+// * agentNamespace is the system namespace, which is the namespace the agent is running in, e.g. cattle-fleet-system
+func New(agentNamespace, defaultNamespace, labelPrefix, labelSuffix string) *Helm {
 	return &Helm{
+		agentNamespace:   agentNamespace,
 		defaultNamespace: defaultNamespace,
-		agentNamespace:   namespace,
 		labelPrefix:      labelPrefix,
 		labelSuffix:      labelSuffix,
 	}
