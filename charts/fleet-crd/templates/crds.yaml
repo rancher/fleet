@@ -4647,10 +4647,6 @@ spec:
                     onTag:
                       description: Semver matching for incoming tag event
                       type: string
-                    provider:
-                      description: Git provider model to fetch commit. Can be polling(regular
-                        git fetch)/webhook(github webhook)
-                      type: string
                     repo:
                       description: Git repo URL
                       type: string

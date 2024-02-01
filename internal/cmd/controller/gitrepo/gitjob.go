@@ -145,7 +145,6 @@ func NewGitJob(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo, saN
 					CABundle:              gitrepo.Spec.CABundle,
 					InsecureSkipTLSverify: gitrepo.Spec.InsecureSkipTLSverify,
 				},
-				Provider: "polling",
 				Repo:     gitrepo.Spec.Repo,
 				Revision: rev,
 				Branch:   branch,
