@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"flag"
 	"os"
 
 	"github.com/rancher/fleet/internal/cmd/agent/controller"
@@ -150,6 +151,11 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 		return nil, err
 	}
 	localClient := localCluster.GetClient()
+
+	if kubeconfig := flag.Lookup("kubeconfig").Value.String(); kubeconfig != "" {
+		// set KUBECONFIG env var so helm can find it
+		os.Setenv("KUBECONFIG", kubeconfig)
+	}
 
 	// Build the helm deployer, which uses a getter for local cluster's client-go client for helm SDK
 	helmDeployer := helmdeployer.New(
