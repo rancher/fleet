@@ -20,7 +20,6 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
-	"github.com/Masterminds/semver/v3"
 	gogsclient "github.com/gogits/go-gogs-client"
 	v1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/sirupsen/logrus"
@@ -182,7 +181,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	revision, branch, tag, repoURLs := parsePayload(payload)
+	revision, branch, _, repoURLs := parsePayload(payload)
 
 	var gitJobList v1.GitJobList
 	err = w.client.List(ctx, &gitJobList, &client.ListOptions{LabelSelector: labels.Everything()})
@@ -212,26 +211,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			// if onTag is enabled, we only watch tag event, as it can be coming from any branch
-			if gitjob.Spec.Git.OnTag != "" {
-				// skipping if gitjob is watching tag only and tag is empty(not a tag event)
-				if tag == "" {
-					continue
-				}
-				constraints, err := semver.NewConstraint(gitjob.Spec.Git.OnTag)
-				if err != nil {
-					logrus.Warnf("Failed to parsing onTag semver from %s/%s, err: %v, skipping", gitjob.Namespace, gitjob.Name, err)
-					continue
-				}
-				v, err := semver.NewVersion(tag)
-				if err != nil {
-					logrus.Warnf("Failed to parsing semver on incoming tag, err: %v, skipping", err)
-					continue
-				}
-				if !constraints.Check(v) {
-					continue
-				}
-			} else if gitjob.Spec.Git.Branch != "" {
+			if gitjob.Spec.Git.Branch != "" {
 				// else we check if the branch from webhook matches gitjob's branch
 				if branch == "" || branch != gitjob.Spec.Git.Branch {
 					continue
