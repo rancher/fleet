@@ -61,9 +61,6 @@ type GitInfo struct {
 	// Git credential metadata
 	Credential `json:",inline"`
 
-	// Git provider model to fetch commit. Can be polling(regular git fetch)/webhook(github webhook)
-	Provider string `json:"provider,omitempty"`
-
 	// Git repo URL
 	Repo string `json:"repo,omitempty" column:"name=REPO,type=string,jsonpath=.spec.git.repo"`
 
