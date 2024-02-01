@@ -125,7 +125,7 @@ func (m *Manager) getNamespacesForBundle(ctx context.Context, bundle *fleet.Bund
 	for _, mapping := range mappings.Items {
 		logger.V(4).Info("Looking for matching namespaces", "bundleNamespaceMapping", mapping, "bundle", bundle)
 		mapping := mapping // fix gosec warning regarding "Implicit memory aliasing in for loop"
-		matcher, err := NewBundleMapping(&mapping)
+		matcher, err := newBundleMapping(&mapping)
 		if err != nil {
 			logger.Error(err, "invalid BundleNamespaceMapping skipping", "mappingNamespace", mapping.Namespace, "mappingName", mapping.Name)
 			continue

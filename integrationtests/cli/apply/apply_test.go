@@ -3,7 +3,7 @@ package apply
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
+
 	"github.com/rancher/fleet/integrationtests/cli"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 )
@@ -24,13 +24,12 @@ var _ = Describe("Fleet apply", Ordered, func() {
 	When("folder contains simple resources", func() {
 		BeforeEach(func() {
 			name = "simple"
-			options = apply.Options{Output: gbytes.NewBuffer()}
 			dirs = []string{cli.AssetsPath + "simple"}
 		})
 
 		It("then a Bundle is created with all the resources and keepResources is false", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleFromOutput(options.Output)
+				bundle, err := cli.GetBundleFromOutput(buf)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle.Spec.Resources)).To(Equal(2))
 				isSvcPresent, err := cli.IsResourcePresentInBundle(cli.AssetsPath+"simple/svc.yaml", bundle.Spec.Resources)
@@ -42,16 +41,16 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			}).Should(BeTrue())
 		})
 	})
+
 	When("simple resources in a nested folder", func() {
 		BeforeEach(func() {
 			name = "nested_simple"
-			options = apply.Options{Output: gbytes.NewBuffer()}
 			dirs = []string{cli.AssetsPath + "nested_simple"}
 		})
 
 		It("then a Bundle is created with all the resources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleFromOutput(options.Output)
+				bundle, err := cli.GetBundleFromOutput(buf)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle.Spec.Resources)).To(Equal(3))
 				isSvcPresent, err := cli.IsResourcePresentInBundle(cli.AssetsPath+"nested_simple/simple/svc.yaml", bundle.Spec.Resources)
@@ -65,16 +64,16 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			}).Should(BeTrue())
 		})
 	})
+
 	When("simple resources in a nested folder with two levels", func() {
 		BeforeEach(func() {
 			name = "nested_two_levels"
-			options = apply.Options{Output: gbytes.NewBuffer()}
 			dirs = []string{cli.AssetsPath + "nested_two_levels"}
 		})
 
 		It("then a Bundle is created with all the resources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleFromOutput(options.Output)
+				bundle, err := cli.GetBundleFromOutput(buf)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle.Spec.Resources)).To(Equal(2))
 				isSvcPresent, err := cli.IsResourcePresentInBundle(cli.AssetsPath+"nested_two_levels/nested/svc/svc.yaml", bundle.Spec.Resources)
@@ -86,16 +85,16 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			}).Should(BeTrue())
 		})
 	})
+
 	When("multiple fleet.yaml in a nested folder", func() {
 		BeforeEach(func() {
 			name = "nested_multiple"
-			options = apply.Options{Output: gbytes.NewBuffer()}
 			dirs = []string{cli.AssetsPath + "nested_multiple"}
 		})
 
 		It("then 3 Bundles are created with the relevant resources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleListFromOutput(options.Output)
+				bundle, err := cli.GetBundleListFromOutput(buf)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle)).To(Equal(3))
 				deploymentA := bundle[0]
@@ -123,16 +122,16 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			}).Should(BeTrue())
 		})
 	})
+
 	When("multiple fleet.yaml mixed with simple resources in a nested folder", func() {
 		BeforeEach(func() {
 			name = "nested_mixed_two_levels"
-			options = apply.Options{Output: gbytes.NewBuffer()}
 			dirs = []string{cli.AssetsPath + "nested_mixed_two_levels"}
 		})
 
 		It("then Bundles are created with all the resources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleListFromOutput(options.Output)
+				bundle, err := cli.GetBundleListFromOutput(buf)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(bundle)).To(Equal(3))
 				root := bundle[0]
@@ -164,16 +163,16 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			}).Should(BeTrue())
 		})
 	})
+
 	When("containing keepResources in the fleet.yaml", func() {
 		BeforeEach(func() {
 			name = "keep_resources"
-			options = apply.Options{Output: gbytes.NewBuffer()}
 			dirs = []string{cli.AssetsPath + "keep_resources"}
 		})
 
 		It("then a Bundle is created with keepResources", func() {
 			Eventually(func() bool {
-				bundle, err := cli.GetBundleFromOutput(options.Output)
+				bundle, err := cli.GetBundleFromOutput(buf)
 				Expect(err).NotTo(HaveOccurred())
 				return bundle.Spec.KeepResources
 			}).Should(BeTrue())
@@ -184,13 +183,12 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		When("passes along enabled helm options", func() {
 			BeforeEach(func() {
 				name = "helm_options_enabled"
-				options = apply.Options{Output: gbytes.NewBuffer()}
 				dirs = []string{cli.AssetsPath + name}
 			})
 
 			It("publishes the flag in the bundle options", func() {
 				Eventually(func() bool {
-					bundle, err := cli.GetBundleFromOutput(options.Output)
+					bundle, err := cli.GetBundleFromOutput(buf)
 					Expect(err).NotTo(HaveOccurred())
 					return bundle.Spec.Helm.TakeOwnership &&
 						bundle.Spec.Helm.Atomic &&
@@ -205,13 +203,12 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		When("passes along disabled helm options", func() {
 			BeforeEach(func() {
 				name = "helm_options_disabled"
-				options = apply.Options{Output: gbytes.NewBuffer()}
 				dirs = []string{cli.AssetsPath + name}
 			})
 
 			It("publishes the flag in the bundle options", func() {
 				Eventually(func() bool {
-					bundle, err := cli.GetBundleFromOutput(options.Output)
+					bundle, err := cli.GetBundleFromOutput(buf)
 					Expect(err).NotTo(HaveOccurred())
 					return bundle.Spec.Helm.TakeOwnership == false &&
 						bundle.Spec.Helm.Atomic == false &&
@@ -226,13 +223,12 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		When("passes along helm options with a kustomize bundle", func() {
 			BeforeEach(func() {
 				name = "helm_options_kustomize"
-				options = apply.Options{Output: gbytes.NewBuffer()}
 				dirs = []string{cli.AssetsPath + name}
 			})
 
 			It("publishes the flag in the bundle options", func() {
 				Eventually(func() bool {
-					bundle, err := cli.GetBundleFromOutput(options.Output)
+					bundle, err := cli.GetBundleFromOutput(buf)
 					Expect(err).NotTo(HaveOccurred())
 					return bundle.Spec.Helm.TakeOwnership &&
 						bundle.Spec.Helm.ReleaseName == "kustomize"

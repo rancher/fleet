@@ -72,10 +72,10 @@ func globDirs(baseDir string) (result []string, err error) {
 	return
 }
 
-// Apply creates bundles from the baseDirs, their names are prefixed with
+// CreateBundles creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-func Apply(ctx context.Context, client Getter, repoName string, baseDirs []string, opts Options) error {
+func CreateBundles(ctx context.Context, client Getter, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}

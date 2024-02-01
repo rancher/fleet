@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rancher/fleet/internal/client"
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/cleanup"
 )
@@ -21,9 +22,18 @@ func NewCleanUp() *cobra.Command {
 }
 
 type CleanUp struct {
+	FleetClient
 	Min    string `usage:"Minimum delay between deletes (default: 10ms)" name:"min"`
 	Max    string `usage:"Maximum delay between deletes (default: 5s)" name:"max"`
 	Factor string `usage:"Factor to increase delay between deletes (default: 1.1)" name:"factor"`
+}
+
+func (r *CleanUp) PersistentPre(_ *cobra.Command, _ []string) error {
+	if err := r.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to set up debug logging: %w", err)
+	}
+	Client = client.NewGetter(r.Kubeconfig, r.Context, r.Namespace)
+	return nil
 }
 
 func (a *CleanUp) Run(cmd *cobra.Command, args []string) error {

@@ -21,7 +21,7 @@ type BundleMapping struct {
 	noMatch           bool
 }
 
-func NewBundleMapping(mapping *fleet.BundleNamespaceMapping) (*BundleMapping, error) {
+func newBundleMapping(mapping *fleet.BundleNamespaceMapping) (*BundleMapping, error) {
 	var (
 		result = &BundleMapping{
 			namespace: mapping.Namespace,

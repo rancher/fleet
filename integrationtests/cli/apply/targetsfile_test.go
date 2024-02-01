@@ -10,7 +10,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("Fleet apply targets", func() {
@@ -26,12 +25,11 @@ var _ = Describe("Fleet apply targets", func() {
 
 	When("Targets file is empty, and overrideTargets is not provided", func() {
 		BeforeEach(func() {
-			options = apply.Options{Output: gbytes.NewBuffer()}
 			dirs = []string{cli.AssetsPath + "targets/simple"}
 		})
 
 		It("Bundle contains the default target", func() {
-			bundle, err := cli.GetBundleFromOutput(options.Output)
+			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(bundle.Spec.Targets)).To(Equal(1))
 			Expect(bundle.Spec.Targets[0].ClusterGroup).To(Equal("default"))
@@ -41,12 +39,11 @@ var _ = Describe("Fleet apply targets", func() {
 
 	When("Targets file is empty, and overrideTargets is provided", func() {
 		BeforeEach(func() {
-			options = apply.Options{Output: gbytes.NewBuffer()}
 			dirs = []string{cli.AssetsPath + "targets/override"}
 		})
 
 		It("Bundle contains targets and targetRestrictions from override", func() {
-			bundle, err := cli.GetBundleFromOutput(options.Output)
+			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(bundle.Spec.Targets)).To(Equal(1))
 			Expect(bundle.Spec.Targets[0].ClusterName).To(Equal("overridden"))
@@ -65,12 +62,12 @@ var _ = Describe("Fleet apply targets", func() {
 			targets = []fleet.BundleTarget{{Name: "target1", ClusterName: "test1"}}
 			targetRestrictions = []fleet.BundleTargetRestriction{{Name: "target1", ClusterName: "test1"}}
 			file := createTargetsFile(targets, targetRestrictions)
-			options = apply.Options{Output: gbytes.NewBuffer(), TargetsFile: file.Name()}
+			options = apply.Options{TargetsFile: file.Name()}
 			dirs = []string{cli.AssetsPath + "targets/simple"}
 		})
 
 		It("Bundle contains targets and targetRestrictions from the targets file", func() {
-			bundle, err := cli.GetBundleFromOutput(options.Output)
+			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle.Spec.Targets).To(Equal(targets))
 			Expect(bundle.Spec.TargetRestrictions).To(Equal(targetRestrictions))
@@ -87,12 +84,12 @@ var _ = Describe("Fleet apply targets", func() {
 			targets = []fleet.BundleTarget{{Name: "target1", ClusterName: "test1"}}
 			targetRestrictions = []fleet.BundleTargetRestriction{{Name: "target1", ClusterName: "test1"}}
 			file := createTargetsFile(targets, targetRestrictions)
-			options = apply.Options{Output: gbytes.NewBuffer(), TargetsFile: file.Name()}
+			options = apply.Options{TargetsFile: file.Name()}
 			dirs = []string{cli.AssetsPath + "targets/override"}
 		})
 
 		It("Bundle contains targets and targetRestrictions from override", func() {
-			bundle, err := cli.GetBundleFromOutput(options.Output)
+			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle.Spec.Targets).To(Not(Equal(targets)))
 			Expect(bundle.Spec.TargetRestrictions).To(Not(Equal(targetRestrictions)))

@@ -1,120 +1,101 @@
 package target
 
 import (
-	"fmt"
-
-	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"k8s.io/apimachinery/pkg/util/intstr"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type Partition struct {
+type partition struct {
 	Status  fleet.PartitionStatus
 	Targets []*Target
 }
 
-// Partitions distributes targets into partitions based on the rollout strategy (pure function)
-func Partitions(targets []*Target) ([]Partition, error) {
-	rollout := getRollout(targets)
-	if len(rollout.Partitions) == 0 {
-		return autoPartition(rollout, targets)
+// UpdatePartitions recomputes status, including partitions, from data in allTargets.
+// It creates Deployments in allTargets if they are missing.
+// It updates Deployments in allTargets if they are out of sync (DeploymentID != StagedDeploymentID).
+func UpdatePartitions(status *fleet.BundleStatus, allTargets []*Target) (err error) {
+	partitions, err := partitions(allTargets)
+	if err != nil {
+		return err
 	}
 
-	return manualPartition(rollout, targets)
-}
+	status.UnavailablePartitions = 0
+	status.MaxUnavailablePartitions, err = maxUnavailablePartitions(partitions, allTargets)
+	if err != nil {
+		return err
+	}
 
-// manualPartition computes a slice of Partition given some targets and rollout strategy that already has partitions (pure function)
-func manualPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Partition, error) {
-	var (
-		partitions []Partition
-	)
-
-	for _, partitionDef := range rollout.Partitions {
-		matcher, err := matcher.NewClusterMatcher(partitionDef.ClusterName, partitionDef.ClusterGroup, partitionDef.ClusterGroupSelector, partitionDef.ClusterSelector)
-		if err != nil {
-			return nil, err
-		}
-
-		var partitionTargets []*Target
-	targetLoop:
-		for _, target := range targets {
-			for _, cg := range target.ClusterGroups {
-				if matcher.Match(target.Cluster.Name, cg.Name, cg.Labels, target.Cluster.Labels) {
-					partitionTargets = append(partitionTargets, target)
-					continue targetLoop
+	for _, partition := range partitions {
+		partition := partition // fix gosec warning regarding "Implicit memory aliasing in for loop"
+		for _, target := range partition.Targets {
+			// for a new bundledeployment, only stage the first maxNew (50) targets
+			if target.Deployment == nil && status.NewlyCreated < status.MaxNew {
+				status.NewlyCreated++
+				target.Deployment = &fleet.BundleDeployment{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      target.Bundle.Name,
+						Namespace: target.Cluster.Status.Namespace,
+						Labels:    target.BundleDeploymentLabels(target.Cluster.Namespace, target.Cluster.Name),
+					},
 				}
+			}
+			// stage targets that have a Deployment struct
+			if target.Deployment != nil {
+				// NOTE merged options from targets.Targets() are set to be staged
+				target.Deployment.Spec.StagedOptions = target.Options
+				target.Deployment.Spec.StagedDeploymentID = target.DeploymentID
 			}
 		}
 
-		partitions, err = appendPartition(partitions, partitionDef.Name, partitionTargets, partitionDef.MaxUnavailable, rollout.MaxUnavailable)
-		if err != nil {
-			return nil, err
+		for _, currentTarget := range partition.Targets {
+			// NOTE this will propagate the staged, merged options to the current deployment
+			updateTarget(currentTarget, status, &partition.Status)
+		}
+
+		if updateStatusUnavailable(&partition.Status, partition.Targets) {
+			status.UnavailablePartitions++
+		}
+
+		if status.UnavailablePartitions > status.MaxUnavailablePartitions {
+			break
 		}
 	}
 
-	return partitions, nil
+	for _, partition := range partitions {
+		status.PartitionStatus = append(status.PartitionStatus, partition.Status)
+	}
+
+	return nil
 }
 
-// appendPartition appends a new partition to partitions with partitionTargets as targets (does not mutate partitionTargets)
-func appendPartition(partitions []Partition, name string, partitionTargets []*Target, maxUnavailable ...*intstr.IntOrString) ([]Partition, error) {
-	maxUnavailableValue, err := limit(len(partitionTargets), maxUnavailable...)
-	if err != nil {
-		return nil, err
-	}
-	return append(partitions, Partition{
-		Status: fleet.PartitionStatus{
-			Name:           name,
-			Count:          len(partitionTargets),
-			MaxUnavailable: maxUnavailableValue,
-			Unavailable:    Unavailable(partitionTargets),
-			Summary:        Summary(partitionTargets),
-		},
-		Targets: partitionTargets,
-	}), nil
+// maxUnavailablePartitions returns the maximum number of unavailable partitions given the targets and partitions (pure function)
+func maxUnavailablePartitions(partitions []partition, targets []*Target) (int, error) {
+	rollout := getRollout(targets)
+	return limit(len(partitions), rollout.MaxUnavailablePartitions, &defMaxUnavailablePartitions)
 }
 
-// autoPartition computes a slice of Partition given some targets and rollout strategy (pure function)
-func autoPartition(rollout *fleet.RolloutStrategy, targets []*Target) ([]Partition, error) {
-	// if auto is disabled
-	if rollout.AutoPartitionSize != nil && rollout.AutoPartitionSize.Type == intstr.Int &&
-		rollout.AutoPartitionSize.IntVal <= 0 {
-		return appendPartition(nil, "All", targets, rollout.MaxUnavailable)
-	}
+// updateTarget will update DeploymentID and Options for the target to the
+// staging values, if it's in a deployable state
+func updateTarget(t *Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
+	if t.Deployment != nil &&
+		// Not Paused
+		!t.IsPaused() &&
+		// Has been staged
+		t.Deployment.Spec.StagedDeploymentID != "" &&
+		// Is out of sync
+		t.Deployment.Spec.DeploymentID != t.Deployment.Spec.StagedDeploymentID &&
+		// Global max unavailable not reached
+		(status.Unavailable < status.MaxUnavailable || isUnavailable(t.Deployment)) &&
+		// Partition max unavailable not reached
+		(partitionStatus.Unavailable < partitionStatus.MaxUnavailable || isUnavailable(t.Deployment)) {
 
-	// Also disable if less than 200
-	if len(targets) < 200 {
-		return appendPartition(nil, "All", targets, rollout.MaxUnavailable)
-	}
-
-	maxSize, err := limit(len(targets), rollout.AutoPartitionSize, &defAutoPartitionSize)
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		partitions []Partition
-		offset     = 0
-	)
-
-	for {
-		if len(targets) == 0 {
-			return partitions, nil
+		if !isUnavailable(t.Deployment) {
+			// If this was previously available, now increment unavailable count. "Upgrading" is treated as unavailable.
+			status.Unavailable++
+			partitionStatus.Unavailable++
 		}
-		end := maxSize
-		if len(targets) < maxSize {
-			end = len(targets)
-		}
-
-		partitionTargets := targets[:end]
-		name := fmt.Sprintf("Partition %d - %d", offset, offset+end)
-
-		partitions, err = appendPartition(partitions, name, partitionTargets, rollout.MaxUnavailable)
-		if err != nil {
-			return nil, err
-		}
-
-		// setup next loop
-		targets = targets[end:]
-		offset += end
+		t.Deployment.Spec.DeploymentID = t.Deployment.Spec.StagedDeploymentID
+		t.Deployment.Spec.Options = t.Deployment.Spec.StagedOptions
 	}
 }
