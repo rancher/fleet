@@ -152,10 +152,9 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 	}
 	localClient := localCluster.GetClient()
 
-	kubeconfig := flag.Lookup("kubeconfig").Value.String()
-	if kubeconfig != "" {
+	if kubeconfig := flag.Lookup("kubeconfig").Value.String(); kubeconfig != "" {
 		// set KUBECONFIG env var so helm can find it
-		os.Setenv("KUBECONFIG", flag.Lookup("kubeconfig").Value.String())
+		os.Setenv("KUBECONFIG", kubeconfig)
 	}
 
 	// Build the helm deployer, which uses a getter for local cluster's client-go client for helm SDK
