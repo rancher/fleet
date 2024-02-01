@@ -30,7 +30,7 @@ type CleanUp struct {
 
 func (r *CleanUp) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := r.SetupDebug(); err != nil {
-		return fmt.Errorf("failed to setup debug logging: %w", err)
+		return fmt.Errorf("failed to set up debug logging: %w", err)
 	}
 	Client = client.NewGetter(r.Kubeconfig, r.Context, r.Namespace)
 	return nil
