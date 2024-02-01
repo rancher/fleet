@@ -4644,9 +4644,6 @@ spec:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         download the repo's index.
                       type: boolean
-                    onTag:
-                      description: Semver matching for incoming tag event
-                      type: string
                     repo:
                       description: Git repo URL
                       type: string
