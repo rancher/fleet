@@ -11,6 +11,7 @@ import (
 	"time"
 
 	controller "github.com/rancher/fleet/internal/cmd/controller/gitjob"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	gitjobv1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/rancher/fleet/pkg/git/poll"
 	"github.com/rancher/fleet/pkg/webhook"
@@ -35,6 +36,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(gitjobv1.AddToScheme(scheme))
+	utilruntime.Must(fleet.AddToScheme(scheme))
 }
 
 type flags struct {
