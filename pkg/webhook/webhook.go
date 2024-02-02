@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	goPlaygroundAzuredevops "github.com/go-playground/webhooks/v6/azuredevops"
 	"github.com/rancher/fleet/pkg/webhook/azuredevops"
@@ -21,7 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	gogsclient "github.com/gogits/go-gogs-client"
-	v1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/go-playground/webhooks.v5/bitbucket"
 	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"
@@ -183,8 +184,8 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	revision, branch, _, repoURLs := parsePayload(payload)
 
-	var gitJobList v1.GitJobList
-	err = w.client.List(ctx, &gitJobList, &client.ListOptions{LabelSelector: labels.Everything()})
+	var gitRepoList v1alpha1.GitRepoList
+	err = w.client.List(ctx, &gitRepoList, &client.ListOptions{LabelSelector: labels.Everything()})
 	if err != nil {
 		logAndReturn(rw, err)
 		return
@@ -202,41 +203,41 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			logAndReturn(rw, err)
 			return
 		}
-		for _, gitjob := range gitJobList.Items {
-			if gitjob.Spec.Git.Revision != "" {
+		for _, gitrepo := range gitRepoList.Items {
+			if gitrepo.Spec.Revision != "" {
 				continue
 			}
 
-			if !repoRegexp.MatchString(gitjob.Spec.Git.Repo) {
+			if !repoRegexp.MatchString(gitrepo.Spec.Repo) {
 				continue
 			}
 
-			if gitjob.Spec.Git.Branch != "" {
-				// else we check if the branch from webhook matches gitjob's branch
-				if branch == "" || branch != gitjob.Spec.Git.Branch {
+			if gitrepo.Spec.Branch != "" {
+				// we check if the branch from webhook matches gitrepo's branch
+				if branch == "" || branch != gitrepo.Spec.Branch {
 					continue
 				}
 			}
 
-			if gitjob.Status.Commit != revision && revision != "" {
+			if gitrepo.Status.Commit != revision && revision != "" {
 				if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-					var gitJobFromCluster v1.GitJob
+					var gitRepoFromCluster v1alpha1.GitRepo
 					err := w.client.Get(
 						ctx,
 						ktypes.NamespacedName{
-							Name:      gitjob.Name,
-							Namespace: gitjob.Namespace,
-						}, &gitJobFromCluster,
+							Name:      gitrepo.Name,
+							Namespace: gitrepo.Namespace,
+						}, &gitRepoFromCluster,
 					)
 					if err != nil {
 						return err
 					}
-					gitJobFromCluster.Status.Commit = revision
-					// if syncInterval is not set and webhook is configured, set it to 1 hour
-					if gitjob.Spec.SyncInterval == 0 {
-						gitJobFromCluster.Spec.SyncInterval = webhookDefaultSyncInterval
+					gitRepoFromCluster.Status.Commit = revision
+					// if PollingInterval is not set and webhook is configured, set it to 1 hour
+					if gitrepo.Spec.PollingInterval == nil {
+						gitRepoFromCluster.Spec.PollingInterval.Duration = webhookDefaultSyncInterval * time.Second
 					}
-					return w.client.Status().Update(ctx, &gitJobFromCluster)
+					return w.client.Status().Update(ctx, &gitRepoFromCluster)
 				}); err != nil {
 					logAndReturn(rw, err)
 					return
