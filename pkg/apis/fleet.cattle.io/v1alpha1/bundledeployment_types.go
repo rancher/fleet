@@ -238,6 +238,9 @@ type HelmOptions struct {
 
 	// SkipSchemaValidation allows skipping schema validation against the chart values
 	SkipSchemaValidation bool `json:"skipSchemaValidation,omitempty"`
+
+	// DisableDependencyUpdate allows skipping chart dependencies update
+	DisableDependencyUpdate bool `json:"disableDependencyUpdate,omitempty"`
 }
 
 // IgnoreOptions defines conditions to be ignored when monitoring the Bundle.

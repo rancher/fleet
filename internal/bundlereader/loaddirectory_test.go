@@ -333,7 +333,7 @@ func TestGetContent(t *testing.T) {
 
 			root := createDirStruct(t, base, c.directoryStructure)
 
-			files, err := bundlereader.GetContent(context.Background(), root, root, "", bundlereader.Auth{})
+			files, err := bundlereader.GetContent(context.Background(), root, root, "", bundlereader.Auth{}, false)
 			assert.NoError(t, err)
 
 			assert.Equal(t, len(c.expectedFiles), len(files))

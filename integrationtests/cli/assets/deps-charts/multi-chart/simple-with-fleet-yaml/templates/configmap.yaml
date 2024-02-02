@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-simple-deps-chart
+data:
+  test: "valuedeps"
+  name: {{ .Values.name }}
