@@ -12,7 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/rancher/fleet/internal/mocks"
-	gitjobv1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -31,15 +31,14 @@ func TestReconcile_AddOrModifyGitRepoWatchIsCalled_WhenGitRepoIsCreatedOrModifie
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
-	utilruntime.Must(gitjobv1.AddToScheme(scheme))
 	utilruntime.Must(batchv1.AddToScheme(scheme))
-	gitJob := gitjobv1.GitJob{
+	gitRepo := fleetv1.GitRepo{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gitjob",
+			Name:      "gitrepo",
 			Namespace: "default",
 		},
 	}
-	namespacedName := types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}
+	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
 	ctx := context.TODO()
 	client := mocks.NewMockClient(mockCtrl)
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
@@ -66,10 +65,9 @@ func TestReconcile_PurgeWatchesIsCalled_WhenGitRepoIsCreatedOrModified(t *testin
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
-	utilruntime.Must(gitjobv1.AddToScheme(scheme))
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 	ctx := context.TODO()
-	namespacedName := types.NamespacedName{Name: "gitJob", Namespace: "default"}
+	namespacedName := types.NamespacedName{Name: "gitRepo", Namespace: "default"}
 	client := mocks.NewMockClient(mockCtrl)
 	client.EXPECT().Get(ctx, namespacedName, gomock.Any()).Times(1).Return(errors.NewNotFound(schema.GroupResource{}, "NotFound"))
 	poller := mocks.NewMockGitPoller(mockCtrl)
@@ -102,7 +100,6 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
-	utilruntime.Must(gitjobv1.AddToScheme(scheme))
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 	ctx := context.TODO()
 	poller := mocks.NewMockGitPoller(mockCtrl)
@@ -110,22 +107,110 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 	poller.EXPECT().CleanUpWatches(ctx).AnyTimes()
 
 	tests := map[string]struct {
-		gitjob                 *gitjobv1.GitJob
+		gitrepo                *fleetv1.GitRepo
 		client                 client.Client
 		expectedInitContainers []corev1.Container
 		expectedVolumes        []corev1.Volume
 		expectedErr            error
 	}{
 		"simple (no credentials, no ca, no skip tls)": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{Git: gitjobv1.GitInfo{Repo: "repo"}},
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{Repo: "repo"},
 			},
 			expectedInitContainers: []corev1.Container{
 				{
 					Command: []string{
 						"gitcloner",
 					},
-					Args:  []string{"repo", "/workspace"},
+					Args:  []string{"repo", "/workspace", "--branch", "master"},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      gitClonerVolumeName,
+							MountPath: "/workspace",
+						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+					},
+					SecurityContext: securityContext,
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+			},
+			client: fake.NewFakeClient(),
+		},
+		"simple with custom branch": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					Repo:   "repo",
+					Branch: "foo",
+				},
+			},
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{
+						"gitcloner",
+					},
+					Args:  []string{"repo", "/workspace", "--branch", "foo"},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      gitClonerVolumeName,
+							MountPath: "/workspace",
+						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+					},
+					SecurityContext: securityContext,
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+			},
+			client: fake.NewFakeClient(),
+		},
+		"simple with custom revision": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					Repo:     "repo",
+					Revision: "foo",
+				},
+			},
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{
+						"gitcloner",
+					},
+					Args:  []string{"repo", "/workspace", "--revision", "foo"},
 					Image: "test",
 					Name:  "gitcloner-initializer",
 					VolumeMounts: []corev1.VolumeMount{
@@ -158,14 +243,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			client: fake.NewFakeClient(),
 		},
 		"http credentials": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo: "repo",
-						Credential: gitjobv1.Credential{
-							ClientSecretName: "secretName",
-						},
-					},
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					Repo:             "repo",
+					ClientSecretName: "secretName",
 				},
 			},
 			expectedInitContainers: []corev1.Container{
@@ -173,7 +254,16 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					Command: []string{
 						"gitcloner",
 					},
-					Args:  []string{"repo", "/workspace", "--username", "user", "--password-file", "/gitjob/credentials/" + corev1.BasicAuthPasswordKey},
+					Args: []string{
+						"repo",
+						"/workspace",
+						"--branch",
+						"master",
+						"--username",
+						"user",
+						"--password-file",
+						"/gitjob/credentials/" + corev1.BasicAuthPasswordKey,
+					},
 					Image: "test",
 					Name:  "gitcloner-initializer",
 					VolumeMounts: []corev1.VolumeMount{
@@ -218,14 +308,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			client: httpSecretMock(),
 		},
 		"ssh credentials": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo: "repo",
-						Credential: gitjobv1.Credential{
-							ClientSecretName: "secretName",
-						},
-					},
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					Repo:             "repo",
+					ClientSecretName: "secretName",
 				},
 			},
 			expectedInitContainers: []corev1.Container{
@@ -233,7 +319,14 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					Command: []string{
 						"gitcloner",
 					},
-					Args:  []string{"repo", "/workspace", "--ssh-private-key-file", "/gitjob/ssh/" + corev1.SSHAuthPrivateKey},
+					Args: []string{
+						"repo",
+						"/workspace",
+						"--branch",
+						"master",
+						"--ssh-private-key-file",
+						"/gitjob/ssh/" + corev1.SSHAuthPrivateKey,
+					},
 					Image: "test",
 					Name:  "gitcloner-initializer",
 					VolumeMounts: []corev1.VolumeMount{
@@ -278,14 +371,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			client: sshSecretMock(),
 		},
 		"custom CA": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Credential: gitjobv1.Credential{
-							CABundle: []byte("ca"),
-						},
-						Repo: "repo",
-					},
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					CABundle: []byte("ca"),
+					Repo:     "repo",
 				},
 			},
 			expectedInitContainers: []corev1.Container{
@@ -293,7 +382,14 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					Command: []string{
 						"gitcloner",
 					},
-					Args:  []string{"repo", "/workspace", "--ca-bundle-file", "/gitjob/cabundle/" + bundleCAFile},
+					Args: []string{
+						"repo",
+						"/workspace",
+						"--branch",
+						"master",
+						"--ca-bundle-file",
+						"/gitjob/cabundle/" + bundleCAFile,
+					},
 					Image: "test",
 					Name:  "gitcloner-initializer",
 					VolumeMounts: []corev1.VolumeMount{
@@ -337,14 +433,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			},
 		},
 		"skip tls": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Credential: gitjobv1.Credential{
-							InsecureSkipTLSverify: true,
-						},
-						Repo: "repo",
-					},
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					InsecureSkipTLSverify: true,
+					Repo:                  "repo",
 				},
 			},
 			expectedInitContainers: []corev1.Container{
@@ -352,7 +444,13 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					Command: []string{
 						"gitcloner",
 					},
-					Args:  []string{"repo", "/workspace", "--insecure-skip-tls"},
+					Args: []string{
+						"repo",
+						"/workspace",
+						"--branch",
+						"master",
+						"--insecure-skip-tls",
+					},
 					Image: "test",
 					Name:  "gitcloner-initializer",
 					VolumeMounts: []corev1.VolumeMount{
@@ -393,15 +491,25 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 				Image:     "test",
 				GitPoller: poller,
 			}
-			job, err := r.newJob(ctx, test.gitjob)
+			job, err := r.newJob(ctx, test.gitrepo)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if !cmp.Equal(job.Spec.Template.Spec.InitContainers, test.expectedInitContainers) {
 				t.Fatalf("expected initContainers: %v, got: %v", test.expectedInitContainers, job.Spec.Template.Spec.InitContainers)
 			}
-			if !cmp.Equal(job.Spec.Template.Spec.Volumes, test.expectedVolumes) {
-				t.Fatalf("expected volumes: %v, got: %v", test.expectedVolumes, job.Spec.Template.Spec.Volumes)
+
+			for _, evol := range test.expectedVolumes {
+				found := false
+				for _, tvol := range job.Spec.Template.Spec.Volumes {
+					if cmp.Equal(evol, tvol) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatalf("volume %v not found in %v", evol, job.Spec.Template.Spec.Volumes)
+				}
 			}
 		})
 	}
@@ -415,92 +523,50 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 	poller.EXPECT().CleanUpWatches(ctx).AnyTimes()
 
 	tests := map[string]struct {
-		gitjob                       *gitjobv1.GitJob
+		gitrepo                      *fleetv1.GitRepo
 		osEnv                        map[string]string
 		expectedContainerEnvVars     []corev1.EnvVar
 		expectedInitContainerEnvVars []corev1.EnvVar
 	}{
-		"no proxy": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					JobSpec: batchv1.JobSpec{
-						Template: corev1.PodTemplateSpec{
-							Spec: corev1.PodSpec{
-								Containers: []corev1.Container{
-									{
-										Env: []corev1.EnvVar{{
-											Name:  "foo",
-											Value: "bar",
-										}},
-									},
-								},
-							},
-						},
-					},
+		"Helm secret name for paths": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					HelmSecretNameForPaths: "foo",
 				},
-				Status: gitjobv1.GitJobStatus{
-					GitEvent: gitjobv1.GitEvent{
-						Commit: "commit",
-						GithubMeta: gitjobv1.GithubMeta{
-							Event: "event",
-						},
-					},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "commit",
 				},
 			},
 			expectedContainerEnvVars: []corev1.EnvVar{
 				{
-					Name:  "foo",
-					Value: "bar",
+					Name:  "HOME",
+					Value: "/fleet-home",
+				},
+				{
+					Name:  "GIT_SSH_COMMAND",
+					Value: "ssh -o stricthostkeychecking=accept-new",
 				},
 				{
 					Name:  "COMMIT",
 					Value: "commit",
-				},
-				{
-					Name:  "EVENT_TYPE",
-					Value: "event",
 				},
 			},
 		},
 		"proxy": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					JobSpec: batchv1.JobSpec{
-						Template: corev1.PodTemplateSpec{
-							Spec: corev1.PodSpec{
-								Containers: []corev1.Container{
-									{
-										Env: []corev1.EnvVar{{
-											Name:  "foo",
-											Value: "bar",
-										}},
-									},
-								},
-							},
-						},
-					},
-				},
-				Status: gitjobv1.GitJobStatus{
-					GitEvent: gitjobv1.GitEvent{
-						Commit: "commit",
-						GithubMeta: gitjobv1.GithubMeta{
-							Event: "event",
-						},
-					},
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "commit",
 				},
 			},
 			expectedContainerEnvVars: []corev1.EnvVar{
 				{
-					Name:  "foo",
-					Value: "bar",
+					Name:  "HOME",
+					Value: "/fleet-home",
 				},
 				{
 					Name:  "COMMIT",
 					Value: "commit",
-				},
-				{
-					Name:  "EVENT_TYPE",
-					Value: "event",
 				},
 				{
 					Name:  "HTTP_PROXY",
@@ -538,7 +604,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					t.Errorf("unexpected error: %v", err)
 				}
 			}
-			job, err := r.newJob(ctx, test.gitjob)
+			job, err := r.newJob(ctx, test.gitrepo)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}

@@ -4,11 +4,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	v1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/name"
 
 	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,39 +15,42 @@ import (
 )
 
 const (
-	gitJobNamespace = "default"
-	repo            = "https://www.github.com/rancher/fleet"
-	commit          = "9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"
+	gitRepoNamespace = "default"
+	repo             = "https://www.github.com/rancher/fleet"
+	commit           = "9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"
 )
 
 var _ = Describe("GitJob controller", func() {
 
-	When("a new GitJob is created", func() {
+	When("a new GitRepo is created", func() {
 		var (
-			gitJob     v1.GitJob
-			gitJobName string
-			job        batchv1.Job
-			jobName    string
+			gitRepo     v1alpha1.GitRepo
+			gitRepoName string
+			job         batchv1.Job
+			jobName     string
 		)
 
 		JustBeforeEach(func() {
-			gitJob = createGitJob(gitJobName)
-			Expect(k8sClient.Create(ctx, &gitJob)).ToNot(HaveOccurred())
-			Expect(simulateGitPollerUpdatingCommitInStatus(gitJob, commit)).ToNot(HaveOccurred())
+			gitRepo = createGitRepo(gitRepoName)
+			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
+			Expect(simulateGitPollerUpdatingCommitInStatus(gitRepo, commit)).ToNot(HaveOccurred())
 
 			By("Creating a job")
 			Eventually(func() error {
-				jobName = name.SafeConcatName(gitJobName, name.Hex(repo+commit, 5))
-				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, &job)
+				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
+
+			Expect(job.Spec.Template.Spec.Containers).To(HaveLen(1))
+			Expect(job.Spec.Template.Spec.Containers[0].Args).To(ContainElements("fleet", "apply"))
 		})
 
 		When("a job completes successfully", func() {
 			BeforeEach(func() {
-				gitJobName = "success"
+				gitRepoName = "success"
 			})
 
-			It("sets LastExecutedCommit and JobStatus in GitJob", func() {
+			It("sets LastExecutedCommit and JobStatus in GitRepo", func() {
 				// simulate job was successful
 				job.Status.Succeeded = 1
 				job.Status.Conditions = []batchv1.JobCondition{
@@ -60,18 +62,23 @@ var _ = Describe("GitJob controller", func() {
 				Expect(k8sClient.Status().Update(ctx, &job)).ToNot(HaveOccurred())
 
 				Eventually(func() bool {
-					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitJobName, Namespace: gitJobNamespace}, &gitJob)).ToNot(HaveOccurred())
-					return gitJob.Status.LastExecutedCommit == commit && gitJob.Status.JobStatus == "Current"
+					Expect(k8sClient.Get(
+						ctx,
+						types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace},
+						&gitRepo,
+					)).ToNot(HaveOccurred())
+
+					return gitRepo.Status.Commit == commit && gitRepo.Status.GitJobStatus == "Current"
 				}).Should(BeTrue())
 			})
 		})
 
 		When("Job fails", func() {
 			BeforeEach(func() {
-				gitJobName = "fail"
+				gitRepoName = "fail"
 			})
 
-			It("sets JobStatus in GitJob", func() {
+			It("sets JobStatus in GitRepo", func() {
 				// simulate job has failed
 				job.Status.Failed = 1
 				job.Status.Conditions = []batchv1.JobCondition{
@@ -84,15 +91,17 @@ var _ = Describe("GitJob controller", func() {
 				}
 				Expect(k8sClient.Status().Update(ctx, &job)).ToNot(HaveOccurred())
 				Eventually(func() bool {
-					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitJobName, Namespace: gitJobNamespace}, &gitJob)).ToNot(HaveOccurred())
-					return gitJob.Status.LastExecutedCommit != commit && gitJob.Status.JobStatus == "Failed"
+					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).ToNot(HaveOccurred())
+					// XXX: do we need an additional `LastExecutedCommit` or similar status field?
+					//return gitRepo.Status.Commit != commit && gitRepo.Status.GitJobStatus == "Failed"
+					return gitRepo.Status.GitJobStatus == "Failed"
 				}).Should(BeTrue())
 
 				By("verifying that the job is deleted if Spec.Generation changed")
-				Expect(simulateIncreaseGitJobGeneration(gitJob)).ToNot(HaveOccurred())
+				Expect(simulateIncreaseGitRepoGeneration(gitRepo)).ToNot(HaveOccurred())
 				Eventually(func() bool {
-					jobName = name.SafeConcatName(gitJobName, name.Hex(repo+commit, 5))
-					return errors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, &job))
+					jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+					return errors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job))
 				}).Should(BeTrue())
 			})
 		})
@@ -100,33 +109,33 @@ var _ = Describe("GitJob controller", func() {
 
 	When("A new commit is found for a git repo", func() {
 		var (
-			gitJob     v1.GitJob
-			gitJobName string
-			job        batchv1.Job
+			gitRepo     v1alpha1.GitRepo
+			gitRepoName string
+			job         batchv1.Job
 		)
 
 		JustBeforeEach(func() {
-			gitJob = createGitJob(gitJobName)
-			Expect(k8sClient.Create(ctx, &gitJob)).ToNot(HaveOccurred())
-			Expect(simulateGitPollerUpdatingCommitInStatus(gitJob, commit)).ToNot(HaveOccurred())
+			gitRepo = createGitRepo(gitRepoName)
+			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
+			Expect(simulateGitPollerUpdatingCommitInStatus(gitRepo, commit)).ToNot(HaveOccurred())
 
 			By("creating a Job")
 			Eventually(func() error {
-				jobName := name.SafeConcatName(gitJobName, name.Hex(repo+commit, 5))
-				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, &job)
+				jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
 		})
 
 		When("A new commit is set to the .Status.commit", func() {
 			BeforeEach(func() {
-				gitJobName = "new-commit"
+				gitRepoName = "new-commit"
 			})
 			It("creates a new Job", func() {
 				const newCommit = "9ca3a0adbbba32"
-				Expect(simulateGitPollerUpdatingCommitInStatus(gitJob, newCommit)).ToNot(HaveOccurred())
+				Expect(simulateGitPollerUpdatingCommitInStatus(gitRepo, newCommit)).ToNot(HaveOccurred())
 				Eventually(func() error {
-					jobName := name.SafeConcatName(gitJobName, name.Hex(repo+newCommit, 5))
-					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, &job)
+					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+newCommit, 5))
+					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 				}).Should(Not(HaveOccurred()))
 			})
 		})
@@ -134,75 +143,75 @@ var _ = Describe("GitJob controller", func() {
 
 	When("User wants to force a job deletion by increasing Spec.ForceUpdateGeneration", func() {
 		var (
-			gitJob     v1.GitJob
-			gitJobName string
-			job        batchv1.Job
-			jobName    string
+			gitRepo     v1alpha1.GitRepo
+			gitRepoName string
+			job         batchv1.Job
+			jobName     string
 		)
 
 		JustBeforeEach(func() {
-			gitJob = createGitJob(gitJobName)
-			Expect(k8sClient.Create(ctx, &gitJob)).ToNot(HaveOccurred())
-			Expect(simulateGitPollerUpdatingCommitInStatus(gitJob, commit)).ToNot(HaveOccurred())
+			gitRepo = createGitRepo(gitRepoName)
+			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
+			Expect(simulateGitPollerUpdatingCommitInStatus(gitRepo, commit)).ToNot(HaveOccurred())
 			Eventually(func() error {
-				jobName = name.SafeConcatName(gitJobName, name.Hex(repo+commit, 5))
-				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, &job)
+				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
 
-			Expect(simulateIncreaseForceUpdateGeneration(gitJob)).ToNot(HaveOccurred())
+			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
 		})
 		BeforeEach(func() {
-			gitJobName = "force-deletion"
+			gitRepoName = "force-deletion"
 		})
 
 		It("Verifies that the Job is recreated", func() {
 			Eventually(func() bool {
 				newJob := &batchv1.Job{}
-				_ = k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, newJob)
+				_ = k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, newJob)
 
 				return string(job.UID) != string(newJob.UID)
 			}).Should(BeTrue())
 		})
 	})
 
-	When("User performs an update in a Job argument", func() {
+	When("User performs an update in a gitrepo field", func() {
 		var (
-			gitJob     v1.GitJob
-			gitJobName string
-			job        batchv1.Job
-			jobName    string
+			gitRepo     v1alpha1.GitRepo
+			gitRepoName string
+			job         batchv1.Job
+			jobName     string
 		)
 
 		JustBeforeEach(func() {
-			gitJob = createGitJob(gitJobName)
-			Expect(k8sClient.Create(ctx, &gitJob)).ToNot(HaveOccurred())
-			Expect(simulateGitPollerUpdatingCommitInStatus(gitJob, commit)).ToNot(HaveOccurred())
+			gitRepo = createGitRepo(gitRepoName)
+			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
+			Expect(simulateGitPollerUpdatingCommitInStatus(gitRepo, commit)).ToNot(HaveOccurred())
 			Eventually(func() error {
-				jobName = name.SafeConcatName(gitJobName, name.Hex(repo+commit, 5))
-				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, &job)
+				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
 
-			// change args parameter, this will change the Generation field. This simulates changing fleet apply parameters.
+			// change a gitrepo field, this will change the Generation field. This simulates changing fleet apply parameters.
 			Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				var gitJobFromCluster v1.GitJob
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFromCluster)
+				var gitRepoFromCluster v1alpha1.GitRepo
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
 				if err != nil {
 					return err
 				}
-				gitJobFromCluster.Spec.JobSpec.Template.Spec.Containers[0].Args = []string{"-v"}
+				gitRepoFromCluster.Spec.KeepResources = !gitRepoFromCluster.Spec.KeepResources
 
-				return k8sClient.Update(ctx, &gitJobFromCluster)
+				return k8sClient.Update(ctx, &gitRepoFromCluster)
 			})).ToNot(HaveOccurred())
 		})
 
 		BeforeEach(func() {
-			gitJobName = "simulate-arg-update"
+			gitRepoName = "simulate-arg-update"
 		})
 
 		It("Verifies that the Job is recreated", func() {
 			Eventually(func() bool {
 				newJob := &batchv1.Job{}
-				_ = k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitJobNamespace}, newJob)
+				_ = k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, newJob)
 
 				return string(job.UID) != string(newJob.UID)
 			}).Should(BeTrue())
@@ -210,69 +219,52 @@ var _ = Describe("GitJob controller", func() {
 	})
 })
 
-func simulateIncreaseForceUpdateGeneration(gitJob v1.GitJob) error {
+func simulateIncreaseForceSyncGeneration(gitRepo v1alpha1.GitRepo) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitJobFromCluster v1.GitJob
-		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFromCluster)
+		var gitRepoFromCluster v1alpha1.GitRepo
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
 		if err != nil {
 			return err
 		}
-		gitJobFromCluster.Spec.ForceUpdateGeneration++
-		return k8sClient.Update(ctx, &gitJobFromCluster)
+		gitRepoFromCluster.Spec.ForceSyncGeneration++
+		return k8sClient.Update(ctx, &gitRepoFromCluster)
 	})
 }
 
-func simulateIncreaseGitJobGeneration(gitJob v1.GitJob) error {
+func simulateIncreaseGitRepoGeneration(gitRepo v1alpha1.GitRepo) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitJobFromCluster v1.GitJob
-		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFromCluster)
+		var gitRepoFromCluster v1alpha1.GitRepo
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
 		if err != nil {
 			return err
 		}
-		gitJobFromCluster.Spec.Git.ClientSecretName = "new"
-		return k8sClient.Update(ctx, &gitJobFromCluster)
+		gitRepoFromCluster.Spec.ClientSecretName = "new"
+		return k8sClient.Update(ctx, &gitRepoFromCluster)
 	})
 }
 
-func simulateGitPollerUpdatingCommitInStatus(gitJob v1.GitJob, commit string) error {
+func simulateGitPollerUpdatingCommitInStatus(gitRepo v1alpha1.GitRepo, commit string) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitJobFromCluster v1.GitJob
-		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &gitJobFromCluster)
+		var gitRepoFromCluster v1alpha1.GitRepo
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
 		if err != nil {
 			return err
 		}
-		gitJobFromCluster.Status = v1.GitJobStatus{
-			GitEvent: v1.GitEvent{
-				Commit: commit,
-			},
+		gitRepoFromCluster.Status = v1alpha1.GitRepoStatus{
+			Commit: commit,
 		}
-		return k8sClient.Status().Update(ctx, &gitJobFromCluster)
+		return k8sClient.Status().Update(ctx, &gitRepoFromCluster)
 	})
 }
 
-func createGitJob(gitJobName string) v1.GitJob {
-	return v1.GitJob{
+func createGitRepo(gitRepoName string) v1alpha1.GitRepo {
+	return v1alpha1.GitRepo{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gitJobName,
-			Namespace: gitJobNamespace,
+			Name:      gitRepoName,
+			Namespace: gitRepoNamespace,
 		},
-		Spec: v1.GitJobSpec{
-			Git: v1.GitInfo{
-				Repo: repo,
-			},
-			JobSpec: batchv1.JobSpec{
-				Template: corev1.PodTemplateSpec{
-					Spec: corev1.PodSpec{
-						RestartPolicy: corev1.RestartPolicyNever,
-						Containers: []corev1.Container{
-							{
-								Image: "nginx",
-								Name:  "nginx",
-							},
-						},
-					},
-				},
-			},
+		Spec: v1alpha1.GitRepoSpec{
+			Repo: repo,
 		},
 	}
 }

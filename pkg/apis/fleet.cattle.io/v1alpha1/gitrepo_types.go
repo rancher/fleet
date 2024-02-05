@@ -155,6 +155,8 @@ type GitRepoStatus struct {
 	// metadata.Generation. The value is incremented for all changes, except for changes to .metadata or .status.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
+	// Update generation is the force update generation if spec.forceSyncGeneration is set
+	UpdateGeneration int64 `json:"updateGeneration,omitempty"`
 	// Commit is the Git commit hash from the last gitjob run.
 	// +nullable
 	Commit string `json:"commit,omitempty"`
@@ -165,7 +167,7 @@ type GitRepoStatus struct {
 	// DesiredReadyClusters	is the number of clusters that should be ready for bundles of this GitRepo.
 	// +optional
 	DesiredReadyClusters int `json:"desiredReadyClusters"`
-	// GitJobStatus is the status of the last GitJob run, e.g. "Current" if there was no error.
+	// GitJobStatus is the status of the last Git job run, e.g. "Current" if there was no error.
 	GitJobStatus string `json:"gitJobStatus,omitempty"`
 	// Summary contains the number of bundle deployments in each state and a list of non-ready resources.
 	Summary BundleSummary `json:"summary,omitempty"`

@@ -6,11 +6,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	gitjob "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
 
-	"github.com/rancher/wrangler/v2/pkg/genericcondition"
-
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -90,40 +86,14 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 	gitrepo.Status.Display.State = string(maxState)
 	gitrepo.Status.Display.Message = message
 	gitrepo.Status.Display.Error = len(message) > 0
+
 	return nil
 }
 
-func SetStatusFromGitJob(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) error {
-	gitJob := &gitjob.GitJob{}
-	err := c.Get(ctx, types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}, gitJob)
-	if err == nil {
-		gitrepo.Status.Commit = gitJob.Status.Commit
-		gitrepo.Status.Conditions = mergeConditions(gitrepo.Status.Conditions, gitJob.Status.Conditions)
-		gitrepo.Status.GitJobStatus = gitJob.Status.JobStatus
-	} else {
-		gitrepo.Status.Commit = ""
-	}
-
+func UpdateDisplayState(gitrepo *fleet.GitRepo) error {
 	if gitrepo.Status.GitJobStatus != "Current" {
 		gitrepo.Status.Display.State = "GitUpdating"
 	}
 
 	return nil
-}
-
-func mergeConditions(existing, next []genericcondition.GenericCondition) []genericcondition.GenericCondition {
-	result := make([]genericcondition.GenericCondition, 0, len(existing)+len(next))
-	names := map[string]int{}
-	for i, existing := range existing {
-		result = append(result, existing)
-		names[existing.Type] = i
-	}
-	for _, next := range next {
-		if i, ok := names[next.Type]; ok {
-			result[i] = next
-		} else {
-			result = append(result, next)
-		}
-	}
-	return result
 }

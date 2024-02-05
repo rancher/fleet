@@ -9,7 +9,6 @@ import (
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	gitjob "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
 	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/wrangler/v2/pkg/condition"
@@ -70,9 +69,8 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	logger = logger.WithValues("commit", gitrepo.Status.Commit)
-	logger.V(1).Info("Reconciling GitRepo, clean up and create gitjob", "lastAccepted", acceptedLastUpdate(gitrepo.Status.Conditions))
+	logger.V(1).Info("Reconciling GitRepo", "lastAccepted", acceptedLastUpdate(gitrepo.Status.Conditions))
 
-	// Start building a gitjob
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
 	if gitrepo.Spec.Repo == "" {
@@ -100,8 +98,9 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	err = grutil.SetStatusFromGitJob(ctx, r.Client, gitrepo)
-	if err != nil {
+	// Ideally, this should be done in the git job reconciler, but setting the status from bundle deployments
+	// updates the display state too.
+	if err = grutil.UpdateDisplayState(gitrepo); err != nil {
 		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
 	}
 
@@ -134,7 +133,7 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Start creating/updating the job
-	logger.V(1).Info("Creating GitJob resources")
+	logger.V(1).Info("Creating Git job resources")
 
 	configMap, err := grutil.NewTargetsConfigMap(gitrepo)
 	if err != nil {
@@ -178,14 +177,6 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	gitjob := grutil.NewGitJob(ctx, r.Client, gitrepo, saName, configMap.Name)
-	if err := controllerutil.SetControllerReference(gitrepo, gitjob, r.Scheme); err != nil {
-		return ctrl.Result{}, err
-	}
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, gitjob, grutil.MutateGitJob(gitjob)); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	return ctrl.Result{}, nil
 }
 
@@ -216,7 +207,6 @@ func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Note: Maybe use mgr.GetFieldIndexer().IndexField for better performance?
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.GitRepo{}).
-		Owns(&gitjob.GitJob{}).
 		Watches(
 			// Fan out from bundle to gitrepo
 			&fleet.Bundle{},

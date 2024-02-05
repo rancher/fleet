@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/mocks"
 
 	"go.uber.org/mock/gomock"
@@ -23,18 +23,18 @@ func TestFetchBySyncInterval(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	gitJob := v1.GitJob{
+	gitRepo := v1alpha1.GitRepo{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "gitjob",
+			Name: "gitrepo",
 		},
 	}
 	fetcher := mocks.NewMockGitFetcher(ctrl)
 	scheme := runtime.NewScheme()
-	err := v1.AddToScheme(scheme)
+	err := v1alpha1.AddToScheme(scheme)
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&gitJob).WithStatusSubresource(&gitJob).Build()
+	client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&gitRepo).WithStatusSubresource(&gitRepo).Build()
 	ctx := context.TODO()
 	commit := "fakeCommit"
 
@@ -52,7 +52,7 @@ func TestFetchBySyncInterval(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			w := Watch{
-				gitJob:  gitJob,
+				gitRepo: gitRepo,
 				client:  client,
 				mu:      new(sync.Mutex),
 				fetcher: fetcher,
@@ -64,20 +64,20 @@ func TestFetchBySyncInterval(t *testing.T) {
 			fetcher.EXPECT().LatestCommit(ctx, gomock.Any(), client).Return(commit, nil).Times(test.numTimeTickMock + 1)
 			go func() {
 				for i := 0; i < test.numTimeTickMock; i++ {
-					tickerC <- time.Now() // simulate syncInterval has passed
+					tickerC <- time.Now() // simulate pollingInterval has passed
 				}
 				w.Finish()
 			}()
 
 			w.fetchBySyncInterval(ctx, ticker)
 
-			updatedGitJob := v1.GitJob{}
-			err = client.Get(ctx, types.NamespacedName{Name: gitJob.Name, Namespace: gitJob.Namespace}, &updatedGitJob)
+			updatedGitRepo := v1alpha1.GitRepo{}
+			err = client.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &updatedGitRepo)
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
-			if updatedGitJob.Status.Commit != commit {
-				t.Errorf("expected .Status.Commit %v, but got %v", commit, updatedGitJob.Status.Commit)
+			if updatedGitRepo.Status.Commit != commit {
+				t.Errorf("expected .Status.Commit %v, but got %v", commit, updatedGitRepo.Status.Commit)
 			}
 		})
 	}

@@ -28,7 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rancher/fleet/internal/mocks"
-	gitjobv1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git"
 
 	v1 "k8s.io/api/core/v1"
@@ -82,29 +82,25 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 	ctx := context.Background()
 
 	tests := map[string]struct {
-		gitjob         *gitjobv1.GitJob
+		gitrepo        *v1alpha1.GitRepo
 		expectedCommit string
 		expectedErr    error
 	}{
 		"public repo": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo:   url + "/test/public-repo",
-						Branch: "master",
-					},
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   url + "/test/public-repo",
+					Branch: "master",
 				},
 			},
 			expectedCommit: latestCommitPublicRepo,
 			expectedErr:    nil,
 		},
 		"private repo": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo:   url + "/test/private-repo",
-						Branch: "master",
-					},
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   url + "/test/private-repo",
+					Branch: "master",
 				},
 			},
 			expectedCommit: "",
@@ -117,7 +113,7 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 			f := git.Fetch{}
 			client := mocks.NewMockClient(ctlr)
 			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound"))
-			latestCommit, err := f.LatestCommit(ctx, test.gitjob, client)
+			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
 			if err != test.expectedErr {
 				t.Errorf("expected error is: %v, but got %v", test.expectedErr, err)
 			}
@@ -135,29 +131,25 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 	ctx := context.Background()
 
 	tests := map[string]struct {
-		gitjob         *gitjobv1.GitJob
+		gitrepo        *v1alpha1.GitRepo
 		expectedCommit string
 		expectedErr    error
 	}{
 		"public repo": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo:   url + "/test/public-repo",
-						Branch: "master",
-					},
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   url + "/test/public-repo",
+					Branch: "master",
 				},
 			},
 			expectedCommit: latestCommitPublicRepo,
 			expectedErr:    nil,
 		},
 		"private repo": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo:   url + "/test/private-repo",
-						Branch: "master",
-					},
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   url + "/test/private-repo",
+					Branch: "master",
 				},
 			},
 			expectedCommit: latestCommitPrivateRepo,
@@ -170,14 +162,14 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 			secret := &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      git.DefaultSecretName,
-					Namespace: test.gitjob.Namespace,
+					Namespace: test.gitrepo.Namespace,
 				},
 				Data: map[string][]byte{v1.BasicAuthUsernameKey: []byte(gogsUser), v1.BasicAuthPasswordKey: []byte(gogsPass)},
 				Type: v1.SecretTypeBasicAuth,
 			}
 			f := git.Fetch{}
 			client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
-			latestCommit, err := f.LatestCommit(ctx, test.gitjob, client)
+			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
 			if err != test.expectedErr {
 				t.Errorf("expecter error is: %v, but got %v", test.expectedErr, err)
 			}
@@ -200,18 +192,16 @@ func TestLatestCommitSSH(t *testing.T) {
 	gogsKnownHosts := []byte("[localhost]:" + sshPort.Port() + " " + gogsFingerPrint)
 
 	tests := map[string]struct {
-		gitjob         *gitjobv1.GitJob
+		gitrepo        *v1alpha1.GitRepo
 		knownHosts     []byte
 		expectedCommit string
 		expectedErr    error
 	}{
 		"public repo": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "public-repo",
-						Branch: "master",
-					},
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "public-repo",
+					Branch: "master",
 				},
 			},
 			knownHosts:     gogsKnownHosts,
@@ -219,12 +209,10 @@ func TestLatestCommitSSH(t *testing.T) {
 			expectedErr:    nil,
 		},
 		"private repo with known hosts": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "private-repo",
-						Branch: "master",
-					},
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "private-repo",
+					Branch: "master",
 				},
 			},
 			knownHosts:     gogsKnownHosts,
@@ -232,12 +220,10 @@ func TestLatestCommitSSH(t *testing.T) {
 			expectedErr:    nil,
 		},
 		"private repo without known hosts": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "private-repo",
-						Branch: "master",
-					},
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "private-repo",
+					Branch: "master",
 				},
 			},
 			knownHosts:     nil,
@@ -245,12 +231,10 @@ func TestLatestCommitSSH(t *testing.T) {
 			expectedErr:    nil,
 		},
 		"private repo with known host with a wrong host url": {
-			gitjob: &gitjobv1.GitJob{
-				Spec: gitjobv1.GitJobSpec{
-					Git: gitjobv1.GitInfo{
-						Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "private-repo",
-						Branch: "master",
-					},
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:   "ssh://git@localhost:" + sshPort.Port() + "/test/" + "private-repo",
+					Branch: "master",
 				},
 			},
 			knownHosts:     []byte("doesntexist " + gogsFingerPrint),
@@ -264,7 +248,7 @@ func TestLatestCommitSSH(t *testing.T) {
 			secret := &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      git.DefaultSecretName,
-					Namespace: test.gitjob.Namespace,
+					Namespace: test.gitrepo.Namespace,
 				},
 				Data: map[string][]byte{
 					v1.SSHAuthPrivateKey: []byte(privateKey),
@@ -274,7 +258,7 @@ func TestLatestCommitSSH(t *testing.T) {
 			}
 			client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
 			f := git.Fetch{}
-			latestCommit, err := f.LatestCommit(ctx, test.gitjob, client)
+			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
 
 			// works with nil and wrapped errors
 			if test.expectedErr == nil {

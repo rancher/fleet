@@ -13,7 +13,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	gitjob "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
@@ -60,7 +59,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	utilruntime.Must(v1alpha1.AddToScheme(scheme.Scheme))
-	utilruntime.Must(gitjob.AddToScheme(scheme.Scheme))
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})

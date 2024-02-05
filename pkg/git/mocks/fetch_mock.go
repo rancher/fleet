@@ -5,6 +5,7 @@
 //
 //	mockgen --build_flags=--mod=mod -destination=../mocks/fetch_mock.go -package=mocks github.com/rancher/fleet/pkg/git/poll GitFetcher
 //
+
 // Package mocks is a generated GoMock package.
 package mocks
 
@@ -12,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	v1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -41,7 +42,7 @@ func (m *MockGitFetcher) EXPECT() *MockGitFetcherMockRecorder {
 }
 
 // LatestCommit mocks base method.
-func (m *MockGitFetcher) LatestCommit(arg0 context.Context, arg1 *v1.GitJob, arg2 client.Client) (string, error) {
+func (m *MockGitFetcher) LatestCommit(arg0 context.Context, arg1 *v1alpha1.GitRepo, arg2 client.Client) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LatestCommit", arg0, arg1, arg2)
 	ret0, _ := ret[0].(string)
