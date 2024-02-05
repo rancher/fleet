@@ -4,8 +4,9 @@ package poll
 import (
 	"context"
 	"testing"
+	"time"
 
-	v1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/mocks"
 
 	"github.com/google/go-cmp/cmp"
@@ -21,7 +22,7 @@ func TestAddOrModifyWatchGitRepo(t *testing.T) {
 	defer ctrl.Finish()
 
 	ctx := context.TODO()
-	gitJob := v1.GitJob{
+	gitRepo := v1alpha1.GitRepo{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "gitjob",
 			Namespace: "test",
@@ -30,7 +31,7 @@ func TestAddOrModifyWatchGitRepo(t *testing.T) {
 
 	tests := map[string]struct {
 		watches         func(mockWatcher *mocks.MockWatcher) map[string]Watcher
-		syncInterval    int
+		pollingInterval time.Duration
 		expectedWatches []string
 		expectedCalls   func(mockWatcher *mocks.MockWatcher)
 	}{
@@ -43,26 +44,26 @@ func TestAddOrModifyWatchGitRepo(t *testing.T) {
 				mockWatcher.EXPECT().StartBackgroundSync(ctx).Times(1)
 			},
 		},
-		"gitrepo present with same syncInterval": {
+		"gitrepo present with same pollingInterval": {
 			watches: func(mockWatcher *mocks.MockWatcher) map[string]Watcher {
 				return map[string]Watcher{"gitjob-test": mockWatcher}
 			},
-			syncInterval:    10,
+			pollingInterval: 10 * time.Second,
 			expectedWatches: []string{"gitjob-test"},
 			expectedCalls: func(mockWatcher *mocks.MockWatcher) {
-				mockWatcher.EXPECT().GetSyncInterval().Return(10).Times(1)
-				mockWatcher.EXPECT().UpdateGitJob(gitJob)
+				mockWatcher.EXPECT().GetSyncInterval().Return(10.0).Times(1)
+				mockWatcher.EXPECT().UpdateGitRepo(gitRepo)
 			},
 		},
-		"gitrepo present with different syncInterval": {
+		"gitrepo present with different pollingInterval": {
 			watches: func(mockWatcher *mocks.MockWatcher) map[string]Watcher {
 				return map[string]Watcher{"gitjob-test": mockWatcher}
 			},
-			syncInterval:    1,
+			pollingInterval: 1 * time.Second,
 			expectedWatches: []string{"gitjob-test"},
 			expectedCalls: func(mockWatcher *mocks.MockWatcher) {
-				mockWatcher.EXPECT().GetSyncInterval().Return(10).Times(1)
-				mockWatcher.EXPECT().UpdateGitJob(gitJob)
+				mockWatcher.EXPECT().GetSyncInterval().Return(10.0).Times(1)
+				mockWatcher.EXPECT().UpdateGitRepo(gitRepo)
 				mockWatcher.EXPECT().Restart(ctx)
 			},
 		},
@@ -73,14 +74,14 @@ func TestAddOrModifyWatchGitRepo(t *testing.T) {
 			watcher := mocks.NewMockWatcher(ctrl)
 			h := Handler{
 				watches: test.watches(watcher),
-				createWatch: func(_ v1.GitJob, _ client.Client) Watcher {
+				createWatch: func(_ v1alpha1.GitRepo, _ client.Client) Watcher {
 					return watcher
 				},
 			}
-			gitJob.Spec.SyncInterval = test.syncInterval
+			gitRepo.Spec.PollingInterval = &metav1.Duration{Duration: test.pollingInterval}
 
 			test.expectedCalls(watcher)
-			h.AddOrModifyGitRepoWatch(ctx, gitJob)
+			h.AddOrModifyGitRepoWatch(ctx, gitRepo)
 
 			if !cmp.Equal(maps.Keys(h.watches), test.expectedWatches) {
 				t.Errorf("expected %v, but got %v", test.expectedWatches, maps.Keys(h.watches))

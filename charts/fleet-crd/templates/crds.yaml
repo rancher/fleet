@@ -13588,7 +13588,7 @@ spec:
                       type: string
                   type: object
                 gitJobStatus:
-                  description: GitJobStatus is the status of the last GitJob run,
+                  description: GitJobStatus is the status of the last Git job run,
                     e.g. "Current" if there was no error.
                   type: string
                 lastSyncedImageScanTime:
@@ -13867,6 +13867,11 @@ spec:
                         cluster, but are waiting to be deployed.
                       type: integer
                   type: object
+                updateGeneration:
+                  description: Update generation is the force update generation if
+                    spec.forceSyncGeneration is set
+                  format: int64
+                  type: integer
               type: object
           type: object
       served: true

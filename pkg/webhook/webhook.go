@@ -29,6 +29,7 @@ import (
 	"gopkg.in/go-playground/webhooks.v5/github"
 	"gopkg.in/go-playground/webhooks.v5/gitlab"
 	"gopkg.in/go-playground/webhooks.v5/gogs"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -235,7 +236,9 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					gitRepoFromCluster.Status.Commit = revision
 					// if PollingInterval is not set and webhook is configured, set it to 1 hour
 					if gitrepo.Spec.PollingInterval == nil {
-						gitRepoFromCluster.Spec.PollingInterval.Duration = webhookDefaultSyncInterval * time.Second
+						gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{
+							Duration: webhookDefaultSyncInterval * time.Second,
+						}
 					}
 					return w.client.Status().Update(ctx, &gitRepoFromCluster)
 				}); err != nil {

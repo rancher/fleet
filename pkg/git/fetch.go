@@ -3,7 +3,7 @@ package git
 import (
 	"context"
 
-	gitjobv1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,14 +16,14 @@ const (
 
 type Fetch struct{}
 
-func (f *Fetch) LatestCommit(ctx context.Context, gitjob *gitjobv1.GitJob, client client.Client) (string, error) {
+func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, client client.Client) (string, error) {
 	secretName := DefaultSecretName
-	if gitjob.Spec.Git.ClientSecretName != "" {
-		secretName = gitjob.Spec.Git.ClientSecretName
+	if gitrepo.Spec.ClientSecretName != "" {
+		secretName = gitrepo.Spec.ClientSecretName
 	}
 	var secret corev1.Secret
 	err := client.Get(ctx, types.NamespacedName{
-		Namespace: gitjob.Namespace,
+		Namespace: gitrepo.Namespace,
 		Name:      secretName,
 	}, &secret)
 
@@ -31,19 +31,19 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitjob *gitjobv1.GitJob, clien
 		return "", err
 	}
 
-	branch := gitjob.Spec.Git.Branch
+	branch := gitrepo.Spec.Branch
 	if branch == "" {
 		branch = "master"
 	}
 
-	git, err := newGit("", gitjob.Spec.Git.Repo, &options{
-		CABundle:          gitjob.Spec.Git.Credential.CABundle,
+	git, err := newGit("", gitrepo.Spec.Repo, &options{
+		CABundle:          gitrepo.Spec.CABundle,
 		Credential:        &secret,
-		InsecureTLSVerify: gitjob.Spec.Git.Credential.InsecureSkipTLSverify,
+		InsecureTLSVerify: gitrepo.Spec.InsecureSkipTLSverify,
 	})
 	if err != nil {
 		return "", err
 	}
 
-	return git.lsRemote(branch, gitjob.Status.Commit)
+	return git.lsRemote(branch, gitrepo.Status.Commit)
 }

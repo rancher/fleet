@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	v1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -41,7 +41,7 @@ func (m *MockGitPoller) EXPECT() *MockGitPollerMockRecorder {
 }
 
 // AddOrModifyGitRepoWatch mocks base method.
-func (m *MockGitPoller) AddOrModifyGitRepoWatch(arg0 context.Context, arg1 v1.GitJob) {
+func (m *MockGitPoller) AddOrModifyGitRepoWatch(arg0 context.Context, arg1 v1alpha1.GitRepo) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AddOrModifyGitRepoWatch", arg0, arg1)
 }

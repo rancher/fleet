@@ -5,6 +5,7 @@
 //
 //	mockgen --build_flags=--mod=mod -destination=../mocks/watch_mock.go -package=mocks github.com/rancher/fleet/pkg/git/poll Watcher
 //
+
 // Package mocks is a generated GoMock package.
 package mocks
 
@@ -12,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	v1 "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -52,10 +53,10 @@ func (mr *MockWatcherMockRecorder) Finish() *gomock.Call {
 }
 
 // GetSyncInterval mocks base method.
-func (m *MockWatcher) GetSyncInterval() int {
+func (m *MockWatcher) GetSyncInterval() float64 {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSyncInterval")
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(float64)
 	return ret0
 }
 
@@ -89,14 +90,14 @@ func (mr *MockWatcherMockRecorder) StartBackgroundSync(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartBackgroundSync", reflect.TypeOf((*MockWatcher)(nil).StartBackgroundSync), arg0)
 }
 
-// UpdateGitJob mocks base method.
-func (m *MockWatcher) UpdateGitJob(arg0 v1.GitJob) {
+// UpdateGitRepo mocks base method.
+func (m *MockWatcher) UpdateGitRepo(arg0 v1alpha1.GitRepo) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateGitJob", arg0)
+	m.ctrl.Call(m, "UpdateGitRepo", arg0)
 }
 
-// UpdateGitJob indicates an expected call of UpdateGitJob.
-func (mr *MockWatcherMockRecorder) UpdateGitJob(arg0 any) *gomock.Call {
+// UpdateGitRepo indicates an expected call of UpdateGitRepo.
+func (mr *MockWatcherMockRecorder) UpdateGitRepo(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGitJob", reflect.TypeOf((*MockWatcher)(nil).UpdateGitJob), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGitRepo", reflect.TypeOf((*MockWatcher)(nil).UpdateGitRepo), arg0)
 }
