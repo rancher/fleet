@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -71,6 +72,8 @@ func (r *ClusterGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	})
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to cluster group status", "status", group.Status)
+	} else {
+		metrics.CollectClusterGroupMetrics(group)
 	}
 
 	return ctrl.Result{}, err

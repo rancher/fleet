@@ -63,6 +63,9 @@ spec:
         {{- if not .Values.gitops.enabled }}
         - --disable-gitops
         {{- end }}
+        {{- if not .Values.metrics.enabled }}
+        - --disable-metrics
+        {{- end }}
         {{- if .Values.debug }}
         - --debug
         - --debug-level
