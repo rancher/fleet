@@ -64,6 +64,11 @@ spec:
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-controller
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"
+        {{- if $.Values.metrics.enabled }}
+        ports:
+        - containerPort: 8080
+          name: metrics
+        {{- end }}
         command:
         - fleetcontroller
         {{- if not $.Values.gitops.enabled }}
@@ -72,6 +77,9 @@ spec:
         {{- if . }}
         - --shard-id
         - {{ quote . }}
+        {{- end }}
+        {{- if not $.Values.metrics.enabled }}
+        - --disable-metrics
         {{- end }}
         {{- if $.Values.debug }}
         - --debug

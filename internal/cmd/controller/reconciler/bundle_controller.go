@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 
@@ -62,6 +63,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	bundle := &fleet.Bundle{}
 	err := r.Get(ctx, req.NamespacedName, bundle)
 	if apierrors.IsNotFound(err) {
+		metrics.BundleCollector.Delete(req.Name, req.Namespace)
+
 		logger.V(1).Info("Bundle not found, purging bundle deployments")
 		if err := purgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
 			return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -161,6 +164,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	updateDisplay(&bundle.Status)
+
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.Bundle{}
 		err := r.Get(ctx, req.NamespacedName, t)
@@ -172,6 +176,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	})
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to bundle status", "status", bundle.Status)
+	} else {
+		metrics.BundleCollector.Collect(ctx, bundle)
 	}
 
 	return ctrl.Result{}, err

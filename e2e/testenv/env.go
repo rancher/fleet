@@ -65,3 +65,14 @@ func NewNamespaceName(name string, s rand.Source) string {
 	}
 	return fmt.Sprintf("test-%.20s-%.12s", name, hex.EncodeToString(p))
 }
+
+// AddRandomSuffix adds a random suffix to a given name.
+func AddRandomSuffix(name string, s rand.Source) string {
+	p := make([]byte, 6)
+	r := rand.New(s) // nolint:gosec // non-crypto usage
+	_, err := r.Read(p)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf("%s-%s", name, hex.EncodeToString(p))
+}

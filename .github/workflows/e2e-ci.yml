@@ -106,21 +106,24 @@ jobs:
           # 1. Run test cases not needing infra
           ginkgo --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources
 
-          # 2. Run tests requiring only the git server
+          # 2. Run tests for metrics
+          ginkgo e2e/metrics
+
+          # 3. Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
           ginkgo --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
 
-          # 3. Run tests requiring a Helm registry
+          # 4. Run tests requiring a Helm registry
           e2e/testenv/infra/infra setup --helm-registry=true
           ginkgo --label-filter='helm-registry' e2e/single-cluster
 
           e2e/testenv/infra/infra teardown --helm-registry=true
 
-          # 4. Run tests requiring an OCI registry
+          # 5. Run tests requiring an OCI registry
           e2e/testenv/infra/infra setup --oci-registry=true
           ginkgo --label-filter='oci-registry' e2e/single-cluster
 
-          # 5. Tear down all infra
+          # 6. Tear down all infra
           e2e/testenv/infra/infra teardown
 
       -

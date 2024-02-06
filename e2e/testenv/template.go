@@ -15,6 +15,7 @@ import (
 )
 
 const gitrepoTemplate = "gitrepo-template.yaml"
+const clustergroupTemplate = "clustergroup-template.yaml"
 
 // GitRepoData can be used with the gitrepo-template.yaml asset when no custom
 // GitRepo properties are required. All fields are required.
@@ -35,12 +36,31 @@ func CreateGitRepo(k kubectl.Command, namespace string, name string, branch stri
 	})
 }
 
+// CreateClusterGroup uses the template to create a clustergroup resource.
+func CreateClusterGroup(
+	k kubectl.Command,
+	namespace,
+	name string,
+	labels map[string]string,
+) error {
+	return ApplyTemplate(k, AssetPath(clustergroupTemplate), map[string]interface{}{
+		"Name":        name,
+		"Namespace":   namespace,
+		"MatchLabels": labels,
+	})
+}
+
 // ApplyTemplate templates a file and applies it to the cluster.
 func ApplyTemplate(k kubectl.Command, asset string, data interface{}) error {
 	tmpdir, _ := os.MkdirTemp("", "fleet-")
 	defer os.RemoveAll(tmpdir)
 
-	output := path.Join(tmpdir, RandomFilename(asset, rand.New(rand.NewSource(ginkgo.GinkgoRandomSeed())))) // nolint:gosec // test code
+	output := path.Join(
+		tmpdir, RandomFilename(
+			asset,
+			rand.New(rand.NewSource(ginkgo.GinkgoRandomSeed())), // nolint:gosec // test code
+		),
+	)
 	if err := Template(output, AssetPath(asset), data); err != nil {
 		return err
 	}

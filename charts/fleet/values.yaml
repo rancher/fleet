@@ -66,6 +66,9 @@ priorityClassName: ""
 gitops:
   enabled: true
 
+metrics:
+  enabled: true
+
 debug: false
 debugLevel: 0
 propagateDebugSettingsToAgents: true
