@@ -1,7 +1,6 @@
 ARG BUILD_ENV=dapper
 
-FROM registry.suse.com/bci/bci-base:15.5 AS base
-RUN zypper in --no-recommends -y git bash openssh && groupadd -g 1000 fleet-apply && useradd -u 1000 -g 1000 -m fleet-apply; rm -fr /var/cache/* /var/log/*log
+FROM registry.suse.com/suse/git:2.35 AS base
 COPY package/log.sh /usr/bin/
 
 FROM base AS copy_dapper
@@ -15,4 +14,5 @@ ONBUILD COPY bin/fleetagent-linux-$TARGETARCH /usr/bin/fleetagent
 ONBUILD COPY bin/fleet-linux-$TARGETARCH /usr/bin/fleet
 
 FROM copy_${BUILD_ENV}
+USER 1000
 CMD ["fleetagent"]
