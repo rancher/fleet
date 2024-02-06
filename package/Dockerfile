@@ -1,7 +1,6 @@
 ARG BUILD_ENV=dapper
 
-FROM registry.suse.com/bci/bci-base:15.5 AS base
-USER 1000
+FROM registry.suse.com/bci/bci-busybox:15.5 AS base
 
 FROM base AS copy_dapper
 ONBUILD ARG ARCH
@@ -12,4 +11,5 @@ ONBUILD ARG TARGETARCH
 ONBUILD COPY bin/fleetcontroller-linux-${TARGETARCH} /usr/bin/fleetcontroller
 
 FROM copy_${BUILD_ENV}
+USER 1000
 CMD ["fleetcontroller"]
