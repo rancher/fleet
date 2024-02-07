@@ -55,8 +55,8 @@ func NewTarget() *cobra.Command {
 }
 
 type Target struct {
-	BundleFile string `usage:"Location of the Bundle resource yaml" short:"b"`
-	ListInputs bool   `usage:"List the live resources, which are used in targeting, like clusters, as YAML" short:"l"`
+	BundleFile    string `usage:"Location of the Bundle resource yaml" short:"b"`
+	DumpInputList bool   `usage:"Dump the live resources, which impact targeting, like clusters, as YAML" short:"l"`
 
 	Namespace string `usage:"Override the namespace of the bundle. Targeting searches this namespace for clusters." short:"n"`
 }
@@ -106,7 +106,7 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if t.ListInputs {
+	if t.DumpInputList {
 		// remove managed fields
 		for _, target := range matchedTargets {
 			target.Cluster.SetManagedFields(nil)

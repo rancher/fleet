@@ -100,7 +100,7 @@ var _ = Describe("Fleet CLI target", func() {
 		})
 
 		It("prints a manifest only", func() {
-			args = append(args, "--list-inputs")
+			args = append(args, "--dump-input-list")
 			buf, errBuf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(errBuf).To(gbytes.Say("null"))
@@ -115,7 +115,7 @@ var _ = Describe("Fleet CLI target", func() {
 			args = []string{
 				"--bundle-file", clihelper.AssetsPath + "bundle/bundle.yaml",
 				"--namespace", namespace,
-				"--list-inputs",
+				"--dump-input-list",
 			}
 
 			err := k8sClient.Create(ctx, &fleetv1.Cluster{
@@ -143,7 +143,7 @@ var _ = Describe("Fleet CLI target", func() {
 			args = []string{
 				"--bundle-file", clihelper.AssetsPath + "bundle/bundle-all.yaml",
 				"--namespace", namespace,
-				"--list-inputs",
+				"--dump-input-list",
 			}
 
 			err := k8sClient.Create(ctx, &fleetv1.Cluster{
