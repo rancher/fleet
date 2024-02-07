@@ -157,7 +157,7 @@ type GitRepoStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration"`
 	// Update generation is the force update generation if spec.forceSyncGeneration is set
 	UpdateGeneration int64 `json:"updateGeneration,omitempty"`
-	// Commit is the Git commit hash from the last gitjob run.
+	// Commit is the Git commit hash from the last git job run.
 	// +nullable
 	Commit string `json:"commit,omitempty"`
 	// ReadyClusters is the lowest number of clusters that are ready over

@@ -9,7 +9,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	gitjob "github.com/rancher/fleet/pkg/apis/gitjob.cattle.io/v1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -27,7 +26,6 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
-	utilruntime.Must(gitjob.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
