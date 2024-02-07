@@ -31,13 +31,6 @@ rules:
     verbs:
       - '*'
   - apiGroups:
-      - "gitjob.cattle.io"
-    resources:
-      - "gitjobs"
-      - "gitjobs/status"
-    verbs:
-      - "*"
-  - apiGroups:
       - "fleet.cattle.io"
     resources:
       - "gitrepos"
