@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/spf13/cobra"
 	"helm.sh/helm/v3/pkg/cli"
@@ -88,6 +90,16 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 				return err
 			}
 		}
+	}
+
+	emptyContent := &v1alpha1.Content{}
+	if reflect.DeepEqual(c, emptyContent) {
+		return fmt.Errorf("failed to read content resource from file")
+	}
+
+	emptyBD := &v1alpha1.BundleDeployment{}
+	if reflect.DeepEqual(bd, emptyBD) {
+		return fmt.Errorf("failed to read bundledeployment resource from file")
 	}
 
 	data, err := content.GUnzip(c.Content)

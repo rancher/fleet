@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/spf13/cobra"
 
@@ -76,8 +78,11 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	// needs to be set, fleet will only create this many deployments if the bundle is new
-	bundle.Status.MaxNew = 1
+
+	empty := &v1alpha1.Bundle{TypeMeta: metav1.TypeMeta{APIVersion: "v1"}}
+	if reflect.DeepEqual(bundle, empty) {
+		return fmt.Errorf("failed to read bundle from file, bundle is empty")
+	}
 
 	if t.Namespace != "" {
 		bundle.Namespace = t.Namespace
@@ -146,6 +151,10 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 	}
 	cmd.Println("---")
 	cmd.Println(string(b))
+
+	// Needs to be set to print all targets. UpdatePartitions will only
+	// create this many deployments if the bundle is new.
+	bundle.Status.MaxNew = len(matchedTargets)
 
 	if err := target.UpdatePartitions(&bundle.Status, matchedTargets); err != nil {
 		return err

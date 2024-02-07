@@ -50,6 +50,50 @@ var _ = Describe("Fleet CLI target", func() {
 		})
 	})
 
+	When("input file parameter is missing", func() {
+		It("prints the help", func() {
+			buf, _, err := act(args)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(buf).To(gbytes.Say("Usage:"))
+		})
+	})
+
+	When("Input file is missing", func() {
+		BeforeEach(func() {
+			args = []string{"--bundle-file", "/tmp/does-not-exist-bundle.yaml"}
+		})
+
+		It("prints an error", func() {
+			_, errBuf, err := act(args)
+			Expect(err).To(HaveOccurred())
+			Expect(errBuf).To(gbytes.Say("no such file or directory"))
+		})
+	})
+
+	When("Input file is invalid", func() {
+		BeforeEach(func() {
+			args = []string{"--bundle-file", clihelper.AssetsPath + "helmrepository/config-chart-0.1.0.tgz"}
+		})
+
+		It("prints an error", func() {
+			_, errBuf, err := act(args)
+			Expect(err).To(HaveOccurred())
+			Expect(errBuf).To(gbytes.Say("error converting YAML to JSON"))
+		})
+	})
+
+	When("Input file does not contain a bundle", func() {
+		BeforeEach(func() {
+			args = []string{"--bundle-file", clihelper.AssetsPath + "helmrepository/index.yaml"}
+		})
+
+		It("prints an error", func() {
+			_, errBuf, err := act(args)
+			Expect(err).To(HaveOccurred())
+			Expect(errBuf).To(gbytes.Say("bundle is empty"))
+		})
+	})
+
 	When("No cluster in namespace", func() {
 		BeforeEach(func() {
 			args = []string{"--bundle-file", clihelper.AssetsPath + "bundle/bundle.yaml"}
@@ -60,6 +104,7 @@ var _ = Describe("Fleet CLI target", func() {
 			buf, errBuf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(errBuf).To(gbytes.Say("null"))
+			Expect(buf).To(gbytes.Say("---"))
 			Expect(buf).To(gbytes.Say("kind: Content"))
 			Expect(buf.Contents()).NotTo(ContainSubstring("kind: BundleDeployment"))
 		})
@@ -86,7 +131,47 @@ var _ = Describe("Fleet CLI target", func() {
 			buf, errBuf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(errBuf.Contents())).To(ContainSubstring("- Bundle:"), "cannot list inputs")
+			Expect(buf).To(gbytes.Say("---"))
 			Expect(buf).To(gbytes.Say("kind: Content"))
+			Expect(buf).To(gbytes.Say("---"))
+			Expect(buf).To(gbytes.Say("kind: BundleDeployment"))
+		})
+	})
+
+	When("Matching multiple clusters in namespace", func() {
+		BeforeEach(func() {
+			args = []string{
+				"--bundle-file", clihelper.AssetsPath + "bundle/bundle-all.yaml",
+				"--namespace", namespace,
+				"--list-inputs",
+			}
+
+			err := k8sClient.Create(ctx, &fleetv1.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "local",
+					Namespace: namespace,
+				},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			err = k8sClient.Create(ctx, &fleetv1.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "default",
+					Namespace: namespace,
+				},
+			})
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("prints a manifest and bundledeployment", func() {
+			buf, errBuf, err := act(args)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(errBuf.Contents())).To(ContainSubstring("- Bundle:"), "cannot list inputs")
+			Expect(buf).To(gbytes.Say("---"))
+			Expect(buf).To(gbytes.Say("kind: Content"))
+			Expect(buf).To(gbytes.Say("---"))
+			Expect(buf).To(gbytes.Say("kind: BundleDeployment"))
+			Expect(buf).To(gbytes.Say("---"))
 			Expect(buf).To(gbytes.Say("kind: BundleDeployment"))
 		})
 	})

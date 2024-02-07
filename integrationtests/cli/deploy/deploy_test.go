@@ -49,6 +49,62 @@ var _ = Describe("Fleet CLI Deploy", func() {
 		})
 	})
 
+	When("input file parameter is missing", func() {
+		It("prints the help", func() {
+			buf, err := act(args)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(buf).To(gbytes.Say("Usage:"))
+		})
+	})
+
+	When("Input file is missing", func() {
+		BeforeEach(func() {
+			args = []string{"--input-file", "/tmp/does-not-exist-bundle.yaml"}
+		})
+
+		It("prints an error", func() {
+			errBuf, err := act(args)
+			Expect(err).To(HaveOccurred())
+			Expect(errBuf).To(gbytes.Say("no such file or directory"))
+		})
+	})
+
+	When("Input file is invalid", func() {
+		BeforeEach(func() {
+			args = []string{"--input-file", clihelper.AssetsPath + "helmrepository/config-chart-0.1.0.tgz"}
+		})
+
+		It("prints an error", func() {
+			errBuf, err := act(args)
+			Expect(err).To(HaveOccurred())
+			Expect(errBuf).To(gbytes.Say("yaml: control characters are not allowed"))
+		})
+	})
+
+	When("Input file does not contain a content resource", func() {
+		BeforeEach(func() {
+			args = []string{"--input-file", clihelper.AssetsPath + "bundledeployment/bd-only.yaml"}
+		})
+
+		It("prints an error", func() {
+			errBuf, err := act(args)
+			Expect(err).To(HaveOccurred())
+			Expect(errBuf).To(gbytes.Say("failed to read content resource from file"))
+		})
+	})
+
+	When("Input file does not contain a bundledeployment resource", func() {
+		BeforeEach(func() {
+			args = []string{"--input-file", clihelper.AssetsPath + "bundledeployment/content.yaml"}
+		})
+
+		It("prints an error", func() {
+			errBuf, err := act(args)
+			Expect(err).To(HaveOccurred())
+			Expect(errBuf).To(gbytes.Say("failed to read bundledeployment"))
+		})
+	})
+
 	When("Deploying to a cluster", func() {
 		BeforeEach(func() {
 			args = []string{
