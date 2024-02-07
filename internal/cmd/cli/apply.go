@@ -20,7 +20,7 @@ import (
 
 type readFile func(name string) ([]byte, error)
 
-// NewCleanup returns a subcommand to create bundles from directories
+// NewApply returns a subcommand to create bundles from directories
 func NewApply() *cobra.Command {
 	return command.Command(&Apply{}, cobra.Command{
 		Use:   "apply [flags] BUNDLE_NAME PATH...",

@@ -77,7 +77,7 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	// needs to be set, fleet will only create this many deployments if the bundle is new
-	bundle.Status.MaxNew = 50
+	bundle.Status.MaxNew = 1
 
 	if t.Namespace != "" {
 		bundle.Namespace = t.Namespace

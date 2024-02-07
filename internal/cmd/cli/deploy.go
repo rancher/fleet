@@ -25,7 +25,7 @@ import (
 
 const defaultNamespace = "default"
 
-// NewDeploy returns a subcommand to print available targets for a bundle
+// NewDeploy returns a subcommand to deploy a bundledeployment/content resource to a cluster.
 func NewDeploy() *cobra.Command {
 	cmd := command.Command(&Deploy{}, cobra.Command{
 		Short: "Deploy a bundledeployment/content resource to a cluster. This will only create the helm release, not the bundledeployment/content resources.",
