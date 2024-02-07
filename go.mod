@@ -1,6 +1,6 @@
 module github.com/rancher/fleet
 
-go 1.21
+go 1.22
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
