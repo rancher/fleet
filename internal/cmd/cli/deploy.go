@@ -30,7 +30,7 @@ const defaultNamespace = "default"
 // NewDeploy returns a subcommand to deploy a bundledeployment/content resource to a cluster.
 func NewDeploy() *cobra.Command {
 	cmd := command.Command(&Deploy{}, cobra.Command{
-		Short: "Deploy a bundledeployment/content resource to a cluster. This will only create the helm release, not the bundledeployment/content resources.",
+		Short: "Deploy a bundledeployment/content resource to a cluster, by creating a Helm release. This will not deploy the bundledeployment/content resources directly to the cluster.",
 	})
 	// add command line flags from zap and controller-runtime, which use
 	// goflags and convert them to pflags
