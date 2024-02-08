@@ -1,0 +1,17 @@
+kind: Bundle
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: match-all-clusters
+  namespace: fleet-local
+spec:
+  resources:
+  - content: |
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: root
+      data:
+        value: root
+    name: cm.yaml
+  targets:
+  - clusterSelector: {}
