@@ -40,7 +40,7 @@ require (
 	go.uber.org/mock v0.4.0
 	golang.org/x/crypto v0.18.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
-	golang.org/x/sync v0.5.0
+	golang.org/x/sync v0.6.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
