@@ -379,17 +379,13 @@ func (r *GitJobReconciler) computeJobSpec(ctx context.Context, gitrepo *v1alpha1
 				RestartPolicy:      corev1.RestartPolicyNever,
 				Containers: []corev1.Container{
 					{
-						Name: "fleet",
-						//Image:           config.Get().AgentImage,
-						//ImagePullPolicy: corev1.PullPolicy(config.Get().AgentImagePullPolicy),
-						// DEBUG
-						Image:           config.DefaultAgentImage,
-						ImagePullPolicy: corev1.PullPolicy(corev1.PullIfNotPresent),
-						Command:         []string{"log.sh"},
-						Args:            append(args, paths...),
-						WorkingDir:      "/workspace/source",
-						VolumeMounts:    volumeMounts,
-						Env:             envs,
+						Name:         "fleet",
+						Image:        config.DefaultAgentImage,
+						Command:      []string{"log.sh"},
+						Args:         append(args, paths...),
+						WorkingDir:   "/workspace/source",
+						VolumeMounts: volumeMounts,
+						Env:          envs,
 						SecurityContext: &corev1.SecurityContext{
 							AllowPrivilegeEscalation: &[]bool{false}[0],
 							ReadOnlyRootFilesystem:   &[]bool{true}[0],
