@@ -1,0 +1,245 @@
+---
+project_name: fleet
+
+archives:
+  -
+    name_template: '{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    replacements:
+      amd64: x86_64
+    format: binary
+    format_overrides:
+      - goos: windows
+        format: zip
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  -
+    id: fleet-controller
+    main: ./cmd/fleetcontroller
+    binary: fleetcontroller
+    # gcflags:
+    #   - all="-N -l"
+    ldflags:
+      - -w -s
+      - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
+      - -X github.com/rancher/fleet/pkg/version.Version={{ .Tag }}
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+    goarm:
+      - "7"
+    targets:
+    - linux_amd64_v1
+    - linux_arm64
+    - linux_s390x
+    - windows_amd64
+  -
+    id: fleet-agent
+    main: ./cmd/fleetagent
+    binary: fleetagent
+    ldflags:
+      - -w -s
+      - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
+      - -X github.com/rancher/fleet/pkg/version.Version={{ .Tag }}
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+    goarm:
+      - "7"
+    targets:
+    - linux_amd64_v1
+    - linux_arm64
+    - linux_s390x
+    - windows_amd64
+  -
+    id: fleet-cli
+    binary: fleet
+    ldflags:
+      - -w -s
+      - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
+      - -X github.com/rancher/fleet/pkg/version.Version={{ .Tag }}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - s390x
+    goarm:
+      - "7"
+    targets:
+    - linux_amd64_v1
+    - linux_arm64
+    - linux_s390x
+    - windows_amd64
+
+changelog:
+  ## Delegate Changelog to release-drafter
+  skip: true
+
+env:
+  - CGO_ENABLED=0
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+dockers:
+  # fleet-controller images
+  -
+    use: buildx
+
+    # GOOS of the built binaries/packages that should be used.
+    goos: linux
+
+    # GOARCH of the built binaries/packages that should be used.
+    goarch: amd64
+
+    # IDs to filter the binaries/packages.
+    ids:
+    - fleet-controller
+
+    # Templates of the Docker image names.
+    image_templates:
+    - "ghcr.io/rancher/fleet:{{ .Tag }}-amd64"
+
+    # Skips the docker push.
+    skip_push: "true"
+
+    # Path to the Dockerfile (from the project root).
+    dockerfile: package/Dockerfile
+
+    # Template of the docker build flags.
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/amd64"
+  -
+    use: buildx
+    goos: linux
+    goarch: arm64
+    ids:
+    - fleet-controller
+    image_templates:
+    - "ghcr.io/rancher/fleet:{{ .Tag }}-arm64v8"
+    dockerfile: package/Dockerfile
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/arm64/v8"
+  -
+    use: buildx
+    goos: linux
+    goarch: s390x
+    ids:
+    - fleet-controller
+    image_templates:
+    - "ghcr.io/rancher/fleet:{{ .Tag }}-s390x"
+    dockerfile: package/Dockerfile
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/s390x"
+  # fleet-agent images
+  -
+    use: buildx
+    goos: linux
+    goarch: amd64
+    ids:
+    - fleet-agent
+    - fleet-cli
+    image_templates:
+    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-amd64"
+    skip_push: "true"
+    dockerfile: package/Dockerfile.agent
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/amd64"
+    extra_files: [ "package/log.sh" ]
+  -
+    use: buildx
+    goos: linux
+    goarch: arm64
+    ids:
+    - fleet-agent
+    - fleet-cli
+    image_templates:
+    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-arm64v8"
+    dockerfile: package/Dockerfile.agent
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/arm64/v8"
+    extra_files: [ "package/log.sh" ]
+  -
+    use: buildx
+    goos: linux
+    goarch: s390x
+    ids:
+    - fleet-agent
+    - fleet-cli
+    image_templates:
+    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-s390x"
+    dockerfile: package/Dockerfile.agent
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/s390x"
+    extra_files: [ "package/log.sh" ]
+
+docker_manifests:
+  # https://goreleaser.com/customization/docker_manifest/
+  -
+    name_template: "ghcr.io/rancher/fleet:{{ .Tag }}"
+    image_templates:
+    - "ghcr.io/rancher/fleet:{{ .Tag }}-amd64"
+    - "ghcr.io/rancher/fleet:{{ .Tag }}-arm64v8"
+    - "ghcr.io/rancher/fleet:{{ .Tag }}-s390x"
+  -
+    name_template: "ghcr.io/rancher/fleet-agent:{{ .Tag }}"
+    image_templates:
+    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-amd64"
+    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-arm64v8"
+    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-s390x"
