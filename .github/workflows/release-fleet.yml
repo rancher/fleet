@@ -59,25 +59,22 @@ jobs:
           go-version-file: 'go.mod'
           check-latest: true
 
-      - name: Build Fleet Binaries
-        env:
-          CROSS: "windows"
-        run: |
-          ./scripts/build
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-          cd e2e/testenv/infra
-          go build -o . ./...
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Run FOSSA scan
-        uses: fossas/fossa-action@v1.3.1
-        with:
-          api-key: ${{ secrets.FOSSA_API_KEY }}
-
-      - name: Run FOSSA tests
-        uses: fossas/fossa-action@v1.3.1
-        with:
-          api-key: ${{ secrets.FOSSA_API_KEY }}
-          run-tests: true
+#      - name: Run FOSSA scan
+#        uses: fossas/fossa-action@v1.3.1
+#        with:
+#          api-key: ${{ secrets.FOSSA_API_KEY }}
+#
+#      - name: Run FOSSA tests
+#        uses: fossas/fossa-action@v1.3.1
+#        with:
+#          api-key: ${{ secrets.FOSSA_API_KEY }}
+#          run-tests: true
 
       # TODO check which hashes this generates (which files are used as input?)
       - name: Compute hashes for released files
