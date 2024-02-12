@@ -6,6 +6,9 @@ on:
     tags:
       - v**
 
+permissions:
+  contents: write
+
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
@@ -86,6 +89,15 @@ jobs:
       - name: Release binaries to Github
         uses: ncipollo/release-action@v1
         with:
-          token: ${{ secrets.github_token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: true
           artifacts: "dist/artifacts/*"
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: v1.24.0
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
