@@ -243,6 +243,25 @@ jobs:
         timeout-minutes: 15
         with:
           limit-access-to-actor: true
+ 
+            # 1. Clone rancher/rancher
+      - name: Checkout rancher/rancher
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: rancher/rancher
+          path: rancher
+
+            # 2. Build and package Rancher
+      - name: Build and package Rancher
+        run: |
+          cd rancher
+          make build
+          make package
+          ./scripts/chart/ci
+
+            # 3. Push charts to $chartmuseum?
+            # 4. Run adapted version of setup-latest-rancher.sh
       -
         name: Set up latest Rancher
         env:
