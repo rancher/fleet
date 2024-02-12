@@ -1,0 +1,94 @@
+# Fleet release workflow
+name: Fleet release
+
+on:
+  push:
+    tags:
+      - v**
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+  SETUP_K3D_VERSION: 'v5.5.1'
+
+jobs:
+  build-fleet:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platforms:
+          - linux-amd64
+          - linux-arm64
+          - windows-1809
+          - windows-2022
+        test_type:
+          - acceptance
+          - e2e-secrets
+          - e2e-nosecrets
+            # TODO need: 
+ 
+    # linux-amd64: build job:
+    #   * step: build (dapper ci), w/ Windows cross-build
+    #     * keep running Dapper, at least for now?
+    #   * step: fossa checks (analyze + test) (existing GH action?)
+    #   * step: github release (existing GH action?)
+    #   * step: push tags to releases.rancher.com
+    #   * step: push latest tag to releases.rancher.com
+    #   * step: push Docker image for agent
+    #   * step: push Docker image for gitjob
+    #   * step: push Docker image for controller
+    # linux-arm64:
+    #   * step: build (dapper build)
+    #   * step: publish Docker agent image
+    #   * step: publish Docker gitjob image
+    #   * step: publish Docker controller image
+    # windows-1809: publish agent image
+    #   # depends on linux-amd64 for build
+    # windows-2022: publish agent image
+    #   # depends on linux-amd64 for build
+    # end: manifest job, depending on all build jobs
+    steps:
+      - name: Check out Fleet
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+
+      - name: Build Fleet Binaries
+        env:
+          CROSS: "windows"
+        run: |
+          ./scripts/build
+
+          cd e2e/testenv/infra
+          go build -o . ./...
+
+      - name: Run FOSSA scan
+        uses: fossas/fossa-action@v1.3.1
+        with:
+          api-key: ${{ secrets.FOSSA_API_KEY }}
+
+      - name: Run FOSSA tests
+        uses: fossas/fossa-action@v1.3.1
+        with:
+          api-key: ${{ secrets.FOSSA_API_KEY }}
+          run-tests: true
+
+      # TODO check which hashes this generates (which files are used as input?)
+      - name: Compute hashes for released files
+        uses: MCJack123/ghaction-generate-release-hashes@v3
+        with:
+          hash-type: sha256
+          file-name: dist/artifacts/CHECKSUMsum-amd64.txt
+
+      - name: Release binaries to Github
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.github_token }}
+          prerelease: true
+          artifacts: "dist/artifacts/*"
