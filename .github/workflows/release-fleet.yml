@@ -5,6 +5,9 @@ on:
   push:
     tags:
       - v**
+  pull_request:
+    # TODO remove this (added to ensure the workflow runs once when submitting a test PR, so that it can be triggered
+    # afterwards)
 
 permissions:
   contents: write
