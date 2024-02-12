@@ -13,7 +13,7 @@ replace k8s.io/client-go => k8s.io/client-go v0.29.0
 require (
 	github.com/rancher/fleet v0.0.0
 	github.com/spf13/cobra v1.8.0
-	golang.org/x/crypto v0.18.0
+	golang.org/x/crypto v0.19.0
 	helm.sh/helm/v3 v3.14.0
 )
 
@@ -63,7 +63,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.19.0 // indirect
 	golang.org/x/net v0.20.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/sys v0.17.0 // indirect
 	golang.org/x/tools v0.16.1 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
 	google.golang.org/grpc v1.58.3 // indirect
