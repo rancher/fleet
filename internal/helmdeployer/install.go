@@ -136,7 +136,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 				u.APIVersions = cfg.Capabilities.APIVersions
 			}
 		}
-		u.ForceAdopt = options.Helm.TakeOwnership
+		u.TakeOwnership = options.Helm.TakeOwnership
 		u.EnableDNS = !options.Helm.DisableDNS
 		u.Replace = true
 		u.ReleaseName = releaseName
@@ -156,7 +156,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 	}
 
 	u := action.NewUpgrade(&cfg)
-	u.Adopt = true
+	u.TakeOwnership = true
 	u.EnableDNS = !options.Helm.DisableDNS
 	u.Force = options.Helm.Force
 	u.Atomic = options.Helm.Atomic

@@ -4,7 +4,7 @@ go 1.21
 
 replace (
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
-	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.14.0-fleet1
+	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.14.0-fleet2
 )
 
 require (
