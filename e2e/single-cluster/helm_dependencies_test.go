@@ -111,6 +111,7 @@ var _ = Describe("Helm dependency update tests", Label("infra-setup", "helm-regi
 		Expect(err).ToNot(HaveOccurred(), out)
 		out, err = k.Delete("ns", namespace)
 		Expect(err).ToNot(HaveOccurred(), out)
+		os.RemoveAll(tmpDir)
 	})
 
 	When("applying a gitrepo resource", func() {

@@ -45,7 +45,7 @@ func TestFoundChartYamlInDirectory(t *testing.T) {
 			name:    "simple case having Chart yaml file in the root",
 			testDir: "simpleok",
 			directoryStructure: fsNodeSimple{
-				name: helmupdater.ChartYaml,
+				name: "Chart.yaml",
 			},
 			expectedResult: true,
 		},
@@ -72,7 +72,7 @@ func TestFoundChartYamlInDirectory(t *testing.T) {
 				isDir: true,
 				children: []fsNodeSimple{
 					{
-						name: helmupdater.ChartYaml,
+						name: "Chart.yaml",
 					},
 				},
 				name: "whatever",
