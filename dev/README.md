@@ -186,7 +186,7 @@ It is possible to override the loadbalancer IP by setting the `external_ip` envi
 
 ## Changing the Infra Command
 
-The infra command imports the local fleet module, to use the testenv helpers from e2e. Since the dependency, does not update often, infra imports the testhelper from a fixed fleet version.
+The `infra` command imports the local `fleet` module, to use the `e2e/testenv` helpers. Since the dependency does not update often, `infra` imports the testhelper from a fixed Fleet version.
 If we imported the testhelper via `replace` from a local folder, we would need to run `go mod tidy` for the infra command, whenever the main `go.mod` changes.
 
 When making changes to the infra command, one might want to edit and use the helpers directly. Without the need to tag a version for every change. Go workspaces can help:
