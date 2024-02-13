@@ -1,5 +1,5 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../mocks/poller_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/controller/gitjob GitPoller
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/poller_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/gitjob GitPoller
+//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
 
 package gitjob
 
