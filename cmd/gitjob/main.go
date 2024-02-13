@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	controller "github.com/rancher/fleet/internal/cmd/controller/gitjob"
+	controller "github.com/rancher/fleet/internal/cmd/gitjob"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/poll"
 	"github.com/rancher/fleet/pkg/webhook"
