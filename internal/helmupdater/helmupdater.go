@@ -16,9 +16,9 @@ const (
 	ChartYaml = "Chart.yaml"
 )
 
-// FoundChartYamlInDirectory checks if the provided path is a directory containing a `Chart.yaml` file.
+// ChartYAMLExists checks if the provided path is a directory containing a `Chart.yaml` file.
 // Returns true if it does, false otherwise or if an error happens when checking `<path>/Chart.yaml`.
-func FoundChartYamlInDirectory(path string) bool {
+func ChartYAMLExists(path string) bool {
 	chartPath := filepath.Join(path, ChartYaml)
 	if _, err := os.Stat(chartPath); err != nil {
 		return false

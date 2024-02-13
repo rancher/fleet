@@ -269,7 +269,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		if info.IsDir() {
 			// If the folder is a helm chart and dependency updates are not disabled,
 			// try to update possible dependencies.
-			if !disableDependencyUpdate && helmupdater.FoundChartYamlInDirectory(path) {
+			if !disableDependencyUpdate && helmupdater.ChartYAMLExists(path) {
 				if err = helmupdater.UpdateHelmDependencies(path); err != nil {
 					return err
 				}

@@ -34,7 +34,7 @@ func createDirStruct(t *testing.T, basePath string, node fsNodeSimple) {
 	}
 }
 
-func TestFoundChartYamlInDirectory(t *testing.T) {
+func TestChartYAMLExists(t *testing.T) {
 	cases := []struct {
 		name               string
 		testDir            string
@@ -93,7 +93,7 @@ func TestFoundChartYamlInDirectory(t *testing.T) {
 			defer os.RemoveAll(testDirPath)
 
 			createDirStruct(t, testDirPath, c.directoryStructure)
-			found := helmupdater.FoundChartYamlInDirectory(testDirPath)
+			found := helmupdater.ChartYAMLExists(testDirPath)
 
 			assert.Equal(t, c.expectedResult, found)
 		})
