@@ -63,11 +63,11 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	}
 
 	// helm chart dependency update is enabled by default
-	disableDependencyUpdate := false
+	disableDepsUpdate := false
 	if spec.Helm != nil {
-		disableDependencyUpdate = spec.Helm.DisableDependencyUpdate
+		disableDepsUpdate = spec.Helm.DisableDependencyUpdate
 	}
-	resources, err := loadDirectories(ctx, compress, disableDependencyUpdate, directories...)
+	resources, err := loadDirectories(ctx, compress, disableDepsUpdate, directories...)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +203,7 @@ func checksum(helm *fleet.HelmOptions) string {
 	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
 }
 
-func loadDirectories(ctx context.Context, compress bool, disableDependencyUpdate bool, directories ...directory) (map[string][]fleet.BundleResource, error) {
+func loadDirectories(ctx context.Context, compress bool, disableDepsUpdate bool, directories ...directory) (map[string][]fleet.BundleResource, error) {
 	var (
 		sem    = semaphore.NewWeighted(4)
 		result = map[string][]fleet.BundleResource{}
@@ -221,7 +221,7 @@ func loadDirectories(ctx context.Context, compress bool, disableDependencyUpdate
 		dir := dir
 		eg.Go(func() error {
 			defer sem.Release(1)
-			resources, err := loadDirectory(ctx, compress, disableDependencyUpdate, dir.prefix, dir.base, dir.source, dir.version, dir.auth)
+			resources, err := loadDirectory(ctx, compress, disableDepsUpdate, dir.prefix, dir.base, dir.source, dir.version, dir.auth)
 			if err != nil {
 				return err
 			}

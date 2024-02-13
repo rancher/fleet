@@ -152,10 +152,10 @@ func readFleetIgnore(path string) ([]string, error) {
 	return ignored, nil
 }
 
-func loadDirectory(ctx context.Context, compress bool, disableDependencyUpdate bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
+func loadDirectory(ctx context.Context, compress bool, disableDepsUpdate bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := GetContent(ctx, base, source, version, auth, disableDependencyUpdate)
+	files, err := GetContent(ctx, base, source, version, auth, disableDepsUpdate)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func loadDirectory(ctx context.Context, compress bool, disableDependencyUpdate b
 }
 
 // GetContent uses go-getter (and Helm for OCI) to read the files from directories and servers.
-func GetContent(ctx context.Context, base, source, version string, auth Auth, disableDependencyUpdate bool) (map[string][]byte, error) {
+func GetContent(ctx context.Context, base, source, version string, auth Auth, disableDepsUpdate bool) (map[string][]byte, error) {
 	temp, err := os.MkdirTemp("", "fleet")
 	if err != nil {
 		return nil, err
@@ -269,7 +269,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		if info.IsDir() {
 			// If the folder is a helm chart and dependency updates are not disabled,
 			// try to update possible dependencies.
-			if !disableDependencyUpdate && helmupdater.ChartYAMLExists(path) {
+			if !disableDepsUpdate && helmupdater.ChartYAMLExists(path) {
 				if err = helmupdater.UpdateHelmDependencies(path); err != nil {
 					return err
 				}
