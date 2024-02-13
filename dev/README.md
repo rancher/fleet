@@ -199,7 +199,7 @@ go work use .
 ```
 
 This is similar to a replace statement. Never commit the go.work file, though.
-It might still be necessary split the PR into two, one for the helpers and a second to update the infra command and switch infra's go.mod to the commit of the first PR.
+It might still be necessary to split a PR into two, one for the helpers and a second to update the infra command and switch infra's go.mod to the commit of the first PR.
 
 For more information on how to work on multiple go projects at once with the help of workspaces, see: https://go.dev/doc/tutorial/workspaces
 
