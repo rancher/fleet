@@ -1,0 +1,20 @@
+---
+name: Publish to Artifacthub
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set version from ref
+        run: echo "VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.DISPATCH_HELM_PAT }}
+          repository: rancher/fleet-helm-charts
+          event-type: publish_chart
+          client-payload: '{"version": "${{ env.VERSION }}"}'
