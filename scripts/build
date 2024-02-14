@@ -32,6 +32,8 @@ function build-binaries() {
     if ! [ $1 = "darwin" ]; then
         GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetcontroller-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetcontroller
         GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/fleetagent-${1}-${2}${TEMP_SUFFIX} ./cmd/fleetagent
+        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/gitjob-${1}-${2}${TEMP_SUFFIX} ./cmd/gitjob
+        GOOS=${1} GOARCH=${2} CGO_ENABLED=0 go build -gcflags="all=${GCFLAGS}" -ldflags "$TEMP_LINKFLAGS" -o bin/gitcloner-${1}-${2}${TEMP_SUFFIX} ./cmd/gitcloner
     fi
 }
 
