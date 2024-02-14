@@ -22,5 +22,6 @@ function build-image() {
 
 build-image fleet
 build-image fleet-agent .agent
+build-image gitjob .gitjob
 
 ./scripts/package-helm
