@@ -22,7 +22,7 @@ else
   fleetTag="dev"
   agentRepo="rancher/fleet-agent"
   agentTag="dev"
-  gitjobRepo="rancher/fleet-gitjob"
+  gitjobRepo="rancher/gitjob"
   gitjobTag="dev"
 fi
 

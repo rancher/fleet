@@ -127,11 +127,11 @@ jobs:
           tags: ${{ steps.meta-fleet-agent.outputs.tags }}
           labels: ${{ steps.meta-fleet-agent.outputs.labels }}
       -
-        id: meta-fleet-gitjob
+        id: meta-gitjob
         uses: docker/metadata-action@v5
         with:
           images: |
-            ttl.sh/rancher/fleet-gitjob-${{ steps.uuid.outputs.uuid }}
+            ttl.sh/rancher/gitjob-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
       -
         uses: docker/build-push-action@v5
@@ -141,13 +141,13 @@ jobs:
           build-args: |
             ARCH=${{ env.GOARCH }}
           push: true
-          tags: ${{ steps.meta-fleet-gitjob.outputs.tags }}
-          labels: ${{ steps.meta-fleet-gitjob.outputs.labels }}
+          tags: ${{ steps.meta-gitjob.outputs.tags }}
+          labels: ${{ steps.meta-gitjob.outputs.labels }}
       -
         name: Deploy Fleet
         run: |
           echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
-          ./.github/scripts/deploy-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }} ${{ steps.meta-fleet-gitjob.outputs.tags }}
+          ./.github/scripts/deploy-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }} ${{ steps.meta-gitjob.outputs.tags }}
       -
         name: Fleet E2E Tests
         env:

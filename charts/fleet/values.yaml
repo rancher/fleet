@@ -89,7 +89,7 @@ leaderElection:
   renewDeadline: 25s
 
 gitjob:
-  repository: rancher/fleet-gitjob
+  repository: rancher/gitjob
   tag: dev
   imagePullPolicy: IfNotPresent
   nodeSelector:

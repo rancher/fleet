@@ -72,7 +72,7 @@ jobs:
       -
         name: Import Images Into k3d
         run: |
-          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev rancher/fleet-gitjob:dev nginx-git:test
+          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev rancher/gitjob:dev nginx-git:test
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
