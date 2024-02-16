@@ -11,4 +11,15 @@ entries:
     urls:
     - http://localhost:3000/config-chart-0.1.0.tgz
     version: 0.1.0
+  deps-chart:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2023-01-03T11:05:22.378628588+01:00"
+    description: A Helm chart for testing dependency update
+    digest: 8bae7a819851c6d96bacd213288d7892985951ab3ae79f27c3300f6426aec759
+    name: testrepo
+    type: application
+    urls:
+    - http://localhost:3000/deps-chart-1.0.0.tgz
+    version: 1.0.0
 generated: "2023-01-03T11:05:22.378100239+01:00"

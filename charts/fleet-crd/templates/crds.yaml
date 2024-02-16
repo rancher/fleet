@@ -245,6 +245,10 @@ spec:
                           description: DisableDNS can be used to customize Helm's
                             EnableDNS option, which Fleet sets to `true` by default.
                           type: boolean
+                        disableDependencyUpdate:
+                          description: DisableDependencyUpdate allows skipping chart
+                            dependencies update
+                          type: boolean
                         disablePreProcess:
                           description: DisablePreProcess disables template processing
                             in values
@@ -546,6 +550,10 @@ spec:
                         disableDNS:
                           description: DisableDNS can be used to customize Helm's
                             EnableDNS option, which Fleet sets to `true` by default.
+                          type: boolean
+                        disableDependencyUpdate:
+                          description: DisableDependencyUpdate allows skipping chart
+                            dependencies update
                           type: boolean
                         disablePreProcess:
                           description: DisablePreProcess disables template processing
@@ -1238,6 +1246,10 @@ spec:
                     disableDNS:
                       description: DisableDNS can be used to customize Helm's EnableDNS
                         option, which Fleet sets to `true` by default.
+                      type: boolean
+                    disableDependencyUpdate:
+                      description: DisableDependencyUpdate allows skipping chart dependencies
+                        update
                       type: boolean
                     disablePreProcess:
                       description: DisablePreProcess disables template processing
@@ -1933,6 +1945,10 @@ spec:
                           disableDNS:
                             description: DisableDNS can be used to customize Helm's
                               EnableDNS option, which Fleet sets to `true` by default.
+                            type: boolean
+                          disableDependencyUpdate:
+                            description: DisableDependencyUpdate allows skipping chart
+                              dependencies update
                             type: boolean
                           disablePreProcess:
                             description: DisablePreProcess disables template processing

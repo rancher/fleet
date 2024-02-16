@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -62,8 +63,18 @@ func IsResourcePresentInBundle(resourcePath string, resources []v1alpha1.BundleR
 	}
 
 	for _, resource := range resources {
-		if strings.ReplaceAll(resource.Content, "\n", "") == strings.ReplaceAll(string(resourceFile), "\n", "") {
-			return true, nil
+		if resource.Encoding == "base64+gz" {
+			resourceFileEncoded, err := content.Base64GZ(resourceFile)
+			if err != nil {
+				return false, err
+			}
+			if resource.Content == resourceFileEncoded {
+				return true, nil
+			}
+		} else {
+			if strings.ReplaceAll(resource.Content, "\n", "") == strings.ReplaceAll(string(resourceFile), "\n", "") {
+				return true, nil
+			}
 		}
 	}
 
