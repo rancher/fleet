@@ -138,12 +138,17 @@ jobs:
           push: true
           tags: ${{ steps.meta-fleet-gitjob.outputs.tags }}
           labels: ${{ steps.meta-fleet-gitjob.outputs.labels }}
+
+      - name: Retag agent image
+        run: |
+          docker pull ${{ steps.meta-fleet-agent.outputs.tags }}
+          docker tag ${{ steps.meta-fleet-agent.outputs.tags }} rancher/fleet-agent:dev
       -
         name: Deploy Fleet
         run: |
           export KUBECONFIG="$GITHUB_WORKSPACE/kubeconfig-fleet-ci"
           echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
-          ./.github/scripts/deploy-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }} ${{ steps.meta-fleet-gitjob.outputs.tags }}
+          ./.github/scripts/deploy-fleet.sh ${{ steps.meta-fleet.outputs.tags }} rancher/fleet-agent:dev ${{ steps.meta-fleet-gitjob.outputs.tags }}
       -
         name: Fleet E2E Tests
         env:
