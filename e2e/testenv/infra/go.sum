@@ -168,8 +168,8 @@ github.com/prometheus/procfs v0.0.2/go.mod h1:TjEm7ze935MbeOT/UhFTIMYKhuLP4wbCsT
 github.com/prometheus/procfs v0.0.3/go.mod h1:4A/X28fw3Fc593LaREMrKMqOKvUAntwMDaekg4FpcdQ=
 github.com/prometheus/procfs v0.12.0 h1:jluTpSng7V9hY0O2R9DzzJHYb2xULk9VTR1V1R/k6Bo=
 github.com/prometheus/procfs v0.12.0/go.mod h1:pcuDEFsWDnvcgNzo4EEweacyhjeA9Zk3cnaOZAZEfOo=
-github.com/rancher/fleet v0.9.0-rc.4.0.20240208111910-ad2d2d829a12 h1:kJlKRwgNieVmem+yzeGr6ZgIS98Udh7Oou3ZRao/FtM=
-github.com/rancher/fleet v0.9.0-rc.4.0.20240208111910-ad2d2d829a12/go.mod h1:QU6g1mmw3RIELU2LwB7d703tw+SZjumrQNt7w3lbGak=
+github.com/rancher/fleet v0.10.0-rc.2 h1:NZmLhrWZeHZhm7RqTbCOGUakoxVO7ij8cAehrCUlMNU=
+github.com/rancher/fleet v0.10.0-rc.2/go.mod h1:zMqiF/wr/MRMj/dOwYtO8PZvM1fc1mQ1EsCfttr3jLE=
 github.com/rogpeppe/go-internal v1.12.0 h1:exVL4IDcn6na9z1rAb56Vxr+CgyK3nn3O+epU5NdKM8=
 github.com/rogpeppe/go-internal v1.12.0/go.mod h1:E+RYuTGaKKdloAfM02xzb0FW3Paa99yedzYV+kq4uf4=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
