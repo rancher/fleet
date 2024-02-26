@@ -1,0 +1,21 @@
+imageScans:
+# specify the policy to retrieve images, can be semver or alphabetical order
+- policy:
+    # if range is specified, it will take the latest image according to semver order in the range
+    # for more details on how to use semver, see https://github.com/Masterminds/semver
+    # in this test case we're going to use prerelease versions.
+    # as we're specifying * semver will ignore new tags but should not crash the fleet controller
+    semver:
+      range: "*"
+    # can use ascending or descending order
+    alphabetical:
+      order: asc
+
+  # specify images to scan
+  image: {{.Image}}
+
+  # Specify the tag name, it has to be unique in the same bundle
+  tagName: test-scan
+
+  # Specify the scan interval
+  interval: 5s

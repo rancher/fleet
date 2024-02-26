@@ -1,0 +1,19 @@
+imageScans:
+# specify the policy to retrieve images, can be semver or alphabetical order
+- policy:
+    # if range is specified, it will take the latest image according to semver order in the range
+    # for more details on how to use semver, see https://github.com/Masterminds/semver
+    semver:
+      range: ">= 0.0.0-40"
+    # can use ascending or descending order
+    alphabetical:
+      order: asc
+
+  # specify images to scan
+  image: {{.Image}}
+
+  # Specify the tag name, it has to be unique in the same bundle
+  tagName: test-scan
+
+  # Specify the scan interval
+  interval: 5s
