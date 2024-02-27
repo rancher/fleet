@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pause-prerelease
+  labels:
+    app: pause
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pause
+  template:
+    metadata:
+      labels:
+        app: pause
+    spec:
+      containers:
+      - name: pause
+        image: {{.ImageWithTag}} # {"$imagescan": "test-scan"}
+        ports:
+        - containerPort: 80
