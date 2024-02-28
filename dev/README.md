@@ -375,3 +375,103 @@ PR](https://github.com/nektos/act/pull/1988) already exists.
 
 A temporary workaround is to comment the step in the workflow file out which
 includes `tmate`.
+
+## Monitoring
+
+This sections describes how to add a monitoring stack to your development
+environment. It consists of Prometheus, kube-state-metrics, kube-operator,
+Node-Exporter, Alertmanager and Grafana. It does contain Grafana dashboards and
+Prometheus alerts, but it does not contain any Grafana dashboards or Prometheus
+alerts specific to Fleet.
+
+### Installation
+
+If you have a running system, run the following commands on the upstream
+cluster:
+
+```bash
+helm repo add prometheus-community \
+  https://prometheus-community.github.io/helm-charts
+helm repo update
+helm install -n cattle-system-monitoring \
+  monitoring prometheus-community/kube-prometheus-stack
+```
+
+That alone suffices to get a working monitoring setup for the upstream cluster.
+But to connect it to the fleet-controller exported metrics, you need to add a
+service monitor. The service monitor is currently not part of the Helm chart.
+However, the necessary Kubernetes service resource is, unless you have disabled
+monitoring in the Helm chart.
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: monitoring-fleet-controller
+  namespace: cattle-fleet-system
+  labels:
+    release: monitoring # required to be recognized by the operator
+spec:
+  endpoints:
+  - honorLabels: true
+    path: /metrics
+    scheme: http
+    scrapeTimeout: 30s
+    port: metrics
+  jobLabel: fleet-controller
+  namespaceSelector:
+    matchNames:
+    - cattle-fleet-system
+  selector:
+    matchLabels:
+      app: fleet-controller
+
+```
+
+This configures Prometheus to scrape the metrics from the fleet-controller. By
+accessing the Prometheus UI, you can now see the metrics from the
+Fleet-Controller. They are all prefixed with `fleet_`.
+
+```bash
+kubectl port-forward -n cattle-system-monitoring \
+  svc/monitoring-kube-prometheus-prometheus 9090:9090
+```
+
+Alternatively, you can forward the port of the fleet-controller to your local
+machine. Then you can access the raw metrics at `http://localhost:8080/metrics`.
+
+```bash
+kubectl port-forward -n cattle-fleet-system \
+  svc/monitoring-fleet-controller 8080:8080
+```
+
+### Metrics
+
+There are metrics which will only be available when certain resources are
+created. To create those resources, you can use the following file. Since a
+`GitRepo` resource results in having `Bundle` and `BundleDeployment` resources,
+the `Cluster` resource is already available and the `ClusterGroup` resource is
+create by us, it is sufficient to create a `GitRepo` and `ClusterGroup` resource
+to see all the fleet specific metrics.
+
+```yaml
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: simple
+  namespace: fleet-local
+spec:
+  repo: https://github.com/rancher/fleet-examples
+  paths:
+  - simple
+---
+kind: ClusterGroup
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: local-group
+  namespace: fleet-local
+spec:
+  selector:
+    matchLabels:
+      name: local
+```
