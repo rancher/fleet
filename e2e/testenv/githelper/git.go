@@ -13,6 +13,7 @@ import (
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -256,6 +257,19 @@ func (g *Git) Update(repo *git.Repository) (string, error) {
 	}
 
 	return h.String(), repo.Push(&po)
+}
+
+// Checkouts the specified remote branch from the given repository
+func (g *Git) CheckoutRemote(repo *git.Repository, branch string) error {
+	w, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+	_ = repo.Fetch(&git.FetchOptions{RefSpecs: []config.RefSpec{"refs/*:refs/*"}})
+	if err := w.Checkout(&git.CheckoutOptions{Branch: plumbing.NewBranchReferenceName(branch)}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func author() *object.Signature {

@@ -498,5 +498,8 @@ func semverLatest(r string, versions []string) (string, error) {
 			}
 		}
 	}
+	if latestVersion == nil {
+		return "", fmt.Errorf("no available version matching %s", r)
+	}
 	return latestVersion.Original(), nil
 }
