@@ -46,8 +46,6 @@ var (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Bundles-Ready",type=string,JSONPath=`.status.display.readyBundles`
-// +kubebuilder:printcolumn:name="Nodes-Ready",type=string,JSONPath=`.status.display.readyNodes`
-// +kubebuilder:printcolumn:name="Sample-Node",type=string,JSONPath=`.status.display.sampleNode`
 // +kubebuilder:printcolumn:name="Last-Seen",type=string,JSONPath=`.status.agent.lastSeen`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].message`
 
@@ -200,12 +198,6 @@ type ClusterDisplay struct {
 	// number of bundles that are ready vs. the number of bundles desired
 	// to be ready.
 	ReadyBundles string `json:"readyBundles,omitempty"`
-	// ReadyNodes is a string in the form "%d/%d", that describes the
-	// number of nodes that are ready vs. the number of expected nodes.
-	ReadyNodes string `json:"readyNodes,omitempty"`
-	// SampleNode is the name of one of the nodes that are ready. If no
-	// node is ready, it's the name of a node that is not ready.
-	SampleNode string `json:"sampleNode,omitempty"`
 	// State of the cluster, either one of the bundle states, or "WaitCheckIn".
 	State string `json:"state,omitempty"`
 }
@@ -220,18 +212,4 @@ type AgentStatus struct {
 	// +nullable
 	// +optional
 	Namespace string `json:"namespace"`
-	// NonReadyNodes is the number of nodes that are not ready.
-	// +optional
-	NonReadyNodes int `json:"nonReadyNodes"`
-	// ReadyNodes is the number of nodes that are ready.
-	// +optional
-	ReadyNodes int `json:"readyNodes"`
-	// NonReadyNode contains the names of non-ready nodes. The list is
-	// limited to at most 3 names.
-	// +optional
-	NonReadyNodeNames []string `json:"nonReadyNodeNames"`
-	// ReadyNodes contains the names of ready nodes. The list is limited to
-	// at most 3 names.
-	// +optional
-	ReadyNodeNames []string `json:"readyNodeNames"`
 }
