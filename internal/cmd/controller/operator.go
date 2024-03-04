@@ -8,6 +8,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,12 +30,31 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-func start(ctx context.Context, systemNamespace string, config *rest.Config, leaderOpts LeaderElectionOptions, bindAddresses BindAddresses, disableGitops bool) error {
-	setupLog.Info("listening for changes on local cluster", "disableGitops", disableGitops)
+func start(
+	ctx context.Context,
+	systemNamespace string,
+	config *rest.Config,
+	leaderOpts LeaderElectionOptions,
+	bindAddresses BindAddresses,
+	disableGitops bool,
+	disableMetrics bool,
+) error {
+	setupLog.Info("listening for changes on local cluster",
+		"disableGitops", disableGitops,
+		"disableMetrics", disableMetrics,
+	)
+
+	var metricServerOptions metricsserver.Options
+	if disableMetrics {
+		metricServerOptions = metricsserver.Options{BindAddress: "0"}
+	} else {
+		metricServerOptions = metricsserver.Options{BindAddress: bindAddresses.Metrics}
+		metrics.RegisterMetrics() // enable fleet related metrics
+	}
 
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: bindAddresses.Metrics},
+		Metrics:                metricServerOptions,
 		HealthProbeBindAddress: bindAddresses.HealthProbe,
 
 		LeaderElection:          true,

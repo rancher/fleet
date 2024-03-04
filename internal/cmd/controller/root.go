@@ -31,9 +31,10 @@ import (
 
 type FleetManager struct {
 	command.DebugConfig
-	Kubeconfig    string `usage:"Kubeconfig file"`
-	Namespace     string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
-	DisableGitops bool   `usage:"disable gitops components" name:"disable-gitops"`
+	Kubeconfig     string `usage:"Kubeconfig file"`
+	Namespace      string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
+	DisableGitops  bool   `usage:"disable gitops components" name:"disable-gitops"`
+	DisableMetrics bool   `usage:"disable metrics" name:"disable-metrics"`
 }
 
 type LeaderElectionOptions struct {
@@ -128,7 +129,14 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
-	if err := start(ctx, f.Namespace, kubeconfig, leaderOpts, bindAddresses, f.DisableGitops); err != nil {
+	if err := start(
+		ctx, f.Namespace,
+		kubeconfig,
+		leaderOpts,
+		bindAddresses,
+		f.DisableGitops,
+		f.DisableMetrics,
+	); err != nil {
 		return err
 	}
 

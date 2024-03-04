@@ -7,6 +7,7 @@ import (
 	"reflect"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
+	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/genericcondition"
 
@@ -68,7 +69,13 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return err
 		}
 		t.Status = bd.Status
-		return r.Status().Update(ctx, t)
+		err = r.Status().Update(ctx, t)
+		if err != nil {
+			return err
+		}
+
+		metrics.CollectBundleDeploymentMetrics(t)
+		return nil
 	})
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to bundle deployment status", "status", bd.Status)
