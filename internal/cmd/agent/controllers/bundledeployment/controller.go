@@ -198,18 +198,13 @@ func (h *handler) updateNamespace(ns *corev1.Namespace) error {
 func (h *handler) fetchNamespace(releaseID string) (*corev1.Namespace, error) {
 	// releaseID is composed of release.Namespace/release.Name/release.Version
 	namespace := strings.Split(releaseID, "/")[0]
-	list, err := h.dynamic.Resource(nsResource).List(h.ctx, metav1.ListOptions{
-		LabelSelector: corev1.LabelMetadataName + "=" + namespace,
-	})
+	res, err := h.dynamic.Resource(nsResource).Get(h.ctx, namespace, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
-	if len(list.Items) == 0 {
-		return nil, fmt.Errorf("namespace %s not found", namespace)
-	}
 	var ns corev1.Namespace
 	err = runtime.DefaultUnstructuredConverter.
-		FromUnstructured(list.Items[0].Object, &ns)
+		FromUnstructured(res.Object, &ns)
 	if err != nil {
 		return nil, err
 	}
