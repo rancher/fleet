@@ -3626,12 +3626,6 @@ spec:
         - jsonPath: .status.display.readyBundles
           name: Bundles-Ready
           type: string
-        - jsonPath: .status.display.readyNodes
-          name: Nodes-Ready
-          type: string
-        - jsonPath: .status.display.sampleNode
-          name: Sample-Node
-          type: string
         - jsonPath: .status.agent.lastSeen
           name: Last-Seen
           type: string
@@ -5109,29 +5103,6 @@ spec:
                         e.g. "cattle-fleet-system".
                       nullable: true
                       type: string
-                    nonReadyNodeNames:
-                      description: 'NonReadyNode contains the names of non-ready nodes.
-                        The list is
-
-                        limited to at most 3 names.'
-                      items:
-                        type: string
-                      type: array
-                    nonReadyNodes:
-                      description: NonReadyNodes is the number of nodes that are not
-                        ready.
-                      type: integer
-                    readyNodeNames:
-                      description: 'ReadyNodes contains the names of ready nodes.
-                        The list is limited to
-
-                        at most 3 names.'
-                      items:
-                        type: string
-                      type: array
-                    readyNodes:
-                      description: ReadyNodes is the number of nodes that are ready.
-                      type: integer
                   type: object
                 agentAffinityHash:
                   description: 'AgentAffinityHash is a hash of the agent''s affinity
@@ -5259,19 +5230,6 @@ spec:
                         desired
 
                         to be ready.'
-                      type: string
-                    readyNodes:
-                      description: 'ReadyNodes is a string in the form "%d/%d", that
-                        describes the
-
-                        number of nodes that are ready vs. the number of expected
-                        nodes.'
-                      type: string
-                    sampleNode:
-                      description: 'SampleNode is the name of one of the nodes that
-                        are ready. If no
-
-                        node is ready, it''s the name of a node that is not ready.'
                       type: string
                     state:
                       description: State of the cluster, either one of the bundle

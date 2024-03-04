@@ -137,10 +137,6 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	cluster.Status.Display.ReadyBundles = fmt.Sprintf("%d/%d",
 		cluster.Status.Summary.Ready,
 		cluster.Status.Summary.DesiredReady)
-	cluster.Status.Display.ReadyNodes = fmt.Sprintf("%d/%d",
-		cluster.Status.Agent.ReadyNodes,
-		cluster.Status.Agent.NonReadyNodes+cluster.Status.Agent.ReadyNodes)
-	cluster.Status.Display.SampleNode = sampleNode(cluster.Status)
 
 	var state fleet.BundleState
 	for _, nonReady := range cluster.Status.Summary.NonReadyResources {
@@ -189,14 +185,4 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// update its status. It also needs to trigger on
 		// cluster.Status.Namespace to create the namespace.
 		Complete(r)
-}
-
-func sampleNode(status fleet.ClusterStatus) string {
-	if len(status.Agent.ReadyNodeNames) > 0 {
-		return status.Agent.ReadyNodeNames[0]
-	}
-	if len(status.Agent.NonReadyNodeNames) > 0 {
-		return status.Agent.NonReadyNodeNames[0]
-	}
-	return ""
 }

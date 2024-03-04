@@ -121,7 +121,7 @@ jobs:
                 --set token="$token"
 
           echo "waiting for downstream cluster to be registered..."
-          { grep -q -m 1 "k3d-downstream"; kill $!; } < <(kubectl get cluster -n fleet-default -w)
+          { grep -q -m 1 "1/1"; kill $!; } < <(kubectl get cluster -n fleet-default -w)
 
           echo "waiting for cluster to report being ready..."
           while [ $(kubectl -n fleet-default get cluster -o jsonpath='{.items[0].status.summary.ready}') -ne 1 ]; do
