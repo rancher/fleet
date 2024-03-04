@@ -199,7 +199,7 @@ func (h *handler) fetchNamespace(releaseID string) (*corev1.Namespace, error) {
 	// releaseID is composed of release.Namespace/release.Name/release.Version
 	namespace := strings.Split(releaseID, "/")[0]
 	list, err := h.dynamic.Resource(nsResource).List(h.ctx, metav1.ListOptions{
-		LabelSelector: "name=" + namespace,
+		LabelSelector: corev1.LabelMetadataName + "=" + namespace,
 	})
 	if err != nil {
 		return nil, err
@@ -217,16 +217,18 @@ func (h *handler) fetchNamespace(releaseID string) (*corev1.Namespace, error) {
 	return &ns, nil
 }
 
-// addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `name` labels added by Helm when creating the namespace.
+// addLabelsFromOptions updates nsLabels so that it only contains all labels
+// specified in optLabels, plus the `kubernetes.io/metadata.name` labels added
+// by kubernetes when creating the namespace.
 func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]string) {
 	for k, v := range optLabels {
 		nsLabels[k] = v
 	}
 
 	// Delete labels not defined in the options.
-	// Keep the name label as it is added by helm when creating the namespace.
+	// Keep the `kubernetes.io/metadata.name` label as it is added by kubernetes when creating the namespace.
 	for k := range nsLabels {
-		if _, ok := optLabels[k]; k != "name" && !ok {
+		if _, ok := optLabels[k]; k != corev1.LabelMetadataName && !ok {
 			delete(nsLabels, k)
 		}
 	}
