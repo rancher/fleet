@@ -104,7 +104,7 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			mockDynamic := mocks.NewMockInterface(ctrl)
 			mockNamespaceableResourceInterface := mocks.NewMockNamespaceableResourceInterface(ctrl)
 			u, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(&test.ns)
-			// Resource will be called twice, one time for UPDATE and another time for LIST
+			// Resource will be called twice, one time for UPDATE and another time for GET
 			mockDynamic.EXPECT().Resource(gomock.Any()).Return(mockNamespaceableResourceInterface).Times(2)
 			mockNamespaceableResourceInterface.EXPECT().Get(gomock.Any(), "namespace", metav1.GetOptions{}).
 				Return(&unstructured.Unstructured{Object: u}, nil).Times(1)
