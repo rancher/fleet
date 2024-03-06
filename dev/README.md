@@ -147,7 +147,7 @@ remedy this. By default, the setup script will use `/usr/bin/helm`.
 
 ## Different Script Folders
 
-Our CIs and github actions, use a different set of scripts. CI
+Our CIs and github actions use a different set of scripts. CI
 does not reuse dev scripts, however dev scripts may use CI scripts. We want to
 keep CI scripts short, targeted and readable. Dev scripts may change in an
 incompatible way at any day.
