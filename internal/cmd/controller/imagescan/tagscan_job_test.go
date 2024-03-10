@@ -1,48 +1,58 @@
 package imagescan
 
 import (
-	"fmt"
 	"testing"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 var alphabeticalVersions = []string{"a", "b", "c"}
+
 func TestLatestTag(t *testing.T) {
-	alphabeticalAscPolicyLowercase := fleet.ImagePolicyChoice{
-		Alphabetical: &fleet.AlphabeticalPolicy{Order: "asc"},
-	}
-	alphabeticalAscPolicyUppercase := fleet.ImagePolicyChoice{
-		Alphabetical: &fleet.AlphabeticalPolicy{Order: "ASC"},
-	}
-	alphabeticalDescPolicyLowercase := fleet.ImagePolicyChoice{
-		Alphabetical: &fleet.AlphabeticalPolicy{Order: "desc"},
-	}
-	alphabeticalDescPolicyUppercase := fleet.ImagePolicyChoice{
-		Alphabetical: &fleet.AlphabeticalPolicy{Order: "DESC"},
+	tests := []struct{
+		name, want string
+		policy fleet.ImagePolicyChoice
+	}{
+		{
+			name: "alphabetical asc lowercase",
+			policy: fleet.ImagePolicyChoice{
+				Alphabetical: &fleet.AlphabeticalPolicy{Order: "asc"},
+			},
+			want: "a",
+		}, 
+		{
+			name: "alphabetical asc uppercase",
+			policy: fleet.ImagePolicyChoice{
+				Alphabetical: &fleet.AlphabeticalPolicy{Order: "ASC"},
+			},
+			want: "a",
+		}, 
+		{
+			name: "alphabetical desc lowercase",
+			policy: fleet.ImagePolicyChoice{
+				Alphabetical: &fleet.AlphabeticalPolicy{Order: "desc"},
+			},
+			want: "c",
+		}, 
+		{
+			name: "alphabetical desc uppercase",
+			policy: fleet.ImagePolicyChoice{
+				Alphabetical: &fleet.AlphabeticalPolicy{Order: "DESC"},
+			},
+			want: "c",
+		},
 	}
 
-	out, err := latestTag(alphabeticalAscPolicyLowercase, alphabeticalVersions)
-	if err != nil {
-		t.Fatalf("Error getting latest tag: %v", err)
-	}
-	fmt.Println(out)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := latestTag(tt.policy, alphabeticalVersions)
+			if err != nil {
+				t.Errorf("Error calling latestTag: %v", err)
+			}
 
-	out, err = latestTag(alphabeticalAscPolicyUppercase, alphabeticalVersions)
-	if err != nil {
-		t.Fatalf("Error getting latest tag: %v", err)
+			if got != tt.want {
+				t.Errorf("latestTag() = %v, want %v", got, tt.want)
+			}
+		})
 	}
-	fmt.Println(out)
-
-	out, err = latestTag(alphabeticalDescPolicyLowercase, alphabeticalVersions)
-	if err != nil {
-		t.Fatalf("Error getting latest tag: %v", err)
-	}
-	fmt.Println(out)
-	
-	out, err = latestTag(alphabeticalDescPolicyUppercase, alphabeticalVersions)
-	if err != nil {
-		t.Fatalf("Error getting latest tag: %v", err)
-	}
-	fmt.Println(out)
 }
