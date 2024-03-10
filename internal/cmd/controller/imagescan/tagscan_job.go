@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -263,7 +264,7 @@ func latestTag(policy fleet.ImagePolicyChoice, versions []string) (string, error
 		if policy.Alphabetical.Order == "" {
 			des = true
 		} else {
-			des = policy.Alphabetical.Order == AlphabeticalOrderDesc
+			des = strings.ToUpper(policy.Alphabetical.Order) == AlphabeticalOrderDesc
 		}
 		var latest string
 		for _, version := range versions {
