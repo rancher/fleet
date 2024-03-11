@@ -6,9 +6,10 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-var alphabeticalVersions = []string{"a", "b", "c"}
 
 func TestLatestTag(t *testing.T) {
+	var alphabeticalVersions = []string{"a", "b", "c"}
+
 	tests := []struct{
 		name, want string
 		policy fleet.ImagePolicyChoice
@@ -47,7 +48,7 @@ func TestLatestTag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := latestTag(tt.policy, alphabeticalVersions)
 			if err != nil {
-				t.Errorf("Error calling latestTag: %v", err)
+				t.Fatalf("Error calling latestTag: %v", err)
 			}
 
 			if got != tt.want {
