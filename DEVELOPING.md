@@ -63,8 +63,8 @@ Now, let's build and push your `fleet-agent` (`linux-amd64` image by default), i
 
 ```sh
 (
-    go fmt ./...
-    REPO=$AGENT_REPO make agent-dev
+    dev/build-fleet
+    docker tag rancher/fleet-agent:dev $AGENT_REPO/fleet-agent:dev
     docker push $AGENT_REPO/fleet-agent:dev
 )
 ```
