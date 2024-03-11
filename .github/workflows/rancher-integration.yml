@@ -18,7 +18,6 @@ on:
   push:
     tags: [ 'v*' ]
     paths-ignore:
-      - 'scripts/**'
       - '*.md'
 
 env:
