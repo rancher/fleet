@@ -50,8 +50,8 @@ func tagScanDescription(namespace string, name string) string {
 	return fmt.Sprintf("image-tag-scan-%s-%s", namespace, name)
 }
 
-func TagScanKey(namespace string, name string) int {
-	return quartz.HashCode(tagScanDescription(namespace, name))
+func TagScanKey(namespace string, name string) *quartz.JobKey {
+	return quartz.NewJobKey(tagScanDescription(namespace, name))
 }
 
 func NewTagScanJob(c client.Client, namespace string, name string) *TagScanJob {
@@ -64,22 +64,20 @@ func NewTagScanJob(c client.Client, namespace string, name string) *TagScanJob {
 	}
 }
 
-func (j *TagScanJob) Execute(ctx context.Context) {
+func (j *TagScanJob) Execute(ctx context.Context) error {
 	if !j.sem.TryAcquire(1) {
 		// already running
-		return
+		return nil
 	}
 	defer j.sem.Release(1)
 
 	j.updateImageTags(ctx)
+
+	return nil
 }
 
 func (j *TagScanJob) Description() string {
 	return tagScanDescription(j.namespace, j.name)
-}
-
-func (j *TagScanJob) Key() int {
-	return TagScanKey(j.namespace, j.name)
 }
 
 func (j *TagScanJob) updateImageTags(ctx context.Context) {

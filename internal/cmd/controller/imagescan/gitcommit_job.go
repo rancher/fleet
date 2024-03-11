@@ -64,8 +64,8 @@ func gitCommitDescription(namespace string, name string) string {
 	return fmt.Sprintf("gitrepo-git-commit-%s-%s", namespace, name)
 }
 
-func GitCommitKey(namespace string, name string) int {
-	return quartz.HashCode(gitCommitDescription(namespace, name))
+func GitCommitKey(namespace string, name string) *quartz.JobKey {
+	return quartz.NewJobKey(gitCommitDescription(namespace, name))
 }
 
 func NewGitCommitJob(c client.Client, namespace string, name string) *GitCommitJob {
@@ -78,22 +78,20 @@ func NewGitCommitJob(c client.Client, namespace string, name string) *GitCommitJ
 	}
 }
 
-func (j *GitCommitJob) Execute(ctx context.Context) {
+func (j *GitCommitJob) Execute(ctx context.Context) error {
 	if !j.sem.TryAcquire(1) {
 		// already running
-		return
+		return nil
 	}
 	defer j.sem.Release(1)
 
 	j.cloneAndReplace(ctx)
+
+	return nil
 }
 
 func (j *GitCommitJob) Description() string {
 	return gitCommitDescription(j.namespace, j.name)
-}
-
-func (j *GitCommitJob) Key() int {
-	return GitCommitKey(j.namespace, j.name)
 }
 
 func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
