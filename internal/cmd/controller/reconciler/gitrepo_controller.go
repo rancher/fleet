@@ -26,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 // GitRepoReconciler  reconciles a GitRepo object
@@ -41,7 +40,7 @@ type GitRepoReconciler struct {
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=gitrepos/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=gitrepos/finalizers,verbs=update
 
-// Reconcile creates bundle deployments for a bundle
+// Reconcile creates resources for a GitRepo
 // nolint:gocyclo // creates multiple owned resources
 func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("gitrepo")
@@ -86,16 +85,14 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Refresh the status
-	if gitrepo.DeletionTimestamp != nil {
-		err = grutil.SetStatusFromBundleDeployments(ctx, r.Client, gitrepo)
-		if err != nil {
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
-		}
+	err = grutil.SetStatusFromBundleDeployments(ctx, r.Client, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
+	}
 
-		err = grutil.SetStatusFromBundles(ctx, r.Client, gitrepo)
-		if err != nil {
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
-		}
+	err = grutil.SetStatusFromBundles(ctx, r.Client, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	// Ideally, this should be done in the git job reconciler, but setting the status from bundle deployments
@@ -223,14 +220,6 @@ func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return []ctrl.Request{}
 			}),
-		).
-		WithEventFilter(
-			// do not trigger for status changes
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
-				predicate.LabelChangedPredicate{},
-			),
 		).
 		Complete(r)
 }
