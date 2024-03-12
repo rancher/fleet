@@ -58,8 +58,14 @@ func (r *ImageScanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Make sure no duplicate jobs are scheduled. DeleteJob might return an
 	// error if the job does not exist, which we ignore.
-	_ = r.Scheduler.DeleteJob(imagescan.TagScanKey(req.Namespace, req.Name))
-	err = r.Scheduler.ScheduleJob(ctx, imagescan.NewTagScanJob(r.Client, req.Namespace, req.Name), quartz.NewSimpleTrigger(interval.Duration))
+	tagScanKey := imagescan.TagScanKey(req.Namespace, req.Name)
+	_ = r.Scheduler.DeleteJob(tagScanKey)
+	err = r.Scheduler.ScheduleJob(
+		quartz.NewJobDetail(
+			imagescan.NewTagScanJob(r.Client, req.Namespace, req.Name),
+			tagScanKey),
+		quartz.NewSimpleTrigger(interval.Duration),
+	)
 	if err != nil {
 		logger.Error(err, "Failed to schedule imagescan tagscan job")
 		return ctrl.Result{}, err
@@ -71,8 +77,14 @@ func (r *ImageScanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(gitrepo.Namespace, gitrepo.Name))
-	err = r.Scheduler.ScheduleJob(ctx, imagescan.NewGitCommitJob(r.Client, gitrepo.Namespace, gitrepo.Name), quartz.NewSimpleTrigger(interval.Duration))
+	gitCommitKey := imagescan.GitCommitKey(gitrepo.Namespace, gitrepo.Name)
+	_ = r.Scheduler.DeleteJob(gitCommitKey)
+	err = r.Scheduler.ScheduleJob(
+		quartz.NewJobDetail(
+			imagescan.NewGitCommitJob(r.Client, gitrepo.Namespace, gitrepo.Name),
+			gitCommitKey),
+		quartz.NewSimpleTrigger(interval.Duration),
+	)
 	if err != nil {
 		logger.Error(err, "Failed to schedule gitrepo gitcommit job")
 		return ctrl.Result{}, err
