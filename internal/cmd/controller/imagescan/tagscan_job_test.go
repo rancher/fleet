@@ -6,13 +6,12 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-
 func TestLatestTag(t *testing.T) {
 	var alphabeticalVersions = []string{"a", "b", "c"}
 
-	tests := []struct{
+	tests := []struct {
 		name, want string
-		policy fleet.ImagePolicyChoice
+		policy     fleet.ImagePolicyChoice
 	}{
 		{
 			name: "alphabetical asc lowercase",
@@ -20,21 +19,21 @@ func TestLatestTag(t *testing.T) {
 				Alphabetical: &fleet.AlphabeticalPolicy{Order: "asc"},
 			},
 			want: "a",
-		}, 
+		},
 		{
 			name: "alphabetical asc uppercase",
 			policy: fleet.ImagePolicyChoice{
 				Alphabetical: &fleet.AlphabeticalPolicy{Order: "ASC"},
 			},
 			want: "a",
-		}, 
+		},
 		{
 			name: "alphabetical desc lowercase",
 			policy: fleet.ImagePolicyChoice{
 				Alphabetical: &fleet.AlphabeticalPolicy{Order: "desc"},
 			},
 			want: "c",
-		}, 
+		},
 		{
 			name: "alphabetical desc uppercase",
 			policy: fleet.ImagePolicyChoice{
