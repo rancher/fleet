@@ -176,6 +176,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 	When("updating a git repository monitored via webhook", func() {
 		BeforeEach(func() {
 			repoName = "webhook-test"
+			targetNamespace = testenv.NewNamespaceName("target", r)
 		})
 
 		JustBeforeEach(func() {
