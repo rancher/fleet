@@ -26,6 +26,8 @@ permissions:
 jobs:
   push-test-rancher-charts:
     runs-on: ubuntu-latest
+    outputs:
+      target_branch: ${{ steps.compute_target_branch.outputs.target_branch }}
     steps:
       - name: Set environment variables
         run: |
@@ -111,6 +113,7 @@ jobs:
           path: charts
 
       - name: Compute target branch name
+        id: compute_target_branch
         run: |
           target_branch_name=${{github.event.inputs.charts_target_branch}}
 
@@ -127,6 +130,7 @@ jobs:
           fi
 
           echo "target_branch=$target_branch_name" >> "$GITHUB_ENV"
+          echo "target_branch=$target_branch_name" >> "$GITHUB_OUTPUT"
 
       - name: Set up test charts repo with latest upstream state
         run: |
@@ -170,4 +174,5 @@ jobs:
       ref: ${{ github.ref }}
       cluster_name: fleet-test-rancher-k3s
       destroy_runner: true
-      # TODO add chart branch and version parameters once supported by Rancher
+      charts_repo: ${{github.event.inputs.charts_repo}}
+      charts_branch: ${{ needs.push-test-rancher-charts.outputs.target_branch }}

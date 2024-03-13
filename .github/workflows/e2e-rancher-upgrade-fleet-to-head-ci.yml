@@ -34,10 +34,6 @@ on:
         description: Destroy the auto-generated self-hosted runner
         default: true
         type: boolean
-      rancher_version:
-        description: Rancher Manager channel/version/head_version to use for installation
-        default: stable/latest/none
-        type: string
       runner_template:
         description: Runner template to use
         default: fleet-qa-e2e-ci-runner-spot-leap-15-5-x86-64-template-v1
@@ -46,7 +42,13 @@ on:
         description: GCP zone to host the runner
         default: europe-west3-a
         type: string
-      # TODO add rancher charts branch + version parameters (when supported)
+      charts_repo:
+        description: Repository from which to source Fleet charts
+        default: "fleetrepoci/charts"
+        type: string
+      charts_branch:
+        description: Branch from which to source Fleet charts
+        type: string
   push:
     tags: [ 'v*' ]
     paths-ignore:
@@ -261,22 +263,48 @@ jobs:
           repository: rancher/rancher
           path: rancher
 
-            # 2. Build and package Rancher
-      - name: Build and package Rancher
-        run: |
-          cd rancher
-          make build
-          make package
-          ./scripts/chart/ci
-
-            # 3. Push charts to $chartmuseum?
-            # 4. Run adapted version of setup-latest-rancher.sh
       - name: Set up latest Rancher
         env:
           public_hostname: "172.18.0.1.sslip.io"
         run: |
-          # TODO edit script to use test branch?
-          ./.github/scripts/setup-latest-rancher.sh
+          kubectl config use-context k3d-upstream
+
+          helm repo add jetstack https://charts.jetstack.io
+          helm install cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --set installCRDs=true \
+            --set extraArgs[0]=--enable-certificate-owner-ref=true
+
+          kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
+
+          helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+          # set CATTLE_SERVER_URL and CATTLE_BOOTSTRAP_PASSWORD to get rancher out of "bootstrap" mode
+          helm upgrade rancher rancher-latest/rancher \
+            --install --wait \
+            --devel \
+            --create-namespace \
+            --namespace cattle-system \
+            --set replicas=1 \
+            --set hostname="$public_hostname" \
+            --set bootstrapPassword=admin \
+            --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
+            --set "extraEnv[0].value=https://github.com/${{ inputs.charts_repo }}" \
+            --set "extraEnv[1].name=CATTLE_CHART_DEFAULT_BRANCH" \
+            --set "extraEnv[1].value=${{ inputs.charts_branch }}" \
+            --set "extraEnv[2].name=CATTLE_FLEET_VERSION" \
+            --set "extraEnv[2].value=999.9.9+up9.9.9"
+
+          # wait for deployment of rancher
+          kubectl -n cattle-system rollout status deploy/rancher
+
+          # wait for rancher to create fleet namespace, deployment and controller
+          until kubectl get deployments -n cattle-fleet-system | grep -q "fleet"; do sleep 3; done
+          kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
+
+          until kubectl get bundles -n fleet-local | grep -q "fleet-agent-local.*1/1"; do sleep 3; done
+
+          helm list -A
 
       - name: Register Rancher's downstream clusters
         env:
