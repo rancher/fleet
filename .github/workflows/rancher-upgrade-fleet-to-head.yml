@@ -71,6 +71,7 @@ jobs:
       # actions/checkout MUST come before auth
       - name: Checkout
         uses: actions/checkout@v3
+
       - name: Generate UUID and Runner hostname
         id: generator
         run: |
@@ -86,17 +87,20 @@ jobs:
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
+
       - name: Create runner
         run: |
           gcloud compute instances create ${{ steps.generator.outputs.runner }} \
             --source-instance-template ${{ inputs.runner_template }} \
             --zone ${{ inputs.zone }}
+
       - name: Create GCP secrets
         run: |
           echo -n ${{ secrets.GITHUB_TOKEN }} \
             | gcloud secrets create PAT_TOKEN_${{ steps.generator.outputs.uuid }} --data-file=-
           echo -n ${{ github.repository }} \
             | gcloud secrets create GH_REPO_${{ steps.generator.outputs.uuid }} --data-file=-
+
       - name: Get public dns name in GCP
         id: dns
         run: |
@@ -131,27 +135,30 @@ jobs:
     steps:
       - name: Add /usr/local/bin into PATH
         run: echo "/usr/local/bin/" >> ${GITHUB_PATH}
-      -
+
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
-      -
+
+      - name: Install Go
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
-      -
-        name: Install Ginkgo CLI
+
+      - name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
-      -
+
+      - name: Set up build cache
         uses: actions/cache@v4
         id: rancher-cli-cache
         with:
           path: /home/runner/.local/bin
           key: ${{ runner.os }}-rancher-cli
-      -
-        name: Install Rancher CLI
+
+      - name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p /home/runner/.local/bin
@@ -160,28 +167,30 @@ jobs:
           wget -q https://github.com/rancher/cli/releases/download/$latest_version/rancher-linux-amd64-$latest_version.tar.gz
           tar -xz --strip-components=2 -f rancher-linux-amd64-$latest_version.tar.gz -C /home/runner/.local/bin
           rancher --version
-      -
-        name: Build fleet binaries
+
+      - name: Build fleet binaries
         run: |
           ./.github/scripts/build-fleet-binaries.sh
-      -
-        name: Set up QEMU
+
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-      -
-        name: Set up Docker Buildx
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      -
-        name: Get uuid
+
+      - name: Get uuid
         id: uuid
         run: echo "::set-output name=uuid::$(uuidgen)"
-      -
+
+      - name: Compute Fleet image metadata
         id: meta-fleet
         uses: docker/metadata-action@v5
         with:
           images: |
             ttl.sh/rancher/fleet-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
-      -
+
+      - name: Push Fleet image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -191,14 +200,16 @@ jobs:
           push: true
           tags: ${{ steps.meta-fleet.outputs.tags }}
           labels: ${{ steps.meta-fleet.outputs.labels }}
-      -
+
+      - name: Compute Fleet agent image metadata
         id: meta-fleet-agent
         uses: docker/metadata-action@v5
         with:
           images: |
             ttl.sh/rancher/fleet-agent-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
-      -
+
+      - name: Push Fleet agent image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -208,8 +219,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-fleet-agent.outputs.tags }}
           labels: ${{ steps.meta-fleet-agent.outputs.labels }}
-      -
-        name: Set up k3d control-plane cluster
+
+      - name: Set up k3d control-plane cluster
         uses: AbsaOSS/k3d-action@v2
         with:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
@@ -223,8 +234,8 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
-      -
-        name: Set up k3d downstream cluster
+
+      - name: Set up k3d downstream cluster
         uses: AbsaOSS/k3d-action@v2
         with:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
@@ -238,8 +249,8 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
-      -
-        name: Set up tmate debug session
+
+      - name: Set up tmate debug session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
         uses: mxschmitt/action-tmate@v3
         timeout-minutes: 15
@@ -264,15 +275,14 @@ jobs:
 
             # 3. Push charts to $chartmuseum?
             # 4. Run adapted version of setup-latest-rancher.sh
-      -
-        name: Set up latest Rancher
+      - name: Set up latest Rancher
         env:
           public_hostname: "172.18.0.1.omg.howdoi.website"
         run: |
           # TODO edit script to use test branch?
           ./.github/scripts/setup-latest-rancher.sh
-      -
-        name: Register Rancher's downstream clusters
+
+      - name: Register Rancher's downstream clusters
         env:
           public_hostname: "172.18.0.1.omg.howdoi.website"
         run: |
@@ -296,22 +306,22 @@ jobs:
         run: |
           echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
           ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}
-      -
-        name: E2E tests for examples
+
+      - name: E2E tests for examples
         env:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
           ginkgo e2e/multi-cluster
-      -
-        name: Dump failed environment
+
+      - name: Dump failed environment
         if: failure()
         run: |
           sleep 300 # DEBUG
           ./.github/scripts/dump-failed-k3ds.sh
-      -
-        name: Upload logs
+
+      - name: Upload logs
         uses: actions/upload-artifact@v4
         if: failure()
         with:
