@@ -172,4 +172,5 @@ jobs:
       ref: ${{ github.ref }}
       cluster_name: fleet-test-rancher-k3s
       destroy_runner: true
-      # TODO add chart branch and version parameters once supported by Rancher
+      charts_repo: ${{github.event.inputs.charts_repo}}
+      charts_branch: $target_branch
