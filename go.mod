@@ -33,14 +33,13 @@ require (
 	github.com/rancher/fleet/pkg/apis v0.0.0-00010101000000-000000000000
 	github.com/rancher/lasso v0.0.0-20230830164424-d684fdeb6f29
 	github.com/rancher/wrangler/v2 v2.1.2
-	github.com/reugn/go-quartz v0.11.1
+	github.com/reugn/go-quartz v0.11.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
 	github.com/testcontainers/testcontainers-go v0.28.0
 	go.uber.org/mock v0.4.0
 	golang.org/x/crypto v0.19.0
-	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
 	golang.org/x/sync v0.6.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -218,6 +217,7 @@ require (
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
+	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/mod v0.15.0 // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/oauth2 v0.17.0 // indirect

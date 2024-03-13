@@ -60,6 +60,7 @@ func (r *ImageScanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// error if the job does not exist, which we ignore.
 	tagScanKey := imagescan.TagScanKey(req.Namespace, req.Name)
 	_ = r.Scheduler.DeleteJob(tagScanKey)
+
 	err = r.Scheduler.ScheduleJob(
 		quartz.NewJobDetail(
 			imagescan.NewTagScanJob(r.Client, req.Namespace, req.Name),

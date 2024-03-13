@@ -40,26 +40,26 @@ func (m *MockGitPoller) EXPECT() *MockGitPollerMockRecorder {
 	return m.recorder
 }
 
-// AddOrModifyGitRepoWatch mocks base method.
-func (m *MockGitPoller) AddOrModifyGitRepoWatch(arg0 context.Context, arg1 v1alpha1.GitRepo) {
+// AddOrModifyGitRepoPollJob mocks base method.
+func (m *MockGitPoller) AddOrModifyGitRepoPollJob(arg0 context.Context, arg1 v1alpha1.GitRepo) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddOrModifyGitRepoWatch", arg0, arg1)
+	m.ctrl.Call(m, "AddOrModifyGitRepoPollJob", arg0, arg1)
 }
 
-// AddOrModifyGitRepoWatch indicates an expected call of AddOrModifyGitRepoWatch.
-func (mr *MockGitPollerMockRecorder) AddOrModifyGitRepoWatch(arg0, arg1 any) *gomock.Call {
+// AddOrModifyGitRepoPollJob indicates an expected call of AddOrModifyGitRepoPollJob.
+func (mr *MockGitPollerMockRecorder) AddOrModifyGitRepoPollJob(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddOrModifyGitRepoWatch", reflect.TypeOf((*MockGitPoller)(nil).AddOrModifyGitRepoWatch), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddOrModifyGitRepoPollJob", reflect.TypeOf((*MockGitPoller)(nil).AddOrModifyGitRepoPollJob), arg0, arg1)
 }
 
-// CleanUpWatches mocks base method.
-func (m *MockGitPoller) CleanUpWatches(arg0 context.Context) {
+// CleanUpGitRepoPollJobs mocks base method.
+func (m *MockGitPoller) CleanUpGitRepoPollJobs(arg0 context.Context) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CleanUpWatches", arg0)
+	m.ctrl.Call(m, "CleanUpGitRepoPollJobs", arg0)
 }
 
-// CleanUpWatches indicates an expected call of CleanUpWatches.
-func (mr *MockGitPollerMockRecorder) CleanUpWatches(arg0 any) *gomock.Call {
+// CleanUpGitRepoPollJobs indicates an expected call of CleanUpGitRepoPollJobs.
+func (mr *MockGitPollerMockRecorder) CleanUpGitRepoPollJobs(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanUpWatches", reflect.TypeOf((*MockGitPoller)(nil).CleanUpWatches), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanUpGitRepoPollJobs", reflect.TypeOf((*MockGitPoller)(nil).CleanUpGitRepoPollJobs), arg0)
 }

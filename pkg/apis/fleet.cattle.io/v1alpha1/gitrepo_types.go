@@ -129,6 +129,9 @@ type GitRepoSpec struct {
 
 	// CorrectDrift specifies how drift correction should work.
 	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
+
+	// Disables git polling. When enabled only webhooks will be used.
+	DisablePolling bool `json:"disablePolling,omitempty"`
 }
 
 // GitTarget is a cluster or cluster group to deploy to.
