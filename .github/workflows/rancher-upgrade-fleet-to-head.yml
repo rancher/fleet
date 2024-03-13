@@ -42,7 +42,7 @@ on:
         type: string
       runner_template:
         description: Runner template to use
-        default: fleet-e2e-ci-runner-spot-x86-64-template-v2
+        default: fleet-qa-e2e-ci-runner-spot-leap-15-5-x86-64-template-v1
         type: string
       zone:
         description: GCP zone to host the runner
@@ -129,6 +129,8 @@ jobs:
     runs-on: ${{ needs.create-runner.outputs.uuid }}
 
     steps:
+      - name: Add /usr/local/bin into PATH
+        run: echo "/usr/local/bin/" >> ${GITHUB_PATH}
       -
         uses: actions/checkout@v4
         with:
