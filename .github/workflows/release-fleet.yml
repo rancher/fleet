@@ -88,22 +88,25 @@ jobs:
       - name: Upload charts to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          repo: "ghcr.io/rancher/fleet"
+          repo: "ghcr.io/rancher"
           tag: "${GITHUB_REF_NAME}"
         run: |
+          # Replace rancher/fleet, rancher/fleet-agent and rancher/gitjob image names, but not eg. rancher/kubectl
           sed -i \
-              -e "s@repository:.*@repository: $repo@" \
-              -e "s/tag:.*/tag: ${VERSION}/" \
+              -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
+              -e "s/tag:.*/tag: $tag/" \
               charts/fleet/values.yaml
 
           sed -i \
-              -e "s@repository:.*@repository: $repo@" \
-              -e "s/tag: dev/tag: ${VERSION}/" \
+              -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
+              -e "s/tag: dev/tag: $tag/" \
               charts/fleet-agent/values.yaml
 
-          helm package --version="$VERSION" --app-version="$VERSION" -d ./dist ./charts/fleet
-          helm package --version="$VERSION" --app-version="$VERSION" -d ./dist ./charts/fleet-crd
-          helm package --version="$VERSION" --app-version="$VERSION" -d ./dist ./charts/fleet-agent
+          version=${tag#v}
+
+          helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet
+          helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-crd
+          helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-agent
 
           for f in $(find dist/artifacts/ -name '*.tgz'); do
             gh release upload $tag $f
