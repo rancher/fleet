@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	dockercontainer "github.com/docker/docker/api/types/container"
+	dockermount "github.com/docker/docker/api/types/mount"
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -286,11 +288,15 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 			wait.ForHTTP("/").WithPort("3000/tcp").WithStartupTimeout(startupTimeout),
 			wait.ForListeningPort("22/tcp").WithStartupTimeout(startupTimeout),
 		),
-		Mounts: testcontainers.ContainerMounts{
-			{
-				Source: testcontainers.GenericBindMountSource{HostPath: tmpDir},
-				Target: "/data",
-			},
+		HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
+			hostConfig.Mounts = []dockermount.Mount{
+				{
+					Type:   dockermount.TypeBind,
+					Source: tmpDir,
+					Target: "/data",
+				},
+			}
+
 		},
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
