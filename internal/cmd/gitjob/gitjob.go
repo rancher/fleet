@@ -71,7 +71,7 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // The Reconcile function compares the state specified by
-// the GitJob object against the actual cluster state, and then
+// the GitRepo object against the actual cluster state, and then
 // performs operations to make the cluster state reflect the state specified by
 // the user.
 //

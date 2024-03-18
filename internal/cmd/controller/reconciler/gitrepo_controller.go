@@ -5,6 +5,7 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
@@ -24,6 +25,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -41,7 +43,7 @@ type GitRepoReconciler struct {
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=gitrepos/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=gitrepos/finalizers,verbs=update
 
-// Reconcile creates bundle deployments for a bundle
+// Reconcile creates resources for a GitRepo
 // nolint:gocyclo // creates multiple owned resources
 func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("gitrepo")
@@ -86,16 +88,14 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Refresh the status
-	if gitrepo.DeletionTimestamp != nil {
-		err = grutil.SetStatusFromBundleDeployments(ctx, r.Client, gitrepo)
-		if err != nil {
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
-		}
+	err = grutil.SetStatusFromBundleDeployments(ctx, r.Client, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
+	}
 
-		err = grutil.SetStatusFromBundles(ctx, r.Client, gitrepo)
-		if err != nil {
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
-		}
+	err = grutil.SetStatusFromBundles(ctx, r.Client, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	// Ideally, this should be done in the git job reconciler, but setting the status from bundle deployments
@@ -225,14 +225,36 @@ func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}),
 		).
 		WithEventFilter(
-			// do not trigger for status changes
+			// do not trigger for GitRepo status changes
 			predicate.Or(
+				bundleStatusChangedPredicate(),
 				predicate.GenerationChangedPredicate{},
 				predicate.AnnotationChangedPredicate{},
 				predicate.LabelChangedPredicate{},
 			),
 		).
 		Complete(r)
+}
+
+// bundleStatusChangedPredicate returns true if the bundle
+// status has changed, or the bundle was created
+func bundleStatusChangedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			n, isBundle := e.ObjectNew.(*fleet.Bundle)
+			if !isBundle {
+				return false
+			}
+			o := e.ObjectOld.(*fleet.Bundle)
+			if n == nil || o == nil {
+				return false
+			}
+			return !reflect.DeepEqual(n.Status, o.Status)
+		},
+	}
 }
 
 func purgeBundles(ctx context.Context, c client.Client, gitrepo types.NamespacedName) error {
