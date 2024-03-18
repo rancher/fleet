@@ -102,7 +102,7 @@ func bindFlags() flags {
 	flag.StringVar(
 		&image,
 		"gitjob-image",
-		"rancher/gitjob:dev",
+		"rancher/fleet:dev",
 		"The gitjob image that will be used in the generated job.",
 	)
 	flag.StringVar(&listen, "listen", ":8080", "The port the webhook listens.")

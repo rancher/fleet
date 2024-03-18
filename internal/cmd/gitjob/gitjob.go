@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
+	"github.com/rancher/fleet/internal/config"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/condition"
 	"github.com/rancher/wrangler/v2/pkg/kstatus"
@@ -379,7 +380,7 @@ func (r *GitJobReconciler) computeJobSpec(ctx context.Context, gitrepo *v1alpha1
 				Containers: []corev1.Container{
 					{
 						Name:         "fleet",
-						Image:        "rancher/gitjob:dev",
+						Image:        config.DefaultManagerImage,
 						Command:      []string{"log.sh"},
 						Args:         append(args, paths...),
 						WorkingDir:   "/workspace/source",

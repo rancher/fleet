@@ -208,47 +208,6 @@ dockers:
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/arm64/v8"
     extra_files: [ "package/log.sh" ]
-  # fleet-gitjob images
-  -
-    use: buildx
-    goos: linux
-    goarch: amd64
-    ids:
-    - fleet-gitcloner
-    - fleet-gitjob
-    image_templates:
-    - "ghcr.io/rancher/fleet-gitjob:{{ .Tag }}-linux-amd64"
-    dockerfile: package/Dockerfile.gitjob
-    build_flag_templates:
-    - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=amd64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/amd64"
-  -
-    use: buildx
-    goos: linux
-    goarch: arm64
-    ids:
-    - fleet-gitcloner
-    - fleet-gitjob
-    image_templates:
-    - "ghcr.io/rancher/fleet-gitjob:{{ .Tag }}-linux-arm64"
-    dockerfile: package/Dockerfile.gitjob
-    build_flag_templates:
-    - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.title={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
-    - "--build-arg=ARCH=arm64"
-    - "--build-arg=BUILD_ENV=goreleaser"
-    - "--platform=linux/arm64/v8"
 
 docker_manifests:
   # https://goreleaser.com/customization/docker_manifest/
@@ -261,8 +220,3 @@ docker_manifests:
     image_templates:
     - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
     - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
-
-  - name_template: "ghcr.io/rancher/fleet-gitjob:{{ .Tag }}"
-    image_templates:
-    - "ghcr.io/rancher/fleet-gitjob:{{ .Tag }}-linux-amd64"
-    - "ghcr.io/rancher/fleet-gitjob:{{ .Tag }}-linux-arm64"
