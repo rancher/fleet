@@ -1,8 +1,7 @@
 ARG BUILD_ENV=dapper
 ARG ARCH
 
-FROM --platform=linux/$ARCH registry.suse.com/suse/git:2.35 AS base
-COPY package/log.sh /usr/bin/
+FROM --platform=linux/$ARCH registry.suse.com/bci/bci-busybox:15.5 AS base
 # Create non-root user and group
 RUN echo "fleet-apply:x:1000:1000::/home/fleet-apply:/bin/bash" >> /etc/passwd && \
     echo "fleet-apply:x:1000:" >> /etc/group && \
@@ -12,12 +11,10 @@ RUN echo "fleet-apply:x:1000:1000::/home/fleet-apply:/bin/bash" >> /etc/passwd &
 FROM base AS copy_dapper
 ONBUILD ARG ARCH
 ONBUILD COPY bin/fleetagent-linux-$ARCH /usr/bin/fleetagent
-ONBUILD COPY bin/fleet-linux-$ARCH /usr/bin/fleet
 
 FROM base AS copy_buildx
 ONBUILD ARG TARGETARCH
 ONBUILD COPY bin/fleetagent-linux-$TARGETARCH /usr/bin/fleetagent
-ONBUILD COPY bin/fleet-linux-$TARGETARCH /usr/bin/fleet
 
 FROM base AS copy_goreleaser
 ONBUILD ARG ARCH

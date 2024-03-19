@@ -14,12 +14,12 @@ spec:
     spec:
       serviceAccountName: gitjob
       containers:
-        - image: "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag }}"
+        - image: "{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           name: gitjob
           args:
           - gitjob
           - --gitjob-image
-          - "{{ template "system_default_registry" . }}{{ .Values.gitjob.repository }}:{{ .Values.gitjob.tag }}"
+          - "{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           {{- if .Values.debug }}
           - --debug
           {{- end }}
@@ -40,11 +40,11 @@ spec:
             - name: CATTLE_DEV_MODE
               value: "true"
           {{- end }}
-      {{- with .Values.gitjob.tolerations }}
+      {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.gitjob.nodeSelector }}
+      {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}

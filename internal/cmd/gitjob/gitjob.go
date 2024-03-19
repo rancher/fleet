@@ -380,7 +380,7 @@ func (r *GitJobReconciler) computeJobSpec(ctx context.Context, gitrepo *v1alpha1
 				Containers: []corev1.Container{
 					{
 						Name:         "fleet",
-						Image:        config.DefaultAgentImage,
+						Image:        config.DefaultManagerImage,
 						Command:      []string{"log.sh"},
 						Args:         append(args, paths...),
 						WorkingDir:   "/workspace/source",
