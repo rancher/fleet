@@ -10,7 +10,7 @@ scms:
       repository: fleet
       token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
       username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
-      branch: master
+      branch: main
 
 sources:
   fleet:
