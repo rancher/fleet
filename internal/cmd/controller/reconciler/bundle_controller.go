@@ -31,7 +31,7 @@ type BundleQuery interface {
 }
 
 type Store interface {
-	Store(context.Context, *manifest.Manifest) (string, error)
+	Store(context.Context, *manifest.Manifest) error
 }
 
 type TargetBuilder interface {
@@ -103,7 +103,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// the `helm.Chart` field, change which resources are used. The
 		// agents have access to all resources and use their specific
 		// set of `BundleDeploymentOptions`.
-		_, err := r.Store.Store(ctx, manifest)
+		err := r.Store.Store(ctx, manifest)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
