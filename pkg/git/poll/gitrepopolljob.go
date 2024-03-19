@@ -65,11 +65,11 @@ func (j *GitRepoPollJob) fetchLatestCommitAndUpdateStatus(ctx context.Context) {
 	logger := ctrl.Log.WithName("git-latest-commit-poll-watch")
 	commit, err := j.fetcher.LatestCommit(ctx, &j.GitRepo, j.client)
 	if err != nil {
-		logger.Error(err, "error fetching commit", "gitrepo_name", j.GitRepo.Name)
+		logger.Error(err, "error fetching commit", "gitrepo", j.GitRepo)
 		return
 	}
 	if j.GitRepo.Status.Commit != commit {
-		logger.Info("new commit found", "gitrepo name", j.GitRepo.Name, "commit", commit)
+		logger.Info("new commit found", "gitrepo", j.GitRepo, "commit", commit)
 		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			var gitRepoFromCluster v1alpha1.GitRepo
 			err := j.client.Get(ctx, types.NamespacedName{Name: j.GitRepo.Name, Namespace: j.GitRepo.Namespace}, &gitRepoFromCluster)

@@ -2,7 +2,7 @@ package poll
 
 import (
 	"context"
-	"fmt"
+	stderrors "errors"
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -65,15 +65,15 @@ func (h *Handler) AddOrModifyGitRepoPollJob(ctx context.Context, gitRepo v1alpha
 			// if polling is disabled, just delete the job from the scheduler
 			err = h.scheduler.DeleteJob(gitRepoPollKey)
 			if err != nil {
-				h.log.Error(err, fmt.Sprintf("Error deleting job %s", gitRepoPollKey))
+				h.log.Error(err, "error deleting the job", "job", gitRepoPollKey)
 			}
 			return
 		}
 		job := scheduledJob.JobDetail().Job()
 		gitRepoPollJob, ok := job.(*GitRepoPollJob)
 		if !ok {
-			h.log.Error(fmt.Errorf("invalid job"),
-				fmt.Sprintf("Error getting Gitrepo poll job, the scheduled job: %s is not a GitRepoPollJob", job.Description()))
+			h.log.Error(stderrors.New("invalid job"),
+				"error getting Gitrepo poll job, the scheduled job is not a GitRepoPollJob", "job", job.Description())
 			return
 		}
 		previousInterval := gitRepoPollJob.GitRepo.Spec.PollingInterval
@@ -97,7 +97,7 @@ func (h *Handler) CleanUpGitRepoPollJobs(ctx context.Context) {
 		if err := h.client.Get(ctx, namespacedName, &gitRepo); errors.IsNotFound(err) {
 			err = h.scheduler.DeleteJob(key)
 			if err != nil {
-				h.log.Error(err, fmt.Sprintf("Error deleting job %s", key))
+				h.log.Error(err, "error deleting job", "job", key)
 			}
 		}
 	}
@@ -121,6 +121,6 @@ func (h *Handler) scheduleJob(ctx context.Context, jobKey *quartz.JobKey, gitRep
 	err := h.scheduler.ScheduleJob(quartz.NewJobDetail(job, jobKey),
 		quartz.NewSimpleTrigger(calculateSyncInterval(gitRepo)))
 	if err != nil {
-		h.log.Error(err, fmt.Sprintf("Error scheduling job %s: %v", jobKey, err))
+		h.log.Error(err, "error scheduling job", "job", jobKey)
 	}
 }
