@@ -47,8 +47,8 @@ const (
 var two = int32(2)
 
 type GitPoller interface {
-	AddOrModifyGitRepoWatch(ctx context.Context, gitRepo v1alpha1.GitRepo)
-	CleanUpWatches(ctx context.Context)
+	AddOrModifyGitRepoPollJob(ctx context.Context, gitRepo v1alpha1.GitRepo)
+	CleanUpGitRepoPollJobs(ctx context.Context)
 }
 
 // CronJobReconciler reconciles a GitJob object
@@ -83,11 +83,11 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, &gitRepo); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if errors.IsNotFound(err) {
-		r.GitPoller.CleanUpWatches(ctx)
+		r.GitPoller.CleanUpGitRepoPollJobs(ctx)
 		return ctrl.Result{}, nil
 	}
 
-	r.GitPoller.AddOrModifyGitRepoWatch(ctx, gitRepo)
+	r.GitPoller.AddOrModifyGitRepoPollJob(ctx, gitRepo)
 
 	var job batchv1.Job
 	err := r.Get(ctx, types.NamespacedName{

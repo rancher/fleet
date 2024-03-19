@@ -5737,6 +5737,10 @@ spec:
                         in the helm history.
                       type: boolean
                   type: object
+                disablePolling:
+                  description: Disables git polling. When enabled only webhooks will
+                    be used.
+                  type: boolean
                 forceSyncGeneration:
                   description: Increment this number to force a redeployment of contents
                     from Git.

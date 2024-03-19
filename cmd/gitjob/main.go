@@ -72,7 +72,7 @@ func run(ctx context.Context) error {
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Image:     flags.image,
-		GitPoller: poll.NewHandler(mgr.GetClient()),
+		GitPoller: poll.NewHandler(ctx, mgr.GetClient()),
 		Log:       ctrl.Log.WithName("gitjob-reconciler"),
 	}
 
