@@ -8,7 +8,7 @@ on:
       ref:
         description: "checkout git branch/tag"
         required: true
-        default: "master"
+        default: "main"
       keep_cluster:
         description: "Keep the cluster afterwards?"
         required: false

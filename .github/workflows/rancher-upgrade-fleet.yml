@@ -7,7 +7,7 @@ on:
       ref:
         description: "checkout git branch/tag"
         required: true
-        default: "master"
+        default: "main"
       enable_tmate:
         description: 'Enable debugging via tmate'
         required: false

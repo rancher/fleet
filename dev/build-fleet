@@ -12,7 +12,7 @@ export GOARCH="${GOARCH:-amd64}"
 export CGO_ENABLED=0
 
 # re-generate code
-if ! git diff --quiet HEAD origin/master --  pkg/apis/fleet.cattle.io/v1alpha1; then
+if ! git diff --quiet HEAD origin/main --  pkg/apis/fleet.cattle.io/v1alpha1; then
   go generate
 fi
 
