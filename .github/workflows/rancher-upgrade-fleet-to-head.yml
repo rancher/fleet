@@ -27,7 +27,7 @@ env:
   SETUP_K3S_VERSION: 'v1.26.8-k3s1'
 
 jobs:
-  rancher-integration:
+  rancher-fleet-integration:
     runs-on: ubuntu-latest
 
     steps:
