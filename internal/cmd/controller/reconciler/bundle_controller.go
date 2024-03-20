@@ -31,7 +31,7 @@ type BundleQuery interface {
 }
 
 type Store interface {
-	Store(context.Context, *manifest.Manifest) (string, error)
+	Store(context.Context, *manifest.Manifest) error
 }
 
 type TargetBuilder interface {
@@ -81,17 +81,32 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 	bundle.Status.ResourcesSHA256Sum = manifestDigest
 
-	// this does not need to happen after merging the
-	// BundleDeploymentOptions, since 'fleet apply' already put the right
-	// resources into bundle.Spec.Resources
-	manifestID, err := r.Store.Store(ctx, manifest)
+	manifestID, err := manifest.ID()
 	if err != nil {
+		// this should never happen, since manifest.SHASum() cached the result and worked above.
 		return ctrl.Result{}, err
 	}
 
 	matchedTargets, err := r.Builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// do not create a content resource if there are no targets, it will
+	// only create work for `PurgeOrphanedInBackground`.
+	if len(matchedTargets) > 0 {
+		// `fleet apply` puts all resources into `bundle.Spec.Resources`.
+		// `Store` copies all the resources into the content resource.
+		// There is no pruning of unused resources. Therefore we write
+		// the content resource immediately, even though
+		// `BundleDeploymentOptions`, e.g. `targetCustomizations` on
+		// the `helm.Chart` field, change which resources are used. The
+		// agents have access to all resources and use their specific
+		// set of `BundleDeploymentOptions`.
+		err := r.Store.Store(ctx, manifest)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	if err := resetStatus(&bundle.Status, matchedTargets); err != nil {

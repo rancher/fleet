@@ -22,21 +22,21 @@ type ContentStore struct {
 	client client.Client
 }
 
-// Store stores the manifest as a content resource and returns the name.
+// Store stores the manifest as a content resource.
 // It copies the resources from the bundle to the content resource.
-func (c *ContentStore) Store(ctx context.Context, manifest *Manifest) (string, error) {
+func (c *ContentStore) Store(ctx context.Context, manifest *Manifest) error {
 	id, err := manifest.ID()
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if err := c.client.Get(ctx, types.NamespacedName{Name: id}, &fleet.Content{}); err != nil && !apierrors.IsNotFound(err) {
-		return "", err
+		return err
 	} else if err == nil {
-		return id, nil
+		return nil
 	}
 
-	return id, c.createContents(ctx, id, manifest)
+	return c.createContents(ctx, id, manifest)
 }
 
 func (c *ContentStore) createContents(ctx context.Context, id string, manifest *Manifest) error {
