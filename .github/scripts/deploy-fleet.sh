@@ -10,7 +10,7 @@ function eventually {
 }
 
 # usage: ./deploy-fleet.sh ghcr.io/rancher/fleet:sha-49f6f81 ghcr.io/rancher/fleet-agent:1h
-if [ $# -ge 3 ] && [ -n "$1" ] && [ -n "$2" ] && [ -n "$3" ]; then
+if [ $# -ge 2 ] && [ -n "$1" ] && [ -n "$2" ]; then
   fleetRepo="${1%:*}"
   fleetTag="${1#*:}"
   agentRepo="${2%:*}"
