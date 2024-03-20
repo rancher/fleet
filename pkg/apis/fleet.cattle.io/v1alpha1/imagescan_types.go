@@ -62,6 +62,13 @@ type ImageScanSpec struct {
 	// +nullable
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 
+	// CABundleRef can be given the name of a ConfigMap containing a TLS CA to
+	// be used when connecting to the Image Registry.
+	//
+	// The ConfigMap should have a key `ca.crt` with a PEM encoded CA bundle.
+	// +nullable
+	CABundleRef *corev1.LocalObjectReference `json:"caBundleRef,omitempty"`
+
 	// This flag tells the controller to suspend subsequent image scans.
 	// It does not apply to already started scans. Defaults to false.
 	// +optional

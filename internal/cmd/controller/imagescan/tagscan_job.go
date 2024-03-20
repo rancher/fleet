@@ -5,9 +5,12 @@ package imagescan
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -35,6 +38,8 @@ import (
 const (
 	// AlphabeticalOrderDesc descending order
 	AlphabeticalOrderDesc = "DESC"
+
+	caCertKey = "ca.crt"
 )
 
 var _ quartz.Job = &TagScanJob{}
@@ -129,13 +134,35 @@ func (j *TagScanJob) updateImageTags(ctx context.Context) {
 			logger.Error(err, "Failed to build auth info from secret")
 			return
 		}
-		options = append(options, remote.WithAuth(auth))
+		if auth != nil {
+			options = append(options, remote.WithAuth(auth))
+		}
+	}
+
+	if image.Spec.CABundleRef != nil {
+		configMap := &corev1.ConfigMap{}
+		err := j.client.Get(ctx, types.NamespacedName{
+			Namespace: image.Namespace,
+			Name:      image.Spec.CABundleRef.Name,
+		}, configMap)
+		if err != nil {
+			err = j.updateErrorStatus(ctx, image, err)
+			logger.Error(err, "Failed to get referenced CA bundle")
+			return
+		}
+
+		caTransport := transportFromConfigMap(configMap)
+		if caTransport != nil {
+			options = append(options, remote.WithTransport(caTransport))
+		}
 	}
 
 	tags, err := remote.List(ref.Context(), append(options, remote.WithContext(ctx))...)
 	if err != nil {
-		err = j.updateErrorStatus(ctx, image, err)
 		logger.Error(err, "Failed to list remote tags")
+		if err := j.updateErrorStatus(ctx, image, err); err != nil {
+			logger.Error(err, "Failed to update status")
+		}
 		return
 	}
 
@@ -192,6 +219,7 @@ func (j *TagScanJob) updateErrorStatus(ctx context.Context, image *fleet.ImageSc
 	if err != nil {
 		merr = append(merr, err)
 	}
+
 	return errutil.NewAggregate(merr)
 }
 
@@ -229,16 +257,43 @@ func getDigest(image string, options ...remote.Option) (string, error) {
 	return digest.String(), nil
 }
 
+// transportFromConfigMap creates an http.RoundTripper that can be used as a
+// transport for the registry client.
+//
+// If the secret does not contain a caCertKey no transport will be returned and
+// the client should default to the default transport.
+// The returned transport will be based on remote.DefaultTransport.
+func transportFromConfigMap(configMap *corev1.ConfigMap) http.RoundTripper {
+	ca, ok := configMap.Data[caCertKey]
+	if !ok {
+		return nil
+	}
+
+	caPool := x509.NewCertPool()
+	_ = caPool.AppendCertsFromPEM([]byte(ca))
+
+	newTransport := *remote.DefaultTransport.(*http.Transport).Clone()
+	newTransport.TLSClientConfig = &tls.Config{
+		RootCAs:    caPool,
+		MinVersion: tls.VersionTLS12,
+	}
+
+	return &newTransport
+}
+
 // authFromSecret creates an Authenticator that can be given to the
 // `remote` funcs, from a Kubernetes secret. If the secret doesn't
 // have the right format or data, it returns an error.
 func authFromSecret(secret *corev1.Secret, registry string) (authn.Authenticator, error) {
 	switch secret.Type {
-	case "kubernetes.io/dockerconfigjson":
+	case corev1.SecretTypeDockerConfigJson:
 		var dockerconfig struct {
 			Auths map[string]authn.AuthConfig
 		}
-		configData := secret.Data[".dockerconfigjson"]
+		configData, ok := secret.Data[".dockerconfigjson"]
+		if !ok {
+			return nil, nil
+		}
 		if err := json.NewDecoder(bytes.NewBuffer(configData)).Decode(&dockerconfig); err != nil {
 			return nil, err
 		}

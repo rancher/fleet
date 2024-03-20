@@ -1736,6 +1736,11 @@ func (in *ImageScanSpec) DeepCopyInto(out *ImageScanSpec) {
 		*out = new(corev1.LocalObjectReference)
 		**out = **in
 	}
+	if in.CABundleRef != nil {
+		in, out := &in.CABundleRef, &out.CABundleRef
+		*out = new(corev1.LocalObjectReference)
+		**out = **in
+	}
 	in.Policy.DeepCopyInto(&out.Policy)
 }
 

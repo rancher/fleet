@@ -6432,6 +6432,27 @@ spec:
             spec:
               description: API is taken from https://github.com/fluxcd/image-reflector-controller
               properties:
+                caBundleRef:
+                  description: 'CABundleRef can be given the name of a ConfigMap containing
+                    a TLS CA to
+
+                    be used when connecting to the Image Registry.
+
+
+
+                    The ConfigMap should have a key `ca.crt` with a PEM encoded CA
+                    bundle.'
+                  nullable: true
+                  properties:
+                    name:
+                      description: 'Name of the referent.
+
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+
+                        TODO: Add other useful fields. apiVersion, kind, uid?'
+                      type: string
+                  type: object
+                  x-kubernetes-map-type: atomic
                 gitrepoName:
                   description: GitRepo reference name
                   nullable: true
