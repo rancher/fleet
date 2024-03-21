@@ -39,12 +39,12 @@ jobs:
           args: --timeout=10m --config=.golangci.json
 
       - name: Run FOSSA scan
-        uses: fossas/fossa-action@v1.3.1
+        uses: fossas/fossa-action@v1.3.3
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
 
       - name: Run FOSSA tests
-        uses: fossas/fossa-action@v1.3.1
+        uses: fossas/fossa-action@v1.3.3
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
           run-tests: true
