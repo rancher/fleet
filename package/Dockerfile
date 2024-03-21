@@ -6,8 +6,6 @@ COPY package/log.sh /usr/bin/
 RUN zypper -n update && \
     zypper -n install openssh catatonit git-core && \
     zypper -n clean -a
-RUN groupadd -g 1000 fleet-apply
-RUN useradd -u 1000 -U -m gitjob
 
 FROM base AS copy_dapper
 ONBUILD ARG ARCH
@@ -31,7 +29,6 @@ ONBUILD COPY gitjob-linux-$ARCH /usr/bin/gitjob
 ONBUILD COPY gitcloner-linux-$ARCH /usr/bin/gitcloner
 
 FROM copy_${BUILD_ENV}
-RUN useradd fleet-apply -u 1001 -G fleet-apply
 USER 1000
 ENTRYPOINT ["catatonit", "--"]
 CMD ["fleetcontroller"]
