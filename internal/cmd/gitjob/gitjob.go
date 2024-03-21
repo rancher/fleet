@@ -13,7 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
-	"github.com/rancher/fleet/internal/config"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/condition"
 	"github.com/rancher/wrangler/v2/pkg/kstatus"
@@ -51,7 +50,7 @@ type GitPoller interface {
 	CleanUpGitRepoPollJobs(ctx context.Context)
 }
 
-// CronJobReconciler reconciles a GitJob object
+// CronJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
 type GitJobReconciler struct {
 	client.Client
 	Scheme    *runtime.Scheme
@@ -380,7 +379,7 @@ func (r *GitJobReconciler) computeJobSpec(ctx context.Context, gitrepo *v1alpha1
 				Containers: []corev1.Container{
 					{
 						Name:         "fleet",
-						Image:        config.DefaultManagerImage,
+						Image:        r.Image,
 						Command:      []string{"log.sh"},
 						Args:         append(args, paths...),
 						WorkingDir:   "/workspace/source",
