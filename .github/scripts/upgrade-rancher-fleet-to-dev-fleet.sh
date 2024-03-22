@@ -29,6 +29,7 @@ until helm -n cattle-fleet-system status fleet | grep -q "STATUS: deployed"; do 
 sed -i 's/^version: 0/version: 9000/' charts/fleet/Chart.yaml
 
 helm upgrade fleet charts/fleet \
+  --reset-then-reuse-values \
   --wait -n cattle-fleet-system \
   --create-namespace \
   --set image.repository="$fleetRepo" \
