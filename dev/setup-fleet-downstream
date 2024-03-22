@@ -54,13 +54,14 @@ else
 fi
 
 # docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'
-public_hostname="${public_hostname-172.17.0.1.omg.howdoi.website}"
+# public_hostname="${public_hostname-172.17.0.1.omg.howdoi.website}"
+public_hostname="k3d-upstream-server-0" # works due to same network and patches SAN cert
 
 kubectl config use-context "$downstream_ctx"
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \
   --set-string labels.env=test \
   --set apiServerCA="$ca" \
-  --set apiServerURL="https://$public_hostname:36443" \
+  --set apiServerURL="https://$public_hostname:6443" \
   --set clusterNamespace="$ns" \
   --set token="$token"
   #--set systemRegistrationNamespace="fleet-clusters-system" \
