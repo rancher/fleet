@@ -179,16 +179,19 @@ func (h *handler) OnBundleChange(bundle *fleet.Bundle, status fleet.BundleStatus
 		return nil, status, err
 	}
 
-	// this does not need to happen after merging the
-	// BundleDeploymentOptions, since 'fleet apply' already put the right
-	// resources into bundle.Spec.Resources
-	if _, err := h.targets.StoreManifest(manifest); err != nil {
-		return nil, status, err
-	}
-
 	matchedTargets, err := h.targets.Targets(bundle, manifest)
 	if err != nil {
 		return nil, status, err
+	}
+
+	// Only create the Contents object if there are matching targets/ BundleDeployments will be created
+	if len(matchedTargets) > 0 {
+		// this does not need to happen after merging the
+		// BundleDeploymentOptions, since 'fleet apply' already put the right
+		// resources into bundle.Spec.Resources
+		if _, err := h.targets.StoreManifest(manifest); err != nil {
+			return nil, status, err
+		}
 	}
 
 	if err := h.updateStatusAndTargets(&status, matchedTargets); err != nil {
