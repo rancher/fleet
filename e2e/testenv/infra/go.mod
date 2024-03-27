@@ -10,7 +10,7 @@ require (
 	github.com/rancher/fleet v0.9.0-rc.4.0.20240208111910-ad2d2d829a12
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/crypto v0.19.0
-	helm.sh/helm/v3 v3.14.1
+	helm.sh/helm/v3 v3.14.3
 )
 
 require (
@@ -20,11 +20,11 @@ require (
 	github.com/Microsoft/hcsshim v0.11.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/containerd/containerd v1.7.11 // indirect
+	github.com/containerd/containerd v1.7.12 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/docker/cli v24.0.6+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
-	github.com/docker/docker v24.0.7+incompatible // indirect
+	github.com/docker/docker v24.0.9+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
@@ -63,7 +63,7 @@ require (
 	golang.org/x/tools v0.16.1 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
 	google.golang.org/grpc v1.58.3 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	k8s.io/client-go v12.0.0+incompatible // indirect
 	oras.land/oras-go v1.2.4 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
