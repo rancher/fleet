@@ -14,11 +14,15 @@ import (
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -68,10 +72,62 @@ var _ = BeforeSuite(func() {
 
 	config.Set(config.DefaultConfig())
 
+	systemNamespace := "default"
+
+	// try GET
+	cluster, err := cluster.New(cfg, func(clusterOptions *cluster.Options) {
+		clusterOptions.Scheme = scheme.Scheme
+		clusterOptions.Cache = cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.ConfigMap{}: {
+					Namespaces: map[string]cache.Config{
+						systemNamespace: {},
+					},
+				},
+			},
+			DefaultNamespaces: map[string]cache.Config{cache.AllNamespaces: {}},
+		}
+	})
+	Expect(err).NotTo(HaveOccurred())
+	go func() {
+		err := cluster.GetCache().Start(ctx)
+		Expect(err).NotTo(HaveOccurred())
+	}()
+	cluster.GetCache().WaitForCacheSync(ctx)
+
+	cl := cluster.GetClient()
+	cl.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}})
+	Expect(err).NotTo(HaveOccurred())
+	err = cl.Get(ctx, client.ObjectKey{Name: "test", Namespace: "default"}, &corev1.ConfigMap{})
+	Expect(err).NotTo(HaveOccurred())
+
+	cl.Create(ctx, &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}})
+	err = cl.Get(ctx, client.ObjectKey{Name: "test", Namespace: "default"}, &corev1.ServiceAccount{})
+	Expect(err).NotTo(HaveOccurred())
+
+	err = cl.List(ctx, &corev1.ConfigMapList{}, client.InNamespace("default"))
+	Expect(err).NotTo(HaveOccurred())
+
+	err = cl.List(ctx, &corev1.ServiceAccountList{}, client.InNamespace("default"))
+	Expect(err).NotTo(HaveOccurred())
+
+	// try LIST
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:         scheme.Scheme,
 		LeaderElection: false,
 		Metrics:        metricsserver.Options{BindAddress: "0"},
+		// See https://github.com/kubernetes-sigs/controller-runtime/blob/main/designs/cache_options.md for more details
+		Cache: cache.Options{
+			// restrict ListWatch for configmaps to the fleet namespace, e.g. cattle-fleet-system
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.ConfigMap{}: {
+					Namespaces: map[string]cache.Config{
+						systemNamespace: {},
+					},
+				},
+			},
+			DefaultNamespaces: map[string]cache.Config{cache.AllNamespaces: {}},
+		},
 	})
 	Expect(err).ToNot(HaveOccurred())
 
