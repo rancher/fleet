@@ -3,6 +3,7 @@ package singlecluster_test
 import (
 	"strings"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 
@@ -96,5 +97,45 @@ var _ = Describe("Single Cluster Deployments", func() {
 				}).Should(ContainSubstring("mp-app-service"))
 			})
 		})
+		// This test fails from v0.9.1-rc.2 to v0.9.1-rc.6 due to issue:
+		// https://github.com/rancher/fleet/issues/2128
+		Context("containing multiple deployments", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/helm-status-check.yaml"
+			})
+
+			It("all deployments are ready and status shown is Ready", func() {
+				Eventually(func() bool {
+					slowtestReady := checkNReplicasAreReady(k, "fleet-helm-example", "slowtest", "2")
+					return slowtestReady
+				}).Should(Equal(true))
+
+				Eventually(func() bool {
+					return checkBundleReady(k, "fleet-local", "sample-helm-deployment-status")
+				}).Should(Equal(true))
+
+				Eventually(func() bool {
+					return checkGitRepoReady(k, "fleet-local", "sample")
+				}).Should(Equal(true))
+			})
+		})
 	})
 })
+
+func checkNReplicasAreReady(k kubectl.Command, namespace, deployment, nreplicas string) bool {
+	replicas, _ := k.Namespace(namespace).Get("deployment", deployment, `-o=jsonpath={.status.replicas}`)
+	readyReplicas, _ := k.Namespace(namespace).Get("deployment", deployment, `-o=jsonpath={.status.readyReplicas}`)
+	return govalidator.IsInt(replicas) && govalidator.IsInt(readyReplicas) && replicas == readyReplicas && replicas == nreplicas
+}
+
+func checkBundleReady(k kubectl.Command, namespace, bundle string) bool {
+	desiredReady, _ := k.Namespace(namespace).Get("bundle", bundle, `-o=jsonpath={.status.summary.desiredReady}`)
+	ready, _ := k.Namespace(namespace).Get("bundle", bundle, `-o=jsonpath={.status.summary.ready}`)
+	return govalidator.IsInt(desiredReady) && govalidator.IsInt(ready) && ready == desiredReady
+}
+
+func checkGitRepoReady(k kubectl.Command, namespace, gitrepo string) bool {
+	desiredReady, _ := k.Namespace(namespace).Get("gitrepo", gitrepo, `-o=jsonpath={.status.summary.desiredReady}`)
+	ready, _ := k.Namespace(namespace).Get("gitrepo", gitrepo, `-o=jsonpath={.status.summary.ready}`)
+	return govalidator.IsInt(desiredReady) && govalidator.IsInt(ready) && ready == desiredReady
+}
