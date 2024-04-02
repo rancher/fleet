@@ -1,9 +1,6 @@
 {
   "run": {
-    "deadline": "20s",
-    "skip-files": [
-      "/zz_generated_"
-    ]
+    "timeout": "20s"
   },
   "linters-settings": {
     "revive": {
