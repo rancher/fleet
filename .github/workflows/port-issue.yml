@@ -59,7 +59,7 @@ jobs:
           if [[ $MILESTONE =~ (v[0-9]\.[0-9]+) ]]; then
               NEW_TITLE="[${TYPE} ${BASH_REMATCH[1]}] ${ORIGINAL_TITLE}"
           fi
-          ORIGINAL_LABELS=$(gh issue view -R ${GITHUB_REPOSITORY} ${ORIGINAL_ISSUE_NUMBER} --json labels --jq '.labels[].name' | grep -v '^\[zube\]:' | paste -sd "," -)
+          ORIGINAL_LABELS=$(gh issue view -R ${GITHUB_REPOSITORY} ${ORIGINAL_ISSUE_NUMBER} --json labels --jq '.labels[].name' | paste -sd "," -)
           if [ -n "$ORIGINAL_LABELS" ]; then
               additional_cmd+=("--label")
               additional_cmd+=("${ORIGINAL_LABELS}")
