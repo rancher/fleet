@@ -26,5 +26,4 @@ const (
 	// deployed resources for changes
 	TriggerSleep          = time.Second * 5
 	DefaultCpuPprofPeriod = time.Minute
-	ReleaseCacheTTL       = time.Minute * 5
 )
