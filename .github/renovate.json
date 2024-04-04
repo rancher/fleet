@@ -8,5 +8,9 @@
   "prHourlyLimit": 2,
   "ignorePaths": [
     "**/assets/**"
-  ]
+  ],
+  "force": {
+    "constraints": {
+    }
+  }
 }
