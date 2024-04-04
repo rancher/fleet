@@ -44,6 +44,10 @@ var _ = Describe("Bundle Depends On", Label("difficult"), func() {
 	})
 
 	AfterEach(func() {
+		if namespace == "" {
+			// test failed in BeforeEach
+			return
+		}
 		out, err := k.Delete("ns", namespace)
 		Expect(err).ToNot(HaveOccurred(), out)
 
