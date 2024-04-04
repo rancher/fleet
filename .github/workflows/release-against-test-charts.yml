@@ -9,7 +9,7 @@ on:
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
         required: true
-        default: "dev-v2.8"
+        default: "dev-v2.9"
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
         required: true
@@ -18,7 +18,7 @@ on:
         description: "Use the following branch as a destination when pushing to the charts repo"
   push:
     branches:
-      - 'test-fleet-in-latest-rancher' # hack to enable the workflow
+      - '1640-release-fleet-against-test-charts' # hack to enable the workflow
 
 env:
   GOARCH: amd64
