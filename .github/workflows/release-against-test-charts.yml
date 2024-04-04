@@ -105,25 +105,6 @@ jobs:
           tags: ${{ steps.meta-fleet-agent.outputs.tags }}
           labels: ${{ steps.meta-fleet-agent.outputs.labels }}
 
-      - name: Extract metadata for gitjob image
-        id: meta-gitjob
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ttl.sh/rancher-gitjob-${{ steps.uuid.outputs.uuid }}
-          tags: type=raw,value=1h
-
-      - name: Build and push gitjob image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./fleet
-          file: ./fleet/package/Dockerfile.gitjob
-          build-args: |
-            ARCH=${{ env.GOARCH }}
-          push: true
-          tags: ${{ steps.meta-gitjob.outputs.tags }}
-          labels: ${{ steps.meta-gitjob.outputs.labels }}
-
       - name: Checkout test charts repo
         uses: actions/checkout@v4
         with:
