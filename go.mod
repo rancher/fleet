@@ -33,7 +33,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rancher/fleet/pkg/apis v0.0.0-00010101000000-000000000000
 	github.com/rancher/lasso v0.0.0-20240325194215-0064abcb8aee
-	github.com/rancher/wrangler/v2 v2.1.2
+	github.com/rancher/wrangler/v2 v2.1.4
 	github.com/reugn/go-quartz v0.11.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.0
