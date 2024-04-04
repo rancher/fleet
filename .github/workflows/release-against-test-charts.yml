@@ -165,15 +165,3 @@ jobs:
         run: |
           cd charts
           git push -u origin $target_branch
-
-  test-fleet-in-rancher:
-    uses: ./.github/workflows/rancher-integration.yml
-    secrets:
-      credentials: ${{ secrets.CI_GOOGLE_CREDENTIALS }}
-      pat_token: ${{ secrets.GITHUB_TOKEN }}
-    with:
-      ref: ${{ github.ref }}
-      cluster_name: fleet-test-rancher-k3s
-      destroy_runner: true
-      charts_repo: ${{github.event.inputs.charts_repo}}
-      charts_branch: $target_branch
