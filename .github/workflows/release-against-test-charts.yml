@@ -16,9 +16,6 @@ on:
         default: "fleetrepoci/charts"
       charts_target_branch:
         description: "Use the following branch as a destination when pushing to the charts repo"
-  push:
-    branches:
-      - '1640-release-fleet-against-test-charts' # hack to enable the workflow
 
 env:
   GOARCH: amd64
