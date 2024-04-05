@@ -7,11 +7,11 @@ This section contains information on releasing Fleet.
 
 ## Cherry Picking Bug Fixes To Releases
 
-With releases happening on release branches, there are times where a bug fix needs to be handled on the `master` branch and pulled into a release that happens through a release branch.
+With releases happening on release branches, there are times where a bug fix needs to be handled on the `main` branch and pulled into a release that happens through a release branch.
 
-All bug fixes should first happen on the `master` branch.
+All bug fixes should first happen on the `main` branch.
 
-If a bug fix needs to be brought into a release, such as during the release candidate phase, it should be cherry picked from the `master` branch to the release branch via a pull request. The pull request should be prefixed with the major and minor version for the release (e.g., `[v0.4]`) to illustrate it's for a release branch.
+If a bug fix needs to be brought into a release, such as during the release candidate phase, it should be cherry picked from the `main` branch to the release branch via a pull request. The pull request should be prefixed with the major and minor version for the release (e.g., `[v0.4]`) to illustrate it's for a release branch.
 
 After merge verify that the Github Action test runs for the release branch were successful.
 
@@ -26,7 +26,7 @@ After merge verify that the Github Action test runs for the release branch were 
 
 ## Release Candidates
 
-1. Checkout the release branch (e.g., `release-0.4`) or create it based off of the latest `master` branch. The branch name should be the first 2 parts of the semantic version with `release-` prepended.
+1. Checkout the release branch (e.g., `release-0.4`) or create it based off of the latest `main` branch. The branch name should be the first 2 parts of the semantic version with `release-` prepended.
 1. Use `git tag` and append the tag from the **Pre-Release** section with `-rcX` where `X` is an unsigned integer that starts with `1` (if `-rcX` already exists, increment `X` by one)
 
 ## Full Releases

@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-func TestReconcile_AddOrModifyGitRepoWatchIsCalled_WhenGitRepoIsCreatedOrModified(t *testing.T) {
+func TestReconcile_AddOrModifyGitRepoPollJobIsCalled_WhenGitRepoIsCreatedOrModified(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
@@ -46,8 +46,8 @@ func TestReconcile_AddOrModifyGitRepoWatchIsCalled_WhenGitRepoIsCreatedOrModifie
 	client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Status().Return(statusClient)
 	poller := mocks.NewMockGitPoller(mockCtrl)
-	poller.EXPECT().AddOrModifyGitRepoWatch(ctx, gomock.Any()).Times(1)
-	poller.EXPECT().CleanUpWatches(ctx).Times(0)
+	poller.EXPECT().AddOrModifyGitRepoPollJob(ctx, gomock.Any()).Times(1)
+	poller.EXPECT().CleanUpGitRepoPollJobs(ctx).Times(0)
 
 	r := GitJobReconciler{
 		Client:    client,
@@ -71,8 +71,8 @@ func TestReconcile_PurgeWatchesIsCalled_WhenGitRepoIsCreatedOrModified(t *testin
 	client := mocks.NewMockClient(mockCtrl)
 	client.EXPECT().Get(ctx, namespacedName, gomock.Any()).Times(1).Return(errors.NewNotFound(schema.GroupResource{}, "NotFound"))
 	poller := mocks.NewMockGitPoller(mockCtrl)
-	poller.EXPECT().AddOrModifyGitRepoWatch(ctx, gomock.Any()).Times(0)
-	poller.EXPECT().CleanUpWatches(ctx).Times(1)
+	poller.EXPECT().AddOrModifyGitRepoPollJob(ctx, gomock.Any()).Times(0)
+	poller.EXPECT().CleanUpGitRepoPollJobs(ctx).Times(1)
 
 	r := GitJobReconciler{
 		Client:    client,
@@ -103,8 +103,8 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 	ctx := context.TODO()
 	poller := mocks.NewMockGitPoller(mockCtrl)
-	poller.EXPECT().AddOrModifyGitRepoWatch(ctx, gomock.Any()).AnyTimes()
-	poller.EXPECT().CleanUpWatches(ctx).AnyTimes()
+	poller.EXPECT().AddOrModifyGitRepoPollJob(ctx, gomock.Any()).AnyTimes()
+	poller.EXPECT().CleanUpGitRepoPollJobs(ctx).AnyTimes()
 
 	tests := map[string]struct {
 		gitrepo                *fleetv1.GitRepo
@@ -519,8 +519,8 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	ctx := context.TODO()
 	poller := mocks.NewMockGitPoller(mockCtrl)
-	poller.EXPECT().AddOrModifyGitRepoWatch(ctx, gomock.Any()).AnyTimes()
-	poller.EXPECT().CleanUpWatches(ctx).AnyTimes()
+	poller.EXPECT().AddOrModifyGitRepoPollJob(ctx, gomock.Any()).AnyTimes()
+	poller.EXPECT().CleanUpGitRepoPollJobs(ctx).AnyTimes()
 
 	tests := map[string]struct {
 		gitrepo                      *fleetv1.GitRepo

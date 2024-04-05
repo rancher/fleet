@@ -81,13 +81,10 @@ func Test_contentStore_Store(t *testing.T) {
 				}).Times(1)
 			}
 
-			got, err := store.Store(ctx, tt.args.manifest)
+			err := store.Store(ctx, tt.args.manifest)
 			if err != nil {
 				t.Errorf("Store() error = %v", err)
 				return
-			}
-			if got != tt.want {
-				t.Errorf("Store() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

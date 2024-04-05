@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # This simulates a webhook call from Github, populating only fields which gitjob is known to care about [1].
-# [1]: https://github.com/rancher/fleet/blob/master/pkg/webhook/webhook.go#L129
+# [1]: https://github.com/rancher/fleet/blob/main/pkg/webhook/webhook.go#L129
 
 # From https://stackoverflow.com/a/11150763
 # (note: the branch last pushed to is not necessarily the checked out branch on the remote)

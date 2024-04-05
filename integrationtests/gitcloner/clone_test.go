@@ -17,6 +17,8 @@ import (
 	"github.com/rancher/fleet/cmd/gitcloner/cmd"
 	"github.com/rancher/fleet/cmd/gitcloner/gogit"
 
+	dockercontainer "github.com/docker/docker/api/types/container"
+	dockermount "github.com/docker/docker/api/types/mount"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -286,11 +288,15 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Image:        "gogs/gogs:0.13",
 		ExposedPorts: []string{gogsHTTPSPort + "/tcp", gogsSSHPort + "/tcp"},
-		Mounts: testcontainers.ContainerMounts{
-			{
-				Source: testcontainers.GenericBindMountSource{HostPath: tmpDir},
-				Target: "/data",
-			},
+		HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
+			hostConfig.Mounts = []dockermount.Mount{
+				{
+					Type:   dockermount.TypeBind,
+					Source: tmpDir,
+					Target: "/data",
+				},
+			}
+
 		},
 	}
 	container, err := testcontainers.GenericContainer(context.Background(), testcontainers.GenericContainerRequest{

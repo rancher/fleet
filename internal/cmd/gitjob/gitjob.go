@@ -13,7 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
-	"github.com/rancher/fleet/internal/config"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/condition"
 	"github.com/rancher/wrangler/v2/pkg/kstatus"
@@ -47,11 +46,11 @@ const (
 var two = int32(2)
 
 type GitPoller interface {
-	AddOrModifyGitRepoWatch(ctx context.Context, gitRepo v1alpha1.GitRepo)
-	CleanUpWatches(ctx context.Context)
+	AddOrModifyGitRepoPollJob(ctx context.Context, gitRepo v1alpha1.GitRepo)
+	CleanUpGitRepoPollJobs(ctx context.Context)
 }
 
-// CronJobReconciler reconciles a GitJob object
+// CronJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
 type GitJobReconciler struct {
 	client.Client
 	Scheme    *runtime.Scheme
@@ -71,7 +70,7 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // The Reconcile function compares the state specified by
-// the GitJob object against the actual cluster state, and then
+// the GitRepo object against the actual cluster state, and then
 // performs operations to make the cluster state reflect the state specified by
 // the user.
 //
@@ -83,11 +82,11 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, &gitRepo); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if errors.IsNotFound(err) {
-		r.GitPoller.CleanUpWatches(ctx)
+		r.GitPoller.CleanUpGitRepoPollJobs(ctx)
 		return ctrl.Result{}, nil
 	}
 
-	r.GitPoller.AddOrModifyGitRepoWatch(ctx, gitRepo)
+	r.GitPoller.AddOrModifyGitRepoPollJob(ctx, gitRepo)
 
 	var job batchv1.Job
 	err := r.Get(ctx, types.NamespacedName{
@@ -380,7 +379,7 @@ func (r *GitJobReconciler) computeJobSpec(ctx context.Context, gitrepo *v1alpha1
 				Containers: []corev1.Container{
 					{
 						Name:         "fleet",
-						Image:        config.DefaultAgentImage,
+						Image:        r.Image,
 						Command:      []string{"log.sh"},
 						Args:         append(args, paths...),
 						WorkingDir:   "/workspace/source",

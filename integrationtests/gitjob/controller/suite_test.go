@@ -68,8 +68,8 @@ var _ = BeforeSuite(func() {
 	gitPollerMock := mocks.NewMockGitPoller(ctlr)
 
 	// do nothing if gitPoller is called. gitPoller calls are tested in unit tests
-	gitPollerMock.EXPECT().AddOrModifyGitRepoWatch(gomock.Any(), gomock.Any()).AnyTimes()
-	gitPollerMock.EXPECT().CleanUpWatches(gomock.Any()).AnyTimes()
+	gitPollerMock.EXPECT().AddOrModifyGitRepoPollJob(gomock.Any(), gomock.Any()).AnyTimes()
+	gitPollerMock.EXPECT().CleanUpGitRepoPollJobs(gomock.Any()).AnyTimes()
 
 	err = (&gitjob.GitJobReconciler{
 		Client:    mgr.GetClient(),

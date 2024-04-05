@@ -72,7 +72,7 @@ func run(ctx context.Context) error {
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Image:     flags.image,
-		GitPoller: poll.NewHandler(mgr.GetClient()),
+		GitPoller: poll.NewHandler(ctx, mgr.GetClient()),
 		Log:       ctrl.Log.WithName("gitjob-reconciler"),
 	}
 
@@ -102,7 +102,7 @@ func bindFlags() flags {
 	flag.StringVar(
 		&image,
 		"gitjob-image",
-		"rancher/gitjob:dev",
+		"rancher/fleet:dev",
 		"The gitjob image that will be used in the generated job.",
 	)
 	flag.StringVar(&listen, "listen", ":8080", "The port the webhook listens.")

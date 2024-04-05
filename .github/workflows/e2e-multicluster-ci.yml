@@ -72,7 +72,7 @@ jobs:
       -
         name: Import Images Into k3d
         run: |
-          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev rancher/gitjob:dev -c upstream
+          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev -c upstream
           ./.github/scripts/k3d-import-retry.sh rancher/fleet-agent:dev -c downstream
       -
         name: Set Up Tmate Debug Session

@@ -4,7 +4,7 @@ on:
   pull_request:
 
 env:
-  MAIN_BRANCH: origin/master
+  MAIN_BRANCH: origin/main
   GOARCH: amd64
   CGO_ENABLED: 0
 

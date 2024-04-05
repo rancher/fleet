@@ -5,7 +5,7 @@ on:
       ref:
         description: "Branch to use for GitHub action workflow"
         required: true
-        default: "master"
+        default: "main"
       charts_ref:
         description: "Submit PR against the following rancher/charts branch (e.g. dev-v2.7)"
         required: true

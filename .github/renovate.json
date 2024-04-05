@@ -1,0 +1,16 @@
+{
+  "extends": [
+    "github>rancher/renovate-config#release"
+  ],
+  "baseBranches": [
+    "main"
+  ],
+  "prHourlyLimit": 2,
+  "ignorePaths": [
+    "**/assets/**"
+  ],
+  "force": {
+    "constraints": {
+    }
+  }
+}
