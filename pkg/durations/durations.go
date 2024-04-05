@@ -5,7 +5,6 @@ import "time"
 const (
 	AgentRegistrationRetry         = time.Minute * 1
 	AgentSecretTimeout             = time.Minute * 1
-	DefaultClusterEnqueueDelay     = time.Second * 15
 	ClusterImportTokenTTL          = time.Hour * 12
 	ClusterRegisterDelay           = time.Second * 15
 	ClusterRegistrationDeleteDelay = time.Minute * 40
@@ -20,7 +19,6 @@ const (
 	SlowFailureRateLimiterBase     = time.Second * 2
 	SlowFailureRateLimiterMax      = time.Minute * 10 // hit after 10 failures in a row
 	GarbageCollect                 = time.Minute * 15
-	MonitorBundleDelay             = time.Minute * 5
 	RestConfigTimeout              = time.Second * 15
 	ServiceTokenSleep              = time.Second * 2
 	TokenClusterEnqueueDelay       = time.Second * 2
@@ -28,5 +26,4 @@ const (
 	// deployed resources for changes
 	TriggerSleep          = time.Second * 5
 	DefaultCpuPprofPeriod = time.Minute
-	ReleaseCacheTTL       = time.Minute * 5
 )
