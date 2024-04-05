@@ -179,7 +179,7 @@ jobs:
         name: E2E tests for examples
         env:
           FLEET_E2E_NS: fleet-local
-          FLEET_E2E_NS_DOWNSTREAM: fleet-local
+          FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
           ginkgo e2e/multi-cluster
