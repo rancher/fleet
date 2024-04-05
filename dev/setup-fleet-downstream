@@ -54,13 +54,13 @@ else
 fi
 
 # docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'
-external_ip="${external_ip-172.17.0.1.omg.howdoi.website}"
+public_hostname="${public_hostname-172.17.0.1.omg.howdoi.website}"
 
 kubectl config use-context "$downstream_ctx"
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \
   --set-string labels.env=test \
   --set apiServerCA="$ca" \
-  --set apiServerURL="https://$external_ip:36443" \
+  --set apiServerURL="https://$public_hostname:36443" \
   --set clusterNamespace="$ns" \
   --set token="$token"
   #--set systemRegistrationNamespace="fleet-clusters-system" \
@@ -68,6 +68,5 @@ helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-ag
   # --set global.cattle.systemDefaultRegistry=public.ecr.aws/b3e3i8k2 \
   # --set image.tag=v0.3.9  \
   # --set agentImage.tag=v0.3.9 \
-  # --set gitjob.gitjob.tag=v0.1.26 \
 
 kubectl config use-context "$upstream_ctx"

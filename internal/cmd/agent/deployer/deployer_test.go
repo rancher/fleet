@@ -1,15 +1,13 @@
 package deployer
 
-//go:generate mockgen --build_flags=--mod=mod -destination=../../../controller/mocks/dynamic_mock.go -package mocks k8s.io/client-go/dynamic Interface,NamespaceableResourceInterface
-
 import (
 	"context"
-	"errors"
 	"testing"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,14 +32,15 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			}},
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:   "namespace1234",
-					Labels: map[string]string{"name": "namespace"},
+					Name:   "namespace",
+					Labels: map[string]string{"kubernetes.io/metadata.name": "namespace"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"name": "namespace", "optLabel1": "optValue1", "optLabel2": "optValue2"},
+					Name:        "namespace",
+					Labels:      map[string]string{"kubernetes.io/metadata.name": "namespace", "optLabel1": "optValue1", "optLabel2": "optValue2"},
 					Annotations: map[string]string{"optAnn1": "optValue1"},
 				},
 			},
@@ -56,15 +55,16 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			}},
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "namespace1234",
-					Labels:      map[string]string{"nsLabel": "nsValue", "name": "namespace"},
+					Name:        "namespace",
+					Labels:      map[string]string{"nsLabel": "nsValue", "kubernetes.io/metadata.name": "namespace"},
 					Annotations: map[string]string{"nsAnn": "nsValue"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"optLabel": "optValue", "name": "namespace"},
+					Name:        "namespace",
+					Labels:      map[string]string{"optLabel": "optValue", "kubernetes.io/metadata.name": "namespace"},
 					Annotations: map[string]string{},
 				},
 			},
@@ -79,15 +79,16 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 			}},
 			ns: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:        "namespace1234",
-					Labels:      map[string]string{"bdLabel": "nsValue", "name": "namespace"},
+					Name:        "namespace",
+					Labels:      map[string]string{"bdLabel": "nsValue", "kubernetes.io/metadata.name": "namespace"},
 					Annotations: map[string]string{"bdAnn": "nsValue"},
 				},
 			},
 			release: "namespace/foo/bar",
 			expectedNs: corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels:      map[string]string{"bdLabel": "labelUpdated", "name": "namespace"},
+					Name:        "namespace",
+					Labels:      map[string]string{"bdLabel": "labelUpdated", "kubernetes.io/metadata.name": "namespace"},
 					Annotations: map[string]string{"bdAnn": "annUpdated"},
 				},
 			},
@@ -134,7 +135,6 @@ func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 		},
 	}}
 	release := "test/foo/bar"
-	expectedErr := errors.New("namespace test not found")
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -145,7 +145,7 @@ func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 
 	err := h.setNamespaceLabelsAndAnnotations(context.Background(), bd, release)
 
-	if err.Error() != expectedErr.Error() {
-		t.Errorf("expected error %v: got %v", expectedErr, err)
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("expected not found error: got %v", err)
 	}
 }

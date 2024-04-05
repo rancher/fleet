@@ -1,0 +1,8 @@
+---
+apiVersion: fleet.cattle.io/v1alpha1
+content: H4sIAAAAAAAA/4SRMW/bMBCF9/6KA2eLtlygA7fCa7t6KTucpZNNhKII8iTEEPTfA5KRESdOsgjQ3Xv33gfOIlAcxtBQFOrfLBz2JJRoBteZc9VcMPD2kL7yir0Vm7RhciyUQG+OFKIZnIJpr12yKnjr1K6l2ATjOYt+A1NkyCvgCzJMFExnKILh+OrUjq+eFKD31jSYnNpNa85O1nKnHXp/i9ailvUvudNCO7FsHiMw9d4iU9yWcY/+G6BauyfjWgWHbPiLXrueGFtkVNoBFNxEVEXTe0slqloxbsIkSTUntCPV+5+p6GqfZ5DHNI8yDWBZvoCYivBD73KqpQ5Hy1X6uz/SWaIH73ch2+eC+fr7lwMocVmx1qVnzKR5dR/yWbkxWAVnO5zQylKksWNkCn/wRLZgp0v/lx8vAQAA//+su6S1jAIAAA==
+kind: Content
+metadata:
+  creationTimestamp: null
+  name: s-ee0480cffe0c0da150814f6844d7c5bc49cc05c158c5ba1efe9a45142f36e
+sha256sum: ee0480cffe0c0da150814f6844d7c5bc49cc05c158c5ba1efe9a45142f36eebc

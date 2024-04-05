@@ -1,0 +1,8 @@
+namespace: test-deps-helm-yamls-with-fleet
+helm:
+  releaseName: simple-with-fleet-yaml
+  chart: ""
+  repo: ""
+  version: ""
+  force: false
+

@@ -1,15 +1,13 @@
 package target
 
 import (
-	"fmt"
+	"bytes"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
-	"github.com/rancher/wrangler/v2/pkg/generic/fake"
-	"github.com/rancher/wrangler/v2/pkg/yaml"
-	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/util/yaml"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
@@ -44,12 +42,12 @@ func TestProcessLabelValues(t *testing.T) {
 	clusterLabels["name"] = "local"
 	clusterLabels["envType"] = "dev"
 
-	err := yaml.Unmarshal([]byte(bundleYaml), bundle)
+	err := yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(bundleYaml)).Decode(bundle)
 	if err != nil {
 		t.Fatalf("error during yaml parsing %v", err)
 	}
 
-	err = processLabelValues(bundle.Helm.Values.Data, clusterLabels, 0)
+	err = processLabelValues(zap.New(), bundle.Helm.Values.Data, clusterLabels, 0)
 	if err != nil {
 		t.Fatalf("error during label processing %v", err)
 	}
@@ -182,7 +180,7 @@ func TestProcessTemplateValues(t *testing.T) {
 	}
 
 	bundle := &v1alpha1.BundleSpec{}
-	err := yaml.Unmarshal([]byte(bundleYamlWithTemplate), bundle)
+	err := yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(bundleYamlWithTemplate)).Decode(bundle)
 	if err != nil {
 		t.Fatalf("error during yaml parsing %v", err)
 	}
@@ -332,13 +330,13 @@ spec:
 
 func getClusterAndBundle(bundleYaml string) (*v1alpha1.Cluster, *v1alpha1.BundleDeploymentOptions, error) {
 	cluster := &v1alpha1.Cluster{}
-	err := yaml.Unmarshal([]byte(clusterYamlWithTemplateValues), cluster)
+	err := yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(clusterYamlWithTemplateValues)).Decode(cluster)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error during cluster yaml parsing")
 	}
 
 	bundle := &v1alpha1.BundleDeploymentOptions{}
-	err = yaml.Unmarshal([]byte(bundleYaml), bundle)
+	err = yaml.NewYAMLToJSONDecoder(bytes.NewBufferString(bundleYaml)).Decode(bundle)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error during bundle yaml parsing")
 	}
@@ -363,7 +361,7 @@ func TestDisablePreProcessFlagEnabled(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	err = preprocessHelmValues(bundle, cluster)
+	err = preprocessHelmValues(zap.New(), bundle, cluster)
 	if err != nil {
 		t.Fatalf("error during cluster processing %v", err)
 	}
@@ -417,7 +415,7 @@ func TestDisablePreProcessFlagDisabled(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	err = preprocessHelmValues(bundle, cluster)
+	err = preprocessHelmValues(zap.New(), bundle, cluster)
 	if err != nil {
 		t.Fatalf("error during cluster processing %v", err)
 	}
@@ -450,7 +448,7 @@ func TestDisablePreProcessFlagMissing(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	err = preprocessHelmValues(bundle, cluster)
+	err = preprocessHelmValues(zap.New(), bundle, cluster)
 	if err != nil {
 		t.Fatalf("error during cluster processing %v", err)
 	}
@@ -468,96 +466,4 @@ func TestDisablePreProcessFlagMissing(t *testing.T) {
 		}
 	}
 
-}
-
-func TestGetBundleDeploymentForBundleInCluster(t *testing.T) {
-	bundleDeployment := func(namespace, clusterName string) *v1alpha1.BundleDeployment {
-		return &v1alpha1.BundleDeployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: fmt.Sprintf("cluster-%s-%s-1df72965a9b5", namespace, clusterName),
-				Labels: map[string]string{
-					"fleet.cattle.io/cluster": clusterName,
-				},
-			},
-		}
-	}
-	bundle := func(name, namespace string) *v1alpha1.Bundle {
-		return &v1alpha1.Bundle{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: namespace,
-			},
-		}
-	}
-	cluster := func(name string) *v1alpha1.Cluster {
-		return &v1alpha1.Cluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-			},
-		}
-	}
-	bundleName := "my-bundle"
-	bundleNamespace := "fleet-default"
-	clusterName := "my-cluster"
-	bundleDeployments := []*v1alpha1.BundleDeployment{
-		bundleDeployment(bundleNamespace, clusterName),
-		bundleDeployment(bundleNamespace, "another-cluster"),
-	}
-
-	testCases := []struct {
-		name                       string
-		bundleName                 string
-		bundleNamespace            string
-		clusterName                string
-		listBundleDeploymentsError error
-		expectedBundleDeployments  []*v1alpha1.BundleDeployment
-		wantError                  bool
-	}{
-		{
-			name:            "returns listed bundle deployments",
-			bundleName:      bundleName,
-			bundleNamespace: bundleNamespace,
-			clusterName:     clusterName,
-			expectedBundleDeployments: []*v1alpha1.BundleDeployment{
-				bundleDeployment(bundleNamespace, clusterName),
-			},
-		},
-		{
-			name:                       "returns error from bundle deployment cache listing",
-			bundleName:                 bundleName,
-			bundleNamespace:            bundleNamespace,
-			listBundleDeploymentsError: errors.New("something happened"),
-			expectedBundleDeployments:  nil,
-			wantError:                  true,
-		},
-		{
-			name:                      "returns no bundle deployments when none are listed",
-			bundleName:                bundleName,
-			bundleNamespace:           bundleNamespace,
-			clusterName:               "yet-another-cluster",
-			expectedBundleDeployments: []*v1alpha1.BundleDeployment{},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-
-			mockBundleDeploymentCache := fake.NewMockCacheInterface[*v1alpha1.BundleDeployment](ctrl)
-
-			mockBundleDeploymentCache.EXPECT().AddIndexer(byBundleIndexerName, gomock.Any())
-			mockBundleDeploymentCache.EXPECT().GetByIndex(byBundleIndexerName, fmt.Sprintf("%s/%s", tc.bundleNamespace, tc.bundleName)).
-				Return(bundleDeployments, tc.listBundleDeploymentsError)
-
-			manager := New(nil, nil, nil, nil, nil, nil, mockBundleDeploymentCache)
-			result, err := manager.GetBundleDeploymentsForBundleInCluster(bundle(tc.bundleName, tc.bundleNamespace), cluster(tc.clusterName))
-
-			if tc.wantError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-			assert.Equal(t, tc.expectedBundleDeployments, result)
-		})
-	}
 }

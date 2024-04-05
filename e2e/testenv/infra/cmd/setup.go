@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/bcrypt"
 	"helm.sh/helm/v3/pkg/registry"
 )
 
@@ -140,9 +141,7 @@ var setupCmd = &cobra.Command{
 			}
 
 			if externalIP == "" {
-				externalIP = eventually(func() (string, error) {
-					return k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-				})
+				externalIP = waitForLoadbalancer(k, "zot-service")
 			}
 			OCIHost := fmt.Sprintf("%s:5000", externalIP)
 
@@ -150,7 +149,7 @@ var setupCmd = &cobra.Command{
 			_ = eventually(func() (string, error) {
 				err := OCIClient.Login(
 					OCIHost,
-					registry.LoginOptBasicAuth("fleet-ci", "foo"),
+					registry.LoginOptBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD")),
 					registry.LoginOptInsecure(true),
 				)
 				if err != nil {
@@ -194,9 +193,7 @@ var setupCmd = &cobra.Command{
 			wgHelm.Wait()
 
 			if externalIP == "" {
-				externalIP = eventually(func() (string, error) {
-					return k.Get("service", "chartmuseum-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-				})
+				externalIP = waitForLoadbalancer(k, "chartmuseum-service")
 			}
 
 			_ = eventually(func() (string, error) {
@@ -257,6 +254,7 @@ func spinUpGitServer(k kubectl.Command, wg *sync.WaitGroup) {
 	}
 
 	waitForPodReady(k, "git-server")
+	waitForLoadbalancer(k, "git-service")
 
 	fmt.Println("git server up.")
 }
@@ -268,12 +266,22 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		fail(fmt.Errorf("spin up OCI registry: %v", err))
 	}
 
-	out, err := k.Apply("-f", testenv.AssetPath("helm/zot_secret.yaml"))
-	if err != nil {
-		failOCI(fmt.Errorf("create Zot htpasswd secret: %s with error %v", out, err))
+	var err error
+	htpasswd := "fleet-ci:$2y$05$0WcEGGqsUKcyPhBFU7l07uJ3ND121p/FQCY90Q.dcsZjTkr.b45Lm"
+	if os.Getenv("CI_OCI_USERNAME") != "" && os.Getenv("CI_OCI_PASSWORD") != "" {
+		p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_PASSWORD")), bcrypt.MinCost)
+		if err != nil {
+			fail(fmt.Errorf("generate bcrypt password from env var: %v", err))
+		}
+		htpasswd = fmt.Sprintf("%s:%s", os.Getenv("CI_OCI_USERNAME"), string(p))
 	}
 
-	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_configmap.yaml"))
+	err = testenv.ApplyTemplate(k, "helm/zot_secret.yaml", struct{ HTTPPasswd string }{htpasswd})
+	if err != nil {
+		failOCI(fmt.Errorf("create Zot htpasswd secret: %v", err))
+	}
+
+	out, err := k.Apply("-f", testenv.AssetPath("helm/zot_configmap.yaml"))
 	if err != nil {
 		failOCI(fmt.Errorf("apply Zot config map: %s with error %v", out, err))
 	}
@@ -300,12 +308,20 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		fail(fmt.Errorf("spin up ChartMuseum: %v", err))
 	}
 
-	out, err := k.Apply("-f", testenv.AssetPath("helm/chartmuseum_deployment.yaml"))
+	err := testenv.ApplyTemplate(k, "helm/chartmuseum_deployment.yaml",
+		struct {
+			User     string
+			Password string
+		}{
+			os.Getenv("CI_OCI_USERNAME"),
+			os.Getenv("CI_OCI_PASSWORD"),
+		},
+	)
 	if err != nil {
-		failChartMuseum(fmt.Errorf("apply ChartMuseum deployment: %s with error %v", out, err))
+		failChartMuseum(fmt.Errorf("apply ChartMuseum deployment: %v", err))
 	}
 
-	out, err = k.Apply("-f", testenv.AssetPath("helm/chartmuseum_service.yaml"))
+	out, err := k.Apply("-f", testenv.AssetPath("helm/chartmuseum_service.yaml"))
 	if err != nil {
 		failChartMuseum(fmt.Errorf("apply ChartMuseum service: %s with error %v", out, err))
 	}
@@ -346,6 +362,13 @@ func waitForPodReady(k kubectl.Command, appName string) {
 
 		return "", nil
 	})
+}
+
+func waitForLoadbalancer(k kubectl.Command, name string) string {
+	ip := eventually(func() (string, error) {
+		return k.Get("service", name, "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+	})
+	return ip
 }
 
 // fail prints err and exits.

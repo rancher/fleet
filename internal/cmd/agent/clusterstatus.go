@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -43,15 +44,20 @@ func NewClusterStatus() *cobra.Command {
 }
 
 type ClusterStatus struct {
+	command.DebugConfig
 	UpstreamOptions
 	CheckinInterval string `usage:"How often to post cluster status" env:"CHECKIN_INTERVAL"`
 }
 
-func (cs *ClusterStatus) Run(cmd *cobra.Command, args []string) error {
-	// provide a logger in the context to be compatible with controller-runtime
-	zopts := zap.Options{
-		Development: true,
+func (cs *ClusterStatus) PersistentPre(cmd *cobra.Command, _ []string) error {
+	if err := cs.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
+	return nil
+}
+
+func (cs *ClusterStatus) Run(cmd *cobra.Command, args []string) error {
+	zopts.Development = cs.Debug
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 

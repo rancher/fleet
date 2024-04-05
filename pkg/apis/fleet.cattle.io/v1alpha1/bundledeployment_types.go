@@ -96,7 +96,7 @@ type BundleDeploymentOptions struct {
 	IgnoreOptions `json:"ignore,omitempty"`
 
 	// CorrectDrift specifies how drift correction should work.
-	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
+	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
 
 	// NamespaceLabels are labels that will be appended to the namespace created by Fleet.
 	// +nullable
@@ -105,6 +105,9 @@ type BundleDeploymentOptions struct {
 	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
 	// +nullable
 	NamespaceAnnotations *map[string]string `json:"namespaceAnnotations,omitempty"`
+
+	// DeleteCRDResources deletes CRDs. Warning! this will also delete all your Custom Resources.
+	DeleteCRDResources bool `json:"deleteCRDResources,omitempty"`
 }
 
 type DiffOptions struct {
@@ -235,6 +238,9 @@ type HelmOptions struct {
 
 	// SkipSchemaValidation allows skipping schema validation against the chart values
 	SkipSchemaValidation bool `json:"skipSchemaValidation,omitempty"`
+
+	// DisableDependencyUpdate allows skipping chart dependencies update
+	DisableDependencyUpdate bool `json:"disableDependencyUpdate,omitempty"`
 }
 
 // IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
@@ -303,7 +309,7 @@ type BundleDeploymentSpec struct {
 	// +nullable
 	DependsOn []BundleRef `json:"dependsOn,omitempty"`
 	// CorrectDrift specifies how drift correction should work.
-	CorrectDrift CorrectDrift `json:"correctDrift,omitempty"`
+	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
 }
 
 // BundleDeploymentResource contains the metadata of a deployed resource.

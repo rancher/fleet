@@ -4,12 +4,6 @@ metadata:
   name: fleet-controller
 rules:
 - apiGroups:
-  - gitjob.cattle.io
-  resources:
-  - '*'
-  verbs:
-  - '*'
-- apiGroups:
   - fleet.cattle.io
   resources:
   - '*'

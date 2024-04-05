@@ -1,0 +1,8 @@
+namespace: {{.TestNamespace}}
+helm:
+  releaseName: simple-with-fleet-yaml
+  chart: ""
+  repo: ""
+  version: ""
+  disableDependencyUpdate: {{.DisableDependencyUpdate}}
+

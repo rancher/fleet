@@ -1,10 +1,9 @@
-// Package clusterstatus updates the cluster.fleet.cattle.io status in the upstream cluster with the current node status.
+// Package clusterstatus updates the cluster.fleet.cattle.io status in the upstream cluster with the current cluster status.
 package clusterstatus
 
 import (
 	"context"
 	"encoding/json"
-	"sort"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -16,7 +15,6 @@ import (
 	corecontrollers "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v2/pkg/ticker"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -52,9 +50,9 @@ func Ticker(ctx context.Context,
 
 	go func() {
 		time.Sleep(durations.ClusterRegisterDelay)
-		logger.V(1).Info("Reporting cluster node status once")
+		logger.V(1).Info("Reporting cluster status once")
 		if err := h.Update(); err != nil {
-			logrus.Errorf("failed to report cluster node status: %v", err)
+			logrus.Errorf("failed to report cluster status: %v", err)
 		}
 	}()
 	go func() {
@@ -62,39 +60,20 @@ func Ticker(ctx context.Context,
 			checkinInterval = durations.DefaultClusterCheckInterval
 		}
 		for range ticker.Context(ctx, checkinInterval) {
-			logger.V(1).Info("Reporting cluster node status")
+			logger.V(1).Info("Reporting cluster status")
 			if err := h.Update(); err != nil {
-				logrus.Errorf("failed to report cluster node status: %v", err)
+				logrus.Errorf("failed to report cluster status: %v", err)
 			}
 		}
 	}()
 }
 
-// Update the cluster.fleet.cattle.io status in the upstream cluster with the current node status
+// Update the cluster.fleet.cattle.io status in the upstream cluster with the current cluster status
 func (h *handler) Update() error {
-	nodes, err := h.nodes.List(metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-
-	ready, nonReady := sortReadyUnready(nodes.Items)
-
 	agentStatus := fleet.AgentStatus{
-		LastSeen:      metav1.Now(),
-		Namespace:     h.agentNamespace,
-		NonReadyNodes: len(nonReady),
-		ReadyNodes:    len(ready),
+		LastSeen:  metav1.Now(),
+		Namespace: h.agentNamespace,
 	}
-
-	if len(ready) > 3 {
-		ready = ready[:3]
-	}
-	if len(nonReady) > 3 {
-		nonReady = nonReady[:3]
-	}
-
-	agentStatus.ReadyNodeNames = ready
-	agentStatus.NonReadyNodeNames = nonReady
 
 	if equality.Semantic.DeepEqual(h.reported, agentStatus) {
 		return nil
@@ -116,44 +95,4 @@ func (h *handler) Update() error {
 
 	h.reported = agentStatus
 	return nil
-}
-
-func sortReadyUnready(nodes []corev1.Node) (ready []string, nonReady []string) {
-	var (
-		masterNodeNames         []string
-		nonReadyMasterNodeNames []string
-		readyNodes              []string
-		nonReadyNodes           []string
-	)
-
-	for _, node := range nodes {
-		ready := false
-		for _, cond := range node.Status.Conditions {
-			if cond.Type == corev1.NodeReady && cond.Status == corev1.ConditionTrue {
-				ready = true
-				break
-			}
-		}
-
-		if node.Annotations["node-role.kubernetes.io/master"] == "true" {
-			if ready {
-				masterNodeNames = append(masterNodeNames, node.Name)
-			} else {
-				nonReadyMasterNodeNames = append(nonReadyMasterNodeNames, node.Name)
-			}
-		} else {
-			if ready {
-				readyNodes = append(readyNodes, node.Name)
-			} else {
-				nonReadyNodes = append(nonReadyNodes, node.Name)
-			}
-		}
-	}
-
-	sort.Strings(masterNodeNames)
-	sort.Strings(nonReadyMasterNodeNames)
-	sort.Strings(readyNodes)
-	sort.Strings(nonReadyNodes)
-
-	return append(masterNodeNames, readyNodes...), append(nonReadyMasterNodeNames, nonReadyNodes...)
 }

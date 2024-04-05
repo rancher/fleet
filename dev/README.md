@@ -118,6 +118,24 @@ export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
 # optional, for selecting Helm versions (see [Troubleshooting](#troubleshooting))
 export HELM_PATH="/usr/bin/helm"
 ```
+
+### `public_hostname`
+
+Several scripts support the `public_hostname` configuration variable.
+The variable is set to a DNS record, which points to the public interface IP of the host.
+The k3d cluster is then set up with port forwardings, so that host ports are
+redirected to services inside the cluster.
+
+The default `public_hostname` is `172.18.0.1.omg.howdoi.website`, which points
+to the default Docker network gateway. That gateway address might vary for
+custom networks, see for example: `docker network inspect fleet -f '{{(index .IPAM.Config0).Gateway}}'`.
+Careful, several internet routers provide "DNS rebind protection" and won't return an IP for `172.18.0.1.omg.howdoi.website`, unless the `omg.howdoi.website` domain is in an allow list.
+Any magic wildcard DNS resolver will do, or you can create an A record in your own DNS zone.
+
+The k3d cluster is set up with multiple port forwardings by the scripts: `-p '80:80@server:0' -p '443:443@server:0'`.
+More arguments can be provided via the `k3d_args` variable.
+
+
 ### Troubleshooting
 
 If running the `infra setup` script returns an error about flag
@@ -129,12 +147,12 @@ remedy this. By default, the setup script will use `/usr/bin/helm`.
 
 ## Different Script Folders
 
-Our CIs, dapper/drone and github actions, use a different set of scripts. CI
+Our CIs and github actions use a different set of scripts. CI
 does not reuse dev scripts, however dev scripts may use CI scripts. We want to
 keep CI scripts short, targeted and readable. Dev scripts may change in an
 incompatible way at any day.
 
-## Run integration tests
+## Run Integration Tests
 
 ```bash
 ./dev/run-integration-tests.sh
@@ -142,6 +160,48 @@ incompatible way at any day.
 
 This will download and prepare setup-envtest, then it will execute all the
 integration tests.
+
+## Local Infra Setup
+
+The local infra setup creates pods for:
+* git server, using nginx with git-http-backend, port 8080/tcp
+* OCI repo server, using Zot, port 8081/tcp
+* Helm registry, using chartmuseum, port 5000/tcp
+
+To build and run the infra setup command do:
+
+```
+pushd e2e/testenv/infra
+  go build -o . ./...
+popd
+./e2e/testenv/infra/infra setup
+
+```
+
+The resulting deployments use a loadbalancer service, which means the host must be able to reach the loadbalancer IP.
+Therefore the infra setup doesn't work with the `public_hostname` config variable.
+This is not a problem, unless k3d is running in a VM and not directly on the host.
+
+It is possible to override the loadbalancer IP by setting the `external_ip` environment variable.
+
+## Changing the Infra Command
+
+The `infra` command imports the local `fleet` module, to use the `e2e/testenv` helpers. Since the dependency does not update often, `infra` imports the testhelper from a fixed Fleet version.
+If we imported the testhelper via `replace` from a local folder, we would need to run `go mod tidy` for the infra command, whenever the main `go.mod` changes.
+
+When making changes to the infra command, one might want to edit and use the helpers directly. Without the need to tag a version for every change. Go workspaces can help:
+
+```
+cd e2e/testenv/infra
+go work init
+go work use ../../../
+go work use .
+```
+
+This is similar to a replace statement. Never commit the go.work file, though.
+It might still be necessary to split a PR into two, one for the helpers and a second to update the infra command and switch infra's go.mod to the commit of the first PR.
+
+For more information on how to work on multiple go projects at once with the help of workspaces, see: https://go.dev/doc/tutorial/workspaces
 
 ## Running Github Actions locally
 

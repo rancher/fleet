@@ -7,17 +7,20 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/rancher/wrangler/v2/pkg/yaml"
 	"github.com/spf13/cobra"
 
 	"github.com/rancher/fleet/internal/bundlereader"
+	"github.com/rancher/fleet/internal/client"
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
+
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 type readFile func(name string) ([]byte, error)
 
+// NewApply returns a subcommand to create bundles from directories
 func NewApply() *cobra.Command {
 	return command.Command(&Apply{}, cobra.Command{
 		Use:   "apply [flags] BUNDLE_NAME PATH...",
@@ -26,6 +29,7 @@ func NewApply() *cobra.Command {
 }
 
 type Apply struct {
+	FleetClient
 	BundleInputArgs
 	OutputArgsNoDefault
 	Label                       map[string]string `usage:"Labels to apply to created bundles" short:"l"`
@@ -46,6 +50,14 @@ type Apply struct {
 	CorrectDrift                bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
 	CorrectDriftForce           bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
 	CorrectDriftKeepFailHistory bool              `usage:"Keep helm history for failed rollbacks" name:"correct-drift-keep-fail-history"`
+}
+
+func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
+	if err := r.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to set up debug logging: %w", err)
+	}
+	Client = client.NewGetter(r.Kubeconfig, r.Context, r.Namespace)
+	return nil
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
@@ -105,7 +117,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		args = args[1:]
 	}
 
-	return apply.Apply(cmd.Context(), Client, name, args, opts)
+	return apply.CreateBundles(cmd.Context(), Client, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
@@ -118,7 +130,7 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {
 			return err
 		}
 		var authByPath map[string]bundlereader.Auth
-		err = yaml.Unmarshal(file, &authByPath)
+		err = yaml.NewYAMLToJSONDecoder(bytes.NewBuffer(file)).Decode(&authByPath)
 		if err != nil {
 			return err
 		}

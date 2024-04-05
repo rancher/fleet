@@ -72,10 +72,10 @@ func globDirs(baseDir string) (result []string, err error) {
 	return
 }
 
-// Apply creates bundles from the baseDirs, their names are prefixed with
+// CreateBundles creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-func Apply(ctx context.Context, client Getter, repoName string, baseDirs []string, opts Options) error {
+func CreateBundles(ctx context.Context, client Getter, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
@@ -181,7 +181,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 		Auth:             opts.Auth,
 		HelmRepoURLRegex: opts.HelmRepoURLRegex,
 		KeepResources:    opts.KeepResources,
-		CorrectDrift: fleet.CorrectDrift{
+		CorrectDrift: &fleet.CorrectDrift{
 			Enabled:         opts.CorrectDrift,
 			Force:           opts.CorrectDriftForce,
 			KeepFailHistory: opts.CorrectDriftKeepFailHistory,

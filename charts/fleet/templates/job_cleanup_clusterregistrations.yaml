@@ -21,7 +21,7 @@ spec:
         runAsUser: 1000
       containers:
       - name: cleanup
-        image: "{{ template "system_default_registry" . }}{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}"
+        image: "{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
         securityContext:
           allowPrivilegeEscalation: false

@@ -27,7 +27,7 @@ jobs:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
-          - v1.27.5-k3s1
+          - v1.29.0-k3s1
           - v1.24.17-k3s1
     steps:
       -
@@ -35,7 +35,7 @@ jobs:
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -45,17 +45,15 @@ jobs:
       -
         name: Build Fleet Binaries
         run: |
-          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
+          ./.github/scripts/build-fleet-binaries.sh
 
-          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
-          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
           cd e2e/testenv/infra
           go build -o . ./...
       -
         name: Build Docker Images
         run: |
-          docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
-          docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+          ./.github/scripts/build-fleet-images.sh
+
           cd e2e/assets/gitrepo
           # Buildkit needed here for proper here-document support
           DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
@@ -163,7 +161,7 @@ jobs:
           ./.github/scripts/dump-failed-k3ds.sh
       -
         name: Upload Logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}

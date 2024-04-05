@@ -3,6 +3,7 @@ package controller
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,12 +14,16 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 
 	"github.com/spf13/cobra"
+
 	"k8s.io/apimachinery/pkg/util/wait"
+	ctrl "sigs.k8s.io/controller-runtime"
+	clog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	command "github.com/rancher/fleet/internal/cmd"
-	"github.com/rancher/fleet/internal/cmd/controller/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/cleanup"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/version"
@@ -31,18 +36,32 @@ type FleetManager struct {
 	DisableGitops bool   `usage:"disable gitops components" name:"disable-gitops"`
 }
 
-func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
-	setupCpuPprof(cmd.Context())
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
-	}()
-	if err := start(cmd.Context(), f.Namespace, f.Kubeconfig, f.DisableGitops); err != nil {
-		return err
-	}
+type LeaderElectionOptions struct {
+	// LeaseDuration is the duration that non-leader candidates will
+	// wait to force acquire leadership. This is measured against time of
+	// last observed ack. Default is 15 seconds.
+	LeaseDuration *time.Duration
 
-	<-cmd.Context().Done()
-	return nil
+	// RenewDeadline is the duration that the acting controlplane will retry
+	// refreshing leadership before giving up. Default is 10 seconds.
+	RenewDeadline *time.Duration
+
+	// RetryPeriod is the duration the LeaderElector clients should wait
+	// between tries of actions. Default is 2 seconds.
+	RetryPeriod *time.Duration
 }
+
+type BindAddresses struct {
+	Metrics     string
+	HealthProbe string
+}
+
+var (
+	setupLog = ctrl.Log.WithName("setup")
+	zopts    = zap.Options{
+		Development: true,
+	}
+)
 
 func (r *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := r.SetupDebug(); err != nil {
@@ -59,14 +78,76 @@ func (r *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
+func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
+	// for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
+	zopts.Development = f.Debug
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+
+	kubeconfig := ctrl.GetConfigOrDie()
+
+	leaderOpts := LeaderElectionOptions{}
+	if d := os.Getenv("CATTLE_ELECTION_LEASE_DURATION"); d != "" {
+		v, err := time.ParseDuration(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CATTLE_ELECTION_LEASE_DURATION", "duration", d)
+			return err
+
+		}
+		leaderOpts.LeaseDuration = &v
+	}
+	if d := os.Getenv("CATTLE_ELECTION_RENEW_DEADLINE"); d != "" {
+		v, err := time.ParseDuration(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CATTLE_ELECTION_RENEW_DEADLINE", "duration", d)
+			return err
+		}
+		leaderOpts.RenewDeadline = &v
+	}
+	if d := os.Getenv("CATTLE_ELECTION_RETRY_PERIOD"); d != "" {
+		v, err := time.ParseDuration(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CATTLE_ELECTION_RETRY_PERIOD", "duration", d)
+			return err
+		}
+		leaderOpts.RetryPeriod = &v
+	}
+
+	bindAddresses := BindAddresses{
+		Metrics:     ":8080",
+		HealthProbe: ":8081",
+	}
+	if d := os.Getenv("FLEET_METRICS_BIND_ADDRESS"); d != "" {
+		bindAddresses.Metrics = d
+	}
+	if d := os.Getenv("FLEET_HEALTHPROBE_BIND_ADDRESS"); d != "" {
+		bindAddresses.HealthProbe = d
+	}
+
+	setupCpuPprof(ctx)
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
+	}()
+	if err := start(ctx, f.Namespace, kubeconfig, leaderOpts, bindAddresses, f.DisableGitops); err != nil {
+		return err
+	}
+
+	<-cmd.Context().Done()
+	return nil
+}
+
 func App() *cobra.Command {
-	cmd := command.Command(&FleetManager{}, cobra.Command{
+	root := command.Command(&FleetManager{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
-	cmd.AddCommand(cleanup.App())
-	cmd.AddCommand(agentmanagement.App())
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	zopts.BindFlags(fs)
+	ctrl.RegisterFlags(fs)
+	root.Flags().AddGoFlagSet(fs)
 
-	return cmd
+	root.AddCommand(cleanup.App())
+	root.AddCommand(agentmanagement.App())
+	return root
 }
 
 // setupCpuPprof starts a goroutine that captures a cpu pprof profile

@@ -5,11 +5,11 @@ on:
       ref:
         description: "Branch to use for GitHub action workflow"
         required: true
-        default: "master"
+        default: "main"
       rancher_ref:
         description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.7)"
         required: true
-        default: "release/v2.8"
+        default: "release/v2.9"
       new_fleet:
         description: "New Fleet version (e.g. 0.8.0-rc.3)"
         required: true
@@ -22,11 +22,15 @@ on:
         description: "Should the Fleet api be bumped in the Rancher repo? (In most cases true unless there are incompatibilities.)"
         required: true
         default: "true"
+      go_version:
+        description: "Go version used for bumping the api. This should be the same version as in the go.mod file of the project."
+        required: true
+        default: '1.21.*'
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_GO_VERSION: '1.21.*'
+  SETUP_GO_VERSION: ${{github.event.inputs.go_version}}
 
 jobs:
   create-rancher-pr:
@@ -44,13 +48,15 @@ jobs:
           repository: rancher/rancher
           ref: ${{github.event.inputs.rancher_ref}}
           path: rancher
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Run release script
-        run: ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
+        run: |
+          export CHARTS_DIR="${GITHUB_WORKSPACE}/rancher"
+          ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v6
         with:
           token: ${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}
           push-to-fork: rancherbot/rancher

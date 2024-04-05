@@ -5,12 +5,10 @@ import (
 
 	"github.com/go-logr/logr"
 
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/plan"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
 	"github.com/rancher/fleet/internal/cmd/agent/trigger"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
-	"github.com/rancher/wrangler/v2/pkg/apply"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -25,7 +23,7 @@ type DriftDetect struct {
 	upstreamClient client.Client
 	upstreamReader client.Reader
 
-	apply            apply.Apply
+	applied          *applied.Applied
 	defaultNamespace string
 	labelPrefix      string
 	labelSuffix      string
@@ -35,7 +33,7 @@ func New(
 	trigger *trigger.Trigger,
 	upstreamClient client.Client,
 	upstreamReader client.Reader,
-	apply apply.Apply,
+	applied *applied.Applied,
 	defaultNamespace string,
 	labelPrefix string,
 	labelSuffix string,
@@ -44,7 +42,7 @@ func New(
 		trigger:          trigger,
 		upstreamClient:   upstreamClient,
 		upstreamReader:   upstreamReader,
-		apply:            apply.WithDynamicLookup(),
+		applied:          applied,
 		defaultNamespace: defaultNamespace,
 		labelPrefix:      labelPrefix,
 		labelSuffix:      labelSuffix,
@@ -130,14 +128,8 @@ func (d *DriftDetect) allResources(bd *fleet.BundleDeployment, resources *helmde
 	if ns == "" {
 		ns = d.defaultNamespace
 	}
-	apply := plan.GetApply(d.apply, plan.Options{
-		LabelPrefix:      d.labelPrefix,
-		LabelSuffix:      d.labelSuffix,
-		DefaultNamespace: ns,
-		Name:             bd.Name,
-	})
 
-	plan, err := apply.DryRun(resources.Objects...)
+	plan, err := d.applied.DryRun(ns, applied.GetSetID(bd.Name, d.labelPrefix, d.labelSuffix), resources.Objects...)
 	if err != nil {
 		return nil, err
 	}

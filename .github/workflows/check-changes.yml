@@ -4,7 +4,7 @@ on:
   pull_request:
 
 env:
-  MAIN_BRANCH: origin/master
+  MAIN_BRANCH: origin/main
   GOARCH: amd64
   CGO_ENABLED: 0
 
@@ -18,16 +18,13 @@ jobs:
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
       -
         name: go.mod
         run: ./.github/scripts/check-for-go-mod-changes.sh
-      -
-        name: gitjob
-        run: ./.github/scripts/check-for-gitjob-changes.sh
       -
         name: generate.go
         run: ./.github/scripts/check-for-auto-generated-changes.sh

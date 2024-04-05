@@ -14,5 +14,5 @@ func TestFleet(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	_ = config.Set(&config.Config{IgnoreClusterRegistrationLabels: false})
+	_ = config.SetAndTrigger(&config.Config{IgnoreClusterRegistrationLabels: false})
 })

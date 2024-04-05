@@ -5,19 +5,24 @@ package singlecluster_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
 	"path"
+	"reflect"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/wrangler/v2/pkg/genericcondition"
 )
 
 const (
@@ -36,6 +41,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		inClusterRepoURL string
 		gitrepoName      string
 		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
+		targetNamespace  string
 	)
 
 	BeforeEach(func() {
@@ -67,6 +73,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 	When("updating a git repository monitored via polling", func() {
 		BeforeEach(func() {
 			repoName = "repo"
+			targetNamespace = testenv.NewNamespaceName("target", r)
 		})
 
 		JustBeforeEach(func() {
@@ -75,11 +82,13 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				Repo            string
 				Branch          string
 				PollingInterval string
+				TargetNamespace string
 			}{
 				gitrepoName,
 				inClusterRepoURL,
 				gh.Branch,
-				"15s", // default
+				"15s",           // default
+				targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -90,7 +99,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		It("updates the deployment", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
-				out, _ := k.Namespace("default").Get("pods")
+				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
 			}).Should(ContainSubstring("sleeper-"))
 
@@ -101,15 +110,64 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			commit, err := gh.Update(clone)
 			Expect(err).ToNot(HaveOccurred())
 
-			By("checking for the updated commit hash in gitrepo")
-			Eventually(func() string {
-				out, _ := k.Get("gitrepo", gitrepoName, "-o", "yaml")
-				return out
-			}).Should(ContainSubstring("commit: " + commit))
+			By("updating the gitrepo's status")
+			expectedStatus := fleet.GitRepoStatus{
+				Commit:               commit,
+				ReadyClusters:        1,
+				DesiredReadyClusters: 1,
+				GitJobStatus:         "Current",
+				Summary: fleet.BundleSummary{
+					NotReady:          0,
+					WaitApplied:       0,
+					ErrApplied:        0,
+					OutOfSync:         0,
+					Modified:          0,
+					Ready:             1,
+					Pending:           0,
+					DesiredReady:      1,
+					NonReadyResources: []fleet.NonReadyResource(nil),
+				},
+				Display: fleet.GitRepoDisplay{
+					ReadyBundleDeployments: "1/1",
+					// XXX: add state and message?
+				},
+				Conditions: []genericcondition.GenericCondition{
+					{
+						Type:   "Ready",
+						Status: "True",
+					},
+					{
+						Type:   "Accepted",
+						Status: "True",
+					},
+					{
+						Type:   "Reconciling",
+						Status: "False",
+					},
+					{
+						Type:   "Stalled",
+						Status: "False",
+					},
+				},
+				ResourceCounts: fleet.GitRepoResourceCounts{
+					Ready:        1,
+					DesiredReady: 1,
+					WaitApplied:  0,
+					Modified:     0,
+					Orphaned:     0,
+					Missing:      0,
+					Unknown:      0,
+					NotReady:     0,
+				},
+			}
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(k, gitrepoName)
+				g.Expect(status).To(matchGitRepoStatus(expectedStatus))
+			}).Should(Succeed())
 
 			By("checking the deployment's new name")
 			Eventually(func() string {
-				out, _ := k.Namespace("default").Get("deployments")
+				out, _ := k.Namespace(targetNamespace).Get("deployments")
 				return out
 			}).Should(ContainSubstring("newsleep"))
 		})
@@ -118,6 +176,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 	When("updating a git repository monitored via webhook", func() {
 		BeforeEach(func() {
 			repoName = "webhook-test"
+			targetNamespace = testenv.NewNamespaceName("target", r)
 		})
 
 		JustBeforeEach(func() {
@@ -180,11 +239,13 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				Repo            string
 				Branch          string
 				PollingInterval string
+				TargetNamespace string
 			}{
 				gitrepoName,
 				inClusterRepoURL,
 				gh.Branch,
-				"24h", // prevent polling
+				"24h",           // prevent polling
+				targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -196,7 +257,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		It("updates the deployment", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
-				out, _ := k.Namespace("default").Get("pods")
+				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
 			}).Should(ContainSubstring("sleeper-"))
 
@@ -207,15 +268,65 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			commit, err := gh.Update(clone)
 			Expect(err).ToNot(HaveOccurred())
 
-			By("checking for the updated commit hash in gitrepo")
-			Eventually(func() string {
-				out, _ := k.Get("gitrepo", gitrepoName, "-o", "yaml")
-				return out
-			}).Should(ContainSubstring("commit: " + commit))
+			By("updating the gitrepo's status")
+			expectedStatus := fleet.GitRepoStatus{
+				Commit:               commit,
+				ReadyClusters:        1,
+				DesiredReadyClusters: 1,
+				GitJobStatus:         "Current",
+				Summary: fleet.BundleSummary{
+					NotReady:          0,
+					WaitApplied:       0,
+					ErrApplied:        0,
+					OutOfSync:         0,
+					Modified:          0,
+					Ready:             1,
+					Pending:           0,
+					DesiredReady:      1,
+					NonReadyResources: []fleet.NonReadyResource(nil),
+				},
+				Display: fleet.GitRepoDisplay{
+					ReadyBundleDeployments: "1/1",
+					// XXX: add state and message?
+				},
+				Conditions: []genericcondition.GenericCondition{
+					{
+						Type:   "Ready",
+						Status: "True",
+					},
+					{
+						Type:   "Accepted",
+						Status: "True",
+					},
+					{
+						Type:   "Reconciling",
+						Status: "False",
+					},
+					{
+						Type:   "Stalled",
+						Status: "False",
+					},
+				},
+				ResourceCounts: fleet.GitRepoResourceCounts{
+					Ready:        1,
+					DesiredReady: 1,
+					WaitApplied:  0,
+					Modified:     0,
+					Orphaned:     0,
+					Missing:      0,
+					Unknown:      0,
+					NotReady:     0,
+				},
+			}
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(k, gitrepoName)
+				g.Expect(status).To(matchGitRepoStatus(expectedStatus))
+
+			}).Should(Succeed())
 
 			By("checking the deployment's new name")
 			Eventually(func() string {
-				out, _ := k.Namespace("default").Get("deployments")
+				out, _ := k.Namespace(targetNamespace).Get("deployments")
 				return out
 			}).Should(ContainSubstring("newsleep"))
 		}, Label("webhook"))
@@ -231,4 +342,71 @@ func replace(path string, s string, r string) {
 
 	err = os.WriteFile(path, b, 0644)
 	Expect(err).ToNot(HaveOccurred())
+}
+
+// getGitRepoStatus retrieves the status of the gitrepo with the provided name.
+func getGitRepoStatus(k kubectl.Command, name string) fleet.GitRepoStatus {
+	gr, err := k.Get("gitrepo", name, "-o=json")
+
+	Expect(err).ToNot(HaveOccurred())
+
+	var gitrepo fleet.GitRepo
+	_ = json.Unmarshal([]byte(gr), &gitrepo)
+
+	return gitrepo.Status
+}
+
+type gitRepoStatusMatcher struct {
+	expected fleet.GitRepoStatus
+}
+
+func matchGitRepoStatus(expected fleet.GitRepoStatus) types.GomegaMatcher {
+	return &gitRepoStatusMatcher{expected: expected}
+}
+
+func (matcher *gitRepoStatusMatcher) Match(actual interface{}) (success bool, err error) {
+	got, ok := actual.(fleet.GitRepoStatus)
+	if !ok {
+		return false, fmt.Errorf("gitRepoStatusMatcher expects a GitRepoStatus")
+	}
+
+	want := matcher.expected
+
+	// Conditions are tested using custom logic to avoid having to manipulate timestamps (last update and transition
+	// times).
+	for _, wantCond := range want.Conditions {
+		found := false
+		for _, gotCond := range got.Conditions {
+			if gotCond.Type == wantCond.Type &&
+				wantCond.Status == gotCond.Status &&
+				wantCond.Reason == gotCond.Reason &&
+				wantCond.Message == gotCond.Message {
+				found = true
+			}
+		}
+		if !found {
+			return false, fmt.Errorf(
+				"Condition %q with status %q not found",
+				wantCond.Type,
+				wantCond.Status,
+			)
+		}
+	}
+
+	return got.Commit == want.Commit &&
+			got.ReadyClusters == want.ReadyClusters &&
+			got.DesiredReadyClusters == want.DesiredReadyClusters &&
+			got.GitJobStatus == want.GitJobStatus &&
+			reflect.DeepEqual(got.Summary, want.Summary) &&
+			got.Display.ReadyBundleDeployments == want.Display.ReadyBundleDeployments &&
+			got.ResourceCounts == want.ResourceCounts,
+		nil
+}
+
+func (matcher *gitRepoStatusMatcher) FailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected\n\t%#v\nto match status\n\t%#v", actual, matcher.expected)
+}
+
+func (matcher *gitRepoStatusMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected\n\t%#v\nnot to match status\n\t%#v", actual, matcher.expected)
 }

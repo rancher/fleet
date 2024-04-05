@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/rancher/fleet/internal/cmd/agent"
 	"github.com/rancher/fleet/internal/cmd/agent/controller"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
@@ -31,6 +31,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
@@ -50,7 +51,6 @@ var (
 	ctx       context.Context
 	cancel    context.CancelFunc
 	k8sClient client.Client
-	specEnvs  map[string]*specEnv
 )
 
 const (
@@ -135,15 +135,13 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 	disc := memory.NewMemCacheClient(d)
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(disc)
 	getter := &restClientGetter{cfg: cfg, discovery: disc, restMapper: mapper}
-	helmDeployer, _ := helmdeployer.NewHelm(
-		ctx,
-		localClient,
+	helmDeployer := helmdeployer.New(
 		systemNamespace,
 		defaultNamespace,
 		defaultNamespace,
 		agentScope,
-		getter,
 	)
+	_ = helmDeployer.Setup(ctx, localClient, getter)
 
 	// Build the deployer that the bundledeployment reconciler will use
 	deployer := deployer.New(
@@ -154,11 +152,14 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 	)
 
 	// Build the monitor to detect changes
-	apply, _, localDynamic, err := agent.LocalClients(ctx, mgr.GetConfig())
+	localDynamic, err := dynamic.NewForConfig(mgr.GetConfig())
+	Expect(err).ToNot(HaveOccurred())
+
+	applied, err := applied.NewWithClient(mgr.GetConfig())
 	Expect(err).ToNot(HaveOccurred())
 
 	monitor := monitor.New(
-		apply,
+		applied,
 		mapper,
 		helmDeployer,
 		defaultNamespace,
@@ -171,7 +172,7 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 		trigger,
 		upstreamClient,
 		mgr.GetAPIReader(),
-		apply,
+		applied,
 		defaultNamespace,
 		defaultNamespace,
 		agentScope,

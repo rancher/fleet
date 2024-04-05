@@ -1,19 +1,39 @@
-# Upgrade Fleet in specific Rancher versions to latest fleet release and run MC tests
-name: Upgrade Fleet in Rancher to Latest Release
+# Upgrade Fleet in given Rancher versions to given Fleet release and run tests
+name: Upgrade Fleet in Rancher
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "checkout git branch/tag"
+        description: "Checkout git branch/tag"
         required: true
-        default: "master"
-      enable_tmate:
-        description: 'Enable debugging via tmate'
-        required: false
-        default: "false"
-  push:
-    tags: ['v*']
+        default: "main"
+      k3s_version:
+        # https://hub.docker.com/r/rancher/k3s/tags
+        # k3d version list k3s | sed 's/+/-/' | sort -h
+        description: "K3s version to use"
+        required: true
+        default: "v1.27.9-k3s1"
+      rancher_version:
+        description: "Rancher version to install"
+        required: true
+        default: "2.8.2"
+      fleet_crd_url:
+        description: "Fleet CRD chart URL from rancher/charts"
+        required: true
+        default: https://github.com/rancher/charts/raw/dev-v2.9/assets/fleet-crd/fleet-crd-104.0.0+up0.10.0-rc.4.tgz
+      fleet_url:
+        description: "Fleet chart URL from rancher/charts"
+        required: true
+        default: https://github.com/rancher/charts/raw/dev-v2.9/assets/fleet/fleet-104.0.0+up0.10.0-rc.4.tgz
+      image_repo:
+        description: "Fleet image repo, the image name fleet/fleet-agent is to be appended later"
+        required: true
+        default: "rancher"
+      image_tag:
+        description: "Fleet image tag"
+        required: true
+        default: "v0.10.0-rc.4"
 
 env:
   GOARCH: amd64
@@ -24,26 +44,6 @@ jobs:
   rancher-fleet-upgrade:
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        k3s_version:
-          # k3d version list k3s | sed 's/+/-/' | sort -h
-          # https://hub.docker.com/r/rancher/k3s/tags
-          - v1.24.17-k3s1
-          - v1.28.1-k3s1
-        rancher_version:
-          - v2.6.13  # k3s: 1.20 - 1.24
-          - v2.7.6
-          - v2.7.7-rc5
-        fleet_version:
-          - "0.9.0-rc.1"
-        exclude:
-          - k3s_version: v1.24.1-k3s1
-            rancher_version: v2.7.7-rc5
-          - k3s_version: v1.28.1-k3s1
-            rancher_version: v2.6.13
-
     steps:
       -
         uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
       -
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -59,7 +59,7 @@ jobs:
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: rancher-cli-cache
         with:
           path: /home/runner/.local/bin
@@ -87,7 +87,7 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*'
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
-            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
+            --image docker.io/rancher/k3s:${{github.event.inputs.k3s_version}}
       -
         name: Set up k3d downstream cluster
         uses: AbsaOSS/k3d-action@v2
@@ -102,21 +102,14 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*'
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
-            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
-      -
-        name: Set up tmate debug session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
+            --image docker.io/rancher/k3s:${{github.event.inputs.k3s_version}}
       -
         name: Set up Rancher
         env:
-          external_ip: "172.18.0.1.omg.howdoi.website"
-          fleetns: "${{ matrix.rancher_version == 'v2.5.16' && 'fleet-system' || 'cattle-fleet-system' }}"
+          public_hostname: "172.18.0.1.omg.howdoi.website"
+          fleetns: "cattle-fleet-system"
         run: |
-          ./.github/scripts/setup-rancher.sh "${{matrix.rancher_version}}"
+          ./.github/scripts/setup-rancher.sh "${{github.event.inputs.rancher_version}}"
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
           ./.github/scripts/label-downstream-cluster.sh
@@ -125,47 +118,58 @@ jobs:
         run: |
           kubectl apply -n fleet-local -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
           kubectl apply -n fleet-default -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
+          # wait for bundle ready
+          until kubectl get bundles -n fleet-local test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
+          until kubectl get bundles -n fleet-default test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
       -
         name: Deploy latest fleet
         env:
-          url_crd: "https://github.com/rancher/fleet/releases/download/v${{matrix.fleet_version}}/fleet-crd-${{matrix.fleet_version}}.tgz"
-          url: "https://github.com/rancher/fleet/releases/download/v${{matrix.fleet_version}}/fleet-${{matrix.fleet_version}}.tgz"
-          version: v${{matrix.fleet_version}}
-          fleetns: "${{ matrix.rancher_version == 'v2.5.16' && 'fleet-system' || 'cattle-fleet-system' }}"
+          fleet_crd_url: ${{github.event.inputs.fleet_crd_url}}
+          fleet_url: ${{github.event.inputs.fleet_url}}
+          image_repo: ${{github.event.inputs.image_repo}}
+          image_tag: ${{github.event.inputs.image_tag}}
+          fleetns: "cattle-fleet-system"
         run: |
-          helm upgrade fleet-crd "$url_crd" --wait -n "$fleetns"
+          helm upgrade fleet-crd "$fleet_crd_url" --wait -n "$fleetns"
           until helm -n "$fleetns" status fleet-crd  | grep -q "STATUS: deployed"; do echo waiting for original fleet-crd chart to be deployed; sleep 1; done
 
-          helm upgrade fleet "$url" \
+          # need to repeat some defaults, because of --reuse-values
+          helm upgrade fleet "$fleet_url" \
             --wait -n "$fleetns" \
-            --set image.tag="$version" \
-            --set agentImage.tag="$version"
+            --reuse-values \
+            --set image.repository="$image_repo/fleet" \
+            --set image.tag="$image_tag" \
+            --set agentImage.repository="$image_repo/fleet-agent" \
+            --set agentImage.tag="$image_tag" \
+            --set leaderElection.leaseDuration=30s --set leaderElection.retryPeriod=10s --set leaderElection.renewDeadline=25s
+
           until helm -n "$fleetns" status fleet | grep -q "STATUS: deployed"; do echo waiting for original fleet chart to be deployed; sleep 3; done
           kubectl -n "$fleetns" rollout status deploy/fleet-controller
 
           # wait for bundle update
-          until kubectl get bundles -n fleet-local fleet-agent-local -ojsonpath='{.spec.resources}' | grep -q "image: rancher/fleet-agent:$version"; do sleep 3; done
-          until kubectl get bundles -n fleet-default -ojsonpath='{.items[*].spec.resources}' | grep -q "image: rancher/fleet-agent:$version"; do sleep 3; done
+          until kubectl get bundles -n fleet-local fleet-agent-local -ojsonpath='{.spec.resources}' | grep -q "image: rancher/fleet-agent:$image_tag"; do sleep 3; done
+          until kubectl get bundles -n fleet-default -ojsonpath='{.items[*].spec.resources}' | grep -q "image: rancher/fleet-agent:$image_tag"; do sleep 3; done
 
           # wait for fleet agent bundles
-          { grep -E -q -m 1 "fleet-agent-local.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-local -w)
-          { grep -E -q -m 1 "fleet-agent-c.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-default -w)
+          until kubectl get bundles -n fleet-local | grep -q -E  "fleet-agent-local.*1/1"; do echo "waiting for local agent bundle"; sleep 1; done
+          until kubectl get bundles -n fleet-default | grep -q -E  "fleet-agent-c.*1/1"; do echo "waiting for agent bundle"; sleep 1; done
       -
         name: Verify Installation
         env:
           FLEET_E2E_NS: fleet-local
-          FLEET_VERSION: v${{matrix.fleet_version}}
-          FLEET_LOCAL_AGENT_NAMESPACE: "${{ matrix.rancher_version == 'v2.5.16' && 'fleet-system' || 'cattle-fleet-local-system' }}"
-          FLEET_AGENT_NAMESPACE: "${{ matrix.rancher_version == 'v2.5.16' && 'fleet-system' || 'cattle-fleet-system' }}"
+          FLEET_VERSION: ${{github.event.inputs.image_tag}}
+          FLEET_LOCAL_AGENT_NAMESPACE: "cattle-fleet-local-system"
+          FLEET_AGENT_NAMESPACE: "cattle-fleet-system"
         run: |
-          ginkgo --label-filter="!single-cluster" e2e/installation
+          # this doesn't work with <0.10
+          ginkgo --label-filter='!single-cluster' e2e/installation
       -
         name: E2E tests for examples
         env:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-local
         run: |
-          ginkgo --label-filter="!difficult" e2e/multi-cluster
+          ginkgo e2e/multi-cluster
       -
         name: Dump failed environment
         if: failure()
@@ -173,10 +177,10 @@ jobs:
           ./.github/scripts/dump-failed-k3ds.sh
       -
         name: Upload logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: gha-fleet-upgrade-rancher-logs-${{ matrix.rancher_version }}-${{ matrix.k3s_version }}-${{ github.sha }}-${{ github.run_id }}
+          name: gha-fleet-upgrade-rancher-logs-${{ github.event.inputs.rancher_version }}-${{ github.event.inputs.k3s_version }}-${{ github.sha }}-${{ github.run_id }}
           path: |
             tmp/*.json
             tmp/*.log

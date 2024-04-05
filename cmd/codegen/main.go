@@ -17,7 +17,7 @@ func main() {
 	os.Unsetenv("GOPATH")
 	controllergen.Run(args.Options{
 		OutputPackage: "github.com/rancher/fleet/pkg/generated",
-		Boilerplate:   "scripts/boilerplate.go.txt",
+		Boilerplate:   "cmd/codegen/boilerplate.go.txt",
 		Groups: map[string]args.Group{
 			"fleet.cattle.io": {
 				Types: []interface{}{

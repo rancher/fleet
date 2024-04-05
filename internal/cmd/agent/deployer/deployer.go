@@ -16,6 +16,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -161,32 +162,27 @@ func (d *Deployer) updateNamespace(ctx context.Context, ns *corev1.Namespace) er
 }
 
 // fetchNamespace gets the namespace matching the release ID. Returns an error if none is found.
+// releaseID is composed of release.Namespace/release.Name/release.Version
 func (d *Deployer) fetchNamespace(ctx context.Context, releaseID string) (*corev1.Namespace, error) {
-	// releaseID is composed of release.Namespace/release.Name/release.Version
 	namespace := strings.Split(releaseID, "/")[0]
-	list := &corev1.NamespaceList{}
-	err := d.client.List(ctx, list, client.MatchingLabels{
-		"name": namespace,
-	})
+	ns := &corev1.Namespace{}
+	err := d.client.Get(ctx, types.NamespacedName{Name: namespace}, ns)
 	if err != nil {
 		return nil, err
 	}
-	if len(list.Items) == 0 {
-		return nil, fmt.Errorf("namespace %s not found", namespace)
-	}
-	return &list.Items[0], nil
+	return ns, nil
 }
 
-// addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `name` labels added by Helm when creating the namespace.
+// addLabelsFromOptions updates nsLabels so that it only contains all labels specified in optLabels, plus the `kubernetes.io/metadata.name` labels added by kubernetes when creating the namespace.
 func addLabelsFromOptions(nsLabels map[string]string, optLabels map[string]string) {
 	for k, v := range optLabels {
 		nsLabels[k] = v
 	}
 
 	// Delete labels not defined in the options.
-	// Keep the name label as it is added by helm when creating the namespace.
+	// Keep the `kubernetes.io/metadata.name` label as it is added by kubernetes when creating the namespace.
 	for k := range nsLabels {
-		if _, ok := optLabels[k]; k != "name" && !ok {
+		if _, ok := optLabels[k]; k != corev1.LabelMetadataName && !ok {
 			delete(nsLabels, k)
 		}
 	}

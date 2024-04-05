@@ -8,7 +8,7 @@ on:
       ref:
         description: "checkout git branch/tag"
         required: true
-        default: "master"
+        default: "main"
       keep_cluster:
         description: "Keep the cluster afterwards?"
         required: false
@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0
       -
         name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -50,7 +50,7 @@ jobs:
       #   --scopes /subscriptions/{id}/resourceGroups/fleetCI
       -
         name: Login to Azure
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
       -
@@ -76,10 +76,7 @@ jobs:
       -
         name: Build fleet binaries
         run: |
-          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
-
-          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
-          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+          ./.github/scripts/build-fleet-binaries.sh
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v3

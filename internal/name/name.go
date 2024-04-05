@@ -91,8 +91,11 @@ func HelmReleaseName(str string) string {
 
 	// shorten name to 53 characters, the limit for helm release names
 	if helmReleaseName.MatchString(str) && dnsLabelSafe.MatchString(str) {
-		logrus.Debugf("shorten bundle name %v to %v", str, Limit(str, v1alpha1.MaxHelmReleaseNameLen))
-		return Limit(str, v1alpha1.MaxHelmReleaseNameLen)
+		short := Limit(str, v1alpha1.MaxHelmReleaseNameLen)
+		if short != str {
+			logrus.Debugf("shorten bundle name %v to %v", str, short)
+		}
+		return short
 	}
 
 	// if the string ends up empty or otherwise invalid, fall back to just

@@ -1,0 +1,9 @@
+namespace: test-deps-helm-yamls-with-fleet
+helm:
+  releaseName: simple-with-fleet-yaml
+  chart: deps-chart
+  repo: http://localhost:3000
+  version: 1.0.0
+  force: false
+  disableDependencyUpdate: true
+

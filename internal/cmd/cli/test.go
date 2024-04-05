@@ -9,10 +9,12 @@ import (
 	"github.com/rancher/fleet/internal/cmd/cli/match"
 )
 
+// NewTest returns a subcommand to test bundle matching, deprecated
 func NewTest() *cobra.Command {
 	return command.Command(&Test{}, cobra.Command{
-		Args:  cobra.MaximumNArgs(1),
-		Short: "Match a bundle to a target and render the output",
+		Args:       cobra.MaximumNArgs(1),
+		Deprecated: "use target and deploy sub-commands instead.",
+		Short:      "Match a bundle to a target and render the output (deprecated)",
 	})
 }
 

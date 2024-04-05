@@ -1,14 +1,19 @@
 package manifest
 
+//go:generate mockgen --build_flags=--mod=mod -destination=../cmd/controller/mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client
+
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
-	"github.com/golang/mock/gomock"
-	"github.com/rancher/wrangler/v2/pkg/generic/fake"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"go.uber.org/mock/gomock"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/rancher/fleet/internal/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -59,28 +64,27 @@ func Test_contentStore_Store(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			cache := fake.NewMockNonNamespacedCacheInterface[*fleet.Content](ctrl)
-			client := fake.NewMockNonNamespacedClientInterface[*fleet.Content, *fleet.ContentList](ctrl)
-			store := &contentStore{cache, client}
+			client := mocks.NewMockClient(ctrl)
+
+			store := &ContentStore{client}
+			ctx := context.TODO()
+			nsn := types.NamespacedName{Name: tt.want}
 
 			if tt.args.cached {
-				cache.EXPECT().Get(tt.want).Return(nil, nil)
-				client.EXPECT().Create(gomock.Any()).Times(0)
+				client.EXPECT().Get(ctx, nsn, gomock.Any()).Return(nil)
+				client.EXPECT().Create(ctx, gomock.Any()).Times(0)
 			} else {
-				cache.EXPECT().Get(tt.want).Return(nil, apierrors.NewNotFound(fleet.Resource("Content"), tt.want))
-				client.EXPECT().Create(&contentMatcher{
+				client.EXPECT().Get(ctx, nsn, gomock.Any()).Return(apierrors.NewNotFound(fleet.Resource("Content"), tt.want))
+				client.EXPECT().Create(ctx, &contentMatcher{
 					name:      tt.want,
 					sha256sum: checksum,
 				}).Times(1)
 			}
 
-			got, err := store.Store(tt.args.manifest)
+			err := store.Store(ctx, tt.args.manifest)
 			if err != nil {
 				t.Errorf("Store() error = %v", err)
 				return
-			}
-			if got != tt.want {
-				t.Errorf("Store() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

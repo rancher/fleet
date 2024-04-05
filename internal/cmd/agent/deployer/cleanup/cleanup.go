@@ -98,7 +98,7 @@ func (c *Cleanup) garbageCollect(ctx context.Context) {
 }
 
 func (c *Cleanup) cleanup(ctx context.Context, logger logr.Logger) error {
-	deployed, err := c.helmDeployer.ListDeployments()
+	deployed, err := c.helmDeployer.ListDeployments(c.helmDeployer.NewListAction())
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (c *Cleanup) cleanup(ctx context.Context, logger logr.Logger) error {
 		if apierror.IsNotFound(err) {
 			// found a helm secret, but no bundle deployment, so uninstall the release
 			logger.Info("Deleting orphan bundle ID, helm uninstall", "bundleID", deployed.BundleID, "release", deployed.ReleaseName)
-			if err := c.helmDeployer.Delete(ctx, deployed.BundleID, deployed.ReleaseName); err != nil {
+			if err := c.helmDeployer.DeleteRelease(ctx, deployed); err != nil {
 				return err
 			}
 
@@ -122,7 +122,7 @@ func (c *Cleanup) cleanup(ctx context.Context, logger logr.Logger) error {
 		if key != deployed.ReleaseName {
 			// found helm secret and bundle deployment for BundleID, but release name doesn't match, so delete the release
 			logger.Info("Deleting unknown bundle ID, helm uninstall", "bundleID", deployed.BundleID, "release", deployed.ReleaseName, "expectedRelease", key)
-			if err := c.helmDeployer.Delete(ctx, deployed.BundleID, deployed.ReleaseName); err != nil {
+			if err := c.helmDeployer.DeleteRelease(ctx, deployed); err != nil {
 				return err
 			}
 		}
@@ -133,7 +133,7 @@ func (c *Cleanup) cleanup(ctx context.Context, logger logr.Logger) error {
 
 func (c *Cleanup) delete(ctx context.Context, bundleDeploymentKey string) error {
 	_, name := kv.RSplit(bundleDeploymentKey, "/")
-	return c.helmDeployer.Delete(ctx, name, "")
+	return c.helmDeployer.Delete(ctx, name)
 }
 
 // releaseKey returns a deploymentKey from namespace+releaseName

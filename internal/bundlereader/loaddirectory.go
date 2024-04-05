@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/go-getter"
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/internal/content"
+	"github.com/rancher/fleet/internal/helmupdater"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/downloader"
@@ -151,10 +152,10 @@ func readFleetIgnore(path string) ([]string, error) {
 	return ignored, nil
 }
 
-func loadDirectory(ctx context.Context, compress bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
+func loadDirectory(ctx context.Context, compress bool, disableDepsUpdate bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := GetContent(ctx, base, source, version, auth)
+	files, err := GetContent(ctx, base, source, version, auth, disableDepsUpdate)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func loadDirectory(ctx context.Context, compress bool, prefix, base, source, ver
 }
 
 // GetContent uses go-getter (and Helm for OCI) to read the files from directories and servers.
-func GetContent(ctx context.Context, base, source, version string, auth Auth) (map[string][]byte, error) {
+func GetContent(ctx context.Context, base, source, version string, auth Auth, disableDepsUpdate bool) (map[string][]byte, error) {
 	temp, err := os.MkdirTemp("", "fleet")
 	if err != nil {
 		return nil, err
@@ -266,6 +267,13 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth) (m
 		}
 
 		if info.IsDir() {
+			// If the folder is a helm chart and dependency updates are not disabled,
+			// try to update possible dependencies.
+			if !disableDepsUpdate && helmupdater.ChartYAMLExists(path) {
+				if err = helmupdater.UpdateHelmDependencies(path); err != nil {
+					return err
+				}
+			}
 			// Skip .fleetignore'd and hidden directories
 			if ignore || strings.HasPrefix(filepath.Base(path), ".") {
 				return filepath.SkipDir

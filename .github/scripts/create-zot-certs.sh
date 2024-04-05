@@ -4,8 +4,8 @@ CA_name=${1-'FleetCI-RootCA'}
 validity_days=365
 passphrase=foo # this should not matter too much for local, ephemeral certs and keys
 
-mkdir -p $CA_name
-cd $CA_name
+mkdir -p "$CA_name"
+cd "$CA_name"
 
 must_create_certs ()
 {

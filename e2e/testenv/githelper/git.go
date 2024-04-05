@@ -13,6 +13,7 @@ import (
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -258,6 +259,19 @@ func (g *Git) Update(repo *git.Repository) (string, error) {
 	return h.String(), repo.Push(&po)
 }
 
+// Checkouts the specified remote branch from the given repository
+func (g *Git) CheckoutRemote(repo *git.Repository, branch string) error {
+	w, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+	_ = repo.Fetch(&git.FetchOptions{RefSpecs: []config.RefSpec{"refs/*:refs/*"}})
+	if err := w.Checkout(&git.CheckoutOptions{Branch: plumbing.NewBranchReferenceName(branch)}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func author() *object.Signature {
 	return &object.Signature{
 		Name:  "CI",
@@ -290,6 +304,10 @@ func BuildGitHostname(ns string) (string, error) {
 // GetExternalRepoAddr retrieves the external URL where our local git server can be reached, based on the provided port
 // and repo name.
 func GetExternalRepoAddr(env *testenv.Env, port int, repoName string) (string, error) {
+	if v := os.Getenv("CI_GIT_REPO_URL"); v != "" {
+		return fmt.Sprintf("%s/%s", v, repoName), nil
+	}
+
 	systemk := env.Kubectl.Namespace(env.Namespace)
 
 	externalIP, err := systemk.Get("service", "git-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")

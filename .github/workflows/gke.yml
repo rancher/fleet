@@ -8,7 +8,7 @@ on:
       ref:
         description: "checkout git branch/tag"
         required: true
-        default: "master"
+        default: "main"
       keep_cluster:
         description: "Keep the cluster afterwards?"
         required: false
@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0
       -
         name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -50,7 +50,7 @@ jobs:
           credentials_json: '${{ secrets.CI_GOOGLE_CREDENTIALS }}'
       -
         name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v2
         with:
           install_components: 'gke-gcloud-auth-plugin'
       -
@@ -81,10 +81,7 @@ jobs:
       -
         name: Build fleet binaries
         run: |
-          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
-
-          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
-          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+          ./.github/scripts/build-fleet-binaries.sh
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v3

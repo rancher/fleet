@@ -1,0 +1,10 @@
+apiVersion: v2
+appVersion: 1.16.0
+description: A chart for testing dependencies
+name: deps-chart
+type: application
+version: 1.0.0
+dependencies:
+- name: sleeper-chart
+  version: "0.1.0"
+  repository: {{.HelmRepoUrl}}

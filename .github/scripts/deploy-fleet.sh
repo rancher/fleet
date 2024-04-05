@@ -34,7 +34,7 @@ eventually helm upgrade --install fleet charts/fleet \
   --set image.tag="$fleetTag" \
   --set agentImage.repository="$agentRepo" \
   --set agentImage.tag="$agentTag" \
-  --set agentImage.imagePullPolicy=IfNotPresent
+  --set agentImage.imagePullPolicy=IfNotPresent \
 
 # wait for controller and agent rollout
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller

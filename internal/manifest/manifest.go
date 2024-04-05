@@ -90,7 +90,8 @@ func (m *Manifest) ResetSHASum() {
 	m.shasum = ""
 }
 
-// SHASum returns the SHA256 sum of the JSON serialization
+// SHASum returns the SHA256 sum of the JSON serialization. If necessary it
+// loads the content resource and caches its shasum and raw data.
 func (m *Manifest) SHASum() (string, error) {
 	if m.shasum == "" {
 		if err := m.load(); err != nil {
@@ -100,7 +101,9 @@ func (m *Manifest) SHASum() (string, error) {
 	return m.shasum, nil
 }
 
-// ID returns the name of the Content resource produced from this Manifest
+// ID returns the name of the Content resource produced from this Manifest.
+// If necessary it loads the content resource and caches its shasum and
+// raw data.
 func (m *Manifest) ID() (string, error) {
 	shasum, err := m.SHASum()
 	if err != nil {

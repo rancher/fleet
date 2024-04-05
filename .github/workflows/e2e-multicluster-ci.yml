@@ -30,7 +30,7 @@ jobs:
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -40,15 +40,11 @@ jobs:
       -
         name: Build Fleet Binaries
         run: |
-          go build -o bin/fleetcontroller-linux-$GOARCH ./cmd/fleetcontroller
-
-          go build -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
-          go build -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+          ./.github/scripts/build-fleet-binaries.sh
       -
         name: Build Docker Images
         run: |
-          docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
-          docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
+          ./.github/scripts/build-fleet-images.sh
       -
         name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
@@ -125,7 +121,7 @@ jobs:
                 --set token="$token"
 
           echo "waiting for downstream cluster to be registered..."
-          { grep -q -m 1 "k3d-downstream"; kill $!; } < <(kubectl get cluster -n fleet-default -w)
+          { grep -q -m 1 "1/1"; kill $!; } < <(kubectl get cluster -n fleet-default -w)
 
           echo "waiting for cluster to report being ready..."
           while [ $(kubectl -n fleet-default get cluster -o jsonpath='{.items[0].status.summary.ready}') -ne 1 ]; do
@@ -155,7 +151,7 @@ jobs:
           ./.github/scripts/dump-failed-k3ds.sh
       -
         name: Upload Logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: gha-fleet-mc-e2e-logs-${{ github.sha }}-${{ github.run_id }}

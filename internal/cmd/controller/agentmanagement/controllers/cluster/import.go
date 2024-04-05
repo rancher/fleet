@@ -11,12 +11,12 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/internal/client"
-	"github.com/rancher/fleet/internal/cmd/controller/agent"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/connection"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
-	"github.com/rancher/fleet/internal/cmd/controller/connection"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -259,7 +259,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	if err != nil {
 		return status, err
 	}
-	setID := helmdeployer.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
+	setID := applied.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
 	apply = apply.WithDynamicLookup().WithSetID(setID).WithNoDeleteGVK(fleetns.GVK())
 
 	tokenName := name.SafeConcatName(ImportTokenPrefix + cluster.Name)
