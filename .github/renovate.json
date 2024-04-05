@@ -5,5 +5,12 @@
   "baseBranches": [
     "main"
   ],
-  "prHourlyLimit": 2
+  "prHourlyLimit": 2,
+  "ignorePaths": [
+    "**/assets/**"
+  ],
+  "force": {
+    "constraints": {
+    }
+  }
 }
