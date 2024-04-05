@@ -31,7 +31,7 @@ require (
 	github.com/onsi/gomega v1.32.0
 	github.com/otiai10/copy v1.14.0
 	github.com/pkg/errors v0.9.1
-	github.com/rancher/fleet/pkg/apis v0.0.0-00010101000000-000000000000
+	github.com/rancher/fleet/pkg/apis v0.10.0-rc.4
 	github.com/rancher/lasso v0.0.0-20240325194215-0064abcb8aee
 	github.com/rancher/wrangler/v2 v2.1.4
 	github.com/reugn/go-quartz v0.11.2
