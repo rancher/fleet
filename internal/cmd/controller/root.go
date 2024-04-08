@@ -34,6 +34,7 @@ type FleetManager struct {
 	Kubeconfig    string `usage:"Kubeconfig file"`
 	Namespace     string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
 	DisableGitops bool   `usage:"disable gitops components" name:"disable-gitops"`
+	ShardID       string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
 }
 
 type LeaderElectionOptions struct {
@@ -128,7 +129,15 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
 	}()
-	if err := start(ctx, f.Namespace, kubeconfig, leaderOpts, bindAddresses, f.DisableGitops); err != nil {
+	if err := start(
+		ctx,
+		f.Namespace,
+		kubeconfig,
+		leaderOpts,
+		bindAddresses,
+		f.DisableGitops,
+		f.ShardID,
+	); err != nil {
 		return err
 	}
 

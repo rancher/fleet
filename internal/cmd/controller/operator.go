@@ -29,9 +29,18 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-func start(ctx context.Context, systemNamespace string, config *rest.Config, leaderOpts LeaderElectionOptions, bindAddresses BindAddresses, disableGitops bool) error {
+func start(
+	ctx context.Context,
+	systemNamespace string,
+	config *rest.Config,
+	leaderOpts LeaderElectionOptions,
+	bindAddresses BindAddresses,
+	disableGitops bool,
+	shardID string,
+) error {
 	setupLog.Info("listening for changes on local cluster", "disableGitops", disableGitops)
 
+	// TODO figure out here how to use shardID
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: bindAddresses.Metrics},
