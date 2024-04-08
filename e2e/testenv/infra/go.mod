@@ -50,7 +50,7 @@ require (
 	golang.org/x/sys v0.10.0 // indirect
 	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
 	google.golang.org/grpc v1.53.0 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/client-go v12.0.0+incompatible // indirect
 	oras.land/oras-go v1.2.2 // indirect
