@@ -41,7 +41,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.29.1
 	go.uber.org/mock v0.4.0
 	golang.org/x/crypto v0.22.0
-	golang.org/x/sync v0.6.0
+	golang.org/x/sync v0.7.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
