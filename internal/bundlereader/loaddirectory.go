@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -16,8 +17,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-getter"
-	"github.com/pkg/errors"
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/helmupdater"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -300,7 +301,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		return nil
 	})
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to read %s relative to %s", orgSource, base)
+		return nil, fmt.Errorf("failed to read %s relative to %s: %w", orgSource, base, err)
 	}
 
 	return files, nil
@@ -313,6 +314,14 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 
 	url, err := url.Parse(name)
 	if err != nil {
+		return "", err
+	}
+
+	if version == "" {
+		return "", errors.New("version is required for OCI URLs")
+	}
+
+	if _, err = semver.NewVersion(version); err != nil {
 		return "", err
 	}
 
@@ -348,7 +357,7 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 
 	saved, _, err := c.DownloadTo(name, version, path)
 	if err != nil {
-		return "", fmt.Errorf("Helm chart download: %v", err)
+		return "", fmt.Errorf("helm chart download: %w", err)
 	}
 
 	// Logout to remove the token configuration file from the system again
