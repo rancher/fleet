@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-getter"
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/helmupdater"
@@ -317,11 +315,8 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 		return "", err
 	}
 
-	if version == "" {
-		return "", errors.New("version is required for OCI URLs")
-	}
-
-	if _, err = semver.NewVersion(version); err != nil {
+	registryClient, err = registry.NewClient()
+	if err != nil {
 		return "", err
 	}
 
@@ -332,11 +327,6 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	if requiresLogin {
 		if port := url.Port(); port != "" {
 			addr = fmt.Sprintf("%s:%s", addr, port)
-		}
-
-		registryClient, err = registry.NewClient()
-		if err != nil {
-			return "", err
 		}
 
 		err = registryClient.Login(
