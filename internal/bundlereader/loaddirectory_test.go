@@ -344,6 +344,54 @@ func TestGetContent(t *testing.T) {
 	}
 }
 
+func TestGetContentOCI(t *testing.T) {
+	cases := []struct {
+		name    string
+		source  string
+		version string
+
+		expectedErr string
+	}{
+		{
+			name:        "OCI URL without version",
+			source:      "oci://rancher/charts/chart",
+			expectedErr: "version is required for OCI URLs",
+		},
+		{
+			name:        "OCI URL with invalid version",
+			source:      "oci://rancher/charts/chart",
+			version:     "latest",
+			expectedErr: "Invalid Semantic Version",
+		},
+		{
+			name:        "OCI URL with valid semver",
+			source:      "oci://non-existing-hostname/charts/chart",
+			version:     "1.0",
+			expectedErr: "helm chart download: failed to do request",
+		},
+		{
+			name:        "OCI URL includes version too",
+			source:      "oci://rancher/charts/chart:1.0",
+			version:     "1.0",
+			expectedErr: "helm chart download: invalid_reference: invalid tag",
+		},
+	}
+
+	assert := assert.New(t)
+
+	base, err := os.MkdirTemp("", "test-fleet")
+	require.NoError(t, err)
+
+	defer os.RemoveAll(base)
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err = bundlereader.GetContent(context.Background(), base, c.source, c.version, bundlereader.Auth{}, false)
+			assert.ErrorContains(err, c.expectedErr)
+		})
+	}
+}
+
 // createDirStruct generates and populates a directory structure which root is node, placing it at basePath.
 func createDirStruct(t *testing.T, basePath string, node fsNode) string {
 	path := filepath.Join(basePath, node.name)
