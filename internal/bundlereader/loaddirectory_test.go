@@ -350,30 +350,60 @@ func TestGetContentOCI(t *testing.T) {
 		source  string
 		version string
 
+		result      []string
 		expectedErr string
 	}{
+		// Note: These tests rely on external hosts and DNS resolution.
+		// We could just test the helm registry client is initialized
+		// correctly, however for now these tests document different
+		// scenarios nicely.
 		{
-			name:        "OCI URL without version",
-			source:      "oci://rancher/charts/chart",
-			expectedErr: "version is required for OCI URLs",
+			name:   "OCI URL without version",
+			source: "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+			result: []string{
+				"fleet-test-configmap-chart/Chart.yaml",
+				"fleet-test-configmap-chart/values.yaml",
+				"fleet-test-configmap-chart/templates/configmap.yaml",
+			},
+		},
+		{
+			name:    "OCI URL with version",
+			source:  "oci://ghcr.io/rancher/fleet-test-configmap-chart",
+			version: "0.1.0",
+			result: []string{
+				"fleet-test-configmap-chart/Chart.yaml",
+				"fleet-test-configmap-chart/values.yaml",
+				"fleet-test-configmap-chart/templates/configmap.yaml",
+			},
 		},
 		{
 			name:        "OCI URL with invalid version",
-			source:      "oci://rancher/charts/chart",
+			source:      "oci://ghcr.io/rancher/fleet-test-configmap-chart",
 			version:     "latest",
-			expectedErr: "Invalid Semantic Version",
+			expectedErr: "helm chart download: improper constraint: latest",
 		},
 		{
-			name:        "OCI URL with valid semver",
+			name:        "Non-existing OCI URL without version",
+			source:      "oci://non-existing-hostname/charts/chart",
+			expectedErr: "dial tcp: lookup non-existing-hostname",
+		},
+		{
+			name:        "Non-existing OCI URL with invalid version",
+			source:      "oci://non-existing-hostname/charts/chart",
+			version:     "latest",
+			expectedErr: "dial tcp: lookup non-existing-hostname",
+		},
+		{
+			name:        "Invalid OCI URL which includes version too",
+			source:      "oci://non-existing-hostname/charts/chart:1.0",
+			version:     "1.0",
+			expectedErr: "helm chart download: invalid_reference: invalid tag",
+		},
+		{
+			name:        "Non-existing OCI URL with valid semver",
 			source:      "oci://non-existing-hostname/charts/chart",
 			version:     "1.0",
 			expectedErr: "helm chart download: failed to do request",
-		},
-		{
-			name:        "OCI URL includes version too",
-			source:      "oci://rancher/charts/chart:1.0",
-			version:     "1.0",
-			expectedErr: "helm chart download: invalid_reference: invalid tag",
 		},
 	}
 
@@ -386,8 +416,15 @@ func TestGetContentOCI(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err = bundlereader.GetContent(context.Background(), base, c.source, c.version, bundlereader.Auth{}, false)
-			assert.ErrorContains(err, c.expectedErr)
+			result, err := bundlereader.GetContent(context.Background(), base, c.source, c.version, bundlereader.Auth{}, false)
+			if c.expectedErr == "" {
+				assert.NoError(err)
+				for k := range result {
+					assert.Contains(c.result, k)
+				}
+			} else {
+				assert.ErrorContains(err, c.expectedErr, c.name)
+			}
 		})
 	}
 }
