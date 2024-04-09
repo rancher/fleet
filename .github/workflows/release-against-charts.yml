@@ -58,7 +58,7 @@ jobs:
         with:
           token: ${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}
           push-to-fork: rancherbot/charts
-          title: 'Update Fleet to v${{github.event.inputs.new_fleet}}'
+          title: '[${{github.event.inputs.charts_ref}}] fleet ${{github.event.inputs.new_chart}}+up${{github.event.inputs.new_fleet}} update'
           body: |
             Update Fleet to v${{github.event.inputs.new_fleet}}
 
