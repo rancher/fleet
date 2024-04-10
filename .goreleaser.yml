@@ -127,6 +127,9 @@ dockers:
     # IDs to filter the binaries/packages.
     ids:
     - fleet-controller
+    - fleet-cli
+    - fleet-gitcloner
+    - fleet-gitjob
 
     # Templates of the Docker image names.
     image_templates:
@@ -152,6 +155,9 @@ dockers:
     goarch: arm64
     ids:
     - fleet-controller
+    - fleet-cli
+    - fleet-gitcloner
+    - fleet-gitjob
     image_templates:
     - "ghcr.io/rancher/fleet:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile
@@ -172,7 +178,6 @@ dockers:
     goarch: amd64
     ids:
     - fleet-agent
-    - fleet-cli
     image_templates:
     - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
     dockerfile: package/Dockerfile.agent
@@ -193,7 +198,6 @@ dockers:
     goarch: arm64
     ids:
     - fleet-agent
-    - fleet-cli
     image_templates:
     - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile.agent
