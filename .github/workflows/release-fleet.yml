@@ -92,10 +92,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           repo: "ghcr.io/rancher"
-          tag: ${{ steps.goreleaser.outputs.metadata.tag }}
-          version: ${{ steps.goreleaser.outputs.metadata.version }}
         run: |
+          version=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.version')
+          tag=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.tag')
           echo "publishing helm chart for (repo: $repo, tag: $tag, version: $version)"
+
           # Replace rancher/fleet, rancher/fleet-agent and rancher/gitjob image names, but not eg. rancher/kubectl
           sed -i \
               -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
