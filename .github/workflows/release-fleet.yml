@@ -39,11 +39,13 @@ jobs:
           args: --timeout=10m --config=.golangci.json
 
       - name: Run FOSSA scan
+        if: contains(github.ref, 'rc') != true
         uses: fossas/fossa-action@v1.3.3
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
 
       - name: Run FOSSA tests
+        if: contains(github.ref, 'rc') != true
         uses: fossas/fossa-action@v1.3.3
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
