@@ -111,6 +111,6 @@ jobs:
           helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-crd
           helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-agent
 
-          for f in $(find dist/artifacts/ -name '*.tgz'); do
+          for f in $(find dist/ -name '*.tgz'); do
             gh release upload $tag $f
           done
