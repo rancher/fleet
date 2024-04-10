@@ -149,6 +149,7 @@ dockers:
     - "--build-arg=ARCH=amd64"
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/amd64"
+    extra_files: [ "package/log.sh" ]
   -
     use: buildx
     goos: linux
@@ -171,6 +172,7 @@ dockers:
     - "--build-arg=ARCH=arm64"
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/arm64/v8"
+    extra_files: [ "package/log.sh" ]
   # fleet-agent images
   -
     use: buildx
@@ -191,7 +193,6 @@ dockers:
     - "--build-arg=ARCH=amd64"
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/amd64"
-    extra_files: [ "package/log.sh" ]
   -
     use: buildx
     goos: linux
@@ -211,7 +212,6 @@ dockers:
     - "--build-arg=ARCH=arm64"
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/arm64/v8"
-    extra_files: [ "package/log.sh" ]
 
 docker_manifests:
   # https://goreleaser.com/customization/docker_manifest/
