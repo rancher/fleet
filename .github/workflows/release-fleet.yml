@@ -80,6 +80,7 @@ jobs:
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
+        id: goreleaser
         with:
           distribution: goreleaser
           version: v1.24.0
@@ -91,8 +92,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           repo: "ghcr.io/rancher"
-          tag: "${GITHUB_REF_NAME}"
+          tag: ${{ steps.goreleaser.outputs.tag }}
+          version: ${{ steps.goreleaser.outputs.version }}
         run: |
+          echo "publishing helm chart for (repo: $repo, tag: $tag, version: $version)"
           # Replace rancher/fleet, rancher/fleet-agent and rancher/gitjob image names, but not eg. rancher/kubectl
           sed -i \
               -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
@@ -103,8 +106,6 @@ jobs:
               -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
               -e "s/tag: dev/tag: $tag/" \
               charts/fleet-agent/values.yaml
-
-          version=${tag#v}
 
           helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet
           helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-crd
