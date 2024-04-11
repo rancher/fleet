@@ -163,9 +163,10 @@ integration tests.
 ## Local Infra Setup
 
 The local infra setup creates pods for:
-* git server, using nginx with git-http-backend, port 8080/tcp
-* OCI repo server, using Zot, port 8081/tcp
-* Helm registry, using chartmuseum, port 5000/tcp
+
+- git server, using nginx with git-http-backend, port 8080/tcp
+- OCI repo server, using Zot, port 8081/tcp
+- Helm registry, using chartmuseum, port 5000/tcp
 
 To build and run the infra setup command do:
 
@@ -361,9 +362,7 @@ will need to restart the Docker daemon. You can configure the DNS for Docker in
 
 ```json
 {
-    "dns": [
-        "1.1.1.1"
-    ]
+  "dns": ["1.1.1.1"]
 }
 ```
 
