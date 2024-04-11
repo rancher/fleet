@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/rancher/fleet/internal/config"
+	"github.com/rancher/fleet/pkg/sharding"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -22,6 +23,7 @@ type ConfigReconciler struct {
 	Scheme *runtime.Scheme
 
 	SystemNamespace string
+	ShardID         string
 }
 
 // Load the config from the configmap and set it in the config package.
@@ -73,6 +75,7 @@ func (r *ConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(
 			// we do not trigger for status changes
 			predicate.And(
+				sharding.FilterByShardID(r.ShardID),
 				predicate.NewPredicateFuncs(func(object client.Object) bool {
 					return object.GetNamespace() == r.SystemNamespace &&
 						object.GetName() == config.ManagerConfigName

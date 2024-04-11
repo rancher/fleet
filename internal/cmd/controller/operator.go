@@ -63,6 +63,7 @@ func start(
 		Scheme: mgr.GetScheme(),
 
 		SystemNamespace: systemNamespace,
+		ShardID:         shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ConfigMap")
 		return err
@@ -76,7 +77,8 @@ func start(
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Query: builder,
+		Query:   builder,
+		ShardID: shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cluster")
 		return err
@@ -112,8 +114,9 @@ func start(
 
 	// controllers that update status.display
 	if err = (&reconciler.ClusterGroupReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		ShardID: shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterGroup")
 		return err
