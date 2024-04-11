@@ -6,7 +6,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "fleet-controller{{if . }}-shard-{{ . }}{{end}}" # TODO normalise strings or use indexes!
+  name: "fleet-controller{{if . }}-shard-{{ . }}{{end}}"
 spec:
   selector:
     matchLabels:
