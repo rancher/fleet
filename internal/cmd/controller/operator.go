@@ -134,6 +134,7 @@ func start(
 		Scheme: mgr.GetScheme(),
 
 		Scheduler: sched,
+		ShardID:   shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ImageScan")
 		return err
