@@ -10,7 +10,7 @@ require (
 	github.com/rancher/fleet v0.10.0-rc.5
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/crypto v0.22.0
-	helm.sh/helm/v3 v3.14.3
+	helm.sh/helm/v3 v3.14.4
 )
 
 require (
