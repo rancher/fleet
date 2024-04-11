@@ -135,7 +135,6 @@ Any magic wildcard DNS resolver will do, or you can create an A record in your o
 The k3d cluster is set up with multiple port forwardings by the scripts: `-p '80:80@server:0' -p '443:443@server:0'`.
 More arguments can be provided via the `k3d_args` variable.
 
-
 ### Troubleshooting
 
 If running the `infra setup` script returns an error about flag
@@ -325,6 +324,26 @@ act schedule -W .github/workflows/e2e-multicluster-ci.yml
 ```
 
 ### Troubleshooting
+
+#### fatal: not a git repository
+
+```shell
+get repo root in /: output: "fatal: not a git repository (or any of the parent directories): .git\n", error: exit status 128
+```
+
+If you see an issue like this and are running the tests from a linked git
+worktree, it is likely that act has copied the contents of your linked worktree
+into the container but cannot access the main worktree. Running the tests from
+the main worktree instead is going to resolve this issue.
+
+You can test this by running a simple git command like `git status` inside the
+working directory of the `act` container. It should be kept running in case this
+issue occurred.
+
+```shell
+docker exec -it <container> bash
+git status
+```
 
 #### DNS Resolution
 
