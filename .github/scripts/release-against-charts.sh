@@ -36,6 +36,12 @@ for i in fleet fleet-crd fleet-agent; do
     yq --inplace ".${i} += [\"${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}\"]" release.yaml
 done
 
+# Adapt Gitjob version in generated patch
+if grep -q '^-  version: ' ./packages/fleet/fleet/generated-changes/patch/Chart.yaml.patch; then
+    GITJOB_VERSION=$(curl -s "https://raw.githubusercontent.com/rancher/fleet/v${NEW_FLEET_VERSION}/charts/fleet/charts/gitjob/Chart.yaml" | yq e .version)
+    sed -i -e "s/^-  version: .*$/-  version: ${GITJOB_VERSION}/" ./packages/fleet/fleet/generated-changes/patch/Chart.yaml.patch
+fi
+
 git add packages/fleet release.yaml
 git commit -m "Updating to Fleet v${NEW_FLEET_VERSION}"
 
