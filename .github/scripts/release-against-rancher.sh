@@ -24,6 +24,13 @@ if [ ! -e ~/.gitconfig ]; then
     git config --global user.email fleet@suse.de
 fi
 
+# Check if version is available online
+CURRENT_RANCHER_VERSION=$(git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2)
+if ! curl -s --head --fail "https://github.com/rancher/charts/raw/dev-${CURRENT_RANCHER_VERSION}/assets/fleet/fleet-${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}.tgz" > /dev/null; then
+    echo "Version ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION} does not exist in the branch dev-${CURRENT_RANCHER_VERSION} in rancher/charts"
+    exit 1
+fi
+
 if [ -e build.yaml ]; then
     sed -i -e "s/fleetVersion: .*$/fleetVersion: ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}/" build.yaml
     go generate
