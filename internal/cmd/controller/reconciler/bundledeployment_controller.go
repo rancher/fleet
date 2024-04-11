@@ -8,6 +8,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v2/pkg/genericcondition"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -22,7 +23,8 @@ import (
 // BundleDeploymentReconciler reconciles a BundleDeployment object
 type BundleDeploymentReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme  *runtime.Scheme
+	ShardID string
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments,verbs=get;list;watch;create;update;patch;delete
@@ -99,7 +101,10 @@ func bundleDeploymentStatusChangedPredicate() predicate.Funcs {
 func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.BundleDeployment{}).
-		WithEventFilter(bundleDeploymentStatusChangedPredicate()).
+		WithEventFilter(predicate.And(
+			sharding.FilterByShardID(r.ShardID),
+			bundleDeploymentStatusChangedPredicate(),
+		)).
 		Complete(r)
 }
 

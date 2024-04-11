@@ -1,0 +1,13 @@
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: {{.Name}}
+  labels:
+    fleet.cattle.io/shard: {{.ShardID}}
+spec:
+  repo: {{.Repo}}
+  branch: {{.Branch}}
+  pollingInterval: {{.PollingInterval}}
+  targetNamespace: {{.TargetNamespace}}
+  paths:
+  - examples

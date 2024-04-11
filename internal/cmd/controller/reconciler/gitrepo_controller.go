@@ -10,6 +10,7 @@ import (
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/wrangler/v2/pkg/condition"
@@ -37,6 +38,7 @@ type GitRepoReconciler struct {
 	Scheme *runtime.Scheme
 
 	Scheduler quartz.Scheduler
+	ShardID   string
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=gitrepos,verbs=get;list;watch;create;update;patch;delete
@@ -226,11 +228,14 @@ func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		).
 		WithEventFilter(
 			// do not trigger for GitRepo status changes
-			predicate.Or(
-				bundleStatusChangedPredicate(),
-				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
-				predicate.LabelChangedPredicate{},
+			predicate.And(
+				sharding.FilterByShardID(r.ShardID),
+				predicate.Or(
+					bundleStatusChangedPredicate(),
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
 			),
 		).
 		Complete(r)

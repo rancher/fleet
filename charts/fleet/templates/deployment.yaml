@@ -15,6 +15,7 @@ spec:
     metadata:
       labels:
         app: fleet-controller
+        shard: "{{ . }}"
     spec:
       containers:
       - env:

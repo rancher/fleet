@@ -12,7 +12,7 @@ source ./dev/setup-cluster-config
 ./dev/setup-k3d
 ./dev/build-fleet
 ./dev/import-images-k3d
-./dev/setup-fleet
+./dev/setup-fleet upstream shard1,shard2,shard3
 
 # needed for gitrepo tests
 ./dev/import-images-tests-k3d

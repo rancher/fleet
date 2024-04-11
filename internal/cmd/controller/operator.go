@@ -40,13 +40,12 @@ func start(
 ) error {
 	setupLog.Info("listening for changes on local cluster", "disableGitops", disableGitops)
 
-	// TODO figure out here how to use shardID
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: bindAddresses.Metrics},
 		HealthProbeBindAddress: bindAddresses.HealthProbe,
 
-		LeaderElection:          true,
+		LeaderElection:          shardID == "",
 		LeaderElectionID:        "fleet-controller-leader-election",
 		LeaderElectionNamespace: systemNamespace,
 		LeaseDuration:           leaderOpts.LeaseDuration,
@@ -90,6 +89,7 @@ func start(
 		Builder: builder,
 		Store:   store,
 		Query:   builder,
+		ShardID: shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Bundle")
 		return err
@@ -103,6 +103,7 @@ func start(
 			Scheme: mgr.GetScheme(),
 
 			Scheduler: sched,
+			ShardID:   shardID,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "GitRepo")
 			return err
@@ -119,8 +120,9 @@ func start(
 	}
 
 	if err = (&reconciler.BundleDeploymentReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		ShardID: shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BundleDeployment")
 		return err
