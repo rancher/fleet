@@ -49,7 +49,7 @@ jobs:
           ref: ${{github.event.inputs.ref}}
           path: fleet
 
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: 'fleet/go.mod'
           check-latest: true
