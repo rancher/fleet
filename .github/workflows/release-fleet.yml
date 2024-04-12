@@ -45,16 +45,15 @@ jobs:
         with:
           secrets: |
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
-            secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD
+            secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
+            secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
 
       - name: Run FOSSA scan
-        if: contains(github.ref, 'rc') != true
         uses: fossas/fossa-action@v1.3.3
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
 
       - name: Run FOSSA tests
-        if: contains(github.ref, 'rc') != true
         uses: fossas/fossa-action@v1.3.3
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
