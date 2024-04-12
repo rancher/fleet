@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/rancher/fleet/e2e/metrics"
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
@@ -23,11 +24,11 @@ var (
 	env *testenv.Env
 	// k is the kubectl command for the cluster registration namespace
 	k                kubectl.Command
-	metricsURL       string
+	et               metrics.ExporterTest
 	loadBalancerName string
 )
 
-func setupLoadBalancer() {
+func setupLoadBalancer() (metricsURL string) {
 	rs := rand.NewSource(time.Now().UnixNano())
 	port := rs.Int63()%1000 + 30000
 	loadBalancerName = testenv.AddRandomSuffix("fleetcontroller", rs)
@@ -51,6 +52,8 @@ func setupLoadBalancer() {
 		metricsURL = fmt.Sprintf("http://%s:%d/metrics", ip, port)
 		return ip, err
 	}).ShouldNot(BeEmpty())
+
+	return
 }
 
 func tearDownLoadBalancer() {
@@ -64,11 +67,13 @@ var _ = BeforeSuite(func() {
 	SetDefaultEventuallyPollingInterval(time.Second)
 	testenv.SetRoot("../..")
 
+	var metricsURL string
 	if os.Getenv("METRICS_URL") != "" {
 		metricsURL = os.Getenv("METRICS_URL")
 	} else {
-		setupLoadBalancer()
+		metricsURL = setupLoadBalancer()
 	}
+	et = metrics.NewExporterTest(metricsURL)
 
 	env = testenv.New()
 })

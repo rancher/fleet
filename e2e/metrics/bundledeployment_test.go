@@ -8,7 +8,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/rancher/fleet/e2e/metrics"
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
@@ -64,7 +63,6 @@ var _ = Describe("BundleDeployment Metrics", Label("bundledeployment"), func() {
 	}
 
 	It("should have exactly one metric for the BundleDeployment", func() {
-		et := metrics.NewExporterTest(metricsURL)
 		Eventually(func() error {
 			metrics, err := et.Get()
 			Expect(err).ToNot(HaveOccurred())
@@ -90,7 +88,6 @@ var _ = Describe("BundleDeployment Metrics", Label("bundledeployment"), func() {
 
 	When("the GitRepo (and therefore Bundle) is changed", Label("bundle-altered"), func() {
 		It("should not duplicate metrics if Bundle is updated", Label("bundle-update"), func() {
-			et := metrics.NewExporterTest(metricsURL)
 			out, err := kw.Patch(
 				"gitrepo", objName,
 				"--type=json",
@@ -130,8 +127,6 @@ var _ = Describe("BundleDeployment Metrics", Label("bundledeployment"), func() {
 		})
 
 		It("should not keep metrics if Bundle is deleted", Label("bundle-delete"), func() {
-			et := metrics.NewExporterTest(metricsURL)
-
 			objName := objName + "-simple-manifest"
 
 			Eventually(func() (string, error) {

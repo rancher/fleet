@@ -13,8 +13,8 @@ type ExporterTest struct {
 	url string
 }
 
-func NewExporterTest(url string) *ExporterTest {
-	return &ExporterTest{
+func NewExporterTest(url string) ExporterTest {
+	return ExporterTest{
 		url: url,
 	}
 }

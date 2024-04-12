@@ -6,7 +6,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/fleet/e2e/metrics"
 )
 
 type cluster struct {
@@ -75,7 +74,6 @@ var _ = Describe("Cluster Metrics", Label("cluster"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len(existingClusters)).ToNot(BeZero())
 
-			et := metrics.NewExporterTest(metricsURL)
 			metrics, err := et.Get()
 			Expect(err).ToNot(HaveOccurred())
 
