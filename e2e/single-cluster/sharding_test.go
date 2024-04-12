@@ -36,6 +36,7 @@ var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, fun
 				"app=fleet-controller",
 				"-l",
 				fmt.Sprintf("shard=%s", shard),
+				"--tail=-1",
 			)
 			Expect(err).ToNot(HaveOccurred())
 			regexMatcher := matchers.MatchRegexpMatcher{Regexp: "Reconciling GitRepo.*"}
@@ -69,21 +70,25 @@ var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, fun
 				targetNamespace = testenv.NewNamespaceName("target", r)
 				gitrepoName = testenv.RandomFilename("sharding-test", r)
 
-				err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo_sharded.yaml"), struct {
-					Name            string
-					Repo            string
-					Branch          string
-					PollingInterval string
-					TargetNamespace string
-					ShardID         string
-				}{
-					gitrepoName,
-					inClusterRepoURL,
-					gh.Branch,
-					"15s",           // default
-					targetNamespace, // to avoid conflicts with other tests
-					shard,
-				})
+				err := testenv.ApplyTemplate(
+					k,
+					testenv.AssetPath("gitrepo/gitrepo_sharded.yaml"),
+					struct {
+						Name            string
+						Repo            string
+						Branch          string
+						PollingInterval string
+						TargetNamespace string
+						ShardID         string
+					}{
+						gitrepoName,
+						inClusterRepoURL,
+						gh.Branch,
+						"15s",           // default
+						targetNamespace, // to avoid conflicts with other tests
+						shard,
+					},
+				)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -103,18 +108,14 @@ var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, fun
 					)
 					Expect(err).ToNot(HaveOccurred())
 					regexMatcher := matchers.MatchRegexpMatcher{
-						Regexp: fmt.Sprintf(
-							`Reconciling GitRepo.*"GitRepo": {"name":"%s","namespace":"%s"}`,
-							gitrepoName,
-							env.Namespace,
-						),
+						Regexp: fmt.Sprintf(`Reconciling GitRepo.*"name":"%s"`, gitrepoName),
 					}
 					hasReconciledGitRepo, err := regexMatcher.Match(logs)
 					Expect(err).ToNot(HaveOccurred())
 					if s == shard {
 						Expect(hasReconciledGitRepo).To(BeTrueBecause(
-							"GitRepo %q labeled with shard %q should have been deployed by"+
-								" controller for shard %q in namespace %q",
+							"GitRepo %q labeled with shard %q should have been"+
+								" deployed by controller for shard %q in namespace %q",
 							gitrepoName,
 							shard,
 							shard,
@@ -122,8 +123,8 @@ var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, fun
 						))
 					} else {
 						Expect(hasReconciledGitRepo).To(BeFalseBecause(
-							"GitRepo %q labeled with shard %q should not have been deployed by"+
-								" controller for shard %q",
+							"GitRepo %q labeled with shard %q should not have been"+
+								" deployed by controller for shard %q",
 							gitrepoName,
 							shard,
 							s,
