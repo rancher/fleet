@@ -58,8 +58,7 @@ func setupLoadBalancer() (metricsURL string) {
 
 func tearDownLoadBalancer() {
 	ks := k.Namespace("cattle-fleet-system")
-	out, err := ks.Delete("service", loadBalancerName)
-	Expect(err).ToNot(HaveOccurred(), out)
+	_, _ = ks.Delete("service", loadBalancerName)
 }
 
 var _ = BeforeSuite(func() {

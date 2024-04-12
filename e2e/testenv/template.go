@@ -15,6 +15,7 @@ import (
 )
 
 const gitrepoTemplate = "gitrepo-template.yaml"
+const clusterTemplate = "cluster-template.yaml"
 const clustergroupTemplate = "clustergroup-template.yaml"
 
 // GitRepoData can be used with the gitrepo-template.yaml asset when no custom
@@ -33,6 +34,21 @@ func CreateGitRepo(k kubectl.Command, namespace string, name string, branch stri
 		Name:            name,
 		Branch:          branch,
 		Paths:           paths,
+	})
+}
+
+func CreateCluster(
+	k kubectl.Command,
+	namespace,
+	name string,
+	labels map[string]string,
+	spec map[string]string,
+) error {
+	return ApplyTemplate(k, AssetPath(clusterTemplate), map[string]interface{}{
+		"Name":      name,
+		"Namespace": namespace,
+		"Labels":    labels,
+		"Spec":      spec,
 	})
 }
 
