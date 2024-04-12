@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/reugn/go-quartz/quartz"
 
@@ -40,13 +41,18 @@ func start(
 ) error {
 	setupLog.Info("listening for changes on local cluster", "disableGitops", disableGitops)
 
+	var leaderElectionSuffix string
+	if shardID != "" {
+		leaderElectionSuffix = fmt.Sprintf("-%s", shardID)
+	}
+
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: bindAddresses.Metrics},
 		HealthProbeBindAddress: bindAddresses.HealthProbe,
 
-		LeaderElection:          shardID == "",
-		LeaderElectionID:        "fleet-controller-leader-election",
+		LeaderElection:          true,
+		LeaderElectionID:        fmt.Sprintf("fleet-controller-leader-election-shard%s", leaderElectionSuffix),
 		LeaderElectionNamespace: systemNamespace,
 		LeaseDuration:           leaderOpts.LeaseDuration,
 		RenewDeadline:           leaderOpts.RenewDeadline,
