@@ -133,7 +133,7 @@ dockers:
 
     # Templates of the Docker image names.
     image_templates:
-    - "ghcr.io/rancher/fleet:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
 
     # Path to the Dockerfile (from the project root).
     dockerfile: package/Dockerfile
@@ -160,7 +160,7 @@ dockers:
     - fleet-gitcloner
     - fleet-gitjob
     image_templates:
-    - "ghcr.io/rancher/fleet:{{ .Tag }}-linux-arm64"
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile
     build_flag_templates:
     - "--pull"
@@ -181,7 +181,7 @@ dockers:
     ids:
     - fleet-agent
     image_templates:
-    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
     dockerfile: package/Dockerfile.agent
     build_flag_templates:
     - "--pull"
@@ -200,7 +200,7 @@ dockers:
     ids:
     - fleet-agent
     image_templates:
-    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile.agent
     build_flag_templates:
     - "--pull"
@@ -215,12 +215,12 @@ dockers:
 
 docker_manifests:
   # https://goreleaser.com/customization/docker_manifest/
-  - name_template: "ghcr.io/rancher/fleet:{{ .Tag }}"
+  - name_template: "docker.io/rancher/fleet:{{ .Tag }}"
     image_templates:
-    - "ghcr.io/rancher/fleet:{{ .Tag }}-linux-amd64"
-    - "ghcr.io/rancher/fleet:{{ .Tag }}-linux-arm64"
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
 
-  - name_template: "ghcr.io/rancher/fleet-agent:{{ .Tag }}"
+  - name_template: "docker.io/rancher/fleet-agent:{{ .Tag }}"
     image_templates:
-    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
-    - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
