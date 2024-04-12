@@ -57,8 +57,6 @@ var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, fun
 		tmpDir, _ = os.MkdirTemp("", "fleet-")
 		clonedir = path.Join(tmpDir, repoName)
 
-		gitrepoName = testenv.RandomFilename("sharding-test", r)
-
 		_, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
 		Expect(err).ToNot(HaveOccurred())
 
@@ -69,6 +67,7 @@ var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, fun
 		When(fmt.Sprintf("deploying a gitrepo labeled with shard ID %s", shard), func() {
 			JustBeforeEach(func() {
 				targetNamespace = testenv.NewNamespaceName("target", r)
+				gitrepoName = testenv.RandomFilename("sharding-test", r)
 
 				err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo_sharded.yaml"), struct {
 					Name            string
@@ -110,21 +109,22 @@ var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, fun
 							env.Namespace,
 						),
 					}
-					hasReconciledGitRepos, err := regexMatcher.Match(logs)
+					hasReconciledGitRepo, err := regexMatcher.Match(logs)
 					Expect(err).ToNot(HaveOccurred())
 					if s == shard {
-						Expect(hasReconciledGitRepos).To(BeTrueBecause(
-							"GitRepo %s labeled with shard %q should have been deployed by"+
-								" controller for shard %q in namespace %s",
+						Expect(hasReconciledGitRepo).To(BeTrueBecause(
+							"GitRepo %q labeled with shard %q should have been deployed by"+
+								" controller for shard %q in namespace %q",
 							gitrepoName,
 							shard,
 							shard,
 							env.Namespace,
 						))
 					} else {
-						Expect(hasReconciledGitRepos).To(BeFalseBecause(
-							"GitRepo labeled with shard %q should not have been deployed by"+
+						Expect(hasReconciledGitRepo).To(BeFalseBecause(
+							"GitRepo %q labeled with shard %q should not have been deployed by"+
 								" controller for shard %q",
+							gitrepoName,
 							shard,
 							s,
 						))
@@ -142,6 +142,7 @@ var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, fun
 	When("deploying a gitrepo labeled with an unknown shard ID", func() {
 		JustBeforeEach(func() {
 			targetNamespace = testenv.NewNamespaceName("target", r)
+			gitrepoName = testenv.RandomFilename("sharding-test", r)
 
 			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo_sharded.yaml"), struct {
 				Name            string
