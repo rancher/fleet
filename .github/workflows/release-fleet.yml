@@ -39,11 +39,13 @@ jobs:
           args: --timeout=10m --config=.golangci.json
 
       - name: Run FOSSA scan
+        if: contains(github.ref, 'rc') != true
         uses: fossas/fossa-action@v1.3.3
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
 
       - name: Run FOSSA tests
+        if: contains(github.ref, 'rc') != true
         uses: fossas/fossa-action@v1.3.3
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}
@@ -78,6 +80,7 @@ jobs:
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
+        id: goreleaser
         with:
           distribution: goreleaser
           version: v1.24.0
@@ -89,8 +92,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           repo: "ghcr.io/rancher"
-          tag: "${GITHUB_REF_NAME}"
         run: |
+          version=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.version')
+          tag=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.tag')
+          echo "publishing helm chart for (repo: $repo, tag: $tag, version: $version)"
+
           # Replace rancher/fleet, rancher/fleet-agent and rancher/gitjob image names, but not eg. rancher/kubectl
           sed -i \
               -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
@@ -102,12 +108,10 @@ jobs:
               -e "s/tag: dev/tag: $tag/" \
               charts/fleet-agent/values.yaml
 
-          version=${tag#v}
-
           helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet
           helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-crd
           helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-agent
 
-          for f in $(find dist/artifacts/ -name '*.tgz'); do
+          for f in $(find dist/ -name '*.tgz'); do
             gh release upload $tag $f
           done

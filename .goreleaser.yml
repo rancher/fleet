@@ -127,6 +127,9 @@ dockers:
     # IDs to filter the binaries/packages.
     ids:
     - fleet-controller
+    - fleet-cli
+    - fleet-gitcloner
+    - fleet-gitjob
 
     # Templates of the Docker image names.
     image_templates:
@@ -146,12 +149,16 @@ dockers:
     - "--build-arg=ARCH=amd64"
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/amd64"
+    extra_files: [ "package/log.sh" ]
   -
     use: buildx
     goos: linux
     goarch: arm64
     ids:
     - fleet-controller
+    - fleet-cli
+    - fleet-gitcloner
+    - fleet-gitjob
     image_templates:
     - "ghcr.io/rancher/fleet:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile
@@ -165,6 +172,7 @@ dockers:
     - "--build-arg=ARCH=arm64"
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/arm64/v8"
+    extra_files: [ "package/log.sh" ]
   # fleet-agent images
   -
     use: buildx
@@ -172,7 +180,6 @@ dockers:
     goarch: amd64
     ids:
     - fleet-agent
-    - fleet-cli
     image_templates:
     - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
     dockerfile: package/Dockerfile.agent
@@ -186,14 +193,12 @@ dockers:
     - "--build-arg=ARCH=amd64"
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/amd64"
-    extra_files: [ "package/log.sh" ]
   -
     use: buildx
     goos: linux
     goarch: arm64
     ids:
     - fleet-agent
-    - fleet-cli
     image_templates:
     - "ghcr.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile.agent
@@ -207,7 +212,6 @@ dockers:
     - "--build-arg=ARCH=arm64"
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/arm64/v8"
-    extra_files: [ "package/log.sh" ]
 
 docker_manifests:
   # https://goreleaser.com/customization/docker_manifest/
