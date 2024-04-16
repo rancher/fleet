@@ -7,7 +7,7 @@ toolchain go1.22.0
 replace k8s.io/client-go => k8s.io/client-go v0.29.0
 
 require (
-	github.com/rancher/fleet v0.10.0-rc.10
+	github.com/rancher/fleet v0.10.0-rc.11
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/crypto v0.22.0
 	helm.sh/helm/v3 v3.14.4
@@ -24,7 +24,7 @@ require (
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/cli v25.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v26.0.0+incompatible // indirect
+	github.com/docker/docker v26.0.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
