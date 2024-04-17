@@ -5,7 +5,7 @@ go 1.22
 replace (
 	github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
-	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.14.0-fleet2
+	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.14.4-fleet.0
 )
 
 require (
