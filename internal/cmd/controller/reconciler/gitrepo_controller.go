@@ -270,9 +270,9 @@ func purgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 			return err
 		}
 
-		err = purgeBundleDeployments(ctx, c, types.NamespacedName{Namespace: bundle.Namespace, Name: bundle.Name})
-		if err != nil {
-			return err
+		nn := types.NamespacedName{Namespace: bundle.Namespace, Name: bundle.Name}
+		if err = purgeBundleDeployments(ctx, c, nn); err != nil {
+			return client.IgnoreNotFound(err)
 		}
 	}
 

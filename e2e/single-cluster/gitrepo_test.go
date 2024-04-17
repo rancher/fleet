@@ -67,7 +67,27 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 	AfterEach(func() {
 		_ = os.RemoveAll(tmpDir)
-		_, _ = k.Delete("gitrepo", gitrepoName)
+
+		// Check that the bundle deployment is properly deleted
+		out, _ := k.Get("bundledeployments", "-A")
+		Expect(out).To(ContainSubstring(gitrepoName))
+
+		_, err := k.Delete("gitrepo", gitrepoName)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() string {
+			out, _ := k.Get("bundledeployments", "-A")
+			return out
+		}).ShouldNot(ContainSubstring(gitrepoName))
+
+		out, err = k.Namespace("cattle-fleet-system").Logs(
+			"-l",
+			"app=fleet-controller",
+			"-c",
+			"fleet-controller",
+		)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).ToNot(ContainSubstring("ERROR"))
 	})
 
 	When("updating a git repository monitored via polling", func() {
