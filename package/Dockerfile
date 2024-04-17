@@ -4,7 +4,7 @@ ARG ARCH
 FROM --platform=linux/$ARCH registry.suse.com/bci/bci-base:15.5 AS base
 COPY package/log.sh /usr/bin/
 RUN zypper -n update && \
-    zypper -n install openssh-clients catatonit git-core && \
+    zypper -n install openssh-clients tini git-core && \
     zypper -n clean -a
 
 FROM base AS copy_dapper
@@ -24,5 +24,5 @@ ONBUILD COPY fleet-linux-$ARCH /usr/bin/fleet
 
 FROM copy_${BUILD_ENV}
 USER 1000
-ENTRYPOINT ["catatonit", "--"]
+ENTRYPOINT ["tini", "--"]
 CMD ["fleetcontroller"]
