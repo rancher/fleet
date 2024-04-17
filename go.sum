@@ -196,8 +196,8 @@ github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbi
 github.com/BurntSushi/toml v1.3.2 h1:o7IhLm0Msx3BaB+n3Ag7L8EVlByGnpq14C4YWiu/gL8=
 github.com/BurntSushi/toml v1.3.2/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20OEh60=
-github.com/DATA-DOG/go-sqlmock v1.5.0/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
+github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
+github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ=
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
@@ -744,8 +744,8 @@ github.com/prometheus/procfs v0.0.2/go.mod h1:TjEm7ze935MbeOT/UhFTIMYKhuLP4wbCsT
 github.com/prometheus/procfs v0.0.3/go.mod h1:4A/X28fw3Fc593LaREMrKMqOKvUAntwMDaekg4FpcdQ=
 github.com/prometheus/procfs v0.12.0 h1:jluTpSng7V9hY0O2R9DzzJHYb2xULk9VTR1V1R/k6Bo=
 github.com/prometheus/procfs v0.12.0/go.mod h1:pcuDEFsWDnvcgNzo4EEweacyhjeA9Zk3cnaOZAZEfOo=
-github.com/rancher/helm/v3 v3.14.0-fleet2 h1:DpduV+vYN1u8VnoH0wvVfgLm1BEsjvg6/FIBOh8bRvw=
-github.com/rancher/helm/v3 v3.14.0-fleet2/go.mod h1:2itvvDv2WSZXTllknfQo6j7u3VVgMAvm8POCDgYH424=
+github.com/rancher/helm/v3 v3.14.4-fleet.0 h1:fMyGOkEc6laHsr/kZn4GaZ37//pGBNioP9Kkf5+phB8=
+github.com/rancher/helm/v3 v3.14.4-fleet.0/go.mod h1:Tje7LL4gprZpuBNTbG34d1Xn5NmRT3OWfBRwpOSer9I=
 github.com/rancher/lasso v0.0.0-20240325194215-0064abcb8aee h1:3BgZZIJQABqFxfgjAPchBm9afHQ1Vj7QDywZnKyWlQw=
 github.com/rancher/lasso v0.0.0-20240325194215-0064abcb8aee/go.mod h1:AroEHDeG/fAXtUyrk4W03kyizvh5hNHFf2n+DtwZP7s=
 github.com/rancher/wrangler/v2 v2.1.4 h1:ohov0i6A9dJHHO6sjfsH4Dqv93ZTdm5lIJVJdPzVdQc=
