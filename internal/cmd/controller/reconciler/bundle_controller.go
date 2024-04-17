@@ -62,7 +62,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if apierrors.IsNotFound(err) {
 		logger.V(1).Info("Bundle not found, purging bundle deployments")
 		if err := purgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 		return ctrl.Result{}, nil
 	} else if err != nil {
