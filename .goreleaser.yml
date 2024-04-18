@@ -20,12 +20,6 @@ archives:
     builds:
       - fleet-agent
 
-  - id: fleet-gitcloner
-    format: binary
-    name_template: "{{ .Binary }}"
-    builds:
-      - fleet-gitcloner
-
   - id: fleet-gitjob
     format: binary
     name_template: "{{ .Binary }}"
@@ -66,18 +60,6 @@ builds:
     - linux_amd64_v1
     - linux_arm64
     - windows_amd64
-  -
-    id: fleet-gitcloner
-    main: ./cmd/gitcloner
-    binary: gitcloner-{{ .Os }}-{{ .Arch }}{{ if .Arm }}64{{ end }}
-    no_unique_dist_dir: true
-    ldflags:
-      - -w -s
-      - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
-      - -X github.com/rancher/fleet/pkg/version.Version={{ .Tag }}
-    targets:
-    - linux_amd64_v1
-    - linux_arm64
   -
     id: fleet-gitjob
     main: ./cmd/gitjob
@@ -130,7 +112,6 @@ dockers:
     ids:
     - fleet-controller
     - fleet-cli
-    - fleet-gitcloner
     - fleet-gitjob
 
     # Templates of the Docker image names.
@@ -159,7 +140,6 @@ dockers:
     ids:
     - fleet-controller
     - fleet-cli
-    - fleet-gitcloner
     - fleet-gitjob
     image_templates:
     - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"

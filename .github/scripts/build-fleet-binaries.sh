@@ -15,5 +15,4 @@ go build -gcflags='all=-N -l' -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
 go build -gcflags='all=-N -l' -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
 
 # gitjob
-go build -gcflags='all=-N -l' -o "bin/gitcloner-linux-$GOARCH" ./cmd/gitcloner
 go build -gcflags='all=-N -l' -o "bin/gitjob-linux-$GOARCH" ./cmd/gitjob

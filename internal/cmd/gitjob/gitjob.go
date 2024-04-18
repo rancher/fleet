@@ -610,7 +610,7 @@ func volumesFromSecret(
 }
 
 func (r *GitJobReconciler) generateInitContainer(ctx context.Context, obj *v1alpha1.GitRepo) (corev1.Container, error) {
-	args := []string{obj.Spec.Repo, "/workspace"}
+	args := []string{"gitcloner", obj.Spec.Repo, "/workspace"}
 	volumeMounts := []corev1.VolumeMount{
 		{
 			Name:      gitClonerVolumeName,
@@ -673,7 +673,7 @@ func (r *GitJobReconciler) generateInitContainer(ctx context.Context, obj *v1alp
 
 	return corev1.Container{
 		Command: []string{
-			"gitcloner",
+			"fleet",
 		},
 		Args:         args,
 		Image:        r.Image,

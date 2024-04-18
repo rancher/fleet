@@ -4,6 +4,8 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
+	gitcmd "github.com/rancher/fleet/cmd/gitcloner/cmd"
+	"github.com/rancher/fleet/cmd/gitcloner/gogit"
 	"github.com/rancher/fleet/internal/client"
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/pkg/version"
@@ -32,6 +34,7 @@ func App() *cobra.Command {
 
 		NewTarget(),
 		NewDeploy(),
+		gitcmd.New(gogit.NewCloner()),
 	)
 
 	return root

@@ -18,7 +18,6 @@ fi
 
 export GOOS=linux
 # gitjob
-go build -gcflags='all=-N -l' -o "bin/gitcloner-linux-$GOARCH" ./cmd/gitcloner
 go build -gcflags='all=-N -l' -o "bin/gitjob-linux-$GOARCH" ./cmd/gitjob
 
 # fleet
