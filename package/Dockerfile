@@ -3,9 +3,13 @@ ARG ARCH
 
 FROM --platform=linux/$ARCH registry.suse.com/bci/bci-base:15.5 AS base
 COPY package/log.sh /usr/bin/
-RUN zypper -n update && \
-    zypper -n install openssh-clients tini git-core && \
-    zypper -n clean -a
+RUN zypper rm -y container-suseconnect && \
+    zypper ar --priority=500 https://download.opensuse.org/repositories/Virtualization:containers/5.5/Virtualization:containers.repo && \
+    zypper --gpg-auto-import-keys ref && \
+    zypper -n update && \
+    zypper -n install --no-recommends openssh-clients tini git-core && \
+    zypper -n clean -a && \
+    rm -fr /var/log/zypp* /usr/share/doc
 
 FROM base AS copy_dapper
 ONBUILD ARG ARCH
