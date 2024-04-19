@@ -136,7 +136,7 @@ jobs:
 
     steps:
       - name: Add /usr/local/bin into PATH
-        run: echo "/usr/local/bin/" >> ${GITHUB_PATH}
+        run: export PATH=/usr/local/bin:$PATH
 
       - name: Checkout
         uses: actions/checkout@v4
