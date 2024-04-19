@@ -167,7 +167,7 @@ jobs:
     uses: ./.github/workflows/rancher-integration.yml
     secrets:
       credentials: ${{ secrets.CI_GOOGLE_CREDENTIALS }}
-      pat_token: ${{ secrets.GITHUB_TOKEN }}
+      pat_token: ${{ secrets.CI_RUNNER_PAT }}
     with:
       ref: ${{ github.ref }}
       cluster_name: fleet-test-rancher-k3s
