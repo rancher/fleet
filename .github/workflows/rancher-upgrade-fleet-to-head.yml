@@ -354,7 +354,7 @@ jobs:
           retention-days: 2
 
   delete-runner:
-    if: ${{ always() }}
+    if: ${{ success() }}
     needs: [create-runner, rancher-integration]
     runs-on: ubuntu-latest
     steps:
