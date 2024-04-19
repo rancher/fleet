@@ -5,7 +5,7 @@ on:
       ref:
         description: "Branch to use for GitHub action workflow"
         required: true
-        default: "master"
+        default: "main"
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
         required: true
