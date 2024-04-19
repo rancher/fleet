@@ -164,7 +164,7 @@ jobs:
           git push -u origin $target_branch
 
   test-fleet-in-rancher:
-    uses: ./.github/workflows/rancher-integration.yml
+    uses: ./.github/workflows/rancher-upgrade-fleet-to-head.yml
     secrets:
       credentials: ${{ secrets.CI_GOOGLE_CREDENTIALS }}
       pat_token: ${{ secrets.CI_RUNNER_PAT }}
