@@ -71,7 +71,7 @@ spec:
         {{- end }}
         {{- if . }}
         - --shard-id
-        - {{ . }}
+        - {{ quote . }}
         {{- end }}
         {{- if $.Values.debug }}
         - --debug
