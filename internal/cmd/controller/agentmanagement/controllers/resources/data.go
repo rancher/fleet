@@ -34,6 +34,11 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 					APIGroups: []string{fleet.SchemeGroupVersion.Group},
 					Resources: []string{fleet.BundleDeploymentResourceNamePlural + "/status"},
 				},
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"secrets"},
+				},
 			},
 		},
 		// used by request-* service accounts from agents

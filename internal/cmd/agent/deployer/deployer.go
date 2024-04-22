@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/internal/ociutils"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v2/pkg/condition"
@@ -105,9 +107,46 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 		}
 	}
 	manifestID, _ := kv.Split(bd.Spec.DeploymentID, ":")
-	manifest, err := d.lookup.Get(ctx, d.upstreamClient, manifestID)
-	if err != nil {
-		return "", err
+	var manifest *manifest.Manifest
+	var err error
+	if bd.Spec.OCIContents {
+		// First we need to access the secret where the OCI registry url and credentials are located
+		var secret corev1.Secret
+		secretID := types.NamespacedName{Name: manifestID, Namespace: bd.Namespace}
+		if err := d.upstreamClient.Get(ctx, secretID, &secret); err != nil {
+			return "", err
+		}
+		url, ok := secret.Data[ociutils.OCISecretURL]
+		if !ok {
+			return "", fmt.Errorf("expected data [url] not found in secret: %s", manifestID)
+		}
+		username := string(secret.Data[ociutils.OCISecretUsername])
+		password := string(secret.Data[ociutils.OCISecretPassword])
+		basicHttp, err := strconv.ParseBool(string(secret.Data[ociutils.OCISecretBasicHTTP]))
+		if err != nil {
+			return "", fmt.Errorf("value for [ociRegistry.http] in secret %s cannot be parsed as boolean", manifestID)
+		}
+		insecure, err := strconv.ParseBool(string(secret.Data[ociutils.OCISecretInsecure]))
+		if err != nil {
+			return "", fmt.Errorf("value for [ociRegistry.insecure] in secret %s cannot be parsed as boolean", manifestID)
+		}
+		ociOpts := ociutils.OCIOpts{
+			URL:             string(url),
+			Username:        username,
+			Password:        password,
+			BasicHTTP:       basicHttp,
+			InsecureSkipTLS: insecure,
+		}
+		oci := ociutils.NewOCIUtils()
+		manifest, err = oci.PullManifest(ctx, ociOpts, manifestID)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		manifest, err = d.lookup.Get(ctx, d.upstreamClient, manifestID)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	manifest.Commit = bd.Labels["fleet.cattle.io/commit"]

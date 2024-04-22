@@ -313,6 +313,8 @@ type BundleDeploymentSpec struct {
 	DependsOn []BundleRef `json:"dependsOn,omitempty"`
 	// CorrectDrift specifies how drift correction should work.
 	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
+	// OCIContents is true when this deployment's contents is stored in an oci registry
+	OCIContents bool `json:"ociContents,omitempty"`
 }
 
 // BundleDeploymentResource contains the metadata of a deployed resource.
