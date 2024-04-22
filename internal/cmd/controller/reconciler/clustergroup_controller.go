@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/sharding"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
@@ -22,7 +23,8 @@ import (
 // ClusterGroupReconciler reconciles a ClusterGroup object
 type ClusterGroupReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme  *runtime.Scheme
+	ShardID string
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clustergroups,verbs=get;list;watch;create;update;patch;delete
@@ -81,20 +83,23 @@ func (r *ClusterGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.ClusterGroup{}).
 		WithEventFilter(
-			// only trigger on status changes, create
-			predicate.Funcs{
-				CreateFunc: func(e event.CreateEvent) bool {
-					return true
+			predicate.And(
+				sharding.FilterByShardID(r.ShardID),
+				// only trigger on status changes, create
+				predicate.Funcs{
+					CreateFunc: func(e event.CreateEvent) bool {
+						return true
+					},
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						n := e.ObjectNew.(*fleet.ClusterGroup)
+						o := e.ObjectOld.(*fleet.ClusterGroup)
+						if n == nil || o == nil {
+							return false
+						}
+						return !reflect.DeepEqual(n.Status, o.Status)
+					},
 				},
-				UpdateFunc: func(e event.UpdateEvent) bool {
-					n := e.ObjectNew.(*fleet.ClusterGroup)
-					o := e.ObjectOld.(*fleet.ClusterGroup)
-					if n == nil || o == nil {
-						return false
-					}
-					return !reflect.DeepEqual(n.Status, o.Status)
-				},
-			},
+			),
 		).
 		Complete(r)
 }

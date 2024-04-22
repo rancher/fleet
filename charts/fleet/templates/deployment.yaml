@@ -1,7 +1,12 @@
+{{ $shards := list "" }}
+{{ if len .Values.shards }}
+{{ $shards = concat $shards .Values.shards | uniq }}
+{{ end }}
+{{ range $shards }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fleet-controller
+  name: "fleet-controller{{if . }}-shard-{{ . }}{{end}}"
 spec:
   selector:
     matchLabels:
@@ -10,6 +15,7 @@ spec:
     metadata:
       labels:
         app: fleet-controller
+        shard: "{{ . }}"
     spec:
       containers:
       - env:
@@ -18,55 +24,59 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS
-          value: {{ quote .Values.propagateDebugSettingsToAgents }}
-        {{- if .Values.clusterEnqueueDelay }}
+          value: {{ quote $.Values.propagateDebugSettingsToAgents }}
+        {{- if $.Values.clusterEnqueueDelay }}
         - name: FLEET_CLUSTER_ENQUEUE_DELAY
-          value: {{ .Values.clusterEnqueueDelay }}
+          value: {{ $.Values.clusterEnqueueDelay }}
         {{- end }}
-        {{- if .Values.proxy }}
+        {{- if $.Values.proxy }}
         - name: HTTP_PROXY
-          value: {{ .Values.proxy }}
+          value: {{ $.Values.proxy }}
         - name: HTTPS_PROXY
-          value: {{ .Values.proxy }}
+          value: {{ $.Values.proxy }}
         - name: NO_PROXY
-          value: {{ .Values.noProxy }}
+          value: {{ $.Values.noProxy }}
         {{- end }}
-        {{- if .Values.cpuPprof }}
+        {{- if $.Values.cpuPprof }}
         - name: FLEET_CPU_PPROF_DIR
           value: /tmp/pprof/
         {{- end }}
-        {{- if .Values.cpuPprof }}
+        {{- if $.Values.cpuPprof }}
         - name: FLEET_CPU_PPROF_PERIOD
-          value: {{ quote .Values.cpuPprof.period }}
+          value: {{ quote $.Values.cpuPprof.period }}
         {{- end }}
-        {{- if .Values.leaderElection.leaseDuration }}
+        {{- if $.Values.leaderElection.leaseDuration }}
         - name: CATTLE_ELECTION_LEASE_DURATION
-          value: {{.Values.leaderElection.leaseDuration}}
+          value: {{$.Values.leaderElection.leaseDuration}}
         {{- end }}
-        {{- if .Values.leaderElection.retryPeriod }}
+        {{- if $.Values.leaderElection.retryPeriod }}
         - name: CATTLE_ELECTION_RETRY_PERIOD
-          value: {{.Values.leaderElection.retryPeriod}}
+          value: {{$.Values.leaderElection.retryPeriod}}
         {{- end }}
-        {{- if .Values.leaderElection.renewDeadline }}
+        {{- if $.Values.leaderElection.renewDeadline }}
         - name: CATTLE_ELECTION_RENEW_DEADLINE
-          value: {{.Values.leaderElection.renewDeadline}}
+          value: {{$.Values.leaderElection.renewDeadline}}
         {{- end }}
-        {{- if .Values.debug }}
+        {{- if $.Values.debug }}
         - name: CATTLE_DEV_MODE
           value: "true"
         {{- end }}
-        image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
+        image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-controller
-        imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
+        imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"
         command:
         - fleetcontroller
-        {{- if not .Values.gitops.enabled }}
+        {{- if not $.Values.gitops.enabled }}
         - --disable-gitops
         {{- end }}
-        {{- if .Values.debug }}
+        {{- if . }}
+        - --shard-id
+        - {{ quote . }}
+        {{- end }}
+        {{- if $.Values.debug }}
         - --debug
         - --debug-level
-        - {{ quote .Values.debugLevel }}
+        - {{ quote $.Values.debugLevel }}
         {{- else }}
         securityContext:
           allowPrivilegeEscalation: false
@@ -79,41 +89,42 @@ spec:
         volumeMounts:
           - mountPath: /tmp
             name: tmp
-        {{- if .Values.cpuPprof }}
+        {{- if $.Values.cpuPprof }}
           - mountPath: /tmp/pprof
             name: pprof
         {{- end }}
+      {{- if not . }} # Only deploy cleanup and agent management through sharding-less deployment
       - env:
         - name: NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        {{- if .Values.debug }}
+        {{- if $.Values.debug }}
         - name: CATTLE_DEV_MODE
           value: "true"
         {{- end }}
-        {{- if .Values.leaderElection.leaseDuration }}
+        {{- if $.Values.leaderElection.leaseDuration }}
         - name: CATTLE_ELECTION_LEASE_DURATION
-          value: {{.Values.leaderElection.leaseDuration}}
+          value: {{$.Values.leaderElection.leaseDuration}}
         {{- end }}
-        {{- if .Values.leaderElection.retryPeriod }}
+        {{- if $.Values.leaderElection.retryPeriod }}
         - name: CATTLE_ELECTION_RETRY_PERIOD
-          value: {{.Values.leaderElection.retryPeriod}}
+          value: {{$.Values.leaderElection.retryPeriod}}
         {{- end }}
-        {{- if .Values.leaderElection.renewDeadline }}
+        {{- if $.Values.leaderElection.renewDeadline }}
         - name: CATTLE_ELECTION_RENEW_DEADLINE
-          value: {{.Values.leaderElection.renewDeadline}}
+          value: {{$.Values.leaderElection.renewDeadline}}
         {{- end }}
-        image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
+        image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-cleanup
-        imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
+        imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"
         command:
         - fleetcontroller
         - cleanup
-        {{- if .Values.debug }}
+        {{- if $.Values.debug }}
         - --debug
         - --debug-level
-        - {{ quote .Values.debugLevel }}
+        - {{ quote $.Values.debugLevel }}
         {{- else }}
         securityContext:
           allowPrivilegeEscalation: false
@@ -128,35 +139,35 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        {{- if .Values.debug }}
+        {{- if $.Values.debug }}
         - name: CATTLE_DEV_MODE
           value: "true"
         {{- end }}
-        {{- if .Values.leaderElection.leaseDuration }}
+        {{- if $.Values.leaderElection.leaseDuration }}
         - name: CATTLE_ELECTION_LEASE_DURATION
-          value: {{.Values.leaderElection.leaseDuration}}
+          value: {{$.Values.leaderElection.leaseDuration}}
         {{- end }}
-        {{- if .Values.leaderElection.retryPeriod }}
+        {{- if $.Values.leaderElection.retryPeriod }}
         - name: CATTLE_ELECTION_RETRY_PERIOD
-          value: {{.Values.leaderElection.retryPeriod}}
+          value: {{$.Values.leaderElection.retryPeriod}}
         {{- end }}
-        {{- if .Values.leaderElection.renewDeadline }}
+        {{- if $.Values.leaderElection.renewDeadline }}
         - name: CATTLE_ELECTION_RENEW_DEADLINE
-          value: {{.Values.leaderElection.renewDeadline}}
+          value: {{$.Values.leaderElection.renewDeadline}}
         {{- end }}
-        image: '{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}'
+        image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-agentmanagement
-        imagePullPolicy: "{{ .Values.image.imagePullPolicy }}"
+        imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"
         command:
         - fleetcontroller
         - agentmanagement
-        {{- if not .Values.bootstrap.enabled }}
+        {{- if not $.Values.bootstrap.enabled }}
         - --disable-bootstrap
         {{- end }}
-        {{- if .Values.debug }}
+        {{- if $.Values.debug }}
         - --debug
         - --debug-level
-        - {{ quote .Values.debugLevel }}
+        - {{ quote $.Values.debugLevel }}
         {{- else }}
         securityContext:
           allowPrivilegeEscalation: false
@@ -166,29 +177,32 @@ spec:
             drop:
             - ALL
         {{- end }}
+      {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
-      {{- if .Values.cpuPprof }}
-        - name: pprof {{ toYaml .Values.cpuPprof.volumeConfiguration | nindent 10 }}
+      {{- if $.Values.cpuPprof }}
+        - name: pprof {{ toYaml $.Values.cpuPprof.volumeConfiguration | nindent 10 }}
       {{- end }}
 
       serviceAccountName: fleet-controller
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
-{{- if .Values.nodeSelector }}
-{{ toYaml .Values.nodeSelector | indent 8 }}
+{{- if $.Values.nodeSelector }}
+{{ toYaml $.Values.nodeSelector | indent 8 }}
 {{- end }}
       tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
-{{- if .Values.tolerations }}
-{{ toYaml .Values.tolerations | indent 8 }}
+{{- if $.Values.tolerations }}
+{{ toYaml $.Values.tolerations | indent 8 }}
 {{- end }}
-      {{- if .Values.priorityClassName }}
-      priorityClassName: "{{.Values.priorityClassName}}"
+      {{- if $.Values.priorityClassName }}
+      priorityClassName: "{{$.Values.priorityClassName}}"
       {{- end }}
 
-{{- if not .Values.debug }}
+{{- if not $.Values.debug }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+{{- end }}
+---
 {{- end }}

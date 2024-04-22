@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/reugn/go-quartz/quartz"
 
@@ -29,8 +30,21 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-func start(ctx context.Context, systemNamespace string, config *rest.Config, leaderOpts LeaderElectionOptions, bindAddresses BindAddresses, disableGitops bool) error {
+func start(
+	ctx context.Context,
+	systemNamespace string,
+	config *rest.Config,
+	leaderOpts LeaderElectionOptions,
+	bindAddresses BindAddresses,
+	disableGitops bool,
+	shardID string,
+) error {
 	setupLog.Info("listening for changes on local cluster", "disableGitops", disableGitops)
+
+	var leaderElectionSuffix string
+	if shardID != "" {
+		leaderElectionSuffix = fmt.Sprintf("-%s", shardID)
+	}
 
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                 scheme,
@@ -38,7 +52,7 @@ func start(ctx context.Context, systemNamespace string, config *rest.Config, lea
 		HealthProbeBindAddress: bindAddresses.HealthProbe,
 
 		LeaderElection:          true,
-		LeaderElectionID:        "fleet-controller-leader-election",
+		LeaderElectionID:        fmt.Sprintf("fleet-controller-leader-election-shard%s", leaderElectionSuffix),
 		LeaderElectionNamespace: systemNamespace,
 		LeaseDuration:           leaderOpts.LeaseDuration,
 		RenewDeadline:           leaderOpts.RenewDeadline,
@@ -55,6 +69,7 @@ func start(ctx context.Context, systemNamespace string, config *rest.Config, lea
 		Scheme: mgr.GetScheme(),
 
 		SystemNamespace: systemNamespace,
+		ShardID:         shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ConfigMap")
 		return err
@@ -68,7 +83,8 @@ func start(ctx context.Context, systemNamespace string, config *rest.Config, lea
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Query: builder,
+		Query:   builder,
+		ShardID: shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cluster")
 		return err
@@ -81,6 +97,7 @@ func start(ctx context.Context, systemNamespace string, config *rest.Config, lea
 		Builder: builder,
 		Store:   store,
 		Query:   builder,
+		ShardID: shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Bundle")
 		return err
@@ -94,6 +111,7 @@ func start(ctx context.Context, systemNamespace string, config *rest.Config, lea
 			Scheme: mgr.GetScheme(),
 
 			Scheduler: sched,
+			ShardID:   shardID,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "GitRepo")
 			return err
@@ -102,16 +120,18 @@ func start(ctx context.Context, systemNamespace string, config *rest.Config, lea
 
 	// controllers that update status.display
 	if err = (&reconciler.ClusterGroupReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		ShardID: shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterGroup")
 		return err
 	}
 
 	if err = (&reconciler.BundleDeploymentReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		ShardID: shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BundleDeployment")
 		return err
@@ -123,6 +143,7 @@ func start(ctx context.Context, systemNamespace string, config *rest.Config, lea
 		Scheme: mgr.GetScheme(),
 
 		Scheduler: sched,
+		ShardID:   shardID,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ImageScan")
 		return err

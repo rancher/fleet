@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
+	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/sirupsen/logrus"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -40,7 +41,8 @@ type ClusterReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	Query BundleQuery
+	Query   BundleQuery
+	ShardID string
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters,verbs=get;list;watch;create;update;patch;delete
@@ -180,6 +182,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.Cluster{}).
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		// Note: Maybe we can tune events after cleanup code is
 		// removed? This relies on bundledeployments and gitrepos to
 		// update its status. It also needs to trigger on

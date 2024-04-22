@@ -2,6 +2,8 @@
 
 set -euxo pipefail
 
+shards=${SHARDS-""}
+
 function eventually {
   for _ in $(seq 1 3); do
     "$@" && return 0
@@ -35,6 +37,8 @@ eventually helm upgrade --install fleet charts/fleet \
   --set agentImage.repository="$agentRepo" \
   --set agentImage.tag="$agentTag" \
   --set agentImage.imagePullPolicy=IfNotPresent \
+  --set shards="{$shards}" \
+  --set debug=true --set debugLevel=1
 
 # wait for controller and agent rollout
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller

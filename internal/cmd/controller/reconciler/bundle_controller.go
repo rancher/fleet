@@ -9,6 +9,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/sharding"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -46,6 +47,7 @@ type BundleReconciler struct {
 	Builder TargetBuilder
 	Store   Store
 	Query   BundleQuery
+	ShardID string
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;watch;create;update;patch;delete
@@ -252,5 +254,6 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		Complete(r)
 }

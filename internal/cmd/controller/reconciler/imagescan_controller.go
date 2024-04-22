@@ -9,6 +9,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/sharding"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,6 +25,7 @@ type ImageScanReconciler struct {
 	Scheme *runtime.Scheme
 
 	Scheduler quartz.Scheduler
+	ShardID   string
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters,verbs=get;list;watch;create;update;patch;delete
@@ -100,10 +102,13 @@ func (r *ImageScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&fleet.ImageScan{}).
 		WithEventFilter(
 			// we do not trigger for status changes
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
-				predicate.LabelChangedPredicate{},
+			predicate.And(
+				sharding.FilterByShardID(r.ShardID),
+				predicate.Or(
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
 			)).
 		Complete(r)
 }
