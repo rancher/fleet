@@ -112,19 +112,16 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if err := resetStatus(&bundle.Status, matchedTargets); err != nil {
-		updateDisplay(&bundle.Status)
 		return ctrl.Result{}, err
 	}
 
 	// this will add the defaults for a new bundledeployment
 	if err := target.UpdatePartitions(&bundle.Status, matchedTargets); err != nil {
-		updateDisplay(&bundle.Status)
 		return ctrl.Result{}, err
 	}
 
 	if bundle.Status.ObservedGeneration != bundle.Generation {
 		if err := setResourceKey(context.Background(), &bundle.Status, bundle, manifest, r.isNamespaced); err != nil {
-			updateDisplay(&bundle.Status)
 			return ctrl.Result{}, err
 		}
 	}
