@@ -4,6 +4,7 @@ package reconciler
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -13,7 +14,9 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -173,21 +176,26 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	logger.V(1).Info("Reconciling bundle, checking targets, calculating changes, building objects", "generation", bundle.Generation, "observedGeneration", bundle.Status.ObservedGeneration)
 
-	manifest := manifest.FromBundle(bundle)
-	if bundle.Generation != bundle.Status.ObservedGeneration {
-		manifest.ResetSHASum()
-	}
+	contentsInOCI := bundle.Spec.ContentsID != ""
+	manifestID := bundle.Spec.ContentsID
+	var resourcesManifest *manifest.Manifest
+	if !contentsInOCI {
+		resourcesManifest = manifest.FromBundle(bundle)
+		if bundle.Generation != bundle.Status.ObservedGeneration {
+			resourcesManifest.ResetSHASum()
+		}
 
-	manifestDigest, err := manifest.SHASum()
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	bundle.Status.ResourcesSHA256Sum = manifestDigest
+		manifestDigest, err := resourcesManifest.SHASum()
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		bundle.Status.ResourcesSHA256Sum = manifestDigest
 
-	manifestID, err := manifest.ID()
-	if err != nil {
-		// this should never happen, since manifest.SHASum() cached the result and worked above.
-		return ctrl.Result{}, err
+		manifestID, err = resourcesManifest.ID()
+		if err != nil {
+			// this should never happen, since manifest.SHASum() cached the result and worked above.
+			return ctrl.Result{}, err
+		}
 	}
 
 	matchedTargets, err := r.Builder.Targets(ctx, bundle, manifestID)
@@ -206,9 +214,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// the `helm.Chart` field, change which resources are used. The
 		// agents have access to all resources and use their specific
 		// set of `BundleDeploymentOptions`.
-		err := r.Store.Store(ctx, manifest)
-		if err != nil {
-			return ctrl.Result{}, err
+		if !contentsInOCI {
+			// when not using the OCI registry we need to create a contents resource
+			// so the BundleDeployments are able to access the contents to be deployed
+			err := r.Store.Store(ctx, resourcesManifest)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
@@ -221,7 +233,19 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	setResourceKey(&bundle.Status, matchedTargets)
+	if contentsInOCI {
+		ociUrl, err := r.getOCIRegistryUrl(ctx, bundle)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		bundle.Status.ResourceKey = []fleet.ResourceKey{
+			{
+				Name: ociUrl,
+			},
+		}
+	} else {
+		setResourceKey(&bundle.Status, matchedTargets)
+	}
 
 	summary.SetReadyConditions(&bundle.Status, "Cluster", bundle.Status.Summary)
 	bundle.Status.ObservedGeneration = bundle.Generation
@@ -246,6 +270,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// been created.
 		controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
 
+		bd.Spec.OCIContents = contentsInOCI
+
 		updated := bd.DeepCopy()
 		op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
 			bd.Spec = updated.Spec
@@ -257,6 +283,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 		logger.V(1).Info(upper(op)+" bundledeployment", "bundledeployment", bd, "operation", op)
+
+		if contentsInOCI {
+			// we need to create the OCI registry credentials secret in the BundleDeployment's namespace
+			if err := r.createDeploymentOCISecret(ctx, bundle, bd); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 	}
 
 	updateDisplay(&bundle.Status)
@@ -294,4 +327,53 @@ func upper(op controllerutil.OperationResult) string {
 	default:
 		return "Unknown"
 	}
+}
+
+func (r *BundleReconciler) createDeploymentOCISecret(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
+	namespacedName := types.NamespacedName{
+		Namespace: bundle.Namespace,
+		Name:      bundle.Spec.ContentsID,
+	}
+	var ociSecret corev1.Secret
+	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
+		return err
+	}
+	// clone the secret, and just change the namespace so it's in the target's namespace
+	targetOCISecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ociSecret.Name,
+			Namespace: bd.Namespace,
+		},
+		Data: ociSecret.Data,
+	}
+
+	if err := controllerutil.SetControllerReference(bd, targetOCISecret, r.Scheme); err != nil {
+		return err
+	}
+	if err := r.Create(ctx, targetOCISecret); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *BundleReconciler) getOCIRegistryUrl(ctx context.Context, bundle *fleet.Bundle) (string, error) {
+	if bundle.Spec.ContentsID == "" {
+		return "", fmt.Errorf("cannot get OCI Url. Bundles's ContentsID is not set")
+	}
+	namespacedName := types.NamespacedName{
+		Namespace: bundle.Namespace,
+		Name:      bundle.Spec.ContentsID,
+	}
+	var ociSecret corev1.Secret
+	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
+		return "", err
+	}
+	url, ok := ociSecret.Data["url"]
+	if !ok {
+		return "", fmt.Errorf("expected data [url] not found in secret: %s", bundle.Spec.ContentsID)
+	}
+	return fmt.Sprintf("oci://%s/%s:latest", string(url), bundle.Spec.ContentsID), nil
 }

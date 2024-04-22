@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -16,15 +17,19 @@ import (
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/fleetyaml"
+	"github.com/rancher/fleet/internal/manifest"
 	name2 "github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/ociutils"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v2/pkg/yaml"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -34,6 +39,14 @@ var (
 type Getter interface {
 	Get() (*client.Client, error)
 	GetNamespace() string
+}
+
+type OCIRegistrySpec struct {
+	URL             string
+	Username        string
+	Password        string
+	BasicHTTP       bool
+	InsecureSkipTLS bool
 }
 
 type Options struct {
@@ -55,6 +68,7 @@ type Options struct {
 	CorrectDrift                bool
 	CorrectDriftForce           bool
 	CorrectDriftKeepFailHistory bool
+	OCIRegistry                 OCIRegistrySpec
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -227,7 +241,7 @@ func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options
 	}
 
 	if opts.Output == nil {
-		err = save(client, def, scans...)
+		err = save(ctx, client, def, opts, scans...)
 	} else {
 		_, err = opts.Output.Write(b)
 	}
@@ -235,7 +249,28 @@ func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options
 	return err
 }
 
-func save(client Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) error {
+func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts *Options) (string, error) {
+	manifest := manifest.FromBundle(bundle)
+	manifestID, err := manifest.ID()
+	if err != nil {
+		return "", err
+	}
+	ociOpts := ociutils.OCIOpts{
+		URL:             opts.OCIRegistry.URL,
+		Username:        opts.OCIRegistry.Username,
+		Password:        opts.OCIRegistry.Password,
+		BasicHTTP:       opts.OCIRegistry.BasicHTTP,
+		InsecureSkipTLS: opts.OCIRegistry.InsecureSkipTLS,
+	}
+	oci := ociutils.NewOCIUtils()
+	err = oci.PushManifest(ctx, ociOpts, manifestID, manifest)
+	if err != nil {
+		return "", err
+	}
+	return manifestID, nil
+}
+
+func save(ctx context.Context, client Getter, bundle *fleet.Bundle, opts *Options, imageScans ...*fleet.ImageScan) error {
 	c, err := client.Get()
 	if err != nil {
 		return err
@@ -243,8 +278,14 @@ func save(client Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) e
 
 	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		if _, err = c.Fleet.Bundle().Create(bundle); err != nil {
-			return err
+		if opts.OCIRegistry.URL != "" {
+			if err := saveOCIBundle(ctx, c, bundle, opts); err != nil {
+				return err
+			}
+		} else {
+			if _, err := c.Fleet.Bundle().Create(bundle); err != nil {
+				return err
+			}
 		}
 		logrus.Infof("created: %s/%s", bundle.Namespace, bundle.Name)
 	} else if err != nil {
@@ -280,6 +321,54 @@ func save(client Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) e
 			}
 			logrus.Infof("updated (scan): %s/%s", obj.Namespace, obj.Name)
 		}
+	}
+	return nil
+}
+
+func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, opts *Options) error {
+	manifestID, err := pushOCIManifest(ctx, bundle, opts)
+	if err != nil {
+		return err
+	}
+	// OCI artifact stored successfully
+	// We don't store the resources in the bundle. Just keep the manifestID for
+	// being able to access the bundle's contents later.
+	bundle.Spec.Resources = nil
+	bundle.Spec.ContentsID = manifestID
+
+	bundleCreated, err := c.Fleet.Bundle().Create(bundle)
+	if err != nil {
+		return err
+	}
+	// when using the OCI registry manifestID won't be empty
+	// In this case we need to create a secret to store the
+	// OCI registry url and credentials so the fleet controller is
+	// able to access.
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      manifestID,
+			Namespace: bundle.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         fleet.SchemeGroupVersion.String(),
+					Kind:               "Bundle",
+					Name:               bundleCreated.GetName(),
+					UID:                bundleCreated.GetUID(),
+					BlockOwnerDeletion: ptr.To(true),
+					Controller:         ptr.To(true),
+				},
+			},
+		},
+		Data: map[string][]byte{
+			ociutils.OCISecretURL:       []byte(opts.OCIRegistry.URL),
+			ociutils.OCISecretUsername:  []byte(opts.OCIRegistry.Username),
+			ociutils.OCISecretPassword:  []byte(opts.OCIRegistry.Password),
+			ociutils.OCISecretBasicHTTP: []byte(strconv.FormatBool(opts.OCIRegistry.BasicHTTP)),
+			ociutils.OCISecretInsecure:  []byte(strconv.FormatBool(opts.OCIRegistry.InsecureSkipTLS)),
+		},
+	}
+	if _, err := c.Core.Secret().Create(secret); err != nil {
+		return err
 	}
 	return err
 }

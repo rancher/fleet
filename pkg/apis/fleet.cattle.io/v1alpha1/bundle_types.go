@@ -110,6 +110,10 @@ type BundleSpec struct {
 	// DependsOn refers to the bundles which must be ready before this bundle can be deployed.
 	// +nullable
 	DependsOn []BundleRef `json:"dependsOn,omitempty"`
+
+	// ContentsID stores the contents id when deploying contents using an OCI registry.
+	// +nullable
+	ContentsID string `json:"contentsId,omitempty"`
 }
 
 type BundleRef struct {
