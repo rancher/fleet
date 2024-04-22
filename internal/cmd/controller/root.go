@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rancher/fleet/cmd/gitjob"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 
@@ -156,8 +157,11 @@ func App() *cobra.Command {
 	ctrl.RegisterFlags(fs)
 	root.Flags().AddGoFlagSet(fs)
 
-	root.AddCommand(cleanup.App())
-	root.AddCommand(agentmanagement.App())
+	root.AddCommand(
+		cleanup.App(),
+		agentmanagement.App(),
+		gitjob.App(&zopts),
+	)
 	return root
 }
 
