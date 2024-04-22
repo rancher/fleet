@@ -1,7 +1,7 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/poller_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/gitjob GitPoller
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/poller_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler GitPoller
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../../mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client,SubResourceWriter
 
-package gitjob
+package reconciler
 
 import (
 	"context"
@@ -120,9 +120,9 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			expectedInitContainers: []corev1.Container{
 				{
 					Command: []string{
-						"gitcloner",
+						"fleet",
 					},
-					Args:  []string{"repo", "/workspace", "--branch", "master"},
+					Args:  []string{"gitcloner", "repo", "/workspace", "--branch", "master"},
 					Image: "test",
 					Name:  "gitcloner-initializer",
 					VolumeMounts: []corev1.VolumeMount{
@@ -164,9 +164,9 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			expectedInitContainers: []corev1.Container{
 				{
 					Command: []string{
-						"gitcloner",
+						"fleet",
 					},
-					Args:  []string{"repo", "/workspace", "--branch", "foo"},
+					Args:  []string{"gitcloner", "repo", "/workspace", "--branch", "foo"},
 					Image: "test",
 					Name:  "gitcloner-initializer",
 					VolumeMounts: []corev1.VolumeMount{
@@ -208,9 +208,9 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			expectedInitContainers: []corev1.Container{
 				{
 					Command: []string{
-						"gitcloner",
+						"fleet",
 					},
-					Args:  []string{"repo", "/workspace", "--revision", "foo"},
+					Args:  []string{"gitcloner", "repo", "/workspace", "--revision", "foo"},
 					Image: "test",
 					Name:  "gitcloner-initializer",
 					VolumeMounts: []corev1.VolumeMount{
@@ -252,9 +252,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			expectedInitContainers: []corev1.Container{
 				{
 					Command: []string{
-						"gitcloner",
+						"fleet",
 					},
 					Args: []string{
+						"gitcloner",
 						"repo",
 						"/workspace",
 						"--branch",
@@ -317,9 +318,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			expectedInitContainers: []corev1.Container{
 				{
 					Command: []string{
-						"gitcloner",
+						"fleet",
 					},
 					Args: []string{
+						"gitcloner",
 						"repo",
 						"/workspace",
 						"--branch",
@@ -380,9 +382,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			expectedInitContainers: []corev1.Container{
 				{
 					Command: []string{
-						"gitcloner",
+						"fleet",
 					},
 					Args: []string{
+						"gitcloner",
 						"repo",
 						"/workspace",
 						"--branch",
@@ -442,9 +445,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			expectedInitContainers: []corev1.Container{
 				{
 					Command: []string{
-						"gitcloner",
+						"fleet",
 					},
 					Args: []string{
+						"gitcloner",
 						"repo",
 						"/workspace",
 						"--branch",

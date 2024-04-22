@@ -1,4 +1,4 @@
-package gitjob
+package reconciler
 
 import (
 	"context"
@@ -14,9 +14,11 @@ import (
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
 	"github.com/rancher/wrangler/v2/pkg/condition"
 	"github.com/rancher/wrangler/v2/pkg/kstatus"
 	"github.com/rancher/wrangler/v2/pkg/name"
+
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"

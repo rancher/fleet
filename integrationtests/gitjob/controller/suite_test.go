@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/rancher/fleet/internal/cmd/gitjob"
+	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	"github.com/rancher/fleet/internal/mocks"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -71,7 +71,7 @@ var _ = BeforeSuite(func() {
 	gitPollerMock.EXPECT().AddOrModifyGitRepoPollJob(gomock.Any(), gomock.Any()).AnyTimes()
 	gitPollerMock.EXPECT().CleanUpGitRepoPollJobs(gomock.Any()).AnyTimes()
 
-	err = (&gitjob.GitJobReconciler{
+	err = (&reconciler.GitJobReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Image:     "image",

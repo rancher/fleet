@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rancher/fleet/cmd/gitjob"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
+	"github.com/rancher/fleet/internal/cmd/controller/gitops"
 
 	"github.com/spf13/cobra"
 
@@ -160,7 +160,7 @@ func App() *cobra.Command {
 	root.AddCommand(
 		cleanup.App(),
 		agentmanagement.App(),
-		gitjob.App(&zopts),
+		gitops.App(&zopts),
 	)
 	return root
 }

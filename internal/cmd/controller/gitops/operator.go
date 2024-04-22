@@ -1,6 +1,6 @@
 //go:generate bash ./scripts/controller-gen-generate.sh
 
-package gitjob
+package gitops
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"time"
 
 	command "github.com/rancher/fleet/internal/cmd"
-	controller "github.com/rancher/fleet/internal/cmd/gitjob"
+	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/poll"
 	"github.com/rancher/fleet/pkg/version"
@@ -85,7 +85,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	reconciler := &controller.GitJobReconciler{
+	reconciler := &reconciler.GitJobReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Image:     g.Image,
