@@ -1,14 +1,14 @@
-package cmd
+package gitcloner
 
 import (
 	"github.com/spf13/cobra"
 )
 
-type GitCloner interface {
-	CloneRepo(opts *Options) error
+type CloneGit interface {
+	CloneRepo(opts *GitCloner) error
 }
 
-type Options struct {
+type GitCloner struct {
 	Repo              string
 	Path              string
 	Branch            string
@@ -21,9 +21,9 @@ type Options struct {
 	KnownHostsFile    string
 }
 
-var opts *Options
+var opts *GitCloner
 
-func New(gitCloner GitCloner) *cobra.Command {
+func NewCmd(gitCloner CloneGit) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gitcloner [REPO] [PATH]",
 		Short: "Clones a git repository",
@@ -35,7 +35,7 @@ func New(gitCloner GitCloner) *cobra.Command {
 			return gitCloner.CloneRepo(opts)
 		},
 	}
-	opts = &Options{}
+	opts = &GitCloner{}
 	cmd.Flags().StringVarP(&opts.Branch, "branch", "b", "", "git branch")
 	cmd.Flags().StringVar(&opts.Revision, "revision", "", "git revision")
 	cmd.Flags().StringVar(&opts.CABundleFile, "ca-bundle-file", "", "CA bundle file")

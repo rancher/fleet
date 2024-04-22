@@ -1,18 +1,16 @@
-package gogit
+package gitcloner
 
 import (
 	"errors"
 	"os"
 	"testing"
 
+	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/transport"
-
-	"github.com/go-git/go-git/v5"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
-	"github.com/rancher/fleet/cmd/gitcloner/cmd"
 )
 
 func TestCloneRepo(t *testing.T) {
@@ -74,12 +72,12 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 	}()
 
 	tests := map[string]struct {
-		opts              *cmd.Options
+		opts              *GitCloner
 		expectedCloneOpts *git.CloneOptions
 		expectedErr       error
 	}{
 		"branch no auth": {
-			opts: &cmd.Options{
+			opts: &GitCloner{
 				Repo:   "repo",
 				Path:   "path",
 				Branch: "master",
@@ -91,7 +89,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 		},
 		"branch basic auth": {
-			opts: &cmd.Options{
+			opts: &GitCloner{
 				Repo:         "repo",
 				Path:         "path",
 				Branch:       "master",
@@ -109,7 +107,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 		},
 		"branch ssh auth": {
-			opts: &cmd.Options{
+			opts: &GitCloner{
 				Repo:              "ssh://git@localhost/test/test-repo",
 				Path:              "path",
 				Branch:            "master",
@@ -123,7 +121,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 		},
 		"password file does not exist": {
-			opts: &cmd.Options{
+			opts: &GitCloner{
 				Repo:         "repo",
 				Branch:       "master",
 				PasswordFile: "doesntexist",
@@ -133,7 +131,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			expectedErr:       errors.New("file not found"),
 		},
 		"ca file does not exist": {
-			opts: &cmd.Options{
+			opts: &GitCloner{
 				Repo:         "repo",
 				Branch:       "master",
 				CABundleFile: "doesntexist",
@@ -142,7 +140,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			expectedErr:       errors.New("file not found"),
 		},
 		"ssh private key file does not exist": {
-			opts: &cmd.Options{
+			opts: &GitCloner{
 				Repo:              "repo",
 				Branch:            "master",
 				SSHPrivateKeyFile: "doesntexist",

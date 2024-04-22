@@ -1,10 +1,8 @@
-package gogit
+package gitcloner
 
 import (
 	"fmt"
 	"os"
-
-	"github.com/rancher/fleet/cmd/gitcloner/cmd"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -35,11 +33,11 @@ type Options struct {
 	CABundle        []byte
 }
 
-func NewCloner() *Cloner {
+func New() *Cloner {
 	return &Cloner{}
 }
 
-func (c *Cloner) CloneRepo(opts *cmd.Options) error {
+func (c *Cloner) CloneRepo(opts *GitCloner) error {
 	// Azure DevOps requires capabilities multi_ack / multi_ack_detailed,
 	// which are not fully implemented and by default are included in
 	// transport.UnsupportedCapabilities.
@@ -73,7 +71,7 @@ func (c *Cloner) CloneRepo(opts *cmd.Options) error {
 	return cloneRevision(opts, auth, caBundle)
 }
 
-func cloneBranch(opts *cmd.Options, auth transport.AuthMethod, caBundle []byte) error {
+func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	_, err := plainClone(opts.Path, false, &git.CloneOptions{
 		URL:             opts.Repo,
 		Auth:            auth,
@@ -86,7 +84,7 @@ func cloneBranch(opts *cmd.Options, auth transport.AuthMethod, caBundle []byte) 
 	return err
 }
 
-func cloneRevision(opts *cmd.Options, auth transport.AuthMethod, caBundle []byte) error {
+func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	r, err := plainClone(opts.Path, false, &git.CloneOptions{
 		URL:             opts.Repo,
 		Auth:            auth,
@@ -118,7 +116,7 @@ func getCABundleFromFile(path string) ([]byte, error) {
 }
 
 // createAuthFromOpts adds auth for cloning git repos based on the parameters provided in opts.
-func createAuthFromOpts(opts *cmd.Options) (transport.AuthMethod, error) {
+func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 	if opts.SSHPrivateKeyFile != "" {
 		privateKey, err := readFile(opts.SSHPrivateKeyFile)
 		if err != nil {
