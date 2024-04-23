@@ -248,9 +248,11 @@ func save(client Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) e
 	} else if err != nil {
 		return err
 	} else {
+
 		obj.Spec = bundle.Spec
-		obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
-		obj.Labels = mergeMap(obj.Labels, bundle.Labels)
+		obj.Annotations = bundle.Annotations
+		obj.Labels = bundle.Labels
+
 		if _, err := c.Fleet.Bundle().Update(obj); err != nil {
 			return err
 		}
@@ -270,8 +272,8 @@ func save(client Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) e
 			return err
 		} else {
 			obj.Spec = scan.Spec
-			obj.Annotations = mergeMap(obj.Annotations, bundle.Annotations)
-			obj.Labels = mergeMap(obj.Labels, bundle.Labels)
+			obj.Annotations = bundle.Annotations
+			obj.Labels = bundle.Labels
 			if _, err := c.Fleet.ImageScan().Update(obj); err != nil {
 				return err
 			}
