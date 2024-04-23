@@ -1,5 +1,5 @@
 {{ $shards := list "" }}
-{{ if len .Values.shards }}
+{{ if .Values.shards }}
 {{ $shards = concat $shards .Values.shards | uniq }}
 {{ end }}
 {{ range $shards }}
