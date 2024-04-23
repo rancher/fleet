@@ -9,29 +9,27 @@ import (
 	"strings"
 	"time"
 
-	goPlaygroundAzuredevops "github.com/go-playground/webhooks/v6/azuredevops"
-	"github.com/rancher/fleet/pkg/webhook/azuredevops"
-
 	"github.com/go-logr/logr"
-	ctrl "sigs.k8s.io/controller-runtime"
-
-	"github.com/gorilla/mux"
-	corev1 "k8s.io/api/core/v1"
-	kcache "k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
-
+	goPlaygroundAzuredevops "github.com/go-playground/webhooks/v6/azuredevops"
 	gogsclient "github.com/gogits/go-gogs-client"
-	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/sirupsen/logrus"
+	"github.com/gorilla/mux"
 	"gopkg.in/go-playground/webhooks.v5/bitbucket"
 	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"
 	"gopkg.in/go-playground/webhooks.v5/github"
 	"gopkg.in/go-playground/webhooks.v5/gitlab"
 	"gopkg.in/go-playground/webhooks.v5/gogs"
+
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/webhook/azuredevops"
+
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	ktypes "k8s.io/apimachinery/pkg/types"
+	kcache "k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -172,14 +170,14 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	case r.Header.Get("X-Vss-Activityid") != "" || r.Header.Get("X-Vss-Subscriptionid") != "":
 		payload, err = w.azureDevops.Parse(r, goPlaygroundAzuredevops.GitPushEventType)
 	default:
-		logrus.Debug("Ignoring unknown webhook event")
+		w.log.V(1).Info("Ignoring unknown webhook event")
 		return
 	}
 
-	logrus.Debugf("Webhook payload %+v", payload)
+	w.log.V(1).Info("Webhook payload", "payload", payload)
 
 	if err != nil {
-		logAndReturn(rw, err)
+		w.logAndReturn(rw, err)
 		return
 	}
 
@@ -188,20 +186,20 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var gitRepoList v1alpha1.GitRepoList
 	err = w.client.List(ctx, &gitRepoList, &client.ListOptions{LabelSelector: labels.Everything()})
 	if err != nil {
-		logAndReturn(rw, err)
+		w.logAndReturn(rw, err)
 		return
 	}
 
 	for _, repo := range repoURLs {
 		u, err := url.Parse(repo)
 		if err != nil {
-			logAndReturn(rw, err)
+			w.logAndReturn(rw, err)
 			return
 		}
 		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?)` + u.Hostname() + "(:[0-9]+|)[:/]" + u.Path[1:] + "(\\.git)?"
 		repoRegexp, err := regexp.Compile(regexpStr)
 		if err != nil {
-			logAndReturn(rw, err)
+			w.logAndReturn(rw, err)
 			return
 		}
 		for _, gitrepo := range gitRepoList.Items {
@@ -242,7 +240,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					}
 					return w.client.Status().Update(ctx, &gitRepoFromCluster)
 				}); err != nil {
-					logAndReturn(rw, err)
+					w.logAndReturn(rw, err)
 					return
 				}
 			}
@@ -294,8 +292,8 @@ func HandleHooks(ctx context.Context, namespace string, client client.Client, cl
 	return root, nil
 }
 
-func logAndReturn(rw http.ResponseWriter, err error) {
-	logrus.Errorf("Webhook processing failed: %s", err)
+func (w *Webhook) logAndReturn(rw http.ResponseWriter, err error) {
+	w.log.Error(err, "Webhook processing failed")
 	rw.WriteHeader(500)
 	_, _ = rw.Write([]byte(err.Error()))
 }
