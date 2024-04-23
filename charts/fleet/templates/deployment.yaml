@@ -16,6 +16,9 @@ spec:
       labels:
         app: fleet-controller
         shard: "{{ . }}"
+        {{- if empty . }}
+        shard-default: "true"
+        {{- end }}
     spec:
       containers:
       - env:

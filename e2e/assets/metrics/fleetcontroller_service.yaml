@@ -5,6 +5,7 @@ metadata:
 spec:
   selector:
     app: fleet-controller
+    shard-default: "true"
   ports:
     - protocol: TCP
       port: {{ .Port }}

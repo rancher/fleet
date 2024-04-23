@@ -28,24 +28,24 @@ var (
 )
 
 func setupLoadBalancer() {
-	rs := rand.NewSource(time.Now().UnixNano())
-	port := rs.Int63()%1000 + 30000
-	loadBalancerName = testenv.AddRandomSuffix("fleetcontroller", rs)
-
-	ks := k.Namespace("cattle-fleet-system")
-	err := testenv.ApplyTemplate(
-		ks,
-		testenv.AssetPath("metrics/fleetcontroller_service.yaml"),
-		map[string]interface{}{
-			"Name": loadBalancerName,
-			"Port": port,
-		},
-	)
-	Expect(err).ToNot(HaveOccurred())
-
 	if os.Getenv("METRICS_URL") != "" {
 		metricsURL = os.Getenv("METRICS_URL")
 	} else {
+		rs := rand.NewSource(time.Now().UnixNano())
+		port := rs.Int63()%1000 + 30000
+		loadBalancerName = testenv.AddRandomSuffix("fleetcontroller", rs)
+
+		ks := k.Namespace("cattle-fleet-system")
+		err := testenv.ApplyTemplate(
+			ks,
+			testenv.AssetPath("metrics/fleetcontroller_service.yaml"),
+			map[string]interface{}{
+				"Name": loadBalancerName,
+				"Port": port,
+			},
+		)
+		Expect(err).ToNot(HaveOccurred())
+
 		Eventually(func() (string, error) {
 			ip, err := ks.Get(
 				"service", loadBalancerName,
