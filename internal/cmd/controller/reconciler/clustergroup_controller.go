@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 
@@ -39,6 +40,7 @@ func (r *ClusterGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	group := &fleet.ClusterGroup{}
 	err := r.Get(ctx, req.NamespacedName, group)
 	if err != nil {
+		metrics.ClusterGroupCollector.Delete(req.Name, req.Namespace)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	logger.V(1).Info("Reconciling clustergroup, updating display status field", "oldDisplay", group.Status.Display)
@@ -73,6 +75,8 @@ func (r *ClusterGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	})
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to cluster group status", "status", group.Status)
+	} else {
+		metrics.ClusterGroupCollector.Collect(ctx, group)
 	}
 
 	return ctrl.Result{}, err

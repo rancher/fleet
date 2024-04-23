@@ -72,6 +72,8 @@ func IncrementResourceCounts(left *fleet.GitRepoResourceCounts, right fleet.GitR
 	left.NotReady += right.NotReady
 }
 
+// GetSummaryState returns the summary state of a bundle. The returned value is
+// empty if the bundle has no non-ready resources.
 func GetSummaryState(summary fleet.BundleSummary) fleet.BundleState {
 	var state fleet.BundleState
 	for _, nonReady := range summary.NonReadyResources {
