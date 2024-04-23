@@ -1,5 +1,3 @@
-//go:generate bash ./scripts/controller-gen-generate.sh
-
 package gitops
 
 import (
@@ -67,7 +65,7 @@ func (g *GitOperator) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
-	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("gitjob-reconciler"))
 	// TODO for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
 	zopts.Development = g.Debug
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
@@ -90,7 +88,6 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		Scheme:    mgr.GetScheme(),
 		Image:     g.Image,
 		GitPoller: poll.NewHandler(ctx, mgr.GetClient()),
-		Log:       ctrl.Log.WithName("gitjob-reconciler"),
 	}
 
 	group := errgroup.Group{}
