@@ -25,85 +25,87 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = Describe("Fleet apply online", func() {
+var _ = Describe("Fleet apply online", Label("online"), func() {
+
 	var (
-		dirs    []string
-		name    string
-		options apply.Options
+		ctrl             *gomock.Controller
+		getter           *mocks.MockGetter
+		c                client.Client
+		fleetMock        *mocks.FleetInterface
+		bundleController *fake.MockControllerInterface[*fleet.Bundle, *fleet.BundleList]
+		name             string
+		dirs             []string
+		options          apply.Options
+		oldBundle        *fleet.Bundle
+		newBundle        *fleet.Bundle
 	)
 
 	JustBeforeEach(func() {
-		//Implementing all the prerequisites for the test
-		ctrl := gomock.NewController(GinkgoT())
-		getter := mocks.NewMockGetter(ctrl)
-		client := client.Client{
+		//Setting up all the needed interfaces for the test
+		ctrl = gomock.NewController(GinkgoT())
+		getter = mocks.NewMockGetter(ctrl)
+		c = client.Client{
 			Fleet:     mocks.NewFleetInterface(ctrl),
 			Namespace: "foo",
 		}
-		bundleController := fake.NewMockControllerInterface[*fleet.Bundle, *fleet.BundleList](ctrl)
-		fleetMock := client.Fleet.(*mocks.FleetInterface)
-
-		//bundle in the cluster
-		oldBundle := &fleet.Bundle{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{
-					"new":         "fleet-label2",
-					"new_changed": "fleet_label_changed",
-				},
-				Namespace: "foo",
-				Name:      "test_labels",
-			},
-		}
-
-		//bundle in the fleet.yaml file some values are autofulfilled in the implementation (this is why there are not only the labels)
-		newBundle := &fleet.Bundle{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{
-					"new": "fleet-label2",
-				},
-				Namespace: "foo",
-				Name:      "test_labels",
-			},
-			Spec: fleet.BundleSpec{
-				Resources: []fleet.BundleResource{
-					{
-						Name:    "fleet.yaml",
-						Content: "labels:\n  new: fleet-label2",
-					},
-				},
-				Targets: []fleet.BundleTarget{
-					{
-						Name:         "default",
-						ClusterGroup: "default",
-					},
-				},
-			},
-		}
-
+		bundleController = fake.NewMockControllerInterface[*fleet.Bundle, *fleet.BundleList](ctrl)
+		fleetMock = c.Fleet.(*mocks.FleetInterface)
 		getter.EXPECT().GetNamespace().Return("foo").AnyTimes()
-		getter.EXPECT().Get().Return(&client, nil).AnyTimes()
+		getter.EXPECT().Get().Return(&c, nil).AnyTimes()
 		fleetMock.EXPECT().Bundle().Return(bundleController).AnyTimes()
-		bundleController.EXPECT().Get("foo", gomock.Any(), gomock.Any()).Return(oldBundle, nil)
-		//The core of the test is the Update() method because it will verify if the Labels are correctly updated
-		bundleController.EXPECT().Update(newBundle).Return(newBundle, nil)
-		bundleController.EXPECT().List(gomock.Any(), gomock.Any()).Return(&fleet.BundleList{}, nil)
-
-		err := fleetApplyOnline(getter, name, dirs, options)
-		Expect(err).NotTo(HaveOccurred())
 
 	})
 
-	When("Folder contains a fleet.yaml fulfilled with less labels than the bundle which we want to update", func() {
+	When("We want to delete a label in the bundle from the cluster", func() {
 		BeforeEach(func() {
 			name = "labels_update"
-			//The folder contains a fleet.yaml with only one label to simulate the case when we want to delete a label
 			dirs = []string{cli.AssetsPath + "labels_update"}
+			//bundle in the cluster
+			oldBundle = &fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"new":         "fleet-label2",
+						"new_changed": "fleet_label_changed",
+					},
+					Namespace: "foo",
+					Name:      "test_labels",
+				},
+			}
+			//bundle in the fleet.yaml file some values are autofulfilled in the implementation (this is why there are not only the labels)
+			newBundle = &fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"new": "fleet-label2",
+					},
+					Namespace: "foo",
+					Name:      "test_labels",
+				},
+				Spec: fleet.BundleSpec{
+					Resources: []fleet.BundleResource{
+						{
+							Name:    "fleet.yaml",
+							Content: "labels:\n  new: fleet-label2",
+						},
+					},
+					Targets: []fleet.BundleTarget{
+						{
+							Name:         "default",
+							ClusterGroup: "default",
+						},
+					},
+				},
+			}
 		})
 
-		It("should correctly update the labels from fleet.yaml", func() {
-			//fleetApplyOnline method do not return any value of the updated bundle, so we cannot check the labels here
-			//Instead, we try the good updating of the bundle using the Update() method in the JustBeforeEach
+		It("should correctly remove the labels from fleet.yaml", func() {
+			bundleController.EXPECT().Get("foo", gomock.Any(), gomock.Any()).Return(oldBundle, nil)
+			//Update mathod is the one that update the labels so if it works, the test is verified
+			bundleController.EXPECT().Update(newBundle).Return(newBundle, nil).AnyTimes()
+			bundleController.EXPECT().List(gomock.Any(), gomock.Any()).Return(&fleet.BundleList{}, nil)
+			err := fleetApplyOnline(getter, name, dirs, options)
+			Expect(err).NotTo(HaveOccurred())
 		})
+
 	})
 
 })
