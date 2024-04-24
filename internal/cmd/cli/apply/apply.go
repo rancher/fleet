@@ -283,17 +283,6 @@ func save(client Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) e
 	return err
 }
 
-func mergeMap(a, b map[string]string) map[string]string {
-	result := map[string]string{}
-	for k, v := range a {
-		result[k] = v
-	}
-	for k, v := range b {
-		result[k] = v
-	}
-	return result
-}
-
 // shouldCreateBundleForThisPath returns true if a bundle should be created for this path. This happens when:
 // 1) Root path contains resources in the root directory or any subdirectory without a fleet.yaml.
 // 2) Or it is a subdirectory with a fleet.yaml
