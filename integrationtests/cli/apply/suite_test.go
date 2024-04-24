@@ -14,7 +14,6 @@ import (
 
 var buf *gbytes.Buffer
 
-
 func TestFleetApply(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Fleet CLI Apply Suite")
