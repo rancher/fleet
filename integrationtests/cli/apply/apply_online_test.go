@@ -99,7 +99,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 
 		It("should correctly remove the labels from fleet.yaml", func() {
 			bundleController.EXPECT().Get("foo", gomock.Any(), gomock.Any()).Return(oldBundle, nil)
-			//Update mathod is the one that update the labels so if it works, the test is verified
+			//Update method is the one that update the labels so if it works, the test is verified
 			bundleController.EXPECT().Update(newBundle).Return(newBundle, nil).AnyTimes()
 			bundleController.EXPECT().List(gomock.Any(), gomock.Any()).Return(&fleet.BundleList{}, nil)
 			err := fleetApplyOnline(getter, name, dirs, options)
