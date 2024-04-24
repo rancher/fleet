@@ -32,7 +32,7 @@ require (
 	github.com/otiai10/copy v1.14.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.0
-	github.com/prometheus/client_model v0.6.0
+	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.48.0
 	github.com/rancher/fleet/pkg/apis v0.10.0-rc.4
 	github.com/rancher/lasso v0.0.0-20240415182150-5993b260dd08
