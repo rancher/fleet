@@ -13,7 +13,6 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
-	"github.com/sirupsen/logrus"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -170,8 +169,12 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if allReady && cluster.Status.ResourceCounts.Ready != cluster.Status.ResourceCounts.DesiredReady {
-		logrus.Debugf("Cluster %s/%s is not ready because not all gitrepos are ready: %d/%d, enqueue cluster again",
-			cluster.Namespace, cluster.Name, cluster.Status.ResourceCounts.Ready, cluster.Status.ResourceCounts.DesiredReady)
+		logger.V(1).Info("Cluster is not ready, because not all gitrepos are ready",
+			"namespace", cluster.Namespace,
+			"name", cluster.Name,
+			"ready", cluster.Status.ResourceCounts.Ready,
+			"DesiredReady", cluster.Status.ResourceCounts.DesiredReady,
+		)
 
 		// Counts from gitrepo are out of sync with bundleDeployment state, retry in a number of seconds.
 		return ctrl.Result{

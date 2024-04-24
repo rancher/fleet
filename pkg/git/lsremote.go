@@ -17,9 +17,11 @@ import (
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/go-git/go-git/v5/storage/memory"
-	giturls "github.com/rancher/fleet/pkg/git-urls"
-	"github.com/sirupsen/logrus"
+	"github.com/go-logr/logr"
 	"golang.org/x/crypto/ssh"
+
+	giturls "github.com/rancher/fleet/pkg/git-urls"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -28,9 +30,10 @@ type options struct {
 	CABundle          []byte
 	InsecureTLSVerify bool
 	Headers           map[string]string
+	log               logr.Logger
 }
 
-func newGit(directory, url string, opts *options) (*git, error) {
+func newGit(url string, opts *options) (*git, error) {
 	if err := validateURL(url); err != nil {
 		return nil, err
 	}
@@ -41,11 +44,12 @@ func newGit(directory, url string, opts *options) (*git, error) {
 
 	g := &git{
 		URL:               url,
-		Directory:         directory,
+		Directory:         "",
 		caBundle:          opts.CABundle,
 		insecureTLSVerify: opts.InsecureTLSVerify,
 		secret:            opts.Credential,
 		headers:           opts.Headers,
+		log:               opts.log.WithValues("url", url),
 	}
 	return g, g.setCredential(opts.Credential)
 }
@@ -58,6 +62,7 @@ type git struct {
 	secret            *corev1.Secret
 	headers           map[string]string
 	auth              transport.AuthMethod
+	log               logr.Logger
 }
 
 // LsRemote runs ls-remote on git repo and returns the HEAD commit SHA
@@ -158,14 +163,14 @@ func (g *git) remoteSHAChanged(branch, sha string) (bool, error) {
 
 	client, err := g.httpClientWithCreds()
 	if err != nil {
-		logrus.Warnf("Problem creating http client to check git remote sha of repo [%v]: %v", g.URL, err)
+		g.log.Error(err, "Problem creating http client to check git remote sha of repo", "url")
 		return true, nil
 	}
 	defer client.CloseIdleConnections()
 
 	req, err := http.NewRequest("GET", formattedURL, nil)
 	if err != nil {
-		logrus.Warnf("Problem creating request to check git remote sha of repo [%v]: %v", g.URL, err)
+		g.log.Error(err, "Problem creating request to check git remote sha of repo")
 		return true, nil
 	}
 
