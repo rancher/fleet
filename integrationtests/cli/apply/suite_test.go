@@ -28,6 +28,5 @@ func fleetApply(name string, dirs []string, options apply.Options) error {
 
 // simulates fleet cli online execution, with mocked client
 func fleetApplyOnline(getter apply.Getter, name string, dirs []string, options apply.Options) error {
-
 	return apply.CreateBundles(context.Background(), getter, name, dirs, options)
 }
