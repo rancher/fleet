@@ -248,7 +248,6 @@ func save(client Getter, bundle *fleet.Bundle, imageScans ...*fleet.ImageScan) e
 	} else if err != nil {
 		return err
 	} else {
-
 		obj.Spec = bundle.Spec
 		obj.Annotations = bundle.Annotations
 		obj.Labels = bundle.Labels
