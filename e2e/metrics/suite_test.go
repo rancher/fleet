@@ -62,7 +62,7 @@ func tearDownLoadBalancer() {
 }
 
 var _ = BeforeSuite(func() {
-	SetDefaultEventuallyTimeout(time.Minute)
+	SetDefaultEventuallyTimeout(testenv.Timeout)
 	SetDefaultEventuallyPollingInterval(time.Second)
 	testenv.SetRoot("../..")
 
