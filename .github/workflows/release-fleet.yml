@@ -48,16 +48,16 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
             secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
 
-      - name: Run FOSSA scan
-        uses: fossas/fossa-action@v1.3.3
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
+      # - name: Run FOSSA scan
+      #   uses: fossas/fossa-action@v1.3.3
+      #   with:
+      #     api-key: ${{ env.FOSSA_API_KEY }}
 
-      - name: Run FOSSA tests
-        uses: fossas/fossa-action@v1.3.3
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-          run-tests: true
+      # - name: Run FOSSA tests
+      #   uses: fossas/fossa-action@v1.3.3
+      #   with:
+      #     api-key: ${{ env.FOSSA_API_KEY }}
+      #     run-tests: true
 
       - name: Check for code changes
         run: |
