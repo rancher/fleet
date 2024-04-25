@@ -67,7 +67,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 					Name:      "test_labels",
 				},
 			}
-			//bundle in the fleet.yaml file some values are autofulfilled in the implementation (this is why there are not only the labels)
+			//bundle in the fleet.yaml file; some values are autofilled in the implementation (this is why there are not only the labels)
 			newBundle = &fleet.Bundle{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
