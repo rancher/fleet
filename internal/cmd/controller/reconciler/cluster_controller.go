@@ -173,7 +173,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			"namespace", cluster.Namespace,
 			"name", cluster.Name,
 			"ready", cluster.Status.ResourceCounts.Ready,
-			"DesiredReady", cluster.Status.ResourceCounts.DesiredReady,
+			"desiredReady", cluster.Status.ResourceCounts.DesiredReady,
 		)
 
 		// Counts from gitrepo are out of sync with bundleDeployment state, retry in a number of seconds.
