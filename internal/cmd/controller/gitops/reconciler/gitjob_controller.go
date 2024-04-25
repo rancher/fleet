@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-logr/logr"
-	"github.com/sirupsen/logrus"
-
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -33,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
@@ -58,7 +56,6 @@ type GitJobReconciler struct {
 	Scheme    *runtime.Scheme
 	Image     string
 	GitPoller GitPoller
-	Log       logr.Logger
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -79,14 +76,21 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := log.FromContext(ctx).WithName("gitjob")
 	var gitRepo v1alpha1.GitRepo
 
 	if err := r.Get(ctx, req.NamespacedName, &gitRepo); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if errors.IsNotFound(err) {
+		logger.V(1).Info("Gitrepo deleted, cleaning up poll jobs")
 		r.GitPoller.CleanUpGitRepoPollJobs(ctx)
 		return ctrl.Result{}, nil
 	}
+
+	logger = logger.WithValues("generation", gitRepo.Generation, "commit", gitRepo.Status.Commit)
+	ctx = log.IntoContext(ctx, logger)
+
+	logger.V(1).Info("Reconciling GitRepo")
 
 	r.GitPoller.AddOrModifyGitRepoPollJob(ctx, gitRepo)
 
@@ -111,7 +115,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if err = r.updateStatus(ctx, &gitRepo, &job); err != nil {
 		if errors.IsConflict(err) {
-			r.Log.Info("conflict updating status", "message", err)
+			logger.V(1).Info("conflict updating status, retrying", "message", err)
 			return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
 		}
 		return ctrl.Result{}, fmt.Errorf("error updating git job status: %v", err)
@@ -221,10 +225,11 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 }
 
 func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
+	logger := log.FromContext(ctx)
 	// if force delete is set, delete the job to make sure a new job is created
 	if gitRepo.Spec.ForceSyncGeneration != gitRepo.Status.UpdateGeneration {
 		gitRepo.Status.UpdateGeneration = gitRepo.Spec.ForceSyncGeneration
-		r.Log.Info("job deletion triggered because of ForceUpdateGeneration")
+		logger.Info("job deletion triggered because of ForceUpdateGeneration")
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 			return err
 		}
@@ -232,7 +237,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 
 	// k8s Jobs are immutable. Recreate the job if the GitRepo Spec has changed.
 	if gitRepo.Generation != gitRepo.Status.ObservedGeneration {
-		r.Log.Info("job deletion triggered because of generation change")
+		logger.Info("job deletion triggered because of generation change")
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 			return err
 		}
@@ -363,7 +368,8 @@ func (r *GitJobReconciler) computeJobSpec(ctx context.Context, gitrepo *v1alpha1
 	}
 
 	saName := name.SafeConcatName("git", gitrepo.Name)
-	args, envs := argsAndEnvs(gitrepo)
+	logger := log.FromContext(ctx)
+	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled())
 
 	return &batchv1.JobSpec{
 		BackoffLimit: &two,
@@ -411,13 +417,13 @@ func (r *GitJobReconciler) computeJobSpec(ctx context.Context, gitrepo *v1alpha1
 	}, nil
 }
 
-func argsAndEnvs(gitrepo *v1alpha1.GitRepo) ([]string, []corev1.EnvVar) {
+func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
 		"apply",
 	}
 
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+	if debug {
 		args = append(args, "--debug", "--debug-level", "9")
 	}
 

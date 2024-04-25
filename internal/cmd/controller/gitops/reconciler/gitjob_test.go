@@ -39,15 +39,14 @@ func TestReconcile_AddOrModifyGitRepoPollJobIsCalled_WhenGitRepoIsCreatedOrModif
 		},
 	}
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	ctx := context.TODO()
 	client := mocks.NewMockClient(mockCtrl)
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	statusClient.EXPECT().Update(ctx, gomock.Any())
-	client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	statusClient.EXPECT().Update(gomock.Any(), gomock.Any())
+	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Status().Return(statusClient)
 	poller := mocks.NewMockGitPoller(mockCtrl)
-	poller.EXPECT().AddOrModifyGitRepoPollJob(ctx, gomock.Any()).Times(1)
-	poller.EXPECT().CleanUpGitRepoPollJobs(ctx).Times(0)
+	poller.EXPECT().AddOrModifyGitRepoPollJob(gomock.Any(), gomock.Any()).Times(1)
+	poller.EXPECT().CleanUpGitRepoPollJobs(gomock.Any()).Times(0)
 
 	r := GitJobReconciler{
 		Client:    client,
@@ -55,6 +54,8 @@ func TestReconcile_AddOrModifyGitRepoPollJobIsCalled_WhenGitRepoIsCreatedOrModif
 		Image:     "",
 		GitPoller: poller,
 	}
+
+	ctx := context.TODO()
 	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
