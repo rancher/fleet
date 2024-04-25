@@ -13,7 +13,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/cheggaaa/pb v1.0.29
 	github.com/davecgh/go-spew v1.1.1
-	github.com/docker/docker v26.0.2+incompatible
+	github.com/docker/docker v26.1.0+incompatible
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/go-git/go-billy/v5 v5.5.0
 	github.com/go-git/go-git/v5 v5.12.0
@@ -31,8 +31,11 @@ require (
 	github.com/onsi/gomega v1.33.0
 	github.com/otiai10/copy v1.14.0
 	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.19.0
+	github.com/prometheus/client_model v0.6.1
+	github.com/prometheus/common v0.53.0
 	github.com/rancher/fleet/pkg/apis v0.10.0-rc.4
-	github.com/rancher/lasso v0.0.0-20240415182150-5993b260dd08
+	github.com/rancher/lasso v0.0.0-20240424194130-d87ec407d941
 	github.com/rancher/wrangler/v2 v2.1.4
 	github.com/reugn/go-quartz v0.11.2
 	github.com/sirupsen/logrus v1.9.3
@@ -46,13 +49,13 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.14.4
-	k8s.io/api v0.29.2
+	k8s.io/api v0.29.3
 	k8s.io/apiextensions-apiserver v0.29.2
-	k8s.io/apimachinery v0.29.2
+	k8s.io/apimachinery v0.29.3
 	k8s.io/cli-runtime v0.29.2
-	k8s.io/client-go v0.29.2
+	k8s.io/client-go v0.29.3
 	k8s.io/klog/v2 v2.120.1
-	k8s.io/kube-openapi v0.0.0-20240411171206-dc4e619f62f3
+	k8s.io/kube-openapi v0.0.0-20240423202451-8948a665c108
 	k8s.io/kubectl v0.29.2
 	k8s.io/kubernetes v1.29.2
 	sigs.k8s.io/cli-utils v0.34.0
@@ -122,7 +125,7 @@ require (
 	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
@@ -185,9 +188,6 @@ require (
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
-	github.com/prometheus/client_golang v1.19.0 // indirect
-	github.com/prometheus/client_model v0.6.0 // indirect
-	github.com/prometheus/common v0.48.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
@@ -221,7 +221,7 @@ require (
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/mod v0.16.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/oauth2 v0.17.0 // indirect
+	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
 	golang.org/x/term v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

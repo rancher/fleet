@@ -9,6 +9,7 @@ import (
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
+	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/reugn/go-quartz/quartz"
@@ -59,6 +60,9 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Clean up
 	if apierrors.IsNotFound(err) {
 		logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
+
+		metrics.GitRepoCollector.Delete(req.NamespacedName.Name, req.NamespacedName.Namespace)
+
 		if err := purgeBundles(ctx, r.Client, req.NamespacedName); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -78,6 +82,8 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
 	if gitrepo.Spec.Repo == "" {
+		metrics.GitRepoCollector.Collect(ctx, gitrepo)
+
 		return ctrl.Result{}, nil
 	}
 
@@ -117,7 +123,10 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	err = r.updateStatus(ctx, req.NamespacedName, gitrepo.Status)
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
+
 		return ctrl.Result{}, err
+	} else {
+		metrics.GitRepoCollector.Collect(ctx, gitrepo)
 	}
 
 	// Validate external secrets exist
@@ -179,6 +188,7 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	metrics.GitRepoCollector.Collect(ctx, gitrepo)
 	return ctrl.Result{}, nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"reflect"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
+	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v2/pkg/genericcondition"
@@ -39,6 +40,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	bd := &fleet.BundleDeployment{}
 	err := r.Get(ctx, req.NamespacedName, bd)
 	if err != nil {
+		metrics.BundleDeploymentCollector.Delete(req.Name, req.Namespace)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	// increased log level, this triggers a lot
@@ -63,8 +65,9 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		State:     string(summary.GetDeploymentState(bd)),
 	}
 
+	var t *fleet.BundleDeployment
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		t := &fleet.BundleDeployment{}
+		t = &fleet.BundleDeployment{}
 		err := r.Get(ctx, req.NamespacedName, t)
 		if err != nil {
 			return err
@@ -74,6 +77,8 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	})
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to bundle deployment status", "status", bd.Status)
+	} else {
+		metrics.BundleDeploymentCollector.Collect(ctx, t)
 	}
 
 	return ctrl.Result{}, err

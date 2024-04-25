@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
+	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
@@ -57,6 +58,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	cluster := &fleet.Cluster{}
 	err := r.Get(ctx, req.NamespacedName, cluster)
 	if apierrors.IsNotFound(err) {
+		metrics.ClusterCollector.Delete(req.Name, req.Namespace)
 		return ctrl.Result{}, nil
 	} else if err != nil {
 		return ctrl.Result{}, err
@@ -163,6 +165,8 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	})
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to cluster status", "status", cluster.Status)
+	} else {
+		metrics.ClusterCollector.Collect(ctx, cluster)
 	}
 
 	if allReady && cluster.Status.ResourceCounts.Ready != cluster.Status.ResourceCounts.DesiredReady {

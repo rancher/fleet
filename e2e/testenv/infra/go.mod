@@ -2,7 +2,7 @@ module github.com/rancher/fleet/e2e/testenv/infra
 
 go 1.22
 
-toolchain go1.22.0
+toolchain go1.22.2
 
 replace k8s.io/client-go => k8s.io/client-go v0.29.0
 
