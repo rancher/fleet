@@ -98,7 +98,7 @@ jobs:
       - name: Upload charts to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          repo: "docker.io/rancher"
+          repo: "rancher"
         run: |
           version=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.version')
           tag=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.tag')
