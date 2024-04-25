@@ -258,9 +258,11 @@ fleet.
 FROM ubuntu:22.04
 
 ARG BUILDARCH=amd64
+ARG NVM_VERSION=v0.39.7
+ARG NODE_VERSION=20
 
 RUN apt update && apt upgrade -y
-RUN apt install -y wget curl git jq nodejs
+RUN apt install -y wget curl git jq zstd
 
 WORKDIR /tmp
 
@@ -281,6 +283,13 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
         chmod +x ./kubectl && \
         mv ./kubectl /usr/local/bin/kubectl
 
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash && \
+        export NVM_DIR="$HOME/.nvm" && \
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  && \
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" && \
+        nvm install ${NODE_VERSION} && \
+        ln -s $(which node) /usr/bin/node && \
+        ln -s $(which npm) /usr/bin/npm
 ```
 
 Please also note, that the default behavior of `act` is to always pull images.
