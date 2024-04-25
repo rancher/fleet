@@ -15,6 +15,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
+	"github.com/rancher/fleet/internal/cmd/controller/gitops"
 
 	"github.com/spf13/cobra"
 
@@ -156,8 +157,11 @@ func App() *cobra.Command {
 	ctrl.RegisterFlags(fs)
 	root.Flags().AddGoFlagSet(fs)
 
-	root.AddCommand(cleanup.App())
-	root.AddCommand(agentmanagement.App())
+	root.AddCommand(
+		cleanup.App(),
+		agentmanagement.App(),
+		gitops.App(&zopts),
+	)
 	return root
 }
 

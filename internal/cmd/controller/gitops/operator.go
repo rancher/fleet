@@ -1,19 +1,20 @@
 //go:generate bash ./scripts/controller-gen-generate.sh
 
-package main
+package gitops
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
-	controller "github.com/rancher/fleet/internal/cmd/gitjob"
+	command "github.com/rancher/fleet/internal/cmd"
+	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/poll"
+	"github.com/rancher/fleet/pkg/version"
 	"github.com/rancher/fleet/pkg/webhook"
+	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -21,6 +22,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -30,6 +32,7 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+	zopts    *zap.Options
 )
 
 func init() {
@@ -37,48 +40,62 @@ func init() {
 	utilruntime.Must(fleet.AddToScheme(scheme))
 }
 
-type flags struct {
-	metricsAddr          string
-	enableLeaderElection bool
-	image                string
-	listen               string
-	debug                bool
+type GitOperator struct {
+	command.DebugConfig
+	Kubeconfig           string `usage:"Kubeconfig file"`
+	Namespace            string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
+	MetricsAddr          string `name:"metrics-bind-address" default:":8081" usage:"The address the metric endpoint binds to."`
+	EnableLeaderElection bool   `name:"leader-elect" default:"true" usage:"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager."`
+	Image                string `name:"gitjob-image" default:"rancher/fleet:dev" usage:"The gitjob image that will be used in the generated job."`
+	Listen               string `default:":8080" usage:"The port the webhook listens."`
 }
 
-func main() {
-	ctx := ctrl.SetupSignalHandler()
-	if err := run(ctx); err != nil {
-		setupLog.Error(err, "error running gitjob")
-		os.Exit(1)
+func App(zo *zap.Options) *cobra.Command {
+	zopts = zo
+	return command.Command(&GitOperator{}, cobra.Command{
+		Version: version.FriendlyVersion(),
+		Use:     "gitjob",
+	})
+}
+
+func (g *GitOperator) PersistentPre(_ *cobra.Command, _ []string) error {
+	if err := g.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
+
+	return nil
 }
 
-func run(ctx context.Context) error {
-	namespace := os.Getenv("NAMESPACE")
-	flags := bindFlags()
+func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
+	// TODO for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
+	zopts.Development = g.Debug
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
+
+	namespace := g.Namespace
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
-			BindAddress: flags.metricsAddr,
+			BindAddress: g.MetricsAddr,
 		},
-		LeaderElection:          flags.enableLeaderElection,
+		LeaderElection:          g.EnableLeaderElection,
 		LeaderElectionID:        "gitjob-leader",
 		LeaderElectionNamespace: namespace,
 	})
 	if err != nil {
 		return err
 	}
-	reconciler := &controller.GitJobReconciler{
+	reconciler := &reconciler.GitJobReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
-		Image:     flags.image,
+		Image:     g.Image,
 		GitPoller: poll.NewHandler(ctx, mgr.GetClient()),
 		Log:       ctrl.Log.WithName("gitjob-reconciler"),
 	}
 
 	group := errgroup.Group{}
 	group.Go(func() error {
-		return startWebhook(ctx, namespace, flags.listen, mgr.GetClient(), mgr.GetCache())
+		return startWebhook(ctx, namespace, g.Listen, mgr.GetClient(), mgr.GetCache())
 	})
 	group.Go(func() error {
 		setupLog.Info("starting manager")
@@ -90,40 +107,6 @@ func run(ctx context.Context) error {
 	})
 
 	return group.Wait()
-}
-
-func bindFlags() flags {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var image string
-	var listen string
-	var debug bool
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8081", "The address the metric endpoint binds to.")
-	flag.StringVar(
-		&image,
-		"gitjob-image",
-		"rancher/fleet:dev",
-		"The gitjob image that will be used in the generated job.",
-	)
-	flag.StringVar(&listen, "listen", ":8080", "The port the webhook listens.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", true,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
-	flag.BoolVar(&debug, "debug", false, "debug mode.")
-	opts := zap.Options{
-		Development: debug,
-	}
-	opts.BindFlags(flag.CommandLine)
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-	flag.Parse()
-
-	return flags{
-		metricsAddr:          metricsAddr,
-		enableLeaderElection: enableLeaderElection,
-		image:                image,
-		listen:               listen,
-		debug:                debug,
-	}
 }
 
 func startWebhook(ctx context.Context, namespace string, addr string, client client.Client, cacheClient cache.Cache) error {

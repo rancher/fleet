@@ -17,6 +17,7 @@ spec:
         - image: "{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           name: gitjob
           args:
+          - fleetcontroller
           - gitjob
           - --gitjob-image
           - "{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}"

@@ -1,7 +1,5 @@
 package manifest
 
-//go:generate mockgen --build_flags=--mod=mod -destination=../cmd/controller/mocks/client_mock.go -package=mocks sigs.k8s.io/controller-runtime/pkg/client Client
-
 import (
 	"bytes"
 	"context"

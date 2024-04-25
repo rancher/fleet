@@ -6,6 +6,7 @@ import (
 
 	"github.com/rancher/fleet/internal/client"
 	command "github.com/rancher/fleet/internal/cmd"
+	"github.com/rancher/fleet/internal/cmd/cli/gitcloner"
 	"github.com/rancher/fleet/pkg/version"
 )
 
@@ -32,6 +33,7 @@ func App() *cobra.Command {
 
 		NewTarget(),
 		NewDeploy(),
+		gitcloner.NewCmd(gitcloner.New()),
 	)
 
 	return root

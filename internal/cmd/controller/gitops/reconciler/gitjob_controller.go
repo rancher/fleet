@@ -1,4 +1,4 @@
-package gitjob
+package reconciler
 
 import (
 	"context"
@@ -14,9 +14,11 @@ import (
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
 	"github.com/rancher/wrangler/v2/pkg/condition"
 	"github.com/rancher/wrangler/v2/pkg/kstatus"
 	"github.com/rancher/wrangler/v2/pkg/name"
+
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -610,7 +612,7 @@ func volumesFromSecret(
 }
 
 func (r *GitJobReconciler) generateInitContainer(ctx context.Context, obj *v1alpha1.GitRepo) (corev1.Container, error) {
-	args := []string{obj.Spec.Repo, "/workspace"}
+	args := []string{"gitcloner", obj.Spec.Repo, "/workspace"}
 	volumeMounts := []corev1.VolumeMount{
 		{
 			Name:      gitClonerVolumeName,
@@ -673,7 +675,7 @@ func (r *GitJobReconciler) generateInitContainer(ctx context.Context, obj *v1alp
 
 	return corev1.Container{
 		Command: []string{
-			"gitcloner",
+			"fleet",
 		},
 		Args:         args,
 		Image:        r.Image,

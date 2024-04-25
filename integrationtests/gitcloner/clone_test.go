@@ -14,8 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rancher/fleet/cmd/gitcloner/cmd"
-	"github.com/rancher/fleet/cmd/gitcloner/gogit"
+	"github.com/rancher/fleet/internal/cmd/cli/gitcloner"
 
 	dockercontainer "github.com/docker/docker/api/types/container"
 	dockermount "github.com/docker/docker/api/types/mount"
@@ -24,11 +23,12 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/gogits/go-gogs-client"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	cp "github.com/otiai10/copy"
 	"github.com/testcontainers/testcontainers-go"
 	"golang.org/x/crypto/ssh"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 /*
@@ -53,7 +53,7 @@ var (
 var _ = Describe("Applying a git job gets content from git repo", Ordered, func() {
 
 	var (
-		opts          *cmd.Options
+		opts          *gitcloner.GitCloner
 		private       bool
 		cloneErr      error
 		tmp           string
@@ -87,14 +87,14 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 		When("cloning a public repo that contains a README.md file providing a branch", func() {
 			BeforeEach(func() {
 				private = false
-				opts = &cmd.Options{
+				opts = &gitcloner.GitCloner{
 					InsecureSkipTLS: true,
 					Branch:          "master",
 				}
 			})
 
 			JustBeforeEach(func() {
-				c := gogit.NewCloner()
+				c := gitcloner.New()
 				cloneErr = c.CloneRepo(opts)
 				Expect(cloneErr).NotTo(HaveOccurred())
 			})
@@ -108,13 +108,13 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 		When("cloning a public repo that contains a README.md file providing a revision", func() {
 			BeforeEach(func() {
 				private = false
-				opts = &cmd.Options{
+				opts = &gitcloner.GitCloner{
 					InsecureSkipTLS: true,
 				}
 			})
 
 			JustBeforeEach(func() {
-				c := gogit.NewCloner()
+				c := gitcloner.New()
 				opts.Revision = initialCommit
 				cloneErr = c.CloneRepo(opts)
 				Expect(cloneErr).NotTo(HaveOccurred())
@@ -130,13 +130,13 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 			When("No authentication is provided", func() {
 				BeforeEach(func() {
 					private = true
-					opts = &cmd.Options{
+					opts = &gitcloner.GitCloner{
 						InsecureSkipTLS: true,
 					}
 				})
 
 				JustBeforeEach(func() {
-					c := gogit.NewCloner()
+					c := gitcloner.New()
 					cloneErr = c.CloneRepo(opts)
 				})
 
@@ -148,7 +148,7 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 			When("Basic authentication is provided", func() {
 				BeforeEach(func() {
 					private = true
-					opts = &cmd.Options{
+					opts = &gitcloner.GitCloner{
 						InsecureSkipTLS: true,
 						Username:        gogsUser,
 						PasswordFile:    "assets/gogs/password",
@@ -156,7 +156,7 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 				})
 
 				JustBeforeEach(func() {
-					c := gogit.NewCloner()
+					c := gitcloner.New()
 					cloneErr = c.CloneRepo(opts)
 					Expect(cloneErr).NotTo(HaveOccurred())
 				})
@@ -171,11 +171,11 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 		When("Insecure skip tls is not true, and no caBundle is provided", func() {
 			BeforeEach(func() {
 				private = false
-				opts = &cmd.Options{}
+				opts = &gitcloner.GitCloner{}
 			})
 
 			JustBeforeEach(func() {
-				c := gogit.NewCloner()
+				c := gitcloner.New()
 				cloneErr = c.CloneRepo(opts)
 			})
 
@@ -189,7 +189,7 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 
 			BeforeEach(func() {
 				private = false
-				opts = &cmd.Options{}
+				opts = &gitcloner.GitCloner{}
 			})
 
 			AfterEach(func() {
@@ -205,7 +205,7 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 				Expect(err).NotTo(HaveOccurred())
 				opts.CABundleFile = caBundleFile.Name()
 
-				c := gogit.NewCloner()
+				c := gitcloner.New()
 				cloneErr = c.CloneRepo(opts)
 			})
 
@@ -249,7 +249,7 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 		When("the cloned repo is private and contains a README.md file", func() {
 			BeforeEach(func() {
 				private = true
-				opts = &cmd.Options{
+				opts = &gitcloner.GitCloner{
 					InsecureSkipTLS: true,
 				}
 			})
@@ -260,7 +260,7 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 			})
 
 			JustBeforeEach(func() {
-				c := gogit.NewCloner()
+				c := gitcloner.New()
 				Eventually(func() error {
 					return c.CloneRepo(opts)
 				}).ShouldNot(HaveOccurred())

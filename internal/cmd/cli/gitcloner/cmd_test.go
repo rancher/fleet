@@ -1,4 +1,4 @@
-package cmd
+package gitcloner
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 
 func TestArgsAreSet(t *testing.T) {
 	mock := &clonerMock{}
-	cmd := New(mock)
+	cmd := NewCmd(mock)
 	cmd.SetArgs([]string{"test-repo", "test-path", "--branch", "master", "--revision", "v0.1.0", "--ca-bundle-file", "caFile", "--username", "user",
 		"--password-file", "passwordFile", "--ssh-private-key-file", "sshFile", "--insecure-skip-tls", "--known-hosts-file", "knownFile"})
 	err := cmd.Execute()
@@ -43,10 +43,10 @@ func TestArgsAreSet(t *testing.T) {
 }
 
 type clonerMock struct {
-	opts *Options
+	opts *GitCloner
 }
 
-func (m *clonerMock) CloneRepo(opts *Options) error {
+func (m *clonerMock) CloneRepo(opts *GitCloner) error {
 	m.opts = opts
 
 	return nil
