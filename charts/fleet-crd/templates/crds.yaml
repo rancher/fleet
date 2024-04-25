@@ -195,6 +195,10 @@ spec:
                       description: DeleteCRDResources deletes CRDs. Warning! this
                         will also delete all your Custom Resources.
                       type: boolean
+                    deleteNamespace:
+                      description: DeleteNamespace can be used to delete the deployed
+                        namespace when removing the bundle
+                      type: boolean
                     diff:
                       description: Diff can be used to ignore the modified state of
                         objects which are amended at runtime.
@@ -537,6 +541,10 @@ spec:
                     deleteCRDResources:
                       description: DeleteCRDResources deletes CRDs. Warning! this
                         will also delete all your Custom Resources.
+                      type: boolean
+                    deleteNamespace:
+                      description: DeleteNamespace can be used to delete the deployed
+                        namespace when removing the bundle
                       type: boolean
                     diff:
                       description: Diff can be used to ignore the modified state of
@@ -1283,6 +1291,10 @@ spec:
                 deleteCRDResources:
                   description: DeleteCRDResources deletes CRDs. Warning! this will
                     also delete all your Custom Resources.
+                  type: boolean
+                deleteNamespace:
+                  description: DeleteNamespace can be used to delete the deployed
+                    namespace when removing the bundle
                   type: boolean
                 dependsOn:
                   description: DependsOn refers to the bundles which must be ready
@@ -2166,6 +2178,10 @@ spec:
                       deleteCRDResources:
                         description: DeleteCRDResources deletes CRDs. Warning! this
                           will also delete all your Custom Resources.
+                        type: boolean
+                      deleteNamespace:
+                        description: DeleteNamespace can be used to delete the deployed
+                          namespace when removing the bundle
                         type: boolean
                       diff:
                         description: Diff can be used to ignore the modified state
@@ -5737,6 +5753,10 @@ spec:
                         in the helm history.
                       type: boolean
                   type: object
+                deleteNamespace:
+                  description: DeleteNamespace specifies if the namespace created
+                    must be deleted after deleting the GitRepo.
+                  type: boolean
                 disablePolling:
                   description: Disables git polling. When enabled only webhooks will
                     be used.

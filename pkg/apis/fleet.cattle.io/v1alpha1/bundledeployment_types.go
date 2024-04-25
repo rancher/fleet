@@ -92,6 +92,9 @@ type BundleDeploymentOptions struct {
 	// KeepResources can be used to keep the deployed resources when removing the bundle
 	KeepResources bool `json:"keepResources,omitempty"`
 
+	// DeleteNamespace can be used to delete the deployed namespace when removing the bundle
+	DeleteNamespace bool `json:"deleteNamespace,omitempty"`
+
 	//IgnoreOptions can be used to ignore fields when monitoring the bundle.
 	IgnoreOptions `json:"ignore,omitempty"`
 
