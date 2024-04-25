@@ -93,7 +93,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 			}
 		})
 
-		It("should correctly remove the labels from fleet.yaml", func() {
+		It("deletes labels present on the bundle but not in fleet.yaml", func() {
 			// Update is called with the actual output of the `apply` command here, hence we validate that its argument is what we expect.
 			bundleController.EXPECT().Update(newBundle).Return(newBundle, nil).AnyTimes()
 			err := fleetApplyOnline(getter, name, dirs, options)
