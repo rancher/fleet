@@ -16,7 +16,7 @@ import (
 
 var shards = []string{"shard1", "shard2", "shard3"}
 
-var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, func() {
+var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), Ordered, func() {
 	var (
 		tmpDir           string
 		clonedir         string
