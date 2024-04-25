@@ -163,7 +163,7 @@ func (g *git) remoteSHAChanged(branch, sha string) (bool, error) {
 
 	client, err := g.httpClientWithCreds()
 	if err != nil {
-		g.log.Error(err, "Problem creating http client to check git remote sha of repo", "url")
+		g.log.Error(err, "Problem creating http client to check git remote sha of repo")
 		return true, nil
 	}
 	defer client.CloseIdleConnections()
