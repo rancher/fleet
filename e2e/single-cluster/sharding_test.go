@@ -16,7 +16,7 @@ import (
 
 var shards = []string{"shard1", "shard2", "shard3"}
 
-var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, func() {
+var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), Ordered, func() {
 	var (
 		tmpDir           string
 		clonedir         string
@@ -100,36 +100,38 @@ var _ = Describe("Filtering events by shard", Label("infra-setup"), Ordered, fun
 				}).Should(ContainSubstring("sleeper-"))
 
 				for _, s := range shards {
-					logs, err := k.Namespace("cattle-fleet-system").Logs(
-						"-l",
-						"app=fleet-controller",
-						"-l",
-						fmt.Sprintf("shard=%s", s),
-					)
-					Expect(err).ToNot(HaveOccurred())
-					regexMatcher := matchers.MatchRegexpMatcher{
-						Regexp: fmt.Sprintf(`Reconciling GitRepo.*"name":"%s"`, gitrepoName),
-					}
-					hasReconciledGitRepo, err := regexMatcher.Match(logs)
-					Expect(err).ToNot(HaveOccurred())
-					if s == shard {
-						Expect(hasReconciledGitRepo).To(BeTrueBecause(
-							"GitRepo %q labeled with shard %q should have been"+
-								" deployed by controller for shard %q in namespace %q",
-							gitrepoName,
-							shard,
-							shard,
-							env.Namespace,
-						))
-					} else {
-						Expect(hasReconciledGitRepo).To(BeFalseBecause(
-							"GitRepo %q labeled with shard %q should not have been"+
-								" deployed by controller for shard %q",
-							gitrepoName,
-							shard,
-							s,
-						))
-					}
+					Eventually(func(g Gomega) {
+						logs, err := k.Namespace("cattle-fleet-system").Logs(
+							"-l",
+							"app=fleet-controller",
+							"-l",
+							fmt.Sprintf("shard=%s", s),
+						)
+						g.Expect(err).ToNot(HaveOccurred())
+						regexMatcher := matchers.MatchRegexpMatcher{
+							Regexp: fmt.Sprintf(`Reconciling GitRepo.*"name":"%s"`, gitrepoName),
+						}
+						hasReconciledGitRepo, err := regexMatcher.Match(logs)
+						g.Expect(err).ToNot(HaveOccurred())
+						if s == shard {
+							g.Expect(hasReconciledGitRepo).To(BeTrueBecause(
+								"GitRepo %q labeled with shard %q should have been"+
+									" deployed by controller for shard %q in namespace %q",
+								gitrepoName,
+								shard,
+								shard,
+								env.Namespace,
+							))
+						} else {
+							g.Expect(hasReconciledGitRepo).To(BeFalseBecause(
+								"GitRepo %q labeled with shard %q should not have been"+
+									" deployed by controller for shard %q",
+								gitrepoName,
+								shard,
+								s,
+							))
+						}
+					}).Should(Succeed())
 				}
 			})
 
