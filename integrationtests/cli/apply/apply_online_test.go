@@ -4,24 +4,19 @@
 package apply
 
 import (
-	//mocks
 	"github.com/golang/mock/gomock"
 
-	//ginkgo
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	//fleet
 	"github.com/rancher/fleet/integrationtests/cli"
 	"github.com/rancher/fleet/integrationtests/mocks"
 	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	//wrangler
 	"github.com/rancher/wrangler/v2/pkg/generic/fake"
 
-	//k8s
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -41,7 +36,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 	)
 
 	JustBeforeEach(func() {
-		//Setting up all the needed interfaces for the test
+		//Setting up all the needed mocked interfaces for the test
 		ctrl = gomock.NewController(GinkgoT())
 		getter = mocks.NewMockGetter(ctrl)
 		c = client.Client{
@@ -53,7 +48,8 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 		getter.EXPECT().GetNamespace().Return("foo").AnyTimes()
 		getter.EXPECT().Get().Return(&c, nil).AnyTimes()
 		fleetMock.EXPECT().Bundle().Return(bundleController).AnyTimes()
-
+		bundleController.EXPECT().Get("foo", gomock.Any(), gomock.Any()).Return(oldBundle, nil).AnyTimes()
+		bundleController.EXPECT().List(gomock.Any(), gomock.Any()).Return(&fleet.BundleList{}, nil).AnyTimes()
 	})
 
 	When("We want to delete a label in the bundle from the cluster", func() {
@@ -98,10 +94,8 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 		})
 
 		It("should correctly remove the labels from fleet.yaml", func() {
-			bundleController.EXPECT().Get("foo", gomock.Any(), gomock.Any()).Return(oldBundle, nil)
 			//Update method is the one that update the labels so if it works, the test is verified
 			bundleController.EXPECT().Update(newBundle).Return(newBundle, nil).AnyTimes()
-			bundleController.EXPECT().List(gomock.Any(), gomock.Any()).Return(&fleet.BundleList{}, nil)
 			err := fleetApplyOnline(getter, name, dirs, options)
 			Expect(err).NotTo(HaveOccurred())
 		})
