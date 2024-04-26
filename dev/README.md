@@ -172,7 +172,7 @@ To build and run the infra setup command do:
 
 ```
 pushd e2e/testenv/infra
-  go build -o . ./...
+  go build
 popd
 ./e2e/testenv/infra/infra setup
 

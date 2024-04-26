@@ -48,7 +48,7 @@ jobs:
           ./.github/scripts/build-fleet-binaries.sh
 
           cd e2e/testenv/infra
-          go build -o . ./...
+          go build
       -
         name: Build Docker Images
         run: |
