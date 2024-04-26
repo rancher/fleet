@@ -184,25 +184,6 @@ This is not a problem, unless k3d is running in a VM and not directly on the hos
 
 It is possible to override the loadbalancer IP by setting the `external_ip` environment variable.
 
-## Changing the Infra Command
-
-The `infra` command imports the local `fleet` module, to use the `e2e/testenv` helpers. Since the dependency does not update often, `infra` imports the testhelper from a fixed Fleet version.
-If we imported the testhelper via `replace` from a local folder, we would need to run `go mod tidy` for the infra command, whenever the main `go.mod` changes.
-
-When making changes to the infra command, one might want to edit and use the helpers directly. Without the need to tag a version for every change. Go workspaces can help:
-
-```
-cd e2e/testenv/infra
-go work init
-go work use ../../../
-go work use .
-```
-
-This is similar to a replace statement. Never commit the go.work file, though.
-It might still be necessary to split a PR into two, one for the helpers and a second to update the infra command and switch infra's go.mod to the commit of the first PR.
-
-For more information on how to work on multiple go projects at once with the help of workspaces, see: https://go.dev/doc/tutorial/workspaces
-
 ## Running Github Actions locally
 
 Sometimes, it may be beneficial to be able to run the Github Action tests using
