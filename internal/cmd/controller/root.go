@@ -82,10 +82,10 @@ func (r *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
-	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
 	// for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
 	zopts.Development = f.Debug
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
 
 	kubeconfig := ctrl.GetConfigOrDie()
 
