@@ -171,10 +171,8 @@ The local infra setup creates pods for:
 To build and run the infra setup command do:
 
 ```
-pushd e2e/testenv/infra
-  go build -o . ./...
-popd
-./e2e/testenv/infra/infra setup
+go build -o infra ./e2e/testenv/infra/
+./infra setup
 
 ```
 
