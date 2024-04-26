@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&ClusterGroup{}, &ClusterGroupList{})
+	InternalSchemeBuilder.Register(&ClusterGroup{}, &ClusterGroupList{})
 }
 
 // ClusterGroupConditionProcessed indicates that the status fields have been processed.

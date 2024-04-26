@@ -13,7 +13,7 @@ import (
 const BundleDeploymentResourceNamePlural = "bundledeployments"
 
 func init() {
-	SchemeBuilder.Register(&BundleDeployment{}, &BundleDeploymentList{})
+	InternalSchemeBuilder.Register(&BundleDeployment{}, &BundleDeploymentList{})
 }
 
 // MaxHelmReleaseNameLen is the maximum length of a Helm release name.

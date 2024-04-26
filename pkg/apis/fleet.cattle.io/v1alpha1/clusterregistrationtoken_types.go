@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&ClusterRegistrationToken{}, &ClusterRegistrationTokenList{})
+	InternalSchemeBuilder.Register(&ClusterRegistrationToken{}, &ClusterRegistrationTokenList{})
 }
 
 // +genclient

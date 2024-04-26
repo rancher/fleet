@@ -7,7 +7,7 @@ import (
 const ContentResourceNamePlural = "contents"
 
 func init() {
-	SchemeBuilder.Register(&Content{}, &ContentList{})
+	InternalSchemeBuilder.Register(&Content{}, &ContentList{})
 }
 
 // +genclient

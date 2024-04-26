@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&GitRepo{}, &GitRepoList{})
+	InternalSchemeBuilder.Register(&GitRepo{}, &GitRepoList{})
 }
 
 var (

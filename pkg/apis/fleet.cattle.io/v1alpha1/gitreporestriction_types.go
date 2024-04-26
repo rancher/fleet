@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&GitRepoRestriction{}, &GitRepoRestrictionList{})
+	InternalSchemeBuilder.Register(&GitRepoRestriction{}, &GitRepoRestrictionList{})
 }
 
 // +genclient
