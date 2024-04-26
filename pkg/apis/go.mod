@@ -5,7 +5,7 @@ go 1.22
 require (
 	github.com/rancher/wrangler/v2 v2.1.4
 	k8s.io/api v0.28.6
-	k8s.io/apimachinery v0.29.2
+	k8s.io/apimachinery v0.28.6
 	sigs.k8s.io/controller-runtime v0.16.3
 )
 
