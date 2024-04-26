@@ -340,11 +340,25 @@ func purgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 
 func purgeBundleDeployments(ctx context.Context, c client.Client, bundle types.NamespacedName) error {
 	list := &fleet.BundleDeploymentList{}
-	err := c.List(ctx, list, client.MatchingLabels{fleet.BundleLabel: bundle.Name, fleet.BundleNamespaceLabel: bundle.Namespace})
+	err := c.List(
+		ctx,
+		list,
+		client.MatchingLabels{
+			fleet.BundleLabel:          bundle.Name,
+			fleet.BundleNamespaceLabel: bundle.Namespace,
+		},
+	)
 	if err != nil {
 		return err
 	}
 	for _, bd := range list.Items {
+		if controllerutil.ContainsFinalizer(&bd, bundleDeploymentFinalizer) {
+			controllerutil.RemoveFinalizer(&bd, bundleDeploymentFinalizer)
+			if err := c.Update(ctx, &bd); err != nil {
+				return err
+			}
+		}
+
 		err := c.Delete(ctx, &bd)
 		if err != nil {
 			return err

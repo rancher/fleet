@@ -28,6 +28,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+// TODO move this somewhere else and come up with better names
+const (
+	bundleDeploymentFinalizer = "bundle-deployment-finalizer"
+	bundleFinalizer           = "bundle-finalizer"
+	gitRepoFinalizer          = "gitrepo-finalizer"
+)
+
 type BundleQuery interface {
 	// BundlesForCluster is used to map from a cluster to bundles
 	BundlesForCluster(context.Context, *fleet.Cluster) ([]*fleet.Bundle, []*fleet.Bundle, error)
@@ -150,6 +157,12 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
 		// copy labels from Bundle as they might have changed
 		bd := target.BundleDeployment()
+
+		// XXX: is the condition on finalizer existence even relevant? We have control over bd creation.
+		if bd.DeletionTimestamp.IsZero() && !controllerutil.ContainsFinalizer(bd, bundleDeploymentFinalizer) {
+			controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
+		}
+
 		updated := bd.DeepCopy()
 		op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
 			bd.Spec = updated.Spec
