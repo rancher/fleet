@@ -17,3 +17,5 @@ FleetCI-RootCA
 .envrc
 env.multi-cluster
 env.single-cluster
+pkg/mod/
+pkg/sumdb/
