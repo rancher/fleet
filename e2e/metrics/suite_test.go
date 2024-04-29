@@ -28,33 +28,29 @@ var (
 )
 
 func setupLoadBalancer() {
-	if os.Getenv("METRICS_URL") != "" {
-		metricsURL = os.Getenv("METRICS_URL")
-	} else {
-		rs := rand.NewSource(time.Now().UnixNano())
-		port := rs.Int63()%1000 + 30000
-		loadBalancerName = testenv.AddRandomSuffix("fleetcontroller", rs)
+	rs := rand.NewSource(time.Now().UnixNano())
+	port := rs.Int63()%1000 + 30000
+	loadBalancerName = testenv.AddRandomSuffix("fleetcontroller", rs)
 
-		ks := k.Namespace("cattle-fleet-system")
-		err := testenv.ApplyTemplate(
-			ks,
-			testenv.AssetPath("metrics/fleetcontroller_service.yaml"),
-			map[string]interface{}{
-				"Name": loadBalancerName,
-				"Port": port,
-			},
+	ks := k.Namespace("cattle-fleet-system")
+	err := testenv.ApplyTemplate(
+		ks,
+		testenv.AssetPath("metrics/fleetcontroller_service.yaml"),
+		map[string]interface{}{
+			"Name": loadBalancerName,
+			"Port": port,
+		},
+	)
+	Expect(err).ToNot(HaveOccurred())
+
+	Eventually(func() (string, error) {
+		ip, err := ks.Get(
+			"service", loadBalancerName,
+			"-o", "jsonpath={.status.loadBalancer.ingress[0].ip}",
 		)
-		Expect(err).ToNot(HaveOccurred())
-
-		Eventually(func() (string, error) {
-			ip, err := ks.Get(
-				"service", loadBalancerName,
-				"-o", "jsonpath={.status.loadBalancer.ingress[0].ip}",
-			)
-			metricsURL = fmt.Sprintf("http://%s:%d/metrics", ip, port)
-			return ip, err
-		}).ShouldNot(BeEmpty())
-	}
+		metricsURL = fmt.Sprintf("http://%s:%d/metrics", ip, port)
+		return ip, err
+	}).ShouldNot(BeEmpty())
 }
 
 func tearDownLoadBalancer() {
@@ -68,11 +64,17 @@ var _ = BeforeSuite(func() {
 	SetDefaultEventuallyPollingInterval(time.Second)
 	testenv.SetRoot("../..")
 
-	setupLoadBalancer()
+	if os.Getenv("METRICS_URL") != "" {
+		metricsURL = os.Getenv("METRICS_URL")
+	} else {
+		setupLoadBalancer()
+	}
 
 	env = testenv.New()
 })
 
 var _ = AfterSuite(func() {
-	tearDownLoadBalancer()
+	if os.Getenv("METRICS_URL") == "" {
+		tearDownLoadBalancer()
+	}
 })

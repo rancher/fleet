@@ -84,26 +84,25 @@ var _ = Describe("Cluster Metrics", Label("clustergroup"), func() {
 
 		et := metrics.NewExporterTest(metricsURL)
 
-		Eventually(func() error {
-			identityLabels := map[string]string{
-				"name":      clusterGroupName,
-				"namespace": namespace,
-			}
+		identityLabels := map[string]string{
+			"name":      clusterGroupName,
+			"namespace": namespace,
+		}
 
+		Eventually(func() error {
+			metrics, err := et.Get()
+			Expect(err).ToNot(HaveOccurred())
 			for metricName, expectedLabels := range expectedMetricsExist {
 				if len(expectedLabels) == 0 {
-					_, err := et.FindOneMetric(metricName, identityLabels)
-					if err != nil {
+					if _, err := et.FindOneMetric(metrics, metricName, identityLabels); err != nil {
 						return err
 					}
-					Expect(err).ToNot(HaveOccurred())
 				} else {
 					for labelName, labelValues := range expectedLabels {
 						for _, labelValue := range labelValues {
 							labels := maps.Clone(identityLabels)
 							labels[labelName] = labelValue
-							_, err := et.FindOneMetric(metricName, labels)
-							if err != nil {
+							if _, err := et.FindOneMetric(metrics, metricName, labels); err != nil {
 								return err
 							}
 						}

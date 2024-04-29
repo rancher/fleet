@@ -68,8 +68,11 @@ var _ = Describe("GitRepo Metrics", Label("gitrepo"), func() {
 		It("should have exactly one metric of each type for the gitrepo", func() {
 			et := metrics.NewExporterTest(metricsURL)
 			Eventually(func() error {
+				metrics, err := et.Get()
+				Expect(err).ToNot(HaveOccurred())
 				for _, metricName := range gitrepoMetricNames {
 					metric, err := et.FindOneMetric(
+						metrics,
 						metricName,
 						map[string]string{
 							"name":      objName,
@@ -104,8 +107,11 @@ var _ = Describe("GitRepo Metrics", Label("gitrepo"), func() {
 				var metric *metrics.Metric
 				// Expect still no metrics to be duplicated.
 				Eventually(func() error {
+					metrics, err := et.Get()
+					Expect(err).ToNot(HaveOccurred())
 					for _, metricName := range gitrepoMetricNames {
 						metric, err = et.FindOneMetric(
+							metrics,
 							metricName,
 							map[string]string{
 								"name":      objName,
@@ -130,8 +136,11 @@ var _ = Describe("GitRepo Metrics", Label("gitrepo"), func() {
 				Expect(err).ToNot(HaveOccurred(), out)
 
 				Eventually(func() error {
+					metrics, err := et.Get()
+					Expect(err).ToNot(HaveOccurred())
 					for _, metricName := range gitrepoMetricNames {
 						_, err := et.FindOneMetric(
+							metrics,
 							metricName,
 							map[string]string{
 								"name":      objName,

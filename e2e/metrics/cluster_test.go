@@ -64,11 +64,7 @@ var _ = Describe("Cluster Metrics", Label("cluster"), func() {
 
 	It("should have metrics for all existing cluster resources", func() {
 		Eventually(func() error {
-			var (
-				clustersOut string
-				err         error
-			)
-			clustersOut, err = env.Kubectl.Get(
+			clustersOut, err := env.Kubectl.Get(
 				"-A", "clusters.fleet.cattle.io",
 				"-o", "json",
 			)
@@ -77,15 +73,17 @@ var _ = Describe("Cluster Metrics", Label("cluster"), func() {
 			var existingClusters clusters
 			err = json.Unmarshal([]byte(clustersOut), &existingClusters)
 			Expect(err).ToNot(HaveOccurred())
-
-			et := metrics.NewExporterTest(metricsURL)
-
 			Expect(len(existingClusters)).ToNot(BeZero())
 
+			et := metrics.NewExporterTest(metricsURL)
+			metrics, err := et.Get()
+			Expect(err).ToNot(HaveOccurred())
+
 			for _, cluster := range existingClusters {
-				for metricName, expectedExist := range expectedMetricsExist {
+				for name, expectedExist := range expectedMetricsExist {
 					_, err := et.FindOneMetric(
-						metricName,
+						metrics,
+						name,
 						map[string]string{
 							"name":      cluster.Name,
 							"namespace": cluster.Namespace,
@@ -96,7 +94,7 @@ var _ = Describe("Cluster Metrics", Label("cluster"), func() {
 					} else if !expectedExist && err == nil {
 						return fmt.Errorf(
 							"expected metric %s not to exist, but it exists",
-							metricName,
+							name,
 						)
 					}
 				}
