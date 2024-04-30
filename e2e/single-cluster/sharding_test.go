@@ -3,29 +3,22 @@ package singlecluster_test
 import (
 	"fmt"
 	"math/rand"
-	"os"
-	"path"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/matchers"
 	"github.com/rancher/fleet/e2e/testenv"
-	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
 var shards = []string{"shard1", "shard2", "shard3"}
 
-var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), Ordered, func() {
+var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func() {
 	var (
-		tmpDir           string
-		clonedir         string
-		k                kubectl.Command
-		gh               *githelper.Git
-		inClusterRepoURL string
-		gitrepoName      string
-		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
-		targetNamespace  string
+		k               kubectl.Command
+		gitrepoName     string
+		r               = rand.New(rand.NewSource(GinkgoRandomSeed()))
+		targetNamespace string
 	)
 
 	BeforeAll(func() {
@@ -44,22 +37,6 @@ var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(hasReconciledGitRepos).To(BeFalse())
 		}
-
-		// Build git repo URL reachable _within_ the cluster, for the GitRepo
-		host, err := githelper.BuildGitHostname(env.Namespace)
-		Expect(err).ToNot(HaveOccurred())
-
-		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
-		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.NewHTTP(addr)
-
-		inClusterRepoURL = gh.GetInClusterURL(host, port, repoName)
-
-		tmpDir, _ = os.MkdirTemp("", "fleet-")
-		clonedir = path.Join(tmpDir, repoName)
-
-		_, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-		Expect(err).ToNot(HaveOccurred())
 
 		k = env.Kubectl.Namespace(env.Namespace)
 	})
@@ -82,8 +59,8 @@ var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), 
 						ShardID         string
 					}{
 						gitrepoName,
-						inClusterRepoURL,
-						gh.Branch,
+						"https://github.com/rancher/fleet-test-data",
+						"master",
 						"15s",           // default
 						targetNamespace, // to avoid conflicts with other tests
 						shard,
@@ -93,11 +70,11 @@ var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), 
 			})
 
 			It(fmt.Sprintf("deploys the gitrepo via the controller labeled with shard ID %s", shard), func() {
-				By("checking the pod exists")
+				By("checking the configmap exists")
 				Eventually(func() string {
-					out, _ := k.Namespace(targetNamespace).Get("pods")
+					out, _ := k.Namespace(targetNamespace).Get("configmaps")
 					return out
-				}).Should(ContainSubstring("sleeper-"))
+				}).Should(ContainSubstring("test-simple-chart-config"))
 
 				for _, s := range shards {
 					Eventually(func(g Gomega) {
@@ -106,6 +83,7 @@ var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), 
 							"app=fleet-controller",
 							"-l",
 							fmt.Sprintf("shard=%s", s),
+							"--tail=100",
 						)
 						g.Expect(err).ToNot(HaveOccurred())
 						regexMatcher := matchers.MatchRegexpMatcher{
@@ -136,7 +114,6 @@ var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), 
 			})
 
 			AfterEach(func() {
-				_ = os.RemoveAll(tmpDir)
 				_, _ = k.Delete("gitrepo", gitrepoName)
 			})
 		})
@@ -156,8 +133,8 @@ var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), 
 				ShardID         string
 			}{
 				gitrepoName,
-				inClusterRepoURL,
-				gh.Branch,
+				"https://github.com/rancher/fleet-test-data",
+				"master",
 				"15s",           // default
 				targetNamespace, // to avoid conflicts with other tests
 				"unknown",
@@ -166,11 +143,11 @@ var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), 
 		})
 
 		It("does not deploy the gitrepo", func() {
-			By("checking the pod does not exist")
+			By("checking the configmap does not exist")
 			Eventually(func() string {
-				out, _ := k.Namespace(targetNamespace).Get("pods")
+				out, _ := k.Namespace(targetNamespace).Get("configmaps")
 				return out
-			}).ShouldNot(ContainSubstring("sleeper-"))
+			}).ShouldNot(ContainSubstring("test-simple-chart-config"))
 
 			for _, s := range shards {
 				logs, err := k.Namespace("cattle-fleet-system").Logs(
@@ -178,6 +155,7 @@ var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), 
 					"app=fleet-controller",
 					"-l",
 					fmt.Sprintf("shard=%s", s),
+					"--tail=100",
 				)
 				Expect(err).ToNot(HaveOccurred())
 				regexMatcher := matchers.MatchRegexpMatcher{
@@ -199,7 +177,6 @@ var _ = Describe("Filtering events by shard", Label("sharding", "infra-setup"), 
 		})
 
 		AfterEach(func() {
-			_ = os.RemoveAll(tmpDir)
 			_, _ = k.Delete("gitrepo", gitrepoName)
 		})
 	})
