@@ -112,7 +112,7 @@ func (h *handler) cleanupNamespace(key string, obj *corev1.Namespace) (*corev1.N
 	// check if the cluster for this cluster namespace still exists, otherwise clean up the namespace
 	_, err := h.clusters.Get(obj.Annotations[fleet.ClusterNamespaceAnnotation], obj.Annotations[fleet.ClusterAnnotation])
 	if apierrors.IsNotFound(err) {
-		logrus.Infof("Cleaning up fleet-managed namespace %s", obj.Name)
+		logrus.Infof("Cleaning up fleet-managed namespace '%s', cluster not found", obj.Name)
 
 		err = h.namespaces.Delete(key, nil)
 		return obj, err
@@ -141,15 +141,16 @@ func (h *handler) OnPurgeOrphaned(key string, bundle *fleet.Bundle) (*fleet.Bund
 	if bundle == nil {
 		return bundle, nil
 	}
-	logrus.Debugf("OnPurgeOrphaned for bundle '%s' change, checking if gitrepo still exists", bundle.Name)
 
 	repo := bundle.Labels[fleet.RepoLabel]
 	if repo == "" {
 		return nil, nil
 	}
+	logrus.Debugf("OnPurgeOrphaned for bundle '%s' change, checking if gitrepo still exists", bundle.Name)
 
 	_, err := h.gitRepo.Get(bundle.Namespace, repo)
 	if apierrors.IsNotFound(err) {
+		logrus.Infof("OnPurgeOrphaned for bundle '%s', gitrepo not found, delete bundle", bundle.Name)
 		return nil, h.bundles.Delete(bundle.Namespace, bundle.Name, nil)
 	} else if err != nil {
 		return nil, err
@@ -168,6 +169,7 @@ func (h *handler) OnPurgeOrphanedImageScan(key string, image *fleet.ImageScan) (
 
 	_, err := h.gitRepo.Get(image.Namespace, repo)
 	if apierrors.IsNotFound(err) {
+		logrus.Infof("OnPurgeOrphaned for imagescan '%s', gitrepo not found, delete imagescan", image.Name)
 		return nil, h.images.Delete(image.Namespace, image.Name, nil)
 	} else if err != nil {
 		return nil, err
