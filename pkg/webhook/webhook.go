@@ -159,6 +159,10 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	//Gogs needs to be checked before Github since it carries both Gogs and (incompatible) Github headers
 	case r.Header.Get("X-Gogs-Event") != "":
 		payload, err = w.gogs.Parse(r, gogs.PushEvent)
+	case r.Header.Get("X-Github-Event") == "ping":
+		rw.WriteHeader(http.StatusOK)
+		_, _ = rw.Write([]byte("Webhook received successfully"))
+		return
 	case r.Header.Get("X-GitHub-Event") != "":
 		payload, err = w.github.Parse(r, github.PushEvent)
 	case r.Header.Get("X-Gitlab-Event") != "":
@@ -169,10 +173,6 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		payload, err = w.bitbucketServer.Parse(r, bitbucketserver.RepositoryReferenceChangedEvent)
 	case r.Header.Get("X-Vss-Activityid") != "" || r.Header.Get("X-Vss-Subscriptionid") != "":
 		payload, err = w.azureDevops.Parse(r, goPlaygroundAzuredevops.GitPushEventType)
-	case r.Header.Get("X-Github-Event") != "ping":
-		rw.WriteHeader(200)
-		_, _ = rw.Write([]byte("Webhook received successfully"))
-		return
 	default:
 		w.log.V(1).Info("Ignoring unknown webhook event")
 		return
