@@ -58,11 +58,11 @@ require (
 	k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f
 	k8s.io/kubectl v0.29.4
 	k8s.io/kubernetes v1.29.4
-	sigs.k8s.io/cli-utils v0.34.0
-	sigs.k8s.io/controller-runtime v0.17.2
-	sigs.k8s.io/controller-tools v0.14.0
-	sigs.k8s.io/kustomize/api v0.13.5-0.20230601165947-6ce0bf390ce3
-	sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230601165947-6ce0bf390ce3
+	sigs.k8s.io/cli-utils v0.35.0
+	sigs.k8s.io/controller-runtime v0.18.0
+	sigs.k8s.io/controller-tools v0.15.0
+	sigs.k8s.io/kustomize/api 49a645f05d9c
+	sigs.k8s.io/kustomize/kyaml 49a645f05d9c
 	sigs.k8s.io/yaml v1.4.0
 )
 
