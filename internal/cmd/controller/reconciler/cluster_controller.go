@@ -13,10 +13,13 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
+	"github.com/rancher/wrangler/v2/pkg/condition"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -76,12 +79,12 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	bundleDeployments := &fleet.BundleDeploymentList{}
 	err = r.List(ctx, bundleDeployments, client.InNamespace(cluster.Status.Namespace))
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, cluster.Status, err)
 	}
 
 	_, cleanup, err := r.Query.BundlesForCluster(ctx, cluster)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, cluster.Status, err)
 	}
 	for _, bundle := range cleanup {
 		for _, bundleDeployment := range bundleDeployments.Items {
@@ -153,15 +156,9 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		cluster.Status.Display.State = "WaitCheckIn"
 	}
 
-	err = retry.RetryOnConflict(LongRetry, func() error {
-		t := &fleet.Cluster{}
-		err := r.Get(ctx, req.NamespacedName, t)
-		if err != nil {
-			return err
-		}
-		t.Status = cluster.Status
-		return r.Status().Update(ctx, t)
-	})
+	r.setCondition(&cluster.Status, nil)
+
+	err = r.updateStatus(ctx, req.NamespacedName, cluster.Status)
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to cluster status", "status", cluster.Status)
 	} else {
@@ -183,6 +180,37 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	return ctrl.Result{}, err
+}
+
+// setCondition sets the condition and updates the timestamp, if the condition changed
+func (r *ClusterReconciler) setCondition(status *fleet.ClusterStatus, err error) {
+	cond := condition.Cond(fleet.ClusterConditionProcessed)
+	origStatus := status.DeepCopy()
+	cond.SetError(status, "", ignoreConflict(err))
+	if !equality.Semantic.DeepEqual(origStatus, status) {
+		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
+	}
+}
+
+func (r *ClusterReconciler) updateErrorStatus(ctx context.Context, req types.NamespacedName, status fleet.ClusterStatus, orgErr error) error {
+	r.setCondition(&status, orgErr)
+	if statusErr := r.updateStatus(ctx, req, status); statusErr != nil {
+		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
+		return errutil.NewAggregate(merr)
+	}
+	return orgErr
+}
+
+func (r *ClusterReconciler) updateStatus(ctx context.Context, req types.NamespacedName, status fleet.ClusterStatus) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		t := &fleet.Cluster{}
+		err := r.Get(ctx, req, t)
+		if err != nil {
+			return err
+		}
+		t.Status = status
+		return r.Status().Update(ctx, t)
+	})
 }
 
 // SetupWithManager sets up the controller with the Manager.
