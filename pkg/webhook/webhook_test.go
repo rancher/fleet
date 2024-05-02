@@ -166,8 +166,7 @@ func TestGitHubPingWebhook(t *testing.T) {
 
 	// request execution
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(w.ServeHTTP)
-	handler.ServeHTTP(rr, req)
+	w.ServeHTTP(rr, req)
 
 	// Verify the response status code is correct
 	if status := rr.Code; status != http.StatusOK {
@@ -177,6 +176,6 @@ func TestGitHubPingWebhook(t *testing.T) {
 	// Verify the response message is correct
 	expectedResponse := "Webhook received successfully"
 	if rr.Body.String() != expectedResponse {
-		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expectedResponse)
+		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body, expectedResponse)
 	}
 }
