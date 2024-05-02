@@ -160,7 +160,6 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	case r.Header.Get("X-Gogs-Event") != "":
 		payload, err = w.gogs.Parse(r, gogs.PushEvent)
 	case r.Header.Get("X-Github-Event") == "ping":
-		rw.WriteHeader(http.StatusOK)
 		_, _ = rw.Write([]byte("Webhook received successfully"))
 		return
 	case r.Header.Get("X-GitHub-Event") != "":
