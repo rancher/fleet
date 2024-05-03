@@ -249,8 +249,8 @@ spec:
                             EnableDNS option, which Fleet sets to `true` by default.
                           type: boolean
                         disablePreProcess:
-                          description: DisablePreProcess disables template processing
-                            in values
+                          description: DisablePreProcess disables template and secret
+                            processing in values
                           type: boolean
                         force:
                           description: Force allows to override immutable resources.
@@ -558,8 +558,8 @@ spec:
                             EnableDNS option, which Fleet sets to `true` by default.
                           type: boolean
                         disablePreProcess:
-                          description: DisablePreProcess disables template processing
-                            in values
+                          description: DisablePreProcess disables template and secret
+                            processing in values
                           type: boolean
                         force:
                           description: Force allows to override immutable resources.
@@ -1263,8 +1263,8 @@ spec:
                         option, which Fleet sets to `true` by default.
                       type: boolean
                     disablePreProcess:
-                      description: DisablePreProcess disables template processing
-                        in values
+                      description: DisablePreProcess disables template and secret
+                        processing in values
                       type: boolean
                     force:
                       description: Force allows to override immutable resources. This
@@ -1981,8 +1981,8 @@ spec:
                               EnableDNS option, which Fleet sets to `true` by default.
                             type: boolean
                           disablePreProcess:
-                            description: DisablePreProcess disables template processing
-                              in values
+                            description: DisablePreProcess disables template and secret
+                              processing in values
                             type: boolean
                           force:
                             description: Force allows to override immutable resources.
