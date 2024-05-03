@@ -48,5 +48,8 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 		return "", err
 	}
 
+	if gitrepo.Spec.Revision != "" {
+		return git.getRevisionCommit(gitrepo.Spec.Revision)
+	}
 	return git.lsRemote(branch, gitrepo.Status.Commit)
 }

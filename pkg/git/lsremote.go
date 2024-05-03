@@ -13,6 +13,7 @@ import (
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
@@ -23,6 +24,11 @@ import (
 	giturls "github.com/rancher/fleet/pkg/git-urls"
 
 	corev1 "k8s.io/api/core/v1"
+)
+
+var (
+	newRemoteLister              = newGoGitRemote
+	ErrCommitNotFoundForRevision = errors.New("commit not found for revision")
 )
 
 type options struct {
@@ -65,6 +71,16 @@ type git struct {
 	log               logr.Logger
 }
 
+type gitRemoteLister interface {
+	List(o *gogit.ListOptions) ([]*plumbing.Reference, error)
+}
+
+func newGoGitRemote(url string) gitRemoteLister {
+	return gogit.NewRemote(memory.NewStorage(), &config.RemoteConfig{
+		URLs: []string{url},
+	})
+}
+
 // LsRemote runs ls-remote on git repo and returns the HEAD commit SHA
 func (g *git) lsRemote(branch string, commit string) (string, error) {
 	if err := validateBranch(branch); err != nil {
@@ -80,10 +96,7 @@ func (g *git) lsRemote(branch string, commit string) (string, error) {
 	}
 
 	refBranch := formatRefForBranch(branch)
-	rem := gogit.NewRemote(memory.NewStorage(), &config.RemoteConfig{
-		URLs: []string{g.URL},
-	})
-
+	rem := newRemoteLister(g.URL)
 	refs, err := rem.List(&gogit.ListOptions{
 		Auth:            g.auth,
 		CABundle:        g.caBundle,
@@ -100,6 +113,45 @@ func (g *git) lsRemote(branch string, commit string) (string, error) {
 	}
 
 	return "", errors.New("commit not found")
+}
+
+// GetRevisionCommit retrieves the commit of a given revision.
+// If the revision is a tag (lightweight or annotated) it retrieves the commit for it,
+// if the revision given is already a commit it just returns the value
+func (g *git) getRevisionCommit(revision string) (string, error) {
+	if err := validateCommit(revision); err == nil {
+		// revision is a commit already
+		return revision, nil
+	}
+	rem := newRemoteLister(g.URL)
+	refs, err := rem.List(&gogit.ListOptions{
+		Auth:            g.auth,
+		CABundle:        g.caBundle,
+		InsecureSkipTLS: g.insecureTLSVerify,
+		PeelingOption:   gogit.AppendPeeled,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	refLighweightTag := formatRefForTag(revision, false)
+	refAnnotatedTag := formatRefForTag(revision, true)
+	commit := ""
+	for _, ref := range refs {
+		// if the annotated form is found, we can return the value now
+		if ref.Name().IsTag() && ref.Name().String() == refAnnotatedTag {
+			return ref.Hash().String(), nil
+		}
+		// if the lightweight form is found, we store and keep looking
+		// because we could have the annotated one
+		if ref.Name().IsTag() && ref.Name().String() == refLighweightTag {
+			commit = ref.Hash().String()
+		}
+	}
+	if commit != "" {
+		return commit, nil
+	}
+	return "", ErrCommitNotFoundForRevision
 }
 
 func (g *git) httpClientWithCreds() (*http.Client, error) {
@@ -284,6 +336,14 @@ func formatGitURL(endpoint, branch string) string {
 
 func formatRefForBranch(branch string) string {
 	return fmt.Sprintf("refs/heads/%s", branch)
+}
+
+func formatRefForTag(tag string, annotated bool) string {
+	suffix := ""
+	if annotated {
+		suffix = "^{}"
+	}
+	return fmt.Sprintf("refs/tags/%s%s", tag, suffix)
 }
 
 type basicRoundTripper struct {
