@@ -165,12 +165,7 @@ jobs:
 
   test-fleet-in-rancher:
     uses: ./.github/workflows/rancher-upgrade-fleet-to-head.yml
-    secrets:
-      credentials: ${{ secrets.CI_GOOGLE_CREDENTIALS }}
-      pat_token: ${{ secrets.CI_RUNNER_PAT }}
     with:
       ref: ${{ github.ref }}
-      cluster_name: fleet-test-rancher-k3s
-      destroy_runner: true
       charts_repo: ${{github.event.inputs.charts_repo}}
       charts_branch: $target_branch
