@@ -181,7 +181,7 @@ type HelmOptions struct {
 	// Atomic sets the --atomic flag when Helm is performing an upgrade
 	Atomic bool `json:"atomic,omitempty"`
 
-	// DisablePreProcess disables template processing in values
+	// DisablePreProcess disables template and secret processing in values
 	DisablePreProcess bool `json:"disablePreProcess,omitempty"`
 
 	// DisableDNS can be used to customize Helm's EnableDNS option, which Fleet sets to `true` by default.

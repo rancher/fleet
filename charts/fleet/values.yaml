@@ -48,7 +48,6 @@ bootstrap:
   branch: master
   paths: ""
 
-
 global:
   cattle:
     systemDefaultRegistry: ""
@@ -81,3 +80,6 @@ propagateDebugSettingsToAgents: true
 
 migrations:
   clusterRegistrationCleanup: true
+
+## Additional environment variables to be injected to the fleet-controller container
+additionalEnvs: {}

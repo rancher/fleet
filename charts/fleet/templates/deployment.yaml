@@ -12,6 +12,9 @@ spec:
         app: fleet-controller
     spec:
       containers:
+      - envFrom:
+        - secretRef:
+            name: fleet-controller-env
       - env:
         - name: NAMESPACE
           valueFrom:
