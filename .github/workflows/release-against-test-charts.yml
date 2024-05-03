@@ -165,6 +165,7 @@ jobs:
 
   test-fleet-in-rancher:
     uses: ./.github/workflows/rancher-upgrade-fleet-to-head.yml
+    needs: push-test-rancher-charts
     with:
       ref: ${{ github.ref }}
       charts_repo: ${{github.event.inputs.charts_repo}}
