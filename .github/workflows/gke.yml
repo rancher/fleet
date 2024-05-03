@@ -130,7 +130,9 @@ jobs:
         name: Deploy Fleet
         run: |
           echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
-          ./.github/scripts/deploy-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}
+          SHARDS="shard1,shard2,shard3" ./.github/scripts/deploy-fleet.sh \
+                                       ${{ steps.meta-fleet.outputs.tags }} \
+                                       ${{ steps.meta-fleet-agent.outputs.tags }}
       -
         name: Fleet E2E Tests
         env:
