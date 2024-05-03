@@ -172,7 +172,5 @@ jobs:
     needs: push-test-rancher-charts
     with:
       ref: ${{ github.ref }}
-      cluster_name: fleet-test-rancher-k3s
-      destroy_runner: true
       charts_repo: ${{github.event.inputs.charts_repo}}
       charts_branch: ${{ needs.push-test-rancher-charts.outputs.target_branch }}

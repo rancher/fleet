@@ -7,40 +7,11 @@ on:
     - cron:  '0 13 * * *'
   workflow_call:
     # Variables to set when calling this reusable workflow
-    secrets:
-      credentials:
-        description: Credentials to use to connect
-        required: true
-      pat_token:
-        # A token is needed to be able to add runner on the repo, maybe this can be changed later
-        # This token is linked to a personal account
-        # So in case of token issue you have to check (no specific order and for example):
-        # - the expiration date
-        # - if the account associated still exists
-        # - if the person still has access to the repo
-        description: PAT token used to add runner
-        required: true
     inputs:
       ref:
         description: "checkout git branch/tag"
         required: true
         default: "main"
-        type: string
-      cluster_name:
-        description: Name of the provisioned cluster
-        required: true
-        type: string
-      destroy_runner:
-        description: Destroy the auto-generated self-hosted runner
-        default: true
-        type: boolean
-      runner_template:
-        description: Runner template to use
-        default: fleet-qa-e2e-ci-runner-spot-leap-15-5-x86-64-template-v1
-        type: string
-      zone:
-        description: GCP zone to host the runner
-        default: europe-west3-a
         type: string
       charts_repo:
         description: Repository from which to source Fleet charts
@@ -61,76 +32,9 @@ env:
   SETUP_K3S_VERSION: 'v1.30.4-k3s1'
 
 jobs:
-  create-runner:
-    runs-on: ubuntu-latest
-    outputs:
-      uuid: ${{ steps.generator.outputs.uuid }}
-      runner: ${{ steps.generator.outputs.runner }}
-      public_dns: ${{ steps.dns.outputs.public_dns }}
-    steps:
-      # actions/checkout MUST come before auth
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Generate UUID and Runner hostname
-        id: generator
-        run: |
-          # Note: keep runner name under 63 characters
-          UUID=$(uuidgen)
-          echo "uuid=${UUID//-}" >> ${GITHUB_OUTPUT}
-          echo "runner=fleet-ci-${UUID//-}" >> ${GITHUB_OUTPUT}
-
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.credentials }}
-
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v1
-
-      - name: Create runner
-        run: |
-          gcloud compute instances create ${{ steps.generator.outputs.runner }} \
-            --source-instance-template ${{ inputs.runner_template }} \
-            --zone ${{ inputs.zone }}
-
-      - name: Create GCP secrets
-        run: |
-          echo -n ${{ secrets.pat_token }} \
-            | gcloud secrets create PAT_TOKEN_${{ steps.generator.outputs.uuid }} --data-file=-
-          echo -n ${{ github.repository }} \
-            | gcloud secrets create GH_REPO_${{ steps.generator.outputs.uuid }} --data-file=-
-
-      - name: Get public dns name in GCP
-        id: dns
-        run: |
-          # Do a timed out loop here, as gcloud can sometimes fail
-          typeset -i i=0
-          while true; do
-            # Get public IP
-            PUBLIC_IP=$(gcloud compute instances list 2> /dev/null \
-                        | awk '/${{ steps.generator.outputs.runner }}/ {print $6}')
-            # Exit if we reach the timeout or if IP is set
-            if (( ++i > 10 )) || [[ -n "${PUBLIC_IP}" ]]; then
-              break
-            fi
-            # Wait a little before retrying
-            sleep 2
-          done
-          # XXX: do we need this?
-          # Get the public DNS
-          PUBLIC_DNS=$(host -l ${PUBLIC_IP} 2> /dev/null \
-                       | awk '{sub(/\.$/, ""); print $5}')
-          echo "public_dns=${PUBLIC_DNS}" >> ${GITHUB_OUTPUT}
-          # Raise an error if either IP and/or DNS are empty
-          if [[ -z "${PUBLIC_IP}" || -z "${PUBLIC_DNS}" ]]; then
-            echo "PUBLIC_IP and/or PUBLIC_DNS are empty!" >&2
-            false
-          fi
-
   rancher-integration:
-    needs: create-runner
-    runs-on: ${{ needs.create-runner.outputs.uuid }}
+    container: ubuntu:24.04
+    runs-on: org-${{ github.repository_owner_id }}-amd64-k8s
 
     steps:
       - name: Add paths into PATH
@@ -166,6 +70,7 @@ jobs:
       - name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
+          apt install -y curl wget tar
           mkdir -p /home/gh-runner/.local/bin
           latest_version=$(curl -ILs -o /dev/null -w %{url_effective} github.com/rancher/cli/releases/latest | sed 's,.*/,,')
 
@@ -354,28 +259,3 @@ jobs:
             tmp/downstream
             tmp/upstream
           retention-days: 2
-
-  delete-runner:
-    if: ${{ success() }}
-    needs: [create-runner, rancher-integration]
-    runs-on: ubuntu-latest
-    steps:
-      # actions/checkout MUST come before auth
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.credentials }}
-      - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v1
-      - name: Delete GCP secrets
-        run: |
-          gcloud --quiet secrets delete PAT_TOKEN_${{ needs.create-runner.outputs.uuid }} || true
-          gcloud --quiet secrets delete GH_REPO_${{ needs.create-runner.outputs.uuid }} || true
-      - name: Delete runner
-        if: ${{ always() && needs.create-runner.result == 'success' && inputs.destroy_runner == true }}
-        run: |
-          gcloud --quiet compute instances delete ${{ needs.create-runner.outputs.runner }} \
-            --delete-disks all \
-            --zone ${{ inputs.zone }}
