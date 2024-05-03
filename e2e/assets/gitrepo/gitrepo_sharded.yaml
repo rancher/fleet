@@ -10,4 +10,4 @@ spec:
   pollingInterval: {{.PollingInterval}}
   targetNamespace: {{.TargetNamespace}}
   paths:
-  - examples
+  - simple-chart
