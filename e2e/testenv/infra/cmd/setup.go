@@ -198,7 +198,8 @@ var setupCmd = &cobra.Command{
 
 			_ = eventually(func() (string, error) {
 				SSLCfg := &tls.Config{
-					InsecureSkipVerify: true, // works around having to install or reference a CA cert
+					// works around having to install or reference a CA cert
+					InsecureSkipVerify: true, // nolint:gosec
 				}
 
 				client := http.Client{
@@ -267,7 +268,7 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 	}
 
 	var err error
-	htpasswd := "fleet-ci:$2y$05$0WcEGGqsUKcyPhBFU7l07uJ3ND121p/FQCY90Q.dcsZjTkr.b45Lm"
+	htpasswd := "fleet-ci:$2y$05$0WcEGGqsUKcyPhBFU7l07uJ3ND121p/FQCY90Q.dcsZjTkr.b45Lm" // nolint: gosec
 	if os.Getenv("CI_OCI_USERNAME") != "" && os.Getenv("CI_OCI_PASSWORD") != "" {
 		p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_PASSWORD")), bcrypt.MinCost)
 		if err != nil {
@@ -332,7 +333,7 @@ func spinUpHelmRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 }
 
 func packageHelmChart() error {
-	cmd := exec.Command("helm", "package", testenv.AssetPath("gitrepo/sleeper-chart/"))
+	cmd := exec.Command("helm", "package", testenv.AssetPath("gitrepo/sleeper-chart/")) // nolint: gosec
 
 	_, err := cmd.Output()
 
