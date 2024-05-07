@@ -19,21 +19,31 @@ const clusterTemplate = "cluster-template.yaml"
 const clustergroupTemplate = "clustergroup-template.yaml"
 
 // GitRepoData can be used with the gitrepo-template.yaml asset when no custom
-// GitRepo properties are required. All fields are required.
+// GitRepo properties are required. All fields except Shard are required.
 type GitRepoData struct {
 	Name            string
 	Branch          string
 	Paths           []string
 	TargetNamespace string
+	Shard           string
 }
 
-// CreateGitRepo uses the template to create a gitrepo resource. The namespace is the TargetNamespace for the workloads.
-func CreateGitRepo(k kubectl.Command, namespace string, name string, branch string, paths ...string) error {
+// CreateGitRepo uses the template to create a gitrepo resource. The namespace
+// is the TargetNamespace for the workloads.
+func CreateGitRepo(
+	k kubectl.Command,
+	namespace string,
+	name string,
+	branch string,
+	shard string,
+	paths ...string,
+) error {
 	return ApplyTemplate(k, AssetPath(gitrepoTemplate), GitRepoData{
 		TargetNamespace: namespace,
 		Name:            name,
 		Branch:          branch,
 		Paths:           paths,
+		Shard:           shard,
 	})
 }
 
@@ -57,12 +67,14 @@ func CreateClusterGroup(
 	k kubectl.Command,
 	namespace,
 	name string,
+	matchLabels map[string]string,
 	labels map[string]string,
 ) error {
 	return ApplyTemplate(k, AssetPath(clustergroupTemplate), map[string]interface{}{
 		"Name":        name,
 		"Namespace":   namespace,
-		"MatchLabels": labels,
+		"MatchLabels": matchLabels,
+		"Labels":      labels,
 	})
 }
 
