@@ -1,4 +1,4 @@
-package gitrepo
+package cluster
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
-	"github.com/rancher/fleet/internal/config"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/client-go/rest"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -23,15 +23,15 @@ var (
 	cancel    context.CancelFunc
 	cfg       *rest.Config
 	ctx       context.Context
-	testenv   *envtest.Environment
 	k8sClient client.Client
+	testenv   *envtest.Environment
 
 	namespace string
 )
 
 func TestFleet(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fleet GitRepo Suite")
+	RunSpecs(t, "Fleet Cluster Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -50,24 +50,14 @@ var _ = BeforeSuite(func() {
 	mgr, err := utils.NewManager(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-	// Set up the gitrepo reconciler
-	config.Set(config.DefaultConfig())
-
-	sched := quartz.NewStdScheduler()
-	Expect(sched).ToNot(BeNil())
-
-	err = (&reconciler.GitRepoReconciler{
+	// Set up the cluster reconciler
+	err = (&reconciler.ClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Scheduler: sched,
+		Query: &FakeQuery{},
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
-
-	sched.Start(ctx)
-	DeferCleanup(func() {
-		sched.Stop()
-	})
 
 	go func() {
 		defer GinkgoRecover()
@@ -80,3 +70,11 @@ var _ = AfterSuite(func() {
 	cancel()
 	Expect(testenv.Stop()).ToNot(HaveOccurred())
 })
+
+type FakeQuery struct {
+}
+
+// BundlesForCluster returns empty list, so no cleanup is needed
+func (q *FakeQuery) BundlesForCluster(context.Context, *fleet.Cluster) ([]*fleet.Bundle, []*fleet.Bundle, error) {
+	return nil, nil, nil
+}

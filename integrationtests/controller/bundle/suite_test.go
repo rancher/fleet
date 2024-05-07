@@ -2,29 +2,25 @@ package bundle
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"k8s.io/client-go/rest"
-	"k8s.io/kubectl/pkg/scheme"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var (
@@ -32,13 +28,9 @@ var (
 	cfg       *rest.Config
 	ctx       context.Context
 	k8sClient client.Client
-	testEnv   *envtest.Environment
+	testenv   *envtest.Environment
 
 	namespace string
-)
-
-const (
-	timeout = 30 * time.Second
 )
 
 func TestFleet(t *testing.T) {
@@ -47,31 +39,19 @@ func TestFleet(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	SetDefaultEventuallyTimeout(timeout)
-
 	ctx, cancel = context.WithCancel(context.TODO())
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
-		ErrorIfCRDPathMissing: true,
-	}
+	testenv = utils.NewEnvTest()
 
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, err = testenv.Start()
 	Expect(err).NotTo(HaveOccurred())
 
-	utilruntime.Must(v1alpha1.AddToScheme(scheme.Scheme))
-	//+kubebuilder:scaffold:scheme
-
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err = utils.NewClient(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:         scheme.Scheme,
-		LeaderElection: false,
-		Metrics:        metricsserver.Options{BindAddress: "0"},
-	})
+	mgr, err := utils.NewManager(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
 	// Set up the bundle reconciler
@@ -96,7 +76,7 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	cancel()
-	Expect(testEnv.Stop()).ToNot(HaveOccurred())
+	Expect(testenv.Stop()).ToNot(HaveOccurred())
 })
 
 // createBundle copies all targets from the GitRepo into TargetRestrictions. TargetRestrictions acts as a whitelist to prevent

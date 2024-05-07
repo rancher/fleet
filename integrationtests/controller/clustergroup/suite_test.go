@@ -1,4 +1,4 @@
-package gitrepo
+package clustergroup
 
 import (
 	"context"
@@ -6,11 +6,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
-	"github.com/rancher/fleet/internal/config"
 
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,7 +29,7 @@ var (
 
 func TestFleet(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fleet GitRepo Suite")
+	RunSpecs(t, "Fleet ClusterGroup Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -50,24 +48,12 @@ var _ = BeforeSuite(func() {
 	mgr, err := utils.NewManager(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-	// Set up the gitrepo reconciler
-	config.Set(config.DefaultConfig())
-
-	sched := quartz.NewStdScheduler()
-	Expect(sched).ToNot(BeNil())
-
-	err = (&reconciler.GitRepoReconciler{
+	// Set up the clustergroup reconciler
+	err = (&reconciler.ClusterGroupReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-
-		Scheduler: sched,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
-
-	sched.Start(ctx)
-	DeferCleanup(func() {
-		sched.Stop()
-	})
 
 	go func() {
 		defer GinkgoRecover()
