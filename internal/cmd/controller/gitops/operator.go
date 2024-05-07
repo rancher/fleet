@@ -56,6 +56,14 @@ func App(zo *zap.Options) *cobra.Command {
 	})
 }
 
+// HelpFunc hides the global flag from the help output
+func (c *GitOperator) HelpFunc(cmd *cobra.Command, strings []string) {
+	_ = cmd.Flags().MarkHidden("disable-gitops")
+	_ = cmd.Flags().MarkHidden("disable-metrics")
+	_ = cmd.Flags().MarkHidden("shard-id")
+	cmd.Parent().HelpFunc()(cmd, strings)
+}
+
 func (g *GitOperator) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := g.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
@@ -65,10 +73,10 @@ func (g *GitOperator) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
-	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("gitjob-reconciler"))
 	// TODO for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
 	zopts.Development = g.Debug
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("gitjob-reconciler"))
 
 	namespace := g.Namespace
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{

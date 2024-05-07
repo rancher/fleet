@@ -49,6 +49,12 @@ type ClusterStatus struct {
 	CheckinInterval string `usage:"How often to post cluster status" env:"CHECKIN_INTERVAL"`
 }
 
+// HelpFunc hides the global agent-scope flag from the help output
+func (c *ClusterStatus) HelpFunc(cmd *cobra.Command, strings []string) {
+	_ = cmd.Flags().MarkHidden("agent-scope")
+	cmd.Parent().HelpFunc()(cmd, strings)
+}
+
 func (cs *ClusterStatus) PersistentPre(cmd *cobra.Command, _ []string) error {
 	if err := cs.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
