@@ -82,8 +82,6 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
 	if gitrepo.Spec.Repo == "" {
-		metrics.GitRepoCollector.Collect(ctx, gitrepo)
-
 		return ctrl.Result{}, nil
 	}
 
@@ -125,8 +123,6 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		logger.V(1).Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
 
 		return ctrl.Result{}, err
-	} else {
-		metrics.GitRepoCollector.Collect(ctx, gitrepo)
 	}
 
 	// Validate external secrets exist
@@ -188,7 +184,6 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	metrics.GitRepoCollector.Collect(ctx, gitrepo)
 	return ctrl.Result{}, nil
 }
 
@@ -202,6 +197,9 @@ func (r *GitRepoReconciler) updateErrorStatus(ctx context.Context, req types.Nam
 	return orgErr
 }
 
+// updateStatus updates the status for the GitRepo resource. It retries on
+// conflict. If the status was updated successfully, it also collects (as in
+// updates) metrics for the resource GitRepo resource.
 func (r *GitRepoReconciler) updateStatus(ctx context.Context, req types.NamespacedName, status fleet.GitRepoStatus) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.GitRepo{}
@@ -210,7 +208,15 @@ func (r *GitRepoReconciler) updateStatus(ctx context.Context, req types.Namespac
 			return err
 		}
 		t.Status = status
-		return r.Status().Update(ctx, t)
+
+		err = r.Status().Update(ctx, t)
+		if err != nil {
+			return err
+		}
+
+		metrics.GitRepoCollector.Collect(ctx, t)
+
+		return nil
 	})
 }
 
