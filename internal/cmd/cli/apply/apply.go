@@ -50,6 +50,7 @@ type Options struct {
 	Auth                        bundlereader.Auth
 	HelmRepoURLRegex            string
 	KeepResources               bool
+	DeleteNamespace             bool
 	AuthByPath                  map[string]bundlereader.Auth
 	CorrectDrift                bool
 	CorrectDriftForce           bool
@@ -181,6 +182,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 		Auth:             opts.Auth,
 		HelmRepoURLRegex: opts.HelmRepoURLRegex,
 		KeepResources:    opts.KeepResources,
+		DeleteNamespace:  opts.DeleteNamespace,
 		CorrectDrift: &fleet.CorrectDrift{
 			Enabled:         opts.CorrectDrift,
 			Force:           opts.CorrectDriftForce,

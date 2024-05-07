@@ -445,6 +445,10 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool) ([]string, []corev1.EnvV
 		args = append(args, "--keep-resources")
 	}
 
+	if gitrepo.Spec.DeleteNamespace {
+		args = append(args, "--delete-namespace")
+	}
+
 	if gitrepo.Spec.CorrectDrift != nil && gitrepo.Spec.CorrectDrift.Enabled {
 		args = append(args, "--correct-drift")
 		if gitrepo.Spec.CorrectDrift.Force {

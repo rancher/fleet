@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
+	"strings"
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
@@ -20,6 +22,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
@@ -285,6 +288,25 @@ func purgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 		return err
 	}
 
+	// At this point, access to the GitRepo is unavailable as it has been deleted and cannot be found within the cluster.
+	// Nevertheless, `deleteNamespace` can be found within all bundles generated from that GitRepo. Checking any bundle to get this value would be enough.
+	namespace := ""
+	deleteNamespace := false
+	sampleBundle := fleet.Bundle{}
+	if len(bundles.Items) > 0 {
+		sampleBundle = bundles.Items[0]
+		deleteNamespace = sampleBundle.Spec.DeleteNamespace
+		namespace = sampleBundle.Spec.TargetNamespace
+
+		if sampleBundle.Spec.KeepResources {
+			deleteNamespace = false
+		}
+	}
+
+	if err = purgeNamespace(ctx, c, deleteNamespace, namespace); err != nil {
+		return err
+	}
+
 	for _, bundle := range bundles.Items {
 		err := c.Delete(ctx, &bundle) // nolint:gosec // does not store pointer
 		if err != nil {
@@ -332,6 +354,38 @@ func purgeImageScans(ctx context.Context, c client.Client, gitrepo types.Namespa
 		}
 
 	}
+	return nil
+}
+
+func purgeNamespace(ctx context.Context, c client.Client, deleteNamespace bool, ns string) error {
+	if !deleteNamespace {
+		return nil
+	}
+
+	if ns == "" {
+		return nil
+	}
+
+	// Ignore default namespaces
+	defaultNamespaces := []string{"fleet-local", "cattle-fleet-system", "fleet-default", "cattle-fleet-clusters-system", "default"}
+	if slices.Contains(defaultNamespaces, ns) {
+		return nil
+	}
+
+	// Ignore system namespaces
+	if _, isKubeNamespace := strings.CutPrefix(ns, "kube-"); isKubeNamespace {
+		return nil
+	}
+
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ns,
+		},
+	}
+	if err := c.Delete(ctx, namespace); err != nil {
+		return err
+	}
+
 	return nil
 }
 

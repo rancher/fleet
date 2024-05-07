@@ -34,6 +34,7 @@ type Options struct {
 	Auth             Auth
 	HelmRepoURLRegex string
 	KeepResources    bool
+	DeleteNamespace  bool
 	CorrectDrift     *fleet.CorrectDrift
 }
 
@@ -259,6 +260,10 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	if opts.KeepResources {
 		bundle.Spec.KeepResources = opts.KeepResources
+	}
+
+	if opts.DeleteNamespace {
+		bundle.Spec.DeleteNamespace = opts.DeleteNamespace
 	}
 
 	if opts.CorrectDrift != nil && opts.CorrectDrift.Enabled {
