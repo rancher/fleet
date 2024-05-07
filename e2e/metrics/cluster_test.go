@@ -1,106 +1,179 @@
 package metrics_test
 
 import (
-	"encoding/json"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/fleet/e2e/metrics"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/rancher/fleet/e2e/testenv"
 )
 
-type cluster struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+type MetricsSelector map[string]map[string][]string
+
+var (
+	expectedMetrics = MetricsSelector{
+		"fleet_cluster_desired_ready_git_repos":      {},
+		"fleet_cluster_ready_git_repos":              {},
+		"fleet_cluster_resources_count_desiredready": {},
+		"fleet_cluster_resources_count_missing":      {},
+		"fleet_cluster_resources_count_modified":     {},
+		"fleet_cluster_resources_count_notready":     {},
+		"fleet_cluster_resources_count_orphaned":     {},
+		"fleet_cluster_resources_count_ready":        {},
+		"fleet_cluster_resources_count_unknown":      {},
+		"fleet_cluster_resources_count_waitapplied":  {},
+		// Expects three metrics with name `fleet_cluster_state` and each of
+		// these metrics is expected to have a "state" label with values
+		// "NotReady", "Ready" and "WaitCheckIn".
+		"fleet_cluster_state": {
+			"state": []string{"NotReady", "Ready", "WaitCheckIn"},
+		},
+	}
+)
+
+func eventuallyExpectMetrics(
+	name string,
+	expectedMetrics MetricsSelector,
+	expectExist bool,
+) {
+	Eventually(func() error {
+		return expectMetrics(name, expectedMetrics, expectExist)
+	}).ShouldNot(HaveOccurred())
 }
 
-type clusters []cluster
+func expectMetrics(name string, expectedMetrics MetricsSelector, expectExist bool) error {
+	expectToFindOneMetric := func(metrics map[string]*dto.MetricFamily, expectedMetric, labelName, labelValue string) error {
+		labels := map[string]string{
+			"namespace": "fleet-local",
+			"name":      name,
+		}
+		if labelName != "" && labelValue != "" {
+			labels[labelName] = labelValue
+		}
+		metric, err := et.FindOneMetric(metrics, expectedMetric, labels)
 
-func (cs *clusters) UnmarshalJSON(data []byte) error {
-	assertMap := func(i interface{}) map[string]interface{} {
-		return i.(map[string]interface{})
+		if expectExist && err != nil {
+			return err
+		} else if !expectExist && err == nil {
+			return fmt.Errorf("metric found but not expected: %v", metric)
+		}
+		return nil
 	}
 
-	var tmp interface{}
-	err := json.Unmarshal(data, &tmp)
+	metrics, err := et.Get()
 	if err != nil {
 		return err
 	}
-
-	m := tmp.(map[string]interface{})
-	items := m["items"].([]interface{})
-
-	*cs = clusters{}
-
-	for _, item := range items {
-		metadata := assertMap(assertMap(item)["metadata"])
-
-		c := cluster{}
-		c.Namespace = metadata["namespace"].(string)
-		c.Name = metadata["name"].(string)
-
-		*cs = append(*cs, c)
+	for expectedMetric, expectedLabels := range expectedMetrics {
+		if len(expectedLabels) > 0 {
+			for label, values := range expectedLabels {
+				for _, value := range values {
+					err := expectToFindOneMetric(metrics, expectedMetric, label, value)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		} else {
+			err := expectToFindOneMetric(metrics, expectedMetric, "", "")
+			if err != nil {
+				return err
+			}
+		}
 	}
-
 	return nil
 }
 
 var _ = Describe("Cluster Metrics", Label("cluster"), func() {
-	expectedMetricsExist := map[string]bool{
-		"fleet_cluster_desired_ready_git_repos":      true,
-		"fleet_cluster_ready_git_repos":              true,
-		"fleet_cluster_resources_count_desiredready": true,
-		"fleet_cluster_resources_count_missing":      true,
-		"fleet_cluster_resources_count_modified":     true,
-		"fleet_cluster_resources_count_notready":     true,
-		"fleet_cluster_resources_count_orphaned":     true,
-		"fleet_cluster_resources_count_ready":        true,
-		"fleet_cluster_resources_count_unknown":      true,
-		"fleet_cluster_resources_count_waitapplied":  true,
-		// The value of cluster.Status.Display.State is empty if no issues are
-		// found and this means no metric is created.
-		"fleet_cluster_state": false,
-	}
+	It("should have metrics for the local cluster resource", func() {
+		eventuallyExpectMetrics("local", expectedMetrics, true)
+	})
 
-	It("should have metrics for all existing cluster resources", func() {
-		Eventually(func() error {
-			clustersOut, err := env.Kubectl.Get(
-				"-A", "clusters.fleet.cattle.io",
-				"-o", "json",
-			)
-			Expect(err).ToNot(HaveOccurred())
+	When("the initial cluster object has changed in any way", func() {
+		It(
+			"should not have duplicated metrics after a cluster has been changed",
+			Label("modified"),
+			func() {
+				name := "testing-modification"
+				ns := "fleet-local"
+				kw := k.Namespace(ns)
 
-			var existingClusters clusters
-			err = json.Unmarshal([]byte(clustersOut), &existingClusters)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(len(existingClusters)).ToNot(BeZero())
+				err := testenv.CreateCluster(
+					k,
+					ns,
+					name,
+					map[string]string{
+						"management.cattle.io/cluster-display-name": "testing",
+						"name": "testing",
+					},
+					map[string]string{
+						"clientID": "testing",
+					},
+				)
+				Expect(err).ToNot(HaveOccurred())
 
-			et := metrics.NewExporterTest(metricsURL)
-			metrics, err := et.Get()
-			Expect(err).ToNot(HaveOccurred())
+				Eventually(func() (string, error) {
+					return kw.Get("clusters.fleet.cattle.io", name)
+				}).Should(ContainSubstring(name))
 
-			for _, cluster := range existingClusters {
-				for name, expectedExist := range expectedMetricsExist {
-					_, err := et.FindOneMetric(
-						metrics,
-						name,
-						map[string]string{
-							"name":      cluster.Name,
-							"namespace": cluster.Namespace,
-						},
-					)
-					if expectedExist && err != nil {
-						return err
-					} else if !expectedExist && err == nil {
-						return fmt.Errorf(
-							"expected metric %s not to exist, but it exists",
-							name,
-						)
-					}
-				}
-			}
-			return nil
-		}).ShouldNot(HaveOccurred())
-	},
-	)
+				eventuallyExpectMetrics(name, expectedMetrics, true)
+
+				Expect(kw.Patch(
+					"cluster", name,
+					"--type=json",
+					"-p", `[
+						{
+							"op": "replace",
+							"path": "/spec/clientID",
+							"value": "changed"
+						}
+					]`,
+				)).To(ContainSubstring(name))
+
+				eventuallyExpectMetrics(name, expectedMetrics, true)
+
+				DeferCleanup(func() {
+					_, _ = kw.Delete("cluster", name)
+				})
+			},
+		)
+
+		It(
+			"should not have metrics for a deleted cluster",
+			Label("deleted"),
+			func() {
+				name := "testing-deletion"
+				ns := "fleet-local"
+				kw := k.Namespace(ns)
+
+				Expect(testenv.CreateCluster(
+					k,
+					ns,
+					name,
+					map[string]string{
+						"management.cattle.io/cluster-display-name": "testing",
+						"name": "testing",
+					},
+					nil,
+				)).ToNot(HaveOccurred())
+
+				Eventually(func() (string, error) {
+					return kw.Get("clusters.fleet.cattle.io", name)
+				}).Should(ContainSubstring(name))
+
+				eventuallyExpectMetrics(name, expectedMetrics, true)
+
+				Eventually(func() (string, error) {
+					return kw.Delete("cluster", name)
+				}).Should(ContainSubstring(name))
+
+				eventuallyExpectMetrics(name, expectedMetrics, false)
+
+				DeferCleanup(func() {
+					_, _ = kw.Delete("cluster", name)
+				})
+			},
+		)
+	})
 })

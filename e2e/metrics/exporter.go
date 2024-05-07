@@ -13,8 +13,8 @@ type ExporterTest struct {
 	url string
 }
 
-func NewExporterTest(url string) *ExporterTest {
-	return &ExporterTest{
+func NewExporterTest(url string) ExporterTest {
+	return ExporterTest{
 		url: url,
 	}
 }
@@ -111,31 +111,4 @@ func (m *Metric) LabelValue(name string) string {
 		}
 	}
 	return ""
-}
-
-func (m *Metric) MatchLabelValue(name, value string) error {
-	for _, label := range m.Label {
-		if *label.Name == name {
-			if *label.Value == value {
-				return nil
-			} else {
-				return fmt.Errorf(
-					"expected label %q to have value %q, got %q",
-					name,
-					value,
-					*label.Value,
-				)
-			}
-		}
-	}
-	return fmt.Errorf("label %q not found", name)
-}
-
-func (m *Metric) HasLabel(name string) bool {
-	for _, label := range m.Label {
-		if *label.Name == name {
-			return true
-		}
-	}
-	return false
 }

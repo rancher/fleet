@@ -7,7 +7,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/fleet/e2e/metrics"
 	"github.com/rancher/fleet/e2e/testenv"
 )
 
@@ -81,8 +80,6 @@ var _ = Describe("Cluster Metrics", Label("clustergroup"), func() {
 				"-o", "jsonpath=.metadata.name",
 			)
 		}).ShouldNot(ContainSubstring("not found"))
-
-		et := metrics.NewExporterTest(metricsURL)
 
 		identityLabels := map[string]string{
 			"name":      clusterGroupName,

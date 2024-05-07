@@ -53,7 +53,6 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 	// the value of the metrics.
 	metricsExist := func(gitRepoName string, check func(metric *metrics.Metric) error) func() error {
 		return func() error {
-			et := metrics.NewExporterTest(metricsURL)
 			metrics, err := et.Get()
 			Expect(err).ToNot(HaveOccurred())
 
@@ -100,7 +99,6 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 	// metricsMissing checks that the metrics do not exist.
 	metricsMissing := func(gitRepoName string) func() error {
 		return func() error {
-			et := metrics.NewExporterTest(metricsURL)
 			metrics, err := et.Get()
 			Expect(err).ToNot(HaveOccurred())
 
@@ -173,7 +171,6 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 
 		When("the GitRepo (and therefore Bundle) is changed", Label("bundle-modified"), func() {
 			It("should not duplicate metrics if Bundle is updated", Label("bundle-update"), func() {
-				// et := metrics.NewExporterTest(metricsURL)
 				out, err := kw.Patch(
 					"gitrepo", gitRepoName,
 					"--type=json",
