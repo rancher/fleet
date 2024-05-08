@@ -136,11 +136,16 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("deleting the bundle")
-			_, err = k.Delete("bundle", fmt.Sprintf("%s-%s", gitrepoName, path))
-			Expect(err).ToNot(HaveOccurred())
+			out, err := k.Delete(
+				"bundle",
+				fmt.Sprintf("%s-%s", gitrepoName, path),
+				"--timeout=2s",
+			)
+			Expect(err).To(HaveOccurred())
+			Expect(out).To(ContainSubstring("timed out"))
 
 			By("checking that the bundle still exists and has a deletion timestamp")
-			out, err := k.Get(
+			out, err = k.Get(
 				"bundle",
 				fmt.Sprintf("%s-%s", gitrepoName, path),
 				"-o=jsonpath={range .items[*]}{.metadata.deletionTimestamp}",

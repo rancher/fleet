@@ -71,18 +71,37 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	ctx = log.IntoContext(ctx, logger)
 
 	bundle := &fleet.Bundle{}
-	err := r.Get(ctx, req.NamespacedName, bundle)
-	if apierrors.IsNotFound(err) {
-		metrics.BundleCollector.Delete(req.Name, req.Namespace)
-
-		logger.V(1).Info("Bundle not found, purging bundle deployments")
-		if err := purgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
-		}
-		return ctrl.Result{}, nil
-	} else if err != nil {
-		return ctrl.Result{}, err
+	if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	if bundle.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
+			controllerutil.AddFinalizer(bundle, bundleFinalizer)
+			if err := r.Update(ctx, bundle); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
+			metrics.BundleCollector.Delete(req.Name, req.Namespace)
+
+			logger.V(1).Info("Bundle not found, purging bundle deployments")
+			if err := purgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
+				// A bundle deployment may have been purged by the GitRepo reconciler, hence we ignore
+				// not-found errors here.
+				return ctrl.Result{}, client.IgnoreNotFound(err)
+			}
+
+			controllerutil.RemoveFinalizer(bundle, bundleFinalizer)
+			if err := r.Update(ctx, bundle); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
+	}
+
 	logger.V(1).Info("Reconciling bundle, checking targets, calculating changes, building objects", "generation", bundle.Generation, "observedGeneration", bundle.Status.ObservedGeneration)
 
 	manifest := manifest.FromBundle(bundle)
