@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
@@ -21,6 +22,7 @@ import (
 	"github.com/rancher/wrangler/v2/pkg/name"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,6 +30,7 @@ import (
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -119,7 +122,7 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)
 
-	setCondition(&gitrepo.Status, nil)
+	r.setCondition(&gitrepo.Status, nil)
 
 	err = r.updateStatus(ctx, req.NamespacedName, gitrepo.Status)
 	if err != nil {
@@ -190,9 +193,19 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
+// setCondition sets the condition and updates the timestamp, if the condition changed
+func (r *GitRepoReconciler) setCondition(status *fleet.GitRepoStatus, err error) {
+	cond := condition.Cond(fleet.GitRepoAcceptedCondition)
+	origStatus := status.DeepCopy()
+	cond.SetError(status, "", ignoreConflict(err))
+	if !equality.Semantic.DeepEqual(origStatus, status) {
+		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
+	}
+}
+
 // updateErrorStatus sets the condition in the status and tries to update the resource
 func (r *GitRepoReconciler) updateErrorStatus(ctx context.Context, req types.NamespacedName, status fleet.GitRepoStatus, orgErr error) error {
-	setCondition(&status, orgErr)
+	r.setCondition(&status, orgErr)
 	if statusErr := r.updateStatus(ctx, req, status); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
@@ -227,7 +240,16 @@ func (r *GitRepoReconciler) updateStatus(ctx context.Context, req types.Namespac
 func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Note: Maybe use mgr.GetFieldIndexer().IndexField for better performance?
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.GitRepo{}).
+		For(&fleet.GitRepo{},
+			builder.WithPredicates(
+				// do not trigger for GitRepo status changes
+				predicate.Or(
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
+			),
+		).
 		Watches(
 			// Fan out from bundle to gitrepo
 			&fleet.Bundle{},
@@ -244,19 +266,9 @@ func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return []ctrl.Request{}
 			}),
+			builder.WithPredicates(bundleStatusChangedPredicate()),
 		).
-		WithEventFilter(
-			// do not trigger for GitRepo status changes
-			predicate.And(
-				sharding.FilterByShardID(r.ShardID),
-				predicate.Or(
-					bundleStatusChangedPredicate(),
-					predicate.GenerationChangedPredicate{},
-					predicate.AnnotationChangedPredicate{},
-					predicate.LabelChangedPredicate{},
-				),
-			),
-		).
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		Complete(r)
 }
 
@@ -397,12 +409,6 @@ func acceptedLastUpdate(conds []genericcondition.GenericCondition) string {
 	}
 
 	return ""
-}
-
-// setCondition sets the condition and updates the timestamp, if the condition changed
-func setCondition(status *fleet.GitRepoStatus, err error) {
-	cond := condition.Cond(fleet.GitRepoAcceptedCondition)
-	cond.SetError(status, "", ignoreConflict(err))
 }
 
 func ignoreConflict(err error) error {

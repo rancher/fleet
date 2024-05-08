@@ -16,6 +16,9 @@ var (
 	// ClusterConditionReady indicates that all bundles in this cluster
 	// have been deployed and all resources are ready.
 	ClusterConditionReady = "Ready"
+	// ClusterConditionProcessed indicates that the status fields have been
+	// processed.
+	ClusterConditionProcessed = "Processed"
 	// ClusterNamespaceAnnotation used on a cluster namespace to refer to
 	// the cluster registration namespace, which contains the cluster
 	// resource.

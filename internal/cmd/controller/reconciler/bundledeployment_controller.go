@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -105,11 +106,10 @@ func bundleDeploymentStatusChangedPredicate() predicate.Funcs {
 // SetupWithManager sets up the controller with the Manager.
 func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.BundleDeployment{}).
-		WithEventFilter(predicate.And(
-			sharding.FilterByShardID(r.ShardID),
+		For(&fleet.BundleDeployment{}, builder.WithPredicates(
 			bundleDeploymentStatusChangedPredicate(),
 		)).
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		Complete(r)
 }
 

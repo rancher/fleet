@@ -5,7 +5,6 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/bootstrap"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/cluster"
-	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/clustergroup"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/clusterregistration"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/clusterregistrationtoken"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/config"
@@ -105,10 +104,6 @@ func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, d
 		appCtx.ClusterRegistrationToken(),
 		appCtx.Bundle(),
 		appCtx.Core.Namespace())
-
-	clustergroup.Register(ctx,
-		appCtx.Cluster(),
-		appCtx.ClusterGroup())
 
 	clusterregistration.Register(ctx,
 		appCtx.Apply.WithCacheTypes(

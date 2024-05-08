@@ -143,8 +143,9 @@ func agentDeployed(cluster *fleet.Cluster) bool {
 	return *cluster.Status.AgentDeployedGeneration == cluster.Spec.RedeployAgentGeneration
 }
 
-// OnChange is triggered for manager initiated deployments and the local agent,
-// where KubeConfigSecret is configured. It updates the client ID.
+// OnChange is triggered when a cluster changes, for manager initiated
+// deployments and the local agent. It updates the client ID, only when
+// KubeConfigSecret is configured or the agent is not already deployed.
 func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.Cluster, err error) {
 	if cluster == nil {
 		return cluster, nil
