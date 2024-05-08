@@ -242,7 +242,14 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 		})
 
 		JustAfterEach(func() {
-			err := os.RemoveAll(tmp)
+			keys, err := gogsClient.ListMyPublicKeys()
+			Expect(err).NotTo(HaveOccurred())
+			for _, key := range keys {
+				err := gogsClient.DeletePublicKey(key.ID)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			err = os.RemoveAll(tmp)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
