@@ -35,7 +35,7 @@ env:
 
 jobs:
   rancher-integration:
-    container: ubuntu-latest
+    container: ubuntu:24.04
     runs-on: org-${{ github.repository_owner_id }}-amd64-k8s
 
     steps:
