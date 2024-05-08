@@ -61,27 +61,41 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	logger := log.FromContext(ctx).WithName("gitrepo")
 
 	gitrepo := &fleet.GitRepo{}
-	err := r.Get(ctx, req.NamespacedName, gitrepo)
-	if client.IgnoreNotFound(err) != nil {
-		return ctrl.Result{}, err
+	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Clean up
-	if apierrors.IsNotFound(err) {
-		logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
+	if gitrepo.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
+			controllerutil.AddFinalizer(gitrepo, gitRepoFinalizer)
+			if err := r.Update(ctx, gitrepo); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
+			// Clean up
+			logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
 
-		metrics.GitRepoCollector.Delete(req.NamespacedName.Name, req.NamespacedName.Namespace)
+			metrics.GitRepoCollector.Delete(req.NamespacedName.Name, req.NamespacedName.Namespace)
 
-		if err := purgeBundles(ctx, r.Client, req.NamespacedName); err != nil {
-			return ctrl.Result{}, err
+			if err := purgeBundles(ctx, r.Client, req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			// remove the job scheduled by imagescan, if any
+			_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(req.Namespace, req.Name))
+
+			if err := purgeImageScans(ctx, r.Client, req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			controllerutil.RemoveFinalizer(gitrepo, gitRepoFinalizer)
+			if err := r.Update(ctx, gitrepo); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 
-		// remove the job scheduled by imagescan, if any
-		_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(req.Namespace, req.Name))
-
-		if err := purgeImageScans(ctx, r.Client, req.NamespacedName); err != nil {
-			return ctrl.Result{}, err
-		}
 		return ctrl.Result{}, nil
 	}
 
@@ -97,7 +111,7 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Restrictions / Overrides
 	// AuthorizeAndAssignDefaults mutates GitRepo and it returns nil on error
 	oldStatus := gitrepo.Status.DeepCopy()
-	gitrepo, err = grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
+	gitrepo, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
 	if err != nil {
 		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, *oldStatus, err)
 	}

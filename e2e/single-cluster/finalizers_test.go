@@ -84,14 +84,15 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("deleting the GitRepo")
-			_, err = k.Delete("gitrepo", gitrepoName)
-			Expect(err).ToNot(HaveOccurred())
+			out, err := k.Delete("gitrepo", gitrepoName, "--timeout=2s")
+			Expect(err).To(HaveOccurred())
+			Expect(out).To(ContainSubstring("timed out"))
 
 			By("checking that the gitrepo still exists and has a deletion timestamp")
-			out, err := k.Get(
+			out, err = k.Get(
 				"gitrepo",
 				gitrepoName,
-				"-o=jsonpath='{range .items[*]}{.metadata.deletionTimestamp}'",
+				"-o=jsonpath={range .items[*]}{.metadata.deletionTimestamp}",
 			)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(out).ToNot(BeZero())
