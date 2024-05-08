@@ -55,7 +55,11 @@ jobs:
           check-latest: true
 
       - name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
+        run: |
+          apt-get update
+          apt install -y ca-certificates
+          update-ca-certificates
+          go install github.com/onsi/ginkgo/v2/ginkgo
 
       - name: Install crust-gather CLI
         run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
