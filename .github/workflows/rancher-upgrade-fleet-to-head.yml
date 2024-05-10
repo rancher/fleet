@@ -75,10 +75,6 @@ jobs:
           tar -xz --strip-components=2 -f rancher-linux-amd64-$latest_version.tar.gz -C /usr/local/bin
           rancher --version
 
-      - name: Build fleet binaries
-        run: |
-          ./.github/scripts/build-fleet-binaries.sh
-
       - name: Set up k3d control-plane cluster
         uses: AbsaOSS/k3d-action@v2
         with:
