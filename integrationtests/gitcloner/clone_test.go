@@ -581,8 +581,9 @@ func getKnownHostEntry(container testcontainers.Container) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	algorithm := strings.Split(string(publicHostKeyBytes), " ")[0]
-	hostKey := strings.Split(string(publicHostKeyBytes), " ")[1]
+	fields := strings.Split(string(publicHostKeyBytes), " ")
+	algorithm := fields[0]
+	hostKey := fields[1]
 
 	return fmt.Sprintf("[localhost]:%s %s %s", port, algorithm, hostKey), nil
 }
