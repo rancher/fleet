@@ -73,6 +73,7 @@ jobs:
       - name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
+          apt install -y curl wget tar
           mkdir -p /home/gh-runner/.local/bin
           latest_version=$(curl -ILs -o /dev/null -w %{url_effective} github.com/rancher/cli/releases/latest | sed 's,.*/,,')
 
