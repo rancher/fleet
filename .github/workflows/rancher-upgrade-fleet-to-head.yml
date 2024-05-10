@@ -85,48 +85,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Get uuid
-        id: uuid
-        run: echo "::set-output name=uuid::$(uuidgen)"
-
-      - name: Compute Fleet image metadata
-        id: meta-fleet
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ttl.sh/rancher/fleet-${{ steps.uuid.outputs.uuid }}
-          tags: type=raw,value=1h
-
-      - name: Push Fleet image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: package/Dockerfile
-          build-args: |
-            ARCH=${{ env.GOARCH }}
-          push: true
-          tags: ${{ steps.meta-fleet.outputs.tags }}
-          labels: ${{ steps.meta-fleet.outputs.labels }}
-
-      - name: Compute Fleet agent image metadata
-        id: meta-fleet-agent
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ttl.sh/rancher/fleet-agent-${{ steps.uuid.outputs.uuid }}
-          tags: type=raw,value=1h
-
-      - name: Push Fleet agent image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: package/Dockerfile.agent
-          build-args: |
-            ARCH=${{ env.GOARCH }}
-          push: true
-          tags: ${{ steps.meta-fleet-agent.outputs.tags }}
-          labels: ${{ steps.meta-fleet-agent.outputs.labels }}
-
       - name: Set up k3d control-plane cluster
         uses: AbsaOSS/k3d-action@v2
         with:
