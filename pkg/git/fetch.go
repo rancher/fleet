@@ -38,7 +38,7 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 		branch = "master"
 	}
 
-	git, err := newGit(gitrepo.Spec.Repo, &options{
+	r, err := NewRemote(gitrepo.Spec.Repo, &options{
 		CABundle:          gitrepo.Spec.CABundle,
 		Credential:        &secret,
 		InsecureTLSVerify: gitrepo.Spec.InsecureSkipTLSverify,
@@ -49,7 +49,7 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 	}
 
 	if gitrepo.Spec.Revision != "" {
-		return git.getRevisionCommit(gitrepo.Spec.Revision)
+		return r.RevisionCommit(gitrepo.Spec.Revision)
 	}
-	return git.lsRemote(branch, gitrepo.Status.Commit)
+	return r.LatestBranchCommit(branch)
 }

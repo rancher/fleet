@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -304,7 +305,7 @@ func TestLatestCommit_Revision(t *testing.T) {
 				},
 			},
 			expectedCommit: "",
-			expectedError:  git.ErrCommitNotFoundForRevision,
+			expectedError:  errors.New("commit not found for revision: v10.0.0"),
 		},
 		"RevisionIsACommit": {
 			gitrepo: &v1alpha1.GitRepo{
@@ -343,7 +344,8 @@ func TestLatestCommit_Revision(t *testing.T) {
 			if test.expectedCommit != latestCommit {
 				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
 			}
-			if err != test.expectedError {
+
+			if err != test.expectedError && err.Error() != test.expectedError.Error() {
 				t.Errorf("expecting error: [%v], but got: [%v]", test.expectedError, err)
 			}
 		})
