@@ -24,6 +24,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+const bundleDeploymentFinalizer = "fleet.cattle.io/bundle-deployment-finalizer"
+
 // BundleDeploymentReconciler reconciles a BundleDeployment object
 type BundleDeploymentReconciler struct {
 	client.Client
@@ -53,8 +55,18 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	// The bundle reconciler takes care of adding the finalizer when creating a bundle deployment
 	if !bd.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(bd, bundleDeploymentFinalizer) {
-			controllerutil.RemoveFinalizer(bd, bundleDeploymentFinalizer)
-			if err := r.Update(ctx, bd); err != nil {
+			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				t := &fleet.BundleDeployment{}
+				err := r.Get(ctx, req.NamespacedName, t)
+				if err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(t, bundleDeploymentFinalizer)
+
+				return r.Update(ctx, bd)
+			})
+			if err != nil {
 				return ctrl.Result{}, err
 			}
 		}

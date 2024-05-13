@@ -40,6 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+const gitRepoFinalizer = "fleet.cattle.io/gitrepo-finalizer"
+
 // GitRepoReconciler  reconciles a GitRepo object
 type GitRepoReconciler struct {
 	client.Client
@@ -67,8 +69,17 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if gitrepo.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
-			controllerutil.AddFinalizer(gitrepo, gitRepoFinalizer)
-			if err := r.Update(ctx, gitrepo); err != nil {
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+					return err
+				}
+
+				controllerutil.AddFinalizer(gitrepo, gitRepoFinalizer)
+
+				return r.Update(ctx, gitrepo)
+			})
+
+			if err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -90,8 +101,17 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return ctrl.Result{}, err
 			}
 
-			controllerutil.RemoveFinalizer(gitrepo, gitRepoFinalizer)
-			if err := r.Update(ctx, gitrepo); err != nil {
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(gitrepo, gitRepoFinalizer)
+
+				return r.Update(ctx, gitrepo)
+			})
+
+			if err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -367,8 +387,18 @@ func purgeBundleDeployments(ctx context.Context, c client.Client, bundle types.N
 	}
 	for _, bd := range list.Items {
 		if controllerutil.ContainsFinalizer(&bd, bundleDeploymentFinalizer) {
-			controllerutil.RemoveFinalizer(&bd, bundleDeploymentFinalizer)
-			if err := c.Update(ctx, &bd); err != nil {
+			nn := types.NamespacedName{Namespace: bd.Namespace, Name: bd.Name}
+			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				t := &fleet.BundleDeployment{}
+				if err := c.Get(ctx, nn, t); err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(t, bundleDeploymentFinalizer)
+
+				return c.Update(ctx, t)
+			})
+			if err != nil {
 				return err
 			}
 		}

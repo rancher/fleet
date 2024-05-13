@@ -28,12 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-// TODO move this somewhere else and come up with better names
-const (
-	bundleDeploymentFinalizer = "bundle-deployment-finalizer"
-	bundleFinalizer           = "bundle-finalizer"
-	gitRepoFinalizer          = "gitrepo-finalizer"
-)
+const bundleFinalizer = "fleet.cattle.io/bundle-finalizer"
 
 type BundleQuery interface {
 	// BundlesForCluster is used to map from a cluster to bundles
@@ -77,8 +72,17 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if bundle.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
-			controllerutil.AddFinalizer(bundle, bundleFinalizer)
-			if err := r.Update(ctx, bundle); err != nil {
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
+					return err
+				}
+
+				controllerutil.AddFinalizer(bundle, bundleFinalizer)
+
+				return r.Update(ctx, bundle)
+			})
+
+			if err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -93,8 +97,17 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				return ctrl.Result{}, client.IgnoreNotFound(err)
 			}
 
-			controllerutil.RemoveFinalizer(bundle, bundleFinalizer)
-			if err := r.Update(ctx, bundle); err != nil {
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(bundle, bundleFinalizer)
+
+				return r.Update(ctx, bundle)
+			})
+
+			if err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -177,8 +190,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// copy labels from Bundle as they might have changed
 		bd := target.BundleDeployment()
 
-		// XXX: is the condition on finalizer existence even relevant? We have control over bd creation.
-		if bd.DeletionTimestamp.IsZero() && !controllerutil.ContainsFinalizer(bd, bundleDeploymentFinalizer) {
+		if bd.DeletionTimestamp.IsZero() {
 			controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
 		}
 
