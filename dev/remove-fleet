@@ -13,6 +13,12 @@ helm uninstall -n cattle-fleet-system fleet-crd
 
 kubectl delete ns cattle-fleet-system --now
 kubectl delete ns cattle-fleet-clusters-system --now
+
+# This will prevent deletion of namespace fleet-local from hanging
+bd_ns=$(kubectl get ns -l fleet.cattle.io/managed=true --no-headers -o=jsonpath={.items[0].metadata.name})
+kubectl patch bundledeployment fleet-agent-local -n $bd_ns -p '{"metadata":{"finalizers":[]}}' --type=merge
+kubectl patch bundle fleet-agent-local -n fleet-local -p '{"metadata":{"finalizers":[]}}' --type=merge
+
 kubectl delete ns fleet-local --now
 kubectl delete ns -l "fleet.cattle.io/managed=true"
 
