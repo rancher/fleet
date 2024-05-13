@@ -36,6 +36,7 @@ func start(
 	systemNamespace string,
 	config *rest.Config,
 	leaderOpts LeaderElectionOptions,
+	workersOpts ControllerReconcilerWorkers,
 	bindAddresses BindAddresses,
 	disableGitops bool,
 	disableMetrics bool,
@@ -111,6 +112,8 @@ func start(
 		Store:   store,
 		Query:   builder,
 		ShardID: shardID,
+
+		Workers: workersOpts.Bundle,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Bundle")
 		return err
@@ -125,6 +128,8 @@ func start(
 
 			Scheduler: sched,
 			ShardID:   shardID,
+
+			Workers: workersOpts.Gitrepo,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "GitRepo")
 			return err
@@ -145,6 +150,8 @@ func start(
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
 		ShardID: shardID,
+
+		Workers: workersOpts.Bundledeployment,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BundleDeployment")
 		return err

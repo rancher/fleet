@@ -90,3 +90,10 @@ leaderElection:
   leaseDuration: 30s
   retryPeriod: 10s
   renewDeadline: 25s
+
+controller:
+  reconciler:
+    workers:
+      gitrepo: "1"
+      bundle: "1"
+      bundledeployment: "1"

@@ -54,6 +54,12 @@ type LeaderElectionOptions struct {
 	RetryPeriod *time.Duration
 }
 
+type ControllerReconcilerWorkers struct {
+	Gitrepo          int
+	Bundle           int
+	Bundledeployment int
+}
+
 type BindAddresses struct {
 	Metrics     string
 	HealthProbe string
@@ -90,6 +96,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	kubeconfig := ctrl.GetConfigOrDie()
 
 	leaderOpts := LeaderElectionOptions{}
+	workersOpts := ControllerReconcilerWorkers{}
 	if d := os.Getenv("CATTLE_ELECTION_LEASE_DURATION"); d != "" {
 		v, err := time.ParseDuration(d)
 		if err != nil {
@@ -127,6 +134,22 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		bindAddresses.HealthProbe = d
 	}
 
+	if d := os.Getenv("CONTROLLER_GITREPO_RECONCILER_WORKERS"); d != "" {
+		if w, err := strconv.Atoi(d); err == nil {
+			workersOpts.Gitrepo = w
+		}
+	}
+	if d := os.Getenv("CONTROLLER_BUNDLE_RECONCILER_WORKERS"); d != "" {
+		if w, err := strconv.Atoi(d); err == nil {
+			workersOpts.Bundle = w
+		}
+	}
+	if d := os.Getenv("CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
+		if w, err := strconv.Atoi(d); err == nil {
+			workersOpts.Bundledeployment = w
+		}
+	}
+
 	setupCpuPprof(ctx)
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
@@ -136,6 +159,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		f.Namespace,
 		kubeconfig,
 		leaderOpts,
+		workersOpts,
 		bindAddresses,
 		f.DisableGitops,
 		f.DisableMetrics,
@@ -206,4 +230,34 @@ func startCpuPprof(dir string) *os.File {
 		log.Println("could not start CPU profile: ", err)
 	}
 	return f
+}
+
+func GetControllerReconcilerGitrepoWorkers() int {
+	workers := 2
+	if v := os.Getenv("CONTROLLER_GITREPO_RECONCILER_WORKERS"); v != "" {
+		if w, err := strconv.Atoi(v); err == nil {
+			workers = w
+		}
+	}
+	return workers
+}
+
+func GetControllerReconcilerBundleWorkers() int {
+	workers := 2
+	if v := os.Getenv("CONTROLLER_BUNDLE_RECONCILER_WORKERS"); v != "" {
+		if w, err := strconv.Atoi(v); err == nil {
+			workers = w
+		}
+	}
+	return workers
+}
+
+func GetControllerReconcilerBundledeploymentWorkers() int {
+	workers := 2
+	if v := os.Getenv("CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); v != "" {
+		if w, err := strconv.Atoi(v); err == nil {
+			workers = w
+		}
+	}
+	return workers
 }
