@@ -68,8 +68,6 @@ func Register(ctx context.Context, appCtx *AppContext) error {
 		appCtx.RBAC.ClusterRoleBinding(),
 		appCtx.Core.Namespace(),
 		appCtx.Cluster().Cache(),
-		appCtx.ImageScan(),
-		appCtx.GitRepo().Cache(),
 	)
 
 	if err := appCtx.Start(ctx); err != nil {
