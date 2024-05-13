@@ -82,7 +82,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				return r.Update(ctx, bundle)
 			})
 
-			if err != nil {
+			if client.IgnoreNotFound(err) != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -107,7 +107,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				return r.Update(ctx, bundle)
 			})
 
-			if err != nil {
+			if client.IgnoreNotFound(err) != nil {
 				return ctrl.Result{}, err
 			}
 		}

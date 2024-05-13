@@ -79,7 +79,7 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return r.Update(ctx, gitrepo)
 			})
 
-			if err != nil {
+			if client.IgnoreNotFound(err) != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -111,7 +111,7 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return r.Update(ctx, gitrepo)
 			})
 
-			if err != nil {
+			if client.IgnoreNotFound(err) != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -359,7 +359,7 @@ func purgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 
 	for _, bundle := range bundles.Items {
 		err := c.Delete(ctx, &bundle)
-		if err != nil {
+		if client.IgnoreNotFound(err) != nil {
 			return err
 		}
 
