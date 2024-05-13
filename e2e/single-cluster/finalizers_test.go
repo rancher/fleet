@@ -1,8 +1,11 @@
 package singlecluster_test
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -105,6 +108,70 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			out, err = k.Get("bundledeployments", "-A")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(out).To(ContainSubstring(gitrepoName))
+
+			By("checking that the auxiliary resources still exist")
+			serviceAccountName := fmt.Sprintf("git-%s", gitrepoName)
+			Consistently(func() error {
+				out, _ := k.Get("configmaps")
+				if !strings.Contains(out, fmt.Sprintf("%s-config", gitrepoName)) {
+					return errors.New("configmap not found")
+				}
+
+				out, _ = k.Get("serviceaccounts")
+				if !strings.Contains(out, serviceAccountName) {
+					return errors.New("serviceaccount not found")
+				}
+
+				out, _ = k.Get("roles")
+				if !strings.Contains(out, serviceAccountName) {
+					return errors.New("role not found")
+				}
+
+				out, _ = k.Get("rolebindings")
+				if !strings.Contains(out, serviceAccountName) {
+					return errors.New("rolebinding not found")
+				}
+
+				return nil
+			}, 2*time.Second, 100*time.Millisecond).ShouldNot(HaveOccurred())
+
+			By("deleting the GitRepo once the controller runs again")
+			_, err = k.Namespace("cattle-fleet-system").Run(
+				"scale",
+				"deployment",
+				"fleet-controller",
+				"--replicas=1",
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = k.Delete("gitrepo", gitrepoName)
+			Expect(err).NotTo(HaveOccurred())
+
+			// These resources should be deleted when the GitRepo is deleted.
+			By("checking that the auxiliary resources don't exist anymore")
+			Eventually(func() error {
+				out, _ := k.Get("configmaps")
+				if strings.Contains(out, fmt.Sprintf("%s-config", gitrepoName)) {
+					return errors.New("configmap not expected")
+				}
+
+				out, _ = k.Get("serviceaccounts")
+				if strings.Contains(out, serviceAccountName) {
+					return errors.New("serviceaccount not expected")
+				}
+
+				out, _ = k.Get("roles")
+				if strings.Contains(out, serviceAccountName) {
+					return errors.New("role not expected")
+				}
+
+				out, _ = k.Get("rolebindings")
+				if strings.Contains(out, serviceAccountName) {
+					return errors.New("rolebinding not expected")
+				}
+
+				return nil
+			}).ShouldNot(HaveOccurred())
 		})
 	})
 
