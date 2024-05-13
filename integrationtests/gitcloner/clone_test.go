@@ -26,6 +26,7 @@ import (
 	cp "github.com/otiai10/copy"
 	"github.com/testcontainers/testcontainers-go"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -242,7 +243,14 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 		})
 
 		JustAfterEach(func() {
-			err := os.RemoveAll(tmp)
+			keys, err := gogsClient.ListMyPublicKeys()
+			Expect(err).NotTo(HaveOccurred())
+			for _, key := range keys {
+				err := gogsClient.DeletePublicKey(key.ID)
+				Expect(err).NotTo(HaveOccurred())
+			}
+
+			err = os.RemoveAll(tmp)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -269,6 +277,60 @@ var _ = Describe("Applying a git job gets content from git repo", Ordered, func(
 			It("clones the README.md file", func() {
 				_, err := os.Stat(tmp + "/README.md")
 				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		When("a known_hosts file is provided", func() {
+			var tmpKnownHosts string
+
+			BeforeEach(func() {
+				private = true
+				opts = &gitcloner.GitCloner{
+					InsecureSkipTLS: true,
+				}
+			})
+
+			AfterEach(func() {
+				err := os.RemoveAll(tmpKey)
+				Expect(err).NotTo(HaveOccurred())
+				err = os.RemoveAll(tmpKnownHosts)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			JustBeforeEach(func() {
+				// create known_hosts file
+				knownHostEntry, err := getKnownHostEntry(container)
+				Expect(err).NotTo(HaveOccurred())
+				tmpKnownHostsFile, err := os.CreateTemp("", "known_hosts")
+				Expect(err).NotTo(HaveOccurred())
+				_, err = tmpKnownHostsFile.Write([]byte(knownHostEntry))
+				Expect(err).NotTo(HaveOccurred())
+				tmpKnownHosts = tmpKnownHostsFile.Name()
+				opts.KnownHostsFile = tmpKnownHosts
+			})
+
+			It("clones successfully when a matching host key is provided", func() {
+				c := gitcloner.New()
+				Eventually(func() error {
+					return c.CloneRepo(opts)
+				}).ShouldNot(HaveOccurred())
+
+				_, err := os.Stat(tmp + "/README.md")
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("fails without a matching known host key", func() {
+				tmpKnownHostsFile, err := os.CreateTemp("", "known_hosts")
+				Expect(err).NotTo(HaveOccurred())
+				_, err = tmpKnownHostsFile.Write([]byte("github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"))
+				Expect(err).NotTo(HaveOccurred())
+				tmpKnownHosts = tmpKnownHostsFile.Name()
+				opts.KnownHostsFile = tmpKnownHosts
+
+				c := gitcloner.New()
+				Eventually(func() error {
+					return c.CloneRepo(opts)
+				}).Should(MatchError(&knownhosts.KeyError{}))
 			})
 		})
 	})
@@ -502,6 +564,28 @@ func createAndAddKeys() (string, error) {
 	}
 
 	return privateKey, nil
+}
+
+func getKnownHostEntry(container testcontainers.Container) (string, error) {
+	mappedPort, err := container.MappedPort(context.Background(), gogsSSHPort)
+	if err != nil {
+		return "", err
+	}
+	port := mappedPort.Port()
+
+	publicHostKey, err := container.CopyFileFromContainer(context.Background(), "/data/ssh/ssh_host_ecdsa_key.pub")
+	if err != nil {
+		return "", err
+	}
+	publicHostKeyBytes, err := io.ReadAll(publicHostKey)
+	if err != nil {
+		return "", err
+	}
+	fields := strings.Split(string(publicHostKeyBytes), " ")
+	algorithm := fields[0]
+	hostKey := fields[1]
+
+	return fmt.Sprintf("[localhost]:%s %s %s", port, algorithm, hostKey), nil
 }
 
 func makeSSHKeyPair() (string, string, error) {
