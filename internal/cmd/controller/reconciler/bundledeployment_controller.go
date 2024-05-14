@@ -17,6 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -27,6 +28,8 @@ type BundleDeploymentReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	ShardID string
+
+	Workers int
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments,verbs=get;list;watch;create;update;patch;delete
@@ -105,11 +108,14 @@ func bundleDeploymentStatusChangedPredicate() predicate.Funcs {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	logger := log.FromContext(context.Background()).WithName("bundledeployment")
+	logger.Info("Setting up BundleReconciler with workers", "workers", r.Workers)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.BundleDeployment{}, builder.WithPredicates(
 			bundleDeploymentStatusChangedPredicate(),
 		)).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
 

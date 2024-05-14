@@ -54,6 +54,12 @@ type LeaderElectionOptions struct {
 	RetryPeriod *time.Duration
 }
 
+type ControllerReconcilerWorkers struct {
+	Gitrepo          int
+	Bundle           int
+	Bundledeployment int
+}
+
 type BindAddresses struct {
 	Metrics     string
 	HealthProbe string
@@ -90,6 +96,9 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	kubeconfig := ctrl.GetConfigOrDie()
 
 	leaderOpts := LeaderElectionOptions{}
+
+	workersOpts := ControllerReconcilerWorkers{}
+
 	if d := os.Getenv("CATTLE_ELECTION_LEASE_DURATION"); d != "" {
 		v, err := time.ParseDuration(d)
 		if err != nil {
@@ -127,6 +136,28 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		bindAddresses.HealthProbe = d
 	}
 
+	if d := os.Getenv("CONTROLLER_GITREPO_RECONCILER_WORKERS"); d != "" {
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CONTROLLER_GITREPO_RECONCILER_WORKERS", "value", d)
+		}
+		workersOpts.Gitrepo = w
+	}
+	if d := os.Getenv("CONTROLLER_BUNDLE_RECONCILER_WORKERS"); d != "" {
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CONTROLLER_BUNDLE_RECONCILER_WORKERS", "value", d)
+		}
+		workersOpts.Bundle = w
+	}
+	if d := os.Getenv("CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS", "value", d)
+		}
+		workersOpts.Bundledeployment = w
+	}
+
 	setupCpuPprof(ctx)
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
@@ -136,6 +167,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		f.Namespace,
 		kubeconfig,
 		leaderOpts,
+		workersOpts,
 		bindAddresses,
 		f.DisableGitops,
 		f.DisableMetrics,
