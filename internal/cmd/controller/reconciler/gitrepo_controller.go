@@ -242,8 +242,6 @@ func (r *GitRepoReconciler) updateStatus(ctx context.Context, req types.Namespac
 // SetupWithManager sets up the controller with the Manager.
 func (r *GitRepoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Note: Maybe use mgr.GetFieldIndexer().IndexField for better performance?
-	logger := log.FromContext(context.Background()).WithName("gitrepo")
-	logger.Info("Setting up BundleReconciler with workers", "workers", r.Workers)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.GitRepo{},
 			builder.WithPredicates(

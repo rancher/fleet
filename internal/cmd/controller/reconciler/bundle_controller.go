@@ -210,8 +210,6 @@ func upper(op controllerutil.OperationResult) string {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	logger := log.FromContext(context.Background()).WithName("bundle")
-	logger.Info("Setting up BundleReconciler with workers", "workers", r.Workers)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.Bundle{}).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?

@@ -108,8 +108,6 @@ func bundleDeploymentStatusChangedPredicate() predicate.Funcs {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	logger := log.FromContext(context.Background()).WithName("bundledeployment")
-	logger.Info("Setting up BundleReconciler with workers", "workers", r.Workers)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.BundleDeployment{}, builder.WithPredicates(
 			bundleDeploymentStatusChangedPredicate(),
