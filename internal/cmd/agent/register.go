@@ -29,6 +29,12 @@ type Register struct {
 	UpstreamOptions
 }
 
+// HelpFunc hides the global agent-scope flag from the help output
+func (c *Register) HelpFunc(cmd *cobra.Command, strings []string) {
+	_ = cmd.Flags().MarkHidden("agent-scope")
+	cmd.Parent().HelpFunc()(cmd, strings)
+}
+
 func (r *Register) PersistentPre(cmd *cobra.Command, _ []string) error {
 	if err := r.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)

@@ -14,6 +14,14 @@ type AgentManagement struct {
 	DisableBootstrap bool   `usage:"disable local cluster components" name:"disable-bootstrap"`
 }
 
+// HelpFunc hides the global flag from the help output
+func (c *AgentManagement) HelpFunc(cmd *cobra.Command, strings []string) {
+	_ = cmd.Flags().MarkHidden("disable-gitops")
+	_ = cmd.Flags().MarkHidden("disable-metrics")
+	_ = cmd.Flags().MarkHidden("shard-id")
+	cmd.Parent().HelpFunc()(cmd, strings)
+}
+
 func (a *AgentManagement) Run(cmd *cobra.Command, args []string) error {
 	if a.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")

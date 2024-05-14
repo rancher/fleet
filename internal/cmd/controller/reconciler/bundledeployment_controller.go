@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -108,12 +109,14 @@ func bundleDeploymentStatusChangedPredicate() predicate.Funcs {
 // SetupWithManager sets up the controller with the Manager.
 func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.BundleDeployment{}).
-		WithEventFilter(predicate.And(
-			sharding.FilterByShardID(r.ShardID),
+		For(&fleet.BundleDeployment{}, builder.WithPredicates(
 			bundleDeploymentStatusChangedPredicate(),
 		)).
+<<<<<<< 2252-agent-reconcile-concurrency-increase
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
+=======
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
+>>>>>>> main
 		Complete(r)
 }
 

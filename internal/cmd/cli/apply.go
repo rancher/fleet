@@ -46,6 +46,7 @@ type Apply struct {
 	SSHPrivateKeyFile           string            `usage:"Path of ssh-private-key for helm repo" name:"ssh-privatekey-file"`
 	HelmRepoURLRegex            string            `usage:"Helm credentials will be used if the helm repo matches this regex. Credentials will always be used if this is empty or not provided" name:"helm-repo-url-regex"`
 	KeepResources               bool              `usage:"Keep resources created after the GitRepo or Bundle is deleted" name:"keep-resources"`
+	DeleteNamespace             bool              `usage:"Delete GitRepo target namespace after the GitRepo or Bundle is deleted" name:"delete-namespace"`
 	HelmCredentialsByPathFile   string            `usage:"Path of file containing helm credentials for paths" name:"helm-credentials-by-path-file"`
 	CorrectDrift                bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
 	CorrectDriftForce           bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
@@ -85,6 +86,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		SyncGeneration:              int64(a.SyncGeneration),
 		HelmRepoURLRegex:            a.HelmRepoURLRegex,
 		KeepResources:               a.KeepResources,
+		DeleteNamespace:             a.DeleteNamespace,
 		CorrectDrift:                a.CorrectDrift,
 		CorrectDriftForce:           a.CorrectDriftForce,
 		CorrectDriftKeepFailHistory: a.CorrectDriftKeepFailHistory,

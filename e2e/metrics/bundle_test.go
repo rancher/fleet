@@ -23,9 +23,113 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 
 	var (
 		// kw is the kubectl command for namespace the workload is deployed to
-		kw        kubectl.Command
-		namespace string
+		kw                kubectl.Command
+		namespace         string
+		bundleMetricNames = map[string]map[string][]string{
+			"fleet_bundle_desired_ready": {},
+			"fleet_bundle_err_applied":   {},
+			"fleet_bundle_modified":      {},
+			"fleet_bundle_not_ready":     {},
+			"fleet_bundle_out_of_sync":   {},
+			"fleet_bundle_pending":       {},
+			"fleet_bundle_ready":         {},
+			"fleet_bundle_wait_applied":  {},
+			"fleet_bundle_state": {
+				"state": []string{
+					string(fleet.Ready),
+					string(fleet.NotReady),
+					string(fleet.WaitApplied),
+					string(fleet.ErrApplied),
+					string(fleet.OutOfSync),
+					string(fleet.Pending),
+					string(fleet.Modified),
+				},
+			},
+		}
 	)
+
+	// metricsExist checks that the metrics exist. Custom checks can be
+	// added by passing a function to check. This can be used to check for
+	// the value of the metrics.
+	metricsExist := func(gitRepoName string, check func(metric *metrics.Metric) error) func() error {
+		return func() error {
+			metrics, err := et.Get()
+			Expect(err).ToNot(HaveOccurred())
+
+			identityLabels := map[string]string{
+				"name":      gitRepoName,
+				"namespace": namespace,
+			}
+
+			for metricName, matchLabels := range bundleMetricNames {
+				labels := map[string]string{}
+				maps.Copy(labels, identityLabels)
+
+				if len(matchLabels) > 0 {
+					for labelName, labelValues := range matchLabels {
+						for _, labelValue := range labelValues {
+							labels[labelName] = labelValue
+							metric, err := et.FindOneMetric(metrics, metricName, labels)
+							if err != nil {
+								return err
+							}
+							if check != nil {
+								if err := check(metric); err != nil {
+									return err
+								}
+							}
+						}
+					}
+				} else {
+					metric, err := et.FindOneMetric(metrics, metricName, labels)
+					if err != nil {
+						return err
+					}
+					if check != nil {
+						if err := check(metric); err != nil {
+							return err
+						}
+					}
+				}
+			}
+			return nil
+		}
+	}
+
+	// metricsMissing checks that the metrics do not exist.
+	metricsMissing := func(gitRepoName string) func() error {
+		return func() error {
+			metrics, err := et.Get()
+			Expect(err).ToNot(HaveOccurred())
+
+			identityLabels := map[string]string{
+				"name":      gitRepoName,
+				"namespace": namespace,
+			}
+
+			for metricName, matchLabels := range bundleMetricNames {
+				labels := map[string]string{}
+				maps.Copy(labels, identityLabels)
+
+				if len(matchLabels) > 0 {
+					for labelName, labelValues := range matchLabels {
+						for _, labelValue := range labelValues {
+							labels[labelName] = labelValue
+							if _, err := et.FindOneMetric(metrics, metricName, labels); err == nil {
+								return fmt.Errorf("metric %s found but not expected", metricName)
+							}
+						}
+					}
+					return nil
+				}
+
+				if _, err := et.FindOneMetric(metrics, metricName, labels); err == nil {
+					return fmt.Errorf("metric %s found but not expected", metricName)
+				}
+			}
+			return nil
+		}
+	}
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
@@ -54,86 +158,8 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 	})
 
 	When("collecting Bundle metrics", func() {
-		bundleMetricNames := map[string]map[string][]string{
-			"fleet_bundle_desired_ready": {},
-			"fleet_bundle_err_applied":   {},
-			"fleet_bundle_modified":      {},
-			"fleet_bundle_not_ready":     {},
-			"fleet_bundle_out_of_sync":   {},
-			"fleet_bundle_pending":       {},
-			"fleet_bundle_ready":         {},
-			"fleet_bundle_wait_applied":  {},
-			"fleet_bundle_state": {
-				"state": []string{
-					string(fleet.Ready),
-					string(fleet.NotReady),
-					string(fleet.WaitApplied),
-					string(fleet.ErrApplied),
-					string(fleet.OutOfSync),
-					string(fleet.Pending),
-					string(fleet.Modified),
-				},
-			},
-		}
-
-		// checkMetrics checks that the metrics exist or not exist. Custom
-		// checks can be added by passing a function to check. This can be used
-		// to check for the value of the metrics.
-		checkMetrics := func(
-			gitRepoName string,
-			expectExists bool,
-			check func(metric *metrics.Metric) error,
-		) func() error {
-			return func() error {
-				et := metrics.NewExporterTest(metricsURL)
-				expectOne := func(metricName string, labels map[string]string) error {
-					metric, err := et.FindOneMetric(metricName, labels)
-					if expectExists && err != nil {
-						return err
-					} else if !expectExists && err == nil {
-						return fmt.Errorf("metric %s found but not expected", metricName)
-					}
-
-					if check != nil {
-						err = check(metric)
-						if err != nil {
-							return err
-						}
-					}
-					return nil
-				}
-
-				for metricName, matchLabels := range bundleMetricNames {
-					identityLabels := map[string]string{
-						"name":      gitRepoName,
-						"namespace": namespace,
-					}
-					labels := map[string]string{}
-					maps.Copy(labels, identityLabels)
-
-					if len(matchLabels) > 0 {
-						for labelName, labelValues := range matchLabels {
-							for _, labelValue := range labelValues {
-								labels[labelName] = labelValue
-								err := expectOne(metricName, labels)
-								if err != nil {
-									return err
-								}
-							}
-						}
-					} else {
-						err := expectOne(metricName, labels)
-						if err != nil {
-							return err
-						}
-					}
-				}
-				return nil
-			}
-		}
-
 		It("should have one metric for each specified metric and label value", func() {
-			Eventually(checkMetrics(gitRepoName+"-simple-manifest", true, func(metric *metrics.Metric) error {
+			Eventually(metricsExist(gitRepoName+"-simple-manifest", func(metric *metrics.Metric) error {
 				// No cluster exists in the namespace where our GitRepo has been deployed, hence
 				// we expect the values of the metrics to be 0.
 				if value := metric.Gauge.GetValue(); value != float64(0) {
@@ -145,7 +171,6 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 
 		When("the GitRepo (and therefore Bundle) is changed", Label("bundle-modified"), func() {
 			It("should not duplicate metrics if Bundle is updated", Label("bundle-update"), func() {
-				// et := metrics.NewExporterTest(metricsURL)
 				out, err := kw.Patch(
 					"gitrepo", gitRepoName,
 					"--type=json",
@@ -154,7 +179,7 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(out).To(ContainSubstring("gitrepo.fleet.cattle.io/metrics patched"))
 
-				Eventually(checkMetrics(gitRepoName+"-simple-chart", true, func(metric *metrics.Metric) error {
+				Eventually(metricsExist(gitRepoName+"-simple-chart", func(metric *metrics.Metric) error {
 					if metric.LabelValue("paths") == "simple-manifest" {
 						return fmt.Errorf("path for metric %s unchanged", metric.Metric.String())
 					}
@@ -174,7 +199,7 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 					return err
 				}).ShouldNot(HaveOccurred(), out)
 
-				Eventually(checkMetrics(gitRepoName, false, nil)).ShouldNot(HaveOccurred())
+				Eventually(metricsMissing(gitRepoName)).ShouldNot(HaveOccurred())
 			})
 		})
 	})

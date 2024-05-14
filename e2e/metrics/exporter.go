@@ -13,15 +13,15 @@ type ExporterTest struct {
 	url string
 }
 
-func NewExporterTest(url string) *ExporterTest {
-	return &ExporterTest{
+func NewExporterTest(url string) ExporterTest {
+	return ExporterTest{
 		url: url,
 	}
 }
 
-// getMetrics fetches the metrics from the Prometheus endpoint and returns them
+// Get fetches the metrics from the Prometheus endpoint and returns them
 // as a map of metric families.
-func (et *ExporterTest) getMetrics() (map[string]*dto.MetricFamily, error) {
+func (et *ExporterTest) Get() (map[string]*dto.MetricFamily, error) {
 	resp, err := http.Get(et.url)
 	if err != nil {
 		return nil, err
@@ -49,18 +49,14 @@ func (et *ExporterTest) getMetrics() (map[string]*dto.MetricFamily, error) {
 //
 // If labels is nil, only the name and namespace labels are checked.
 func (m *ExporterTest) FindOneMetric(
-	metricName string,
+	allMetrics map[string]*dto.MetricFamily,
+	name string,
 	labels map[string]string,
 ) (*Metric, error) {
-	allMetrics, err := m.getMetrics()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get metrics: %w", err)
-	}
-
-	// Metric name exists.
-	mf, ok := allMetrics[metricName]
+	// check if name exists.
+	mf, ok := allMetrics[name]
 	if !ok {
-		return nil, fmt.Errorf("metric %q not found", metricName)
+		return nil, fmt.Errorf("metric %q not found", name)
 	}
 
 	var metrics []*dto.Metric
@@ -83,7 +79,7 @@ func (m *ExporterTest) FindOneMetric(
 	if len(metrics) != 1 {
 		return nil, fmt.Errorf(
 			"expected to find 1 metric for %s{%s}, got %d",
-			metricName,
+			name,
 			promLabels(labels),
 			len(metrics),
 		)
@@ -115,31 +111,4 @@ func (m *Metric) LabelValue(name string) string {
 		}
 	}
 	return ""
-}
-
-func (m *Metric) MatchLabelValue(name, value string) error {
-	for _, label := range m.Label {
-		if *label.Name == name {
-			if *label.Value == value {
-				return nil
-			} else {
-				return fmt.Errorf(
-					"expected label %q to have value %q, got %q",
-					name,
-					value,
-					*label.Value,
-				)
-			}
-		}
-	}
-	return fmt.Errorf("label %q not found", name)
-}
-
-func (m *Metric) HasLabel(name string) bool {
-	for _, label := range m.Label {
-		if *label.Name == name {
-			return true
-		}
-	}
-	return false
 }

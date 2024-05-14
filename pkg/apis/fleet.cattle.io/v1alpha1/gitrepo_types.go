@@ -127,6 +127,9 @@ type GitRepoSpec struct {
 	// KeepResources specifies if the resources created must be kept after deleting the GitRepo.
 	KeepResources bool `json:"keepResources,omitempty"`
 
+	// DeleteNamespace specifies if the namespace created must be deleted after deleting the GitRepo.
+	DeleteNamespace bool `json:"deleteNamespace,omitempty"`
+
 	// CorrectDrift specifies how drift correction should work.
 	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
 

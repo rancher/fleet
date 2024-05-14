@@ -25,6 +25,10 @@ type PreRunnable interface {
 	Pre(cmd *cobra.Command, args []string) error
 }
 
+type HasHelpFunc interface {
+	HelpFunc(command *cobra.Command, strings []string)
+}
+
 type Runnable interface {
 	Run(cmd *cobra.Command, args []string) error
 }
@@ -145,6 +149,10 @@ func Command(obj Runnable, cmd cobra.Command) *cobra.Command {
 
 	if p, ok := obj.(PreRunnable); ok {
 		c.PreRunE = p.Pre
+	}
+
+	if p, ok := obj.(HasHelpFunc); ok {
+		c.SetHelpFunc(p.HelpFunc)
 	}
 
 	c.RunE = obj.Run

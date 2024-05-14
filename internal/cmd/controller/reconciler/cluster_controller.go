@@ -5,6 +5,7 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"time"
 
@@ -14,14 +15,23 @@ import (
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 
+	"github.com/rancher/wrangler/v2/pkg/condition"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 var LongRetry = wait.Backoff{
@@ -76,12 +86,13 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	bundleDeployments := &fleet.BundleDeploymentList{}
 	err = r.List(ctx, bundleDeployments, client.InNamespace(cluster.Status.Namespace))
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, cluster.Status, err)
 	}
 
+	// Clean up old bundledeployments
 	_, cleanup, err := r.Query.BundlesForCluster(ctx, cluster)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, cluster.Status, err)
 	}
 	for _, bundle := range cleanup {
 		for _, bundleDeployment := range bundleDeployments.Items {
@@ -96,6 +107,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
+	// Count the number of gitrepo, bundledeployemt and deployed resources for this cluster
 	cluster.Status.DesiredReadyGitRepos = 0
 	cluster.Status.ReadyGitRepos = 0
 	cluster.Status.ResourceCounts = fleet.GitRepoResourceCounts{}
@@ -136,7 +148,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	summary.SetReadyConditions(&cluster.Status, "Bundle", cluster.Status.Summary)
 
-	// Update display status
+	// Calculate display status fields
 	cluster.Status.Display.ReadyBundles = fmt.Sprintf("%d/%d",
 		cluster.Status.Summary.Ready,
 		cluster.Status.Summary.DesiredReady)
@@ -153,15 +165,9 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		cluster.Status.Display.State = "WaitCheckIn"
 	}
 
-	err = retry.RetryOnConflict(LongRetry, func() error {
-		t := &fleet.Cluster{}
-		err := r.Get(ctx, req.NamespacedName, t)
-		if err != nil {
-			return err
-		}
-		t.Status = cluster.Status
-		return r.Status().Update(ctx, t)
-	})
+	r.setCondition(&cluster.Status, nil)
+
+	err = r.updateStatus(ctx, req.NamespacedName, cluster.Status)
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to cluster status", "status", cluster.Status)
 	} else {
@@ -185,14 +191,104 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, err
 }
 
+// setCondition sets the condition and updates the timestamp, if the condition changed
+func (r *ClusterReconciler) setCondition(status *fleet.ClusterStatus, err error) {
+	cond := condition.Cond(fleet.ClusterConditionProcessed)
+	origStatus := status.DeepCopy()
+	cond.SetError(status, "", ignoreConflict(err))
+	if !equality.Semantic.DeepEqual(origStatus, status) {
+		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
+	}
+}
+
+func (r *ClusterReconciler) updateErrorStatus(ctx context.Context, req types.NamespacedName, status fleet.ClusterStatus, orgErr error) error {
+	r.setCondition(&status, orgErr)
+	if statusErr := r.updateStatus(ctx, req, status); statusErr != nil {
+		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
+		return errutil.NewAggregate(merr)
+	}
+	return orgErr
+}
+
+func (r *ClusterReconciler) updateStatus(ctx context.Context, req types.NamespacedName, status fleet.ClusterStatus) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		t := &fleet.Cluster{}
+		err := r.Get(ctx, req, t)
+		if err != nil {
+			return err
+		}
+		t.Status = status
+		return r.Status().Update(ctx, t)
+	})
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.Cluster{}).
+		// Watch bundledeployments so we can update the status fields
+		Watches(
+			&fleet.BundleDeployment{},
+			handler.EnqueueRequestsFromMapFunc(r.mapBundleDeploymentToCluster),
+			builder.WithPredicates(predicate.Funcs{
+				CreateFunc: func(e event.CreateEvent) bool {
+					return true
+				},
+				// Triggering on every update would run into an
+				// endless loop with the agentmanagement
+				// cluster controller.
+				// We still need to update often enough to keep the
+				// status fields up to date.
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					n := e.ObjectNew.(*fleet.BundleDeployment)
+					o := e.ObjectOld.(*fleet.BundleDeployment)
+					if n == nil || o == nil {
+						return false
+					}
+					if !reflect.DeepEqual(n.Spec, o.Spec) {
+						return true
+					}
+					if n.Status.AppliedDeploymentID != o.Status.AppliedDeploymentID {
+						return true
+					}
+					return false
+				},
+				DeleteFunc: func(e event.DeleteEvent) bool {
+					o := e.Object.(*fleet.BundleDeployment)
+					if o == nil || o.Status.AppliedDeploymentID == "" {
+						return false
+					}
+					return true
+				},
+			}),
+		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
-		// Note: Maybe we can tune events after cleanup code is
-		// removed? This relies on bundledeployments and gitrepos to
-		// update its status. It also needs to trigger on
-		// cluster.Status.Namespace to create the namespace.
 		Complete(r)
+}
+
+func (r *ClusterReconciler) mapBundleDeploymentToCluster(ctx context.Context, a client.Object) []ctrl.Request {
+	clusterNS := &corev1.Namespace{}
+	err := r.Get(ctx, types.NamespacedName{Name: a.GetNamespace()}, clusterNS)
+	if err != nil {
+		return nil
+	}
+
+	ns := clusterNS.Annotations[fleet.ClusterNamespaceAnnotation]
+	name := clusterNS.Annotations[fleet.ClusterAnnotation]
+	if ns == "" || name == "" {
+		return nil
+	}
+
+	log.FromContext(ctx).WithName("cluster-handler").V(1).Info("Enqueueing cluster for bundledeployment",
+		"cluster", name,
+		"bundledeployment", a.(*fleet.BundleDeployment).Name,
+		"clusterNamespace", clusterNS.Name,
+		"clusterRegistrationNamespace", ns)
+
+	return []ctrl.Request{{
+		NamespacedName: types.NamespacedName{
+			Namespace: ns,
+			Name:      name,
+		},
+	}}
 }

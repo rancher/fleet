@@ -9,6 +9,9 @@ func init() {
 	SchemeBuilder.Register(&ClusterGroup{}, &ClusterGroupList{})
 }
 
+// ClusterGroupConditionProcessed indicates that the status fields have been processed.
+const ClusterGroupConditionProcessed = "Processed"
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true

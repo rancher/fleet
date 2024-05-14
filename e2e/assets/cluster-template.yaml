@@ -1,0 +1,19 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Cluster
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+  {{- if .Labels}}
+  labels:
+    {{- range $key, $value := .Labels}}
+    {{$key}}: {{$value}}
+    {{- end}}
+  {{- end}}
+{{- if .Spec }}
+spec:
+  {{- range $key, $value := .Spec}}
+  {{$key}}: {{$value}}
+  {{- end}}
+{{- end}}
+
+

@@ -75,7 +75,9 @@ func App() *cobra.Command {
 	ctrl.RegisterFlags(fs)
 	root.Flags().AddGoFlagSet(fs)
 
-	root.AddCommand(NewClusterStatus())
-	root.AddCommand(NewRegister())
+	root.AddCommand(
+		NewClusterStatus(),
+		NewRegister(),
+	)
 	return root
 }
