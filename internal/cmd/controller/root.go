@@ -237,33 +237,3 @@ func startCpuPprof(dir string) *os.File {
 	}
 	return f
 }
-
-func GetControllerReconcilerGitrepoWorkers() int {
-	workers := 2
-	if v := os.Getenv("CONTROLLER_GITREPO_RECONCILER_WORKERS"); v != "" {
-		if w, err := strconv.Atoi(v); err == nil {
-			workers = w
-		}
-	}
-	return workers
-}
-
-func GetControllerReconcilerBundleWorkers() int {
-	workers := 2
-	if v := os.Getenv("CONTROLLER_BUNDLE_RECONCILER_WORKERS"); v != "" {
-		if w, err := strconv.Atoi(v); err == nil {
-			workers = w
-		}
-	}
-	return workers
-}
-
-func GetControllerReconcilerBundledeploymentWorkers() int {
-	workers := 2
-	if v := os.Getenv("CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); v != "" {
-		if w, err := strconv.Atoi(v); err == nil {
-			workers = w
-		}
-	}
-	return workers
-}
