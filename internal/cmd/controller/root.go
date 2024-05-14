@@ -135,19 +135,25 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if d := os.Getenv("CONTROLLER_GITREPO_RECONCILER_WORKERS"); d != "" {
-		if w, err := strconv.Atoi(d); err == nil {
-			workersOpts.Gitrepo = w
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CONTROLLER_GITREPO_RECONCILER_WORKERS", "value", d)
 		}
+		workersOpts.Gitrepo = w
 	}
 	if d := os.Getenv("CONTROLLER_BUNDLE_RECONCILER_WORKERS"); d != "" {
-		if w, err := strconv.Atoi(d); err == nil {
-			workersOpts.Bundle = w
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CONTROLLER_BUNDLE_RECONCILER_WORKERS", "value", d)
 		}
+		workersOpts.Bundle = w
 	}
 	if d := os.Getenv("CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
-		if w, err := strconv.Atoi(d); err == nil {
-			workersOpts.Bundledeployment = w
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS", "value", d)
 		}
+		workersOpts.Bundledeployment = w
 	}
 
 	setupCpuPprof(ctx)
