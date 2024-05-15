@@ -55,9 +55,9 @@ type LeaderElectionOptions struct {
 }
 
 type ControllerReconcilerWorkers struct {
-	Gitrepo          int
+	GitRepo          int
 	Bundle           int
-	Bundledeployment int
+	BundleDeployment int
 }
 
 type BindAddresses struct {
@@ -141,7 +141,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			setupLog.Error(err, "failed to parse GITREPO_RECONCILER_WORKERS", "value", d)
 		}
-		workersOpts.Gitrepo = w
+		workersOpts.GitRepo = w
 	}
 	if d := os.Getenv("BUNDLE_RECONCILER_WORKERS"); d != "" {
 		w, err := strconv.Atoi(d)
@@ -155,7 +155,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			setupLog.Error(err, "failed to parse BUNDLEDEPLOYMENT_RECONCILER_WORKERS", "value", d)
 		}
-		workersOpts.Bundledeployment = w
+		workersOpts.BundleDeployment = w
 	}
 
 	setupCpuPprof(ctx)

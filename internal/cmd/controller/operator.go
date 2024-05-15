@@ -129,7 +129,7 @@ func start(
 			Scheduler: sched,
 			ShardID:   shardID,
 
-			Workers: workersOpts.Gitrepo,
+			Workers: workersOpts.GitRepo,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "GitRepo")
 			return err
@@ -151,7 +151,7 @@ func start(
 		Scheme:  mgr.GetScheme(),
 		ShardID: shardID,
 
-		Workers: workersOpts.Bundledeployment,
+		Workers: workersOpts.BundleDeployment,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BundleDeployment")
 		return err
