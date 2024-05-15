@@ -65,15 +65,15 @@ spec:
           value: "true"
         {{- end }}
         {{- if $.Values.controller.reconciler.workers.gitrepo }}
-        - name: CONTROLLER_GITREPO_RECONCILER_WORKERS
+        - name: GITREPO_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
         {{- end }}
         {{- if $.Values.controller.reconciler.workers.bundle }}
-        - name: CONTROLLER_BUNDLE_RECONCILER_WORKERS
+        - name: BUNDLE_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.bundle }}
         {{- end }}
         {{- if $.Values.controller.reconciler.workers.bundledeployment }}
-        - name: CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS
+        - name: BUNDLEDEPLOYMENT_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.bundledeployment }}
         {{- end }}
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
@@ -139,15 +139,15 @@ spec:
           value: {{$.Values.leaderElection.renewDeadline}}
         {{- end }}
         {{- if $.Values.controller.reconciler.workers.gitrepo }}
-        - name: CONTROLLER_GITREPO_RECONCILER_WORKERS
+        - name: GITREPO_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
         {{- end }}
         {{- if $.Values.controller.reconciler.workers.bundle }}
-        - name: CONTROLLER_BUNDLE_RECONCILER_WORKERS
+        - name: BUNDLE_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.bundle }}
         {{- end }}
         {{- if $.Values.controller.reconciler.workers.bundledeployment }}
-        - name: CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS
+        - name: BUNDLEDEPLOYMENT_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.bundledeployment }}
         {{- end }}
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'

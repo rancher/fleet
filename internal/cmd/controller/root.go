@@ -136,24 +136,24 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		bindAddresses.HealthProbe = d
 	}
 
-	if d := os.Getenv("CONTROLLER_GITREPO_RECONCILER_WORKERS"); d != "" {
+	if d := os.Getenv("GITREPO_RECONCILER_WORKERS"); d != "" {
 		w, err := strconv.Atoi(d)
 		if err != nil {
-			setupLog.Error(err, "failed to parse CONTROLLER_GITREPO_RECONCILER_WORKERS", "value", d)
+			setupLog.Error(err, "failed to parse GITREPO_RECONCILER_WORKERS", "value", d)
 		}
 		workersOpts.Gitrepo = w
 	}
-	if d := os.Getenv("CONTROLLER_BUNDLE_RECONCILER_WORKERS"); d != "" {
+	if d := os.Getenv("BUNDLE_RECONCILER_WORKERS"); d != "" {
 		w, err := strconv.Atoi(d)
 		if err != nil {
-			setupLog.Error(err, "failed to parse CONTROLLER_BUNDLE_RECONCILER_WORKERS", "value", d)
+			setupLog.Error(err, "failed to parse BUNDLE_RECONCILER_WORKERS", "value", d)
 		}
 		workersOpts.Bundle = w
 	}
-	if d := os.Getenv("CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
+	if d := os.Getenv("BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
 		w, err := strconv.Atoi(d)
 		if err != nil {
-			setupLog.Error(err, "failed to parse CONTROLLER_BUNDLEDEPLOYMENT_RECONCILER_WORKERS", "value", d)
+			setupLog.Error(err, "failed to parse BUNDLEDEPLOYMENT_RECONCILER_WORKERS", "value", d)
 		}
 		workersOpts.Bundledeployment = w
 	}

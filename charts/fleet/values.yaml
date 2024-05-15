@@ -97,5 +97,5 @@ controller:
     # The number of workers that are allowed to each type of reconciler
     workers:
       gitrepo: "1"
-      bundle: "2"
-      bundledeployment: "3"
+      bundle: "1"
+      bundledeployment: "1"
