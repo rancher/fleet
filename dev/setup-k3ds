@@ -22,7 +22,7 @@ fi
 # https://hub.docker.com/r/rancher/k3s/tags
 #args="$args -i docker.io/rancher/k3s:v1.22.15-k3s1"
 
-k3d cluster create upstream --servers 3 --api-port 36443 -p '80:80@server:0' -p '443:443@server:0' $args
+k3d cluster create upstream --servers 3 --api-port 36443 -p '80:80@server:0' -p '443:443@server:0' --k3s-arg '--tls-san=k3d-upstream-server-0@server:0' $args
 k3d cluster create downstream --servers 1 --api-port 36444 -p '5080:80@server:0' -p '3444:443@server:0' $args
 #k3d cluster create downstream2 --servers 1 --api-port 36445 -p '6080:80@server:0' -p '3445:443@server:0' $args
 #k3d cluster create downstream3 --servers 1 --api-port 36446 -p '7080:80@server:0' -p '3446:443@server:0' $args
