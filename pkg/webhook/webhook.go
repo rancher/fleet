@@ -159,6 +159,9 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	//Gogs needs to be checked before Github since it carries both Gogs and (incompatible) Github headers
 	case r.Header.Get("X-Gogs-Event") != "":
 		payload, err = w.gogs.Parse(r, gogs.PushEvent)
+	case r.Header.Get("X-Github-Event") == "ping":
+		_, _ = rw.Write([]byte("Webhook received successfully"))
+		return
 	case r.Header.Get("X-GitHub-Event") != "":
 		payload, err = w.github.Parse(r, github.PushEvent)
 	case r.Header.Get("X-Gitlab-Event") != "":

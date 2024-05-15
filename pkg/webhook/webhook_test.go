@@ -3,16 +3,20 @@ package webhook
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubectl/pkg/scheme"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/webhook/azuredevops"
+	"gopkg.in/go-playground/webhooks.v5/github"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"gotest.tools/assert"
@@ -96,3 +100,82 @@ func (r *responseWriter) Write([]byte) (int, error) {
 }
 
 func (r *responseWriter) WriteHeader(statusCode int) {}
+
+func TestGitHubPingWebhook(t *testing.T) {
+	const zenMessage = "Keep it logically awesome."
+	const hookID = 123456
+
+	// GitRepo creation
+	gitRepo := &v1alpha1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+		Spec: v1alpha1.GitRepoSpec{
+			Repo:   "https://github.com/example/repo",
+			Branch: "main",
+		},
+	}
+
+	// Kubernetes scheme and client configuration
+	sch := scheme.Scheme
+	err := v1alpha1.AddToScheme(sch)
+	if err != nil {
+		t.Fatalf("unable to add to scheme: %v", err)
+	}
+	client := cfake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(gitRepo).Build()
+
+	// Webhook initialisation
+	w := &Webhook{
+		client:    client,
+		namespace: "default",
+	}
+
+	w.github, _ = github.New(github.Options.Secret(""))
+
+	// JSON payload for the ping event
+	jsonBody := []byte(fmt.Sprintf(`{
+		"zen": "%s",
+		"hook_id": %d,
+		"hook": {
+			"type": "Repository",
+			"id": %d,
+			"name": "web",
+			"active": true,
+			"events": [
+				"push",
+				"pull_request"
+			],
+			"config": {
+				"content_type": "json",
+				"url": "https://github.com/example/repo"
+			},
+			"updated_at": "2020-01-01T00:00:00Z",
+			"created_at": "2020-01-01T00:00:00Z",
+			"url": "https://api.github.com/repos/example/repo/hooks/%d",
+			"test_url": "https://api.github.com/repos/example/repo/hooks/%d/test",
+			"ping_url": "https://api.github.com/repos/example/repo/hooks/%d/pings"
+		}
+	}`, zenMessage, hookID, hookID, hookID, hookID, hookID))
+
+	// Request creation
+	req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(jsonBody))
+	if err != nil {
+		t.Fatalf("Failed to create HTTP request: %v", err)
+	}
+	req.Header.Set("X-Github-Event", "ping")
+
+	// request execution
+	rr := httptest.NewRecorder()
+	w.ServeHTTP(rr, req)
+
+	// Verify the response status code is correct
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	// Verify the response message is correct
+	expectedResponse := "Webhook received successfully"
+	if rr.Body.String() != expectedResponse {
+		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body, expectedResponse)
+	}
+}
