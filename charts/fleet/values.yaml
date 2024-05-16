@@ -90,3 +90,12 @@ leaderElection:
   leaseDuration: 30s
   retryPeriod: 10s
   renewDeadline: 25s
+
+## Fleet controller configuration
+controller:
+  reconciler:
+    # The number of workers that are allowed to each type of reconciler
+    workers:
+      gitrepo: "1"
+      bundle: "1"
+      bundledeployment: "1"
