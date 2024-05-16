@@ -386,7 +386,7 @@ func purgeBundleDeployments(ctx context.Context, c client.Client, bundle types.N
 		return err
 	}
 	for _, bd := range list.Items {
-		if controllerutil.ContainsFinalizer(&bd, bundleDeploymentFinalizer) {
+		if controllerutil.ContainsFinalizer(&bd, bundleDeploymentFinalizer) { // nolint: gosec // does not store pointer
 			nn := types.NamespacedName{Namespace: bd.Namespace, Name: bd.Name}
 			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				t := &fleet.BundleDeployment{}
