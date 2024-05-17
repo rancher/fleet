@@ -39,6 +39,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			"deployment",
 			"fleet-controller",
 			"--replicas=1",
+			"--timeout=5s",
 		)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -83,6 +84,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 				"deployment",
 				"fleet-controller",
 				"--replicas=0",
+				"--timeout=5s",
 			)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -141,6 +143,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 				"deployment",
 				"fleet-controller",
 				"--replicas=1",
+				"--timeout=5s",
 			)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -200,6 +203,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 				"deployment",
 				"fleet-controller",
 				"--replicas=0",
+				"--timeout=5s",
 			)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -253,6 +257,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 				"deployment",
 				"fleet-controller",
 				"--replicas=0",
+				"--timeout=5s",
 			)
 			Expect(err).ToNot(HaveOccurred())
 
