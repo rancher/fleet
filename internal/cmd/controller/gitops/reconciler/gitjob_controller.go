@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -149,26 +148,7 @@ func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitR
 	if err := controllerutil.SetControllerReference(gitRepo, job, r.Scheme); err != nil {
 		return err
 	}
-	err = r.Create(ctx, job)
-	if err != nil {
-		return err
-	}
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitRepoFromCluster v1alpha1.GitRepo
-		err := r.Get(
-			ctx,
-			types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace},
-			&gitRepoFromCluster,
-		)
-		if err != nil {
-			return err
-		}
-		gitRepoFromCluster.Status.ObservedGeneration = gitRepoFromCluster.Generation
-
-		return r.Status().Update(ctx, &gitRepoFromCluster)
-	})
-
+	return r.Create(ctx, job)
 }
 
 func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
