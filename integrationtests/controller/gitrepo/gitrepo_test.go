@@ -85,18 +85,17 @@ var _ = Describe("GitRepo", func() {
 			org := gitrepo.ResourceVersion
 			Eventually(func() bool {
 				_ = k8sClient.Get(ctx, types.NamespacedName{Name: gitrepoName, Namespace: namespace}, gitrepo)
-				return gitrepo.ResourceVersion > org
+				return gitrepo.ResourceVersion > org &&
+					gitrepo.Status.Display.ReadyBundleDeployments == "0/0" &&
+					gitrepo.Status.Display.State == "GitUpdating" &&
+					!gitrepo.Status.Display.Error &&
+					len(gitrepo.Status.Conditions) == 2 &&
+					gitrepo.Status.Conditions[0].Type == "Ready" &&
+					string(gitrepo.Status.Conditions[0].Status) == "True" &&
+					gitrepo.Status.Conditions[1].Type == "Accepted" &&
+					string(gitrepo.Status.Conditions[1].Status) == "True" &&
+					gitrepo.Status.DeepCopy().ObservedGeneration == int64(1)
 			}).Should(BeTrue())
-
-			Expect(gitrepo.Status.Display.ReadyBundleDeployments).To(Equal("0/0"))
-			Expect(gitrepo.Status.Display.State).To(Equal("GitUpdating"))
-			Expect(gitrepo.Status.Display.Error).To(BeFalse())
-			Expect(gitrepo.Status.Conditions).To(HaveLen(2))
-			Expect(gitrepo.Status.Conditions[0].Type).To(Equal("Ready"))
-			Expect(string(gitrepo.Status.Conditions[0].Status)).To(Equal("True"))
-			Expect(gitrepo.Status.Conditions[1].Type).To(Equal("Accepted"))
-			Expect(string(gitrepo.Status.Conditions[1].Status)).To(Equal("True"))
-			Expect(gitrepo.Status.DeepCopy().ObservedGeneration).To(Equal(int64(1)))
 		})
 	})
 })
