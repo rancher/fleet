@@ -17,21 +17,19 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-var _ = Describe("GitRepo", Ordered, func() {
-	BeforeAll(func() {
-		var err error
-		namespace, err = utils.NewNamespaceName()
-		Expect(err).ToNot(HaveOccurred())
-		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
-		Expect(k8sClient.Create(ctx, ns)).ToNot(HaveOccurred())
-	})
-
+var _ = Describe("GitRepo", func() {
 	var (
 		gitrepo     *v1alpha1.GitRepo
 		gitrepoName string
 	)
 
 	BeforeEach(func() {
+		var err error
+		namespace, err = utils.NewNamespaceName()
+		Expect(err).ToNot(HaveOccurred())
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
+		Expect(k8sClient.Create(ctx, ns)).ToNot(HaveOccurred())
+
 		p := make([]byte, 12)
 		s := rand.New(rand.NewSource(GinkgoRandomSeed())) // nolint:gosec // non-crypto usage
 		if _, err := s.Read(p); err != nil {
