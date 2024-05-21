@@ -153,24 +153,26 @@ func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitR
 }
 
 func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
+	// Convert the Job to unstructured format
 	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
 	if err != nil {
 		return err
 	}
 	uJob := &unstructured.Unstructured{Object: obj}
+
+	// Compute the status
 	result, err := status.Compute(uJob)
 	if err != nil {
 		return err
 	}
 
-	gitRepo.Status.GitJobStatus = result.Status.String()
-	for _, con := range result.Conditions {
-		condition.Cond(con.Type.String()).SetStatus(gitRepo, string(con.Status))
-		condition.Cond(con.Type.String()).SetMessageIfBlank(gitRepo, con.Message)
-		condition.Cond(con.Type.String()).Reason(gitRepo, con.Reason)
-	}
+	// Prepare the computed values for updating
+	gitJobStatus := result.Status.String() // General job status
+	conditions := result.Conditions        // Set of conditions describing specific job states
 
+	var terminationMessage string
 	if result.Status == status.FailedStatus {
+		// Create a label selector to find pods associated with this job
 		selector := labels.SelectorFromSet(labels.Set{
 			"job-name": job.Name,
 		})
@@ -179,10 +181,13 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 		if err != nil {
 			return err
 		}
+		// Sort pods by creation timestamp
 		sort.Slice(podList.Items, func(i, j int) bool {
 			return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
 		})
-		terminationMessage := result.Message
+		// Initialize termination message with the result message
+		terminationMessage = result.Message
+		// Append termination messages from pods
 		if len(podList.Items) > 0 {
 			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
 				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
@@ -190,20 +195,48 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 				}
 			}
 		}
-		kstatus.SetError(gitRepo, terminationMessage)
 	}
 
-	if result.Status == status.CurrentStatus {
-		if strings.Contains(result.Message, "Job Completed") {
-			gitRepo.Status.Commit = job.Annotations["commit"]
-		}
-		kstatus.SetActive(gitRepo)
+	var commit string
+	if result.Status == status.CurrentStatus && strings.Contains(result.Message, "Job Completed") {
+		// Set the commit from the job annotations if the job is completed
+		commit = job.Annotations["commit"]
 	}
 
+	// Update the GitRepo with the new statuses
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		return r.Status().Update(ctx, gitRepo)
-	})
+		currentGitRepo := &v1alpha1.GitRepo{}
+		err := r.Get(ctx, client.ObjectKeyFromObject(gitRepo), currentGitRepo)
+		if err != nil {
+			return err
+		}
 
+		// Update necessary status fields
+		currentGitRepo.Status.GitJobStatus = gitJobStatus
+
+		// Update conditions
+		for _, con := range conditions {
+			condition.Cond(con.Type.String()).SetStatus(currentGitRepo, string(con.Status))
+			condition.Cond(con.Type.String()).SetMessageIfBlank(currentGitRepo, con.Message)
+			condition.Cond(con.Type.String()).Reason(currentGitRepo, con.Reason)
+		}
+
+		// Set error status if job failed
+		if result.Status == status.FailedStatus {
+			kstatus.SetError(currentGitRepo, terminationMessage)
+		}
+
+		// Set commit and active status if job is current
+		if result.Status == status.CurrentStatus {
+			if commit != "" {
+				currentGitRepo.Status.Commit = commit
+			}
+			kstatus.SetActive(currentGitRepo)
+		}
+
+		// Update the status in the cluster
+		return r.Status().Update(ctx, currentGitRepo)
+	})
 }
 
 func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
