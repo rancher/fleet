@@ -87,6 +87,9 @@ func expectMetrics(name string, expectedMetrics MetricsSelector, expectExist boo
 
 var _ = Describe("Cluster Metrics", Label("cluster"), func() {
 	It("should have metrics for the local cluster resource", func() {
+		if shard != "" {
+			Skip("local cluster isn't handled by shards and hence cannot be tested using sharding")
+		}
 		eventuallyExpectMetrics("local", expectedMetrics, true)
 	})
 
@@ -99,14 +102,19 @@ var _ = Describe("Cluster Metrics", Label("cluster"), func() {
 				ns := "fleet-local"
 				kw := k.Namespace(ns)
 
+				labels := map[string]string{
+					"management.cattle.io/cluster-display-name": "testing",
+					"name": "testing",
+				}
+				if shard != "" {
+					labels["fleet.cattle.io/shard"] = shard
+				}
+
 				err := testenv.CreateCluster(
 					k,
 					ns,
 					name,
-					map[string]string{
-						"management.cattle.io/cluster-display-name": "testing",
-						"name": "testing",
-					},
+					labels,
 					map[string]string{
 						"clientID": "testing",
 					},
@@ -146,15 +154,19 @@ var _ = Describe("Cluster Metrics", Label("cluster"), func() {
 				name := "testing-deletion"
 				ns := "fleet-local"
 				kw := k.Namespace(ns)
+				labels := map[string]string{
+					"management.cattle.io/cluster-display-name": "testing",
+					"name": "testing",
+				}
+				if shard != "" {
+					labels["fleet.cattle.io/shard"] = shard
+				}
 
 				Expect(testenv.CreateCluster(
 					k,
 					ns,
 					name,
-					map[string]string{
-						"management.cattle.io/cluster-display-name": "testing",
-						"name": "testing",
-					},
+					labels,
 					nil,
 				)).ToNot(HaveOccurred())
 

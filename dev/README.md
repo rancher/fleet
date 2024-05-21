@@ -407,9 +407,11 @@ helm upgrade --install --create-namespace -n cattle-system-monitoring \
 
 That alone suffices to get a working monitoring setup for the upstream cluster.
 But to connect it to the fleet-controller exported metrics, you need to add a
-service monitor. The service monitor is currently not part of the Helm chart.
-However, the necessary Kubernetes service resource is, unless you have disabled
-monitoring in the Helm chart when installing fleet.
+service monitor for each controller.
+
+The service monitor is currently not part of the Helm chart.  However, the
+necessary Kubernetes service resource is, unless you have disabled monitoring in
+the Helm chart when installing fleet.
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -433,13 +435,20 @@ spec:
   selector:
     matchLabels:
       app: fleet-controller
-
+      shard-default: true
+      # or:
+      # shard: <shard-id>
 ```
 
-This configures Prometheus to scrape the metrics from the fleet-controller. By
-accessing the Prometheus UI, you can now see the metrics from the
-Fleet-Controller. They are all prefixed with `fleet_`, which you will need to
-enter into the expression field of the Graph page to to get auto-completion.
+This configures Prometheus to scrape the metrics from the (unsharded)
+fleet-controller. Should you have sharding enabled, you will additionally need
+to add one ServiceMonitor for each shard.
+
+By accessing the Prometheus UI, you can now see the metrics from the
+fleet-controller. They are all prefixed with `fleet_`, which you will need to
+enter into the expression field of the Graph page to get auto-completion.
+Alternatively you can use the metrics explorer, which is a button next to the
+evaluation input field.
 
 > **__NOTE:__** The Prometheus UI can be used to check the Prometheus
 configuration (e.g., the scrape targets), scraped metrics, check alerts or
@@ -448,7 +457,7 @@ dashboards. It is not accessible by default and not meant to be shown to
 casual users.
 
 To access the Prometheus UI, you can forward the port of the Prometheus service
-to your local machine and access it.
+to your local machine and access it through that port.
 
 ```bash
 kubectl port-forward -n cattle-system-monitoring \

@@ -1,8 +1,13 @@
 {{- if .Values.metrics.enabled }}
+{{ $shards := list "" }}
+{{ if .Values.shards }}
+{{ $shards = concat $shards .Values.shards | uniq }}
+{{ end }}
+{{ range $shards }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: monitoring-fleet-controller
+  name: "monitoring-fleet-controller{{if . }}-shard-{{ . }}{{end}}"
   labels:
     app: fleet-controller
 spec:
@@ -14,4 +19,11 @@ spec:
     name: metrics
   selector:
     app: fleet-controller
+    {{- if empty . }}
+    shard-default: "true"
+    {{- else }}
+    shard: "{{ . }}"
+    {{- end }}
+---
+{{- end }}
 {{- end }}
