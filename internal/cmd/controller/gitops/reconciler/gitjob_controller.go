@@ -213,6 +213,7 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 
 		// Update necessary status fields
 		currentGitRepo.Status.GitJobStatus = gitJobStatus
+		currentGitRepo.Status.Commit = commit
 
 		// Update conditions
 		for _, con := range conditions {
@@ -228,9 +229,6 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 
 		// Set commit and active status if job is current
 		if result.Status == status.CurrentStatus {
-			if commit != "" {
-				currentGitRepo.Status.Commit = commit
-			}
 			kstatus.SetActive(currentGitRepo)
 		}
 
