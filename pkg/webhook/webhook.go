@@ -199,7 +199,9 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			w.logAndReturn(rw, err)
 			return
 		}
-		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?)` + u.Hostname() + "(:[0-9]+|)[:/]" + u.Path[1:] + "(\\.git)?"
+		path := strings.Replace(u.Path[1:], "/_git/", "(/_git)?/", 1)
+		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + u.Hostname() +
+			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?"
 		repoRegexp, err := regexp.Compile(regexpStr)
 		if err != nil {
 			w.logAndReturn(rw, err)
