@@ -11,7 +11,7 @@ import (
 )
 
 var _ = Describe("git's vendor specific functions tests", func() {
-	Context("When using not valid url", func() {
+	When("using invalid url", func() {
 		It("returns en empty string", func() {
 			resPath := getVendorCommitsURL("this-is-a-fake-site.com", "mybranch")
 			Expect(resPath).To(BeEmpty())
