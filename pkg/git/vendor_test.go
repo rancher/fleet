@@ -18,42 +18,42 @@ var _ = Describe("git's vendor specific functions tests", func() {
 		})
 	})
 
-	Context("When using not parseable url", func() {
+	When("using not parseable url", func() {
 		It("returns en empty string", func() {
 			resPath := getVendorCommitsURL("\n{this-is-not-an-url}\n", "mybranch")
 			Expect(resPath).To(BeEmpty())
 		})
 	})
 
-	Context("When using github host and non-valid address", func() {
+	When("using github host and non-valid address", func() {
 		It("returns en empty string", func() {
 			resPath := getVendorCommitsURL("https://github.com/thisisnotok", "mybranch")
 			Expect(resPath).To(BeEmpty())
 		})
 	})
 
-	Context("When using github host and valid address", func() {
+	When("using github host and valid address", func() {
 		It("returns en empty string", func() {
 			resPath := getVendorCommitsURL("https://github.com/rancher/fleet", "mybranch")
 			Expect(resPath).To(Equal("https://api.github.com/repos/rancher/fleet/commits/mybranch"))
 		})
 	})
 
-	Context("When using rancher host and non-valid address", func() {
+	When("using rancher host and non-valid address", func() {
 		It("returns en empty string", func() {
 			resPath := getVendorCommitsURL("https://git.rancher.io", "mybranch")
 			Expect(resPath).To(BeEmpty())
 		})
 	})
 
-	Context("When using rancher host and valid address", func() {
+	When("using rancher host and valid address", func() {
 		It("returns en empty string", func() {
 			resPath := getVendorCommitsURL("https://git.rancher.io/repository", "mybranch")
 			Expect(resPath).To(Equal("https://git.rancher.io/repos/repository/commits/mybranch"))
 		})
 	})
 
-	Context("When requesting if lastSha has changed with a valid URL", func() {
+	When("requesting if lastSha has changed with a valid URL", func() {
 		It("returns the expected latest commit", func() {
 			latest := "bdb35e1950b5829c88df134810a0aa9a7da9bc22"
 			svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +103,7 @@ SUPER FAKE CERT
 		})
 	})
 
-	Context("When requesting if lastSha has changed with a non valid URL", func() {
+	When("requesting if lastSha has changed with a non valid URL", func() {
 		It("returns true and no error when the url is not parseable", func() {
 			commit, err := latestCommitFromCommitsURL("httpssss://blahblah   blaisnotanurl\n", &options{})
 			// Returns no error and changed = true so the user is forced to run the List to get results

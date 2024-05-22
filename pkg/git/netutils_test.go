@@ -250,7 +250,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 })
 
 var _ = Describe("git's GetHTTPClientFromSecret tests", func() {
-	Context("When using a nil secret, no caBudle and InsecureSkipVerify = false", func() {
+	When("using a nil secret, no caBudle and InsecureSkipVerify = false", func() {
 		var caBundle []byte
 		client, err := git.GetHTTPClientFromSecret(nil, caBundle, false)
 		Expect(err).ToNot(HaveOccurred())
@@ -276,7 +276,7 @@ var _ = Describe("git's GetHTTPClientFromSecret tests", func() {
 		})
 	})
 
-	Context("When using a nil secret, no caBudle and InsecureSkipVerify = true", func() {
+	When("using a nil secret, no caBudle and InsecureSkipVerify = true", func() {
 		var caBundle []byte
 		client, err := git.GetHTTPClientFromSecret(nil, caBundle, true)
 		Expect(err).ToNot(HaveOccurred())
@@ -302,7 +302,7 @@ var _ = Describe("git's GetHTTPClientFromSecret tests", func() {
 		})
 	})
 
-	Context("When using a nil secret, caBudle and InsecureSkipVerify = true", func() {
+	When("using a nil secret, caBudle and InsecureSkipVerify = true", func() {
 		caBundlePEM := []byte(`-----BEGIN CERTIFICATE-----
 MIICGTCCAZ+gAwIBAgIQCeCTZaz32ci5PhwLBCou8zAKBggqhkjOPQQDAzBOMQsw
 CQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xJjAkBgNVBAMTHURp
@@ -344,7 +344,7 @@ DXZDjC5Ty3zfDBeWUA==
 		})
 	})
 
-	Context("When using a malformed ca bundle", func() {
+	When("using a malformed ca bundle", func() {
 		caBundle := []byte(`-----BEGIN CERTIFICATE-----
 SUPER FAKE CERT
 -----END CERTIFICATE-----`)
@@ -356,7 +356,7 @@ SUPER FAKE CERT
 		})
 	})
 
-	Context("When using a valid basic auth secret", func() {
+	When("using a valid basic auth secret", func() {
 		username := []byte("superuser")
 		password := []byte("supersecure")
 		secret := &corev1.Secret{
@@ -380,7 +380,7 @@ SUPER FAKE CERT
 		})
 	})
 
-	Context("When using a valid tls secret", func() {
+	When("using a valid tls secret", func() {
 		const certificatePEM = `
 -----BEGIN CERTIFICATE-----
 MIIBLjCB4aADAgECAhAX0YGTviqMISAQJRXoNCNPMAUGAytlcDASMRAwDgYDVQQK
@@ -414,7 +414,7 @@ MC4CAQAwBQYDK2VwBCIEINifzf07d9qx3d44e0FSbV4mC/xQxT644RRbpgNpin7I
 		})
 	})
 
-	Context("When using a non valid tls secret", func() {
+	When("using a non valid tls secret", func() {
 		const certificatePEM = `
 -----BEGIN CERTIFICATE-----
 THIS IS NOT A VALID CERTIFICATE

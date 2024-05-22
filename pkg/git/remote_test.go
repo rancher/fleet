@@ -36,7 +36,7 @@ var _ = Describe("git's RevisionCommit tests", func() {
 		})
 	})
 
-	Context("When a revision is not found", func() {
+	When("a revision is not found", func() {
 		BeforeEach(func() {
 			fakeLister = &FakeRemoteLister{
 				RetValues: []*git.RemoteRef{
@@ -59,7 +59,7 @@ var _ = Describe("git's RevisionCommit tests", func() {
 		})
 	})
 
-	Context("When the go-git List function fails", func() {
+	When("the go-git List function fails", func() {
 		BeforeEach(func() {
 			fakeLister = &FakeRemoteLister{
 				RetError: fmt.Errorf("THIS IS A TEST ERROR"),
@@ -75,7 +75,7 @@ var _ = Describe("git's RevisionCommit tests", func() {
 		})
 	})
 
-	Context("When the given revision is a lighweight tag", func() {
+	When("the given revision is a lighweight tag", func() {
 		var tagCommit = "b2f7eacdeda55833e299efdd6955abb68f581547"
 		BeforeEach(func() {
 			fakeLister = &FakeRemoteLister{
@@ -99,7 +99,7 @@ var _ = Describe("git's RevisionCommit tests", func() {
 		})
 	})
 
-	Context("When then given revision is an annotated tag", func() {
+	When("then given revision is an annotated tag", func() {
 		var tagCommit = "b2f7eacdeda55833e299efdd6955abb68f581547"
 		BeforeEach(func() {
 			fakeLister = &FakeRemoteLister{
@@ -180,7 +180,7 @@ var _ = Describe("git's LatestBranchCommit tests", func() {
 		})
 	})
 
-	Context("When the go-git List function fails", func() {
+	When("the go-git List function fails", func() {
 		BeforeEach(func() {
 			fakeLister = &FakeRemoteLister{
 				RetError: fmt.Errorf("THIS IS A TEST ERROR"),
@@ -195,7 +195,7 @@ var _ = Describe("git's LatestBranchCommit tests", func() {
 		})
 	})
 
-	Context("When passing a non-valid branch", func() {
+	When("passing a non-valid branch", func() {
 		BeforeEach(func() {
 			fakeLister = &FakeRemoteLister{
 				RetError: nil,

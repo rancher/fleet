@@ -53,7 +53,7 @@ func newTestGithubServer(refs []string) *httptest.Server {
 }
 
 var _ = Describe("git fetch's LatestCommit tests", func() {
-	Context("When secret credentials does not exist", func() {
+	When("secret credentials does not exist", func() {
 		var (
 			fakeGithub *httptest.Server
 			refs       []string
