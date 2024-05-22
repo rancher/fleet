@@ -164,29 +164,6 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 		return err
 	}
 
-	var terminationMessage string
-	if result.Status == status.FailedStatus {
-		selector := labels.SelectorFromSet(labels.Set{
-			"job-name": job.Name,
-		})
-		var podList corev1.PodList
-		err := r.Client.List(ctx, &podList, &client.ListOptions{LabelSelector: selector})
-		if err != nil {
-			return err
-		}
-		sort.Slice(podList.Items, func(i, j int) bool {
-			return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
-		})
-		terminationMessage = result.Message
-		if len(podList.Items) > 0 {
-			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
-				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
-					terminationMessage += podStatus.State.Terminated.Message
-				}
-			}
-		}
-	}
-
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		currentGitRepo := &v1alpha1.GitRepo{}
 		err := r.Get(ctx, client.ObjectKeyFromObject(gitRepo), currentGitRepo)
@@ -203,6 +180,25 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 		}
 
 		if result.Status == status.FailedStatus {
+			selector := labels.SelectorFromSet(labels.Set{
+				"job-name": job.Name,
+			})
+			var podList corev1.PodList
+			err := r.Client.List(ctx, &podList, &client.ListOptions{LabelSelector: selector})
+			if err != nil {
+				return err
+			}
+			sort.Slice(podList.Items, func(i, j int) bool {
+				return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
+			})
+			terminationMessage := result.Message
+			if len(podList.Items) > 0 {
+				for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
+					if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
+						terminationMessage += podStatus.State.Terminated.Message
+					}
+				}
+			}
 			kstatus.SetError(currentGitRepo, terminationMessage)
 		}
 
