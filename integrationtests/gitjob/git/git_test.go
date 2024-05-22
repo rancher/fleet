@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -276,6 +277,81 @@ func TestLatestCommitSSH(t *testing.T) {
 	}
 }
 
+func TestLatestCommit_Revision(t *testing.T) {
+	ctlr := gomock.NewController(t)
+	defer ctlr.Finish()
+	ctx := context.Background()
+
+	// add 3 commits and one tag per commit
+	tagCommit0, err := addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.0", "")
+	require.NoError(t, err, "creating commit and tag failed")
+
+	tagCommit1, err := addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.1", "Annotated tag v0.0.1")
+	require.NoError(t, err, "creating commit and tag failed")
+
+	_, err = addRepoCommitAndTag(url+"/test/public-repo", "public-repo", "v0.0.2", "")
+	require.NoError(t, err, "creating commit and tag failed")
+
+	tests := map[string]struct {
+		gitrepo        *v1alpha1.GitRepo
+		expectedCommit string
+		expectedError  error
+	}{
+		"RevisionNotFound": {
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:     url + "/test/public-repo",
+					Revision: "v10.0.0",
+				},
+			},
+			expectedCommit: "",
+			expectedError:  errors.New("commit not found for revision: v10.0.0"),
+		},
+		"RevisionIsACommit": {
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:     url + "/test/public-repo",
+					Revision: "319e76a30f012a760aa7f35d125a4eca8a2c8ba2",
+				},
+			},
+			expectedCommit: "319e76a30f012a760aa7f35d125a4eca8a2c8ba2",
+		},
+		"RevisionIsALightweightTag": {
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:     url + "/test/public-repo",
+					Revision: "v0.0.0",
+				},
+			},
+			expectedCommit: tagCommit0,
+		},
+		"RevisionIsAnAnnotatedTag": {
+			gitrepo: &v1alpha1.GitRepo{
+				Spec: v1alpha1.GitRepoSpec{
+					Repo:     url + "/test/public-repo",
+					Revision: "v0.0.1",
+				},
+			},
+			expectedCommit: tagCommit1,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := git.Fetch{}
+			client := mocks.NewMockClient(ctlr)
+			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound"))
+			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
+			if test.expectedCommit != latestCommit {
+				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
+			}
+
+			if err != test.expectedError && err.Error() != test.expectedError.Error() {
+				t.Errorf("expecting error: [%v], but got: [%v]", test.expectedError, err)
+			}
+		})
+	}
+}
+
 func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Container, string, error) {
 	err := cp.Copy("../assets/gitserver", tmpDir)
 	if err != nil {
@@ -406,6 +482,100 @@ func initRepo(url string, name string, private bool) (string, error) {
 	})
 	if err != nil {
 		return "", err
+	}
+
+	return commit.String(), nil
+}
+
+func addRepoCommitAndTag(url string, name string, tag string, tagMessage string) (string, error) {
+	tmp, err := os.MkdirTemp("", name)
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tmp)
+	r, err := gogit.PlainClone(tmp, false, &gogit.CloneOptions{
+		URL:               url,
+		RecurseSubmodules: gogit.DefaultSubmoduleRecursionDepth,
+	})
+	if err != nil {
+		return "", err
+	}
+	filename := filepath.Join(tmp, "example-git-file")
+	err = os.WriteFile(filename, []byte("test"+tag), 0600)
+	if err != nil {
+		return "", err
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return "", err
+	}
+	_, err = w.Add("example-git-file")
+	if err != nil {
+		return "", err
+	}
+	commit, err := w.Commit("test commit for tag "+tag, &gogit.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test user",
+			Email: "test@test.com",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	cfg, err := r.Config()
+	if err != nil {
+		return "", err
+	}
+	cfg.Remotes["upstream"] = &config.RemoteConfig{
+		Name: "upstream",
+		URLs: []string{url},
+	}
+	err = r.SetConfig(cfg)
+	if err != nil {
+		return "", err
+	}
+	err = r.Push(&gogit.PushOptions{
+		RemoteName: "upstream",
+		RemoteURL:  url,
+		Auth: &httpgit.BasicAuth{
+			Username: gogsUser,
+			Password: gogsPass,
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if tagMessage == "" {
+		// lightweight tag
+		_, err = r.CreateTag(tag, commit, nil)
+	} else {
+		// annotated tag
+		_, err = r.CreateTag(tag, commit, &gogit.CreateTagOptions{
+			Message: tagMessage,
+			Tagger: &object.Signature{
+				Name:  "Test user",
+				Email: "test@test.com",
+				When:  time.Now(),
+			},
+		})
+	}
+	if err != nil {
+		return "", err
+	}
+
+	err = r.Push(&gogit.PushOptions{
+		RemoteName: "upstream",
+		RemoteURL:  url,
+		Auth: &httpgit.BasicAuth{
+			Username: gogsUser,
+			Password: gogsPass,
+		},
+		RefSpecs: []config.RefSpec{config.RefSpec("refs/tags/*:refs/tags/*")},
+	})
+	if err != nil {
+		return "", nil
 	}
 
 	return commit.String(), nil
