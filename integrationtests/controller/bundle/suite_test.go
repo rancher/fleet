@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"k8s.io/client-go/rest"
 
@@ -24,11 +25,12 @@ import (
 )
 
 var (
-	cancel    context.CancelFunc
-	cfg       *rest.Config
-	ctx       context.Context
-	k8sClient client.Client
-	testenv   *envtest.Environment
+	cancel      context.CancelFunc
+	cfg         *rest.Config
+	ctx         context.Context
+	k8sClient   client.Client
+	testenv     *envtest.Environment
+	testEnvBool bool
 
 	namespace string
 )
@@ -41,6 +43,8 @@ func TestFleet(t *testing.T) {
 var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 	testenv = utils.NewEnvTest()
+	testEnvBool = true
+	testenv.UseExistingCluster = &testEnvBool
 
 	var err error
 	cfg, err = testenv.Start()
@@ -67,6 +71,19 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
+	err = (&reconciler.BundleDeploymentReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
+
+	err = (&reconciler.ClusterReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Query:  &FakeQuery{},
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
+
 	go func() {
 		defer GinkgoRecover()
 		err = mgr.Start(ctx)
@@ -78,6 +95,9 @@ var _ = AfterSuite(func() {
 	cancel()
 	Expect(testenv.Stop()).ToNot(HaveOccurred())
 })
+
+type FakeQuery struct {
+}
 
 // createBundle copies all targets from the GitRepo into TargetRestrictions. TargetRestrictions acts as a whitelist to prevent
 // the creation of BundleDeployments from Targets created from the TargetCustomizations in the fleet.yaml
@@ -139,4 +159,19 @@ func createClusterGroup(name, namespace string, selector *metav1.LabelSelector) 
 	}
 	err := k8sClient.Create(ctx, cg)
 	return cg, err
+}
+
+func expectedLabelValue(bdLabels map[string]string, key, value string) (*v1alpha1.BundleDeployment, bool) {
+	list := &v1alpha1.BundleDeploymentList{}
+	err := k8sClient.List(ctx, list, client.MatchingLabelsSelector{Selector: labels.SelectorFromSet(bdLabels)})
+	Expect(err).NotTo(HaveOccurred())
+	if len(list.Items) == 1 {
+		return &list.Items[0], list.Items[0].Labels[key] == value
+	}
+	return nil, false
+}
+
+// BundlesForCluster returns empty list, so no cleanup is needed
+func (q *FakeQuery) BundlesForCluster(context.Context, *v1alpha1.Cluster) ([]*v1alpha1.Bundle, []*v1alpha1.Bundle, error) {
+	return nil, nil, nil
 }

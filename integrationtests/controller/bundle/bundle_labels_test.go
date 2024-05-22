@@ -9,7 +9,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -93,13 +92,3 @@ var _ = Describe("Bundle labels", func() {
 		})
 	})
 })
-
-func expectedLabelValue(bdLabels map[string]string, key, value string) (*v1alpha1.BundleDeployment, bool) {
-	list := &v1alpha1.BundleDeploymentList{}
-	err := k8sClient.List(ctx, list, client.MatchingLabelsSelector{Selector: labels.SelectorFromSet(bdLabels)})
-	Expect(err).NotTo(HaveOccurred())
-	if len(list.Items) == 1 {
-		return &list.Items[0], list.Items[0].Labels[key] == value
-	}
-	return nil, false
-}
