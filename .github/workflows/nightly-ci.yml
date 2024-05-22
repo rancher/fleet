@@ -111,6 +111,7 @@ jobs:
 
           # 2. Run tests for metrics
           ginkgo e2e/metrics
+          SHARD=shard1 ginkgo e2e/metrics
 
           # 3. Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true

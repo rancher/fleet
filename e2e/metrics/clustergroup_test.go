@@ -45,6 +45,10 @@ var _ = Describe("Cluster Metrics", Label("clustergroup"), func() {
 			"test-cluster-group",
 			rand.NewSource(time.Now().UnixNano()),
 		)
+		labels := make(map[string]string)
+		if shard != "" {
+			labels["fleet.cattle.io/shard"] = shard
+		}
 		err := testenv.CreateClusterGroup(
 			k,
 			namespace,
@@ -52,6 +56,7 @@ var _ = Describe("Cluster Metrics", Label("clustergroup"), func() {
 			map[string]string{
 				"name": "local",
 			},
+			labels,
 		)
 		Expect(err).ToNot(HaveOccurred())
 

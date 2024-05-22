@@ -159,6 +159,9 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	//Gogs needs to be checked before Github since it carries both Gogs and (incompatible) Github headers
 	case r.Header.Get("X-Gogs-Event") != "":
 		payload, err = w.gogs.Parse(r, gogs.PushEvent)
+	case r.Header.Get("X-Github-Event") == "ping":
+		_, _ = rw.Write([]byte("Webhook received successfully"))
+		return
 	case r.Header.Get("X-GitHub-Event") != "":
 		payload, err = w.github.Parse(r, github.PushEvent)
 	case r.Header.Get("X-Gitlab-Event") != "":
@@ -196,7 +199,9 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			w.logAndReturn(rw, err)
 			return
 		}
-		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?)` + u.Hostname() + "(:[0-9]+|)[:/]" + u.Path[1:] + "(\\.git)?"
+		path := strings.Replace(u.Path[1:], "/_git/", "(/_git)?/", 1)
+		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + u.Hostname() +
+			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?"
 		repoRegexp, err := regexp.Compile(regexpStr)
 		if err != nil {
 			w.logAndReturn(rw, err)

@@ -135,7 +135,6 @@ Any magic wildcard DNS resolver will do, or you can create an A record in your o
 The k3d cluster is set up with multiple port forwardings by the scripts: `-p '80:80@server:0' -p '443:443@server:0'`.
 More arguments can be provided via the `k3d_args` variable.
 
-
 ### Troubleshooting
 
 If running the `infra setup` script returns an error about flag
@@ -164,9 +163,10 @@ integration tests.
 ## Local Infra Setup
 
 The local infra setup creates pods for:
-* git server, using nginx with git-http-backend, port 8080/tcp
-* OCI repo server, using Zot, port 8081/tcp
-* Helm registry, using chartmuseum, port 5000/tcp
+
+- git server, using nginx with git-http-backend, port 8080/tcp
+- OCI repo server, using Zot, port 8081/tcp
+- Helm registry, using chartmuseum, port 5000/tcp
 
 To build and run the infra setup command do:
 
@@ -316,6 +316,26 @@ act schedule -W .github/workflows/e2e-multicluster-ci.yml
 
 ### Troubleshooting
 
+#### fatal: not a git repository
+
+```shell
+get repo root in /: output: "fatal: not a git repository (or any of the parent directories): .git\n", error: exit status 128
+```
+
+If you see an issue like this and are running the tests from a linked git
+worktree, it is likely that act has copied the contents of your linked worktree
+into the container but cannot access the main worktree. Running the tests from
+the main worktree instead is going to resolve this issue.
+
+You can test this by running a simple git command like `git status` inside the
+working directory of the `act` container. It should be kept running in case this
+issue occurred.
+
+```shell
+docker exec -it <container> bash
+git status
+```
+
 #### DNS Resolution
 
 The DNS resolution depends on the configuration of the host system. This means
@@ -332,9 +352,7 @@ will need to restart the Docker daemon. You can configure the DNS for Docker in
 
 ```json
 {
-    "dns": [
-        "1.1.1.1"
-    ]
+  "dns": ["1.1.1.1"]
 }
 ```
 
@@ -389,9 +407,11 @@ helm upgrade --install --create-namespace -n cattle-system-monitoring \
 
 That alone suffices to get a working monitoring setup for the upstream cluster.
 But to connect it to the fleet-controller exported metrics, you need to add a
-service monitor. The service monitor is currently not part of the Helm chart.
-However, the necessary Kubernetes service resource is, unless you have disabled
-monitoring in the Helm chart when installing fleet.
+service monitor for each controller.
+
+The service monitor is currently not part of the Helm chart.  However, the
+necessary Kubernetes service resource is, unless you have disabled monitoring in
+the Helm chart when installing fleet.
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -415,13 +435,20 @@ spec:
   selector:
     matchLabels:
       app: fleet-controller
-
+      shard-default: true
+      # or:
+      # shard: <shard-id>
 ```
 
-This configures Prometheus to scrape the metrics from the fleet-controller. By
-accessing the Prometheus UI, you can now see the metrics from the
-Fleet-Controller. They are all prefixed with `fleet_`, which you will need to
-enter into the expression field of the Graph page to to get auto-completion.
+This configures Prometheus to scrape the metrics from the (unsharded)
+fleet-controller. Should you have sharding enabled, you will additionally need
+to add one ServiceMonitor for each shard.
+
+By accessing the Prometheus UI, you can now see the metrics from the
+fleet-controller. They are all prefixed with `fleet_`, which you will need to
+enter into the expression field of the Graph page to get auto-completion.
+Alternatively you can use the metrics explorer, which is a button next to the
+evaluation input field.
 
 > **__NOTE:__** The Prometheus UI can be used to check the Prometheus
 configuration (e.g., the scrape targets), scraped metrics, check alerts or
@@ -430,7 +457,7 @@ dashboards. It is not accessible by default and not meant to be shown to
 casual users.
 
 To access the Prometheus UI, you can forward the port of the Prometheus service
-to your local machine and access it.
+to your local machine and access it through that port.
 
 ```bash
 kubectl port-forward -n cattle-system-monitoring \

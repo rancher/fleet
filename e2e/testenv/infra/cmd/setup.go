@@ -70,9 +70,13 @@ var setupCmd = &cobra.Command{
 			"rev-parse",
 			"--show-toplevel",
 		)
-		repoRoot, err := repoRootCmd.Output()
+		cwd, err := os.Getwd()
 		if err != nil {
-			fail(fmt.Errorf("get repo root: %v", err))
+			fail(err)
+		}
+		repoRoot, err := repoRootCmd.CombinedOutput()
+		if err != nil {
+			fail(fmt.Errorf("get repo root in %s: output: %q, error: %v", cwd, repoRoot, err))
 		}
 
 		env := testenv.New()

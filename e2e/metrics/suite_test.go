@@ -23,23 +23,35 @@ func TestE2E(t *testing.T) {
 var (
 	env *testenv.Env
 	// k is the kubectl command for the cluster registration namespace
-	k                kubectl.Command
-	et               metrics.ExporterTest
-	loadBalancerName string
+	k     kubectl.Command
+	et    metrics.ExporterTest
+	shard string
 )
 
-func setupLoadBalancer() (metricsURL string) {
+type ServiceData struct {
+	Name           string
+	Port           int64
+	IsDefaultShard bool
+	Shard          string
+}
+
+// setupLoadBalancer creates a load balancer service for the fleet controller.
+// If shard is empty, it creates a service for the default (unsharded)
+// controller.
+func setupLoadBalancer(shard string) (metricsURL string) {
 	rs := rand.NewSource(time.Now().UnixNano())
 	port := rs.Int63()%1000 + 30000
-	loadBalancerName = testenv.AddRandomSuffix("fleetcontroller", rs)
+	loadBalancerName := testenv.AddRandomSuffix("fleetcontroller", rs)
 
 	ks := k.Namespace("cattle-fleet-system")
 	err := testenv.ApplyTemplate(
 		ks,
 		testenv.AssetPath("metrics/fleetcontroller_service.yaml"),
-		map[string]interface{}{
-			"Name": loadBalancerName,
-			"Port": port,
+		ServiceData{
+			Name:           loadBalancerName,
+			Port:           port,
+			IsDefaultShard: shard == "",
+			Shard:          shard,
 		},
 	)
 	Expect(err).ToNot(HaveOccurred())
@@ -53,12 +65,12 @@ func setupLoadBalancer() (metricsURL string) {
 		return ip, err
 	}).ShouldNot(BeEmpty())
 
-	return
-}
+	DeferCleanup(func() {
+		ks := k.Namespace("cattle-fleet-system")
+		_, _ = ks.Delete("service", loadBalancerName)
+	})
 
-func tearDownLoadBalancer() {
-	ks := k.Namespace("cattle-fleet-system")
-	_, _ = ks.Delete("service", loadBalancerName)
+	return metricsURL
 }
 
 var _ = BeforeSuite(func() {
@@ -66,19 +78,20 @@ var _ = BeforeSuite(func() {
 	SetDefaultEventuallyPollingInterval(time.Second)
 	testenv.SetRoot("../..")
 
+	if os.Getenv("SHARD") != "" {
+		shard = os.Getenv("SHARD")
+	}
+
+	// Enable passing the metrics URL via environment solely for debugging
+	// purposes, e.g. when a fleetcontroller is run outside the cluster. This is
+	// not intended for regular use.
 	var metricsURL string
 	if os.Getenv("METRICS_URL") != "" {
 		metricsURL = os.Getenv("METRICS_URL")
 	} else {
-		metricsURL = setupLoadBalancer()
+		metricsURL = setupLoadBalancer(shard)
 	}
 	et = metrics.NewExporterTest(metricsURL)
 
 	env = testenv.New()
-})
-
-var _ = AfterSuite(func() {
-	if os.Getenv("METRICS_URL") == "" {
-		tearDownLoadBalancer()
-	}
 })

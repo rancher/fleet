@@ -36,7 +36,7 @@ var _ = Describe("ValuesFrom", func() {
 			"--from-file=values.yaml="+testenv.AssetPath("single-cluster/values-from-configmap.yaml"))
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		err = testenv.CreateGitRepo(k, namespace, "values-from", "master", "helm-values-from")
+		err = testenv.CreateGitRepo(k, namespace, "values-from", "master", "", "helm-values-from")
 		Expect(err).ToNot(HaveOccurred())
 
 		DeferCleanup(func() {

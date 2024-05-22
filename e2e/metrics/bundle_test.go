@@ -147,6 +147,7 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 			namespace,
 			gitRepoName,
 			branch,
+			shard,
 			"simple-manifest",
 		)
 		Expect(err).ToNot(HaveOccurred())

@@ -39,6 +39,7 @@ var _ = Describe("BundleDeployment Metrics", Label("bundledeployment"), func() {
 			namespace,
 			objName,
 			branch,
+			shard,
 			"simple-manifest",
 		)
 		Expect(err).ToNot(HaveOccurred())

@@ -14,15 +14,13 @@ import (
 )
 
 var _ = Describe("GitRepo Metrics", Label("gitrepo"), func() {
-	const (
-		objName = "metrics"
-		branch  = "master"
-	)
 
 	var (
 		// kw is the kubectl command for namespace the workload is deployed to
 		kw        kubectl.Command
 		namespace string
+		objName   = "metrics"
+		branch    = "master"
 	)
 
 	BeforeEach(func() {
@@ -41,6 +39,7 @@ var _ = Describe("GitRepo Metrics", Label("gitrepo"), func() {
 			namespace,
 			objName,
 			branch,
+			shard,
 			"simple-manifest",
 		)
 		Expect(err).ToNot(HaveOccurred())
@@ -87,8 +86,8 @@ var _ = Describe("GitRepo Metrics", Label("gitrepo"), func() {
 			}).ShouldNot(HaveOccurred())
 		})
 
-		Context("when the GitRepo is changed", func() {
-			It("it should not duplicate metrics if GitRepo is updated", func() {
+		When("the GitRepo is changed", func() {
+			It("it should not duplicate metrics", func() {
 				out, err := kw.Patch(
 					"gitrepo", objName,
 					"--type=json",
