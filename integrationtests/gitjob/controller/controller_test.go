@@ -52,14 +52,18 @@ var _ = Describe("GitJob controller", func() {
 
 			It("sets LastExecutedCommit and JobStatus in GitRepo", func() {
 				// simulate job was successful
-				job.Status.Succeeded = 1
-				job.Status.Conditions = []batchv1.JobCondition{
-					{
-						Type:   "Complete",
-						Status: "True",
-					},
-				}
-				Expect(k8sClient.Status().Update(ctx, &job)).ToNot(HaveOccurred())
+				Eventually(func() error {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+					Expect(err).ToNot(HaveOccurred())
+					job.Status.Succeeded = 1
+					job.Status.Conditions = []batchv1.JobCondition{
+						{
+							Type:   "Complete",
+							Status: "True",
+						},
+					}
+					return k8sClient.Status().Update(ctx, &job)
+				}).Should(Not(HaveOccurred()))
 
 				Eventually(func() bool {
 					Expect(k8sClient.Get(
@@ -80,16 +84,21 @@ var _ = Describe("GitJob controller", func() {
 
 			It("sets JobStatus in GitRepo", func() {
 				// simulate job has failed
-				job.Status.Failed = 1
-				job.Status.Conditions = []batchv1.JobCondition{
-					{
-						Type:    "Failed",
-						Status:  "True",
-						Reason:  "BackoffLimitExceeded",
-						Message: "Job has reached the specified backoff limit",
-					},
-				}
-				Expect(k8sClient.Status().Update(ctx, &job)).ToNot(HaveOccurred())
+				Eventually(func() error {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+					Expect(err).ToNot(HaveOccurred())
+					job.Status.Failed = 1
+					job.Status.Conditions = []batchv1.JobCondition{
+						{
+							Type:    "Failed",
+							Status:  "True",
+							Reason:  "BackoffLimitExceeded",
+							Message: "Job has reached the specified backoff limit",
+						},
+					}
+					return k8sClient.Status().Update(ctx, &job)
+				}).Should(Not(HaveOccurred()))
+
 				Eventually(func() bool {
 					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).ToNot(HaveOccurred())
 					// XXX: do we need an additional `LastExecutedCommit` or similar status field?
