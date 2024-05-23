@@ -9,7 +9,7 @@ source ./dev/setup-cluster-config
 # Cleans with settings sourced, so it should be rather selective.
 ./dev/k3d-act-clean
 
-./dev/setup-k3d "${FLEET_E2E_CLUSTER#k3d-}"
+./dev/setup-k3d "${FLEET_E2E_CLUSTER#k3d-}" $(( RANDOM % 10001 ))
 ./dev/build-fleet
 ./dev/import-images-k3d
 ./dev/setup-fleet "${FLEET_E2E_CLUSTER#k3d-}" '[
