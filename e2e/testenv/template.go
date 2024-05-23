@@ -18,6 +18,8 @@ const gitrepoTemplate = "gitrepo-template.yaml"
 const clusterTemplate = "cluster-template.yaml"
 const clustergroupTemplate = "clustergroup-template.yaml"
 
+var r = rand.New(rand.NewSource(ginkgo.GinkgoRandomSeed()))
+
 // GitRepoData can be used with the gitrepo-template.yaml asset when no custom
 // GitRepo properties are required. All fields except Shard are required.
 type GitRepoData struct {
@@ -86,7 +88,7 @@ func ApplyTemplate(k kubectl.Command, asset string, data interface{}) error {
 	output := path.Join(
 		tmpdir, RandomFilename(
 			asset,
-			rand.New(rand.NewSource(ginkgo.GinkgoRandomSeed())), // nolint:gosec // test code
+			r,
 		),
 	)
 	if err := Template(output, AssetPath(asset), data); err != nil {
