@@ -25,4 +25,8 @@ docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARC
 
 # fleet agent
 go build -gcflags='all=-N -l' -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
+
+# The name of the container image created here is a potential source of
+# conflicts when the clusters are created simultaneously. It might be worth thinking about
+# how to make the image name unique for each test run.
 docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
