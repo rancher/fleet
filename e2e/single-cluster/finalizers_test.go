@@ -45,18 +45,6 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 
 		_, _ = k.Delete("gitrepo", gitrepoName)
 		_, _ = k.Delete("bundle", fmt.Sprintf("%s-%s", gitrepoName, path))
-		bdNamespace, err := k.Get(
-			"ns",
-			"-o=jsonpath='{.items[?(@."+
-				`metadata.annotations.fleet\.cattle\.io/cluster-namespace=="fleet-local"`+
-				")].metadata.name}'",
-		)
-		Expect(err).ToNot(HaveOccurred())
-
-		_, _ = env.Kubectl.Namespace(bdNamespace).Delete(
-			"bundledeployment",
-			fmt.Sprintf("%s-%s", gitrepoName, path),
-		)
 	})
 
 	When("deleting an existing GitRepo", func() {
