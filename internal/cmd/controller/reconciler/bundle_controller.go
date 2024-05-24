@@ -190,9 +190,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// copy labels from Bundle as they might have changed
 		bd := target.BundleDeployment()
 
-		if bd.DeletionTimestamp.IsZero() {
-			controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
-		}
+		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
+		// been created.
+		controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
 
 		updated := bd.DeepCopy()
 		op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
