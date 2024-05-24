@@ -45,6 +45,7 @@ func NewTarget() *cobra.Command {
 		Short: "Print available targets for a bundle",
 	})
 	cmd.SetOut(os.Stdout)
+
 	// add command line flags from zap and controller-runtime, which use
 	// goflags and convert them to pflags
 	fs := flag.NewFlagSet("", flag.ExitOnError)
