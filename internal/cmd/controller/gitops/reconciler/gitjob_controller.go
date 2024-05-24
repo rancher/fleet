@@ -164,6 +164,29 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 		return err
 	}
 
+	terminationMessage := ""
+	if result.Status == status.FailedStatus {
+		selector := labels.SelectorFromSet(labels.Set{"job-name": job.Name})
+		podList := &corev1.PodList{}
+		err := r.List(ctx, podList, &client.ListOptions{LabelSelector: selector})
+		if err != nil {
+			return err
+		}
+
+		sort.Slice(podList.Items, func(i, j int) bool {
+			return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
+		})
+
+		terminationMessage = result.Message
+		if len(podList.Items) > 0 {
+			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
+				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
+					terminationMessage += podStatus.State.Terminated.Message
+				}
+			}
+		}
+	}
+
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		currentGitRepo := &v1alpha1.GitRepo{}
 		err := r.Get(ctx, client.ObjectKeyFromObject(gitRepo), currentGitRepo)
@@ -172,6 +195,7 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 		}
 
 		currentGitRepo.Status.GitJobStatus = result.Status.String()
+		currentGitRepo.Status.ObservedGeneration = gitRepo.Generation
 
 		for _, con := range result.Conditions {
 			condition.Cond(con.Type.String()).SetStatus(currentGitRepo, string(con.Status))
@@ -179,30 +203,10 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 			condition.Cond(con.Type.String()).Reason(currentGitRepo, con.Reason)
 		}
 
-		if result.Status == status.FailedStatus {
-			selector := labels.SelectorFromSet(labels.Set{
-				"job-name": job.Name,
-			})
-			var podList corev1.PodList
-			err := r.Client.List(ctx, &podList, &client.ListOptions{LabelSelector: selector})
-			if err != nil {
-				return err
-			}
-			sort.Slice(podList.Items, func(i, j int) bool {
-				return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
-			})
-			terminationMessage := result.Message
-			if len(podList.Items) > 0 {
-				for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
-					if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
-						terminationMessage += podStatus.State.Terminated.Message
-					}
-				}
-			}
+		switch result.Status {
+		case status.FailedStatus:
 			kstatus.SetError(currentGitRepo, terminationMessage)
-		}
-
-		if result.Status == status.CurrentStatus {
+		case status.CurrentStatus:
 			if strings.Contains(result.Message, "Job Completed") {
 				currentGitRepo.Status.Commit = job.Annotations["commit"]
 			}

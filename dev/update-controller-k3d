@@ -18,3 +18,4 @@ docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARC
 fleet_ctx=$(kubectl config current-context)
 k3d image import rancher/fleet:dev -m direct -c "${fleet_ctx#k3d-}"
 kubectl delete pod -l app=fleet-controller -n cattle-fleet-system
+kubectl delete pod -l app=gitjob -n cattle-fleet-system
