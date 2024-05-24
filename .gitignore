@@ -16,3 +16,4 @@ e2e/testenv/infra/infra
 ^fleet$
 FleetCI-RootCA
 .envrc
+/fossa
