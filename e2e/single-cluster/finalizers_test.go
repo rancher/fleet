@@ -50,7 +50,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 	When("deleting an existing GitRepo", func() {
 		JustBeforeEach(func() {
 			By("creating a GitRepo")
-			err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", path)
+			err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", "", path)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -169,7 +169,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 	When("deleting an existing bundle", func() {
 		JustBeforeEach(func() {
 			By("creating a GitRepo")
-			err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", path)
+			err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", "", path)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -223,7 +223,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 	When("deleting an existing bundledeployment", func() {
 		JustBeforeEach(func() {
 			By("creating a GitRepo")
-			err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", path)
+			err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", "", path)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
