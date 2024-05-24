@@ -17,3 +17,4 @@ FleetCI-RootCA
 .envrc
 env.multi-cluster
 env.single-cluster
+/fossa
