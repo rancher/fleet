@@ -134,7 +134,7 @@ jobs:
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
-          ginkgo e2e/multi-cluster
+          ginkgo --github-output e2e/multi-cluster
       -
         name: Acceptance Tests for Examples
         if: >
@@ -143,7 +143,7 @@ jobs:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
-          ginkgo e2e/acceptance/multi-cluster-examples
+          ginkgo --github-output e2e/acceptance/multi-cluster-examples
       -
         name: Dump Failed Environment
         if: failure()
