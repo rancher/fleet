@@ -38,7 +38,8 @@ jobs:
     steps:
       - name: Add paths into PATH
         run: |
-          export PATH=/usr/local/bin:$PATH
+          export PATH=~/.local/bin:$PATH
+          mkdir -p ~/.local/bin
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,13 +63,14 @@ jobs:
         uses: actions/cache@v4
         id: rancher-cli-cache
         with:
-          path: /usr/local/bin
+          path: ~/.local/bin
           key: ${{ runner.os }}-rancher-cli
 
       - name: Install Dependencies
         run: |
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          mv kubectl ~/.local/bin/
+          chmod +x ~/.local/bin/kubectl
           kubectl version --client
 
           sudo apt-get update && sudo apt install -y wget helm
@@ -79,7 +81,7 @@ jobs:
           latest_version=$(curl -ILs -o /dev/null -w %{url_effective} github.com/rancher/cli/releases/latest | sed 's,.*/,,')
 
           wget -q https://github.com/rancher/cli/releases/download/$latest_version/rancher-linux-amd64-$latest_version.tar.gz
-          tar -xz --strip-components=2 -f rancher-linux-amd64-$latest_version.tar.gz -C /usr/local/bin
+          tar -xz --strip-components=2 -f rancher-linux-amd64-$latest_version.tar.gz -C ~/.local/bin
           rancher --version
 
       - name: Set up k3d control-plane cluster
