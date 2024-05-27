@@ -73,7 +73,12 @@ jobs:
           chmod +x ~/.local/bin/kubectl
           kubectl version --client
 
-          sudo apt-get update && sudo apt install -y wget helm
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          HELM_INSTALL_DIR=~/.local/bin ./get_helm.sh
+          helm version
+
+          sudo apt-get update && sudo apt install -y wget
 
       - name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
