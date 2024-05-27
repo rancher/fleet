@@ -16,6 +16,11 @@ on:
         default: "fleetrepoci/charts"
       charts_target_branch:
         description: "Use the following branch as a destination when pushing to the charts repo"
+      enable_tmate:
+        description: 'Enable debugging via tmate'
+        required: false
+        default: false
+        type: boolean
 
 env:
   GOARCH: amd64
@@ -170,3 +175,4 @@ jobs:
       ref: ${{ github.ref }}
       charts_repo: ${{github.event.inputs.charts_repo}}
       charts_branch: $target_branch
+      enable_tmate: ${{github.event.inputs.enable_tmate}}
