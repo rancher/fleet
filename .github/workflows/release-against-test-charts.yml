@@ -175,4 +175,4 @@ jobs:
       ref: ${{ github.ref }}
       charts_repo: ${{github.event.inputs.charts_repo}}
       charts_branch: $target_branch
-      enable_tmate: ${{github.event.inputs.enable_tmate}}
+      enable_tmate: ${{github.event.inputs.enable_tmate == 'true'}}
