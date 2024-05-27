@@ -9,9 +9,9 @@ spec:
   selector:
     app: fleet-controller
     {{- if .IsDefaultShard }}
-    shard-default: "{{ .IsDefaultShard }}"
+    fleet.cattle.io/shard-default: "{{ .IsDefaultShard }}"
     {{ else }}
-    shard: {{ .Shard }}
+    fleet.cattle.io/shard-id: {{ .Shard }}
     {{- end }}
   ports:
     - protocol: TCP

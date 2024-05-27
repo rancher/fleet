@@ -20,9 +20,9 @@ spec:
   selector:
     app: fleet-controller
     {{- if empty . }}
-    shard-default: "true"
+    fleet.cattle.io/shard-default: "true"
     {{- else }}
-    shard: "{{ . }}"
+    fleet.cattle.io/shard-id: "{{ . }}"
     {{- end }}
 ---
 {{- end }}
