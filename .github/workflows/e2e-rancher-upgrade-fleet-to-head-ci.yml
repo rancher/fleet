@@ -33,8 +33,7 @@ env:
 
 jobs:
   rancher-integration:
-    container: registry.suse.com/bci/bci-base:15.6
-    runs-on: org-${{ github.repository_owner_id }}-amd64-k8s
+    runs-on: ubuntu-latest
 
     steps:
       - name: Add paths into PATH
@@ -72,7 +71,7 @@ jobs:
           install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
           kubectl version --client
 
-          zypper install -y wget helm
+          sudo apt-get update && sudo apt install -y wget helm
 
       - name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
