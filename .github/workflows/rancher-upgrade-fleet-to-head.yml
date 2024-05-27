@@ -31,7 +31,7 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_K3D_VERSION: 'v5.5.1'
-  SETUP_K3S_VERSION: 'v1.29.0-k3s1'
+  SETUP_K3S_VERSION: 'v1.27.5-k3s1'
 
 jobs:
   rancher-integration:
@@ -152,7 +152,6 @@ jobs:
             --set replicas=1 \
             --set hostname="$public_hostname" \
             --set bootstrapPassword=admin \
-            --set rancherImageTag=v2.9-head \
             --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
             --set "extraEnv[0].value=https://github.com/${{ inputs.charts_repo }}" \
             --set "extraEnv[1].name=CATTLE_CHART_DEFAULT_BRANCH" \
