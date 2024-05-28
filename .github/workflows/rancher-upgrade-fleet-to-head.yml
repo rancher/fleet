@@ -155,7 +155,7 @@ jobs:
             --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
             --set "extraEnv[0].value=https://github.com/${{ inputs.charts_repo }}" \
             --set "extraEnv[1].name=CATTLE_CHART_DEFAULT_BRANCH" \
-            --set "extraEnv[1].value=https://github.com/${{ inputs.charts_branch }}" \
+            --set "extraEnv[1].value=${{ inputs.charts_branch }}" \
             --set "extraEnv[2].name=CATTLE_FLEET_VERSION" \
             --set "extraEnv[2].value=999.9.9+up9.9.9"
 
