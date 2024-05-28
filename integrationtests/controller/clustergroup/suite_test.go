@@ -9,6 +9,8 @@ import (
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -55,6 +57,14 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
+	err = (&reconciler.ClusterReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+
+		Query: &FakeQuery{},
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
+
 	go func() {
 		defer GinkgoRecover()
 		err = mgr.Start(ctx)
@@ -66,3 +76,44 @@ var _ = AfterSuite(func() {
 	cancel()
 	Expect(testenv.Stop()).ToNot(HaveOccurred())
 })
+
+type FakeQuery struct {
+}
+
+// BundlesForCluster returns empty list, so no cleanup is needed
+func (q *FakeQuery) BundlesForCluster(context.Context, *v1alpha1.Cluster) ([]*v1alpha1.Bundle, []*v1alpha1.Bundle, error) {
+	return nil, nil, nil
+}
+
+func createCluster(name, controllerNs string, labels map[string]string, clusterNs string) (*v1alpha1.Cluster, error) {
+	cluster := &v1alpha1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: controllerNs,
+			Labels:    labels,
+		},
+	}
+	err := k8sClient.Create(ctx, cluster)
+	if err != nil {
+		return nil, err
+	}
+	// Need to set the status.Namespace as it is needed to create a BundleDeployment.
+	// Namespace is set by the Cluster controller. We need to do it manually because we are running just the Bundle controller.
+	cluster.Status.Namespace = clusterNs
+	err = k8sClient.Status().Update(ctx, cluster)
+	return cluster, err
+}
+
+func createClusterGroup(name, namespace string, selector *metav1.LabelSelector) (*v1alpha1.ClusterGroup, error) {
+	cg := &v1alpha1.ClusterGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.ClusterGroupSpec{
+			Selector: selector,
+		},
+	}
+	err := k8sClient.Create(ctx, cg)
+	return cg, err
+}
