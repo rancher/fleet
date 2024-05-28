@@ -28,7 +28,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 				"-l",
 				"app=fleet-controller",
 				"-l",
-				fmt.Sprintf("shard=%s", shard),
+				fmt.Sprintf("fleet.cattle.io/shard-id=%s", shard),
 				"--tail=-1",
 			)
 			Expect(err).ToNot(HaveOccurred())
@@ -82,7 +82,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 							"-l",
 							"app=fleet-controller",
 							"-l",
-							fmt.Sprintf("shard=%s", s),
+							fmt.Sprintf("fleet.cattle.io/shard-id=%s", s),
 							"--tail=100",
 						)
 						g.Expect(err).ToNot(HaveOccurred())
@@ -154,7 +154,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 					"-l",
 					"app=fleet-controller",
 					"-l",
-					fmt.Sprintf("shard=%s", s),
+					fmt.Sprintf("fleet.cattle.io/shard-id=%s", s),
 					"--tail=100",
 				)
 				Expect(err).ToNot(HaveOccurred())

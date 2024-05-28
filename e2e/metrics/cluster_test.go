@@ -5,8 +5,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	dto "github.com/prometheus/client_model/go"
+
 	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/pkg/sharding"
 )
 
 type MetricsSelector map[string]map[string][]string
@@ -107,7 +110,7 @@ var _ = Describe("Cluster Metrics", Label("cluster"), func() {
 					"name": "testing",
 				}
 				if shard != "" {
-					labels["fleet.cattle.io/shard"] = shard
+					labels[sharding.ShardingRefLabel] = shard
 				}
 
 				err := testenv.CreateCluster(
@@ -159,7 +162,7 @@ var _ = Describe("Cluster Metrics", Label("cluster"), func() {
 					"name": "testing",
 				}
 				if shard != "" {
-					labels["fleet.cattle.io/shard"] = shard
+					labels[sharding.ShardingRefLabel] = shard
 				}
 
 				Expect(testenv.CreateCluster(

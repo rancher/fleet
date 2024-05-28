@@ -189,7 +189,7 @@ var _ = Describe("Image Scan dynamic tests pushing to ttl.sh", Label("infra-setu
 })
 
 func getFleetControllerRestarts(k kubectl.Command, index int) int {
-	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=fleet-controller", "-l", "shard=",
+	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=fleet-controller", "-l", "fleet.cattle.io/shard-id=",
 		"--no-headers",
 		"-o", fmt.Sprintf("custom-columns=RESTARTS:.status.containerStatuses[%d].restartCount", index))
 	Expect(err).NotTo(HaveOccurred())
@@ -200,7 +200,7 @@ func getFleetControllerRestarts(k kubectl.Command, index int) int {
 }
 
 func getFleetControllerReady(k kubectl.Command, index int) bool {
-	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=fleet-controller", "-l", "shard=",
+	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=fleet-controller", "-l", "fleet.cattle.io/shard-id=",
 		"--no-headers",
 		"-o", fmt.Sprintf("custom-columns=RESTARTS:.status.containerStatuses[%d].ready", index))
 	Expect(err).NotTo(HaveOccurred())
@@ -214,7 +214,7 @@ func getFleetControllerContainerIndexInPod(k kubectl.Command, container string) 
 	// the fleet controller pod runs 3 containers.
 	// we need to know the index of the fleet-controller container inside the pod.
 	// get all the container names, and return the index of the given container name
-	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=fleet-controller", "-l", "shard=",
+	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=fleet-controller", "-l", "fleet.cattle.io/shard-id=",
 		"--no-headers", "-o", "custom-columns=RESTARTS:.status.containerStatuses[*].name")
 	Expect(err).NotTo(HaveOccurred())
 	out = strings.TrimSuffix(out, "\n")

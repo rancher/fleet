@@ -15,9 +15,9 @@ spec:
     metadata:
       labels:
         app: fleet-controller
-        shard: "{{ . }}"
+        fleet.cattle.io/shard-id: "{{ . }}"
         {{- if empty . }}
-        shard-default: "true"
+        fleet.cattle.io/shard-default: "true"
         {{- end }}
     spec:
       containers:

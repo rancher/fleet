@@ -7,7 +7,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/pkg/sharding"
 )
 
 var _ = Describe("Cluster Metrics", Label("clustergroup"), func() {
@@ -47,7 +49,7 @@ var _ = Describe("Cluster Metrics", Label("clustergroup"), func() {
 		)
 		labels := make(map[string]string)
 		if shard != "" {
-			labels["fleet.cattle.io/shard"] = shard
+			labels[sharding.ShardingRefLabel] = shard
 		}
 		err := testenv.CreateClusterGroup(
 			k,

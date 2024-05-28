@@ -3,7 +3,7 @@ apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: {{.Name}}
   labels:
-    fleet.cattle.io/shard: {{.ShardID}}
+    fleet.cattle.io/shard-ref: {{.ShardID}}
 spec:
   repo: {{.Repo}}
   branch: {{.Branch}}
