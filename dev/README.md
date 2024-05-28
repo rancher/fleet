@@ -126,10 +126,10 @@ The variable is set to a DNS record, which points to the public interface IP of 
 The k3d cluster is then set up with port forwardings, so that host ports are
 redirected to services inside the cluster.
 
-The default `public_hostname` is `172.18.0.1.omg.howdoi.website`, which points
+The default `public_hostname` is `172.18.0.1.sslip.io`, which points
 to the default Docker network gateway. That gateway address might vary for
 custom networks, see for example: `docker network inspect fleet -f '{{(index .IPAM.Config0).Gateway}}'`.
-Careful, several internet routers provide "DNS rebind protection" and won't return an IP for `172.18.0.1.omg.howdoi.website`, unless the `omg.howdoi.website` domain is in an allow list.
+Careful, several internet routers provide "DNS rebind protection" and won't return an IP for `172.18.0.1.sslip.io`, unless the .sslip.io` domain is in an allow list.
 Any magic wildcard DNS resolver will do, or you can create an A record in your own DNS zone.
 
 The k3d cluster is set up with multiple port forwardings by the scripts: `-p '80:80@server:0' -p '443:443@server:0'`.

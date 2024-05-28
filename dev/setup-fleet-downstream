@@ -54,7 +54,7 @@ else
 fi
 
 # docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'
-# public_hostname="${public_hostname-172.17.0.1.omg.howdoi.website}"
+# public_hostname="${public_hostname-172.17.0.1.sslip.io}"
 
 # works due to same network of k3d clustres and patched SAN cert
 public_hostname="${public_hostname-k3d-upstream-server-0}"
