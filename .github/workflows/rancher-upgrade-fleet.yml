@@ -106,7 +106,7 @@ jobs:
       -
         name: Set up Rancher
         env:
-          public_hostname: "172.18.0.1.omg.howdoi.website"
+          public_hostname: "172.18.0.1.sslip.io"
           fleetns: "cattle-fleet-system"
         run: |
           ./.github/scripts/setup-rancher.sh "${{github.event.inputs.rancher_version}}"
