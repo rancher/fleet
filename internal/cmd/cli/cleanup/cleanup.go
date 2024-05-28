@@ -60,7 +60,7 @@ func ClusterRegistrations(ctx context.Context, client Getter, opts Options) erro
 
 		clusterKey := types.NamespacedName{Namespace: cr.Namespace, Name: cr.Status.ClusterName}
 		ts := latestGranted[clusterKey]
-		if cr.Status.Granted && ts.Before(&cr.CreationTimestamp) { // nolint:gosec // does not store pointer
+		if cr.Status.Granted && ts.Before(&cr.CreationTimestamp) {
 			latestGranted[clusterKey] = cr.CreationTimestamp
 		}
 	}

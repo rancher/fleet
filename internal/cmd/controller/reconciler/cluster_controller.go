@@ -94,15 +94,17 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, cluster.Status, err)
 	}
+
+	deleted := map[types.UID]bool{}
 	for _, bundle := range cleanup {
-		for _, bundleDeployment := range bundleDeployments.Items {
-			if bundleDeployment.Labels[fleet.BundleLabel] == bundle.Name &&
-				bundleDeployment.Labels[fleet.BundleNamespaceLabel] == bundle.Namespace {
-				logger.V(1).Info("cleaning up bundleDeployment not matching the cluster", "bundledeployment", bundleDeployment)
-				err := r.Delete(ctx, &bundleDeployment) // nolint:gosec // does not store pointer
+		for _, bd := range bundleDeployments.Items {
+			if bd.Labels[fleet.BundleLabel] == bundle.Name && bd.Labels[fleet.BundleNamespaceLabel] == bundle.Namespace {
+				logger.V(1).Info("cleaning up bundleDeployment not matching the cluster", "bundledeployment", bd)
+				err := r.Delete(ctx, &bd)
 				if err != nil {
 					logger.V(1).Error(err, "deleting bundleDeployment returned an error")
 				}
+				deleted[bd.GetUID()] = true
 			}
 		}
 	}
@@ -119,6 +121,11 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	repos := map[repoKey]bool{}
 	for _, bd := range bundleDeployments.Items {
+		// do not count bundledeployments that were just deleted
+		if deleted[bd.GetUID()] {
+			continue
+		}
+
 		bd := bd
 		state := summary.GetDeploymentState(&bd)
 		summary.IncrementState(&cluster.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
