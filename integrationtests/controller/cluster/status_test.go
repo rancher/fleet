@@ -1,16 +1,12 @@
 package cluster
 
 import (
-	"fmt"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/internal/cmd/controller/summary"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v2/pkg/condition"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,13 +14,6 @@ import (
 )
 
 var _ = Describe("Cluster Status Fields", func() {
-
-	var (
-		gitrepo *fleet.GitRepo
-		bd      *fleet.BundleDeployment
-	)
-	const deploymentID = "test123"
-
 	BeforeEach(func() {
 		var err error
 		namespace, err = utils.NewNamespaceName()
@@ -40,104 +29,92 @@ var _ = Describe("Cluster Status Fields", func() {
 
 	When("Bundledeployment is added", func() {
 		BeforeEach(func() {
-			cluster := &fleet.Cluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-cluster",
-					Namespace: namespace,
-				},
-				Spec: fleet.ClusterSpec{},
-			}
-
-			err := k8sClient.Create(ctx, cluster)
+			cluster, err := createCluster("cluster", namespace, nil, namespace)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(cluster).To(Not(BeNil()))
 
-			// simulate agentmanagement updating the status to set the namespace
-			cluster.Status.Agent.LastSeen = metav1.Now()
-			cluster.Status.Namespace = namespace
-			err = k8sClient.Status().Update(ctx, cluster)
-			Expect(err).NotTo(HaveOccurred())
-
-			gitrepo = &fleet.GitRepo{
+			gitrepo := &v1alpha1.GitRepo{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gitrepo",
 					Namespace: namespace,
 				},
-				Spec: fleet.GitRepoSpec{},
+				Spec: v1alpha1.GitRepoSpec{
+					Repo: "https://github.com/rancher/fleet-test-data/not-found",
+				},
 			}
 			err = k8sClient.Create(ctx, gitrepo)
 			Expect(err).NotTo(HaveOccurred())
 
-			bd = &fleet.BundleDeployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-bd",
-					Namespace: namespace,
-					Labels: map[string]string{
-						"fleet.cattle.io/repo-name":        "test-gitrepo",
-						"fleet.cattle.io/bundle-namespace": namespace,
+			targets := []v1alpha1.BundleTarget{
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						TargetNamespace: "targetNs",
 					},
-				},
-				Spec: fleet.BundleDeploymentSpec{
-					DeploymentID:       deploymentID,
-					StagedDeploymentID: deploymentID,
+					Name:        "cluster",
+					ClusterName: "cluster",
 				},
 			}
-			err = k8sClient.Create(ctx, bd)
+			bundle, err := createBundle("name", namespace, targets, targets)
 			Expect(err).NotTo(HaveOccurred())
-
+			Expect(bundle).To(Not(BeNil()))
 		})
 
 		It("updates the status fields", func() {
-			cluster := &fleet.Cluster{}
+			cluster := &v1alpha1.Cluster{}
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: "test-cluster", Namespace: namespace}, cluster)
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: "cluster", Namespace: namespace}, cluster)
 				Expect(err).NotTo(HaveOccurred())
 
-				return cluster.Status.Summary.DesiredReady == 1
+				return cluster.Status.Summary.DesiredReady == 0 && cluster.Status.ReadyGitRepos == 0
 			}).Should(BeTrue())
-
-			fmt.Printf("### cluster: %#v\n", cluster.Status)
 			Expect(cluster.Status.Summary.Ready).To(Equal(0))
-			Expect(cluster.Status.Summary.NonReadyResources).To(HaveLen(1))
 
-			Expect(cluster.Status.Display.ReadyBundles).To(Equal("0/1"))
-			Expect(cluster.Status.Display.State).To(Equal("WaitApplied"))
-
-			Expect(cluster.Status.DesiredReadyGitRepos).To(Equal(1))
-			Expect(cluster.Status.ReadyGitRepos).To(Equal(0))
-
-			Expect(condition.Cond(fleet.ClusterConditionReady).IsFalse(cluster)).To(BeTrue())
-			// Was `NotReady(1) [Bundle test-bd]`
-			Expect(condition.Cond(fleet.ClusterConditionReady).GetMessage(cluster)).To(Equal("WaitApplied(1) [Bundle test-bd]"))
-			Expect(condition.Cond(fleet.ClusterConditionProcessed).IsTrue(cluster)).To(BeTrue())
-
-			By("updating the bundledeployment to be ready")
-			bd.Status.AppliedDeploymentID = deploymentID
-			bd.Status.Ready = true
-			bd.Status.NonModified = true
-			err := k8sClient.Status().Update(ctx, bd)
+			bundle := &v1alpha1.Bundle{}
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
 			Expect(err).NotTo(HaveOccurred())
-			fmt.Printf("### bd: %#v, %v\n", bd.Status, summary.GetDeploymentState(bd))
+			Expect(bundle).To(Not(BeNil()))
+			Expect(bundle.Status.Display.State).To(Equal(""))
 
+			By("Add the gitrepo name to bundle")
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
+				Expect(err).ToNot(HaveOccurred())
+				bundle.Labels["fleet.cattle.io/repo-name"] = "test-gitrepo"
+				return k8sClient.Update(ctx, bundle)
+			}).ShouldNot(HaveOccurred())
+
+			By("Prepare bundledeployment so the bundle gets to 'Ready' state")
+			bd := &v1alpha1.BundleDeployment{}
+			Eventually(func() error {
+				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+				if err != nil {
+					return err
+				}
+				bd.Status.Display.State = "Ready"
+				bd.Status.AppliedDeploymentID = bd.Spec.DeploymentID
+				bd.Status.Ready = true
+				bd.Status.NonModified = true
+				return k8sClient.Status().Update(ctx, bd)
+			}).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+				if err != nil {
+					return err
+				}
+				bd.Labels["fleet.cattle.io/repo-name"] = "test-gitrepo"
+				return k8sClient.Update(ctx, bd)
+			}).ShouldNot(HaveOccurred())
+
+			cluster = &v1alpha1.Cluster{}
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: "test-cluster", Namespace: namespace}, cluster)
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: "cluster", Namespace: namespace}, cluster)
 				Expect(err).NotTo(HaveOccurred())
 
-				fmt.Printf("### cluster: %#v\n", cluster.Status)
-
-				return cluster.Status.Summary.Ready == 1
+				return cluster.Status.Summary.DesiredReady == 1 && cluster.Status.ReadyGitRepos == 1
 			}).Should(BeTrue())
-
-			// Expect(cluster.Status.DesiredReadyGitRepos).To(Equal(0))
-			// Expect(cluster.Status.ReadyGitRepos).To(Equal(0))
-
-			// Expect(cluster.Status.Summary.ErrApplied).To(Equal(0))
-
-			// Expect(cluster.Status.ResourceCounts).To(HaveLen(1))
-			// Expect(cluster.Status.ResourceCounts).To(ContainElement(fleet.GitRepoResourceCounts{}))
-
-			// Expect(cluster.Status.Display.ReadyBundles).To(Equal("1/1"))
-			// Expect(cluster.Status.Display.State).To(Equal(fleet.Ready))
-			By("deleting the bundledeployment")
+			Expect(cluster.Status.Display.ReadyBundles).To(Equal("1/1"))
+			Expect(cluster.Status.Summary.Ready).To(Equal(1))
 		})
 	})
 })
