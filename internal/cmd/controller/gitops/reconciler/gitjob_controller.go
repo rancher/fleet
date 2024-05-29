@@ -121,7 +121,9 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 			gitRepo.Status.Commit = commit
 			logger.V(1).Info("Updating GitRepo status", "commit", gitRepo.Status.Commit)
-			r.Status().Update(ctx, &gitRepo)
+			if err := r.Status().Update(ctx, &gitRepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("error updating git repo status: %v", err)
+			}
 			return ctrl.Result{}, nil
 		}
 	} else if gitRepo.Status.Commit != "" {
