@@ -108,29 +108,21 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if gitRepo.Status.Commit != "" {
 			if err := r.createJob(ctx, &gitRepo); err != nil {
 				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
-			} else {
-				obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-				uJob := &unstructured.Unstructured{Object: obj}
-
-				result, err := status.Compute(uJob)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-				if result.Status == status.FailedStatus {
-					return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
-				}
-				fetcher := git.NewFetcher()
-				commit, err := fetcher.LatestCommit(ctx, &gitRepo, r.Client)
-				if err != nil {
-					return ctrl.Result{}, fmt.Errorf("error fetching commit: %v", err)
-				}
-				gitRepo.Status.Commit = commit
-				logger.V(1).Info("Updating GitRepo status", "commit", gitRepo.Status.Commit)
-				r.Status().Update(ctx, &gitRepo)
 			}
+		} else {
+			if gitRepo.Status.GitJobStatus == status.FailedStatus.String() {
+				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
+			}
+
+			fetcher := git.NewFetcher()
+			commit, err := fetcher.LatestCommit(ctx, &gitRepo, r.Client)
+			if err != nil {
+				return ctrl.Result{}, fmt.Errorf("error fetching commit: %v", err)
+			}
+			gitRepo.Status.Commit = commit
+			logger.V(1).Info("Updating GitRepo status", "commit", gitRepo.Status.Commit)
+			r.Status().Update(ctx, &gitRepo)
+			return ctrl.Result{}, nil
 		}
 	} else if gitRepo.Status.Commit != "" {
 		if err = r.deleteJobIfNeeded(ctx, &gitRepo, &job); err != nil {
