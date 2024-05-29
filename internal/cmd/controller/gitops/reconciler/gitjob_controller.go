@@ -109,7 +109,17 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err := r.createJob(ctx, &gitRepo); err != nil {
 				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
 			} else {
-				if gitRepo.Status.GitJobStatus == string(status.FailedStatus) {
+				obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				uJob := &unstructured.Unstructured{Object: obj}
+
+				result, err := status.Compute(uJob)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				if result.Status == status.FailedStatus {
 					return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
 				}
 				fetcher := git.NewFetcher()
