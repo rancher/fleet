@@ -109,7 +109,9 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err := r.createJob(ctx, &gitRepo); err != nil {
 				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
 			} else {
-
+				if gitRepo.Status.GitJobStatus == string(status.FailedStatus) {
+					return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
+				}
 				fetcher := git.NewFetcher()
 				commit, err := fetcher.LatestCommit(ctx, &gitRepo, r.Client)
 				if err != nil {
@@ -118,7 +120,6 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				gitRepo.Status.Commit = commit
 				logger.V(1).Info("Updating GitRepo status", "commit", gitRepo.Status.Commit)
 				r.Status().Update(ctx, &gitRepo)
-
 			}
 		}
 	} else if gitRepo.Status.Commit != "" {
