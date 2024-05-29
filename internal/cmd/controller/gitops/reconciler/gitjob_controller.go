@@ -11,6 +11,7 @@ import (
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/git"
 
 	"github.com/rancher/wrangler/v2/pkg/condition"
 	"github.com/rancher/wrangler/v2/pkg/kstatus"
@@ -108,23 +109,16 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err := r.createJob(ctx, &gitRepo); err != nil {
 				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
 			} else {
-				obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-				uJob := &unstructured.Unstructured{Object: obj}
 
-				result, err := status.Compute(uJob)
+				fetcher := git.NewFetcher()
+				commit, err := fetcher.LatestCommit(ctx, &gitRepo, r.Client)
 				if err != nil {
-					return ctrl.Result{}, err
+					return ctrl.Result{}, fmt.Errorf("error fetching commit: %v", err)
 				}
+				gitRepo.Status.Commit = commit
+				logger.V(1).Info("Updating GitRepo status", "commit", gitRepo.Status.Commit)
+				r.Status().Update(ctx, &gitRepo)
 
-				if result.Status == status.FailedStatus {
-					return ctrl.Result{}, fmt.Errorf("error creating git job: %v", result.Message)
-				} else {
-					gitRepo.Status.Commit = job.Annotations["commit"]
-					r.Status().Update(ctx, &gitRepo)
-				}
 			}
 		}
 	} else if gitRepo.Status.Commit != "" {
