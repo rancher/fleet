@@ -103,9 +103,29 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, fmt.Errorf("error retrieving git job: %v", err)
 	}
 
-	if errors.IsNotFound(err) && gitRepo.Status.Commit != "" {
-		if err := r.createJob(ctx, &gitRepo); err != nil {
-			return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
+	if errors.IsNotFound(err) {
+		if gitRepo.Status.Commit != "" {
+			if err := r.createJob(ctx, &gitRepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
+			} else {
+				obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				uJob := &unstructured.Unstructured{Object: obj}
+
+				result, err := status.Compute(uJob)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+
+				if result.Status == status.FailedStatus {
+					return ctrl.Result{}, fmt.Errorf("error creating git job: %v", result.Message)
+				} else {
+					gitRepo.Status.Commit = job.Annotations["commit"]
+					r.Status().Update(ctx, &gitRepo)
+				}
+			}
 		}
 	} else if gitRepo.Status.Commit != "" {
 		if err = r.deleteJobIfNeeded(ctx, &gitRepo, &job); err != nil {
