@@ -28,6 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+const bundleFinalizer = "fleet.cattle.io/bundle-finalizer"
+
 type BundleQuery interface {
 	// BundlesForCluster is used to map from a cluster to bundles
 	BundlesForCluster(context.Context, *fleet.Cluster) ([]*fleet.Bundle, []*fleet.Bundle, error)
@@ -64,18 +66,55 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	ctx = log.IntoContext(ctx, logger)
 
 	bundle := &fleet.Bundle{}
-	err := r.Get(ctx, req.NamespacedName, bundle)
-	if apierrors.IsNotFound(err) {
-		metrics.BundleCollector.Delete(req.Name, req.Namespace)
-
-		logger.V(1).Info("Bundle not found, purging bundle deployments")
-		if err := purgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
-		}
-		return ctrl.Result{}, nil
-	} else if err != nil {
-		return ctrl.Result{}, err
+	if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	if bundle.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
+					return err
+				}
+
+				controllerutil.AddFinalizer(bundle, bundleFinalizer)
+
+				return r.Update(ctx, bundle)
+			})
+
+			if client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
+			metrics.BundleCollector.Delete(req.Name, req.Namespace)
+
+			logger.V(1).Info("Bundle not found, purging bundle deployments")
+			if err := purgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
+				// A bundle deployment may have been purged by the GitRepo reconciler, hence we ignore
+				// not-found errors here.
+				return ctrl.Result{}, client.IgnoreNotFound(err)
+			}
+
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(bundle, bundleFinalizer)
+
+				return r.Update(ctx, bundle)
+			})
+
+			if client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
+	}
+
 	logger.V(1).Info("Reconciling bundle, checking targets, calculating changes, building objects", "generation", bundle.Generation, "observedGeneration", bundle.Status.ObservedGeneration)
 
 	manifest := manifest.FromBundle(bundle)
@@ -150,6 +189,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
 		// copy labels from Bundle as they might have changed
 		bd := target.BundleDeployment()
+
+		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
+		// been created.
+		controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
+
 		updated := bd.DeepCopy()
 		op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
 			bd.Spec = updated.Spec

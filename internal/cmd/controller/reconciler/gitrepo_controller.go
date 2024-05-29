@@ -40,6 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+const gitRepoFinalizer = "fleet.cattle.io/gitrepo-finalizer"
+
 // GitRepoReconciler  reconciles a GitRepo object
 type GitRepoReconciler struct {
 	client.Client
@@ -61,27 +63,59 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	logger := log.FromContext(ctx).WithName("gitrepo")
 
 	gitrepo := &fleet.GitRepo{}
-	err := r.Get(ctx, req.NamespacedName, gitrepo)
-	if client.IgnoreNotFound(err) != nil {
-		return ctrl.Result{}, err
+	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Clean up
-	if apierrors.IsNotFound(err) {
-		logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
+	if gitrepo.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+					return err
+				}
 
-		metrics.GitRepoCollector.Delete(req.NamespacedName.Name, req.NamespacedName.Namespace)
+				controllerutil.AddFinalizer(gitrepo, gitRepoFinalizer)
 
-		if err := purgeBundles(ctx, r.Client, req.NamespacedName); err != nil {
-			return ctrl.Result{}, err
+				return r.Update(ctx, gitrepo)
+			})
+
+			if client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
+			// Clean up
+			logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
+
+			metrics.GitRepoCollector.Delete(req.NamespacedName.Name, req.NamespacedName.Namespace)
+
+			if err := purgeBundles(ctx, r.Client, req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			// remove the job scheduled by imagescan, if any
+			_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(req.Namespace, req.Name))
+
+			if err := purgeImageScans(ctx, r.Client, req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(gitrepo, gitRepoFinalizer)
+
+				return r.Update(ctx, gitrepo)
+			})
+
+			if client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{}, err
+			}
 		}
 
-		// remove the job scheduled by imagescan, if any
-		_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(req.Namespace, req.Name))
-
-		if err := purgeImageScans(ctx, r.Client, req.NamespacedName); err != nil {
-			return ctrl.Result{}, err
-		}
 		return ctrl.Result{}, nil
 	}
 
@@ -97,7 +131,7 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Restrictions / Overrides
 	// AuthorizeAndAssignDefaults mutates GitRepo and it returns nil on error
 	oldStatus := gitrepo.Status.DeepCopy()
-	gitrepo, err = grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
+	gitrepo, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
 	if err != nil {
 		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, *oldStatus, err)
 	}
@@ -325,7 +359,7 @@ func purgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 
 	for _, bundle := range bundles.Items {
 		err := c.Delete(ctx, &bundle)
-		if err != nil {
+		if client.IgnoreNotFound(err) != nil {
 			return err
 		}
 
@@ -340,11 +374,35 @@ func purgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 
 func purgeBundleDeployments(ctx context.Context, c client.Client, bundle types.NamespacedName) error {
 	list := &fleet.BundleDeploymentList{}
-	err := c.List(ctx, list, client.MatchingLabels{fleet.BundleLabel: bundle.Name, fleet.BundleNamespaceLabel: bundle.Namespace})
+	err := c.List(
+		ctx,
+		list,
+		client.MatchingLabels{
+			fleet.BundleLabel:          bundle.Name,
+			fleet.BundleNamespaceLabel: bundle.Namespace,
+		},
+	)
 	if err != nil {
 		return err
 	}
 	for _, bd := range list.Items {
+		if controllerutil.ContainsFinalizer(&bd, bundleDeploymentFinalizer) { // nolint: gosec // does not store pointer
+			nn := types.NamespacedName{Namespace: bd.Namespace, Name: bd.Name}
+			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				t := &fleet.BundleDeployment{}
+				if err := c.Get(ctx, nn, t); err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(t, bundleDeploymentFinalizer)
+
+				return c.Update(ctx, t)
+			})
+			if err != nil {
+				return err
+			}
+		}
+
 		err := c.Delete(ctx, &bd)
 		if err != nil {
 			return err
