@@ -15,6 +15,7 @@ import (
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 
+	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/wrangler/v2/pkg/condition"
 
 	corev1 "k8s.io/api/core/v1"
@@ -202,7 +203,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 func (r *ClusterReconciler) setCondition(status *fleet.ClusterStatus, err error) {
 	cond := condition.Cond(fleet.ClusterConditionProcessed)
 	origStatus := status.DeepCopy()
-	cond.SetError(status, "", ignoreConflict(err))
+	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
 	if !equality.Semantic.DeepEqual(origStatus, status) {
 		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
 	}

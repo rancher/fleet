@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"testing"
@@ -20,6 +21,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
@@ -27,11 +29,12 @@ const (
 )
 
 var (
-	cfg       *rest.Config
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
-	k8sClient client.Client
+	cfg        *rest.Config
+	testEnv    *envtest.Environment
+	ctx        context.Context
+	cancel     context.CancelFunc
+	k8sClient  client.Client
+	logsBuffer bytes.Buffer
 )
 
 func TestGitJobController(t *testing.T) {
@@ -66,6 +69,10 @@ var _ = BeforeSuite(func() {
 
 	ctlr := gomock.NewController(GinkgoT())
 	gitPollerMock := mocks.NewMockGitPoller(ctlr)
+
+	// redirect logs to a buffer that we can read in the tests
+	GinkgoWriter.TeeTo(&logsBuffer)
+	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	// do nothing if gitPoller is called. gitPoller calls are tested in unit tests
 	gitPollerMock.EXPECT().AddOrModifyGitRepoPollJob(gomock.Any(), gomock.Any()).AnyTimes()

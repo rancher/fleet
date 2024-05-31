@@ -1,13 +1,19 @@
 package controller
 
 import (
+	"strings"
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/name"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,6 +49,24 @@ var _ = Describe("GitJob controller", func() {
 
 			Expect(job.Spec.Template.Spec.Containers).To(HaveLen(1))
 			Expect(job.Spec.Template.Spec.Containers[0].Args).To(ContainElements("fleet", "apply"))
+
+			// it should create RBAC resources for that gitRepo
+			Eventually(func() bool {
+				saName := name.SafeConcatName("git", gitRepo.Name)
+				ns := types.NamespacedName{Name: saName, Namespace: gitRepo.Namespace}
+
+				if err := k8sClient.Get(ctx, ns, &corev1.ServiceAccount{}); err != nil {
+					return false
+				}
+				if err := k8sClient.Get(ctx, ns, &rbacv1.Role{}); err != nil {
+					return false
+				}
+				if err := k8sClient.Get(ctx, ns, &rbacv1.RoleBinding{}); err != nil {
+					return false
+				}
+
+				return true
+			}).Should(BeTrue())
 		})
 
 		When("a job completes successfully", func() {
@@ -54,7 +78,8 @@ var _ = Describe("GitJob controller", func() {
 				// simulate job was successful
 				Eventually(func() error {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
-					Expect(err).ToNot(HaveOccurred())
+					// We could be checking this when the job is still not created
+					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 					job.Status.Succeeded = 1
 					job.Status.Conditions = []batchv1.JobCondition{
 						{
@@ -224,6 +249,112 @@ var _ = Describe("GitJob controller", func() {
 
 				return string(job.UID) != string(newJob.UID)
 			}).Should(BeTrue())
+		})
+	})
+
+	When("creating a gitRepo that references a nonexistent helm secret", func() {
+		var (
+			gitRepo                v1alpha1.GitRepo
+			gitRepoName            string
+			helmSecretNameForPaths string
+			helmSecretName         string
+		)
+
+		JustBeforeEach(func() {
+			gitRepoName = "test-no-for-paths-secret"
+			gitRepo = createGitRepo(gitRepoName)
+			gitRepo.Spec.HelmSecretNameForPaths = helmSecretNameForPaths
+			gitRepo.Spec.HelmSecretName = helmSecretName
+			// Create should return an error
+			err := k8sClient.Create(ctx, &gitRepo)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(simulateGitPollerUpdatingCommitInStatus(gitRepo, commit)).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := k8sClient.Delete(ctx, &gitRepo)
+			Expect(err).ToNot(HaveOccurred())
+			// reset the logs buffer so we don't read logs from previous tests
+			logsBuffer.Reset()
+		})
+
+		Context("helmSecretNameForPaths secret does not exist", func() {
+			BeforeEach(func() {
+				helmSecretNameForPaths = "secret-does-not-exist"
+				helmSecretName = ""
+			})
+			It("logs an error about HelmSecretNameForPaths not being found", func() {
+				Eventually(func() bool {
+					strLogs := logsBuffer.String()
+					return strings.Contains(strLogs, `failed to look up HelmSecretNameForPaths, error: Secret \"secret-does-not-exist\" not found`)
+				}).Should(BeTrue())
+			})
+
+			It("doesn't create RBAC resources", func() {
+				Consistently(func() bool {
+					saName := name.SafeConcatName("git", gitRepo.Name)
+					ns := types.NamespacedName{Name: saName, Namespace: gitRepo.Namespace}
+
+					if err := k8sClient.Get(ctx, ns, &corev1.ServiceAccount{}); !errors.IsNotFound(err) {
+						return false
+					}
+					if err := k8sClient.Get(ctx, ns, &rbacv1.Role{}); !errors.IsNotFound(err) {
+						return false
+					}
+					if err := k8sClient.Get(ctx, ns, &rbacv1.RoleBinding{}); !errors.IsNotFound(err) {
+						return false
+					}
+					return true
+				}, time.Second*5, time.Second*1).Should(BeTrue())
+			})
+
+			It("doesn't create the job", func() {
+				Consistently(func() bool {
+					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+					newJob := &batchv1.Job{}
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepo.Namespace}, newJob)
+					return errors.IsNotFound(err)
+				}, time.Second*5, time.Second*1).Should(BeTrue())
+			})
+		})
+		Context("helmSecretName secret does not exist", func() {
+			BeforeEach(func() {
+				helmSecretNameForPaths = ""
+				helmSecretName = "secret-does-not-exist"
+			})
+			It("logs an error about HelmSecretName not being found", func() {
+				Eventually(func() bool {
+					strLogs := logsBuffer.String()
+					return strings.Contains(strLogs, `failed to look up helmSecretName, error: Secret \"secret-does-not-exist\" not found`)
+				}).Should(BeTrue())
+			})
+
+			It("doesn't create RBAC resources", func() {
+				Consistently(func() bool {
+					saName := name.SafeConcatName("git", gitRepo.Name)
+					ns := types.NamespacedName{Name: saName, Namespace: gitRepo.Namespace}
+
+					if err := k8sClient.Get(ctx, ns, &corev1.ServiceAccount{}); !errors.IsNotFound(err) {
+						return false
+					}
+					if err := k8sClient.Get(ctx, ns, &rbacv1.Role{}); !errors.IsNotFound(err) {
+						return false
+					}
+					if err := k8sClient.Get(ctx, ns, &rbacv1.RoleBinding{}); !errors.IsNotFound(err) {
+						return false
+					}
+					return true
+				}, time.Second*5, time.Second*1).Should(BeTrue())
+			})
+
+			It("doesn't create the job", func() {
+				Consistently(func() bool {
+					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+					newJob := &batchv1.Job{}
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepo.Namespace}, newJob)
+					return errors.IsNotFound(err)
+				}, time.Second*5, time.Second*1).Should(BeTrue())
+			})
 		})
 	})
 })
