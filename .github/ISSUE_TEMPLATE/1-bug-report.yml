@@ -67,12 +67,13 @@ body:
       If you paste long logs, you could also add them into a collapsed block:
 
       &lt;details&gt;
-        &lt;summary&gt;Click to expand&lt;summary&gt;
+        &lt;summary&gt;Click to expand&lt;/summary&gt;
 
         \```
         pasted log
         \```
-      &lt;details&gt;
+        
+      &lt;/details&gt;
 
     render: markdown
   validations:
