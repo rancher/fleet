@@ -32,7 +32,7 @@ jobs:
   push-test-rancher-charts:
     runs-on: ubuntu-latest
     outputs:
-      target_branch: ${{ steps.compute_target_branch.target_branch }}
+      target_branch: ${{ steps.compute_target_branch.outputs.target_branch }}
     steps:
       - name: Set environment variables
         run: |
