@@ -196,6 +196,7 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 
 		currentGitRepo.Status.GitJobStatus = result.Status.String()
 		currentGitRepo.Status.ObservedGeneration = gitRepo.Generation
+		currentGitRepo.Status.UpdateGeneration = gitRepo.Status.UpdateGeneration
 
 		for _, con := range result.Conditions {
 			condition.Cond(con.Type.String()).SetStatus(currentGitRepo, string(con.Status))
