@@ -7,7 +7,7 @@ if [ ! -d ./.github/scripts ]; then
   exit 1
 fi
 
-external_ip="${external_ip-172.18.0.1.omg.howdoi.website}"
+external_ip="${external_ip-172.18.0.1.sslip.io}"
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
 

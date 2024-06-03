@@ -54,7 +54,7 @@ else
 fi
 
 # docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'
-external_ip="${external_ip-172.17.0.1.omg.howdoi.website}"
+external_ip="${external_ip-172.17.0.1.sslip.io}"
 
 kubectl config use-context "$downstream_ctx"
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \

@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-external_ip="${external_ip-172.18.0.1.omg.howdoi.website}"
+external_ip="${external_ip-172.18.0.1.sslip.io}"
 fleetns="${fleetns-cattle-fleet-system}"
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 version="${1-v2.7.0}"
