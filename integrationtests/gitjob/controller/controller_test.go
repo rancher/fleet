@@ -174,47 +174,25 @@ var _ = Describe("GitJob controller", func() {
 		})
 	})
 
-	When("User performs an update in a gitrepo field", func() {
+	When("a new GitRepo is created with DisablePolling set to true", func() {
 		var (
 			gitRepo     v1alpha1.GitRepo
 			gitRepoName string
-			job         batchv1.Job
-			jobName     string
 		)
 
-		JustBeforeEach(func() {
-			gitRepo = createGitRepo(gitRepoName)
-			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
-			Expect(simulateGitPollerUpdatingCommitInStatus(gitRepo, commit)).ToNot(HaveOccurred())
-			Eventually(func() error {
-				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
-				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
-			}).Should(Not(HaveOccurred()))
-
-			// change a gitrepo field, this will change the Generation field. This simulates changing fleet apply parameters.
-			Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				var gitRepoFromCluster v1alpha1.GitRepo
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
-				if err != nil {
-					return err
-				}
-				gitRepoFromCluster.Spec.KeepResources = !gitRepoFromCluster.Spec.KeepResources
-
-				return k8sClient.Update(ctx, &gitRepoFromCluster)
-			})).ToNot(HaveOccurred())
-		})
-
 		BeforeEach(func() {
-			gitRepoName = "simulate-arg-update"
+			gitRepoName = "disable-polling"
 		})
 
-		It("Verifies that the Job is recreated", func() {
-			Eventually(func() bool {
-				newJob := &batchv1.Job{}
-				_ = k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, newJob)
+		It("should update the commit from the actual repo", func() {
+			gitRepo = createGitRepoWithDisablePolling(gitRepoName)
+			Expect(k8sClient.Create(ctx, &gitRepo)).To(Succeed())
 
-				return string(job.UID) != string(newJob.UID)
-			}).Should(BeTrue())
+			By("verifying the commit is updated")
+			Eventually(func() string {
+				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
+				return gitRepo.Status.Commit
+			}, "30s", "1s").Should(Equal("39709aee142bc0ef4de3c876b8f6f84b5f6db925"))
 		})
 	})
 })
@@ -265,6 +243,20 @@ func createGitRepo(gitRepoName string) v1alpha1.GitRepo {
 		},
 		Spec: v1alpha1.GitRepoSpec{
 			Repo: repo,
+		},
+	}
+}
+
+func createGitRepoWithDisablePolling(gitRepoName string) v1alpha1.GitRepo {
+	return v1alpha1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gitRepoName,
+			Namespace: gitRepoNamespace,
+		},
+		Spec: v1alpha1.GitRepoSpec{
+			Repo:           repo,
+			DisablePolling: true,
+			Branch:         "main",
 		},
 	}
 }
