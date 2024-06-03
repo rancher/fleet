@@ -151,13 +151,13 @@ jobs:
       -
         name: Set up latest Rancher
         env:
-          external_ip: "172.18.0.1.omg.howdoi.website"
+          external_ip: "172.18.0.1.sslip.io"
         run: |
           ./.github/scripts/setup-latest-rancher.sh
       -
         name: Register Rancher's downstream clusters
         env:
-          external_ip: "172.18.0.1.omg.howdoi.website"
+          external_ip: "172.18.0.1.sslip.io"
         run: |
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh

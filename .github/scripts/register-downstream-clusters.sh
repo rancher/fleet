@@ -3,7 +3,7 @@
 set -euxo pipefail
 
 
-external_ip="${external_ip-172.18.0.1.omg.howdoi.website}"
+external_ip="${external_ip-172.18.0.1.sslip.io}"
 cluster_downstream="${cluster_downstream-k3d-downstream}"
 ctx=$(kubectl config current-context)
 
