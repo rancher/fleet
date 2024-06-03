@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-external_ip="${external_ip-172.18.0.1.omg.howdoi.website}"
+external_ip="${external_ip-172.18.0.1.sslip.io}"
 cluster="${cluster-k3d-upstream}"
 
 kubectl config use-context "$cluster"

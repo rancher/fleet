@@ -112,7 +112,7 @@ jobs:
           helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \
             --set-string labels.env=test \
             --set apiServerCA="$ca" \
-            --set apiServerURL="https://172.18.0.1.omg.howdoi.website:6443" \
+            --set apiServerURL="https://172.18.0.1.sslip.io:6443" \
             --set clusterNamespace="fleet-default" \
             --set token="$token"
       -
