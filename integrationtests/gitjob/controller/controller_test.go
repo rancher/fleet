@@ -174,6 +174,50 @@ var _ = Describe("GitJob controller", func() {
 		})
 	})
 
+	When("User performs an update in a gitrepo field", func() {
+		var (
+			gitRepo     v1alpha1.GitRepo
+			gitRepoName string
+			job         batchv1.Job
+			jobName     string
+		)
+
+		JustBeforeEach(func() {
+			gitRepo = createGitRepo(gitRepoName)
+			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
+			Expect(simulateGitPollerUpdatingCommitInStatus(gitRepo, commit)).ToNot(HaveOccurred())
+			Eventually(func() error {
+				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+			}).Should(Not(HaveOccurred()))
+
+			// change a gitrepo field, this will change the Generation field. This simulates changing fleet apply parameters.
+			Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				var gitRepoFromCluster v1alpha1.GitRepo
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
+				if err != nil {
+					return err
+				}
+				gitRepoFromCluster.Spec.KeepResources = !gitRepoFromCluster.Spec.KeepResources
+
+				return k8sClient.Update(ctx, &gitRepoFromCluster)
+			})).ToNot(HaveOccurred())
+		})
+
+		BeforeEach(func() {
+			gitRepoName = "simulate-arg-update"
+		})
+
+		It("Verifies that the Job is recreated", func() {
+			Eventually(func() bool {
+				newJob := &batchv1.Job{}
+				_ = k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, newJob)
+
+				return string(job.UID) != string(newJob.UID)
+			}).Should(BeTrue())
+		})
+	})
+
 	When("a new GitRepo is created with DisablePolling set to true", func() {
 		var (
 			gitRepo     v1alpha1.GitRepo
