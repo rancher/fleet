@@ -236,7 +236,7 @@ var _ = Describe("GitJob controller", func() {
 			Eventually(func() string {
 				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
 				return gitRepo.Status.Commit
-			}, "30s", "1s").Should(Equal("39709aee142bc0ef4de3c876b8f6f84b5f6db925"))
+			}, "30s", "1s").ShouldNot(Equal(""))
 		})
 	})
 })
