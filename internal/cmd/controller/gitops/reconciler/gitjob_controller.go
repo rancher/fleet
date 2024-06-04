@@ -234,7 +234,7 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 
 func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
 	logger := log.FromContext(ctx)
-	// if force dlelete is set, delete the job to make sure a new job is created
+	// if force delete is set, delete the job to make sure a new job is created
 	if gitRepo.Spec.ForceSyncGeneration != gitRepo.Status.UpdateGeneration {
 		gitRepo.Status.UpdateGeneration = gitRepo.Spec.ForceSyncGeneration
 		logger.Info("job deletion triggered because of ForceUpdateGeneration")
