@@ -110,19 +110,8 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
 			}
 		} else {
-			if gitRepo.Status.GitJobStatus == status.FailedStatus.String() {
-				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
-			}
-
-			fetcher := git.NewFetcher()
-			commit, err := fetcher.LatestCommit(ctx, &gitRepo, r.Client)
-			if err != nil {
-				return ctrl.Result{}, fmt.Errorf("error fetching commit: %v", err)
-			}
-			gitRepo.Status.Commit = commit
-			logger.V(1).Info("Updating GitRepo status", "commit", gitRepo.Status.Commit)
-			if err := r.Status().Update(ctx, &gitRepo); err != nil {
-				return ctrl.Result{}, fmt.Errorf("error updating git repo status: %v", err)
+			if err := r.updateCommit(ctx, &gitRepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("error updating commit: %v", err)
 			}
 			return ctrl.Result{}, nil
 		}
@@ -141,6 +130,16 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *GitJobReconciler) updateCommit(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
+	fetcher := git.NewFetcher()
+	commit, err := fetcher.LatestCommit(ctx, gitRepo, r.Client)
+	if err != nil {
+		return err
+	}
+	gitRepo.Status.Commit = commit
+	return r.Status().Update(ctx, gitRepo)
 }
 
 func generationOrCommitChangedPredicate() predicate.Predicate {
@@ -191,6 +190,7 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 		}
 
 		currentGitRepo.Status.GitJobStatus = result.Status.String()
+		currentGitRepo.Status.UpdateGeneration = gitRepo.Status.UpdateGeneration
 
 		for _, con := range result.Conditions {
 			condition.Cond(con.Type.String()).SetStatus(currentGitRepo, string(con.Status))
@@ -234,7 +234,7 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 
 func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
 	logger := log.FromContext(ctx)
-	// if force delete is set, delete the job to make sure a new job is created
+	// if force dlelete is set, delete the job to make sure a new job is created
 	if gitRepo.Spec.ForceSyncGeneration != gitRepo.Status.UpdateGeneration {
 		gitRepo.Status.UpdateGeneration = gitRepo.Spec.ForceSyncGeneration
 		logger.Info("job deletion triggered because of ForceUpdateGeneration")
