@@ -3,6 +3,7 @@ package controller
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/name"
@@ -54,7 +55,8 @@ var _ = Describe("GitJob controller", func() {
 				// simulate job was successful
 				Eventually(func() error {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
-					Expect(err).ToNot(HaveOccurred())
+					// We could be checking this when the job is still not created
+					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
 					job.Status.Succeeded = 1
 					job.Status.Conditions = []batchv1.JobCondition{
 						{
@@ -152,10 +154,11 @@ var _ = Describe("GitJob controller", func() {
 
 	When("User wants to force a job deletion by increasing Spec.ForceUpdateGeneration", func() {
 		var (
-			gitRepo     v1alpha1.GitRepo
-			gitRepoName string
-			job         batchv1.Job
-			jobName     string
+			gitRepo         v1alpha1.GitRepo
+			gitRepoName     string
+			job             batchv1.Job
+			jobName         string
+			generationValue int64
 		)
 
 		JustBeforeEach(func() {
@@ -166,11 +169,16 @@ var _ = Describe("GitJob controller", func() {
 				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
-
+			// store the generation value to compare against later
+			generationValue = gitRepo.Spec.ForceSyncGeneration
 			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
 		})
 		BeforeEach(func() {
 			gitRepoName = "force-deletion"
+		})
+		AfterEach(func() {
+			err := k8sClient.Delete(ctx, &gitRepo)
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("Verifies that the Job is recreated", func() {
@@ -179,6 +187,16 @@ var _ = Describe("GitJob controller", func() {
 				_ = k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, newJob)
 
 				return string(job.UID) != string(newJob.UID)
+			}).Should(BeTrue())
+		})
+
+		It("verifies that UpdateGeneration in Status is equal to ForceSyncGeneration", func() {
+			Eventually(func() bool {
+				gr := &v1alpha1.GitRepo{}
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, gr)
+				Expect(err).ToNot(HaveOccurred())
+				// ForceSyncGeneration and UpdateGeneration should be equal and different to the initial value
+				return gr.Spec.ForceSyncGeneration == gr.Status.UpdateGeneration && gr.Status.UpdateGeneration != generationValue
 			}).Should(BeTrue())
 		})
 	})
