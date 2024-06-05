@@ -106,7 +106,12 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if errors.IsNotFound(err) {
 		if gitRepo.Status.Commit != "" {
-			if err := r.createJob(ctx, &gitRepo); err != nil {
+			if gitRepo.Spec.DisablePolling {
+				if err := r.updateCommit(ctx, &gitRepo); err != nil {
+					return ctrl.Result{}, fmt.Errorf("error updating commit: %v", err)
+				}
+			}
+			if err = r.createJob(ctx, &gitRepo); err != nil {
 				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
 			}
 		} else {
@@ -138,8 +143,10 @@ func (r *GitJobReconciler) updateCommit(ctx context.Context, gitRepo *v1alpha1.G
 	if err != nil {
 		return err
 	}
-	gitRepo.Status.Commit = commit
-	return r.Status().Update(ctx, gitRepo)
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gitRepo.Status.Commit = commit
+		return r.Status().Update(ctx, gitRepo)
+	})
 }
 
 func generationOrCommitChangedPredicate() predicate.Predicate {
