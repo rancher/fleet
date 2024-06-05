@@ -161,6 +161,7 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 			BeforeEach(func() {
 				cluster.Status = fleet.ClusterStatus{Namespace: "fleet-default"}
 				saCache.EXPECT().Get(gomock.Any(), gomock.Any()).Return(nil, notFound)
+				clusterRegistrationController.EXPECT().Update(gomock.Any()).Return(&fleet.ClusterRegistration{}, nil)
 			})
 
 			It("creates a new service account", func() {
@@ -178,6 +179,7 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 				// post k8s 1.24 service account without sa.Secrets list
 				sa = &corev1.ServiceAccount{}
 				saCache.EXPECT().Get(gomock.Any(), gomock.Any()).Return(sa, nil)
+				clusterRegistrationController.EXPECT().Update(gomock.Any()).Return(&fleet.ClusterRegistration{}, nil)
 			})
 
 			Context("cannot create secret", func() {
@@ -226,6 +228,8 @@ var _ = Describe("ClusterRegistration OnChange", func() {
 				secretController.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(secret, nil)
 
 				clusterRegistrationController.EXPECT().List(gomock.Any(), gomock.Any()).Return(&fleet.ClusterRegistrationList{}, nil)
+
+				clusterRegistrationController.EXPECT().Update(gomock.Any()).Return(&fleet.ClusterRegistration{}, nil)
 			})
 
 			Context("grants registration, cleans up and creates objects", func() {
