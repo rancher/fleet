@@ -240,7 +240,19 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		apiServerCA = cfg.APIServerCA
 	}
 
-	restConfig, err := i.restConfigFromKubeConfig(secret.Data[config.KubeConfigSecretValueKey])
+	if cfg.AgentTLSMode != config.AgentTLSModeStrict && cfg.AgentTLSMode != config.AgentTLSModeSystemStore {
+		return status,
+			fmt.Errorf(
+				"provided config value for agentTLSMode is none of [%q,%q]",
+				config.AgentTLSModeStrict,
+				config.AgentTLSModeSystemStore,
+			)
+	}
+
+	restConfig, err := i.restConfigFromKubeConfig(
+		secret.Data[config.KubeConfigSecretValueKey],
+		cfg.AgentTLSMode == config.AgentTLSModeSystemStore,
+	)
 	if err != nil {
 		return status, err
 	}
@@ -307,8 +319,9 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			APIServerCA:  apiServerCA,
 			APIServerURL: apiServerURL,
 			ConfigOptions: agent.ConfigOptions{
-				ClientID: cluster.Spec.ClientID,
-				Labels:   clusterLabels,
+				ClientID:     cluster.Spec.ClientID,
+				Labels:       clusterLabels,
+				AgentTLSMode: cfg.AgentTLSMode,
 			},
 			ManifestOptions: agent.ManifestOptions{
 				AgentEnvVars:     cluster.Spec.AgentEnvVars,
@@ -389,8 +402,9 @@ func isLegacyAgentNamespaceSelectedByUser() bool {
 		cfg.Bootstrap.AgentNamespace == config.LegacyDefaultNamespace
 }
 
-// restConfigFromKubeConfig checks kubeconfig data and tries to connect to server. If server is behind public CA, remove CertificateAuthorityData in kubeconfig file.
-func (i *importHandler) restConfigFromKubeConfig(data []byte) (*rest.Config, error) {
+// restConfigFromKubeConfig checks kubeconfig data and tries to connect to server. If server is behind public CA, remove
+// CertificateAuthorityData in kubeconfig file unless strict TLS mode is enabled.
+func (i *importHandler) restConfigFromKubeConfig(data []byte, trustSystemStoreCAs bool) (*rest.Config, error) {
 	clientConfig, err := clientcmd.NewClientConfigFromBytes(data)
 	if err != nil {
 		return nil, err
@@ -401,11 +415,10 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte) (*rest.Config, err
 		return nil, err
 	}
 
-	if raw.Contexts[raw.CurrentContext] != nil {
+	if trustSystemStoreCAs && raw.Contexts[raw.CurrentContext] != nil {
 		cluster := raw.Contexts[raw.CurrentContext].Cluster
 		if raw.Clusters[cluster] != nil {
-			_, err := http.Get(raw.Clusters[cluster].Server)
-			if err == nil {
+			if _, err := http.Get(raw.Clusters[cluster].Server); err == nil {
 				raw.Clusters[cluster].CertificateAuthorityData = nil
 			}
 		}
