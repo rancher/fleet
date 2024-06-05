@@ -174,6 +174,30 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		return nil, status, nil
 	}
 
+	// set the Cluster as owner of the cluster registration request
+	// ownerFound is used to avoid calling update on request whenever OnChange is called
+	ownerFound := false
+	for _, owner := range request.OwnerReferences {
+		if owner.Kind == "Cluster" && owner.Name == cluster.Name && owner.UID == cluster.UID {
+			ownerFound = true
+			break
+		}
+	}
+	if !ownerFound {
+		request.SetOwnerReferences([]metav1.OwnerReference{
+			{
+				APIVersion: fleet.SchemeGroupVersion.String(),
+				Kind:       "Cluster",
+				Name:       cluster.Name,
+				UID:        cluster.UID,
+			},
+		})
+		request, err = h.clusterRegistration.Update(request)
+		if err != nil {
+			return nil, status, err
+		}
+	}
+
 	saName := name.SafeConcatName(request.Name, string(request.UID))
 	sa, err := h.serviceAccountCache.Get(cluster.Status.Namespace, saName)
 	if err != nil && apierrors.IsNotFound(err) {
