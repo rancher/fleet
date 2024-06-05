@@ -34,7 +34,7 @@ var _ = Describe("GitRepo Status Fields", func() {
 
 	When("Bundle changes", func() {
 		BeforeEach(func() {
-			cluster, err := createCluster("cluster", namespace, nil, namespace)
+			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster).To(Not(BeNil()))
 			targets := []v1alpha1.BundleTarget{
@@ -46,7 +46,7 @@ var _ = Describe("GitRepo Status Fields", func() {
 					ClusterName: "cluster",
 				},
 			}
-			bundle, err := createBundle("name", namespace, targets, targets)
+			bundle, err := utils.CreateBundle(ctx, k8sClient, "name", namespace, targets, targets)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle).To(Not(BeNil()))
 

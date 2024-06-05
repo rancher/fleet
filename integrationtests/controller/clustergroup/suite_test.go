@@ -85,25 +85,6 @@ func (q *FakeQuery) BundlesForCluster(context.Context, *v1alpha1.Cluster) ([]*v1
 	return nil, nil, nil
 }
 
-func createCluster(name, controllerNs string, labels map[string]string, clusterNs string) (*v1alpha1.Cluster, error) {
-	cluster := &v1alpha1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: controllerNs,
-			Labels:    labels,
-		},
-	}
-	err := k8sClient.Create(ctx, cluster)
-	if err != nil {
-		return nil, err
-	}
-	// Need to set the status.Namespace as it is needed to create a BundleDeployment.
-	// Namespace is set by the Cluster controller. We need to do it manually because we are running just the Bundle controller.
-	cluster.Status.Namespace = clusterNs
-	err = k8sClient.Status().Update(ctx, cluster)
-	return cluster, err
-}
-
 func createClusterGroup(name, namespace string, selector *metav1.LabelSelector) (*v1alpha1.ClusterGroup, error) {
 	cg := &v1alpha1.ClusterGroup{
 		ObjectMeta: metav1.ObjectMeta{

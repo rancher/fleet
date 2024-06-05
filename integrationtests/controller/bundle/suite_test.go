@@ -99,54 +99,6 @@ var _ = AfterSuite(func() {
 type FakeQuery struct {
 }
 
-// createBundle copies all targets from the GitRepo into TargetRestrictions. TargetRestrictions acts as a whitelist to prevent
-// the creation of BundleDeployments from Targets created from the TargetCustomizations in the fleet.yaml
-// we replicate this behaviour here since this is run in an integration tests that runs just the BundleController.
-func createBundle(name, namespace string, targets []v1alpha1.BundleTarget, targetRestrictions []v1alpha1.BundleTarget) (*v1alpha1.Bundle, error) {
-	restrictions := []v1alpha1.BundleTargetRestriction{}
-	for _, r := range targetRestrictions {
-		restrictions = append(restrictions, v1alpha1.BundleTargetRestriction{
-			Name:                 r.Name,
-			ClusterName:          r.ClusterName,
-			ClusterSelector:      r.ClusterSelector,
-			ClusterGroup:         r.ClusterGroup,
-			ClusterGroupSelector: r.ClusterGroupSelector,
-		})
-	}
-	bundle := v1alpha1.Bundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    map[string]string{"foo": "bar"},
-		},
-		Spec: v1alpha1.BundleSpec{
-			Targets:            targets,
-			TargetRestrictions: restrictions,
-		},
-	}
-
-	return &bundle, k8sClient.Create(ctx, &bundle)
-}
-
-func createCluster(name, controllerNs string, labels map[string]string, clusterNs string) (*v1alpha1.Cluster, error) {
-	cluster := &v1alpha1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: controllerNs,
-			Labels:    labels,
-		},
-	}
-	err := k8sClient.Create(ctx, cluster)
-	if err != nil {
-		return nil, err
-	}
-	// Need to set the status.Namespace as it is needed to create a BundleDeployment.
-	// Namespace is set by the Cluster controller. We need to do it manually because we are running just the Bundle controller.
-	cluster.Status.Namespace = clusterNs
-	err = k8sClient.Status().Update(ctx, cluster)
-	return cluster, err
-}
-
 func createClusterGroup(name, namespace string, selector *metav1.LabelSelector) (*v1alpha1.ClusterGroup, error) {
 	cg := &v1alpha1.ClusterGroup{
 		ObjectMeta: metav1.ObjectMeta{

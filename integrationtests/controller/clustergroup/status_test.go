@@ -49,7 +49,7 @@ var _ = Describe("ClusterGroup Status Fields", func() {
 			Expect(clusterGroup.Status.ClusterCount).To(Equal(0))
 			Expect(clusterGroup.Status.Display.ReadyClusters).To(Equal(""))
 
-			cluster, err := createCluster(clusterName, namespace, nil, namespace)
+			cluster, err := utils.CreateCluster(ctx, k8sClient, clusterName, namespace, nil, namespace)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster).To(Not(BeNil()))
 
