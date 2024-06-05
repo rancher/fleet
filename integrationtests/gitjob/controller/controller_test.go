@@ -308,9 +308,9 @@ var _ = Describe("GitJob controller", func() {
 					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
 					return gitRepo.Status.Commit
 				}, "30s", "1s").Should(Equal(stableCommit))
-      })
-    })
-  })
+			})
+		})
+	})
 
 	When("creating a gitRepo that references a nonexistent helm secret", func() {
 		var (
