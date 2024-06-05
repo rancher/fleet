@@ -105,20 +105,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if errors.IsNotFound(err) {
-		if gitRepo.Status.Commit != "" {
-			if gitRepo.Spec.DisablePolling {
-				if err := r.updateCommit(ctx, &gitRepo); err != nil {
-					if errors.IsConflict(err) {
-						logger.V(1).Info("conflict updating commit, retrying", "message", err)
-						return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
-					}
-					return ctrl.Result{}, fmt.Errorf("error updating commit: %v", err)
-				}
-			}
-			if err = r.createJob(ctx, &gitRepo); err != nil {
-				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
-			}
-		} else {
+		if gitRepo.Spec.DisablePolling {
 			if err := r.updateCommit(ctx, &gitRepo); err != nil {
 				if errors.IsConflict(err) {
 					logger.V(1).Info("conflict updating commit, retrying", "message", err)
@@ -126,7 +113,11 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				}
 				return ctrl.Result{}, fmt.Errorf("error updating commit: %v", err)
 			}
-			return ctrl.Result{}, nil
+		}
+		if gitRepo.Status.Commit != "" {
+			if err = r.createJob(ctx, &gitRepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
+			}
 		}
 	} else if gitRepo.Status.Commit != "" {
 		if err = r.deleteJobIfNeeded(ctx, &gitRepo, &job); err != nil {
@@ -146,7 +137,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (r *GitJobReconciler) updateCommit(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
-	fetcher := git.NewFetcher()
+	fetcher := git.NewFetch()
 	commit, err := fetcher.LatestCommit(ctx, gitRepo, r.Client)
 	if err != nil {
 		return err

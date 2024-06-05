@@ -15,9 +15,11 @@ import (
 )
 
 const (
-	gitRepoNamespace = "default"
-	repo             = "https://www.github.com/rancher/fleet"
-	commit           = "9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"
+	gitRepoNamespace   = "default"
+	repo               = "https://www.github.com/rancher/fleet"
+	commit             = "9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"
+	stableCommitBranch = "renovate/golang.org-x-crypto-0.x"
+	stableCommit       = "7b4c2b25a2da2160604bde2773ae8aa44ed481dd"
 )
 
 var _ = Describe("GitJob controller", func() {
@@ -222,21 +224,41 @@ var _ = Describe("GitJob controller", func() {
 		var (
 			gitRepo     v1alpha1.GitRepo
 			gitRepoName string
+			job         batchv1.Job
 		)
 
-		BeforeEach(func() {
-			gitRepoName = "disable-polling"
-		})
-
-		It("should update the commit from the actual repo", func() {
+		JustBeforeEach(func() {
 			gitRepo = createGitRepoWithDisablePolling(gitRepoName)
 			Expect(k8sClient.Create(ctx, &gitRepo)).To(Succeed())
 
-			By("verifying the commit is updated")
-			Eventually(func() string {
-				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
-				return gitRepo.Status.Commit
-			}, "30s", "1s").ShouldNot(Equal(""))
+			By("Creating a job")
+			Eventually(func() error {
+				jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+stableCommit, 5))
+				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+			}).Should(Not(HaveOccurred()))
+		})
+
+		When("a job completes successfully", func() {
+			BeforeEach(func() {
+				gitRepoName = "disable-polling"
+			})
+
+			It("updates the commit from the actual repo", func() {
+				job.Status.Succeeded = 1
+				job.Status.Conditions = []batchv1.JobCondition{
+					{
+						Type:   "Complete",
+						Status: "True",
+					},
+				}
+				Expect(k8sClient.Status().Update(ctx, &job)).ToNot(HaveOccurred())
+
+				By("verifying the commit is updated")
+				Eventually(func() string {
+					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
+					return gitRepo.Status.Commit
+				}, "30s", "1s").Should(Equal(stableCommit))
+			})
 		})
 	})
 })
@@ -300,7 +322,7 @@ func createGitRepoWithDisablePolling(gitRepoName string) v1alpha1.GitRepo {
 		Spec: v1alpha1.GitRepoSpec{
 			Repo:           repo,
 			DisablePolling: true,
-			Branch:         "main",
+			Branch:         stableCommitBranch,
 		},
 	}
 }

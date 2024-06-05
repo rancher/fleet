@@ -18,7 +18,7 @@ const (
 
 type Fetch struct{}
 
-func NewFetcher() *Fetch {
+func NewFetch() *Fetch {
 	return &Fetch{}
 }
 
