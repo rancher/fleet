@@ -43,6 +43,26 @@ rules:
       - 'events'
     verbs:
       - '*'
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+    verbs:
+      - "create"
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+    verbs:
+      - escalate
+      - create
+      - bind
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+    verbs:
+      - create
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1

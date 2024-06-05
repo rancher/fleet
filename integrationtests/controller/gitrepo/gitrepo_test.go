@@ -12,7 +12,6 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -56,29 +55,6 @@ var _ = Describe("GitRepo", func() {
 		JustBeforeEach(func() {
 			err := k8sClient.Create(ctx, gitrepo)
 			Expect(err).NotTo(HaveOccurred())
-		})
-
-		It("creates RBAC resources", func() {
-			Expect(gitrepo.Spec.PollingInterval).To(BeNil())
-
-			Eventually(func() bool {
-				ns := types.NamespacedName{
-					Name:      fmt.Sprintf("git-%s", gitrepoName),
-					Namespace: namespace,
-				}
-
-				if err := k8sClient.Get(ctx, ns, &corev1.ServiceAccount{}); err != nil {
-					return false
-				}
-				if err := k8sClient.Get(ctx, ns, &rbacv1.Role{}); err != nil {
-					return false
-				}
-				if err := k8sClient.Get(ctx, ns, &rbacv1.RoleBinding{}); err != nil {
-					return false
-				}
-
-				return true
-			}).Should(BeTrue())
 		})
 
 		It("updates the gitrepo status", func() {
