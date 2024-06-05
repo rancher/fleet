@@ -3,7 +3,6 @@ package metrics_test
 import (
 	"fmt"
 	"math/rand"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -24,25 +23,30 @@ var _ = Describe("BundleDeployment Metrics", Label("bundledeployment"), func() {
 		// objName is going to be "randomized" instead of using a dedicated and
 		// random namespace, like it is the case for the other tests.
 		objName string
+
+		r = rand.New(rand.NewSource(GinkgoRandomSeed()))
 	)
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		kw = k.Namespace(namespace)
-		objName = testenv.AddRandomSuffix(
-			"metrics",
-			rand.New(rand.NewSource(time.Now().UnixNano())),
-		)
+		objName = testenv.AddRandomSuffix("metrics", r)
+		targetNS := testenv.NewNamespaceName("metrics", r)
 
 		err := testenv.CreateGitRepo(
 			kw,
-			namespace,
+			targetNS,
 			objName,
 			branch,
 			shard,
 			"simple-manifest",
 		)
 		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func() string {
+			out, _ := kw.Get("gitrepo", objName, "-o", "jsonpath={.status.readyClusters}")
+			return out
+		}).Should(ContainSubstring("1"))
 
 		DeferCleanup(func() {
 			out, err := k.Delete("gitrepo", objName)

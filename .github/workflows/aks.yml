@@ -135,14 +135,14 @@ jobs:
           FLEET_E2E_NS: fleet-local
         run: |
           export KUBECONFIG="$GITHUB_WORKSPACE/kubeconfig-fleet-ci"
-          ginkgo --label-filter="!infra-setup" e2e/single-cluster e2e/keep-resources
+          ginkgo --github-output --label-filter="!infra-setup" e2e/single-cluster e2e/keep-resources
       -
         name: Acceptance Tests for Examples
         env:
           FLEET_E2E_NS: fleet-local
         run: |
           export KUBECONFIG="$GITHUB_WORKSPACE/kubeconfig-fleet-ci"
-          ginkgo e2e/acceptance/single-cluster-examples
+          ginkgo --github-output e2e/acceptance/single-cluster-examples
       -
         name: Fleet Tests Requiring Github Secrets
         # These tests can't run for PRs, because PRs don't have access to the secrets
@@ -160,7 +160,7 @@ jobs:
           echo "${{ secrets.CI_AKS_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_AKS_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo e2e/require-secrets
+          ginkgo --github-output e2e/require-secrets
       -
         name: Delete AKS cluster
         # We always tear down the cluster, to avoid costs. Except when running

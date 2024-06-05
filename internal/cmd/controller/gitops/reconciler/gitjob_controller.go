@@ -101,7 +101,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		Name:      jobName(&gitRepo),
 	}, &job)
 	if err != nil && !errors.IsNotFound(err) {
-		return ctrl.Result{}, fmt.Errorf("error retrieving git job: %v", err)
+		return ctrl.Result{}, fmt.Errorf("error retrieving git job: %w", err)
 	}
 
 	if errors.IsNotFound(err) {
@@ -115,13 +115,23 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 		if gitRepo.Status.Commit != "" {
-			if err = r.createJob(ctx, &gitRepo); err != nil {
-				return ctrl.Result{}, fmt.Errorf("error creating git job: %v", err)
-			}
-		}
+      if err := r.validateExternalSecretExist(ctx, &gitRepo); err != nil {
+        nsname := types.NamespacedName{Namespace: gitRepo.Namespace, Name: gitRepo.Name}
+        return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, nsname, gitRepo.Status, err)
+      }
+      logger.V(1).Info("Creating Git job resources")
+      if err := r.createJobRBAC(ctx, &gitRepo); err != nil {
+        return ctrl.Result{}, fmt.Errorf("failed to create RBAC resources for git job: %w", err)
+      }
+      if err := r.createTargetsConfigMap(ctx, &gitRepo); err != nil {
+        return ctrl.Result{}, fmt.Errorf("failed to create targets config map for git job: %w", err)
+      }
+      if err := r.createJob(ctx, &gitRepo); err != nil {
+        return ctrl.Result{}, fmt.Errorf("error creating git job: %w", err)
+      }
 	} else if gitRepo.Status.Commit != "" {
 		if err = r.deleteJobIfNeeded(ctx, &gitRepo, &job); err != nil {
-			return ctrl.Result{}, fmt.Errorf("error deleting git job: %v", err)
+			return ctrl.Result{}, fmt.Errorf("error deleting git job: %w", err)
 		}
 	}
 
@@ -130,7 +140,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			logger.V(1).Info("conflict updating status, retrying", "message", err)
 			return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
 		}
-		return ctrl.Result{}, fmt.Errorf("error updating git job status: %v", err)
+		return ctrl.Result{}, fmt.Errorf("error updating git job status: %w", err)
 	}
 
 	return ctrl.Result{}, nil
@@ -165,6 +175,66 @@ func generationOrCommitChangedPredicate() predicate.Predicate {
 	}
 }
 
+func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
+	// No update needed, values are the same. So we ignore AlreadyExists.
+	saName := name.SafeConcatName("git", gitrepo.Name)
+	sa := grutil.NewServiceAccount(gitrepo.Namespace, saName)
+	if err := controllerutil.SetControllerReference(gitrepo, sa, r.Scheme); err != nil {
+		return err
+	}
+	if err := r.Create(ctx, sa); err != nil && !errors.IsAlreadyExists(err) {
+		return err
+	}
+
+	role := grutil.NewRole(gitrepo.Namespace, saName)
+	if err := controllerutil.SetControllerReference(gitrepo, role, r.Scheme); err != nil {
+		return err
+	}
+	if err := r.Create(ctx, role); err != nil && !errors.IsAlreadyExists(err) {
+		return err
+	}
+
+	rb := grutil.NewRoleBinding(gitrepo.Namespace, saName)
+	if err := controllerutil.SetControllerReference(gitrepo, rb, r.Scheme); err != nil {
+		return err
+	}
+	if err := r.Create(ctx, rb); err != nil && !errors.IsAlreadyExists(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (r *GitJobReconciler) createTargetsConfigMap(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
+	configMap, err := grutil.NewTargetsConfigMap(gitrepo)
+	if err != nil {
+		return err
+	}
+	if err := controllerutil.SetControllerReference(gitrepo, configMap, r.Scheme); err != nil {
+		return err
+	}
+	data := configMap.BinaryData
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
+		configMap.BinaryData = data
+		return nil
+	})
+
+	return err
+}
+
+func (r *GitJobReconciler) validateExternalSecretExist(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
+	if gitrepo.Spec.HelmSecretNameForPaths != "" {
+		if err := r.Get(ctx, types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Spec.HelmSecretNameForPaths}, &corev1.Secret{}); err != nil {
+			return fmt.Errorf("failed to look up HelmSecretNameForPaths, error: %w", err)
+		}
+	} else if gitrepo.Spec.HelmSecretName != "" {
+		if err := r.Get(ctx, types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Spec.HelmSecretName}, &corev1.Secret{}); err != nil {
+			return fmt.Errorf("failed to look up helmSecretName, error: %w", err)
+		}
+	}
+	return nil
+}
+
 func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
 	job, err := r.newJob(ctx, gitRepo)
 	if err != nil {
@@ -188,6 +258,29 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 		return err
 	}
 
+	terminationMessage := ""
+	if result.Status == status.FailedStatus {
+		selector := labels.SelectorFromSet(labels.Set{"job-name": job.Name})
+		podList := &corev1.PodList{}
+		err := r.List(ctx, podList, &client.ListOptions{LabelSelector: selector})
+		if err != nil {
+			return err
+		}
+
+		sort.Slice(podList.Items, func(i, j int) bool {
+			return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
+		})
+
+		terminationMessage = result.Message
+		if len(podList.Items) > 0 {
+			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
+				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
+					terminationMessage += podStatus.State.Terminated.Message
+				}
+			}
+		}
+	}
+
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		currentGitRepo := &v1alpha1.GitRepo{}
 		err := r.Get(ctx, client.ObjectKeyFromObject(gitRepo), currentGitRepo)
@@ -205,30 +298,10 @@ func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.G
 			condition.Cond(con.Type.String()).Reason(currentGitRepo, con.Reason)
 		}
 
-		if result.Status == status.FailedStatus {
-			selector := labels.SelectorFromSet(labels.Set{
-				"job-name": job.Name,
-			})
-			var podList corev1.PodList
-			err := r.Client.List(ctx, &podList, &client.ListOptions{LabelSelector: selector})
-			if err != nil {
-				return err
-			}
-			sort.Slice(podList.Items, func(i, j int) bool {
-				return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
-			})
-			terminationMessage := result.Message
-			if len(podList.Items) > 0 {
-				for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
-					if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
-						terminationMessage += podStatus.State.Terminated.Message
-					}
-				}
-			}
+		switch result.Status {
+		case status.FailedStatus:
 			kstatus.SetError(currentGitRepo, terminationMessage)
-		}
-
-		if result.Status == status.CurrentStatus {
+		case status.CurrentStatus:
 			if strings.Contains(result.Message, "Job Completed") {
 				currentGitRepo.Status.Commit = job.Annotations["commit"]
 			}

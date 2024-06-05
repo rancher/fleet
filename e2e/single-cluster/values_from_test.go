@@ -18,11 +18,12 @@ var _ = Describe("ValuesFrom", func() {
 		// kw is the kubectl command for namespace the workload is deployed to
 		kw        kubectl.Command
 		namespace string
+		r         = rand.New(rand.NewSource(GinkgoRandomSeed()))
 	)
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
-		namespace = testenv.NewNamespaceName("values-from", rand.New(rand.NewSource(GinkgoRandomSeed())))
+		namespace = testenv.NewNamespaceName("values-from", r)
 		kw = k.Namespace(namespace)
 
 		out, err := k.Create("ns", namespace)

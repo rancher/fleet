@@ -107,25 +107,25 @@ jobs:
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
 
           # 1. Run test cases not needing infra
-          ginkgo --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources
+          ginkgo --github-output --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources
 
           # 2. Run tests for metrics
-          ginkgo e2e/metrics
-          SHARD=shard1 ginkgo e2e/metrics
+          ginkgo --github-output e2e/metrics
+          SHARD=shard1 ginkgo --github-output e2e/metrics
 
           # 3. Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
-          ginkgo --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
+          ginkgo --github-output --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
 
           # 4. Run tests requiring a Helm registry
           e2e/testenv/infra/infra setup --helm-registry=true
-          ginkgo --label-filter='helm-registry' e2e/single-cluster
+          ginkgo --github-output --label-filter='helm-registry' e2e/single-cluster
 
           e2e/testenv/infra/infra teardown --helm-registry=true
 
           # 5. Run tests requiring an OCI registry
           e2e/testenv/infra/infra setup --oci-registry=true
-          ginkgo --label-filter='oci-registry' e2e/single-cluster
+          ginkgo --github-output --label-filter='oci-registry' e2e/single-cluster
 
           # 6. Tear down all infra
           e2e/testenv/infra/infra teardown
@@ -135,7 +135,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo e2e/acceptance/single-cluster-examples
+          ginkgo --github-output e2e/acceptance/single-cluster-examples
       -
         name: Fleet Tests Requiring Github Secrets
         if: ${{ matrix.test_type == 'e2e-secrets' }}
@@ -153,7 +153,7 @@ jobs:
           echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo e2e/require-secrets
+          ginkgo --github-output e2e/require-secrets
       -
         name: Dump Failed Environment
         if: failure()

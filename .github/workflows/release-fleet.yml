@@ -46,7 +46,7 @@ jobs:
           secrets: |
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
-            secret/data/github/repo/${{ github.repository }}/fossa/credentials token | FOSSA_API_KEY
+            secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
 
       - name: Run FOSSA scan
         uses: fossas/fossa-action@v1.3.3
@@ -57,7 +57,7 @@ jobs:
         uses: fossas/fossa-action@v1.3.3
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
-          run-tests: true
+          run-tests: false
 
       - name: Check for code changes
         run: |

@@ -24,7 +24,7 @@ type readFile func(name string) ([]byte, error)
 func NewApply() *cobra.Command {
 	return command.Command(&Apply{}, cobra.Command{
 		Use:   "apply [flags] BUNDLE_NAME PATH...",
-		Short: "Render a bundle into a Kubernetes resource and apply it in the Fleet Manager",
+		Short: "Create bundles from directories, and output them or apply them on a cluster",
 	})
 }
 

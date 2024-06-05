@@ -147,13 +147,13 @@ jobs:
       -
         name: Set up latest Rancher
         env:
-          public_hostname: "172.18.0.1.omg.howdoi.website"
+          public_hostname: "172.18.0.1.sslip.io"
         run: |
           ./.github/scripts/setup-latest-rancher.sh
       -
         name: Register Rancher's downstream clusters
         env:
-          public_hostname: "172.18.0.1.omg.howdoi.website"
+          public_hostname: "172.18.0.1.sslip.io"
         run: |
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
@@ -182,7 +182,7 @@ jobs:
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
-          ginkgo e2e/multi-cluster
+          ginkgo --github-output e2e/multi-cluster
       -
         name: Dump failed environment
         if: failure()

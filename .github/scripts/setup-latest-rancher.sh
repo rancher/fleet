@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-public_hostname="${public_hostname-172.18.0.1.omg.howdoi.website}"
+public_hostname="${public_hostname-172.18.0.1.sslip.io}"
 cluster="${cluster-k3d-upstream}"
 
 kubectl config use-context "$cluster"

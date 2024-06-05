@@ -68,6 +68,12 @@
           "dupl",
           "gosec"
         ]
+      },
+      {
+        "path": "e2e",
+        "linters": [
+          "gosec"
+        ]
       }
     ]
   }

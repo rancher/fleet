@@ -22,6 +22,8 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 
 		interval = 2 * time.Second
 		duration = 30 * time.Second
+
+		r = rand.New(rand.NewSource(GinkgoRandomSeed()))
 	)
 
 	type TemplateData struct {
@@ -50,7 +52,7 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 	Context("with bundlenamespacemapping", func() {
 		When("bundle selector does not match", func() {
 			BeforeEach(func() {
-				namespace = testenv.NewNamespaceName("bnm-nomatch", rand.New(rand.NewSource(GinkgoRandomSeed())))
+				namespace = testenv.NewNamespaceName("bnm-nomatch", r)
 				asset = "multi-cluster/bundle-namespace-mapping.yaml"
 				data = TemplateData{env.ClusterRegistrationNamespace, namespace, "", "mismatch", false}
 			})

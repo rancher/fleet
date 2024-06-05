@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -129,7 +130,7 @@ func (r *ClusterGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request
 func (r *ClusterGroupReconciler) setCondition(status *fleet.ClusterGroupStatus, err error) {
 	cond := condition.Cond(fleet.ClusterGroupConditionProcessed)
 	origStatus := status.DeepCopy()
-	cond.SetError(status, "", ignoreConflict(err))
+	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
 	if !equality.Semantic.DeepEqual(origStatus, status) {
 		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
 	}

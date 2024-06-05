@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/wrangler/v2/pkg/genericcondition"
 )
 
+// IncrementState increments counters in the BundleSummary. We store up to 10 non ready resources in the summary, with the bundldedeployment's state.
 func IncrementState(summary *fleet.BundleSummary, name string, state fleet.BundleState, message string, modified []fleet.ModifiedStatus, nonReady []fleet.NonReadyStatus) {
 	switch state {
 	case fleet.Modified:

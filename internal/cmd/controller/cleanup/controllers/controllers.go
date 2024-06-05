@@ -55,7 +55,6 @@ func Register(ctx context.Context, appCtx *AppContext) error {
 			appCtx.RBAC.RoleBinding(),
 			appCtx.RBAC.ClusterRole(),
 			appCtx.RBAC.ClusterRoleBinding(),
-			appCtx.Bundle(),
 			appCtx.ClusterRegistrationToken(),
 			appCtx.ClusterRegistration(),
 			appCtx.ClusterGroup(),
@@ -63,16 +62,12 @@ func Register(ctx context.Context, appCtx *AppContext) error {
 			appCtx.Core.Namespace()),
 		appCtx.Core.Secret(),
 		appCtx.Core.ServiceAccount(),
-		appCtx.BundleDeployment(),
 		appCtx.RBAC.Role(),
 		appCtx.RBAC.RoleBinding(),
 		appCtx.RBAC.ClusterRole(),
 		appCtx.RBAC.ClusterRoleBinding(),
 		appCtx.Core.Namespace(),
 		appCtx.Cluster().Cache(),
-		appCtx.Bundle(),
-		appCtx.ImageScan(),
-		appCtx.GitRepo().Cache(),
 	)
 
 	if err := appCtx.Start(ctx); err != nil {

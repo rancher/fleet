@@ -27,14 +27,14 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-getter v1.7.4
 	github.com/jpillora/backoff v1.0.0
-	github.com/onsi/ginkgo/v2 v2.18.0
+	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
 	github.com/otiai10/copy v1.14.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.53.0
-	github.com/rancher/fleet/pkg/apis v0.10.0-rc.13
+	github.com/rancher/fleet/pkg/apis v0.10.0-rc.14
 	github.com/rancher/lasso v0.0.0-20240424194130-d87ec407d941
 	github.com/rancher/wrangler/v2 v2.1.4
 	github.com/reugn/go-quartz v0.11.2
@@ -48,7 +48,7 @@ require (
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
-	helm.sh/helm/v3 v3.15.0
+	helm.sh/helm/v3 v3.15.1
 	k8s.io/api v0.29.4
 	k8s.io/apiextensions-apiserver v0.29.4
 	k8s.io/apimachinery v0.29.4

@@ -4,7 +4,7 @@ metadata:
   name: {{ .Name }}
   {{- if ne .Shard "" }}
   labels:
-    fleet.cattle.io/shard: {{ .Shard }}
+    fleet.cattle.io/shard-ref: {{ .Shard }}
   {{- end }}
 
 spec:

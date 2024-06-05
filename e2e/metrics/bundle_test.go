@@ -142,6 +142,8 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 		out, err := k.Create("ns", namespace)
 		Expect(err).ToNot(HaveOccurred(), out)
 
+		// This GitRepo will not create any workload, since it is in a
+		// random namespace, which lacks a cluster
 		err = testenv.CreateGitRepo(
 			kw,
 			namespace,
@@ -151,6 +153,8 @@ var _ = Describe("Bundle Metrics", Label("bundle"), func() {
 			"simple-manifest",
 		)
 		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(metricsExist(gitRepoName+"-simple-manifest", nil)).ShouldNot(HaveOccurred())
 
 		DeferCleanup(func() {
 			out, err = k.Delete("ns", namespace)

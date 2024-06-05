@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"time"
 
 	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
@@ -17,17 +16,12 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/reugn/go-quartz/quartz"
 
-	"github.com/rancher/wrangler/v2/pkg/condition"
 	"github.com/rancher/wrangler/v2/pkg/genericcondition"
-	"github.com/rancher/wrangler/v2/pkg/name"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -39,6 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
+
+const gitRepoFinalizer = "fleet.cattle.io/gitrepo-finalizer"
 
 // GitRepoReconciler  reconciles a GitRepo object
 type GitRepoReconciler struct {
@@ -61,27 +57,59 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	logger := log.FromContext(ctx).WithName("gitrepo")
 
 	gitrepo := &fleet.GitRepo{}
-	err := r.Get(ctx, req.NamespacedName, gitrepo)
-	if client.IgnoreNotFound(err) != nil {
-		return ctrl.Result{}, err
+	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Clean up
-	if apierrors.IsNotFound(err) {
-		logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
+	if gitrepo.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+					return err
+				}
 
-		metrics.GitRepoCollector.Delete(req.NamespacedName.Name, req.NamespacedName.Namespace)
+				controllerutil.AddFinalizer(gitrepo, gitRepoFinalizer)
 
-		if err := purgeBundles(ctx, r.Client, req.NamespacedName); err != nil {
-			return ctrl.Result{}, err
+				return r.Update(ctx, gitrepo)
+			})
+
+			if client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
+			// Clean up
+			logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
+
+			metrics.GitRepoCollector.Delete(req.NamespacedName.Name, req.NamespacedName.Namespace)
+
+			if err := purgeBundles(ctx, r.Client, req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			// remove the job scheduled by imagescan, if any
+			_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(req.Namespace, req.Name))
+
+			if err := purgeImageScans(ctx, r.Client, req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(gitrepo, gitRepoFinalizer)
+
+				return r.Update(ctx, gitrepo)
+			})
+
+			if client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{}, err
+			}
 		}
 
-		// remove the job scheduled by imagescan, if any
-		_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(req.Namespace, req.Name))
-
-		if err := purgeImageScans(ctx, r.Client, req.NamespacedName); err != nil {
-			return ctrl.Result{}, err
-		}
 		return ctrl.Result{}, nil
 	}
 
@@ -97,26 +125,26 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Restrictions / Overrides
 	// AuthorizeAndAssignDefaults mutates GitRepo and it returns nil on error
 	oldStatus := gitrepo.Status.DeepCopy()
-	gitrepo, err = grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
+	gitrepo, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
 	if err != nil {
-		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, *oldStatus, err)
+		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
 	}
 
 	// Refresh the status
 	err = grutil.SetStatusFromBundleDeployments(ctx, r.Client, gitrepo)
 	if err != nil {
-		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
+		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	err = grutil.SetStatusFromBundles(ctx, r.Client, gitrepo)
 	if err != nil {
-		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
+		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	// Ideally, this should be done in the git job reconciler, but setting the status from bundle deployments
 	// updates the display state too.
 	if err = grutil.UpdateDisplayState(gitrepo); err != nil {
-		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
+		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	grutil.SetStatusFromResourceKey(ctx, r.Client, gitrepo)
@@ -125,118 +153,16 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)
 
-	r.setCondition(&gitrepo.Status, nil)
+	grutil.SetCondition(&gitrepo.Status, nil)
 
-	err = r.updateStatus(ctx, req.NamespacedName, gitrepo.Status)
+	err = grutil.UpdateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
 	if err != nil {
 		logger.V(1).Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
 
 		return ctrl.Result{}, err
 	}
 
-	// Validate external secrets exist
-	if gitrepo.Spec.HelmSecretNameForPaths != "" {
-		if err := r.Get(ctx, types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Spec.HelmSecretNameForPaths}, &corev1.Secret{}); err != nil {
-			err = fmt.Errorf("failed to look up HelmSecretNameForPaths, error: %v", err)
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
-
-		}
-	} else if gitrepo.Spec.HelmSecretName != "" {
-		if err := r.Get(ctx, types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Spec.HelmSecretName}, &corev1.Secret{}); err != nil {
-			err = fmt.Errorf("failed to look up helmSecretName, error: %v", err)
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, gitrepo.Status, err)
-		}
-	}
-
-	// Start creating/updating the job
-	logger.V(1).Info("Creating Git job resources")
-
-	configMap, err := grutil.NewTargetsConfigMap(gitrepo)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := controllerutil.SetControllerReference(gitrepo, configMap, r.Scheme); err != nil {
-		return ctrl.Result{}, err
-	}
-	data := configMap.BinaryData
-	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
-		configMap.BinaryData = data
-		return nil
-	})
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	// No update needed, values are the same. So we ignore AlreadyExists.
-	saName := name.SafeConcatName("git", gitrepo.Name)
-	sa := grutil.NewServiceAccount(gitrepo.Namespace, saName)
-	if err := controllerutil.SetControllerReference(gitrepo, sa, r.Scheme); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.Create(ctx, sa); err != nil && !apierrors.IsAlreadyExists(err) {
-		return ctrl.Result{}, err
-	}
-
-	role := grutil.NewRole(gitrepo.Namespace, saName)
-	if err := controllerutil.SetControllerReference(gitrepo, role, r.Scheme); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.Create(ctx, role); err != nil && !apierrors.IsAlreadyExists(err) {
-		return ctrl.Result{}, err
-	}
-
-	rb := grutil.NewRoleBinding(gitrepo.Namespace, saName)
-	if err := controllerutil.SetControllerReference(gitrepo, rb, r.Scheme); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.Create(ctx, rb); err != nil && !apierrors.IsAlreadyExists(err) {
-		return ctrl.Result{}, err
-	}
-
 	return ctrl.Result{}, nil
-}
-
-// setCondition sets the condition and updates the timestamp, if the condition changed
-func (r *GitRepoReconciler) setCondition(status *fleet.GitRepoStatus, err error) {
-	cond := condition.Cond(fleet.GitRepoAcceptedCondition)
-	origStatus := status.DeepCopy()
-	cond.SetError(status, "", ignoreConflict(err))
-	if !equality.Semantic.DeepEqual(origStatus, status) {
-		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
-	}
-}
-
-// updateErrorStatus sets the condition in the status and tries to update the resource
-func (r *GitRepoReconciler) updateErrorStatus(ctx context.Context, req types.NamespacedName, status fleet.GitRepoStatus, orgErr error) error {
-	r.setCondition(&status, orgErr)
-	if statusErr := r.updateStatus(ctx, req, status); statusErr != nil {
-		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
-		return errutil.NewAggregate(merr)
-	}
-	return orgErr
-}
-
-// updateStatus updates the status for the GitRepo resource. It retries on
-// conflict. If the status was updated successfully, it also collects (as in
-// updates) metrics for the resource GitRepo resource.
-func (r *GitRepoReconciler) updateStatus(ctx context.Context, req types.NamespacedName, status fleet.GitRepoStatus) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		t := &fleet.GitRepo{}
-		err := r.Get(ctx, req, t)
-		if err != nil {
-			return err
-		}
-		t.Status = status
-
-		err = r.Status().Update(ctx, t)
-		if err != nil {
-			return err
-		}
-
-		metrics.GitRepoCollector.Collect(ctx, t)
-
-		return nil
-	})
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -324,8 +250,8 @@ func purgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 	}
 
 	for _, bundle := range bundles.Items {
-		err := c.Delete(ctx, &bundle) // nolint:gosec // does not store pointer
-		if err != nil {
+		err := c.Delete(ctx, &bundle)
+		if client.IgnoreNotFound(err) != nil {
 			return err
 		}
 
@@ -340,12 +266,36 @@ func purgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 
 func purgeBundleDeployments(ctx context.Context, c client.Client, bundle types.NamespacedName) error {
 	list := &fleet.BundleDeploymentList{}
-	err := c.List(ctx, list, client.MatchingLabels{fleet.BundleLabel: bundle.Name, fleet.BundleNamespaceLabel: bundle.Namespace})
+	err := c.List(
+		ctx,
+		list,
+		client.MatchingLabels{
+			fleet.BundleLabel:          bundle.Name,
+			fleet.BundleNamespaceLabel: bundle.Namespace,
+		},
+	)
 	if err != nil {
 		return err
 	}
 	for _, bd := range list.Items {
-		err := c.Delete(ctx, &bd) // nolint:gosec // does not store pointer
+		if controllerutil.ContainsFinalizer(&bd, bundleDeploymentFinalizer) { // nolint: gosec // does not store pointer
+			nn := types.NamespacedName{Namespace: bd.Namespace, Name: bd.Name}
+			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				t := &fleet.BundleDeployment{}
+				if err := c.Get(ctx, nn, t); err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(t, bundleDeploymentFinalizer)
+
+				return c.Update(ctx, t)
+			})
+			if err != nil {
+				return err
+			}
+		}
+
+		err := c.Delete(ctx, &bd)
 		if err != nil {
 			return err
 		}
@@ -363,7 +313,7 @@ func purgeImageScans(ctx context.Context, c client.Client, gitrepo types.Namespa
 
 	for _, image := range images.Items {
 		if image.Spec.GitRepoName == gitrepo.Name {
-			err := c.Delete(ctx, &image) // nolint:gosec // does not store pointer
+			err := c.Delete(ctx, &image)
 			if err != nil {
 				return err
 			}
@@ -413,11 +363,4 @@ func acceptedLastUpdate(conds []genericcondition.GenericCondition) string {
 	}
 
 	return ""
-}
-
-func ignoreConflict(err error) error {
-	if apierrors.IsConflict(err) {
-		return nil
-	}
-	return err
 }

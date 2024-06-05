@@ -18,10 +18,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
+
+const bundleDeploymentFinalizer = "fleet.cattle.io/bundle-deployment-finalizer"
 
 // BundleDeploymentReconciler reconciles a BundleDeployment object
 type BundleDeploymentReconciler struct {
@@ -43,10 +46,34 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	bd := &fleet.BundleDeployment{}
 	err := r.Get(ctx, req.NamespacedName, bd)
+
 	if err != nil {
 		metrics.BundleDeploymentCollector.Delete(req.Name, req.Namespace)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	// The bundle reconciler takes care of adding the finalizer when creating a bundle deployment
+	if !bd.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(bd, bundleDeploymentFinalizer) {
+			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				t := &fleet.BundleDeployment{}
+				err := r.Get(ctx, req.NamespacedName, t)
+				if err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(t, bundleDeploymentFinalizer)
+
+				return r.Update(ctx, bd)
+			})
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
+	}
+
 	// increased log level, this triggers a lot
 	logger.V(4).Info("Reconciling bundledeployment, updating display status field", "oldDisplay", bd.Status.Display)
 

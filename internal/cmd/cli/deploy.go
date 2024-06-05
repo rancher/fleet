@@ -32,6 +32,8 @@ func NewDeploy() *cobra.Command {
 	cmd := command.Command(&Deploy{}, cobra.Command{
 		Short: "Deploy a bundledeployment/content resource to a cluster, by creating a Helm release. This will not deploy the bundledeployment/content resources directly to the cluster.",
 	})
+	cmd.SetOut(os.Stdout)
+
 	// add command line flags from zap and controller-runtime, which use
 	// goflags and convert them to pflags
 	fs := flag.NewFlagSet("", flag.ExitOnError)
@@ -69,6 +71,8 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	// position of the content and bundledeployment resources in the file is not guaranteed
 	for _, obj := range objs {
 		switch obj.GetObjectKind().GroupVersionKind().Kind {
 		case "Content":
