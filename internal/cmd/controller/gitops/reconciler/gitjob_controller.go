@@ -108,6 +108,10 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if gitRepo.Status.Commit != "" {
 			if gitRepo.Spec.DisablePolling {
 				if err := r.updateCommit(ctx, &gitRepo); err != nil {
+					if errors.IsConflict(err) {
+						logger.V(1).Info("conflict updating commit, retrying", "message", err)
+						return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
+					}
 					return ctrl.Result{}, fmt.Errorf("error updating commit: %v", err)
 				}
 			}
@@ -116,6 +120,10 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		} else {
 			if err := r.updateCommit(ctx, &gitRepo); err != nil {
+				if errors.IsConflict(err) {
+					logger.V(1).Info("conflict updating commit, retrying", "message", err)
+					return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
+				}
 				return ctrl.Result{}, fmt.Errorf("error updating commit: %v", err)
 			}
 			return ctrl.Result{}, nil
