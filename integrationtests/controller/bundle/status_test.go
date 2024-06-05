@@ -124,7 +124,6 @@ var _ = Describe("Bundle Status Fields", func() {
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "cluster"}, cluster)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster.Status.Summary.Ready).To(Equal(0))
-			Expect(cluster.Status.Display.ReadyBundles).To(Equal("0/0"))
 
 			bundle := &v1alpha1.Bundle{}
 			Eventually(func() bool {
@@ -164,7 +163,7 @@ var _ = Describe("Bundle Status Fields", func() {
 				return cluster.Status.Summary.Ready == 1
 			}).Should(BeTrue())
 			Expect(cluster.Status.Summary.Pending).To(Equal(0))
-			Expect(cluster.Status.Display.ReadyBundles).To(Equal("1/2"))
+			Expect(cluster.Status.Display.ReadyBundles).To(Equal("1/1"))
 
 			// resourceVersion := cluster.ResourceVersion
 			By("Modifying labels will change cluster state")

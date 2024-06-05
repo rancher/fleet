@@ -44,7 +44,6 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 	testenv = utils.NewEnvTest()
 	testEnvBool = true
-	testenv.UseExistingCluster = &testEnvBool
 
 	var err error
 	cfg, err = testenv.Start()
@@ -80,7 +79,7 @@ var _ = BeforeSuite(func() {
 	err = (&reconciler.ClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		Query:  &FakeQuery{},
+		Query:  builder,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
@@ -95,9 +94,6 @@ var _ = AfterSuite(func() {
 	cancel()
 	Expect(testenv.Stop()).ToNot(HaveOccurred())
 })
-
-type FakeQuery struct {
-}
 
 func createClusterGroup(name, namespace string, selector *metav1.LabelSelector) (*v1alpha1.ClusterGroup, error) {
 	cg := &v1alpha1.ClusterGroup{
@@ -121,9 +117,4 @@ func expectedLabelValue(bdLabels map[string]string, key, value string) (*v1alpha
 		return &list.Items[0], list.Items[0].Labels[key] == value
 	}
 	return nil, false
-}
-
-// BundlesForCluster returns empty list, so no cleanup is needed
-func (q *FakeQuery) BundlesForCluster(context.Context, *v1alpha1.Cluster) ([]*v1alpha1.Bundle, []*v1alpha1.Bundle, error) {
-	return nil, nil, nil
 }
