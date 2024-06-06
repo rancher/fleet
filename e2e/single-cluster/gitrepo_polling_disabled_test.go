@@ -15,7 +15,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-var _ = FDescribe("GitRepoPollingDisabled", func() {
+var _ = Describe("GitRepoPollingDisabled", func() {
 	var (
 		tmpDir           string
 		clonedir         string
@@ -95,7 +95,7 @@ var _ = FDescribe("GitRepoPollingDisabled", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("deploys the ressources", func() {
+		It("deploys the resources", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
