@@ -14,7 +14,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-var _ = FDescribe("GitRepoPollingDisabled", Label("infra-setup"), func() {
+var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 	var (
 		tmpDir           string
 		clonedir         string
