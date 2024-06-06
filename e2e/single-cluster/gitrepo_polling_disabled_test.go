@@ -1,6 +1,7 @@
 package singlecluster_test
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -14,7 +15,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
+var _ = FDescribe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 	var (
 		tmpDir           string
 		clonedir         string
@@ -104,7 +105,7 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			By("Updating the git repository")
 			replace(path.Join(clonedir, "disable_polling", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")
 
-			_, err := gh.Update(clone)
+			commit, err := gh.Update(clone)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Verifying the pods aren't updated")
@@ -123,6 +124,12 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
 			}).Should(ContainSubstring("newsleep"))
+
+			By("Verifying the commit hash is updated")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.commit}")
+				return out
+			}).Should(Equal(commit))
 		})
 	})
 })
