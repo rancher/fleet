@@ -1,7 +1,6 @@
 package singlecluster_test
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"path"
