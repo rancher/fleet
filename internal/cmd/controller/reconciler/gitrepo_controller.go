@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
+	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"

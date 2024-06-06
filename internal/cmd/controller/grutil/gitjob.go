@@ -1,6 +1,6 @@
 // Copyright (c) 2021-2023 SUSE LLC
 
-package gitrepo
+package grutil
 
 import (
 	corev1 "k8s.io/api/core/v1"
