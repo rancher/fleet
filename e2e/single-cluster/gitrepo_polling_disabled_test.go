@@ -94,7 +94,7 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("deploys the resources initially and updates while force udating", func() {
+		It("deploys the resources initially and updates them while force updating", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
