@@ -496,7 +496,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 				Image:     "test",
 				GitPoller: poller,
 			}
-			job, err := r.newJob(ctx, test.gitrepo)
+			job, err := r.newGitJob(ctx, test.gitrepo)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -609,7 +609,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					t.Errorf("unexpected error: %v", err)
 				}
 			}
-			job, err := r.newJob(ctx, test.gitrepo)
+			job, err := r.newGitJob(ctx, test.gitrepo)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
