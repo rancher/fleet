@@ -4,7 +4,6 @@ import (
 	"math/rand"
 	"os"
 	"path"
-	"time"
 
 	"github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
@@ -95,7 +94,7 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("deploys the resources", func() {
+		It("deploys the resources initially and updates while force udating", func() {
 			By("checking the pod exists")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
@@ -109,7 +108,6 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Verifying the pods aren't updated")
-			time.Sleep(10 * time.Second)
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
@@ -120,7 +118,6 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			out, err := k.Run("patch", "gitrepo", gitrepoName, "--type=merge", "--patch", patch)
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			time.Sleep(10 * time.Second)
 			By("Verifying the pods are updated")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
