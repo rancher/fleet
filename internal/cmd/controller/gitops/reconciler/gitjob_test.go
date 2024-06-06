@@ -42,6 +42,7 @@ func TestReconcile_AddOrModifyGitRepoPollJobIsCalled_WhenGitRepoIsCreatedOrModif
 	client := mocks.NewMockClient(mockCtrl)
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any())
+	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Status().Return(statusClient)
 	poller := mocks.NewMockGitPoller(mockCtrl)
