@@ -10,7 +10,7 @@ import (
 
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
-	"github.com/rancher/fleet/internal/ociutils"
+	"github.com/rancher/fleet/internal/ociwrapper"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v2/pkg/condition"
@@ -116,28 +116,28 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 		if err := d.upstreamClient.Get(ctx, secretID, &secret); err != nil {
 			return "", err
 		}
-		url, ok := secret.Data[ociutils.OCISecretURL]
+		url, ok := secret.Data[ociwrapper.OCISecretURL]
 		if !ok {
 			return "", fmt.Errorf("expected data [url] not found in secret: %s", manifestID)
 		}
-		username := string(secret.Data[ociutils.OCISecretUsername])
-		password := string(secret.Data[ociutils.OCISecretPassword])
-		basicHttp, err := strconv.ParseBool(string(secret.Data[ociutils.OCISecretBasicHTTP]))
+		username := string(secret.Data[ociwrapper.OCISecretUsername])
+		password := string(secret.Data[ociwrapper.OCISecretPassword])
+		basicHttp, err := strconv.ParseBool(string(secret.Data[ociwrapper.OCISecretBasicHTTP]))
 		if err != nil {
 			return "", fmt.Errorf("value for [ociRegistry.http] in secret %s cannot be parsed as boolean", manifestID)
 		}
-		insecure, err := strconv.ParseBool(string(secret.Data[ociutils.OCISecretInsecure]))
+		insecure, err := strconv.ParseBool(string(secret.Data[ociwrapper.OCISecretInsecure]))
 		if err != nil {
 			return "", fmt.Errorf("value for [ociRegistry.insecure] in secret %s cannot be parsed as boolean", manifestID)
 		}
-		ociOpts := ociutils.OCIOpts{
+		ociOpts := ociwrapper.OCIOpts{
 			URL:             string(url),
 			Username:        username,
 			Password:        password,
 			BasicHTTP:       basicHttp,
 			InsecureSkipTLS: insecure,
 		}
-		oci := ociutils.NewOCIUtils()
+		oci := ociwrapper.NewOCIWrapper()
 		manifest, err = oci.PullManifest(ctx, ociOpts, manifestID)
 		if err != nil {
 			return "", err

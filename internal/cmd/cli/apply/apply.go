@@ -19,7 +19,7 @@ import (
 	"github.com/rancher/fleet/internal/fleetyaml"
 	"github.com/rancher/fleet/internal/manifest"
 	name2 "github.com/rancher/fleet/internal/name"
-	"github.com/rancher/fleet/internal/ociutils"
+	"github.com/rancher/fleet/internal/ociwrapper"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v2/pkg/yaml"
@@ -255,14 +255,14 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts *Options) (
 	if err != nil {
 		return "", err
 	}
-	ociOpts := ociutils.OCIOpts{
+	ociOpts := ociwrapper.OCIOpts{
 		URL:             opts.OCIRegistry.URL,
 		Username:        opts.OCIRegistry.Username,
 		Password:        opts.OCIRegistry.Password,
 		BasicHTTP:       opts.OCIRegistry.BasicHTTP,
 		InsecureSkipTLS: opts.OCIRegistry.InsecureSkipTLS,
 	}
-	oci := ociutils.NewOCIUtils()
+	oci := ociwrapper.NewOCIWrapper()
 	err = oci.PushManifest(ctx, ociOpts, manifestID, manifest)
 	if err != nil {
 		return "", err
@@ -360,11 +360,11 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 			},
 		},
 		Data: map[string][]byte{
-			ociutils.OCISecretURL:       []byte(opts.OCIRegistry.URL),
-			ociutils.OCISecretUsername:  []byte(opts.OCIRegistry.Username),
-			ociutils.OCISecretPassword:  []byte(opts.OCIRegistry.Password),
-			ociutils.OCISecretBasicHTTP: []byte(strconv.FormatBool(opts.OCIRegistry.BasicHTTP)),
-			ociutils.OCISecretInsecure:  []byte(strconv.FormatBool(opts.OCIRegistry.InsecureSkipTLS)),
+			ociwrapper.OCISecretURL:       []byte(opts.OCIRegistry.URL),
+			ociwrapper.OCISecretUsername:  []byte(opts.OCIRegistry.Username),
+			ociwrapper.OCISecretPassword:  []byte(opts.OCIRegistry.Password),
+			ociwrapper.OCISecretBasicHTTP: []byte(strconv.FormatBool(opts.OCIRegistry.BasicHTTP)),
+			ociwrapper.OCISecretInsecure:  []byte(strconv.FormatBool(opts.OCIRegistry.InsecureSkipTLS)),
 		},
 	}
 	if _, err := c.Core.Secret().Create(secret); err != nil {

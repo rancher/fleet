@@ -1,4 +1,4 @@
-package ociutils
+package ociwrapper
 
 import (
 	"bytes"
@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/rancher/fleet/internal/manifest"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
@@ -61,12 +62,12 @@ func (o *OrasOperator) Copy(ctx context.Context, src oras.ReadOnlyTarget, srcRef
 	return oras.Copy(ctx, src, srcRef, dst, dstRef, opts)
 }
 
-type OCIUtils struct {
+type OCIWrapper struct {
 	oci OrasOpsWrapper
 }
 
-func NewOCIUtils() *OCIUtils {
-	return &OCIUtils{
+func NewOCIWrapper() *OCIWrapper {
+	return &OCIWrapper{
 		oci: &OrasOperator{},
 	}
 }
@@ -109,7 +110,7 @@ func newOCIRepository(id string, opts OCIOpts) (*remote.Repository, error) {
 	return repo, nil
 }
 
-func getDataFromDescriptor(ctx context.Context, store oras.Target, desc v1.Descriptor) ([]byte, error) {
+func getDataFromDescriptor(ctx context.Context, store oras.Target, desc ocispec.Descriptor) ([]byte, error) {
 	rc, err := store.Fetch(ctx, desc)
 	if err != nil {
 		return nil, err
@@ -125,7 +126,7 @@ func getDataFromDescriptor(ctx context.Context, store oras.Target, desc v1.Descr
 	return data, nil
 }
 
-func checkIDAnnotation(desc v1.Descriptor, id string) error {
+func checkIDAnnotation(desc ocispec.Descriptor, id string) error {
 	if len(desc.Annotations) != 1 {
 		return fmt.Errorf("expecting 1 Annotation in layer descriptor. Found %d", len(desc.Annotations))
 	}
@@ -136,14 +137,14 @@ func checkIDAnnotation(desc v1.Descriptor, id string) error {
 	return nil
 }
 
-func (o *OCIUtils) pushFile(ctx context.Context, opts OCIOpts, reader io.Reader, desc v1.Descriptor, id string) error {
+func (o *OCIWrapper) pushFile(ctx context.Context, opts OCIOpts, reader io.Reader, desc ocispec.Descriptor, id string) error {
 	s := o.oci.NewStore()
 	err := s.Push(ctx, desc, reader)
 	if err != nil {
 		return err
 	}
 
-	fileDescriptors := make([]v1.Descriptor, 0, 1)
+	fileDescriptors := make([]ocispec.Descriptor, 0, 1)
 	fileDescriptors = append(fileDescriptors, desc)
 	ociOpts := oras.PackManifestOptions{
 		Layers: fileDescriptors,
@@ -166,7 +167,7 @@ func (o *OCIUtils) pushFile(ctx context.Context, opts OCIOpts, reader io.Reader,
 	return err
 }
 
-func (o *OCIUtils) pullFile(ctx context.Context, opts OCIOpts, id string) ([]byte, error) {
+func (o *OCIWrapper) pullFile(ctx context.Context, opts OCIOpts, id string) ([]byte, error) {
 	s := o.oci.NewStore()
 
 	// copy from remote OCI registry to local memory store
@@ -195,7 +196,7 @@ func (o *OCIUtils) pullFile(ctx context.Context, opts OCIOpts, id string) ([]byt
 	// unmarshall the root node in order to access the layers
 	var root struct {
 		MediaType string `json:"mediaType"`
-		Layers    []v1.Descriptor
+		Layers    []ocispec.Descriptor
 	}
 	if err := json.Unmarshal(rootData, &root); err != nil {
 		return nil, err
@@ -218,12 +219,12 @@ func (o *OCIUtils) pullFile(ctx context.Context, opts OCIOpts, id string) ([]byt
 // PushManifest creates and pushes an OCI manifest to a remote OCI registry with the
 // contents of the given fleet manifest.
 // The OCI manifest will be named after the given id.
-func (o *OCIUtils) PushManifest(ctx context.Context, opts OCIOpts, id string, m *manifest.Manifest) error {
+func (o *OCIWrapper) PushManifest(ctx context.Context, opts OCIOpts, id string, m *manifest.Manifest) error {
 	data, err := m.Content()
 	if err != nil {
 		return err
 	}
-	desc := v1.Descriptor{
+	desc := ocispec.Descriptor{
 		MediaType: fileType,
 		Digest:    digest.FromBytes(data),
 		Size:      int64(len(data)),
@@ -236,11 +237,18 @@ func (o *OCIUtils) PushManifest(ctx context.Context, opts OCIOpts, id string, m 
 
 // PullManifest pulls the OCI manifest identified by the given id from a remote OCI registry
 // and fills and returns a fleet manifest with the contents.
-func (o *OCIUtils) PullManifest(ctx context.Context, opts OCIOpts, id string) (*manifest.Manifest, error) {
+func (o *OCIWrapper) PullManifest(ctx context.Context, opts OCIOpts, id string) (*manifest.Manifest, error) {
 	data, err := o.pullFile(ctx, opts, id)
 	if err != nil {
 		return nil, err
 	}
 
 	return manifest.FromJSON(data, "")
+}
+
+// ExperimentalOCIIsEnabled returns true if the EXPERIMENTAL_OCI_STORAGE env variable is set to true
+// returns false otherwise
+func ExperimentalOCIIsEnabled() bool {
+	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_OCI_STORAGE"))
+	return err == nil && value
 }

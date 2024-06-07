@@ -1,4 +1,4 @@
-package ociutils
+package ociwrapper
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/golang/mock/gomock"
 	"github.com/opencontainers/go-digest"
@@ -86,7 +87,7 @@ var _ = Describe("OCIUtils tests", func() {
 				},
 			},
 		}
-		oci := &OCIUtils{
+		oci := &OCIWrapper{
 			oci: orasOperatorMock,
 		}
 		err := oci.PushManifest(context.Background(), opts, "123", manifest)
@@ -101,7 +102,7 @@ var _ = Describe("OCIUtils tests", func() {
 			_ oras.PackManifestOptions) (ocispec.Descriptor, error) {
 			return ocispec.Descriptor{}, fmt.Errorf("ERROR PACKING")
 		}
-		oci := &OCIUtils{
+		oci := &OCIWrapper{
 			oci: orasOperatorMock,
 		}
 		opts := OCIOpts{
@@ -121,7 +122,7 @@ var _ = Describe("OCIUtils tests", func() {
 		Expect(err.Error()).To(Equal("ERROR PACKING"))
 	})
 	It("returns an error when is unable to connect to the registry", func() {
-		oci := NewOCIUtils()
+		oci := NewOCIWrapper()
 		opts := OCIOpts{
 			URL: "127.0.0.0:2334",
 		}
@@ -206,7 +207,7 @@ var _ = Describe("OCIUtils tests", func() {
 				},
 			},
 		}
-		oci := NewOCIUtils()
+		oci := NewOCIWrapper()
 		err := oci.PushManifest(context.Background(), opts, "123", manifest)
 		Expect(err.Error()).To(Equal("invalid reference: missing registry or repository"))
 	})
@@ -252,7 +253,7 @@ var _ = Describe("OCIUtils tests", func() {
 		opts := OCIOpts{
 			URL: "test.com",
 		}
-		oci := &OCIUtils{
+		oci := &OCIWrapper{
 			oci: orasOperatorMock,
 		}
 		_, err := oci.PullManifest(context.Background(), opts, "s-123456")
@@ -295,7 +296,7 @@ var _ = Describe("OCIUtils tests", func() {
 		opts := OCIOpts{
 			URL: "test.com",
 		}
-		oci := &OCIUtils{
+		oci := &OCIWrapper{
 			oci: orasOperatorMock,
 		}
 		_, err := oci.PullManifest(context.Background(), opts, "s-123456")
@@ -324,10 +325,47 @@ var _ = Describe("OCIUtils tests", func() {
 		opts := OCIOpts{
 			URL: "test.com",
 		}
-		oci := &OCIUtils{
+		oci := &OCIWrapper{
 			oci: orasOperatorMock,
 		}
 		_, err := oci.PullManifest(context.Background(), opts, "s-123456")
 		Expect(err.Error()).To(Equal("expecting 1 Annotation in layer descriptor. Found 0"))
 	})
+})
+
+var _ = Describe("OCIUtils Experimental flag tests", func() {
+	var envBeforeTest string
+	const experimentalEnv = "EXPERIMENTAL_OCI_STORAGE"
+
+	BeforeEach(func() {
+		envBeforeTest = os.Getenv(experimentalEnv)
+	})
+
+	AfterEach(func() {
+		if envBeforeTest != "" {
+			// set the value it had before the test
+			Expect(os.Setenv(experimentalEnv, envBeforeTest)).ToNot(HaveOccurred())
+		} else {
+			Expect(os.Unsetenv(experimentalEnv)).ToNot(HaveOccurred())
+		}
+	})
+
+	DescribeTable("Check value returned is the expected one",
+		func(value string, expected bool) {
+			if value == "unset" {
+				Expect(os.Unsetenv(experimentalEnv)).ToNot(HaveOccurred())
+			} else {
+				Expect(os.Setenv(experimentalEnv, value)).ToNot(HaveOccurred())
+			}
+			result := ExperimentalOCIIsEnabled()
+			Expect(result).To(Equal(expected))
+		},
+		Entry("When setting to True", "True", true),
+		Entry("When setting to true", "true", true),
+		Entry("When setting to TRUE", "TRUE", true),
+		Entry("When setting to tRue", "tRue", false),
+		Entry("When setting to false", "false", false),
+		Entry("When setting to whatever", "whatever", false),
+		Entry("When not setting the value", "unset", false),
+	)
 })

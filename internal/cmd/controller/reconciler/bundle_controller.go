@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
+	"github.com/rancher/fleet/internal/ociwrapper"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 
@@ -176,7 +177,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	logger.V(1).Info("Reconciling bundle, checking targets, calculating changes, building objects", "generation", bundle.Generation, "observedGeneration", bundle.Status.ObservedGeneration)
 
-	contentsInOCI := bundle.Spec.ContentsID != ""
+	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
 	manifestID := bundle.Spec.ContentsID
 	var resourcesManifest *manifest.Manifest
 	if !contentsInOCI {
