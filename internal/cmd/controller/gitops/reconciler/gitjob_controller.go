@@ -105,8 +105,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	if errors.IsNotFound(err) && gitrepo.Status.Commit != "" {
 		if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
-			nsname := types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}
-			return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, nsname, gitrepo.Status, err)
+			return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 		}
 		logger.V(1).Info("Creating Git job resources")
 		if err := r.createJobRBAC(ctx, gitrepo); err != nil {
