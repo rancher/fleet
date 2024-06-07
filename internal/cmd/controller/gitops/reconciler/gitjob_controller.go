@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/grutil"
+	"github.com/rancher/fleet/internal/ociwrapper"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git"
 
@@ -462,18 +463,20 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		volumeMounts = append(volumeMounts, volMnts...)
 	}
 
-	if gitrepo.Spec.OCIRegistry != nil && gitrepo.Spec.OCIRegistry.AuthSecretName != "" {
-		vol, volMnt, err := ociVolumeFromSecret(ctx, r.Client,
-			gitrepo.Namespace,
-			gitrepo.Spec.OCIRegistry.AuthSecretName,
-			ociRegistryAuthVolumeName,
-		)
-		if err != nil {
-			return nil, err
-		}
+	if ociwrapper.ExperimentalOCIIsEnabled() {
+		if gitrepo.Spec.OCIRegistry != nil && gitrepo.Spec.OCIRegistry.AuthSecretName != "" {
+			vol, volMnt, err := ociVolumeFromSecret(ctx, r.Client,
+				gitrepo.Namespace,
+				gitrepo.Spec.OCIRegistry.AuthSecretName,
+				ociRegistryAuthVolumeName,
+			)
+			if err != nil {
+				return nil, err
+			}
 
-		volumes = append(volumes, vol)
-		volumeMounts = append(volumeMounts, volMnt)
+			volumes = append(volumes, vol)
+			volumeMounts = append(volumeMounts, volMnt)
+		}
 	}
 
 	saName := name.SafeConcatName("git", gitrepo.Name)
@@ -621,29 +624,31 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool) ([]string, []corev1.EnvV
 			})
 	}
 
-	if gitrepo.Spec.OCIRegistry != nil && gitrepo.Spec.OCIRegistry.URL != "" {
-		args = append(args, "--oci-url", gitrepo.Spec.OCIRegistry.URL)
-		if gitrepo.Spec.OCIRegistry.AuthSecretName != "" {
-			args = append(args, "--oci-password-file", "/etc/fleet/oci/password")
-			env = append(env,
-				corev1.EnvVar{
-					Name: "OCI_USERNAME",
-					ValueFrom: &corev1.EnvVarSource{
-						SecretKeyRef: &corev1.SecretKeySelector{
-							Optional: &[]bool{true}[0],
-							Key:      "username",
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: gitrepo.Spec.OCIRegistry.AuthSecretName,
+	if ociwrapper.ExperimentalOCIIsEnabled() {
+		if gitrepo.Spec.OCIRegistry != nil && gitrepo.Spec.OCIRegistry.URL != "" {
+			args = append(args, "--oci-url", gitrepo.Spec.OCIRegistry.URL)
+			if gitrepo.Spec.OCIRegistry.AuthSecretName != "" {
+				args = append(args, "--oci-password-file", "/etc/fleet/oci/password")
+				env = append(env,
+					corev1.EnvVar{
+						Name: "OCI_USERNAME",
+						ValueFrom: &corev1.EnvVarSource{
+							SecretKeyRef: &corev1.SecretKeySelector{
+								Optional: &[]bool{true}[0],
+								Key:      "username",
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: gitrepo.Spec.OCIRegistry.AuthSecretName,
+								},
 							},
 						},
-					},
-				})
-		}
-		if gitrepo.Spec.OCIRegistry.BasicHTTP {
-			args = append(args, "--oci-basic-http")
-		}
-		if gitrepo.Spec.OCIRegistry.InsecureSkipTLS {
-			args = append(args, "--oci-insecure")
+					})
+			}
+			if gitrepo.Spec.OCIRegistry.BasicHTTP {
+				args = append(args, "--oci-basic-http")
+			}
+			if gitrepo.Spec.OCIRegistry.InsecureSkipTLS {
+				args = append(args, "--oci-insecure")
+			}
 		}
 	}
 

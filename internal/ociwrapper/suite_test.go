@@ -1,4 +1,4 @@
-package ociutils_test
+package ociwrapper_test
 
 import (
 	"testing"
