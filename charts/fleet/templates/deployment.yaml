@@ -76,6 +76,9 @@ spec:
         - name: BUNDLEDEPLOYMENT_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.bundledeployment }}
         {{- end }}
+{{- if $.Values.extraEnv }}
+{{ toYaml $.Values.extraEnv | indent 8}}
+{{- end }}
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-controller
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"

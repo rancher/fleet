@@ -99,3 +99,8 @@ controller:
       gitrepo: "1"
       bundle: "1"
       bundledeployment: "1"
+
+# Extra environment variables passed to the fleet pods.
+# extraEnv:
+# - name: EXPERIMENTAL_OCI_STORAGE
+#   value: true
