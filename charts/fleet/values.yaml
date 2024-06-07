@@ -103,4 +103,4 @@ controller:
 # Extra environment variables passed to the fleet pods.
 # extraEnv:
 # - name: EXPERIMENTAL_OCI_STORAGE
-#   value: true
+#   value: "true"
