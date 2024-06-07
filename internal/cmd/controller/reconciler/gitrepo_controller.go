@@ -108,8 +108,8 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return r.Update(ctx, gitrepo)
 		})
 
-		if client.IgnoreNotFound(err) != nil {
-			return ctrl.Result{}, err
+		if err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 	}
 
