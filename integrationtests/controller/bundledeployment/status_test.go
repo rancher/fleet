@@ -1,6 +1,8 @@
 package bundledeployment
 
 import (
+	"errors"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -63,7 +65,13 @@ var _ = Describe("BundleDeployment Status Fields", func() {
 				Expect(err).ToNot(HaveOccurred())
 				bd.Spec.StagedDeploymentID = bd.Spec.DeploymentID
 				err = k8sClient.Update(ctx, bd)
-				return err
+				if err != nil {
+					return err
+				}
+				if bd.Status.Display.State != "Ready" {
+					return errors.New("bundle deployment not ready")
+				}
+				return nil
 			}).ShouldNot(HaveOccurred())
 			Expect(bd.Status.Display.State).To(Equal("Ready"))
 			Expect(bd.Spec.StagedDeploymentID).To(Equal(bd.Spec.DeploymentID))
