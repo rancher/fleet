@@ -41,6 +41,9 @@ spec:
             - name: CATTLE_DEV_MODE
               value: "true"
           {{- end }}
+{{- if $.Values.extraEnv }}
+{{ toYaml $.Values.extraEnv | indent 12}}
+{{- end }}
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
 {{- if .Values.nodeSelector }}
 {{ toYaml .Values.nodeSelector | indent 8 }}
