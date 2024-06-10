@@ -165,7 +165,6 @@ var _ = Describe("Bundle Status Fields", func() {
 			Expect(cluster.Status.Summary.Pending).To(Equal(0))
 			Expect(cluster.Status.Display.ReadyBundles).To(Equal("1/1"))
 
-			// resourceVersion := cluster.ResourceVersion
 			By("Modifying labels will change cluster state")
 			modifiedLabels := map[string]string{"foo": "bar"}
 			Eventually(func() error {
