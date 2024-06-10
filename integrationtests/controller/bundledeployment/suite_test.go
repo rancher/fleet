@@ -1,4 +1,4 @@
-package gitrepo
+package bundledeployment
 
 import (
 	"context"
@@ -6,14 +6,12 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
-	"github.com/rancher/fleet/internal/cmd/controller/target"
-	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,7 +31,7 @@ var (
 
 func TestFleet(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fleet GitRepo Suite")
+	RunSpecs(t, "Fleet BundleDeployment Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -52,36 +50,12 @@ var _ = BeforeSuite(func() {
 	mgr, err := utils.NewManager(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-	// Set up the gitrepo reconciler
-	config.Set(config.DefaultConfig())
-
-	sched := quartz.NewStdScheduler()
-	Expect(sched).ToNot(BeNil())
-
-	err = (&reconciler.GitRepoReconciler{
+	// Set up the clustergroup reconciler
+	err = (&reconciler.BundleDeploymentReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-
-		Scheduler: sched,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
-
-	store := manifest.NewStore(mgr.GetClient())
-	builder := target.New(mgr.GetClient())
-
-	err = (&reconciler.BundleReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Builder: builder,
-		Store:   store,
-		Query:   builder,
-	}).SetupWithManager(mgr)
-	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
-
-	sched.Start(ctx)
-	DeferCleanup(func() {
-		sched.Stop()
-	})
 
 	go func() {
 		defer GinkgoRecover()
@@ -94,3 +68,18 @@ var _ = AfterSuite(func() {
 	cancel()
 	Expect(testenv.Stop()).ToNot(HaveOccurred())
 })
+
+func createBundleDeployment(name, namespace string, options v1alpha1.BundleDeploymentOptions) (*v1alpha1.BundleDeployment, error) {
+	bundleDeployment := v1alpha1.BundleDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    map[string]string{"foo": "bar"},
+		},
+		Spec: v1alpha1.BundleDeploymentSpec{
+			Options: options,
+		},
+	}
+
+	return &bundleDeployment, k8sClient.Create(ctx, &bundleDeployment)
+}

@@ -1,4 +1,4 @@
-package gitrepo
+package clustergroup
 
 import (
 	"context"
@@ -6,13 +6,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
-	"github.com/rancher/fleet/internal/cmd/controller/target"
-	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -33,7 +31,7 @@ var (
 
 func TestFleet(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fleet GitRepo Suite")
+	RunSpecs(t, "Fleet ClusterGroup Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -52,36 +50,20 @@ var _ = BeforeSuite(func() {
 	mgr, err := utils.NewManager(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
-	// Set up the gitrepo reconciler
-	config.Set(config.DefaultConfig())
+	// Set up the clustergroup reconciler
+	err = (&reconciler.ClusterGroupReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
-	sched := quartz.NewStdScheduler()
-	Expect(sched).ToNot(BeNil())
-
-	err = (&reconciler.GitRepoReconciler{
+	err = (&reconciler.ClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Scheduler: sched,
+		Query: &FakeQuery{},
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
-
-	store := manifest.NewStore(mgr.GetClient())
-	builder := target.New(mgr.GetClient())
-
-	err = (&reconciler.BundleReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Builder: builder,
-		Store:   store,
-		Query:   builder,
-	}).SetupWithManager(mgr)
-	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
-
-	sched.Start(ctx)
-	DeferCleanup(func() {
-		sched.Stop()
-	})
 
 	go func() {
 		defer GinkgoRecover()
@@ -94,3 +76,25 @@ var _ = AfterSuite(func() {
 	cancel()
 	Expect(testenv.Stop()).ToNot(HaveOccurred())
 })
+
+type FakeQuery struct {
+}
+
+// BundlesForCluster returns empty list, so no cleanup is needed
+func (q *FakeQuery) BundlesForCluster(context.Context, *v1alpha1.Cluster) ([]*v1alpha1.Bundle, []*v1alpha1.Bundle, error) {
+	return nil, nil, nil
+}
+
+func createClusterGroup(name, namespace string, selector *metav1.LabelSelector) (*v1alpha1.ClusterGroup, error) {
+	cg := &v1alpha1.ClusterGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.ClusterGroupSpec{
+			Selector: selector,
+		},
+	}
+	err := k8sClient.Create(ctx, cg)
+	return cg, err
+}
