@@ -25,6 +25,7 @@ import (
 	"github.com/gogits/go-gogs-client"
 	cp "github.com/otiai10/copy"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 
@@ -43,7 +44,7 @@ const (
 	gogsHTTPSPort = "3000"
 	gogsSSHPort   = "22"
 	testRepoName  = "test-repo"
-	timeout       = 60 * time.Second
+	timeout       = 120 * time.Second
 )
 
 var (
@@ -350,6 +351,7 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 	req := testcontainers.ContainerRequest{
 		Image:        "gogs/gogs:0.13",
 		ExposedPorts: []string{gogsHTTPSPort + "/tcp", gogsSSHPort + "/tcp"},
+		WaitingFor:   wait.ForListeningPort("22/tcp").WithStartupTimeout(timeout),
 		HostConfigModifier: func(hostConfig *dockercontainer.HostConfig) {
 			hostConfig.Mounts = []dockermount.Mount{
 				{
@@ -423,7 +425,7 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 		gogsClient.SetHTTPClient(httpClient)
 
 		return nil
-	}, timeout, "200ms").ShouldNot(HaveOccurred())
+	}, timeout, "2s").ShouldNot(HaveOccurred())
 
 	return container, nil
 }
