@@ -119,7 +119,6 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, errutil.NewAggregate(merr)
 	}
 
-	var result ctrl.Result
 	if monitor.ShouldUpdateStatus(bd) {
 		// update the bundledeployment status and check if we deploy an agent, or if we need to trigger drift correction
 		status, err = r.Monitor.UpdateStatus(ctx, bd, resources)
@@ -171,7 +170,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		merr = append(merr, fmt.Errorf("failed final update to bundledeployment status: %w", err))
 	}
 
-	return result, errutil.NewAggregate(merr)
+	return ctrl.Result{}, errutil.NewAggregate(merr)
 }
 
 func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, req types.NamespacedName, status fleetv1.BundleDeploymentStatus) error {
