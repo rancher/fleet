@@ -52,7 +52,10 @@ var (
 	gogsCABundle []byte
 )
 
-var _ = Describe("Applying a git job gets content from git repo", Ordered, func() {
+// This test starts gogs in a container outside the cluster. The exposed ports
+// need to be reachable. Out of the box this does not work when the container
+// runtime is in a VM, e.g. on Mac.
+var _ = Describe("Applying a git job gets content from git repo", Label("networking"), Ordered, func() {
 
 	var (
 		opts          *gitcloner.GitCloner

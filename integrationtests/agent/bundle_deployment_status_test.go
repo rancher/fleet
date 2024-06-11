@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -193,7 +194,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Patch:      "",
 					}
 					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-finalizer extra")
-				}).Should(BeTrue())
+				}, timeout, 20*time.Millisecond).Should(BeTrue())
 			})
 
 			It("Remove finalizer", func() {
