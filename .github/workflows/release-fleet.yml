@@ -67,6 +67,9 @@ jobs:
       - name: Run unit tests
         run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests)
 
+      - name: Install Ginkgo CLI
+        run: go install github.com/onsi/ginkgo/v2/ginkgo
+
       - name: Run integration tests
         env:
           SETUP_ENVTEST_VER: v0.0.0-20240115093953-9e6e3b144a69
