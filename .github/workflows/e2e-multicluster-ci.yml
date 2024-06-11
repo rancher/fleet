@@ -135,6 +135,8 @@ jobs:
         run: |
           kubectl config use-context k3d-upstream
           ginkgo --github-output e2e/multi-cluster
+
+          ginkgo --github-output e2e/multi-cluster/installation
       -
         name: Acceptance Tests for Examples
         if: >
