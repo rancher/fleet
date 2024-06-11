@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
+	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -61,23 +61,7 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if gitrepo.DeletionTimestamp.IsZero() {
-		if !controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
-			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
-					return err
-				}
-
-				controllerutil.AddFinalizer(gitrepo, gitRepoFinalizer)
-
-				return r.Update(ctx, gitrepo)
-			})
-
-			if client.IgnoreNotFound(err) != nil {
-				return ctrl.Result{}, err
-			}
-		}
-	} else {
+	if !gitrepo.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
 			// Clean up
 			logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
@@ -111,6 +95,22 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		return ctrl.Result{}, nil
+	}
+
+	if !controllerutil.ContainsFinalizer(gitrepo, gitRepoFinalizer) {
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil {
+				return err
+			}
+
+			controllerutil.AddFinalizer(gitrepo, gitRepoFinalizer)
+
+			return r.Update(ctx, gitrepo)
+		})
+
+		if err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
 	}
 
 	logger = logger.WithValues("commit", gitrepo.Status.Commit)

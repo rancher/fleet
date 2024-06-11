@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	grutil "github.com/rancher/fleet/internal/cmd/controller/gitrepo"
+	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v2/pkg/condition"
@@ -77,9 +77,9 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("gitjob")
-	var gitRepo v1alpha1.GitRepo
+	gitrepo := &v1alpha1.GitRepo{}
 
-	if err := r.Get(ctx, req.NamespacedName, &gitRepo); err != nil && !errors.IsNotFound(err) {
+	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if errors.IsNotFound(err) {
 		logger.V(1).Info("Gitrepo deleted, cleaning up poll jobs")
@@ -87,44 +87,43 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	logger = logger.WithValues("generation", gitRepo.Generation, "commit", gitRepo.Status.Commit)
+	logger = logger.WithValues("generation", gitrepo.Generation, "commit", gitrepo.Status.Commit)
 	ctx = log.IntoContext(ctx, logger)
 
 	logger.V(1).Info("Reconciling GitRepo")
 
-	r.GitPoller.AddOrModifyGitRepoPollJob(ctx, gitRepo)
+	r.GitPoller.AddOrModifyGitRepoPollJob(ctx, *gitrepo)
 
 	var job batchv1.Job
 	err := r.Get(ctx, types.NamespacedName{
-		Namespace: gitRepo.Namespace,
-		Name:      jobName(&gitRepo),
+		Namespace: gitrepo.Namespace,
+		Name:      jobName(gitrepo),
 	}, &job)
 	if err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, fmt.Errorf("error retrieving git job: %w", err)
 	}
 
-	if errors.IsNotFound(err) && gitRepo.Status.Commit != "" {
-		if err := r.validateExternalSecretExist(ctx, &gitRepo); err != nil {
-			nsname := types.NamespacedName{Namespace: gitRepo.Namespace, Name: gitRepo.Name}
-			return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, nsname, gitRepo.Status, err)
+	if errors.IsNotFound(err) && gitrepo.Status.Commit != "" {
+		if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
+			return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 		}
 		logger.V(1).Info("Creating Git job resources")
-		if err := r.createJobRBAC(ctx, &gitRepo); err != nil {
+		if err := r.createJobRBAC(ctx, gitrepo); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to create RBAC resources for git job: %w", err)
 		}
-		if err := r.createTargetsConfigMap(ctx, &gitRepo); err != nil {
+		if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to create targets config map for git job: %w", err)
 		}
-		if err := r.createJob(ctx, &gitRepo); err != nil {
+		if err := r.createJob(ctx, gitrepo); err != nil {
 			return ctrl.Result{}, fmt.Errorf("error creating git job: %w", err)
 		}
-	} else if gitRepo.Status.Commit != "" {
-		if err = r.deleteJobIfNeeded(ctx, &gitRepo, &job); err != nil {
+	} else if gitrepo.Status.Commit != "" {
+		if err = r.deleteJobIfNeeded(ctx, gitrepo, &job); err != nil {
 			return ctrl.Result{}, fmt.Errorf("error deleting git job: %w", err)
 		}
 	}
 
-	if err = r.updateStatus(ctx, &gitRepo, &job); err != nil {
+	if err = r.updateStatus(ctx, gitrepo, &job); err != nil {
 		if errors.IsConflict(err) {
 			logger.V(1).Info("conflict updating status, retrying", "message", err)
 			return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
@@ -213,7 +212,7 @@ func (r *GitJobReconciler) validateExternalSecretExist(ctx context.Context, gitr
 }
 
 func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
-	job, err := r.newJob(ctx, gitRepo)
+	job, err := r.newGitJob(ctx, gitRepo)
 	if err != nil {
 		return err
 	}
@@ -319,8 +318,8 @@ func caBundleName(obj *v1alpha1.GitRepo) string {
 	return fmt.Sprintf("%s-cabundle", obj.Name)
 }
 
-func (r *GitJobReconciler) newJob(ctx context.Context, obj *v1alpha1.GitRepo) (*batchv1.Job, error) {
-	jobSpec, err := r.computeJobSpec(ctx, obj)
+func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo) (*batchv1.Job, error) {
+	jobSpec, err := r.newJobSpec(ctx, obj)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +336,7 @@ func (r *GitJobReconciler) newJob(ctx context.Context, obj *v1alpha1.GitRepo) (*
 		Spec: *jobSpec,
 	}
 
-	initContainer, err := r.generateInitContainer(ctx, obj)
+	initContainer, err := r.newGitCloner(ctx, obj)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +396,7 @@ func (r *GitJobReconciler) newJob(ctx context.Context, obj *v1alpha1.GitRepo) (*
 	return job, nil
 }
 
-func (r *GitJobReconciler) computeJobSpec(ctx context.Context, gitrepo *v1alpha1.GitRepo) (*batchv1.JobSpec, error) {
+func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.GitRepo) (*batchv1.JobSpec, error) {
 	paths := gitrepo.Spec.Paths
 	if len(paths) == 0 {
 		paths = []string{"."}
@@ -686,7 +685,7 @@ func volumesFromSecret(
 	return volumes, volumeMounts
 }
 
-func (r *GitJobReconciler) generateInitContainer(ctx context.Context, obj *v1alpha1.GitRepo) (corev1.Container, error) {
+func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRepo) (corev1.Container, error) {
 	args := []string{"gitcloner", obj.Spec.Repo, "/workspace"}
 	volumeMounts := []corev1.VolumeMount{
 		{
@@ -717,14 +716,15 @@ func (r *GitJobReconciler) generateInitContainer(ctx context.Context, obj *v1alp
 			return corev1.Container{}, err
 		}
 
-		if secret.Type == corev1.SecretTypeBasicAuth {
+		switch secret.Type {
+		case corev1.SecretTypeBasicAuth:
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
 				Name:      gitCredentialVolumeName,
 				MountPath: "/gitjob/credentials",
 			})
 			args = append(args, "--username", string(secret.Data[corev1.BasicAuthUsernameKey]))
 			args = append(args, "--password-file", "/gitjob/credentials/"+corev1.BasicAuthPasswordKey)
-		} else if secret.Type == corev1.SecretTypeSSHAuth {
+		case corev1.SecretTypeSSHAuth:
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
 				Name:      gitCredentialVolumeName,
 				MountPath: "/gitjob/ssh",
