@@ -93,7 +93,7 @@ jobs:
         id: goreleaser
         with:
           distribution: goreleaser
-          version: v1.24.0
+          version: '~> v2'
           args: release --clean --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
