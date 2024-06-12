@@ -111,8 +111,8 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if errors.IsNotFound(err) {
-		if gitRepo.Spec.DisablePolling {
-			if err := r.updateCommit(ctx, &gitRepo); err != nil {
+		if gitrepo.Spec.DisablePolling {
+			if err := r.updateCommit(ctx, gitrepo); err != nil {
 				if errors.IsConflict(err) {
 					logger.V(1).Info("conflict updating commit, retrying", "message", err)
 					return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
@@ -120,7 +120,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				return ctrl.Result{}, fmt.Errorf("error updating commit: %v", err)
 			}
 		}
-		if gitRepo.Status.Commit != "" {
+		if gitrepo.Status.Commit != "" {
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
         return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
       }
