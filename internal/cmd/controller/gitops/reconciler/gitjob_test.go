@@ -88,6 +88,48 @@ func TestReconcile_PurgeWatchesIsCalled_WhenGitRepoIsCreatedOrModified(t *testin
 	}
 }
 
+func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	scheme := runtime.NewScheme()
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	gitRepo := fleetv1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "gitrepo",
+			Namespace: "default",
+		},
+	}
+	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
+	mockClient := mocks.NewMockClient(mockCtrl)
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+		func(ctx context.Context, restrictions *fleetv1.GitRepoRestrictionList, ns client.InNamespace) error {
+			// fill the restrictions with a couple of allowed namespaces.
+			// As the gitrepo has no target namespace restrictions won't be met
+			restriction := fleetv1.GitRepoRestriction{AllowedTargetNamespaces: []string{"ns1", "ns2"}}
+			restrictions.Items = append(restrictions.Items, restriction)
+			return nil
+		},
+	)
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	poller := mocks.NewMockGitPoller(mockCtrl)
+
+	r := GitJobReconciler{
+		Client:    mockClient,
+		Scheme:    scheme,
+		Image:     "",
+		GitPoller: poller,
+	}
+
+	ctx := context.TODO()
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err == nil {
+		t.Errorf("expecting error, got nil")
+	}
+	if err.Error() != "empty targetNamespace denied, because allowedTargetNamespaces restriction is present" {
+		t.Errorf("unexpected error %v", err)
+	}
+}
+
 func TestNewJob(t *testing.T) { // nolint:funlen
 	securityContext := &corev1.SecurityContext{
 		AllowPrivilegeEscalation: &[]bool{false}[0],
