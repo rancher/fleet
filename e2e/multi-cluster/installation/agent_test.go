@@ -2,7 +2,6 @@ package installation_test
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -36,14 +35,6 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 
 		deleteOut, err := kd.Delete("ns", "cattle-fleet-system", "--now")
 		Expect(err).ToNot(HaveOccurred(), deleteOut)
-
-		err = os.Setenv("FORCE_EMPTY_AGENT_CA", "yes")
-		Expect(err).ToNot(HaveOccurred())
-		err = os.Setenv("FORCE_API_SERVER_URL", "https://google.com")
-		Expect(err).ToNot(HaveOccurred())
-
-		err = os.Setenv("AGENT_TLS_MODE", agentMode)
-		Expect(err).ToNot(HaveOccurred())
 
 		go func() {
 			cmd := exec.Command(

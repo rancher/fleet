@@ -3,15 +3,14 @@
 
 set -euxo pipefail
 
-root_dir=$(git rev-parse --show-toplevel)
-cd "$root_dir"
+if [ ! -d ./charts/fleet ]; then
+  echo "please change the current directory to the fleet repo checkout"
+  exit 1
+fi
 
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
 ns="${FLEET_E2E_NS_DOWNSTREAM-fleet-local}"
-force_empty_ca="${FORCE_EMPTY_AGENT_CA-}"
-api_server_url="${FORCE_API_SERVER_URL-}"
-agent_tls_mode="${AGENT_TLS_MODE-system-store}"
 
 kubectl create ns "$ns"|| true
 
@@ -46,34 +45,27 @@ kubectl wait clusterregistrationtoken -n "$ns" --for=jsonpath='{.status.secretNa
 token=$(kubectl get secret -n "$ns" second-token -o go-template='{{index .data "values" | base64decode}}' | yq .token -)
 
 ca=""
-if [ -z $force_empty_ca ]; then
-    serverver=$(kubectl version -ojson 2> /dev/null | jq '.serverVersion.minor' | sed 's/"//g')
-    if [ "$serverver" -gt 23 ]; then
-      ca=$(kubectl get secret -n cattle-fleet-system fleet-controller-bootstrap-token -o go-template='{{index .data "ca.crt" | base64decode}}')
-    else
-      name=$(kubectl get -n default sa default -o=jsonpath='{.secrets[0].name}')
-      ca=$(kubectl get -n default secret "$name" -o go-template='{{index .data "ca.crt" | base64decode}}')
-    fi
+serverver=$(kubectl version -ojson 2> /dev/null | jq '.serverVersion.minor' | sed 's/"//g')
+if [ "$serverver" -gt 23 ]; then
+  ca=$(kubectl get secret -n cattle-fleet-system fleet-controller-bootstrap-token -o go-template='{{index .data "ca.crt" | base64decode}}')
+else
+  name=$(kubectl get -n default sa default -o=jsonpath='{.secrets[0].name}')
+  ca=$(kubectl get -n default secret "$name" -o go-template='{{index .data "ca.crt" | base64decode}}')
 fi
 
 # docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'
 # public_hostname="${public_hostname-172.17.0.1.sslip.io}"
 
-# works due to same network of k3d clusters and patched SAN cert
+# works due to same network of k3d clustres and patched SAN cert
 public_hostname="${public_hostname-k3d-upstream-server-0}"
-
-if [ -z $api_server_url ]; then
-    api_server_url="https://$public_hostname:6443"
-fi
 
 kubectl config use-context "$downstream_ctx"
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-agent charts/fleet-agent \
   --set-string labels.env=test \
   --set apiServerCA="$ca" \
-  --set apiServerURL="$api_server_url" \
+  --set apiServerURL="https://$public_hostname:6443" \
   --set clusterNamespace="$ns" \
-  --set token="$token" \
-  --set agentTLSMode="$agent_tls_mode"
+  --set token="$token"
   #--set systemRegistrationNamespace="fleet-clusters-system" \
   #--set clientID="fake-random" \
   # --set global.cattle.systemDefaultRegistry=public.ecr.aws/b3e3i8k2 \
