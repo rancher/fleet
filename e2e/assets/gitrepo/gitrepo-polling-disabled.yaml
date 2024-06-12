@@ -1,0 +1,13 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: {{ .Name }}
+spec:
+  repo: {{ .Repo }}
+  branch: {{ .Branch }}
+  paths:
+    - disable_polling
+  targetNamespace: {{ .TargetNamespace }}
+  disablePolling: true
+  
+

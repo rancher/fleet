@@ -11,6 +11,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/git"
 
 	"github.com/rancher/wrangler/v2/pkg/condition"
 	"github.com/rancher/wrangler/v2/pkg/kstatus"
@@ -109,19 +110,30 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, fmt.Errorf("error retrieving git job: %w", err)
 	}
 
-	if errors.IsNotFound(err) && gitrepo.Status.Commit != "" {
-		if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
-			return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+	if errors.IsNotFound(err) {
+		if gitrepo.Spec.DisablePolling {
+			if err := r.updateCommit(ctx, gitrepo); err != nil {
+				if errors.IsConflict(err) {
+					logger.V(1).Info("conflict updating commit, retrying", "message", err)
+					return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
+				}
+				return ctrl.Result{}, fmt.Errorf("error updating commit: %v", err)
+			}
 		}
-		logger.V(1).Info("Creating Git job resources")
-		if err := r.createJobRBAC(ctx, gitrepo); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to create RBAC resources for git job: %w", err)
-		}
-		if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to create targets config map for git job: %w", err)
-		}
-		if err := r.createJob(ctx, gitrepo); err != nil {
-			return ctrl.Result{}, fmt.Errorf("error creating git job: %w", err)
+		if gitrepo.Status.Commit != "" {
+			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
+				return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+			}
+			logger.V(1).Info("Creating Git job resources")
+			if err := r.createJobRBAC(ctx, gitrepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to create RBAC resources for git job: %w", err)
+			}
+			if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to create targets config map for git job: %w", err)
+			}
+			if err := r.createJob(ctx, gitrepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("error creating git job: %w", err)
+			}
 		}
 	} else if gitrepo.Status.Commit != "" {
 		if err = r.deleteJobIfNeeded(ctx, gitrepo, &job); err != nil {
@@ -138,6 +150,18 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *GitJobReconciler) updateCommit(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
+	fetcher := git.NewFetch()
+	commit, err := fetcher.LatestCommit(ctx, gitRepo, r.Client)
+	if err != nil {
+		return err
+	}
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gitRepo.Status.Commit = commit
+		return r.Status().Update(ctx, gitRepo)
+	})
 }
 
 func generationOrCommitChangedPredicate() predicate.Predicate {

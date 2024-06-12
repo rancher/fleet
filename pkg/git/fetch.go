@@ -18,6 +18,10 @@ const (
 
 type Fetch struct{}
 
+func NewFetch() *Fetch {
+	return &Fetch{}
+}
+
 func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, client client.Client) (string, error) {
 	secretName := DefaultSecretName
 	if gitrepo.Spec.ClientSecretName != "" {
