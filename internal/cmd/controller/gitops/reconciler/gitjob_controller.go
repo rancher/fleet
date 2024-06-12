@@ -122,17 +122,17 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		if gitrepo.Status.Commit != "" {
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
-        return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
-      }
-      logger.V(1).Info("Creating Git job resources")
-      if err := r.createJobRBAC(ctx, gitrepo); err != nil {
-        return ctrl.Result{}, fmt.Errorf("failed to create RBAC resources for git job: %w", err)
-      }
-      if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
-        return ctrl.Result{}, fmt.Errorf("failed to create targets config map for git job: %w", err)
-      }
-      if err := r.createJob(ctx, gitrepo); err != nil {
-        return ctrl.Result{}, fmt.Errorf("error creating git job: %w", err)
+				return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+			}
+			logger.V(1).Info("Creating Git job resources")
+			if err := r.createJobRBAC(ctx, gitrepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to create RBAC resources for git job: %w", err)
+			}
+			if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to create targets config map for git job: %w", err)
+			}
+			if err := r.createJob(ctx, gitrepo); err != nil {
+				return ctrl.Result{}, fmt.Errorf("error creating git job: %w", err)
 			}
 		}
 	} else if gitrepo.Status.Commit != "" {
