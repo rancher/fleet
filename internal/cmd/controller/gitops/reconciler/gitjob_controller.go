@@ -92,10 +92,16 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	logger.V(1).Info("Reconciling GitRepo")
 
+	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
+	gitrepo, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	r.GitPoller.AddOrModifyGitRepoPollJob(ctx, *gitrepo)
 
 	var job batchv1.Job
-	err := r.Get(ctx, types.NamespacedName{
+	err = r.Get(ctx, types.NamespacedName{
 		Namespace: gitrepo.Namespace,
 		Name:      jobName(gitrepo),
 	}, &job)

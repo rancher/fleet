@@ -122,8 +122,7 @@ func (r *GitRepoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	// Restrictions / Overrides
-	// AuthorizeAndAssignDefaults mutates GitRepo and it returns nil on error
+	// Restrictions / Overrides, copy status because AuthorizeAndAssignDefaults may return nil
 	oldStatus := gitrepo.Status.DeepCopy()
 	gitrepo, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
 	if err != nil {
