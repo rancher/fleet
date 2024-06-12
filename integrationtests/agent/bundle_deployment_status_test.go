@@ -348,7 +348,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Patch:      "",
 					}
 					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-finalizer extra")
-				}).Should(BeTrue())
+				}, timeout, 20*time.Millisecond).Should(BeTrue())
 			})
 
 			It("Remove finalizer", func() {
