@@ -1,6 +1,7 @@
 package installation_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 
@@ -13,7 +14,6 @@ import (
 var (
 	agentMode string
 	kd        kubectl.Command
-	setupCmd  *exec.Cmd
 )
 
 var _ = Describe("Fleet installation with TLS agent modes", func() {
@@ -30,11 +30,14 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 			"fleet-agent",
 			"-n",
 			"cattle-fleet-system",
-			"--wait",
 		)
-		_ = cmd.Run() // Ignore errors, Fleet might not be installed
+		out, err := cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), string(out))
 
-		err := os.Setenv("FORCE_EMPTY_AGENT_CA", "yes")
+		deleteOut, err := kd.Delete("ns", "cattle-fleet-system", "--now")
+		Expect(err).ToNot(HaveOccurred(), deleteOut)
+
+		err = os.Setenv("FORCE_EMPTY_AGENT_CA", "yes")
 		Expect(err).ToNot(HaveOccurred())
 		err = os.Setenv("FORCE_API_SERVER_URL", "https://google.com")
 		Expect(err).ToNot(HaveOccurred())
@@ -43,8 +46,32 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		go func() {
-			setupCmd = exec.Command("../../../dev/setup-fleet-downstream")
-			_ = setupCmd.Run()
+			cmd := exec.Command(
+				"helm",
+				"--kube-context",
+				"k3d-downstream",
+				"-n",
+				"cattle-fleet-system",
+				"upgrade",
+				"--install",
+				"--create-namespace",
+				"--wait",
+				"fleet-agent",
+				"../../../charts/fleet-agent",
+				"--set-string",
+				"labels.env=test",
+				"--set",
+				`apiServerCA=`,
+				"--set",
+				`apiServerURL=https://google.com`,
+				"--set",
+				"clusterNamespace=fleet-default",
+				"--set",
+				"token=foo", // we don't need a correct token for this.
+				"--set",
+				fmt.Sprintf("agentTLSMode=%s", agentMode),
+			)
+			_ = cmd.Run()
 		}()
 	})
 

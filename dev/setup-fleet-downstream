@@ -9,8 +9,8 @@ cd "$root_dir"
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
 ns="${FLEET_E2E_NS_DOWNSTREAM-fleet-local}"
-force_empty_ca="${FORCE_EMPTY_AGENT_CA-''}"
-api_server_url="${FORCE_API_SERVER_URL-''}"
+force_empty_ca="${FORCE_EMPTY_AGENT_CA-}"
+api_server_url="${FORCE_API_SERVER_URL-}"
 agent_tls_mode="${AGENT_TLS_MODE-system-store}"
 
 kubectl create ns "$ns"|| true
