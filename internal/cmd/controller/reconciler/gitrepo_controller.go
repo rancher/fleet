@@ -219,6 +219,9 @@ func bundleStatusChangedPredicate() predicate.Funcs {
 			}
 			return !reflect.DeepEqual(n.Status, o.Status)
 		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
 	}
 }
 
