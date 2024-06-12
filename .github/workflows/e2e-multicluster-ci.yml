@@ -101,7 +101,7 @@ jobs:
           EOF
           { grep -q -m 1 "second-token"; kill $!; } < <(kubectl get secrets -n fleet-default -l "fleet.cattle.io/managed=true" -w)
 
-          token=$(kubectl get secret -n fleet-default second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
+          token=$(kubectl get secret -n fleet-default second-token -o go-template='{{index .data "values" | base64decode}}' | yq .token -)
           ca=$(kubectl get secret -n cattle-fleet-system fleet-controller-bootstrap-token -o go-template='{{index .data "ca.crt" | base64decode}}')
           apiServerIP=$(kubectl get node k3d-upstream-server-0 -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 

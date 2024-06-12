@@ -63,6 +63,14 @@ var _ = Describe("Single Cluster Deployments", func() {
 				asset = "single-cluster/multiple-paths.yaml"
 			})
 
+			It("sets status fields for gitrepo on deployment", func() {
+				Eventually(func() bool {
+					out, err := k.Get("gitrepo", "multiple-paths", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+					Expect(err).ToNot(HaveOccurred(), out)
+					return strings.Contains(out, "\"ready\":2")
+				}).Should(BeTrue())
+			})
+
 			It("deploys bundles from all the paths", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-local").Get("bundles")
@@ -72,7 +80,22 @@ var _ = Describe("Single Cluster Deployments", func() {
 					ContainSubstring("multiple-paths-multiple-paths-service"),
 				))
 
-				out, _ := k.Namespace("fleet-local").Get("bundles",
+				Eventually(func() bool {
+					out, err := k.Get("bundle", "multiple-paths-multiple-paths-config", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+					Expect(err).ToNot(HaveOccurred(), out)
+					return strings.Contains(out, "\"ready\":1")
+				}).Should(BeTrue())
+
+				Eventually(func() bool {
+					out, err := k.Get("bundle", "multiple-paths-multiple-paths-service", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+					Expect(err).ToNot(HaveOccurred(), out)
+					return strings.Contains(out, "\"ready\":1")
+				}).Should(BeTrue())
+				out, err := k.Get("bundle", "multiple-paths-multiple-paths-service", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(out).Should(ContainSubstring("\"readyClusters\":\"1/1\""))
+
+				out, _ = k.Namespace("fleet-local").Get("bundles",
 					"-l", "fleet.cattle.io/repo-name=multiple-paths",
 					`-o=jsonpath={.items[*].metadata.name}`)
 				Expect(strings.Split(out, " ")).To(HaveLen(2))

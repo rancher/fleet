@@ -38,6 +38,14 @@ rules:
     verbs:
       - "*"
   - apiGroups:
+      - "fleet.cattle.io"
+    resources:
+      - "gitreporestrictions"
+    verbs:
+      - list
+      - get
+      - watch
+  - apiGroups:
       - ""
     resources:
       - 'events'

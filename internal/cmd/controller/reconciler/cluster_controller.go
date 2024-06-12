@@ -135,10 +135,12 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		repo := bd.Labels[fleet.RepoLabel]
 		ns := bd.Labels[fleet.BundleNamespaceLabel]
 		if repo != "" && ns != "" {
+			// a gitrepo is ready if its bundledeployments are ready, take previous state into account
 			repos[repoKey{repo: repo, ns: ns}] = (state == fleet.Ready) || repos[repoKey{repo: repo, ns: ns}]
 		}
 	}
 
+	// a cluster is ready if all its gitrepos are ready and the resources are ready too
 	allReady := true
 	for repo, ready := range repos {
 		gitrepo := &fleet.GitRepo{}

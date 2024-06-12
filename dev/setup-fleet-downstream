@@ -42,7 +42,7 @@ while ! kubectl get clusterregistrationtoken -n "$ns" -o jsonpath='{.status}' se
 done
 kubectl wait clusterregistrationtoken -n "$ns" --for=jsonpath='{.status.secretName}'=second-token second-token
 
-token=$(kubectl get secret -n "$ns" second-token -o go-template='{{index .data "values" | base64decode}}' | yq eval .token -)
+token=$(kubectl get secret -n "$ns" second-token -o go-template='{{index .data "values" | base64decode}}' | yq .token -)
 
 ca=""
 serverver=$(kubectl version -ojson 2> /dev/null | jq '.serverVersion.minor' | sed 's/"//g')

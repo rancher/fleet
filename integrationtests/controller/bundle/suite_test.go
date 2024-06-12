@@ -2,43 +2,37 @@ package bundle
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"k8s.io/client-go/rest"
-	"k8s.io/kubectl/pkg/scheme"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var (
-	cancel    context.CancelFunc
-	cfg       *rest.Config
-	ctx       context.Context
-	k8sClient client.Client
-	testEnv   *envtest.Environment
+	cancel      context.CancelFunc
+	cfg         *rest.Config
+	ctx         context.Context
+	k8sClient   client.Client
+	testenv     *envtest.Environment
+	testEnvBool bool
 
 	namespace string
-)
-
-const (
-	timeout = 30 * time.Second
 )
 
 func TestFleet(t *testing.T) {
@@ -47,31 +41,20 @@ func TestFleet(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	SetDefaultEventuallyTimeout(timeout)
-
 	ctx, cancel = context.WithCancel(context.TODO())
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
-		ErrorIfCRDPathMissing: true,
-	}
+	testenv = utils.NewEnvTest()
+	testEnvBool = true
 
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, err = testenv.Start()
 	Expect(err).NotTo(HaveOccurred())
 
-	utilruntime.Must(v1alpha1.AddToScheme(scheme.Scheme))
-	//+kubebuilder:scaffold:scheme
-
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err = utils.NewClient(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
 
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme:         scheme.Scheme,
-		LeaderElection: false,
-		Metrics:        metricsserver.Options{BindAddress: "0"},
-	})
+	mgr, err := utils.NewManager(cfg)
 	Expect(err).ToNot(HaveOccurred())
 
 	// Set up the bundle reconciler
@@ -87,6 +70,19 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
+	err = (&reconciler.BundleDeploymentReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
+
+	err = (&reconciler.ClusterReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Query:  builder,
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
+
 	go func() {
 		defer GinkgoRecover()
 		err = mgr.Start(ctx)
@@ -96,56 +92,8 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	cancel()
-	Expect(testEnv.Stop()).ToNot(HaveOccurred())
+	Expect(testenv.Stop()).ToNot(HaveOccurred())
 })
-
-// createBundle copies all targets from the GitRepo into TargetRestrictions. TargetRestrictions acts as a whitelist to prevent
-// the creation of BundleDeployments from Targets created from the TargetCustomizations in the fleet.yaml
-// we replicate this behaviour here since this is run in an integration tests that runs just the BundleController.
-func createBundle(name, namespace string, targets []v1alpha1.BundleTarget, targetRestrictions []v1alpha1.BundleTarget) (*v1alpha1.Bundle, error) {
-	restrictions := []v1alpha1.BundleTargetRestriction{}
-	for _, r := range targetRestrictions {
-		restrictions = append(restrictions, v1alpha1.BundleTargetRestriction{
-			Name:                 r.Name,
-			ClusterName:          r.ClusterName,
-			ClusterSelector:      r.ClusterSelector,
-			ClusterGroup:         r.ClusterGroup,
-			ClusterGroupSelector: r.ClusterGroupSelector,
-		})
-	}
-	bundle := v1alpha1.Bundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    map[string]string{"foo": "bar"},
-		},
-		Spec: v1alpha1.BundleSpec{
-			Targets:            targets,
-			TargetRestrictions: restrictions,
-		},
-	}
-
-	return &bundle, k8sClient.Create(ctx, &bundle)
-}
-
-func createCluster(name, controllerNs string, labels map[string]string, clusterNs string) (*v1alpha1.Cluster, error) {
-	cluster := &v1alpha1.Cluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: controllerNs,
-			Labels:    labels,
-		},
-	}
-	err := k8sClient.Create(ctx, cluster)
-	if err != nil {
-		return nil, err
-	}
-	// Need to set the status.Namespace as it is needed to create a BundleDeployment.
-	// Namespace is set by the Cluster controller. We need to do it manually because we are running just the Bundle controller.
-	cluster.Status.Namespace = clusterNs
-	err = k8sClient.Status().Update(ctx, cluster)
-	return cluster, err
-}
 
 func createClusterGroup(name, namespace string, selector *metav1.LabelSelector) (*v1alpha1.ClusterGroup, error) {
 	cg := &v1alpha1.ClusterGroup{
@@ -159,4 +107,14 @@ func createClusterGroup(name, namespace string, selector *metav1.LabelSelector) 
 	}
 	err := k8sClient.Create(ctx, cg)
 	return cg, err
+}
+
+func expectedLabelValue(bdLabels map[string]string, key, value string) (*v1alpha1.BundleDeployment, bool) {
+	list := &v1alpha1.BundleDeploymentList{}
+	err := k8sClient.List(ctx, list, client.MatchingLabelsSelector{Selector: labels.SelectorFromSet(bdLabels)})
+	Expect(err).NotTo(HaveOccurred())
+	if len(list.Items) == 1 {
+		return &list.Items[0], list.Items[0].Labels[key] == value
+	}
+	return nil, false
 }

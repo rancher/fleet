@@ -40,7 +40,18 @@ spec:
           {{- if .Values.debug }}
             - name: CATTLE_DEV_MODE
               value: "true"
+          {{- else }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            privileged: false
+            capabilities:
+                drop:
+                - ALL
           {{- end }}
+{{- if $.Values.extraEnv }}
+{{ toYaml $.Values.extraEnv | indent 12}}
+{{- end }}
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
 {{- if .Values.nodeSelector }}
 {{ toYaml .Values.nodeSelector | indent 8 }}
@@ -59,10 +70,4 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
-        allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: true
-        privileged: false
-        capabilities:
-            drop:
-            - ALL
 {{- end }}

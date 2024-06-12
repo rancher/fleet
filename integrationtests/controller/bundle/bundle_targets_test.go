@@ -41,7 +41,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 	)
 
 	JustBeforeEach(func() {
-		bundle, err := createBundle(bundleName, namespace, targets, targetRestrictions)
+		bundle, err := utils.CreateBundle(ctx, k8sClient, bundleName, namespace, targets, targetRestrictions)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bundle).To(Not(BeNil()))
 	})
@@ -443,7 +443,7 @@ func createClustersAndClusterGroups() {
 			Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNs}})).ToNot(HaveOccurred())
 		})
 
-		clusterOne, err := createCluster(cn, namespace, map[string]string{"cluster": cn, "env": "test"}, clusterNs)
+		clusterOne, err := utils.CreateCluster(ctx, k8sClient, cn, namespace, map[string]string{"cluster": cn, "env": "test"}, clusterNs)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(clusterOne).To(Not(BeNil()))
 

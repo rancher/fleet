@@ -9,7 +9,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +30,7 @@ var _ = Describe("Bundle labels", func() {
 
 	When("BundleDeployment labels are updated", func() {
 		BeforeEach(func() {
-			cluster, err := createCluster("cluster", namespace, nil, namespace)
+			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster).To(Not(BeNil()))
 			targets := []v1alpha1.BundleTarget{
@@ -43,7 +42,7 @@ var _ = Describe("Bundle labels", func() {
 					ClusterName: "cluster",
 				},
 			}
-			bundle, err := createBundle("name", namespace, targets, targets)
+			bundle, err := utils.CreateBundle(ctx, k8sClient, "name", namespace, targets, targets)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle).To(Not(BeNil()))
 		})
@@ -93,13 +92,3 @@ var _ = Describe("Bundle labels", func() {
 		})
 	})
 })
-
-func expectedLabelValue(bdLabels map[string]string, key, value string) (*v1alpha1.BundleDeployment, bool) {
-	list := &v1alpha1.BundleDeploymentList{}
-	err := k8sClient.List(ctx, list, client.MatchingLabelsSelector{Selector: labels.SelectorFromSet(bdLabels)})
-	Expect(err).NotTo(HaveOccurred())
-	if len(list.Items) == 1 {
-		return &list.Items[0], list.Items[0].Labels[key] == value
-	}
-	return nil, false
-}
