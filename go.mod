@@ -1,6 +1,8 @@
 module github.com/rancher/fleet
 
-go 1.22
+go 1.22.0
+
+toolchain go1.22.4
 
 replace (
 	github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
@@ -35,7 +37,7 @@ require (
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.53.0
 	github.com/rancher/fleet/pkg/apis v0.10.0-rc.14
-	github.com/rancher/lasso v0.0.0-20240424194130-d87ec407d941
+	github.com/rancher/lasso v0.0.0-20240603075835-701e919d08b7
 	github.com/rancher/wrangler/v2 v2.1.4
 	github.com/reugn/go-quartz v0.11.2
 	github.com/sirupsen/logrus v1.9.3
@@ -49,11 +51,11 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.15.2
-	k8s.io/api v0.29.4
+	k8s.io/api v0.30.0
 	k8s.io/apiextensions-apiserver v0.29.4
-	k8s.io/apimachinery v0.29.4
+	k8s.io/apimachinery v0.30.0
 	k8s.io/cli-runtime v0.29.4
-	k8s.io/client-go v0.29.4
+	k8s.io/client-go v0.30.0
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/kube-openapi v0.0.0-20240521193020-835d969ad83a
 	k8s.io/kubectl v0.29.4
