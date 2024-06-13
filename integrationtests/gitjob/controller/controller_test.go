@@ -24,8 +24,8 @@ const (
 	gitRepoNamespace   = "default"
 	repo               = "https://www.github.com/rancher/fleet"
 	commit             = "9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"
-	stableCommitBranch = "renovate/golang.org-x-crypto-0.x"
-	stableCommit       = "7b4c2b25a2da2160604bde2773ae8aa44ed481dd"
+	stableCommitBranch = "release/v0.6"
+	stableCommit       = "26bdd9326b0238bb2fb743f863d9380c3c5d43e0"
 )
 
 var _ = Describe("GitJob controller", func() {
