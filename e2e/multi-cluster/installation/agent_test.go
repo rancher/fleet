@@ -2,7 +2,6 @@ package installation_test
 
 import (
 	"fmt"
-	"os/exec"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -13,57 +12,30 @@ import (
 var (
 	agentMode string
 	kd        kubectl.Command
+	ku        kubectl.Command
 )
 
 var _ = Describe("Fleet installation with TLS agent modes", func() {
 	BeforeEach(func() {
 		kd = env.Kubectl.Context(env.Downstream)
+		ku = env.Kubectl.Context(env.Upstream)
 	})
 
 	JustBeforeEach(func() {
-		cmd := exec.Command(
-			"helm",
-			"--kube-context",
-			"k3d-downstream",
-			"uninstall",
-			"fleet-agent",
+		out, err := ku.Patch(
+			"configmap",
+			"fleet-controller",
 			"-n",
 			"cattle-fleet-system",
+			"--type=merge",
+			"-p",
+			fmt.Sprintf(
+				`{"data":{"config":"{\"apiServerURL\": \"https://google.com\", \"apiServerCA\": \"\", \"agentTLSMode\": \"%s\"}"}}`,
+				agentMode,
+			),
 		)
-		out, err := cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred(), string(out))
 
-		deleteOut, err := kd.Delete("ns", "cattle-fleet-system", "--now")
-		Expect(err).ToNot(HaveOccurred(), deleteOut)
-
-		go func() {
-			cmd := exec.Command(
-				"helm",
-				"--kube-context",
-				"k3d-downstream",
-				"-n",
-				"cattle-fleet-system",
-				"upgrade",
-				"--install",
-				"--create-namespace",
-				"--wait",
-				"fleet-agent",
-				"../../../charts/fleet-agent",
-				"--set-string",
-				"labels.env=test",
-				"--set",
-				`apiServerCA=`,
-				"--set",
-				`apiServerURL=https://google.com`,
-				"--set",
-				"clusterNamespace=fleet-default",
-				"--set",
-				"token=foo", // we don't need a correct token for this.
-				"--set",
-				fmt.Sprintf("agentTLSMode=%s", agentMode),
-			)
-			_ = cmd.Run()
-		}()
 	})
 
 	Context("with non-strict agent TLS mode", func() {
