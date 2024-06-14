@@ -94,13 +94,17 @@ func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.
 	return nil, ErrNoRelease
 }
 
+func releaseToResourceID(release *release.Release) string {
+	return fmt.Sprintf("%s/%s:%d", release.Namespace, release.Name, release.Version)
+}
+
 func releaseToResources(release *release.Release) (*Resources, error) {
 	var (
 		err error
 	)
 	resources := &Resources{
 		DefaultNamespace: release.Namespace,
-		ID:               fmt.Sprintf("%s/%s:%d", release.Namespace, release.Name, release.Version),
+		ID:               releaseToResourceID(release),
 	}
 
 	resources.Objects, err = yaml.ToObjects(bytes.NewBufferString(release.Manifest))

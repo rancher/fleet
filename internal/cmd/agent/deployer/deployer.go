@@ -45,7 +45,7 @@ func (d *Deployer) Resources(name string, release string) (*helmdeployer.Resourc
 	return d.helm.Resources(name, release)
 }
 
-func (d *Deployer) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeployment) error {
+func (d *Deployer) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeployment) (string, error) {
 	return d.helm.RemoveExternalChanges(ctx, bd)
 }
 

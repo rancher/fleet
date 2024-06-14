@@ -135,9 +135,10 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 		// Run drift correction
 		if len(status.ModifiedStatus) > 0 && bd.Spec.CorrectDrift != nil && bd.Spec.CorrectDrift.Enabled {
-			err = r.Deployer.RemoveExternalChanges(ctx, bd)
-			if err != nil {
+			if release, err := r.Deployer.RemoveExternalChanges(ctx, bd); err != nil {
 				merr = append(merr, fmt.Errorf("failed reconciling drift: %w", err))
+			} else {
+				bd.Status.Release = release
 			}
 		}
 
