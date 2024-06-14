@@ -22,6 +22,8 @@ func (n Norm) Normalize(un *unstructured.Unstructured) error {
 func New(lives objectset.ObjectByGVK, additions ...diff.Normalizer) Norm {
 	n := Norm{
 		normalizers: []diff.Normalizer{
+			// Status fields are normally subresources which can't be influenced by resource updates
+			&StatusNormalizer{},
 			&MutatingWebhookNormalizer{
 				Live: lives,
 			},
