@@ -7,6 +7,7 @@ package v1alpha1
 
 import (
 	scheme "github.com/rancher/fleet/pkg/apis/internal"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -16,6 +17,9 @@ var (
 
 	// InternalSchemeBuilder is used to add go types to the GroupVersionKind scheme
 	InternalSchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
+
+	// Compatibility with k8s.io/apimachinery/pkg/runtime.Object
+	SchemeBuilder = InternalSchemeBuilder.SchemeBuilder
 
 	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = InternalSchemeBuilder.AddToScheme
