@@ -92,7 +92,12 @@ func (i *importHandler) onConfig(config *config.Config) error {
 		if cluster.Spec.KubeConfigSecret == "" {
 			continue
 		}
-		if config.APIServerURL != cluster.Status.APIServerURL || hashStatusField(config.APIServerCA) != cluster.Status.APIServerCAHash {
+
+		hasConfigChanged := config.APIServerURL != cluster.Status.APIServerURL ||
+			hashStatusField(config.APIServerCA) != cluster.Status.APIServerCAHash ||
+			config.AgentTLSMode != cluster.Status.AgentTLSMode
+
+		if hasConfigChanged {
 			logrus.Infof("API server config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
 			c := cluster.DeepCopy()
 			c.Status.AgentConfigChanged = true
@@ -388,6 +393,8 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	status.AgentConfigChanged = false
 	status.APIServerURL = apiServerURL
 	status.APIServerCAHash = hashStatusField(apiServerCA)
+	status.AgentTLSMode = cfg.AgentTLSMode
+
 	return status, nil
 }
 
