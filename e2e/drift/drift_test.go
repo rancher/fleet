@@ -153,7 +153,7 @@ var _ = Describe("Drift", func() {
 				}).Should(BeTrue())
 				Expect(func() string {
 					kw := k.Namespace(namespace)
-					n, _ := kw.Get("secrets", "--field-selector=type=helm.sh/release.v1", "-o=go-template='{{printf \"%d\\n\" (len  .items)}}'")
+					n, _ := kw.Get("secrets", "--field-selector=type=helm.sh/release.v1", `-o=go-template='{{printf "%d\n" (len  .items)}}'`)
 					return n
 				}).Should(Equal("2")) // Max Helm history
 			})
