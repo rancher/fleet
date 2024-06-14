@@ -155,7 +155,7 @@ var _ = Describe("Drift", func() {
 					kw := k.Namespace(namespace)
 					n, _ := kw.Get("secrets", "--field-selector=type=helm.sh/release.v1", "-o=go-template='{{printf \"%d\\n\" (len  .items)}}'")
 					return n
-				}).Should(Equal("2"))
+				}).Should(Equal("2")) // Max Helm history
 			})
 		})
 
