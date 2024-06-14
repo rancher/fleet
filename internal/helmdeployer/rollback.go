@@ -30,6 +30,10 @@ func (h *Helm) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeploy
 
 	r := action.NewRollback(&cfg)
 	r.Version = currentRelease.Version
+	r.MaxHistory = bd.Spec.Options.Helm.MaxHistory
+	if r.MaxHistory == 0 {
+		r.MaxHistory = MaxHelmHistory
+	}
 	if bd.Spec.CorrectDrift.Force {
 		r.Force = true
 	}
