@@ -3,9 +3,12 @@
 package installation_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/e2e/testenv/kubectl"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -17,7 +20,9 @@ func TestE2E(t *testing.T) {
 }
 
 var (
-	env *testenv.Env
+	env    *testenv.Env
+	ku     kubectl.Command
+	config string
 )
 
 var _ = BeforeSuite(func() {
@@ -25,4 +30,32 @@ var _ = BeforeSuite(func() {
 	testenv.SetRoot("../..")
 
 	env = testenv.New()
+	ku = env.Kubectl.Context(env.Upstream)
+
+	// Save initial state of `fleet-controller` config map
+	cfg, err := ku.Get(
+		"configmap",
+		"fleet-controller",
+		"-n",
+		"cattle-fleet-system",
+		"-o",
+		"jsonpath={.data.config}")
+	Expect(err).ToNot(HaveOccurred(), cfg)
+
+	cfg = strings.ReplaceAll(cfg, `"`, `\"`)
+	config = strings.ReplaceAll(cfg, "\n", "")
+})
+
+var _ = AfterSuite(func() {
+	// Restore initial state of config map
+	out, err := ku.Patch(
+		"configmap",
+		"fleet-controller",
+		"-n",
+		"cattle-fleet-system",
+		"--type=merge",
+		"-p",
+		fmt.Sprintf(`{"data":{"config":"%s"}}`, config),
+	)
+	Expect(err).ToNot(HaveOccurred(), string(out))
 })

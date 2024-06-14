@@ -12,13 +12,11 @@ import (
 var (
 	agentMode string
 	kd        kubectl.Command
-	ku        kubectl.Command
 )
 
 var _ = Describe("Fleet installation with TLS agent modes", func() {
 	BeforeEach(func() {
 		kd = env.Kubectl.Context(env.Downstream)
-		ku = env.Kubectl.Context(env.Upstream)
 	})
 
 	JustBeforeEach(func() {
