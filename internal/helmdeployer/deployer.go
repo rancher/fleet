@@ -246,17 +246,17 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 
 // RemoveExternalChanges does a helm rollback to remove changes made outside of fleet.
 // It removes the helm history entry if the rollback fails.
-func (h *Helm) RemoveExternalChanges(bd *fleet.BundleDeployment) error {
+func (h *Helm) RemoveExternalChanges(bd *fleet.BundleDeployment) (*Resources, error) {
 	logrus.Infof("Drift correction: rollback BundleDeployment %s", bd.Name)
 
 	_, defaultNamespace, releaseName := h.getOpts(bd.Name, bd.Spec.Options)
 	cfg, err := h.getCfg(defaultNamespace, bd.Spec.Options.ServiceAccount)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	currentRelease, err := cfg.Releases.Last(releaseName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	r := action.NewRollback(&cfg)
@@ -268,12 +268,18 @@ func (h *Helm) RemoveExternalChanges(bd *fleet.BundleDeployment) error {
 	if bd.Spec.CorrectDrift.Force {
 		r.Force = true
 	}
-	err = r.Run(releaseName)
-	if err != nil && !bd.Spec.CorrectDrift.KeepFailHistory {
-		return removeFailedRollback(cfg, currentRelease, err)
+	if err = r.Run(releaseName); err != nil {
+		if bd.Spec.CorrectDrift.KeepFailHistory {
+			return nil, err
+		}
+		return nil, removeFailedRollback(cfg, currentRelease, err)
 	}
 
-	return err
+	release, err := cfg.Releases.Last(releaseName)
+	if err != nil {
+		return nil, err
+	}
+	return releaseToResources(release)
 }
 
 func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (bool, error) {
