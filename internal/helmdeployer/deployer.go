@@ -246,17 +246,17 @@ func (h *Helm) Deploy(bundleID string, manifest *manifest.Manifest, options flee
 
 // RemoveExternalChanges does a helm rollback to remove changes made outside of fleet.
 // It removes the helm history entry if the rollback fails.
-func (h *Helm) RemoveExternalChanges(bd *fleet.BundleDeployment) (*Resources, error) {
+func (h *Helm) RemoveExternalChanges(bd *fleet.BundleDeployment) (string, error) {
 	logrus.Infof("Drift correction: rollback BundleDeployment %s", bd.Name)
 
 	_, defaultNamespace, releaseName := h.getOpts(bd.Name, bd.Spec.Options)
 	cfg, err := h.getCfg(defaultNamespace, bd.Spec.Options.ServiceAccount)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	currentRelease, err := cfg.Releases.Last(releaseName)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	r := action.NewRollback(&cfg)
@@ -270,16 +270,16 @@ func (h *Helm) RemoveExternalChanges(bd *fleet.BundleDeployment) (*Resources, er
 	}
 	if err = r.Run(releaseName); err != nil {
 		if bd.Spec.CorrectDrift.KeepFailHistory {
-			return nil, err
+			return "", err
 		}
-		return nil, removeFailedRollback(cfg, currentRelease, err)
+		return "", removeFailedRollback(cfg, currentRelease, err)
 	}
 
 	release, err := cfg.Releases.Last(releaseName)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return releaseToResources(release)
+	return releaseToResourceID(release), nil
 }
 
 func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (bool, error) {
@@ -888,13 +888,17 @@ func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
 	return dest
 }
 
+func releaseToResourceID(release *release.Release) string {
+	return fmt.Sprintf("%s/%s:%d", release.Namespace, release.Name, release.Version)
+}
+
 func releaseToResources(release *release.Release) (*Resources, error) {
 	var (
 		err error
 	)
 	resources := &Resources{
 		DefaultNamespace: release.Namespace,
-		ID:               fmt.Sprintf("%s/%s:%d", release.Namespace, release.Name, release.Version),
+		ID:               releaseToResourceID(release),
 	}
 
 	resources.Objects, err = yaml.ToObjects(bytes.NewBufferString(release.Manifest))
