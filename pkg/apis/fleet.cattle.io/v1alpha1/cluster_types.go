@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
+	InternalSchemeBuilder.Register(&Cluster{}, &ClusterList{})
 }
 
 const ClusterResourceNamePlural = "clusters"

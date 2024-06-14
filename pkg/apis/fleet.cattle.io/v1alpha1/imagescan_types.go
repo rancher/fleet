@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&ImageScan{}, &ImageScanList{})
+	InternalSchemeBuilder.Register(&ImageScan{}, &ImageScanList{})
 }
 
 // +genclient

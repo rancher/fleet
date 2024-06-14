@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&Bundle{}, &BundleList{})
+	InternalSchemeBuilder.Register(&Bundle{}, &BundleList{})
 }
 
 const (

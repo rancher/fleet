@@ -7,7 +7,7 @@ import (
 const ClusterRegistrationResourceNamePlural = "clusterregistrations"
 
 func init() {
-	SchemeBuilder.Register(&ClusterRegistration{}, &ClusterRegistrationList{})
+	InternalSchemeBuilder.Register(&ClusterRegistration{}, &ClusterRegistrationList{})
 }
 
 // +genclient

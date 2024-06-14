@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&BundleNamespaceMapping{}, &BundleNamespaceMappingList{})
+	InternalSchemeBuilder.Register(&BundleNamespaceMapping{}, &BundleNamespaceMappingList{})
 }
 
 // +genclient
