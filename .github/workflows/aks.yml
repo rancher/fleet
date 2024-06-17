@@ -135,7 +135,7 @@ jobs:
           FLEET_E2E_NS: fleet-local
         run: |
           export KUBECONFIG="$GITHUB_WORKSPACE/kubeconfig-fleet-ci"
-          ginkgo --github-output --label-filter="!infra-setup" e2e/single-cluster e2e/keep-resources
+          ginkgo --github-output --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources e2e/drift
       -
         name: Acceptance Tests for Examples
         env:
