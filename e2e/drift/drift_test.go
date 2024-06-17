@@ -184,6 +184,16 @@ var _ = Describe("Drift", Ordered, func() {
 					`{"name":"http","port":1234,"protocol":"TCP","targetPort":"http-web-svc"}]}}`))
 			})
 		})
+
+		Context("Resource manifests containing status fields", func() {
+			It("Is marked as not ready", func() {
+				bundleName := "drift-correction-test-drift-ignore-status"
+				Eventually(func() bool {
+					b := getBundle(bundleName, k)
+					return b.Status.Summary.Ready == 1
+				}).Should(BeTrue())
+			})
+		})
 	})
 
 	When("Drift correction is enabled with force", func() {
