@@ -1,5 +1,11 @@
 [files]
-extend-exclude = ["go.mod","ssh_host_ecdsa_key","cloner_test.go", "netutils_test.go"]
+extend-exclude = [
+  "go.mod",
+  "ssh_host_ecdsa_key",
+  "cloner_test.go",
+  "netutils_test.go",
+  "pkg/apis/internal/scheme.go",
+]
 
 [default.extend-identifiers]
 "passin" = "passin"
