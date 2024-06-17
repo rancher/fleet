@@ -151,6 +151,11 @@ var _ = Describe("Drift", func() {
 					_ = json.Unmarshal([]byte(out), &configMap)
 					return configMap.Data["foo"] == "bar"
 				}).Should(BeTrue())
+				Expect(func() string {
+					kw := k.Namespace(namespace)
+					n, _ := kw.Get("secrets", "--field-selector=type=helm.sh/release.v1", `-o=go-template='{{printf "%d\n" (len  .items)}}'`)
+					return n
+				}).Should(Equal("2")) // Max Helm history
 			})
 		})
 
