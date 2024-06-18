@@ -2,6 +2,7 @@ package singlecluster_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -89,15 +90,41 @@ var _ = Describe("Checks status updates happen for a simple deployment", func() 
 			out, err := k.Delete("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local")
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func() error {
+				out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+				if err != nil {
+					return err
+				}
 
-			Expect(out).Should(ContainSubstring("\"desiredReady\":0"))
-			Expect(out).Should(ContainSubstring("\"ready\":0"))
+				expectedDesiredReady := "\"desiredReady\":0"
+				if !strings.Contains(out, expectedDesiredReady) {
+					return fmt.Errorf("expected %q not found in %q", expectedDesiredReady, out)
+				}
 
-			out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
-			Expect(err).ToNot(HaveOccurred(), out)
-			Expect(out).Should(ContainSubstring("\"readyBundleDeployments\":\"0/0\""))
+				expectedReady := "\"ready\":0"
+				if !strings.Contains(out, expectedReady) {
+					return fmt.Errorf("expected %q not found in %q", expectedReady, out)
+				}
+
+				out, err = k.Get(
+					"gitrepo",
+					"my-gitrepo",
+					"-n",
+					"fleet-local",
+					"-o",
+					"jsonpath='{.status.display}'",
+				)
+				if err != nil {
+					return err
+				}
+
+				expectedReadyBD := "\"readyBundleDeployments\":\"0/0\""
+				if !strings.Contains(out, expectedReadyBD) {
+					return fmt.Errorf("expected %q not found in %q", expectedReadyBD, out)
+				}
+
+				return nil
+			}).ShouldNot(HaveOccurred())
 		})
 	})
 })
