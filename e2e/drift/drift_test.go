@@ -12,7 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-var _ = Describe("Drift", func() {
+var _ = Describe("Drift", Ordered, func() {
 	var (
 		asset      string
 		k          kubectl.Command
@@ -134,7 +134,7 @@ var _ = Describe("Drift", func() {
 				out, err := kw.Patch(
 					"configmap", "configmap",
 					"--type=json",
-					"-p", `[{"op": "replace", "path": "data/foo", "value": "modified"}]`,
+					"-p", `[{"op": "replace", "path": "/data/foo", "value": "modified"}]`,
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
 			})
