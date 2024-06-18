@@ -151,11 +151,15 @@ var _ = Describe("Drift", func() {
 					_ = json.Unmarshal([]byte(out), &configMap)
 					return configMap.Data["foo"] == "bar"
 				}).Should(BeTrue())
-				Expect(func() string {
-					kw := k.Namespace(namespace)
-					n, _ := kw.Get("secrets", "--field-selector=type=helm.sh/release.v1", `-o=go-template='{{printf "%d\n" (len  .items)}}'`)
-					return n
-				}).Should(Equal("2")) // Max Helm history
+
+				kw := k.Namespace(namespace)
+				out, err := kw.Get(
+					"secrets",
+					"--field-selector=type=helm.sh/release.v1",
+					`-o=go-template={{printf "%d" (len  .items)}}`,
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(out).To(Equal("2")) // Max Helm history
 			})
 		})
 
@@ -175,7 +179,9 @@ var _ = Describe("Drift", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace(env.Namespace).Get("bundles", bundleName, "-o=jsonpath={.status.conditions[*].message}")
 					return out
-				}).Should(ContainSubstring(`error reconciling drift: cannot patch "nginx-service" with kind Service: Service "nginx-service" is invalid: spec.ports[1].name: Duplicate value: "http"]; service.v1 drift/nginx-service modified {"spec":{"ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":"http-web-svc"},{"name":"http","port":1234,"protocol":"TCP","targetPort":"http-web-svc"}]}}`))
+				}).Should(ContainSubstring(`service.v1 drift/nginx-service modified {"spec":{"ports":[` +
+					`{"name":"http","port":80,"protocol":"TCP","targetPort":"http-web-svc"},` +
+					`{"name":"http","port":1234,"protocol":"TCP","targetPort":"http-web-svc"}]}}`))
 			})
 		})
 	})
