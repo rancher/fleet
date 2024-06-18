@@ -117,7 +117,7 @@ jobs:
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
           e2e/testenv/infra/infra setup
 
-          ginkgo e2e/single-cluster e2e/keep-resources
+          ginkgo e2e/single-cluster e2e/keep-resources e2e/drift
 
           e2e/testenv/infra/infra teardown
       -
