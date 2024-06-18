@@ -13,9 +13,7 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -165,11 +163,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	if bundle.Status.ObservedGeneration != bundle.Generation {
-		if err := setResourceKey(context.Background(), &bundle.Status, bundle, manifest, r.isNamespaced); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
+	setResourceKey(&bundle.Status, matchedTargets)
 
 	summary.SetReadyConditions(&bundle.Status, "Cluster", bundle.Status.Summary)
 	bundle.Status.ObservedGeneration = bundle.Generation
@@ -225,14 +219,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return ctrl.Result{}, err
-}
-
-func (r *BundleReconciler) isNamespaced(gvk schema.GroupVersionKind) bool {
-	mapping, err := r.RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return true
-	}
-	return mapping.Scope.Name() == meta.RESTScopeNameNamespace
 }
 
 func upper(op controllerutil.OperationResult) string {
