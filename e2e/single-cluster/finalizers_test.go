@@ -277,8 +277,8 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			Expect(out).ToNot(BeZero())
 
 			By("checking that the configmap created by the bundle deployment still exists")
-			_, err = k.Namespace(targetNamespace).Get("configmap", "test-simple-chart-config")
-			Expect(err).ToNot(HaveOccurred())
+			out, err = k.Namespace(targetNamespace).Get("configmap", "test-simple-chart-config")
+			Expect(err).ToNot(HaveOccurred(), out)
 		})
 	})
 })

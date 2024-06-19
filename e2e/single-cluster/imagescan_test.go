@@ -280,8 +280,8 @@ func tagAndPushImage(baseImage, image, tag string) string {
 
 func initRegistryWithImageAndTag(baseImage string, tag string) (string, string) {
 	cmd := exec.Command("docker", "pull", baseImage)
-	err := cmd.Run()
-	Expect(err).ToNot(HaveOccurred())
+	out, err := cmd.CombinedOutput()
+	Expect(err).ToNot(HaveOccurred(), string(out))
 	// generate a new uuid for this test
 	uuid := uuid.NewUUID()
 	image := fmt.Sprintf("ttl.sh/%s-fleet-test", uuid)
