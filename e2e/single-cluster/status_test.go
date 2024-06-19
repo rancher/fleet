@@ -58,27 +58,32 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 		})
 
 		It("correctly sets the status values for GitRepos", func() {
-			out, err := k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func(g Gomega) {
+				out, err := k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
 
-			Expect(out).Should(ContainSubstring("\"desiredReady\":1"))
-			Expect(out).Should(ContainSubstring("\"ready\":1"))
+				g.Expect(out).Should(ContainSubstring("\"desiredReady\":1"))
+				g.Expect(out).Should(ContainSubstring("\"ready\":1"))
 
-			out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
-			Expect(err).ToNot(HaveOccurred(), out)
-			Expect(out).Should(ContainSubstring("\"readyBundleDeployments\":\"1/1\""))
+				out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+				g.Expect(out).Should(ContainSubstring("\"readyBundleDeployments\":\"1/1\""))
+			}).Should(Succeed())
 		})
 
 		It("correctly sets the status values for bundle", func() {
-			out, err := k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func(g Gomega) {
+				out, err := k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
 
-			Expect(out).Should(ContainSubstring("\"desiredReady\":1"))
-			Expect(out).Should(ContainSubstring("\"ready\":1"))
+				g.Expect(out).Should(ContainSubstring("\"desiredReady\":1"))
+				g.Expect(out).Should(ContainSubstring("\"ready\":1"))
 
-			out, err = k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
-			Expect(err).ToNot(HaveOccurred(), out)
-			Expect(out).Should(ContainSubstring("\"readyClusters\":\"1/1\""))
+				out, err = k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+				g.Expect(out).Should(ContainSubstring("\"readyClusters\":\"1/1\""))
+			}).Should(Succeed())
+
 		})
 	})
 
@@ -88,44 +93,46 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 		})
 
 		It("correctly updates the status fields for GitRepos", func() {
-			out, err := k.Delete("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local")
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func(g Gomega) {
+				out, err := k.Delete("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local")
+				g.Expect(err).ToNot(HaveOccurred(), out)
 
-			Eventually(func() error {
-				out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-				if err != nil {
-					return err
-				}
+				Eventually(func() error {
+					out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+					if err != nil {
+						return err
+					}
 
-				expectedDesiredReady := "\"desiredReady\":0"
-				if !strings.Contains(out, expectedDesiredReady) {
-					return fmt.Errorf("expected %q not found in %q", expectedDesiredReady, out)
-				}
+					expectedDesiredReady := "\"desiredReady\":0"
+					if !strings.Contains(out, expectedDesiredReady) {
+						return fmt.Errorf("expected %q not found in %q", expectedDesiredReady, out)
+					}
 
-				expectedReady := "\"ready\":0"
-				if !strings.Contains(out, expectedReady) {
-					return fmt.Errorf("expected %q not found in %q", expectedReady, out)
-				}
+					expectedReady := "\"ready\":0"
+					if !strings.Contains(out, expectedReady) {
+						return fmt.Errorf("expected %q not found in %q", expectedReady, out)
+					}
 
-				out, err = k.Get(
-					"gitrepo",
-					"my-gitrepo",
-					"-n",
-					"fleet-local",
-					"-o",
-					"jsonpath='{.status.display}'",
-				)
-				if err != nil {
-					return err
-				}
+					out, err = k.Get(
+						"gitrepo",
+						"my-gitrepo",
+						"-n",
+						"fleet-local",
+						"-o",
+						"jsonpath='{.status.display}'",
+					)
+					if err != nil {
+						return err
+					}
 
-				expectedReadyBD := "\"readyBundleDeployments\":\"0/0\""
-				if !strings.Contains(out, expectedReadyBD) {
-					return fmt.Errorf("expected %q not found in %q", expectedReadyBD, out)
-				}
+					expectedReadyBD := "\"readyBundleDeployments\":\"0/0\""
+					if !strings.Contains(out, expectedReadyBD) {
+						return fmt.Errorf("expected %q not found in %q", expectedReadyBD, out)
+					}
 
-				return nil
-			}).ShouldNot(HaveOccurred())
+					return nil
+				}).ShouldNot(HaveOccurred())
+			})
 		})
 	})
 })

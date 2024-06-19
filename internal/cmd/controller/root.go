@@ -136,13 +136,6 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		bindAddresses.HealthProbe = d
 	}
 
-	if d := os.Getenv("GITREPO_RECONCILER_WORKERS"); d != "" {
-		w, err := strconv.Atoi(d)
-		if err != nil {
-			setupLog.Error(err, "failed to parse GITREPO_RECONCILER_WORKERS", "value", d)
-		}
-		workersOpts.GitRepo = w
-	}
 	if d := os.Getenv("BUNDLE_RECONCILER_WORKERS"); d != "" {
 		w, err := strconv.Atoi(d)
 		if err != nil {

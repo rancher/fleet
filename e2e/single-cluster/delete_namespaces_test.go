@@ -72,6 +72,7 @@ var _ = Describe("delete namespaces", func() {
 	When("delete namespaces is true", func() {
 		BeforeEach(func() {
 			deleteNamespace = true
+			targetNamespace = "my-custom-namespace"
 		})
 
 		It("targetNamespace is deleted after deleting gitRepo", func() {

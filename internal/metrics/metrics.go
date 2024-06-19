@@ -40,6 +40,12 @@ func RegisterMetrics() {
 	BundleDeploymentCollector.Register()
 }
 
+func RegisterGitOptsMetrics() {
+	enabled = true
+
+	GitRepoCollector.Register()
+}
+
 // CollectorCollection implements the generic methods `Delete` and `Register`
 // for a collection of Prometheus collectors. It is used to manage the lifecycle
 // of a collection of Prometheus collectors.

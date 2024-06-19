@@ -154,11 +154,9 @@ var _ = Describe("Image Scan dynamic tests pushing to ttl.sh", Label("infra-setu
 			}).Should(
 				MatchRegexp(fmt.Sprintf(`image: %s # {"\$imagescan": "test-scan"}`, imageTag)))
 
-			By("pushing a new tag to the registry and checking the fleet controller does not crash")
-			// store number of fleet controller restarts to compare later
-			index, ok := getFleetControllerContainerIndexInPod(k, "fleet-controller")
-			Expect(ok).To(BeTrue())
-			fleetControllerInitialRestarts := getFleetControllerRestarts(k, index)
+			By("pushing a new tag to the registry and checking the gijob controller does not crash")
+			// store number of gitopts controller restarts to compare later
+			gitjobControllerInitialRestarts := getGitjobControllerRestarts(k)
 			newTag := "0.0.0-50"
 			previousImageTag := imageTag
 			imageTag = tagAndPushImage("k8s.gcr.io/pause", image, newTag)
@@ -167,11 +165,9 @@ var _ = Describe("Image Scan dynamic tests pushing to ttl.sh", Label("infra-setu
 			// we check for 10 seconds so we're sure that the image has been scanned and the controller didn't crash
 			// Checks for number of restarts and also to the status.ready property to be more robust
 			Consistently(func() bool {
-				indexNow, ok := getFleetControllerContainerIndexInPod(k, "fleet-controller")
-				Expect(ok).To(BeTrue())
-				restarts := getFleetControllerRestarts(k, indexNow)
-				ready := getFleetControllerReady(k, indexNow)
-				return (restarts == fleetControllerInitialRestarts) && ready
+				restarts := getGitjobControllerRestarts(k)
+				ready := getGitjobControllerReady(k)
+				return (restarts == gitjobControllerInitialRestarts) && ready
 			}, 10*time.Second, 1*time.Second).Should(BeTrue())
 
 			By("checking the bundle has the original image tag")
@@ -188,10 +184,10 @@ var _ = Describe("Image Scan dynamic tests pushing to ttl.sh", Label("infra-setu
 	})
 })
 
-func getFleetControllerRestarts(k kubectl.Command, index int) int {
-	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=fleet-controller", "-l", "fleet.cattle.io/shard-id=",
+func getGitjobControllerRestarts(k kubectl.Command) int {
+	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=gitjob,fleet.cattle.io/shard-id=",
 		"--no-headers",
-		"-o", fmt.Sprintf("custom-columns=RESTARTS:.status.containerStatuses[%d].restartCount", index))
+		"-o", "custom-columns=RESTARTS:.status.containerStatuses[0].restartCount")
 	Expect(err).NotTo(HaveOccurred())
 	out = strings.TrimSuffix(out, "\n")
 	n, err := strconv.Atoi(out)
@@ -199,32 +195,15 @@ func getFleetControllerRestarts(k kubectl.Command, index int) int {
 	return n
 }
 
-func getFleetControllerReady(k kubectl.Command, index int) bool {
-	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=fleet-controller", "-l", "fleet.cattle.io/shard-id=",
+func getGitjobControllerReady(k kubectl.Command) bool {
+	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=gitjob,fleet.cattle.io/shard-id=",
 		"--no-headers",
-		"-o", fmt.Sprintf("custom-columns=RESTARTS:.status.containerStatuses[%d].ready", index))
+		"-o", "custom-columns=RESTARTS:.status.containerStatuses[0].ready")
 	Expect(err).NotTo(HaveOccurred())
 	out = strings.TrimSuffix(out, "\n")
 	boolValue, err := strconv.ParseBool(out)
 	Expect(err).NotTo(HaveOccurred())
 	return boolValue
-}
-
-func getFleetControllerContainerIndexInPod(k kubectl.Command, container string) (int, bool) {
-	// the fleet controller pod runs 3 containers.
-	// we need to know the index of the fleet-controller container inside the pod.
-	// get all the container names, and return the index of the given container name
-	out, err := k.Namespace("cattle-fleet-system").Get("pods", "-l", "app=fleet-controller", "-l", "fleet.cattle.io/shard-id=",
-		"--no-headers", "-o", "custom-columns=RESTARTS:.status.containerStatuses[*].name")
-	Expect(err).NotTo(HaveOccurred())
-	out = strings.TrimSuffix(out, "\n")
-	containers := strings.Split(out, ",")
-	for i, n := range containers {
-		if container == n {
-			return i, true
-		}
-	}
-	return -1, false
 }
 
 func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) *git.Repository {

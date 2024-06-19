@@ -43,6 +43,15 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
+		_, err = k.Namespace("cattle-fleet-system").Run(
+			"scale",
+			"deployment",
+			"gitjob",
+			"--replicas=1",
+			"--timeout=5s",
+		)
+		Expect(err).ToNot(HaveOccurred())
+
 		_, _ = k.Delete("gitrepo", gitrepoName)
 		_, _ = k.Delete("bundle", fmt.Sprintf("%s-%s", gitrepoName, path))
 		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
@@ -67,11 +76,11 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 				return out
 			}).Should(ContainSubstring(gitrepoName))
 
-			By("scaling down the Fleet controller to 0 replicas")
+			By("scaling down the gitjob controller to 0 replicas")
 			_, err := k.Namespace("cattle-fleet-system").Run(
 				"scale",
 				"deployment",
-				"fleet-controller",
+				"gitjob",
 				"--replicas=0",
 				"--timeout=5s",
 			)
@@ -130,14 +139,14 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			_, err = k.Namespace("cattle-fleet-system").Run(
 				"scale",
 				"deployment",
-				"fleet-controller",
+				"gitjob",
 				"--replicas=1",
 				"--timeout=5s",
 			)
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = k.Delete("gitrepo", gitrepoName)
-			Expect(err).NotTo(HaveOccurred())
+			// As soon as the controller is back, it deletes the gitrepo
+			// as its delete timestamp was already set
 
 			// These resources should be deleted when the GitRepo is deleted.
 			By("checking that the auxiliary resources don't exist anymore")
@@ -244,7 +253,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			_, err := k.Namespace("cattle-fleet-system").Run(
 				"scale",
 				"deployment",
-				"fleet-controller",
+				"gitjob",
 				"--replicas=0",
 				"--timeout=5s",
 			)

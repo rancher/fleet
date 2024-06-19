@@ -121,21 +121,6 @@ func start(
 
 	sched := quartz.NewStdScheduler()
 
-	if !disableGitops {
-		if err = (&reconciler.GitRepoReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-
-			Scheduler: sched,
-			ShardID:   shardID,
-
-			Workers: workersOpts.GitRepo,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "GitRepo")
-			return err
-		}
-	}
-
 	// controllers that update status.display
 	if err = (&reconciler.ClusterGroupReconciler{
 		Client:  mgr.GetClient(),

@@ -42,7 +42,16 @@ func TestReconcile_AddOrModifyGitRepoPollJobIsCalled_WhenGitRepoIsCreatedOrModif
 	client := mocks.NewMockClient(mockCtrl)
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any())
+	client.EXPECT().Update(gomock.Any(), gomock.Any()).Times(1).Return(nil)
 	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+			gitrepo.Name = gitRepo.Name
+			gitrepo.Namespace = gitRepo.Namespace
+			gitrepo.Spec.Repo = "repo"
+			return nil
+		},
+	)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Status().Return(statusClient)
 	poller := mocks.NewMockGitPoller(mockCtrl)
@@ -111,6 +120,18 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 		},
 	)
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	mockClient.EXPECT().Status().Times(1).Return(statusClient)
+	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
+			if len(repo.Status.Conditions) == 0 {
+				t.Errorf("expecting to have Conditions, got none")
+			}
+			if repo.Status.Conditions[0].Message != "empty targetNamespace denied, because allowedTargetNamespaces restriction is present" {
+				t.Errorf("Expecting condition message [empty targetNamespace denied, because allowedTargetNamespaces restriction is present], got [%s]", repo.Status.Conditions[0].Message)
+			}
+		},
+	)
 	poller := mocks.NewMockGitPoller(mockCtrl)
 
 	r := GitJobReconciler{
@@ -123,7 +144,7 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	ctx := context.TODO()
 	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
 	if err == nil {
-		t.Errorf("expecting error, got nil")
+		t.Errorf("expecting an error, got nil")
 	}
 	if err.Error() != "empty targetNamespace denied, because allowedTargetNamespaces restriction is present" {
 		t.Errorf("unexpected error %v", err)
