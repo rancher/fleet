@@ -11,7 +11,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-var shards = []string{"shard1", "shard2", "shard3"}
+var shards = []string{"shard0", "shard1", "shard2"}
 
 var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func() {
 	var (

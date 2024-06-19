@@ -82,7 +82,7 @@ jobs:
       -
         name: Deploy Fleet
         run: |
-          SHARDS="shard1,shard2,shard3" ./.github/scripts/deploy-fleet.sh
+          SHARDS='[{"id":"shard0"},{"id":"shard1"},{"id":"shard2"}]' ./.github/scripts/deploy-fleet.sh
       -
         name: Create Zot certificates for OCI tests
         env:

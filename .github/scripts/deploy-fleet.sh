@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-shards=${SHARDS-""}
+shards_json=${SHARDS-""}
 
 function eventually {
   for _ in $(seq 1 3); do
@@ -28,6 +28,25 @@ host=$(kubectl get node k3d-upstream-server-0 -o jsonpath='{.status.addresses[?(
 ca=$( kubectl config view --flatten -o jsonpath='{.clusters[?(@.name == "k3d-upstream")].cluster.certificate-authority-data}' | base64 -d )
 server="https://$host:6443"
 
+# Constructing the shards settings dynamically
+shards_settings=""
+if [ -n "$shards_json" ]; then
+  index=0
+  for shard in $(echo "${shards_json}" | jq -c '.[]'); do
+    shard_id=$(echo "$shard" | jq -r '.id')
+    shards_settings="$shards_settings --set shards[$index].id=$shard_id"
+    node_selector=$(echo "$shard" | jq -r '.nodeSelector // empty')
+    if [ -n "$node_selector" ]; then
+      for key in $(echo "$node_selector" | jq -r 'keys[]'); do
+        value=$(echo "$node_selector" | jq -r --arg key "$key" '.[$key]')
+        escaped_key=$(echo "$key" | sed 's/\./\\./g')
+        shards_settings="$shards_settings --set shards[$index].nodeSelector.\"$escaped_key\"=$value"
+      done
+    fi
+    index=$((index + 1))
+  done
+fi
+
 eventually helm upgrade --install fleet-crd charts/fleet-crd \
   --atomic \
   -n cattle-fleet-system \
@@ -43,7 +62,7 @@ eventually helm upgrade --install fleet charts/fleet \
   --set agentImage.imagePullPolicy=IfNotPresent \
   --set apiServerCA="$ca" \
   --set apiServerURL="$server" \
-  --set shards="{$shards}" \
+  $shards_settings \
   --set debug=true --set debugLevel=1
 
 # wait for controller and agent rollout

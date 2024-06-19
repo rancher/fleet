@@ -13,15 +13,22 @@ spec:
     app: "gitjob"
 ---
 {{- if .Values.metrics.enabled }}
-{{ $shards := list "" }}
-{{ if .Values.shards }}
-{{ $shards = concat $shards .Values.shards | uniq }}
-{{ end }}
-{{ range $shards }}
+{{- $shards := list (dict "id" "" "nodeSelector" dict) -}}
+{{- $uniqueShards := list -}}
+{{- if .Values.shards -}}
+  {{- range .Values.shards -}}
+    {{- if not (has .id $uniqueShards) -}}
+      {{- $shards = append $shards . -}}
+      {{- $uniqueShards = append $uniqueShards .id -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{ range $shard := $shards }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: "monitoring-gitjob{{if . }}-shard-{{ . }}{{end}}"
+  name: "monitoring-gitjob{{if $shard.id }}-shard-{{ $shard.id }}{{end}}"
   labels:
     app: gitjob
 spec:
@@ -33,10 +40,10 @@ spec:
     name: metrics
   selector:
     app: gitjob
-    {{- if empty . }}
+    {{- if empty $shard.id }}
     fleet.cattle.io/shard-default: "true"
     {{- else }}
-    fleet.cattle.io/shard-id: "{{ . }}"
+    fleet.cattle.io/shard-id: "{{ $shard.id }}"
     {{- end }}
 ---
 {{- end }}

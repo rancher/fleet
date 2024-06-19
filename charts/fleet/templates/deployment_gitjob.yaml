@@ -1,13 +1,20 @@
-{{ $shards := list "" }}
-{{ if .Values.shards }}
-{{ $shards = concat $shards .Values.shards | uniq }}
-{{ end }}
-{{ range $shards }}
+{{- $shards := list (dict "id" "" "nodeSelector" dict) -}}
+{{- $uniqueShards := list -}}
+{{- if .Values.shards -}}
+  {{- range .Values.shards -}}
+    {{- if not (has .id $uniqueShards) -}}
+      {{- $shards = append $shards . -}}
+      {{- $uniqueShards = append $uniqueShards .id -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{ range $shard := $shards }}
 {{- if $.Values.gitops.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "gitjob{{if . }}-shard-{{ . }}{{end}}"
+  name: "gitjob{{if $shard.id }}-shard-{{ $shard.id }}{{end}}"
 spec:
   selector:
     matchLabels:
@@ -16,8 +23,8 @@ spec:
     metadata:
       labels:
         app: "gitjob"
-        fleet.cattle.io/shard-id: "{{ . }}"
-        {{- if empty . }}
+        fleet.cattle.io/shard-id: "{{ $shard.id }}"
+        {{- if empty $shard.id }}
         fleet.cattle.io/shard-default: "true"
         {{- end }}
     spec:
@@ -38,9 +45,9 @@ spec:
           {{- if $.Values.debug }}
           - --debug
           {{- end }}
-          {{- if . }}
+          {{- if $shard.id }}
           - --shard-id
-          - {{ quote . }}
+          - {{ quote $shard.id }}
           {{- end }}
           {{- if not $.Values.metrics.enabled }}
           - --disable-metrics
@@ -77,11 +84,11 @@ spec:
 {{- if $.Values.extraEnv }}
 {{ toYaml $.Values.extraEnv | indent 12}}
 {{- end }}
-      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
+      nodeSelector: {{ include "linux-node-selector" $shard.id | nindent 8 }}
 {{- if $.Values.nodeSelector }}
 {{ toYaml $.Values.nodeSelector | indent 8 }}
 {{- end }}
-      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
+      tolerations: {{ include "linux-node-tolerations" $shard.id | nindent 8 }}
 {{- if $.Values.tolerations }}
 {{ toYaml $.Values.tolerations | indent 8 }}
 {{- end }}
