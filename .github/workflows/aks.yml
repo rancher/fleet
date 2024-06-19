@@ -95,7 +95,7 @@ jobs:
             ttl.sh/rancher/fleet-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
       -
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: package/Dockerfile
@@ -112,7 +112,7 @@ jobs:
             ttl.sh/rancher/fleet-agent-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
       -
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: package/Dockerfile.agent

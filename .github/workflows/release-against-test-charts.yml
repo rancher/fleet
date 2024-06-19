@@ -73,7 +73,7 @@ jobs:
           tags: type=raw,value=1h
 
       - name: Build and push Fleet controller image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile
@@ -92,7 +92,7 @@ jobs:
           tags: type=raw,value=1h
 
       - name: Build and push Fleet agent image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile.agent
