@@ -1,6 +1,8 @@
 package clustergroup
 
 import (
+	"fmt"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -61,8 +63,27 @@ var _ = Describe("ClusterGroup Status Fields", func() {
 				}
 				return k8sClient.Update(ctx, clusterGroup)
 			}).ShouldNot(HaveOccurred())
-			Expect(clusterGroup.Status.ClusterCount).To(Equal(1))
-			Expect(clusterGroup.Status.Display.ReadyClusters).To(Equal("1/1"))
+
+			Eventually(func() error {
+				if clusterGroup.Status.ClusterCount != 1 {
+					return fmt.Errorf(
+						"cluster group %s/%s has ClusterCount=%d, expected 1",
+						namespace,
+						groupName,
+						clusterGroup.Status.ClusterCount,
+					)
+				}
+				if clusterGroup.Status.Display.ReadyClusters != "1/1" {
+					return fmt.Errorf(
+						"cluster group %s/%s has ReadyClusters=%s, expected '1/1'",
+						namespace,
+						groupName,
+						clusterGroup.Status.Display.ReadyClusters,
+					)
+				}
+
+				return nil
+			}).ShouldNot(HaveOccurred())
 		})
 	})
 })

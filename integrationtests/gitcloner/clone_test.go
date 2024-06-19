@@ -428,7 +428,7 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 		gogsClient.SetHTTPClient(httpClient)
 
 		return nil
-	}, timeout, "2s").ShouldNot(HaveOccurred())
+	}, timeout, "10s").ShouldNot(HaveOccurred())
 
 	return container, nil
 }
