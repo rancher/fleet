@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	command "github.com/rancher/fleet/internal/cmd"
@@ -43,6 +44,7 @@ type GitOperator struct {
 	Kubeconfig           string `usage:"Kubeconfig file"`
 	Namespace            string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
 	MetricsAddr          string `name:"metrics-bind-address" default:":8081" usage:"The address the metric endpoint binds to."`
+	DisableMetrics       bool   `name:"disable-metrics" usage:"Disable the metrics server."`
 	EnableLeaderElection bool   `name:"leader-elect" default:"true" usage:"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager."`
 	Image                string `name:"gitjob-image" default:"rancher/fleet:dev" usage:"The gitjob image that will be used in the generated job."`
 	Listen               string `default:":8080" usage:"The port the webhook listens."`
@@ -79,11 +81,21 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("gitjob-reconciler"))
 
 	namespace := g.Namespace
+
+	if envMetricsAddr := os.Getenv("GITOPS_METRICS_BIND_ADDRESS"); envMetricsAddr != "" {
+		g.MetricsAddr = envMetricsAddr
+	}
+
+	var metricServerOptions metricsserver.Options
+	if g.DisableMetrics {
+		metricServerOptions = metricsserver.Options{BindAddress: "0"}
+	} else {
+		metricServerOptions = metricsserver.Options{BindAddress: g.MetricsAddr}
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme: scheme,
-		Metrics: metricsserver.Options{
-			BindAddress: g.MetricsAddr,
-		},
+		Scheme:                  scheme,
+		Metrics:                 metricServerOptions,
 		LeaderElection:          g.EnableLeaderElection,
 		LeaderElectionID:        "gitjob-leader",
 		LeaderElectionNamespace: namespace,
