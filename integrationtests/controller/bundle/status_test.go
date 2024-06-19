@@ -70,10 +70,19 @@ var _ = Describe("Bundle Status Fields", func() {
 				if err != nil {
 					return err
 				}
+				resources := []v1alpha1.BundleDeploymentResource{}
+				resource := v1alpha1.BundleDeploymentResource{
+					Kind:       "ConfigMap",
+					APIVersion: "v1",
+					Namespace:  namespace,
+					Name:       "app-config",
+				}
+				resources = append(resources, resource)
 				bd.Status.Display.State = "Ready"
 				bd.Status.AppliedDeploymentID = bd.Spec.DeploymentID
 				bd.Status.Ready = true
 				bd.Status.NonModified = true
+				bd.Status.Resources = resources
 				return k8sClient.Status().Update(ctx, bd)
 			}).ShouldNot(HaveOccurred())
 
@@ -81,6 +90,7 @@ var _ = Describe("Bundle Status Fields", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Display.State).To(Equal("Ready"))
 			Expect(bd.Status.AppliedDeploymentID).To(Equal(bd.Spec.DeploymentID))
+			Expect(len(bd.Status.Resources)).To(Equal(1))
 
 			Eventually(func() bool {
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
@@ -89,6 +99,13 @@ var _ = Describe("Bundle Status Fields", func() {
 			}).Should(BeTrue())
 			Expect(bundle.Status.Summary.DesiredReady).To(Equal(1))
 			Expect(bundle.Status.Display.ReadyClusters).To(Equal("1/1"))
+			Expect(len(bundle.Status.ResourceKey)).To(Equal(1))
+			bdResource := bd.Status.Resources[0]
+			bundleResourceKey := bundle.Status.ResourceKey[0]
+			Expect(bundleResourceKey.APIVersion).To(Equal(bdResource.APIVersion))
+			Expect(bundleResourceKey.Name).To(Equal(bdResource.Name))
+			Expect(bundleResourceKey.Namespace).To(Equal(bdResource.Namespace))
+			Expect(bundleResourceKey.Kind).To(Equal(bdResource.Kind))
 		})
 	})
 
