@@ -2,6 +2,7 @@ package examples_test
 
 import (
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -19,6 +20,7 @@ var (
 
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(testenv.Timeout)
+	SetDefaultEventuallyPollingInterval(time.Second)
 	testenv.SetRoot("../..")
 
 	env = testenv.New()
