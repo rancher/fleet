@@ -1,6 +1,7 @@
 package singlecluster_test
 
 import (
+	"fmt"
 	"os"
 	"path"
 
@@ -14,10 +15,11 @@ import (
 
 var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 	var (
-		gitRepoPath string
-		tmpdir      string
-		k           kubectl.Command
-		gh          *githelper.Git
+		gitRepoPath     string
+		tmpdir          string
+		k               kubectl.Command
+		gh              *githelper.Git
+		targetNamespace string
 	)
 
 	JustBeforeEach(func() {
@@ -47,6 +49,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 		Context("containing a private OCI-based helm chart", Label("oci-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth"
+				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				tmpdir, gh = setupGitRepo(gitRepoPath, repoName, port)
@@ -54,7 +57,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
-					out, _ := k.Namespace("fleet-helm-oci-with-auth").Get("pods", "--field-selector=status.phase==Running")
+					out, _ := k.Namespace(targetNamespace).Get("pods", "--field-selector=status.phase==Running")
 					return out
 				}).Should(ContainSubstring("sleeper-"))
 			})
@@ -62,6 +65,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 		Context("containing a private HTTP-based helm chart with repo path", Label("helm-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-repo-path"
+				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				tmpdir, gh = setupGitRepo(gitRepoPath, repoName, port)
@@ -69,7 +73,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
-					out, _ := k.Namespace("fleet-helm-http-with-auth-repo-path").Get("pods", "--field-selector=status.phase==Running")
+					out, _ := k.Namespace(targetNamespace).Get("pods", "--field-selector=status.phase==Running")
 					return out
 				}).Should(ContainSubstring("sleeper-"))
 			})
@@ -77,6 +81,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 		Context("containing a private HTTP-based helm chart with chart path", Label("helm-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-chart-path"
+				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
 				k = env.Kubectl.Namespace(env.Namespace)
 
 				tmpdir, gh = setupGitRepo(gitRepoPath, repoName, port)
@@ -84,7 +89,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 
 			It("deploys the helm chart", func() {
 				Eventually(func() string {
-					out, _ := k.Namespace("fleet-helm-http-with-auth-chart-path").Get("pods", "--field-selector=status.phase==Running")
+					out, _ := k.Namespace(targetNamespace).Get("pods", "--field-selector=status.phase==Running")
 					return out
 				}).Should(ContainSubstring("sleeper-"))
 			})
@@ -95,6 +100,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 		os.RemoveAll(tmpdir)
 
 		_, _ = k.Delete("gitrepo", "helm")
+		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
 	})
 })
 

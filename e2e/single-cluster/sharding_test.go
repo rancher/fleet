@@ -115,6 +115,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 
 			AfterEach(func() {
 				_, _ = k.Delete("gitrepo", gitrepoName)
+				_, _ = k.Delete("ns", targetNamespace, "--wait=false")
 			})
 		})
 	}
@@ -178,6 +179,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 
 		AfterEach(func() {
 			_, _ = k.Delete("gitrepo", gitrepoName)
+			_, _ = k.Delete("ns", targetNamespace, "--wait=false")
 		})
 	})
 })

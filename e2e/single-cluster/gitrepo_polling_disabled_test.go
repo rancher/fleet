@@ -76,6 +76,9 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(isError).To(BeFalse())
+
+		_, err = k.Delete("ns", targetNamespace)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	When("applying a gitrepo with disable polling", func() {

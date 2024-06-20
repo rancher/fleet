@@ -24,6 +24,8 @@ var _ = Describe("BundleDeployment Metrics", Label("bundledeployment"), func() {
 		// random namespace, like it is the case for the other tests.
 		objName string
 
+		targetNS string
+
 		r = rand.New(rand.NewSource(GinkgoRandomSeed()))
 	)
 
@@ -31,7 +33,7 @@ var _ = Describe("BundleDeployment Metrics", Label("bundledeployment"), func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		kw = k.Namespace(namespace)
 		objName = testenv.AddRandomSuffix("metrics", r)
-		targetNS := testenv.NewNamespaceName("metrics", r)
+		targetNS = testenv.NewNamespaceName("metrics", r)
 
 		err := testenv.CreateGitRepo(
 			kw,
@@ -50,6 +52,9 @@ var _ = Describe("BundleDeployment Metrics", Label("bundledeployment"), func() {
 
 		DeferCleanup(func() {
 			out, err := k.Delete("gitrepo", objName)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			out, err = k.Delete("ns", targetNS, "--wait=false")
 			Expect(err).ToNot(HaveOccurred(), out)
 		})
 	})

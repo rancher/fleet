@@ -29,12 +29,17 @@ var _ = Describe("Single Cluster Deployments", func() {
 		out, err := k.Delete("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
 
+		_, _ = k.Delete("ns", "helm-kustomize-disabled")
 	})
 
 	When("creating a gitrepo resource", func() {
 		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/helm-oci.yaml"
+			})
+
+			AfterEach(func() {
+				_, _ = k.Delete("ns", "fleet-helm-oci-example")
 			})
 
 			It("deploys the helm chart", func() {
@@ -61,6 +66,11 @@ var _ = Describe("Single Cluster Deployments", func() {
 		Context("containing multiple paths", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/multiple-paths.yaml"
+			})
+
+			AfterEach(func() {
+				_, _ = k.Delete("ns", "test-fleet-mp-config")
+				_, _ = k.Delete("ns", "test-fleet-mp-service")
 			})
 
 			It("sets status fields for gitrepo on deployment", func() {

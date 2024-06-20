@@ -45,6 +45,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 
 		_, _ = k.Delete("gitrepo", gitrepoName)
 		_, _ = k.Delete("bundle", fmt.Sprintf("%s-%s", gitrepoName, path))
+		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
 	})
 
 	When("deleting an existing GitRepo", func() {

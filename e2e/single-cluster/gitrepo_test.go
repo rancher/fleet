@@ -97,6 +97,9 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(isError).To(BeFalse())
+
+		_, err = k.Delete("ns", targetNamespace)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	When("updating a git repository monitored via polling", func() {

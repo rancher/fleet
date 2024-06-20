@@ -47,6 +47,10 @@ var _ = Describe("Drift", Ordered, func() {
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
+	AfterAll(func() {
+		_, _ = k.Delete("ns", namespace)
+	})
+
 	When("Drift correction is not enabled", func() {
 		BeforeEach(func() {
 			asset = "drift/correction-disabled/gitrepo.yaml"
