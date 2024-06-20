@@ -186,7 +186,7 @@ var _ = Describe("Drift", Ordered, func() {
 		})
 
 		Context("Resource manifests containing status fields", func() {
-			// Status must be ignored for drift correctiong, despite being part of the manifests
+			// Status must be ignored for drift correction, despite being part of the manifests
 			It("Is marked as ready", func() {
 				bundleName := "drift-correction-test-drift-ignore-status"
 				Eventually(func() bool {
