@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/reugn/go-quartz/quartz"
 	"golang.org/x/sync/semaphore"
@@ -66,6 +67,8 @@ func (j *GitRepoPollJob) fetchLatestCommitAndUpdateStatus(ctx context.Context) {
 	commit, err := j.fetcher.LatestCommit(ctx, &j.GitRepo, j.client)
 	if err != nil {
 		logger.Error(err, "error fetching commit", "gitrepo", j.GitRepo)
+		nsName := types.NamespacedName{Name: j.GitRepo.Name, Namespace: j.GitRepo.Namespace}
+		_ = grutil.UpdateErrorStatus(ctx, j.client, nsName, j.GitRepo.Status, err)
 		return
 	}
 	if j.GitRepo.Status.Commit != commit {
