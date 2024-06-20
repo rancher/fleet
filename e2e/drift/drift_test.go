@@ -33,10 +33,17 @@ var _ = Describe("Drift", Ordered, func() {
 			b := getBundle(bundleName, k)
 			return b.Status.Summary.Ready == 1
 		}).Should(BeTrue())
+
+		defer func() {
+			if r := recover(); r != nil {
+				bundle := getBundle(bundleName, k)
+				GinkgoWriter.Printf("bundle status: %v", bundle.Status)
+			}
+		}()
 	})
 
 	AfterEach(func() {
-		out, err := k.Namespace(env.Namespace).Delete("-f", testenv.AssetPath(asset))
+		out, err := k.Namespace(env.Namespace).Delete("-f", testenv.AssetPath(asset), "--wait")
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
