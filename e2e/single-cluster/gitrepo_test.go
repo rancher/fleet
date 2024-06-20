@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
@@ -49,6 +50,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 	})
 
 	JustBeforeEach(func() {
+
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
 		host, err := githelper.BuildGitHostname(env.Namespace)
 		Expect(err).ToNot(HaveOccurred())
@@ -87,7 +89,14 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			"fleet-controller",
 		)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).ToNot(ContainSubstring("ERROR"))
+
+		// Errors about bundles or bundle deployments not being found at deletion time should be ignored.
+		isError, err := regexp.MatchString(
+			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
+			out,
+		)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(isError).To(BeFalse())
 	})
 
 	When("updating a git repository monitored via polling", func() {

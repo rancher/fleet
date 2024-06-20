@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"regexp"
 
 	"github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
@@ -67,7 +68,14 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			"fleet-controller",
 		)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).ToNot(ContainSubstring("ERROR"))
+
+		// Errors about bundles or bundle deployments not being found at deletion time should be ignored.
+		isError, err := regexp.MatchString(
+			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
+			out,
+		)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(isError).To(BeFalse())
 	})
 
 	When("applying a gitrepo with disable polling", func() {
