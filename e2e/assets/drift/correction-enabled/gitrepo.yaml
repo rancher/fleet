@@ -9,3 +9,4 @@ spec:
     enabled: true
   paths:
     - drift
+    - drift-ignore-status
