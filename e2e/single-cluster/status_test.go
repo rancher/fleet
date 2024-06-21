@@ -11,7 +11,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-var _ = Describe("Checks status updates happen for a simple deployment", func() {
+var _ = Describe("Checks status updates happen for a simple deployment", Ordered, func() {
 	var (
 		k               kubectl.Command
 		targetNamespace string
@@ -26,10 +26,6 @@ var _ = Describe("Checks status updates happen for a simple deployment", func() 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		deleteNamespace = false
-
-		DeferCleanup(func() {
-			_, _ = k.Delete("ns", "my-custom-namespace", "--wait=false")
-		})
 	})
 
 	JustBeforeEach(func() {
@@ -49,6 +45,11 @@ var _ = Describe("Checks status updates happen for a simple deployment", func() 
 
 			return nil
 		}).ShouldNot(HaveOccurred())
+	})
+
+	AfterAll(func() {
+		_, _ = k.Delete("gitrepo", "my-gitrepo")
+		_, _ = k.Delete("ns", "my-custom-namespace", "--wait=false")
 	})
 
 	When("deployment is successful", func() {
