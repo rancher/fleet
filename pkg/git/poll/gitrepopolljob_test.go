@@ -86,6 +86,13 @@ var _ = Describe("GitRepoPollJob tests", func() {
 			err := client.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &updatedGitRepo)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(updatedGitRepo.Status.Commit).To(Equal(gitRepo.Status.Commit))
+			errorFound := false
+			for _, c := range updatedGitRepo.Status.Conditions {
+				if c.Message == "Some error" {
+					errorFound = true
+				}
+			}
+			Expect(errorFound).To(BeTrue())
 		})
 	})
 })

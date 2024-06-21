@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/git"
 	"github.com/reugn/go-quartz/quartz"
 
@@ -77,9 +78,13 @@ func (h *Handler) AddOrModifyGitRepoPollJob(ctx context.Context, gitRepo v1alpha
 			return
 		}
 		previousInterval := gitRepoPollJob.GitRepo.Spec.PollingInterval
+		previousGeneration := gitRepoPollJob.GitRepo.Generation
 		gitRepoPollJob.GitRepo = gitRepo
-		if gitRepo.Spec.PollingInterval != previousInterval {
-			// ignoring the error because we're going to schedule immediately
+		if (previousGeneration != gitRepo.Generation) ||
+			!durations.Equal(gitRepo.Spec.PollingInterval, previousInterval) {
+			// Spec or polling interval changed
+			// Reschedule so the job is immediately executed
+			// (otherwise it'll wait until next timeout)
 			_ = h.scheduler.DeleteJob(gitRepoPollKey)
 			h.scheduleJob(ctx, gitRepoPollKey, gitRepo, true)
 		}

@@ -40,7 +40,7 @@ var _ = Describe("Gitrepo pooling tests", func() {
 		client = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&gitRepo).WithStatusSubresource(&gitRepo).Build()
 	})
 	DescribeTable("Gitrepo pooling tests",
-		func(pollingInterval time.Duration, disablePolling bool,
+		func(pollingInterval time.Duration, disablePolling bool, changeSpec bool,
 			schedulerCalls func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration),
 			fetcherCalls func()) {
 			if pollingInterval != 0 {
@@ -49,6 +49,9 @@ var _ = Describe("Gitrepo pooling tests", func() {
 				gitRepo.Spec.PollingInterval = nil
 			}
 			gitRepo.Spec.DisablePolling = disablePolling
+			if changeSpec {
+				gitRepo.Generation = 2
+			}
 
 			handler := Handler{
 				scheduler: scheduler,
@@ -63,13 +66,13 @@ var _ = Describe("Gitrepo pooling tests", func() {
 		},
 
 		Entry("GitRepo is not present and disablePolling = true",
-			1*time.Second, true, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
+			1*time.Second, true, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
 				key := GitRepoPollKey(gitRepo)
 				scheduler.EXPECT().GetScheduledJob(key).Return(nil, quartz.ErrJobNotFound).Times(1)
 			}, func() {}),
 
 		Entry("Gitrepo is not present, not setting pollingInterval and disablePolling=false",
-			0*time.Second, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
+			0*time.Second, false, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
 				key := GitRepoPollKey(gitRepo)
 				scheduler.EXPECT().GetScheduledJob(key).Return(nil, quartz.ErrJobNotFound).Times(1)
 
@@ -84,7 +87,7 @@ var _ = Describe("Gitrepo pooling tests", func() {
 		),
 
 		Entry("Gitrepo is not present, setting pollingInterval to a specific value and disablePolling=false",
-			1999*time.Second, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
+			1999*time.Second, false, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
 				key := GitRepoPollKey(gitRepo)
 				scheduler.EXPECT().GetScheduledJob(key).Return(nil, quartz.ErrJobNotFound).Times(1)
 
@@ -99,7 +102,7 @@ var _ = Describe("Gitrepo pooling tests", func() {
 		),
 
 		Entry("gitrepo present, same polling interval, disablePolling=true",
-			10*time.Second, true, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
+			10*time.Second, true, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
 				key := GitRepoPollKey(gitRepo)
 				job := NewGitRepoPollJob(client, fetcher, gitRepo)
 				jobDetail := quartz.NewJobDetail(job, key)
@@ -115,7 +118,7 @@ var _ = Describe("Gitrepo pooling tests", func() {
 		),
 
 		Entry("gitrepo present, different polling interval, disablePolling=true",
-			10*time.Second, true, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
+			10*time.Second, true, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
 				key := GitRepoPollKey(gitRepo)
 				job := NewGitRepoPollJob(client, fetcher, gitRepo)
 				jobDetail := quartz.NewJobDetail(job, key)
@@ -131,7 +134,7 @@ var _ = Describe("Gitrepo pooling tests", func() {
 		),
 
 		Entry("gitrepo present, same polling interval, disablePolling=false",
-			10*time.Second, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
+			10*time.Second, false, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
 				key := GitRepoPollKey(gitRepo)
 				job := NewGitRepoPollJob(client, fetcher, gitRepo)
 				jobDetail := quartz.NewJobDetail(job, key)
@@ -145,7 +148,7 @@ var _ = Describe("Gitrepo pooling tests", func() {
 		),
 
 		Entry("gitrepo present, different polling interval, disablePolling=false",
-			1999*time.Second, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
+			1999*time.Second, false, false, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
 				gitRepoCopy := gitRepo
 				gitRepoCopy.Spec.PollingInterval = &metav1.Duration{Duration: 10 * time.Second}
 				key := GitRepoPollKey(gitRepoCopy)
@@ -159,6 +162,27 @@ var _ = Describe("Gitrepo pooling tests", func() {
 				scheduler.EXPECT().GetScheduledJob(key).Return(schedJob, nil).Times(1)
 				scheduler.EXPECT().DeleteJob(key).Return(nil).Times(1)
 				trigger := quartz.NewSimpleTrigger(1999 * time.Second)
+				scheduler.EXPECT().ScheduleJob(jobDetail, trigger).Return(nil).Times(1)
+			}, func() {
+				fetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Return("commit", nil).Times(1)
+			},
+		),
+
+		Entry("gitrepo present, same polling interval, disablePolling=false, generation changed",
+			10*time.Second, false, true, func(gitRepo v1alpha1.GitRepo, pollingInterval time.Duration) {
+				gitRepoCopy := gitRepo
+				gitRepoCopy.Generation = 1
+				key := GitRepoPollKey(gitRepoCopy)
+				job := NewGitRepoPollJob(client, fetcher, gitRepoCopy)
+				jobDetail := quartz.NewJobDetail(job, key)
+				schedJob := &mocks.MockScheduledJob{
+					Detail:          jobDetail,
+					TriggerDuration: 10 * time.Second,
+				}
+				// gets the job and rechedules
+				scheduler.EXPECT().GetScheduledJob(key).Return(schedJob, nil).Times(1)
+				scheduler.EXPECT().DeleteJob(key).Return(nil).Times(1)
+				trigger := quartz.NewSimpleTrigger(10 * time.Second)
 				scheduler.EXPECT().ScheduleJob(jobDetail, trigger).Return(nil).Times(1)
 			}, func() {
 				fetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Return("commit", nil).Times(1)

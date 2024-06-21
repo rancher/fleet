@@ -1,6 +1,10 @@
 package durations
 
-import "time"
+import (
+	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 const (
 	AgentRegistrationRetry         = time.Minute * 1
@@ -27,3 +31,14 @@ const (
 	TriggerSleep          = time.Second * 5
 	DefaultCpuPprofPeriod = time.Minute
 )
+
+// Equal reports whether the duration t is equal to u.
+func Equal(t *metav1.Duration, u *metav1.Duration) bool {
+	if t == nil && u == nil {
+		return true
+	}
+	if t != nil && u != nil {
+		return t.Duration == u.Duration
+	}
+	return false
+}
