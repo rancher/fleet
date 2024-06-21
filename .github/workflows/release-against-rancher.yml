@@ -19,9 +19,9 @@ on:
         required: true
         default: ""
       should_bump_api:
-        description: "Should the Fleet api be bumped in the Rancher repo? (In most cases true unless there are incompatibilities.)"
+        description: "Should the Fleet api be bumped in the Rancher repo? (If the API in github.com/rancher/fleet/pkg/apis has changed or the release is for a final release, then the API needs to be bumped (set to true ), otherwise use false .)"
         required: true
-        default: "true"
+        default: "false"
       go_version:
         description: "Go version used for bumping the api. This should be the same version as in the go.mod file of the project."
         required: true
