@@ -82,7 +82,7 @@ func (h *Helm) Setup(ctx context.Context, client client.Client, getter genericcl
 	h.client = client
 	h.getter = getter
 
-	cfg, err := h.createCfg(ctx, "")
+	cfg, err := h.createCfg(ctx, h.defaultNamespace)
 	if err != nil {
 		return err
 	}
@@ -126,10 +126,6 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string)
 		cfg    action.Configuration
 		getter = h.getter
 	)
-
-	if h.useGlobalCfg {
-		return h.globalCfg, nil
-	}
 
 	serviceAccountNamespace, serviceAccountName, err := h.getServiceAccount(ctx, serviceAccountName)
 	if err != nil {
