@@ -4,7 +4,6 @@ import (
 	"math/rand"
 	"os"
 	"path"
-	"regexp"
 
 	"github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
@@ -69,13 +68,11 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		// Errors about bundles or bundle deployments not being found at deletion time should be ignored.
-		isError, err := regexp.MatchString(
+		// Errors about resources other than bundles or bundle deployments not being found at deletion time
+		// should be ignored, as they may result from other test suites.
+		Expect(out).ToNot(MatchRegexp(
 			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
-			out,
-		)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(isError).To(BeFalse())
+		))
 
 		_, err = k.Delete("ns", targetNamespace)
 		Expect(err).ToNot(HaveOccurred())
