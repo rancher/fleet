@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"encoding/hex"
+	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -8,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/rancher/fleet/integrationtests/utils"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v2/pkg/name"
 
@@ -41,10 +45,24 @@ var _ = Describe("GitJob controller", func() {
 		JustBeforeEach(func() {
 			gitRepo = createGitRepo(gitRepoName)
 			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
+			Eventually(func() string {
+				var gitRepoFromCluster v1alpha1.GitRepo
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
+				if err != nil {
+					// maybe the resource gitrepo is not created yet
+					return ""
+				}
+				return gitRepoFromCluster.Status.Display.ReadyBundleDeployments
+			}).Should(ContainSubstring("0/0"))
 			Expect(simulateGitPollerUpdatingCommitInStatus(gitRepo, commit)).ToNot(HaveOccurred())
 
 			By("Creating a job")
 			Eventually(func() error {
+				var gitRepoFromCluster v1alpha1.GitRepo
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
+				if err != nil {
+					return err
+				}
 				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
@@ -129,7 +147,6 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func() bool {
 					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).ToNot(HaveOccurred())
 					// XXX: do we need an additional `LastExecutedCommit` or similar status field?
-					//return gitRepo.Status.Commit != commit && gitRepo.Status.GitJobStatus == "Failed"
 					return gitRepo.Status.GitJobStatus == "Failed"
 				}).Should(BeTrue())
 
@@ -202,8 +219,8 @@ var _ = Describe("GitJob controller", func() {
 			gitRepoName = "force-deletion"
 		})
 		AfterEach(func() {
-			err := k8sClient.Delete(ctx, &gitRepo)
-			Expect(err).ToNot(HaveOccurred())
+			// delete the gitrepo and wait until it is deleted
+			waitDeleteGitrepo(gitRepo)
 		})
 
 		It("Verifies that the Job is recreated", func() {
@@ -332,8 +349,8 @@ var _ = Describe("GitJob controller", func() {
 		})
 
 		AfterEach(func() {
-			err := k8sClient.Delete(ctx, &gitRepo)
-			Expect(err).ToNot(HaveOccurred())
+			// delete the gitrepo and wait until it is deleted
+			waitDeleteGitrepo(gitRepo)
 			// reset the logs buffer so we don't read logs from previous tests
 			logsBuffer.Reset()
 		})
@@ -419,6 +436,165 @@ var _ = Describe("GitJob controller", func() {
 	})
 })
 
+var _ = Describe("GitRepo", func() {
+	var (
+		gitrepo     *v1alpha1.GitRepo
+		gitrepoName string
+	)
+
+	BeforeEach(func() {
+		var err error
+		namespace, err = utils.NewNamespaceName()
+		Expect(err).ToNot(HaveOccurred())
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
+		Expect(k8sClient.Create(ctx, ns)).ToNot(HaveOccurred())
+
+		p := make([]byte, 12)
+		s := rand.New(rand.NewSource(GinkgoRandomSeed())) // nolint:gosec // non-crypto usage
+		if _, err := s.Read(p); err != nil {
+			panic(err)
+		}
+		gitrepoName = fmt.Sprintf("test-gitrepo-%.12s", hex.EncodeToString(p))
+
+		gitrepo = &v1alpha1.GitRepo{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      gitrepoName,
+				Namespace: namespace,
+			},
+			Spec: v1alpha1.GitRepoSpec{
+				Repo: "https://github.com/rancher/fleet-test-data/not-found",
+			},
+		}
+
+		DeferCleanup(func() {
+			Expect(k8sClient.Delete(ctx, gitrepo)).ToNot(HaveOccurred())
+		})
+	})
+
+	When("creating a gitrepo", func() {
+		JustBeforeEach(func() {
+			err := k8sClient.Create(ctx, gitrepo)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("updates the gitrepo status", func() {
+			org := gitrepo.ResourceVersion
+			Eventually(func() bool {
+				_ = k8sClient.Get(ctx, types.NamespacedName{Name: gitrepoName, Namespace: namespace}, gitrepo)
+				return gitrepo.ResourceVersion > org &&
+					gitrepo.Status.Display.ReadyBundleDeployments == "0/0" &&
+					!gitrepo.Status.Display.Error &&
+					len(gitrepo.Status.Conditions) == 4 &&
+					gitrepo.Status.Conditions[0].Type == "Reconciling" &&
+					string(gitrepo.Status.Conditions[0].Status) == "False" &&
+					gitrepo.Status.Conditions[1].Type == "Stalled" &&
+					string(gitrepo.Status.Conditions[1].Status) == "False" &&
+					gitrepo.Status.Conditions[2].Type == "Ready" &&
+					string(gitrepo.Status.Conditions[2].Status) == "True" &&
+					gitrepo.Status.Conditions[3].Type == "Accepted" &&
+					string(gitrepo.Status.Conditions[3].Status) == "True" &&
+					gitrepo.Status.DeepCopy().ObservedGeneration == int64(1)
+			}).Should(BeTrue())
+		})
+	})
+})
+
+var _ = Describe("GitRepo Status Fields", func() {
+
+	var (
+		gitrepo *v1alpha1.GitRepo
+		bd      *v1alpha1.BundleDeployment
+	)
+
+	BeforeEach(func() {
+		var err error
+		namespace, err = utils.NewNamespaceName()
+		Expect(err).ToNot(HaveOccurred())
+
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
+		Expect(k8sClient.Create(ctx, ns)).ToNot(HaveOccurred())
+
+		DeferCleanup(func() {
+			Expect(k8sClient.Delete(ctx, ns)).ToNot(HaveOccurred())
+		})
+	})
+
+	When("Bundle changes", func() {
+		BeforeEach(func() {
+			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(cluster).To(Not(BeNil()))
+			targets := []v1alpha1.BundleTarget{
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						TargetNamespace: "targetNs",
+					},
+					Name:        "cluster",
+					ClusterName: "cluster",
+				},
+			}
+			bundle, err := utils.CreateBundle(ctx, k8sClient, "name", namespace, targets, targets)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle).To(Not(BeNil()))
+
+			gitrepo = &v1alpha1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-gitrepo",
+					Namespace: namespace,
+				},
+				Spec: v1alpha1.GitRepoSpec{
+					Repo: "https://github.com/rancher/fleet-test-data/not-found",
+				},
+			}
+			err = k8sClient.Create(ctx, gitrepo)
+			Expect(err).NotTo(HaveOccurred())
+
+			bd = &v1alpha1.BundleDeployment{}
+			Eventually(func() bool {
+				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+				return err == nil
+			}).Should(BeTrue())
+		})
+
+		It("updates the status fields", func() {
+			bundle := &v1alpha1.Bundle{}
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
+				Expect(err).ToNot(HaveOccurred())
+				bundle.Labels["fleet.cattle.io/repo-name"] = gitrepo.Name
+				return k8sClient.Update(ctx, bundle)
+			}).ShouldNot(HaveOccurred())
+			Expect(bundle.Status.Summary.Ready).ToNot(Equal(1))
+
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: gitrepo.Name}, gitrepo)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(gitrepo.Status.Summary.Ready).To(Equal(0))
+
+			bd := &v1alpha1.BundleDeployment{}
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+				if err != nil {
+					return err
+				}
+				bd.Status.Display.State = "Ready"
+				bd.Status.AppliedDeploymentID = bd.Spec.DeploymentID
+				bd.Status.Ready = true
+				bd.Status.NonModified = true
+				return k8sClient.Status().Update(ctx, bd)
+			}).ShouldNot(HaveOccurred())
+
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
+				Expect(err).NotTo(HaveOccurred())
+				return bundle.Status.Summary.Ready == 1
+			}).Should(BeTrue())
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: gitrepo.Name}, gitrepo)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(gitrepo.Status.Summary.Ready).To(Equal(1))
+		})
+	})
+})
+
 func simulateIncreaseForceSyncGeneration(gitRepo v1alpha1.GitRepo) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var gitRepoFromCluster v1alpha1.GitRepo
@@ -481,4 +657,14 @@ func createGitRepoWithDisablePolling(gitRepoName string) v1alpha1.GitRepo {
 			Branch:         stableCommitBranch,
 		},
 	}
+}
+
+func waitDeleteGitrepo(gitRepo v1alpha1.GitRepo) {
+	err := k8sClient.Delete(ctx, &gitRepo)
+	Expect(err).ToNot(HaveOccurred())
+	Eventually(func() bool {
+		var gitRepoFromCluster v1alpha1.GitRepo
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
+		return errors.IsNotFound(err)
+	}).Should(BeTrue())
 }

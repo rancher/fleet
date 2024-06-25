@@ -38,12 +38,10 @@ func start(
 	leaderOpts LeaderElectionOptions,
 	workersOpts ControllerReconcilerWorkers,
 	bindAddresses BindAddresses,
-	disableGitops bool,
 	disableMetrics bool,
 	shardID string,
 ) error {
 	setupLog.Info("listening for changes on local cluster",
-		"disableGitops", disableGitops,
 		"disableMetrics", disableMetrics,
 	)
 
@@ -120,21 +118,6 @@ func start(
 	}
 
 	sched := quartz.NewStdScheduler()
-
-	if !disableGitops {
-		if err = (&reconciler.GitRepoReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-
-			Scheduler: sched,
-			ShardID:   shardID,
-
-			Workers: workersOpts.GitRepo,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "GitRepo")
-			return err
-		}
-	}
 
 	// controllers that update status.display
 	if err = (&reconciler.ClusterGroupReconciler{

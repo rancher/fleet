@@ -83,14 +83,6 @@ var _ = BeforeSuite(func() {
 	sched := quartz.NewStdScheduler()
 	Expect(sched).ToNot(BeNil())
 
-	err = (&reconciler.GitRepoReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-
-		Scheduler: sched,
-	}).SetupWithManager(mgr)
-	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
-
 	go func() {
 		defer GinkgoRecover()
 		err = mgr.Start(ctx)

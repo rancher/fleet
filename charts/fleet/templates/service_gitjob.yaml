@@ -11,4 +11,34 @@ spec:
       targetPort: 8080
   selector:
     app: "gitjob"
+---
+{{- if .Values.metrics.enabled }}
+{{ $shards := list "" }}
+{{ if .Values.shards }}
+{{ $shards = concat $shards .Values.shards | uniq }}
+{{ end }}
+{{ range $shards }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: "monitoring-gitjob{{if . }}-shard-{{ . }}{{end}}"
+  labels:
+    app: gitjob
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8081
+    targetPort: 8081
+    protocol: TCP
+    name: metrics
+  selector:
+    app: gitjob
+    {{- if empty . }}
+    fleet.cattle.io/shard-default: "true"
+    {{- else }}
+    fleet.cattle.io/shard-id: "{{ . }}"
+    {{- end }}
+---
+{{- end }}
+{{- end }}
 {{- end }}

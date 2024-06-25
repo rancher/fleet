@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
+	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/poll"
 	"github.com/rancher/fleet/pkg/version"
 	"github.com/rancher/fleet/pkg/webhook"
+	"github.com/reugn/go-quartz/quartz"
 	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -48,6 +51,7 @@ type GitOperator struct {
 	EnableLeaderElection bool   `name:"leader-elect" default:"true" usage:"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager."`
 	Image                string `name:"gitjob-image" default:"rancher/fleet:dev" usage:"The gitjob image that will be used in the generated job."`
 	Listen               string `default:":8080" usage:"The port the webhook listens."`
+	ShardID              string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
 }
 
 func App(zo *zap.Options) *cobra.Command {
@@ -82,32 +86,37 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 
 	namespace := g.Namespace
 
-	if envMetricsAddr := os.Getenv("GITOPS_METRICS_BIND_ADDRESS"); envMetricsAddr != "" {
-		g.MetricsAddr = envMetricsAddr
-	}
-
-	var metricServerOptions metricsserver.Options
-	if g.DisableMetrics {
-		metricServerOptions = metricsserver.Options{BindAddress: "0"}
-	} else {
-		metricServerOptions = metricsserver.Options{BindAddress: g.MetricsAddr}
-	}
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
-		Metrics:                 metricServerOptions,
+		Metrics:                 g.setupMetrics(),
 		LeaderElection:          g.EnableLeaderElection,
 		LeaderElectionID:        "gitjob-leader",
 		LeaderElectionNamespace: namespace,
 	})
+
 	if err != nil {
 		return err
 	}
+
+	sched := quartz.NewStdScheduler()
+
+	var workers int
+	if d := os.Getenv("GITREPO_RECONCILER_WORKERS"); d != "" {
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse GITREPO_RECONCILER_WORKERS", "value", d)
+		}
+		workers = w
+	}
+
 	reconciler := &reconciler.GitJobReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Image:     g.Image,
 		GitPoller: poll.NewHandler(ctx, mgr.GetClient()),
+		Scheduler: sched,
+		Workers:   workers,
+		ShardID:   g.ShardID,
 	}
 
 	group := errgroup.Group{}
@@ -124,6 +133,22 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 	})
 
 	return group.Wait()
+}
+
+func (g *GitOperator) setupMetrics() metricsserver.Options {
+	if g.DisableMetrics {
+		return metricsserver.Options{BindAddress: "0"}
+	}
+
+	metricsAddr := g.MetricsAddr
+	if d := os.Getenv("GITOPS_METRICS_BIND_ADDRESS"); d != "" {
+		metricsAddr = d
+	}
+
+	metricServerOpts := metricsserver.Options{BindAddress: metricsAddr}
+	metrics.RegisterGitOptsMetrics() // enable gitops related metrics
+
+	return metricServerOpts
 }
 
 func startWebhook(ctx context.Context, namespace string, addr string, client client.Client, cacheClient cache.Cache) error {

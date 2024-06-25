@@ -9,10 +9,14 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/reugn/go-quartz/quartz"
 
 	"go.uber.org/mock/gomock"
 
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
+	ctrlreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
+	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/mocks"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -35,6 +39,7 @@ var (
 	cancel     context.CancelFunc
 	k8sClient  client.Client
 	logsBuffer bytes.Buffer
+	namespace  string
 )
 
 func TestGitJobController(t *testing.T) {
@@ -78,13 +83,28 @@ var _ = BeforeSuite(func() {
 	gitPollerMock.EXPECT().AddOrModifyGitRepoPollJob(gomock.Any(), gomock.Any()).AnyTimes()
 	gitPollerMock.EXPECT().CleanUpGitRepoPollJobs(gomock.Any()).AnyTimes()
 
+	sched := quartz.NewStdScheduler()
+	Expect(sched).ToNot(BeNil())
+
 	err = (&reconciler.GitJobReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Image:     "image",
 		GitPoller: gitPollerMock,
+		Scheduler: sched,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
+
+	store := manifest.NewStore(mgr.GetClient())
+	builder := target.New(mgr.GetClient())
+	err = (&ctrlreconciler.BundleReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Builder: builder,
+		Store:   store,
+		Query:   builder,
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
 	go func() {
 		defer GinkgoRecover()

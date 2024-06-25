@@ -3,11 +3,11 @@ kind: Service
 metadata:
   name: {{ .Name }}
   labels:
-    app: fleet-controller
+    app: {{ .App }}
     env: test
 spec:
   selector:
-    app: fleet-controller
+    app: {{ .App }}
     {{- if .IsDefaultShard }}
     fleet.cattle.io/shard-default: "{{ .IsDefaultShard }}"
     {{ else }}

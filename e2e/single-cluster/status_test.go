@@ -58,27 +58,32 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 		})
 
 		It("correctly sets the status values for GitRepos", func() {
-			out, err := k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func(g Gomega) {
+				out, err := k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
 
-			Expect(out).Should(ContainSubstring("\"desiredReady\":1"))
-			Expect(out).Should(ContainSubstring("\"ready\":1"))
+				g.Expect(out).Should(ContainSubstring("\"desiredReady\":1"))
+				g.Expect(out).Should(ContainSubstring("\"ready\":1"))
 
-			out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
-			Expect(err).ToNot(HaveOccurred(), out)
-			Expect(out).Should(ContainSubstring("\"readyBundleDeployments\":\"1/1\""))
+				out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+				g.Expect(out).Should(ContainSubstring("\"readyBundleDeployments\":\"1/1\""))
+			}).Should(Succeed())
 		})
 
 		It("correctly sets the status values for bundle", func() {
-			out, err := k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func(g Gomega) {
+				out, err := k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
 
-			Expect(out).Should(ContainSubstring("\"desiredReady\":1"))
-			Expect(out).Should(ContainSubstring("\"ready\":1"))
+				g.Expect(out).Should(ContainSubstring("\"desiredReady\":1"))
+				g.Expect(out).Should(ContainSubstring("\"ready\":1"))
 
-			out, err = k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
-			Expect(err).ToNot(HaveOccurred(), out)
-			Expect(out).Should(ContainSubstring("\"readyClusters\":\"1/1\""))
+				out, err = k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.display}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+				g.Expect(out).Should(ContainSubstring("\"readyClusters\":\"1/1\""))
+			}).Should(Succeed())
+
 		})
 	})
 
@@ -88,11 +93,13 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 		})
 
 		It("correctly updates the status fields for GitRepos", func() {
-			out, err := k.Delete("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local")
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func(g Gomega) {
+				out, err := k.Delete("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+			}).Should((Succeed()))
 
 			Eventually(func() error {
-				out, err = k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+				out, err := k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
 				if err != nil {
 					return err
 				}

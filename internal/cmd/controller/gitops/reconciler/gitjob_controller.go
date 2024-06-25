@@ -4,33 +4,37 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sort"
+	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/grutil"
+	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
+	"github.com/rancher/fleet/internal/metrics"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git"
+	"github.com/rancher/fleet/pkg/sharding"
+	"github.com/reugn/go-quartz/quartz"
 
-	"github.com/rancher/wrangler/v2/pkg/condition"
-	"github.com/rancher/wrangler/v2/pkg/kstatus"
 	"github.com/rancher/wrangler/v2/pkg/name"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -57,13 +61,45 @@ type GitJobReconciler struct {
 	Scheme    *runtime.Scheme
 	Image     string
 	GitPoller GitPoller
+	Scheduler quartz.Scheduler
+	Workers   int
+	ShardID   string
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.GitRepo{}).
+		For(&v1alpha1.GitRepo{},
+			builder.WithPredicates(
+				// do not trigger for GitRepo status changes (except for commit changes)
+				predicate.Or(
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+					commitChangedPredicate(),
+				),
+			),
+		).
 		Owns(&batchv1.Job{}).
-		WithEventFilter(generationOrCommitChangedPredicate()).
+		Watches(
+			// Fan out from bundle to gitrepo
+			&v1alpha1.Bundle{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
+				repo := a.GetLabels()[v1alpha1.RepoLabel]
+				if repo != "" {
+					return []ctrl.Request{{
+						NamespacedName: types.NamespacedName{
+							Namespace: a.GetNamespace(),
+							Name:      repo,
+						},
+					}}
+				}
+
+				return []ctrl.Request{}
+			}),
+			builder.WithPredicates(bundleStatusChangedPredicate()),
+		).
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
 
@@ -88,15 +124,37 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
+	oldStatus := gitrepo.Status.DeepCopy()
+	gitrepo, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
+	}
+
+	if !gitrepo.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(gitrepo, finalize.GitRepoFinalizer) {
+			if err := r.cleanupGitRepo(ctx, logger, gitrepo); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
+	}
+
+	if !controllerutil.ContainsFinalizer(gitrepo, finalize.GitRepoFinalizer) {
+		err := r.addGitRepoFinalizer(ctx, req.NamespacedName)
+		if client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	logger = logger.WithValues("generation", gitrepo.Generation, "commit", gitrepo.Status.Commit)
 	ctx = log.IntoContext(ctx, logger)
 
 	logger.V(1).Info("Reconciling GitRepo")
 
-	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
-	gitrepo, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
-	if err != nil {
-		return ctrl.Result{}, err
+	if gitrepo.Spec.Repo == "" {
+		return ctrl.Result{}, nil
 	}
 
 	r.GitPoller.AddOrModifyGitRepoPollJob(ctx, *gitrepo)
@@ -110,6 +168,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, fmt.Errorf("error retrieving git job: %w", err)
 	}
 
+	// Gitjob handling
 	if errors.IsNotFound(err) {
 		if gitrepo.Spec.DisablePolling {
 			if err := r.updateCommit(ctx, gitrepo); err != nil {
@@ -141,12 +200,40 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
-	if err = r.updateStatus(ctx, gitrepo, &job); err != nil {
-		if errors.IsConflict(err) {
-			logger.V(1).Info("conflict updating status, retrying", "message", err)
-			return ctrl.Result{Requeue: true}, nil // just retry, but don't show an error
-		}
-		return ctrl.Result{}, fmt.Errorf("error updating git job status: %w", err)
+	gitrepo.Status.ObservedGeneration = gitrepo.Generation
+
+	// Refresh the status
+	if err = grutil.SetStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
+		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+	}
+
+	err = grutil.SetStatusFromBundleDeployments(ctx, r.Client, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+	}
+
+	err = grutil.SetStatusFromBundles(ctx, r.Client, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+	}
+
+	if err = grutil.UpdateDisplayState(gitrepo); err != nil {
+		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+	}
+
+	grutil.SetStatusFromResourceKey(ctx, r.Client, gitrepo)
+
+	gitrepo.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
+		gitrepo.Status.Summary.Ready,
+		gitrepo.Status.Summary.DesiredReady)
+
+	grutil.SetCondition(&gitrepo.Status, nil)
+
+	err = grutil.UpdateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
+	if err != nil {
+		logger.V(1).Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
+
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
@@ -164,7 +251,61 @@ func (r *GitJobReconciler) updateCommit(ctx context.Context, gitRepo *v1alpha1.G
 	})
 }
 
-func generationOrCommitChangedPredicate() predicate.Predicate {
+func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo) error {
+	// Clean up
+	logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
+
+	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
+
+	nsName := types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}
+	if err := finalize.PurgeBundles(ctx, r.Client, nsName); err != nil {
+		return err
+	}
+
+	// remove the job scheduled by imagescan, if any
+	_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(gitrepo.Namespace, gitrepo.Name))
+
+	if err := finalize.PurgeImageScans(ctx, r.Client, nsName); err != nil {
+		return err
+	}
+
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := r.Get(ctx, nsName, gitrepo); err != nil {
+			return err
+		}
+
+		controllerutil.RemoveFinalizer(gitrepo, finalize.GitRepoFinalizer)
+
+		return r.Update(ctx, gitrepo)
+	})
+
+	if client.IgnoreNotFound(err) != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *GitJobReconciler) addGitRepoFinalizer(ctx context.Context, nsName types.NamespacedName) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gitrepo := &v1alpha1.GitRepo{}
+		if err := r.Get(ctx, nsName, gitrepo); err != nil {
+			return err
+		}
+
+		controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
+
+		return r.Update(ctx, gitrepo)
+	})
+
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	return nil
+}
+
+func commitChangedPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			oldGitJob, ok := e.ObjectOld.(*v1alpha1.GitRepo)
@@ -176,7 +317,7 @@ func generationOrCommitChangedPredicate() predicate.Predicate {
 				return true
 			}
 
-			return oldGitJob.Generation != newGitJob.Generation || oldGitJob.Status.Commit != newGitJob.Status.Commit
+			return oldGitJob.Status.Commit != newGitJob.Status.Commit
 		},
 	}
 }
@@ -252,72 +393,6 @@ func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitR
 	return r.Create(ctx, job)
 }
 
-func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
-	if err != nil {
-		return err
-	}
-	uJob := &unstructured.Unstructured{Object: obj}
-
-	result, err := status.Compute(uJob)
-	if err != nil {
-		return err
-	}
-
-	terminationMessage := ""
-	if result.Status == status.FailedStatus {
-		selector := labels.SelectorFromSet(labels.Set{"job-name": job.Name})
-		podList := &corev1.PodList{}
-		err := r.List(ctx, podList, &client.ListOptions{LabelSelector: selector})
-		if err != nil {
-			return err
-		}
-
-		sort.Slice(podList.Items, func(i, j int) bool {
-			return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
-		})
-
-		terminationMessage = result.Message
-		if len(podList.Items) > 0 {
-			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
-				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
-					terminationMessage += podStatus.State.Terminated.Message
-				}
-			}
-		}
-	}
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		currentGitRepo := &v1alpha1.GitRepo{}
-		err := r.Get(ctx, client.ObjectKeyFromObject(gitRepo), currentGitRepo)
-		if err != nil {
-			return err
-		}
-
-		currentGitRepo.Status.GitJobStatus = result.Status.String()
-		currentGitRepo.Status.ObservedGeneration = gitRepo.Generation
-		currentGitRepo.Status.UpdateGeneration = gitRepo.Status.UpdateGeneration
-
-		for _, con := range result.Conditions {
-			condition.Cond(con.Type.String()).SetStatus(currentGitRepo, string(con.Status))
-			condition.Cond(con.Type.String()).SetMessageIfBlank(currentGitRepo, con.Message)
-			condition.Cond(con.Type.String()).Reason(currentGitRepo, con.Reason)
-		}
-
-		switch result.Status {
-		case status.FailedStatus:
-			kstatus.SetError(currentGitRepo, terminationMessage)
-		case status.CurrentStatus:
-			if strings.Contains(result.Message, "Job Completed") {
-				currentGitRepo.Status.Commit = job.Annotations["commit"]
-			}
-			kstatus.SetActive(currentGitRepo)
-		}
-
-		return r.Status().Update(ctx, currentGitRepo)
-	})
-}
-
 func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
 	logger := log.FromContext(ctx)
 	// if force delete is set, delete the job to make sure a new job is created
@@ -331,6 +406,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 
 	// k8s Jobs are immutable. Recreate the job if the GitRepo Spec has changed.
 	if gitRepo.Generation != gitRepo.Status.ObservedGeneration {
+		gitRepo.Status.ObservedGeneration = gitRepo.Generation
 		logger.Info("job deletion triggered because of generation change")
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 			return err
@@ -364,6 +440,15 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 			Name:      jobName(obj),
 		},
 		Spec: *jobSpec,
+	}
+	// if the repo references a shard, add the same label to the job
+	// this avoids a call to Reconcile for controllers that do not match
+	// the shard-id
+	label, hasLabel := obj.GetLabels()[sharding.ShardingRefLabel]
+	if hasLabel {
+		job.Labels = labels.Merge(job.Labels, map[string]string{
+			sharding.ShardingRefLabel: label,
+		})
 	}
 
 	initContainer, err := r.newGitCloner(ctx, obj)
@@ -809,4 +894,28 @@ func proxyEnvVars() []corev1.EnvVar {
 	}
 
 	return envVars
+}
+
+// bundleStatusChangedPredicate returns true if the bundle
+// status has changed, or the bundle was created
+func bundleStatusChangedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			n, isBundle := e.ObjectNew.(*v1alpha1.Bundle)
+			if !isBundle {
+				return false
+			}
+			o := e.ObjectOld.(*v1alpha1.Bundle)
+			if n == nil || o == nil {
+				return false
+			}
+			return !reflect.DeepEqual(n.Status, o.Status)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+	}
 }

@@ -22,11 +22,11 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 	)
 
 	BeforeAll(func() {
-		// No sharded controller should have reconciled any GitRepo until this point.
+		// No sharded gitjob controller should have reconciled any GitRepo until this point.
 		for _, shard := range shards {
 			logs, err := k.Namespace("cattle-fleet-system").Logs(
 				"-l",
-				"app=fleet-controller",
+				"app=gitjob",
 				"-l",
 				fmt.Sprintf("fleet.cattle.io/shard-id=%s", shard),
 				"--tail=-1",
@@ -69,7 +69,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It(fmt.Sprintf("deploys the gitrepo via the controller labeled with shard ID %s", shard), func() {
+			It(fmt.Sprintf("deploys the gitrepo via the gitjob labeled with shard ID %s", shard), func() {
 				By("checking the configmap exists")
 				Eventually(func() string {
 					out, _ := k.Namespace(targetNamespace).Get("configmaps")
@@ -80,7 +80,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 					Eventually(func(g Gomega) {
 						logs, err := k.Namespace("cattle-fleet-system").Logs(
 							"-l",
-							"app=fleet-controller",
+							"app=gitjob",
 							"-l",
 							fmt.Sprintf("fleet.cattle.io/shard-id=%s", s),
 							"--tail=100",
@@ -94,7 +94,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 						if s == shard {
 							g.Expect(hasReconciledGitRepo).To(BeTrueBecause(
 								"GitRepo %q labeled with shard %q should have been"+
-									" deployed by controller for shard %q in namespace %q",
+									" deployed by gitjob for shard %q in namespace %q",
 								gitrepoName,
 								shard,
 								shard,
@@ -103,7 +103,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 						} else {
 							g.Expect(hasReconciledGitRepo).To(BeFalseBecause(
 								"GitRepo %q labeled with shard %q should not have been"+
-									" deployed by controller for shard %q",
+									" deployed by gitjob for shard %q",
 								gitrepoName,
 								shard,
 								s,
@@ -153,7 +153,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 			for _, s := range shards {
 				logs, err := k.Namespace("cattle-fleet-system").Logs(
 					"-l",
-					"app=fleet-controller",
+					"app=gitjob",
 					"-l",
 					fmt.Sprintf("fleet.cattle.io/shard-id=%s", s),
 					"--tail=100",
@@ -170,7 +170,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 				Expect(err).ToNot(HaveOccurred())
 				Expect(hasReconciledGitRepos).To(BeFalseBecause(
 					"GitRepo labeled with shard %q should not have been deployed by"+
-						" controller for shard %q",
+						" gitjob for shard %q",
 					"unknown",
 					s,
 				))

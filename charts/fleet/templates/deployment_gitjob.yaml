@@ -1,8 +1,13 @@
-{{- if .Values.gitops.enabled }}
+{{ $shards := list "" }}
+{{ if .Values.shards }}
+{{ $shards = concat $shards .Values.shards | uniq }}
+{{ end }}
+{{ range $shards }}
+{{- if $.Values.gitops.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: gitjob
+  name: "gitjob{{if . }}-shard-{{ . }}{{end}}"
 spec:
   selector:
     matchLabels:
@@ -11,33 +16,53 @@ spec:
     metadata:
       labels:
         app: "gitjob"
+        fleet.cattle.io/shard-id: "{{ . }}"
+        {{- if empty . }}
+        fleet.cattle.io/shard-default: "true"
+        {{- end }}
     spec:
       serviceAccountName: gitjob
       containers:
-        - image: "{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        - image: "{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
           name: gitjob
+          {{- if $.Values.metrics.enabled }}
+          ports:
+          - containerPort: 8081
+            name: metrics
+          {{- end }}
           args:
           - fleetcontroller
           - gitjob
           - --gitjob-image
-          - "{{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          {{- if .Values.debug }}
+          - "{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          {{- if $.Values.debug }}
           - --debug
+          {{- end }}
+          {{- if . }}
+          - --shard-id
+          - {{ quote . }}
+          {{- end }}
+          {{- if not $.Values.metrics.enabled }}
+          - --disable-metrics
           {{- end }}
           env:
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-          {{- if .Values.proxy }}
+          {{- if $.Values.proxy }}
             - name: HTTP_PROXY
-              value: {{ .Values.proxy }}
+              value: {{ $.Values.proxy }}
             - name: HTTPS_PROXY
-              value: {{ .Values.proxy }}
+              value: {{ $.Values.proxy }}
             - name: NO_PROXY
-              value: {{ .Values.noProxy }}
+              value: {{ $.Values.noProxy }}
           {{- end }}
-          {{- if .Values.debug }}
+          {{- if $.Values.controller.reconciler.workers.gitrepo }}
+            - name: GITREPO_RECONCILER_WORKERS
+              value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
+          {{- end }}
+          {{- if $.Values.debug }}
             - name: CATTLE_DEV_MODE
               value: "true"
           {{- else }}
@@ -53,21 +78,23 @@ spec:
 {{ toYaml $.Values.extraEnv | indent 12}}
 {{- end }}
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
-{{- if .Values.nodeSelector }}
-{{ toYaml .Values.nodeSelector | indent 8 }}
+{{- if $.Values.nodeSelector }}
+{{ toYaml $.Values.nodeSelector | indent 8 }}
 {{- end }}
       tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
-{{- if .Values.tolerations }}
-{{ toYaml .Values.tolerations | indent 8 }}
+{{- if $.Values.tolerations }}
+{{ toYaml $.Values.tolerations | indent 8 }}
 {{- end }}
-      {{- if .Values.priorityClassName }}
-      priorityClassName: "{{.Values.priorityClassName}}"
+      {{- if $.Values.priorityClassName }}
+      priorityClassName: "{{$.Values.priorityClassName}}"
       {{- end }}
-{{- end }}
 
-{{- if not .Values.debug }}
+{{- if not $.Values.debug }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+{{- end }}
+{{- end }}
+---
 {{- end }}

@@ -46,6 +46,18 @@ rules:
       - get
       - watch
   - apiGroups:
+      - "fleet.cattle.io"
+    resources:
+      - "bundles"
+      - "bundledeployments"
+      - "imagescans"
+    verbs:
+      - list
+      - delete
+      - get
+      - watch
+      - update
+  - apiGroups:
       - ""
     resources:
       - 'events'
@@ -57,6 +69,13 @@ rules:
       - serviceaccounts
     verbs:
       - "create"
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - "create"
+      - "delete"
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:

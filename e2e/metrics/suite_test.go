@@ -23,9 +23,10 @@ func TestE2E(t *testing.T) {
 var (
 	env *testenv.Env
 	// k is the kubectl command for the cluster registration namespace
-	k     kubectl.Command
-	et    metrics.ExporterTest
-	shard string
+	k        kubectl.Command
+	et       metrics.ExporterTest
+	etGitjob metrics.ExporterTest
+	shard    string
 )
 
 type ServiceData struct {
@@ -33,21 +34,25 @@ type ServiceData struct {
 	Port           int64
 	IsDefaultShard bool
 	Shard          string
+	App            string
 }
 
-// setupLoadBalancer creates a load balancer service for the fleet controller.
+// setupLoadBalancer creates a load balancer service for the given app controller.
 // If shard is empty, it creates a service for the default (unsharded)
 // controller.
-func setupLoadBalancer(shard string) (metricsURL string) {
+// Valid app values are: fleet-controller, gitjob
+func setupLoadBalancer(shard string, app string) (metricsURL string) {
+	Expect(app).To(Or(Equal("fleet-controller"), Equal("gitjob")))
 	rs := rand.NewSource(time.Now().UnixNano())
 	port := rs.Int63()%1000 + 30000
-	loadBalancerName := testenv.AddRandomSuffix("fleetcontroller", rs)
+	loadBalancerName := testenv.AddRandomSuffix(app, rs)
 
 	ks := k.Namespace("cattle-fleet-system")
 	err := testenv.ApplyTemplate(
 		ks,
-		testenv.AssetPath("metrics/fleetcontroller_service.yaml"),
+		testenv.AssetPath("metrics/service.yaml"),
 		ServiceData{
+			App:            app,
 			Name:           loadBalancerName,
 			Port:           port,
 			IsDefaultShard: shard == "",
@@ -89,9 +94,12 @@ var _ = BeforeSuite(func() {
 	if os.Getenv("METRICS_URL") != "" {
 		metricsURL = os.Getenv("METRICS_URL")
 	} else {
-		metricsURL = setupLoadBalancer(shard)
+		metricsURL = setupLoadBalancer(shard, "fleet-controller")
 	}
 	et = metrics.NewExporterTest(metricsURL)
+
+	gitjobMetricsURL := setupLoadBalancer(shard, "gitjob")
+	etGitjob = metrics.NewExporterTest(gitjobMetricsURL)
 
 	env = testenv.New()
 })
