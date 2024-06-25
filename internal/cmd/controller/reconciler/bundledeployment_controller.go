@@ -35,6 +35,17 @@ type BundleDeploymentReconciler struct {
 	Workers int
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&fleet.BundleDeployment{}, builder.WithPredicates(
+			bundleDeploymentStatusChangedPredicate(),
+		)).
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
+		Complete(r)
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/finalizers,verbs=update
@@ -131,17 +142,6 @@ func bundleDeploymentStatusChangedPredicate() predicate.Funcs {
 			return !reflect.DeepEqual(n.Status, o.Status)
 		},
 	}
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.BundleDeployment{}, builder.WithPredicates(
-			bundleDeploymentStatusChangedPredicate(),
-		)).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
-		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
-		Complete(r)
 }
 
 func conditionToMessage(cond genericcondition.GenericCondition) string {

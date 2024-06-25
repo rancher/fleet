@@ -56,6 +56,50 @@ type ClusterReconciler struct {
 	ShardID string
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&fleet.Cluster{}).
+		// Watch bundledeployments so we can update the status fields
+		Watches(
+			&fleet.BundleDeployment{},
+			handler.EnqueueRequestsFromMapFunc(r.mapBundleDeploymentToCluster),
+			builder.WithPredicates(predicate.Funcs{
+				CreateFunc: func(e event.CreateEvent) bool {
+					return true
+				},
+				// Triggering on every update would run into an
+				// endless loop with the agentmanagement
+				// cluster controller.
+				// We still need to update often enough to keep the
+				// status fields up to date.
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					n := e.ObjectNew.(*fleet.BundleDeployment)
+					o := e.ObjectOld.(*fleet.BundleDeployment)
+					if n == nil || o == nil {
+						return false
+					}
+					if !reflect.DeepEqual(n.Spec, o.Spec) {
+						return true
+					}
+					if n.Status.AppliedDeploymentID != o.Status.AppliedDeploymentID {
+						return true
+					}
+					return false
+				},
+				DeleteFunc: func(e event.DeleteEvent) bool {
+					o := e.Object.(*fleet.BundleDeployment)
+					if o == nil || o.Status.AppliedDeploymentID == "" {
+						return false
+					}
+					return true
+				},
+			}),
+		).
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
+		Complete(r)
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters/finalizers,verbs=update
@@ -230,50 +274,6 @@ func (r *ClusterReconciler) updateStatus(ctx context.Context, req types.Namespac
 		t.Status = status
 		return r.Status().Update(ctx, t)
 	})
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.Cluster{}).
-		// Watch bundledeployments so we can update the status fields
-		Watches(
-			&fleet.BundleDeployment{},
-			handler.EnqueueRequestsFromMapFunc(r.mapBundleDeploymentToCluster),
-			builder.WithPredicates(predicate.Funcs{
-				CreateFunc: func(e event.CreateEvent) bool {
-					return true
-				},
-				// Triggering on every update would run into an
-				// endless loop with the agentmanagement
-				// cluster controller.
-				// We still need to update often enough to keep the
-				// status fields up to date.
-				UpdateFunc: func(e event.UpdateEvent) bool {
-					n := e.ObjectNew.(*fleet.BundleDeployment)
-					o := e.ObjectOld.(*fleet.BundleDeployment)
-					if n == nil || o == nil {
-						return false
-					}
-					if !reflect.DeepEqual(n.Spec, o.Spec) {
-						return true
-					}
-					if n.Status.AppliedDeploymentID != o.Status.AppliedDeploymentID {
-						return true
-					}
-					return false
-				},
-				DeleteFunc: func(e event.DeleteEvent) bool {
-					o := e.Object.(*fleet.BundleDeployment)
-					if o == nil || o.Status.AppliedDeploymentID == "" {
-						return false
-					}
-					return true
-				},
-			}),
-		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
-		Complete(r)
 }
 
 func (r *ClusterReconciler) mapBundleDeploymentToCluster(ctx context.Context, a client.Object) []ctrl.Request {

@@ -44,6 +44,27 @@ func Load(ctx context.Context, c client.Reader, namespace string) error {
 	return nil
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *ConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		// TODO Maybe we can limit this Watch to the system namespace?
+		For(&corev1.ConfigMap{}).
+		WithEventFilter(
+			// we do not trigger for status changes
+			predicate.And(
+				sharding.FilterByShardID(r.ShardID),
+				predicate.NewPredicateFuncs(func(object client.Object) bool {
+					return object.GetNamespace() == r.SystemNamespace &&
+						object.GetName() == config.ManagerConfigName
+				}),
+				predicate.Or(
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				))).
+		Complete(r)
+}
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *ConfigReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
@@ -65,25 +86,4 @@ func (r *ConfigReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.
 	config.Set(cfg)
 
 	return ctrl.Result{}, nil
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *ConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		// TODO Maybe we can limit this Watch to the system namespace?
-		For(&corev1.ConfigMap{}).
-		WithEventFilter(
-			// we do not trigger for status changes
-			predicate.And(
-				sharding.FilterByShardID(r.ShardID),
-				predicate.NewPredicateFuncs(func(object client.Object) bool {
-					return object.GetNamespace() == r.SystemNamespace &&
-						object.GetName() == config.ManagerConfigName
-				}),
-				predicate.Or(
-					predicate.GenerationChangedPredicate{},
-					predicate.AnnotationChangedPredicate{},
-					predicate.LabelChangedPredicate{},
-				))).
-		Complete(r)
 }
