@@ -2,6 +2,7 @@ package examples_test
 
 import (
 	"encoding/json"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -32,11 +33,22 @@ var _ = Describe("Drift", Ordered, func() {
 			b := getBundle(bundleName, k)
 			return b.Status.Summary.Ready == 1
 		}).Should(BeTrue())
+
+		defer func() {
+			if r := recover(); r != nil {
+				bundle := getBundle(bundleName, k)
+				GinkgoWriter.Printf("bundle status: %v", bundle.Status)
+			}
+		}()
 	})
 
 	AfterEach(func() {
-		out, err := k.Namespace(env.Namespace).Delete("-f", testenv.AssetPath(asset))
+		out, err := k.Namespace(env.Namespace).Delete("-f", testenv.AssetPath(asset), "--wait")
 		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	AfterAll(func() {
+		_, _ = k.Delete("ns", namespace)
 	})
 
 	When("Drift correction is not enabled", func() {
@@ -50,10 +62,12 @@ var _ = Describe("Drift", Ordered, func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
 					"service", "nginx-service",
+					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/spec/externalName", "value": "modified"}]`,
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
+				GinkgoWriter.Print(out)
 			})
 
 			It("Bundle is modified", func() {
@@ -81,10 +95,12 @@ var _ = Describe("Drift", Ordered, func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
 					"service", "nginx-service",
+					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/spec/externalName", "value": "modified"}]`,
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
+				GinkgoWriter.Print(out)
 			})
 
 			It("Drift is corrected", func() {
@@ -107,10 +123,12 @@ var _ = Describe("Drift", Ordered, func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
 					"deployment", "nginx-deployment",
+					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "nginx:modified"}]`,
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
+				GinkgoWriter.Print(out)
 			})
 
 			It("Drift is corrected", func() {
@@ -133,10 +151,12 @@ var _ = Describe("Drift", Ordered, func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
 					"configmap", "configmap",
+					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/data/foo", "value": "modified"}]`,
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
+				GinkgoWriter.Print(out)
 			})
 
 			It("Drift is corrected", func() {
@@ -169,10 +189,12 @@ var _ = Describe("Drift", Ordered, func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
 					"service", "nginx-service",
+					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/spec/ports/0/port", "value": 1234}]`,
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
+				GinkgoWriter.Print(out)
 			})
 
 			It("Status is modified", func() {
@@ -209,17 +231,20 @@ var _ = Describe("Drift", Ordered, func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
 					"service", "nginx-service",
+					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/spec/ports/0/port", "value": 1234}]`,
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
+				GinkgoWriter.Print(out)
 			})
 
 			It("Bundle Status is Ready, and changes are rolled back", func() {
-				Eventually(func() bool {
-					b := getBundle(bundleName, k)
-					return b.Status.Summary.Ready == 1
-				}).Should(BeTrue())
+				var bundle fleet.Bundle
+				Eventually(func() int {
+					bundle = getBundle(bundleName, k)
+					return bundle.Status.Summary.Ready
+				}).Should(Equal(1), fmt.Sprintf("Summary: %+v", bundle.Status.Summary))
 				Eventually(func() bool {
 					kw := k.Namespace(namespace)
 					out, _ := kw.Get("services", "nginx-service", "-o=json")

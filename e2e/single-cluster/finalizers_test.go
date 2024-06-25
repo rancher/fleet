@@ -45,6 +45,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 
 		_, _ = k.Delete("gitrepo", gitrepoName)
 		_, _ = k.Delete("bundle", fmt.Sprintf("%s-%s", gitrepoName, path))
+		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
 	})
 
 	When("deleting an existing GitRepo", func() {
@@ -277,8 +278,8 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			Expect(out).ToNot(BeZero())
 
 			By("checking that the configmap created by the bundle deployment still exists")
-			_, err = k.Namespace(targetNamespace).Get("configmap", "test-simple-chart-config")
-			Expect(err).ToNot(HaveOccurred())
+			out, err = k.Namespace(targetNamespace).Get("configmap", "test-simple-chart-config")
+			Expect(err).ToNot(HaveOccurred(), out)
 		})
 	})
 })

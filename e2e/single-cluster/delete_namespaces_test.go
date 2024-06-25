@@ -30,7 +30,7 @@ var _ = Describe("delete namespaces", func() {
 		deleteNamespace = false
 
 		DeferCleanup(func() {
-			_, _ = k.Delete("ns", "my-custom-namespace", "--wait=false")
+			_, _ = k.Delete("ns", "my-custom-namespace")
 		})
 	})
 

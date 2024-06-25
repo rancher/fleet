@@ -49,6 +49,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 	})
 
 	JustBeforeEach(func() {
+
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
 		host, err := githelper.BuildGitHostname(env.Namespace)
 		Expect(err).ToNot(HaveOccurred())
@@ -87,7 +88,15 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			"fleet-controller",
 		)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).ToNot(ContainSubstring("ERROR"))
+
+		// Errors about resources other than bundles or bundle deployments not being found at deletion time
+		// should be ignored, as they may result from other test suites.
+		Expect(out).ToNot(MatchRegexp(
+			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
+		))
+
+		_, err = k.Delete("ns", targetNamespace)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	When("updating a git repository monitored via polling", func() {

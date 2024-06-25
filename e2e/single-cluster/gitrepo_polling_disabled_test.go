@@ -67,7 +67,15 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			"fleet-controller",
 		)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).ToNot(ContainSubstring("ERROR"))
+
+		// Errors about resources other than bundles or bundle deployments not being found at deletion time
+		// should be ignored, as they may result from other test suites.
+		Expect(out).ToNot(MatchRegexp(
+			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
+		))
+
+		_, err = k.Delete("ns", targetNamespace)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	When("applying a gitrepo with disable polling", func() {

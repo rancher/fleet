@@ -29,12 +29,17 @@ var _ = Describe("Single Cluster Deployments", func() {
 		out, err := k.Delete("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
 
+		_, _ = k.Delete("ns", "helm-kustomize-disabled")
 	})
 
 	When("creating a gitrepo resource", func() {
 		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
 				asset = "single-cluster/helm-oci.yaml"
+			})
+
+			AfterEach(func() {
+				_, _ = k.Delete("ns", "fleet-helm-oci-example")
 			})
 
 			It("deploys the helm chart", func() {
@@ -63,6 +68,11 @@ var _ = Describe("Single Cluster Deployments", func() {
 				asset = "single-cluster/multiple-paths.yaml"
 			})
 
+			AfterEach(func() {
+				_, _ = k.Delete("ns", "test-fleet-mp-config")
+				_, _ = k.Delete("ns", "test-fleet-mp-service")
+			})
+
 			It("sets status fields for gitrepo on deployment", func() {
 				Eventually(func() bool {
 					out, err := k.Get("gitrepo", "multiple-paths", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
@@ -80,11 +90,19 @@ var _ = Describe("Single Cluster Deployments", func() {
 					ContainSubstring("multiple-paths-multiple-paths-service"),
 				))
 
-				Eventually(func() bool {
-					out, err := k.Get("bundle", "multiple-paths-multiple-paths-config", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-					Expect(err).ToNot(HaveOccurred(), out)
-					return strings.Contains(out, "\"ready\":1")
-				}).Should(BeTrue())
+				Eventually(func(g Gomega) {
+					out, err := k.Get(
+						"bundle",
+						"multiple-paths-multiple-paths-config",
+						"-n",
+						"fleet-local",
+						"-o",
+						"jsonpath='{.status.summary}'",
+					)
+					g.Expect(err).ToNot(HaveOccurred(), out)
+
+					g.Expect(out).To(ContainSubstring(`"ready":1`))
+				}).Should(Succeed())
 
 				Eventually(func() bool {
 					out, err := k.Get("bundle", "multiple-paths-multiple-paths-service", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
