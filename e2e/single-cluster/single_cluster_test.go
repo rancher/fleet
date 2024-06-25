@@ -90,11 +90,19 @@ var _ = Describe("Single Cluster Deployments", func() {
 					ContainSubstring("multiple-paths-multiple-paths-service"),
 				))
 
-				Eventually(func() bool {
-					out, err := k.Get("bundle", "multiple-paths-multiple-paths-config", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-					Expect(err).ToNot(HaveOccurred(), out)
-					return strings.Contains(out, "\"ready\":1")
-				}).Should(BeTrue())
+				Eventually(func(g Gomega) {
+					out, err := k.Get(
+						"bundle",
+						"multiple-paths-multiple-paths-config",
+						"-n",
+						"fleet-local",
+						"-o",
+						"jsonpath='{.status.summary}'",
+					)
+					g.Expect(err).ToNot(HaveOccurred(), out)
+
+					g.Expect(out).To(ContainSubstring(`"ready":1`))
+				}).Should(Succeed())
 
 				Eventually(func() bool {
 					out, err := k.Get("bundle", "multiple-paths-multiple-paths-service", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
