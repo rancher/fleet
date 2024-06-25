@@ -144,7 +144,6 @@ func SetStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *fleet.Gi
 	}
 
 	gitRepo.Status.GitJobStatus = result.Status.String()
-	gitRepo.Status.ObservedGeneration = gitRepo.Generation
 
 	for _, con := range result.Conditions {
 		condition.Cond(con.Type.String()).SetStatus(gitRepo, string(con.Status))

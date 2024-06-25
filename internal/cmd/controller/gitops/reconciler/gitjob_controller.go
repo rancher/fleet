@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -20,20 +18,16 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/reugn/go-quartz/quartz"
 
-	"github.com/rancher/wrangler/v2/pkg/condition"
-	"github.com/rancher/wrangler/v2/pkg/kstatus"
 	"github.com/rancher/wrangler/v2/pkg/name"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -399,72 +393,6 @@ func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitR
 	return r.Create(ctx, job)
 }
 
-func (r *GitJobReconciler) updateStatus(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
-	if err != nil {
-		return err
-	}
-	uJob := &unstructured.Unstructured{Object: obj}
-
-	result, err := status.Compute(uJob)
-	if err != nil {
-		return err
-	}
-
-	terminationMessage := ""
-	if result.Status == status.FailedStatus {
-		selector := labels.SelectorFromSet(labels.Set{"job-name": job.Name})
-		podList := &corev1.PodList{}
-		err := r.List(ctx, podList, &client.ListOptions{LabelSelector: selector})
-		if err != nil {
-			return err
-		}
-
-		sort.Slice(podList.Items, func(i, j int) bool {
-			return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
-		})
-
-		terminationMessage = result.Message
-		if len(podList.Items) > 0 {
-			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
-				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
-					terminationMessage += podStatus.State.Terminated.Message
-				}
-			}
-		}
-	}
-
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		currentGitRepo := &v1alpha1.GitRepo{}
-		err := r.Get(ctx, client.ObjectKeyFromObject(gitRepo), currentGitRepo)
-		if err != nil {
-			return err
-		}
-
-		currentGitRepo.Status.GitJobStatus = result.Status.String()
-		currentGitRepo.Status.ObservedGeneration = gitRepo.Generation
-		currentGitRepo.Status.UpdateGeneration = gitRepo.Status.UpdateGeneration
-
-		for _, con := range result.Conditions {
-			condition.Cond(con.Type.String()).SetStatus(currentGitRepo, string(con.Status))
-			condition.Cond(con.Type.String()).SetMessageIfBlank(currentGitRepo, con.Message)
-			condition.Cond(con.Type.String()).Reason(currentGitRepo, con.Reason)
-		}
-
-		switch result.Status {
-		case status.FailedStatus:
-			kstatus.SetError(currentGitRepo, terminationMessage)
-		case status.CurrentStatus:
-			if strings.Contains(result.Message, "Job Completed") {
-				currentGitRepo.Status.Commit = job.Annotations["commit"]
-			}
-			kstatus.SetActive(currentGitRepo)
-		}
-
-		return r.Status().Update(ctx, currentGitRepo)
-	})
-}
-
 func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
 	logger := log.FromContext(ctx)
 	// if force delete is set, delete the job to make sure a new job is created
@@ -478,6 +406,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 
 	// k8s Jobs are immutable. Recreate the job if the GitRepo Spec has changed.
 	if gitRepo.Generation != gitRepo.Status.ObservedGeneration {
+		gitRepo.Status.ObservedGeneration = gitRepo.Generation
 		logger.Info("job deletion triggered because of generation change")
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 			return err
@@ -513,7 +442,7 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 		Spec: *jobSpec,
 	}
 	// if the repo references a shard, add the same label to the job
-	// this avoids call to Reconcile for controllers that are not matching
+	// this avoids a call to Reconcile for controllers that do not match
 	// the shard-id
 	label, hasLabel := obj.GetLabels()[sharding.ShardingRefLabel]
 	if hasLabel {
