@@ -5,7 +5,7 @@ package reconciler
 import (
 	"context"
 
-	"github.com/rancher/fleet/internal/cmd/controller/finalizeutil"
+	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
@@ -90,7 +90,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			metrics.BundleCollector.Delete(req.Name, req.Namespace)
 
 			logger.V(1).Info("Bundle not found, purging bundle deployments")
-			if err := finalizeutil.PurgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
+			if err := finalize.PurgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
 				// A bundle deployment may have been purged by the GitRepo reconciler, hence we ignore
 				// not-found errors here.
 				return ctrl.Result{}, client.IgnoreNotFound(err)

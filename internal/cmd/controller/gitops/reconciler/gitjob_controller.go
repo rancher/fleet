@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/rancher/fleet/internal/cmd/controller/finalizeutil"
+	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/metrics"
@@ -138,7 +138,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if !gitrepo.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(gitrepo, finalizeutil.GitRepoFinalizer) {
+		if controllerutil.ContainsFinalizer(gitrepo, finalize.GitRepoFinalizer) {
 			if err := r.cleanupGitRepo(ctx, logger, gitrepo); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -147,7 +147,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	if !controllerutil.ContainsFinalizer(gitrepo, finalizeutil.GitRepoFinalizer) {
+	if !controllerutil.ContainsFinalizer(gitrepo, finalize.GitRepoFinalizer) {
 		err := r.addGitRepoFinalizer(ctx, req.NamespacedName)
 		if client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{}, err
@@ -264,14 +264,14 @@ func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logge
 	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
 
 	nsName := types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}
-	if err := finalizeutil.PurgeBundles(ctx, r.Client, nsName); err != nil {
+	if err := finalize.PurgeBundles(ctx, r.Client, nsName); err != nil {
 		return err
 	}
 
 	// remove the job scheduled by imagescan, if any
 	_ = r.Scheduler.DeleteJob(imagescan.GitCommitKey(gitrepo.Namespace, gitrepo.Name))
 
-	if err := finalizeutil.PurgeImageScans(ctx, r.Client, nsName); err != nil {
+	if err := finalize.PurgeImageScans(ctx, r.Client, nsName); err != nil {
 		return err
 	}
 
@@ -280,7 +280,7 @@ func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logge
 			return err
 		}
 
-		controllerutil.RemoveFinalizer(gitrepo, finalizeutil.GitRepoFinalizer)
+		controllerutil.RemoveFinalizer(gitrepo, finalize.GitRepoFinalizer)
 
 		return r.Update(ctx, gitrepo)
 	})
@@ -299,7 +299,7 @@ func (r *GitJobReconciler) addGitRepoFinalizer(ctx context.Context, nsName types
 			return err
 		}
 
-		controllerutil.AddFinalizer(gitrepo, finalizeutil.GitRepoFinalizer)
+		controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
 
 		return r.Update(ctx, gitrepo)
 	})

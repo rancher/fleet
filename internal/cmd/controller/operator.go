@@ -38,12 +38,10 @@ func start(
 	leaderOpts LeaderElectionOptions,
 	workersOpts ControllerReconcilerWorkers,
 	bindAddresses BindAddresses,
-	disableGitops bool,
 	disableMetrics bool,
 	shardID string,
 ) error {
 	setupLog.Info("listening for changes on local cluster",
-		"disableGitops", disableGitops,
 		"disableMetrics", disableMetrics,
 	)
 

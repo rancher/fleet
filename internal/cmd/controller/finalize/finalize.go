@@ -1,4 +1,4 @@
-package finalizeutil
+package finalize
 
 import (
 	"context"
@@ -20,6 +20,9 @@ const (
 	BundleDeploymentFinalizer = "fleet.cattle.io/bundle-deployment-finalizer"
 )
 
+// PurgeBundles deletes all bundles related to the given GitRepo namespaced name
+// It deletes resources in cascade. Deleting Bundles, its BundleDeployments, and
+// the related namespace if Bundle.Spec.DeleteNamespace is set to true.
 func PurgeBundles(ctx context.Context, c client.Client, gitrepo types.NamespacedName) error {
 	bundles := &v1alpha1.BundleList{}
 	err := c.List(ctx, bundles, client.MatchingLabels{v1alpha1.RepoLabel: gitrepo.Name}, client.InNamespace(gitrepo.Namespace))
@@ -61,6 +64,7 @@ func PurgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 	return nil
 }
 
+// PurgeBundleDeployments deletes all BundleDeployments related with the given Bundle namespaced name.
 func PurgeBundleDeployments(ctx context.Context, c client.Client, bundle types.NamespacedName) error {
 	list := &v1alpha1.BundleDeploymentList{}
 	err := c.List(
@@ -101,6 +105,7 @@ func PurgeBundleDeployments(ctx context.Context, c client.Client, bundle types.N
 	return nil
 }
 
+// PurgeImageScans deletes all ImageScan resources related with the given GitRepo namespaces name.
 func PurgeImageScans(ctx context.Context, c client.Client, gitrepo types.NamespacedName) error {
 	images := &v1alpha1.ImageScanList{}
 	err := c.List(ctx, images, client.InNamespace(gitrepo.Namespace))
@@ -120,6 +125,9 @@ func PurgeImageScans(ctx context.Context, c client.Client, gitrepo types.Namespa
 	return nil
 }
 
+// PurgeNamespace deletes the given namespace if deleteNamespace is set to true.
+// It ignores the following namespaces, that are considered as default by fleet or kubernetes:
+// fleet-local, cattle-fleet-system, fleet-default, cattle-fleet-clusters-system, default
 func PurgeNamespace(ctx context.Context, c client.Client, deleteNamespace bool, ns string) error {
 	if !deleteNamespace {
 		return nil

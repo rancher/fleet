@@ -89,9 +89,6 @@ spec:
         {{- end }}
         command:
         - fleetcontroller
-        {{- if not $.Values.gitops.enabled }}
-        - --disable-gitops
-        {{- end }}
         {{- if . }}
         - --shard-id
         - {{ quote . }}

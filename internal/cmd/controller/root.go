@@ -34,7 +34,6 @@ type FleetManager struct {
 	command.DebugConfig
 	Kubeconfig     string `usage:"Kubeconfig file"`
 	Namespace      string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
-	DisableGitops  bool   `usage:"disable gitops components" name:"disable-gitops"`
 	DisableMetrics bool   `usage:"disable metrics" name:"disable-metrics"`
 	ShardID        string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
 }
@@ -162,7 +161,6 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 		leaderOpts,
 		workersOpts,
 		bindAddresses,
-		f.DisableGitops,
 		f.DisableMetrics,
 		f.ShardID,
 	); err != nil {
