@@ -83,9 +83,10 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				Branch: "master",
 			},
 			expectedCloneOpts: &git.CloneOptions{
-				URL:           "repo",
-				SingleBranch:  true,
-				ReferenceName: "master",
+				URL:               "repo",
+				SingleBranch:      true,
+				ReferenceName:     "master",
+				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 			},
 		},
 		"branch basic auth": {
@@ -104,6 +105,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 					Username: "user",
 					Password: passwordFileContent,
 				},
+				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 			},
 		},
 		"branch ssh auth": {
@@ -114,10 +116,11 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				SSHPrivateKeyFile: sshPrivateKeyFile,
 			},
 			expectedCloneOpts: &git.CloneOptions{
-				URL:           "ssh://git@localhost/test/test-repo",
-				SingleBranch:  true,
-				ReferenceName: "master",
-				Auth:          sshAuth,
+				URL:               "ssh://git@localhost/test/test-repo",
+				SingleBranch:      true,
+				ReferenceName:     "master",
+				Auth:              sshAuth,
+				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 			},
 		},
 		"password file does not exist": {
