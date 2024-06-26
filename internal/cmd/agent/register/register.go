@@ -59,6 +59,24 @@ func Get(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, e
 		return nil, err
 	}
 
+	configMap, err := k8s.Core().V1().ConfigMap().Get(namespace, config.AgentConfigName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		logrus.Warnf("Cannot find %s config map", config.AgentConfigName)
+
+		return nil, err
+	}
+
+	agentConfig, err := config.ReadConfig(configMap)
+	if err != nil {
+		logrus.Warnf("Cannot parse %s config map into agent config", config.AgentConfigName)
+
+		return nil, err
+	}
+
+	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {
+		config.BypassSystemCAStore()
+	}
+
 	secret, err := k8s.Core().V1().Secret().Get(namespace, CredName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		logrus.Warn("Cannot find fleet-agent secret")
@@ -330,18 +348,7 @@ func createClientConfigFromSecret(secret *corev1.Secret, trustSystemStoreCAs boo
 			apiServerCA = nil
 		}
 	} else {
-		// Bypass the OS trust store through env vars, see https://pkg.go.dev/crypto/x509#SystemCertPool
-		// We set values to paths belonging to the root filesystem, which is read-only, to prevent tampering.
-		// Note: this will not work on Windows nor Mac OS. Agent are expected to run on Linux nodes.
-		err := os.Setenv("SSL_CERT_FILE", "/dev/null")
-		if err != nil {
-			logrus.Errorf("failed to set env var SSL_CERT_FILE: %s", err.Error())
-		}
-
-		err = os.Setenv("SSL_CERT_DIR", "/dev/null")
-		if err != nil {
-			logrus.Errorf("failed to set env var SSL_CERT_DIR: %s", err.Error())
-		}
+		config.BypassSystemCAStore()
 	}
 
 	cfg := clientcmdapi.Config{
