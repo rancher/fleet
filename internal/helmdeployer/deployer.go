@@ -3,7 +3,10 @@ package helmdeployer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
+
+	name1 "github.com/rancher/wrangler/pkg/name"
 
 	"github.com/pkg/errors"
 	"github.com/rancher/fleet/internal/helmdeployer/helmcache"
@@ -110,15 +113,17 @@ func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 		ns = h.defaultNamespace
 	}
 
-	if options.Helm != nil && options.Helm.ReleaseName != "" {
-		// JSON schema validation makes sure that the option is valid
-		return timeout, ns, options.Helm.ReleaseName
+	releaseName := name1.SafeConcatName(ns, options.Helm.ReleaseName)
+
+	if releaseName == "" {
+		releaseName = name2.HelmReleaseName(bundleID)
 	}
 
 	// releaseName has a limit of 53 in helm https://github.com/helm/helm/blob/main/pkg/action/install.go#L58
 	// fleet apply already produces valid names, but we need to make sure
 	// that bundles from other sources are valid
-	return timeout, ns, name2.HelmReleaseName(bundleID)
+	releaseName = strings.Trim(releaseName, "-_.")
+	return timeout, ns, releaseName
 }
 
 func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string) (action.Configuration, error) {
@@ -126,10 +131,6 @@ func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string)
 		cfg    action.Configuration
 		getter = h.getter
 	)
-
-	if h.useGlobalCfg {
-		return h.globalCfg, nil
-	}
 
 	serviceAccountNamespace, serviceAccountName, err := h.getServiceAccount(ctx, serviceAccountName)
 	if err != nil {

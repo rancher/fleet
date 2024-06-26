@@ -748,6 +748,8 @@ github.com/rancher/helm/v3 v3.14.4-fleet.0 h1:fMyGOkEc6laHsr/kZn4GaZ37//pGBNioP9
 github.com/rancher/helm/v3 v3.14.4-fleet.0/go.mod h1:Tje7LL4gprZpuBNTbG34d1Xn5NmRT3OWfBRwpOSer9I=
 github.com/rancher/lasso v0.0.0-20240424194130-d87ec407d941 h1:1SvuoeyfANRvKVJUSzHWa1P781iuH8ktUjW9cPOxAAk=
 github.com/rancher/lasso v0.0.0-20240424194130-d87ec407d941/go.mod h1:pYKOe2r/5O0w3ypoc7xHQF8LvWCp5PsNRea1Jpq3vBU=
+github.com/rancher/wrangler v1.1.2 h1:oXbXo9k7y/H4drUpb4RM1c++vT9O3rpoNEfyusGykiU=
+github.com/rancher/wrangler v1.1.2/go.mod h1:2k9MyhlBdjcutcBGoOJSUAz0HgDAXnMjv81d3n/AaQc=
 github.com/rancher/wrangler/v2 v2.1.4 h1:ohov0i6A9dJHHO6sjfsH4Dqv93ZTdm5lIJVJdPzVdQc=
 github.com/rancher/wrangler/v2 v2.1.4/go.mod h1:af5OaGU/COgreQh1mRbKiUI64draT2NN34uk+PALFY8=
 github.com/reugn/go-quartz v0.11.2 h1:+jc54Ji06n/D/endEPmc+CuG/Jc8466nda1oxtFRrks=
