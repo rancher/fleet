@@ -330,13 +330,15 @@ func createClientConfigFromSecret(secret *corev1.Secret, trustSystemStoreCAs boo
 			apiServerCA = nil
 		}
 	} else {
-		// Bypass the OS trust store.
-		err := os.Setenv("SSL_CERT_FILE", "/var/does-not-exist.pem")
+		// Bypass the OS trust store through env vars, see https://pkg.go.dev/crypto/x509#SystemCertPool
+		// We set values to paths belonging to the root filesystem, which is read-only, to prevent tampering.
+		// Note: this will not work on Windows nor Mac OS. Agent are expected to run on Linux nodes.
+		err := os.Setenv("SSL_CERT_FILE", "/dev/null")
 		if err != nil {
 			logrus.Errorf("failed to set env var SSL_CERT_FILE: %s", err.Error())
 		}
 
-		err = os.Setenv("SSL_CERT_DIR", "/var/does-not-exist-either")
+		err = os.Setenv("SSL_CERT_DIR", "/dev/null")
 		if err != nil {
 			logrus.Errorf("failed to set env var SSL_CERT_DIR: %s", err.Error())
 		}
