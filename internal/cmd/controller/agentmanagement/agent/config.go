@@ -12,8 +12,9 @@ import (
 )
 
 type ConfigOptions struct {
-	Labels   map[string]string
-	ClientID string
+	Labels       map[string]string
+	ClientID     string
+	AgentTLSMode string
 }
 
 func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string, cg *client.Getter, opts *ConfigOptions) ([]runtime.Object, error) {
@@ -32,13 +33,14 @@ func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string
 		return nil, err
 	}
 
-	return configObjects(agentNamespace, opts.Labels, opts.ClientID)
+	return configObjects(agentNamespace, opts)
 }
 
-func configObjects(controllerNamespace string, clusterLabels map[string]string, clientID string) ([]runtime.Object, error) {
+func configObjects(controllerNamespace string, co *ConfigOptions) ([]runtime.Object, error) {
 	cm, err := config.ToConfigMap(controllerNamespace, config.AgentConfigName, &config.Config{
-		Labels:   clusterLabels,
-		ClientID: clientID,
+		Labels:       co.Labels,
+		ClientID:     co.ClientID,
+		AgentTLSMode: co.AgentTLSMode,
 	})
 	if err != nil {
 		return nil, err

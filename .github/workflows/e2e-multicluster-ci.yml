@@ -58,7 +58,7 @@ jobs:
             --agents 1
             --network "nw01"
       -
-        name: Provision k3d Downstream Cluster
+        name: Provision k3d Downstream Cluster for agent-initiated registration
         uses: AbsaOSS/k3d-action@v2
         with:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
@@ -70,10 +70,23 @@ jobs:
             --agents 1
             --network "nw01"
       -
+        name: Provision k3d Downstream Cluster for manager-initiated registration
+        uses: AbsaOSS/k3d-action@v2
+        with:
+          k3d-version: ${{ env.SETUP_K3D_VERSION }}
+          cluster-name: "managed-downstream"
+          args: >-
+            -p "82:80@agent:0:direct"
+            -p "445:443@agent:0:direct"
+            --api-port 6645
+            --agents 1
+            --network "nw01"
+      -
         name: Import Images Into k3d
         run: |
           ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev -c upstream
           ./.github/scripts/k3d-import-retry.sh rancher/fleet-agent:dev -c downstream
+          ./.github/scripts/k3d-import-retry.sh rancher/fleet-agent:dev -c managed-downstream
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
@@ -127,6 +140,61 @@ jobs:
           while [ $(kubectl -n fleet-default get cluster -o jsonpath='{.items[0].status.summary.ready}') -ne 1 ]; do
             sleep 1
           done
+
+      -
+        name: Deploy and Register Managed Downstream Fleet
+        run: |
+          kubectl config use-context k3d-managed-downstream
+          host=$(kubectl get node k3d-managed-downstream-server-0 -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+          ca=$( kubectl config view --flatten -o jsonpath='{.clusters[?(@.name == "k3d-managed-downstream")].cluster.certificate-authority-data}' )
+          client_cert=$( kubectl config view --flatten -o jsonpath='{.users[?(@.name == "admin@k3d-managed-downstream")].user.client-certificate-data}' )
+          token=$( kubectl config view --flatten -o jsonpath='{.users[?(@.name == "admin@k3d-managed-downstream")].user.client-key-data}' )
+          server="https://$host:6443"
+
+          kubectl config use-context k3d-upstream
+
+          value=$(cat <<EOF
+          apiVersion: v1
+          kind: Config
+          current-context: default
+          clusters:
+          - cluster:
+              certificate-authority-data: $ca
+              server: $server
+            name: cluster
+          contexts:
+          - context:
+              cluster: cluster
+              user: user
+            name: default
+          preferences: {}
+          users:
+          - name: user
+            user:
+              client-certificate-data: $client_cert
+              client-key-data: $token
+          EOF
+          )
+
+          kubectl create ns fleet-default || true
+          kubectl delete secret -n fleet-default kbcfg-second || true
+          # Rancher sets a token value in the secret, but our docs don't mention it
+          # * https://github.com/rancher/rancher/blob/c24fb8b0869a0b445f55b3307c6ed4582e147747/pkg/provisioningv2/kubeconfig/manager.go#L362
+          # * https://fleet.rancher.io/0.5/manager-initiated#kubeconfig-secret-1
+          kubectl create secret generic -n fleet-default kbcfg-second --from-literal=token="$token" --from-literal=value="$value"
+
+          kubectl apply -n fleet-default -f - <<EOF
+          apiVersion: "fleet.cattle.io/v1alpha1"
+          kind: Cluster
+          metadata:
+            name: second
+            namespace: fleet-default
+            labels:
+              name: second
+          spec:
+            kubeConfigSecret: kbcfg-second
+          EOF
+
       -
         name: E2E tests
         env:
@@ -135,6 +203,15 @@ jobs:
         run: |
           kubectl config use-context k3d-upstream
           ginkgo --github-output e2e/multi-cluster
+      -
+        name: E2E tests with managed downstream agent
+        env:
+          FLEET_E2E_NS: fleet-local
+          FLEET_E2E_NS_DOWNSTREAM: fleet-default
+          FLEET_E2E_CLUSTER_DOWNSTREAM: k3d-managed-downstream
+        run: |
+          kubectl config use-context k3d-upstream
+          ginkgo --github-output e2e/multi-cluster/installation
       -
         name: Acceptance Tests for Examples
         if: >
