@@ -126,7 +126,7 @@ jobs:
         run: |
           export KUBECONFIG="$GITHUB_WORKSPACE/kubeconfig-fleet-ci"
           echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
-          SHARDS="shard1,shard2,shard3" ./.github/scripts/deploy-fleet.sh \
+          SHARDS='[{"id":"shard0"},{"id":"shard1"},{"id":"shard2"}]' ./.github/scripts/deploy-fleet.sh \
                                        ${{ steps.meta-fleet.outputs.tags }} \
                                        ${{ steps.meta-fleet-agent.outputs.tags }}
       -

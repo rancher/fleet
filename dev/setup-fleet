@@ -4,7 +4,7 @@
 set -euxo pipefail
 
 cluster_name=${1-upstream}
-shards=${2-""}
+shards_json=${2:-}
 
 if [ ! -d ./charts/fleet ]; then
   echo "please change the current directory to the fleet repo checkout"
@@ -16,10 +16,30 @@ host=$( docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end
 ca=$( kubectl config view --flatten -o jsonpath='{.clusters[?(@.name == "k3d-'"$cluster_name"'")].cluster.certificate-authority-data}' | base64 -d )
 server="https://$host:6443"
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait fleet-crd charts/fleet-crd
+
+# Constructing the shards settings dynamically
+shards_settings=""
+if [ -n "$shards_json" ]; then
+  index=0
+  for shard in $(echo "${shards_json}" | jq -c '.[]'); do
+    shard_id=$(echo "$shard" | jq -r '.id')
+    shards_settings="$shards_settings --set shards[$index].id=$shard_id"
+    node_selector=$(echo "$shard" | jq -r '.nodeSelector // empty')
+    if [ -n "$node_selector" ]; then
+      for key in $(echo "$node_selector" | jq -r 'keys[]'); do
+        value=$(echo "$node_selector" | jq -r --arg key "$key" '.[$key]')
+        escaped_key=$(echo "$key" | sed 's/\./\\./g')
+        shards_settings="$shards_settings --set shards[$index].nodeSelector.\"$escaped_key\"=$value"
+      done
+    fi
+    index=$((index + 1))
+  done
+fi
+
 helm -n cattle-fleet-system upgrade --install --create-namespace --wait --reset-values \
   --set apiServerCA="$ca" \
   --set apiServerURL="$server" \
-  --set shards="{$shards}" \
+  $shards_settings \
   --set debug=true --set debugLevel=1 fleet charts/fleet
 
 # wait for controller and agent rollout
