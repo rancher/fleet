@@ -22,6 +22,10 @@ else
   agentTag="dev"
 fi
 
+host=$(kubectl get node k3d-upstream-server-0 -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+ca=$( kubectl config view --flatten -o jsonpath='{.clusters[?(@.name == "k3d-upstream")].cluster.certificate-authority-data}' | base64 -d )
+server="https://$host:6443"
+
 eventually helm upgrade --install fleet-crd charts/fleet-crd \
   --atomic \
   -n cattle-fleet-system \
@@ -34,7 +38,9 @@ eventually helm upgrade --install fleet charts/fleet \
   --set image.tag="$fleetTag" \
   --set agentImage.repository="$agentRepo" \
   --set agentImage.tag="$agentTag" \
-  --set agentImage.imagePullPolicy=IfNotPresent
+  --set agentImage.imagePullPolicy=IfNotPresent \
+  --set apiServerCA="$ca" \
+  --set apiServerURL="$server" \
 
 # wait for controller and agent rollout
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller

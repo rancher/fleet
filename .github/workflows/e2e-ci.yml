@@ -76,7 +76,7 @@ jobs:
         # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
         with:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
-          cluster-name: "k3s-default"
+          cluster-name: "upstream"
           args: >-
             --agents 1
             --network "nw01"
@@ -84,7 +84,7 @@ jobs:
       -
         name: Import Images Into k3d
         run: |
-          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev nginx-git:test
+          ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev nginx-git:test -c upstream
       -
         name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
