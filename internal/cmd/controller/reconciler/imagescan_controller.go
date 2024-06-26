@@ -28,6 +28,23 @@ type ImageScanReconciler struct {
 	ShardID   string
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *ImageScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&fleet.ImageScan{}).
+		WithEventFilter(
+			// we do not trigger for status changes
+			predicate.And(
+				sharding.FilterByShardID(r.ShardID),
+				predicate.Or(
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
+			)).
+		Complete(r)
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters/finalizers,verbs=update
@@ -94,21 +111,4 @@ func (r *ImageScanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	return ctrl.Result{}, nil
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *ImageScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.ImageScan{}).
-		WithEventFilter(
-			// we do not trigger for status changes
-			predicate.And(
-				sharding.FilterByShardID(r.ShardID),
-				predicate.Or(
-					predicate.GenerationChangedPredicate{},
-					predicate.AnnotationChangedPredicate{},
-					predicate.LabelChangedPredicate{},
-				),
-			)).
-		Complete(r)
 }

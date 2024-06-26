@@ -42,6 +42,34 @@ type ClusterGroupReconciler struct {
 
 const MaxReportedNonReadyClusters = 10
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *ClusterGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&fleet.ClusterGroup{}, builder.WithPredicates(
+			// only trigger on status changes, create
+			predicate.Funcs{
+				CreateFunc: func(e event.CreateEvent) bool {
+					return true
+				},
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					n := e.ObjectNew.(*fleet.ClusterGroup)
+					o := e.ObjectOld.(*fleet.ClusterGroup)
+					if n == nil || o == nil {
+						return false
+					}
+					return !reflect.DeepEqual(n.Status, o.Status)
+				},
+			},
+		)).
+		Watches(
+			// Fan out from cluster to clustergroup
+			&fleet.Cluster{},
+			handler.EnqueueRequestsFromMapFunc(r.mapClusterToClusterGroup),
+		).
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
+		Complete(r)
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clustergroups,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clustergroups/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clustergroups/finalizers,verbs=update
@@ -155,34 +183,6 @@ func (r *ClusterGroupReconciler) updateStatus(ctx context.Context, req types.Nam
 		t.Status = status
 		return r.Status().Update(ctx, t)
 	})
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *ClusterGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.ClusterGroup{}, builder.WithPredicates(
-			// only trigger on status changes, create
-			predicate.Funcs{
-				CreateFunc: func(e event.CreateEvent) bool {
-					return true
-				},
-				UpdateFunc: func(e event.UpdateEvent) bool {
-					n := e.ObjectNew.(*fleet.ClusterGroup)
-					o := e.ObjectOld.(*fleet.ClusterGroup)
-					if n == nil || o == nil {
-						return false
-					}
-					return !reflect.DeepEqual(n.Status, o.Status)
-				},
-			},
-		)).
-		Watches(
-			// Fan out from cluster to clustergroup
-			&fleet.Cluster{},
-			handler.EnqueueRequestsFromMapFunc(r.mapClusterToClusterGroup),
-		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
-		Complete(r)
 }
 
 func (r *ClusterGroupReconciler) mapClusterToClusterGroup(ctx context.Context, a client.Object) []ctrl.Request {

@@ -55,6 +55,63 @@ type BundleReconciler struct {
 	Workers int
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&fleet.Bundle{}).
+		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
+		Watches(
+			// Fan out from bundledeployment to bundle
+			&fleet.BundleDeployment{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
+				bd := a.(*fleet.BundleDeployment)
+				labels := bd.GetLabels()
+				if labels == nil {
+					return nil
+				}
+
+				ns, name := target.BundleFromDeployment(labels)
+				if ns != "" && name != "" {
+					return []ctrl.Request{{
+						NamespacedName: types.NamespacedName{
+							Namespace: ns,
+							Name:      name,
+						},
+					}}
+				}
+
+				return nil
+			}),
+			builder.WithPredicates(bundleDeploymentStatusChangedPredicate()),
+		).
+		Watches(
+			// Fan out from cluster to bundle
+			&fleet.Cluster{},
+			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
+				cluster := a.(*fleet.Cluster)
+				bundlesToRefresh, _, err := r.Query.BundlesForCluster(ctx, cluster)
+				if err != nil {
+					return nil
+				}
+				requests := []ctrl.Request{}
+				for _, bundle := range bundlesToRefresh {
+					requests = append(requests, ctrl.Request{
+						NamespacedName: types.NamespacedName{
+							Namespace: bundle.Namespace,
+							Name:      bundle.Name,
+						},
+					})
+				}
+
+				return requests
+			}),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
+		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
+		Complete(r)
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/finalizers,verbs=update
@@ -237,61 +294,4 @@ func upper(op controllerutil.OperationResult) string {
 	default:
 		return "Unknown"
 	}
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.Bundle{}).
-		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
-		Watches(
-			// Fan out from bundledeployment to bundle
-			&fleet.BundleDeployment{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
-				bd := a.(*fleet.BundleDeployment)
-				labels := bd.GetLabels()
-				if labels == nil {
-					return nil
-				}
-
-				ns, name := target.BundleFromDeployment(labels)
-				if ns != "" && name != "" {
-					return []ctrl.Request{{
-						NamespacedName: types.NamespacedName{
-							Namespace: ns,
-							Name:      name,
-						},
-					}}
-				}
-
-				return nil
-			}),
-			builder.WithPredicates(bundleDeploymentStatusChangedPredicate()),
-		).
-		Watches(
-			// Fan out from cluster to bundle
-			&fleet.Cluster{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
-				cluster := a.(*fleet.Cluster)
-				bundlesToRefresh, _, err := r.Query.BundlesForCluster(ctx, cluster)
-				if err != nil {
-					return nil
-				}
-				requests := []ctrl.Request{}
-				for _, bundle := range bundlesToRefresh {
-					requests = append(requests, ctrl.Request{
-						NamespacedName: types.NamespacedName{
-							Namespace: bundle.Namespace,
-							Name:      bundle.Name,
-						},
-					})
-				}
-
-				return requests
-			}),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
-		).
-		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
-		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
-		Complete(r)
 }

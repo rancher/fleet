@@ -35,7 +35,8 @@ func New(client client.Client) *Manager {
 // This is done by checking all namespaces for clusters matching the bundle's
 // BundleTarget matchers.
 //
-// The returned target structs contain merged BundleDeploymentOptions.
+// The returned target structs contain merged BundleDeploymentOptions, which
+// includes the "TargetCustomizations" from fleet.yaml.
 // Finally all existing bundledeployments are added to the targets.
 func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID string) ([]*Target, error) {
 	logger := log.FromContext(ctx).WithName("targets")
@@ -106,7 +107,26 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 		return targets[i].Cluster.Name < targets[j].Cluster.Name
 	})
 
-	return targets, m.foldInDeployments(ctx, bundle, targets)
+	// add the existing bundledeployments to the targets.
+	bundleDeployments := &fleet.BundleDeploymentList{}
+	err = m.client.List(ctx, bundleDeployments, client.MatchingLabels{
+		fleet.BundleLabel:          bundle.Name,
+		fleet.BundleNamespaceLabel: bundle.Namespace,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	byNamespace := map[string]*fleet.BundleDeployment{}
+	for _, bd := range bundleDeployments.Items {
+		byNamespace[bd.Namespace] = bd.DeepCopy()
+	}
+
+	for _, target := range targets {
+		target.Deployment = byNamespace[target.Cluster.Status.Namespace]
+	}
+
+	return targets, err
 }
 
 // getNamespacesForBundle returns the namespaces that bundledeployments could
@@ -143,29 +163,6 @@ func (m *Manager) getNamespacesForBundle(ctx context.Context, bundle *fleet.Bund
 
 	// this is a sorted list
 	return nses.List(), nil
-}
-
-// foldInDeployments adds the existing bundledeployments to the targets.
-func (m *Manager) foldInDeployments(ctx context.Context, bundle *fleet.Bundle, targets []*Target) error {
-	bundleDeployments := &fleet.BundleDeploymentList{}
-	err := m.client.List(ctx, bundleDeployments, client.MatchingLabels{
-		fleet.BundleLabel:          bundle.Name,
-		fleet.BundleNamespaceLabel: bundle.Namespace,
-	})
-	if err != nil {
-		return err
-	}
-
-	byNamespace := map[string]*fleet.BundleDeployment{}
-	for _, bd := range bundleDeployments.Items {
-		byNamespace[bd.Namespace] = bd.DeepCopy()
-	}
-
-	for _, target := range targets {
-		target.Deployment = byNamespace[target.Cluster.Status.Namespace]
-	}
-
-	return nil
 }
 
 func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOptions, cluster *fleet.Cluster) (err error) {

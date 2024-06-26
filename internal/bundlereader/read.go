@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// Options include the GitRepo overrides, which are passed via command line args
 type Options struct {
 	Compress         bool
 	Labels           map[string]string

@@ -53,6 +53,34 @@ var DefaultRetry = wait.Backoff{
 	Jitter:   0.1,
 }
 
+// SetupWithManager sets up the controller with the Manager.
+func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&fleetv1.BundleDeployment{}).
+		WithEventFilter(
+			// we do not trigger for status changes
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
+				predicate.LabelChangedPredicate{},
+				predicate.Funcs{
+					// except for changes to status.Refresh
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						n := e.ObjectNew.(*fleetv1.BundleDeployment)
+						o := e.ObjectOld.(*fleetv1.BundleDeployment)
+						if n == nil || o == nil {
+							return false
+						}
+						return n.Status.SyncGeneration != o.Status.SyncGeneration
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						return true
+					},
+				},
+			)).
+		Complete(r)
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/finalizers,verbs=update
@@ -184,34 +212,6 @@ func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, req types
 		newBD.Status = status
 		return r.Status().Update(ctx, newBD)
 	})
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleetv1.BundleDeployment{}).
-		WithEventFilter(
-			// we do not trigger for status changes
-			predicate.Or(
-				predicate.GenerationChangedPredicate{},
-				predicate.AnnotationChangedPredicate{},
-				predicate.LabelChangedPredicate{},
-				predicate.Funcs{
-					// except for changes to status.Refresh
-					UpdateFunc: func(e event.UpdateEvent) bool {
-						n := e.ObjectNew.(*fleetv1.BundleDeployment)
-						o := e.ObjectOld.(*fleetv1.BundleDeployment)
-						if n == nil || o == nil {
-							return false
-						}
-						return n.Status.SyncGeneration != o.Status.SyncGeneration
-					},
-					DeleteFunc: func(e event.DeleteEvent) bool {
-						return true
-					},
-				},
-			)).
-		Complete(r)
 }
 
 // setCondition sets the condition and updates the timestamp, if the condition changed

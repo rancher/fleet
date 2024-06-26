@@ -1,4 +1,4 @@
-// Package options merges the BundleDeploymentOptions
+// Package options merges the BundleDeploymentOptions, so that targetCustomizations take effect.
 package options
 
 import (
