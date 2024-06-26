@@ -153,6 +153,13 @@ type ClusterStatus struct {
 	// APIServerCAHash is a hash of the upstream API server CA, used to detect changes.
 	APIServerCAHash string `json:"apiServerCAHash,omitempty"`
 
+	// AgentTLSMode supports two values: `system-store` and `strict`. If set to
+	// `system-store`, instructs the agent to trust CA bundles from the operating
+	// system's store. If set to `strict`, then the agent shall only connect to a
+	// server which uses the exact CA configured when creating/updating the agent.
+	// +nullable
+	AgentTLSMode string `json:"agentTLSMode,omitempty"`
+
 	// Display contains the number of ready bundles, nodes and a summary state.
 	Display ClusterDisplay `json:"display,omitempty"`
 	// AgentStatus contains information about the agent.
