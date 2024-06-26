@@ -2545,6 +2545,9 @@ spec:
               agentResourcesHash:
                 nullable: true
                 type: string
+              agentTLSMode:
+                nullable: true
+                type: string
               agentTolerationsHash:
                 nullable: true
                 type: string
