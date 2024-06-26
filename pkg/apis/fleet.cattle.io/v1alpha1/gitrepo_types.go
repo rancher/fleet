@@ -311,8 +311,8 @@ type CorrectDrift struct {
 }
 
 type OCIRegistrySpec struct {
-	// URL of the OCI Registry
-	URL string `json:"url,omitempty"`
+	// Reference of the OCI Registry
+	Reference string `json:"reference,omitempty"`
 
 	// AuthSecretName contains the auth secret where the OCI regristry credentials are stored.
 	// +nullable

@@ -339,6 +339,9 @@ type BundleStatus struct {
 	// actual list of resources on a cluster might differ, depending on the
 	// helm chart, value templating, etc..
 	ResourceKey []ResourceKey `json:"resourceKey,omitempty"`
+	// OCIReference is the OCI reference used to store contents, this is
+	// only for informational purposes.
+	OCIReference string `json:"ociReference,omitempty"`
 	// ObservedGeneration is the current generation of the bundle.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`

@@ -75,7 +75,7 @@ var _ = Describe("OCIUtils tests", func() {
 		orasOperatorMock.Target.EXPECT().Push(gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("TEST ERROR")).Times(1)
 
 		opts := OCIOpts{
-			URL: "test.com",
+			Reference: "test.com",
 		}
 		manifest := &manifest.Manifest{
 			Commit: "123456",
@@ -106,7 +106,7 @@ var _ = Describe("OCIUtils tests", func() {
 			oci: orasOperatorMock,
 		}
 		opts := OCIOpts{
-			URL: "test.com",
+			Reference: "test.com",
 		}
 		manifest := &manifest.Manifest{
 			Commit: "123456",
@@ -124,7 +124,7 @@ var _ = Describe("OCIUtils tests", func() {
 	It("returns an error when is unable to connect to the registry", func() {
 		oci := NewOCIWrapper()
 		opts := OCIOpts{
-			URL: "127.0.0.0:2334",
+			Reference: "127.0.0.0:2334",
 		}
 		manifest := &manifest.Manifest{
 			Commit: "123456",
@@ -141,7 +141,7 @@ var _ = Describe("OCIUtils tests", func() {
 	})
 	It("returns an OCI repository with the expected values when using basic HTTP", func() {
 		opts := OCIOpts{
-			URL:       "test.com",
+			Reference: "test.com",
 			BasicHTTP: true,
 		}
 		repo, err := newOCIRepository("1234", opts)
@@ -167,7 +167,7 @@ var _ = Describe("OCIUtils tests", func() {
 	})
 	It("return the expected credentials", func() {
 		opts := OCIOpts{
-			URL:       "test.com",
+			Reference: "test.com",
 			BasicHTTP: true,
 		}
 		client := getAuthClient(opts)
@@ -193,9 +193,9 @@ var _ = Describe("OCIUtils tests", func() {
 			Password: "pass",
 		}))
 	})
-	It("returns an error when using an empty OCI registry url", func() {
+	It("returns an error when using an empty OCI registry reference", func() {
 		opts := OCIOpts{
-			URL: "",
+			Reference: "",
 		}
 		manifest := &manifest.Manifest{
 			Commit: "123456",
@@ -251,7 +251,7 @@ var _ = Describe("OCIUtils tests", func() {
 		}
 
 		opts := OCIOpts{
-			URL: "test.com",
+			Reference: "test.com",
 		}
 		oci := &OCIWrapper{
 			oci: orasOperatorMock,
@@ -294,7 +294,7 @@ var _ = Describe("OCIUtils tests", func() {
 		}
 
 		opts := OCIOpts{
-			URL: "test.com",
+			Reference: "test.com",
 		}
 		oci := &OCIWrapper{
 			oci: orasOperatorMock,
@@ -323,7 +323,7 @@ var _ = Describe("OCIUtils tests", func() {
 		}
 
 		opts := OCIOpts{
-			URL: "test.com",
+			Reference: "test.com",
 		}
 		oci := &OCIWrapper{
 			oci: orasOperatorMock,

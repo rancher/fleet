@@ -9,6 +9,6 @@ spec:
   paths:
   - simple-chart-oci
   ociRegistry:
-    url: {{.OCIUrl}}
+    reference: {{.OCIReference}}
     authSecretName: oci-secret
     insecureSkipTLS: {{.OCIInsecureSkipTLS}}

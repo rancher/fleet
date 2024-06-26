@@ -42,7 +42,7 @@ type Getter interface {
 }
 
 type OCIRegistrySpec struct {
-	URL             string
+	Reference       string
 	Username        string
 	Password        string
 	BasicHTTP       bool
@@ -256,7 +256,7 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts *Options) (
 		return "", err
 	}
 	ociOpts := ociwrapper.OCIOpts{
-		URL:             opts.OCIRegistry.URL,
+		Reference:       opts.OCIRegistry.Reference,
 		Username:        opts.OCIRegistry.Username,
 		Password:        opts.OCIRegistry.Password,
 		BasicHTTP:       opts.OCIRegistry.BasicHTTP,
@@ -278,7 +278,7 @@ func save(ctx context.Context, client Getter, bundle *fleet.Bundle, opts *Option
 
 	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		if opts.OCIRegistry.URL != "" {
+		if opts.OCIRegistry.Reference != "" {
 			if err := saveOCIBundle(ctx, c, bundle, opts); err != nil {
 				return err
 			}
@@ -342,7 +342,7 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 	}
 	// when using the OCI registry manifestID won't be empty
 	// In this case we need to create a secret to store the
-	// OCI registry url and credentials so the fleet controller is
+	// OCI registry reference and credentials so the fleet controller is
 	// able to access.
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -360,7 +360,7 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 			},
 		},
 		Data: map[string][]byte{
-			ociwrapper.OCISecretURL:       []byte(opts.OCIRegistry.URL),
+			ociwrapper.OCISecretReference: []byte(opts.OCIRegistry.Reference),
 			ociwrapper.OCISecretUsername:  []byte(opts.OCIRegistry.Username),
 			ociwrapper.OCISecretPassword:  []byte(opts.OCIRegistry.Password),
 			ociwrapper.OCISecretBasicHTTP: []byte(strconv.FormatBool(opts.OCIRegistry.BasicHTTP)),

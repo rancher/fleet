@@ -107,18 +107,20 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 		}
 	}
 	manifestID, _ := kv.Split(bd.Spec.DeploymentID, ":")
-	var manifest *manifest.Manifest
-	var err error
+	var (
+		manifest *manifest.Manifest
+		err      error
+	)
 	if bd.Spec.OCIContents {
-		// First we need to access the secret where the OCI registry url and credentials are located
+		// First we need to access the secret where the OCI registry reference and credentials are located
 		var secret corev1.Secret
 		secretID := types.NamespacedName{Name: manifestID, Namespace: bd.Namespace}
 		if err := d.upstreamClient.Get(ctx, secretID, &secret); err != nil {
 			return "", err
 		}
-		url, ok := secret.Data[ociwrapper.OCISecretURL]
+		ref, ok := secret.Data[ociwrapper.OCISecretReference]
 		if !ok {
-			return "", fmt.Errorf("expected data [url] not found in secret: %s", manifestID)
+			return "", fmt.Errorf("expected data [reference] not found in secret: %s", manifestID)
 		}
 		username := string(secret.Data[ociwrapper.OCISecretUsername])
 		password := string(secret.Data[ociwrapper.OCISecretPassword])
@@ -131,7 +133,7 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 			return "", fmt.Errorf("value for [ociRegistry.insecure] in secret %s cannot be parsed as boolean", manifestID)
 		}
 		ociOpts := ociwrapper.OCIOpts{
-			URL:             string(url),
+			Reference:       string(ref),
 			Username:        username,
 			Password:        password,
 			BasicHTTP:       basicHttp,

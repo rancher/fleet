@@ -2618,6 +2618,12 @@ spec:
                     bundle.
                   format: int64
                   type: integer
+                ociReference:
+                  description: 'OCIReference is the OCI reference used to store contents,
+                    this is
+
+                    only for informational purposes.'
+                  type: string
                 partitions:
                   description: PartitionStatus lists the status of each partition.
                   items:
@@ -5859,8 +5865,8 @@ spec:
                         without certs when enabled.
                       nullable: true
                       type: boolean
-                    url:
-                      description: URL of the OCI Registry
+                    reference:
+                      description: Reference of the OCI Registry
                       type: string
                   type: object
                 paths:

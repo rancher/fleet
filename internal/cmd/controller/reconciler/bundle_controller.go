@@ -204,9 +204,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	// do not create a content resource if there are no targets, it will
-	// only create work for `PurgeOrphanedInBackground`.
-	if len(matchedTargets) > 0 {
+	if !contentsInOCI && len(matchedTargets) > 0 {
+		// when not using the OCI registry we need to create a contents resource
+		// so the BundleDeployments are able to access the contents to be deployed.
+		// Otherwise, do not create a content resource if there are no targets, it will
+		// only create work for `PurgeOrphanedInBackground`.
 		// `fleet apply` puts all resources into `bundle.Spec.Resources`.
 		// `Store` copies all the resources into the content resource.
 		// There is no pruning of unused resources. Therefore we write
@@ -215,13 +217,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// the `helm.Chart` field, change which resources are used. The
 		// agents have access to all resources and use their specific
 		// set of `BundleDeploymentOptions`.
-		if !contentsInOCI {
-			// when not using the OCI registry we need to create a contents resource
-			// so the BundleDeployments are able to access the contents to be deployed
-			err := r.Store.Store(ctx, resourcesManifest)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
+		err := r.Store.Store(ctx, resourcesManifest)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
 	}
 
@@ -235,18 +233,14 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if contentsInOCI {
-		ociUrl, err := r.getOCIRegistryUrl(ctx, bundle)
+		url, err := r.getOCIReference(ctx, bundle)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		bundle.Status.ResourceKey = []fleet.ResourceKey{
-			{
-				Name: ociUrl,
-			},
-		}
-	} else {
-		setResourceKey(&bundle.Status, matchedTargets)
+		bundle.Status.OCIReference = url
 	}
+
+	setResourceKey(&bundle.Status, matchedTargets)
 
 	summary.SetReadyConditions(&bundle.Status, "Cluster", bundle.Status.Summary)
 	bundle.Status.ObservedGeneration = bundle.Generation
@@ -360,9 +354,9 @@ func (r *BundleReconciler) createDeploymentOCISecret(ctx context.Context, bundle
 	return nil
 }
 
-func (r *BundleReconciler) getOCIRegistryUrl(ctx context.Context, bundle *fleet.Bundle) (string, error) {
+func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bundle) (string, error) {
 	if bundle.Spec.ContentsID == "" {
-		return "", fmt.Errorf("cannot get OCI Url. Bundles's ContentsID is not set")
+		return "", fmt.Errorf("cannot get OCI reference. Bundles's ContentsID is not set")
 	}
 	namespacedName := types.NamespacedName{
 		Namespace: bundle.Namespace,
@@ -372,9 +366,10 @@ func (r *BundleReconciler) getOCIRegistryUrl(ctx context.Context, bundle *fleet.
 	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
 		return "", err
 	}
-	url, ok := ociSecret.Data["url"]
+	ref, ok := ociSecret.Data[ociwrapper.OCISecretReference]
 	if !ok {
-		return "", fmt.Errorf("expected data [url] not found in secret: %s", bundle.Spec.ContentsID)
+		return "", fmt.Errorf("expected data [reference] not found in secret: %s", bundle.Spec.ContentsID)
 	}
-	return fmt.Sprintf("oci://%s/%s:latest", string(url), bundle.Spec.ContentsID), nil
+	// this is not a valid reference, it is only for display
+	return fmt.Sprintf("oci://%s/%s:latest", string(ref), bundle.Spec.ContentsID), nil
 }

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -29,20 +30,20 @@ const (
 
 	OCISecretUsername  = "username"
 	OCISecretPassword  = "password"
-	OCISecretURL       = "url"
+	OCISecretReference = "reference"
 	OCISecretBasicHTTP = "http"
 	OCISecretInsecure  = "insecure"
 )
 
 type OCIOpts struct {
-	URL             string
+	Reference       string
 	Username        string
 	Password        string
 	BasicHTTP       bool
 	InsecureSkipTLS bool
 }
 
-type OrasOpsWrapper interface {
+type OrasOps interface {
 	PackManifest(ctx context.Context, pusher content.Pusher, packManifestVersion oras.PackManifestVersion, artifactType string, opts oras.PackManifestOptions) (ocispec.Descriptor, error)
 	Copy(ctx context.Context, src oras.ReadOnlyTarget, srcRef string, dst oras.Target, dstRef string, opts oras.CopyOptions) (ocispec.Descriptor, error)
 	NewStore() oras.Target
@@ -63,7 +64,7 @@ func (o *OrasOperator) Copy(ctx context.Context, src oras.ReadOnlyTarget, srcRef
 }
 
 type OCIWrapper struct {
-	oci OrasOpsWrapper
+	oci OrasOps
 }
 
 func NewOCIWrapper() *OCIWrapper {
@@ -101,13 +102,24 @@ func getAuthClient(opts OCIOpts) *auth.Client {
 }
 
 func newOCIRepository(id string, opts OCIOpts) (*remote.Repository, error) {
-	repo, err := remote.NewRepository(filepath.Join(opts.URL, id))
+	repo, err := remote.NewRepository(join(opts.Reference, id))
 	if err != nil {
 		return nil, err
 	}
 	repo.PlainHTTP = opts.BasicHTTP
 	repo.Client = getAuthClient(opts)
 	return repo, nil
+}
+
+// join cleans and joins the elements with slash. We avoid filepath.Join, since
+// it uses backslashes on Windows.
+func join(elem ...string) string {
+	for i, e := range elem {
+		if e != "" {
+			return filepath.Clean(strings.Join(elem[i:], "/"))
+		}
+	}
+	return ""
 }
 
 func getDataFromDescriptor(ctx context.Context, store oras.Target, desc ocispec.Descriptor) ([]byte, error) {

@@ -1,7 +1,6 @@
 package singlecluster_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
-	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -117,7 +115,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	var (
 		asset                  string
 		insecureSkipTLS        bool
-		forceGitRepoUrl        string
+		forceGitRepoURL        string
 		k                      kubectl.Command
 		tempDir                string
 		contentsID             string
@@ -154,12 +152,12 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		gitrepo := path.Join(tempDir, "gitrepo.yaml")
-		if forceGitRepoUrl != "" {
-			ociRegistry = forceGitRepoUrl
+		if forceGitRepoURL != "" {
+			ociRegistry = forceGitRepoURL
 		}
 
 		err = testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
-			OCIUrl             string
+			OCIReference       string
 			OCIInsecureSkipTLS bool
 		}{
 			ociRegistry,
@@ -213,7 +211,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			BeforeEach(func() {
 				asset = "single-cluster/test-oci.yaml"
 				insecureSkipTLS = true
-				forceGitRepoUrl = ""
+				forceGitRepoURL = ""
 				experimentalValue = true
 			})
 
@@ -229,22 +227,10 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					return contentsID
 				}).Should(ContainSubstring("s-"))
 			})
-			It("sets Resource key with the oci path to the manifest", func() {
+			It("sets OCI reference status field key with the oci path to the manifest", func() {
 				Eventually(func() bool {
-					out, _ := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.status.resourceKey}`)
-					var existingResourceKeys []fleetv1.ResourceKey
-					err := json.Unmarshal([]byte(out), &existingResourceKeys)
-					if err != nil {
-						return false
-					}
-					// checks that it only creates 1 resource key
-					if len(existingResourceKeys) != 1 {
-						return false
-					}
-					if existingResourceKeys[0].Name != fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID) {
-						return false
-					}
-					return true
+					out, _ := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.status.ociReference}`)
+					return out == fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)
 				}).Should(BeTrue())
 			})
 			It("creates a bundle secret", func() {
@@ -287,7 +273,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			BeforeEach(func() {
 				asset = "single-cluster/test-oci.yaml"
 				insecureSkipTLS = true
-				forceGitRepoUrl = "not-valid-oci-registry.com"
+				forceGitRepoURL = "not-valid-oci-registry.com"
 				experimentalValue = false
 			})
 
@@ -345,7 +331,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			BeforeEach(func() {
 				asset = "single-cluster/test-oci.yaml"
 				insecureSkipTLS = true
-				forceGitRepoUrl = "not-valid-oci-registry.com"
+				forceGitRepoURL = "not-valid-oci-registry.com"
 				experimentalValue = true
 			})
 
@@ -388,7 +374,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			BeforeEach(func() {
 				asset = "single-cluster/test-oci.yaml"
 				insecureSkipTLS = false
-				forceGitRepoUrl = ""
+				forceGitRepoURL = ""
 				experimentalValue = true
 			})
 

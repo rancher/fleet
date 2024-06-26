@@ -51,7 +51,7 @@ type Apply struct {
 	CorrectDrift                bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
 	CorrectDriftForce           bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
 	CorrectDriftKeepFailHistory bool              `usage:"Keep helm history for failed rollbacks" name:"correct-drift-keep-fail-history"`
-	OCIURL                      string            `usage:"OCI Registry URL" name:"oci-url"`
+	OCIReference                string            `usage:"OCI registry reference" name:"oci-reference"`
 	OCIUsername                 string            `usage:"Basic auth username for OCI registry" env:"OCI_USERNAME"`
 	OCIPasswordFile             string            `usage:"Path of file containing basic auth password for OCI registry" name:"oci-password-file"`
 	OCIBasicHTTP                bool              `usage:"Use HTTP to access the OCI regustry" name:"oci-basic-http"`
@@ -177,11 +177,11 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {
 
 // addOCISpecToOpts adds the OCI registry specs (with auth if provided)
 func (a *Apply) addOCISpecToOpts(opts *apply.Options, readFile readFile) error {
-	// returning if the OCI registry url is not defined
-	if a.OCIURL == "" {
+	// returning if the OCI registry reference is not defined
+	if a.OCIReference == "" {
 		return nil
 	}
-	opts.OCIRegistry.URL = a.OCIURL
+	opts.OCIRegistry.Reference = a.OCIReference
 
 	if a.OCIUsername != "" && a.OCIPasswordFile != "" {
 		password, err := readFile(a.OCIPasswordFile)
