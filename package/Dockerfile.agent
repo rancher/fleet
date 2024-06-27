@@ -1,7 +1,7 @@
 ARG BUILD_ENV=dapper
 ARG ARCH
 
-FROM --platform=linux/$ARCH registry.suse.com/bci/bci-busybox:15.5 AS base
+FROM --platform=linux/$ARCH registry.suse.com/bci/bci-busybox:15.6 AS base
 
 FROM base AS copy_dapper
 ONBUILD ARG ARCH
