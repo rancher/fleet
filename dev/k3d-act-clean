@@ -15,14 +15,17 @@ function docker-clean-by-name {
         return
     fi
 
-    ids=$(docker ps -a --filter name="$1" --format "{{.ID}}")
-    if [ -z "$ids" ]; then
-        return
-    fi
+    # only delete `-server` and `-agent` suffixed containers.
+    for suffix in server agent; do
+        ids=$(docker ps -a --filter name="$1-$suffix" --format "{{.ID}}")
+        if [ -z "$ids" ]; then
+            continue
+        fi
 
-    for id in $ids; do
-        docker stop "$id"
-        docker rm "$id"
+        for id in $ids; do
+            docker stop "$id"
+            docker rm "$id"
+        done
     done
 }
 

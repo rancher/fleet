@@ -18,6 +18,17 @@ fi
 
 export GOOS=linux
 
+# The name of the container image created here is a potential source of conflict
+# when fleet is set up simultaneously in multiple sets (i.e. 1 upstream + 0 to n
+# downstream). build-fleet always creates a container image with the same name
+# (`rancher/fleet`, rancher/fleet-agent`) and tag (`dev`). Conflicts can simply
+# be avoided by making sure that the images `rancher/fleet:dev` and
+# `rancher/fleet-agent:dev` are rebuilt from the right context (e.g. git clone,
+# checkout or worktree) before being imported into clusters created for testing
+# that context.  This can be easily achieved by ensuring that, for instance, at
+# most one instance of `./dev/setup-single-cluster` or
+# `./dev/setup-multi-cluster` runs at any given point in time.
+
 # fleet
 go build -gcflags='all=-N -l' -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
 go build -gcflags='all=-N -l' -o bin/fleetcontroller-linux-"$GOARCH" ./cmd/fleetcontroller
