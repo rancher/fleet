@@ -59,18 +59,14 @@ func Get(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, e
 		return nil, err
 	}
 
-	configMap, err := k8s.Core().V1().ConfigMap().Get(namespace, config.AgentConfigName, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		logrus.Warnf("Cannot find %s config map", config.AgentConfigName)
-
-		return nil, err
-	}
-
-	agentConfig, err := config.ReadConfig(configMap)
+	agentConfig, err := config.Lookup(ctx, namespace, config.AgentConfigName, k8s.Core().V1().ConfigMap())
 	if err != nil {
-		logrus.Warnf("Cannot parse %s config map into agent config", config.AgentConfigName)
-
-		return nil, err
+		return nil, fmt.Errorf(
+			"failed to look up client config %s/%s: %w",
+			namespace,
+			config.AgentConfigName,
+			err,
+		)
 	}
 
 	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {
