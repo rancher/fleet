@@ -233,7 +233,7 @@ var _ = Describe("Drift", Ordered, func() {
 					"service", "nginx-service",
 					"-o=json",
 					"--type=json",
-					"-p", `[{"op": "replace", "path": "/spec/ports/0/port", "value": 1234}]`,
+					"-p", `[{"op": "replace", "path": "/spec/ports/0/port", "value": 5678}]`,
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
 				GinkgoWriter.Print(out)

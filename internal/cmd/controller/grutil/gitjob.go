@@ -34,6 +34,11 @@ func NewRole(namespace string, name string) *rbacv1.Role {
 				APIGroups: []string{"fleet.cattle.io"},
 				Resources: []string{"gitrepos"},
 			},
+			{
+				Verbs:     []string{"create"},
+				APIGroups: []string{""},
+				Resources: []string{"secrets"},
+			},
 		},
 	}
 }

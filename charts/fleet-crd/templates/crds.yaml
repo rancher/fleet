@@ -160,6 +160,10 @@ spec:
                   description: DeploymentID is the ID of the currently applied deployment.
                   nullable: true
                   type: string
+                ociContents:
+                  description: OCIContents is true when this deployment's contents
+                    is stored in an oci registry
+                  type: boolean
                 options:
                   description: Options are the deployment options, that are currently
                     applied.
@@ -1261,6 +1265,11 @@ spec:
               type: object
             spec:
               properties:
+                contentsId:
+                  description: ContentsID stores the contents id when deploying contents
+                    using an OCI registry.
+                  nullable: true
+                  type: string
                 correctDrift:
                   description: CorrectDrift specifies how drift correction should
                     work.
@@ -2609,6 +2618,12 @@ spec:
                     bundle.
                   format: int64
                   type: integer
+                ociReference:
+                  description: 'OCIReference is the OCI reference used to store contents,
+                    this is
+
+                    only for informational purposes.'
+                  type: string
                 partitions:
                   description: PartitionStatus lists the status of each partition.
                   items:
@@ -5832,6 +5847,28 @@ spec:
                   description: KeepResources specifies if the resources created must
                     be kept after deleting the GitRepo.
                   type: boolean
+                ociRegistry:
+                  description: OCIRegistry specifies the OCI registry related parameters
+                  properties:
+                    authSecretName:
+                      description: AuthSecretName contains the auth secret where the
+                        OCI regristry credentials are stored.
+                      nullable: true
+                      type: string
+                    basicHTTP:
+                      description: BasicHTTP uses HTTP connections to the OCI registry
+                        when enabled.
+                      nullable: true
+                      type: boolean
+                    insecureSkipTLS:
+                      description: InsecureSkipTLS allows connections to OCI registry
+                        without certs when enabled.
+                      nullable: true
+                      type: boolean
+                    reference:
+                      description: Reference of the OCI Registry
+                      type: string
+                  type: object
                 paths:
                   description: 'Paths is the directories relative to the git repo
                     root that contain resources to be applied.

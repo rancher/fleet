@@ -110,6 +110,10 @@ type BundleSpec struct {
 	// DependsOn refers to the bundles which must be ready before this bundle can be deployed.
 	// +nullable
 	DependsOn []BundleRef `json:"dependsOn,omitempty"`
+
+	// ContentsID stores the contents id when deploying contents using an OCI registry.
+	// +nullable
+	ContentsID string `json:"contentsId,omitempty"`
 }
 
 type BundleRef struct {
@@ -335,6 +339,9 @@ type BundleStatus struct {
 	// actual list of resources on a cluster might differ, depending on the
 	// helm chart, value templating, etc..
 	ResourceKey []ResourceKey `json:"resourceKey,omitempty"`
+	// OCIReference is the OCI reference used to store contents, this is
+	// only for informational purposes.
+	OCIReference string `json:"ociReference,omitempty"`
 	// ObservedGeneration is the current generation of the bundle.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration"`
