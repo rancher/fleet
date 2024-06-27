@@ -215,55 +215,59 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				experimentalValue = true
 			})
 
-			It("creates the bundle", func() {
-				Eventually(func() string {
-					out, _ := k.Namespace("fleet-local").Get("bundles")
-					return out
-				}).Should(ContainSubstring("sample-simple-chart-oci"))
-			})
-			It("sets the ContentsID field in the bundle", func() {
-				Eventually(func() string {
-					contentsID, _ = k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.spec.contentsId}`)
-					return contentsID
-				}).Should(ContainSubstring("s-"))
-			})
-			It("sets OCI reference status field key with the oci path to the manifest", func() {
-				Eventually(func() bool {
-					out, _ := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.status.ociReference}`)
-					return out == fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)
-				}).Should(BeTrue())
-			})
-			It("creates a bundle secret", func() {
-				Eventually(func() string {
-					out, err := k.Namespace("fleet-local").Get("secret", contentsID)
-					if err != nil {
-						// return nothing in case of error
-						// This avoids false positives when kubectl returns "secrets "XXXXX" not found
-						return ""
-					}
-					return out
-				}).Should(ContainSubstring(contentsID))
-			})
-			It("creates a bundledeployment secret", func() {
-				Eventually(func() string {
-					out, err := k.Namespace(downstreamNamespace).Get("secret", contentsID)
-					if err != nil {
-						// return nothing in case of error
-						// This avoids false positives when kubectl returns "secrets "XXXXX" not found
-						return ""
-					}
-					return out
-				}).Should(ContainSubstring(contentsID))
-			})
-			It("does not deploy a contents resource for this chart", func() {
-				out, _ := k.Get("contents")
-				Expect(out).NotTo(ContainSubstring(contentsID))
-			})
-			It("deploys the helm chart", func() {
-				Eventually(func() string {
-					out, _ := k.Namespace("fleet-local").Get("configmaps")
-					return out
-				}).Should(ContainSubstring("sample-config"))
+			It("deploys the bundle", func() {
+				By("creating the bundle", func() {
+					Eventually(func() string {
+						out, _ := k.Namespace("fleet-local").Get("bundles")
+						return out
+					}).Should(ContainSubstring("sample-simple-chart-oci"))
+				})
+				By("setting the ContentsID field in the bundle", func() {
+					Eventually(func() string {
+						contentsID, _ = k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.spec.contentsId}`)
+						return contentsID
+					}).Should(ContainSubstring("s-"))
+				})
+
+				By("setting the OCI reference status field key to the OCI path of the manifest", func() {
+					Eventually(func() bool {
+						out, _ := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.status.ociReference}`)
+						return out == fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)
+					}).Should(BeTrue())
+				})
+				By("creating a bundle secret", func() {
+					Eventually(func() string {
+						out, err := k.Namespace("fleet-local").Get("secret", contentsID)
+						if err != nil {
+							// return nothing in case of error
+							// This avoids false positives when kubectl returns "secrets "XXXXX" not found
+							return ""
+						}
+						return out
+					}).Should(ContainSubstring(contentsID))
+				})
+				By("creating a bundledeployment secret", func() {
+					Eventually(func() string {
+						out, err := k.Namespace(downstreamNamespace).Get("secret", contentsID)
+						if err != nil {
+							// return nothing in case of error
+							// This avoids false positives when kubectl returns "secrets "XXXXX" not found
+							return ""
+						}
+						GinkgoWriter.Printf("BundleDeployment secret: %s\n", out)
+						return out
+					}).Should(ContainSubstring(contentsID))
+				})
+				By("not creating a contents resource for this chart", func() {
+					out, _ := k.Get("contents")
+					Expect(out).NotTo(ContainSubstring(contentsID))
+				})
+				By("deploying the helm chart", func() {
+					Eventually(func() string {
+						out, _ := k.Namespace("fleet-local").Get("configmaps")
+						return out
+					}).Should(ContainSubstring("sample-config"))
+				})
 			})
 		})
 	})
@@ -291,6 +295,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					if contentsID != "" {
 						return false
 					}
+					GinkgoWriter.Printf("ContentsID: %s\n", contentsID)
 
 					// bundle secret should not be created
 					secrets, _ := k.Namespace("fleet-local").Get("secrets", "-o", "custom-columns=NAME:metadata.name", "--no-headers")
