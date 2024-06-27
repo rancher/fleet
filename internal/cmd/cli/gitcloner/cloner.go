@@ -73,12 +73,13 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 
 func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	_, err := plainClone(opts.Path, false, &git.CloneOptions{
-		URL:             opts.Repo,
-		Auth:            auth,
-		InsecureSkipTLS: opts.InsecureSkipTLS,
-		CABundle:        caBundle,
-		SingleBranch:    true,
-		ReferenceName:   plumbing.ReferenceName(opts.Branch),
+		URL:               opts.Repo,
+		Auth:              auth,
+		InsecureSkipTLS:   opts.InsecureSkipTLS,
+		CABundle:          caBundle,
+		SingleBranch:      true,
+		ReferenceName:     plumbing.ReferenceName(opts.Branch),
+		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 	})
 
 	return err
@@ -86,10 +87,11 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 
 func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	r, err := plainClone(opts.Path, false, &git.CloneOptions{
-		URL:             opts.Repo,
-		Auth:            auth,
-		InsecureSkipTLS: opts.InsecureSkipTLS,
-		CABundle:        caBundle,
+		URL:               opts.Repo,
+		Auth:              auth,
+		InsecureSkipTLS:   opts.InsecureSkipTLS,
+		CABundle:          caBundle,
+		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 	})
 	if err != nil {
 		return err
