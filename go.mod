@@ -60,7 +60,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20240620174524-b456828f718b
 	k8s.io/kubectl v0.29.4
 	k8s.io/kubernetes v1.29.4
-	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
+	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
 	oras.land/oras-go/v2 v2.5.0
 	sigs.k8s.io/cli-utils v0.34.0
 	sigs.k8s.io/controller-runtime v0.17.2
