@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/wrangler/v3/pkg/kv"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -94,6 +96,47 @@ func PurgeBundleDeployments(ctx context.Context, c client.Client, bundle types.N
 
 		err := c.Delete(ctx, &bd)
 		if err != nil {
+			return err
+		}
+
+		if err = PurgeContent(ctx, c, bd.Name, bd.Spec.DeploymentID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// PurgeContent tries to delete the content resource related with the given bundle deployment.
+func PurgeContent(ctx context.Context, c client.Client, name, deplID string) error {
+	contentID, _ := kv.Split(deplID, ":")
+	content := &v1alpha1.Content{}
+	if err := c.Get(ctx, types.NamespacedName{Name: contentID}, content); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	nn := types.NamespacedName{Name: content.Name}
+	if controllerutil.ContainsFinalizer(content, name) {
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			if err := c.Get(ctx, nn, content); err != nil {
+				return err
+			}
+
+			logrus.Infof("Removing finalizer %s from content resource %s", name, contentID)
+			controllerutil.RemoveFinalizer(content, name)
+
+			return c.Update(ctx, content)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	hasOtherFinalizers := (len(content.Finalizers) > 1) ||
+		((len(content.Finalizers) == 1) && content.Finalizers[0] != name)
+	if !hasOtherFinalizers {
+		logrus.Infof("Deleting content resource %s", contentID)
+		if err := c.Delete(ctx, content); err != nil {
 			return err
 		}
 	}
