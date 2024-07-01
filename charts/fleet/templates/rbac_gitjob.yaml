@@ -51,6 +51,7 @@ rules:
       - "bundles"
       - "bundledeployments"
       - "imagescans"
+      - "contents"
     verbs:
       - list
       - delete

@@ -207,8 +207,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if !contentsInOCI && len(matchedTargets) > 0 {
 		// when not using the OCI registry we need to create a contents resource
 		// so the BundleDeployments are able to access the contents to be deployed.
-		// Otherwise, do not create a content resource if there are no targets, it will
-		// only create work for `PurgeOrphanedInBackground`.
+		// Otherwise, do not create a content resource if there are no targets.
 		// `fleet apply` puts all resources into `bundle.Spec.Resources`.
 		// `Store` copies all the resources into the content resource.
 		// There is no pruning of unused resources. Therefore we write
@@ -253,7 +252,12 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			continue
 		}
 		if target.Deployment.Namespace == "" {
-			logger.V(1).Info("Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace", "bundledeployment", target.Deployment)
+			logger.V(1).Info(
+				"Skipping bundledeployment with empty namespace, "+
+					"waiting for agentmanagement to set cluster.status.namespace",
+				"bundledeployment",
+				target.Deployment,
+			)
 			continue
 		}
 
@@ -267,8 +271,47 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		bd.Spec.OCIContents = contentsInOCI
 
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			if contentsInOCI {
+				return nil // no contents resources stored in etcd, no finalizers to add here.
+			}
+
+			content := &fleet.Content{}
+			if err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content); err != nil {
+				return client.IgnoreNotFound(err)
+			}
+
+			controllerutil.AddFinalizer(content, bd.Name)
+
+			return r.Update(ctx, content)
+		})
+		if err != nil {
+			logger.Error(err, "Reconcile failed to add content finalizer", "content ID", manifestID)
+		}
+
 		updated := bd.DeepCopy()
 		op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
+			// When this mutation function is called by CreateOrUpdate, bd contains the
+			// _old_ bundle deployment, if any.
+			// The corresponding Content resource must only be deleted if it is no longer in use, ie if the
+			// latest version of the bundle points to a different deployment ID.
+			// An empty value for bd.Spec.DeploymentID means that we are deploying the first version of this
+			// bundle, hence there are no Contents left over to purge.
+			if !bd.Spec.OCIContents &&
+				bd.Spec.DeploymentID != "" &&
+				bd.Spec.DeploymentID != updated.Spec.DeploymentID {
+				if err := finalize.PurgeContent(ctx, r.Client, bd.Name, bd.Spec.DeploymentID); err != nil {
+					logger.Error(
+						err,
+						"Reconcile failed to purge old content resource",
+						"bundledeployment",
+						bd,
+						"deploymentID",
+						bd.Spec.DeploymentID,
+					)
+				}
+			}
+
 			bd.Spec = updated.Spec
 			bd.Labels = updated.GetLabels()
 			return nil
