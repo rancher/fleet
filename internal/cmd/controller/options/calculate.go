@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/v2/pkg/data"
+	"github.com/rancher/wrangler/v3/pkg/data"
 )
 
 // DeploymentID hashes the options to a string

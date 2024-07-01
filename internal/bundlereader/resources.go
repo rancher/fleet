@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/rancher/wrangler/v2/pkg/data"
+	"github.com/rancher/wrangler/v3/pkg/data"
 
 	"sigs.k8s.io/yaml"
 )

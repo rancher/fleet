@@ -15,7 +15,7 @@ import (
 	"github.com/rancher/fleet/internal/manifest"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v2/pkg/yaml"
+	"github.com/rancher/wrangler/v3/pkg/yaml"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 )

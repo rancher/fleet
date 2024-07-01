@@ -16,7 +16,7 @@ import (
 	"github.com/rancher/fleet/internal/fleetyaml"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	name1 "github.com/rancher/wrangler/v2/pkg/name"
+	name1 "github.com/rancher/wrangler/v3/pkg/name"
 
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

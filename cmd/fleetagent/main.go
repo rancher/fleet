@@ -6,7 +6,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/agent"
 
-	"github.com/rancher/wrangler/v2/pkg/signals"
+	"github.com/rancher/wrangler/v3/pkg/signals"
 	"github.com/sirupsen/logrus"
 )
 

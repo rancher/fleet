@@ -19,7 +19,7 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/reugn/go-quartz/quartz"
 
-	"github.com/rancher/wrangler/v2/pkg/name"
+	"github.com/rancher/wrangler/v3/pkg/name"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
