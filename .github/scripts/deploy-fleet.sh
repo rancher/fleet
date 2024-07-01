@@ -3,6 +3,7 @@
 set -euxo pipefail
 
 shards_json=${SHARDS-""}
+node=${NODE-k3d-upstream-server-0}
 
 function eventually {
   for _ in $(seq 1 3); do
@@ -24,7 +25,7 @@ else
   agentTag="dev"
 fi
 
-host=$(kubectl get node k3d-upstream-server-0 -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+host=$(kubectl get node $node -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 ca=$( kubectl config view --flatten -o jsonpath='{.clusters[?(@.name == "k3d-upstream")].cluster.certificate-authority-data}' | base64 -d )
 server="https://$host:6443"
 
