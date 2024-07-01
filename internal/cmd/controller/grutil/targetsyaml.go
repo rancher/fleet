@@ -6,7 +6,7 @@ import (
 	fname "github.com/rancher/fleet/internal/name"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v2/pkg/name"
+	"github.com/rancher/wrangler/v3/pkg/name"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

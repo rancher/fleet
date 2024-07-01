@@ -17,7 +17,7 @@ import (
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	wyaml "github.com/rancher/wrangler/v2/pkg/yaml"
+	wyaml "github.com/rancher/wrangler/v3/pkg/yaml"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"

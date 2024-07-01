@@ -6,8 +6,8 @@ import (
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/manifest"
 
-	"github.com/rancher/wrangler/v2/pkg/data/convert"
-	"github.com/rancher/wrangler/v2/pkg/slice"
+	"github.com/rancher/wrangler/v3/pkg/data/convert"
+	"github.com/rancher/wrangler/v3/pkg/slice"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"

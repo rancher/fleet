@@ -10,8 +10,8 @@ import (
 	cliclient "github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
 
-	"github.com/rancher/wrangler/v2/pkg/generated/controllers/core"
-	"github.com/rancher/wrangler/v2/pkg/generated/controllers/rbac"
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -29,10 +29,10 @@ import (
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/lasso/pkg/mapper"
-	"github.com/rancher/wrangler/v2/pkg/generated/controllers/core"
-	"github.com/rancher/wrangler/v2/pkg/kubeconfig"
-	"github.com/rancher/wrangler/v2/pkg/ratelimit"
-	"github.com/rancher/wrangler/v2/pkg/ticker"
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
+	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
+	"github.com/rancher/wrangler/v3/pkg/ratelimit"
+	"github.com/rancher/wrangler/v3/pkg/ticker"
 )
 
 func NewClusterStatus() *cobra.Command {
