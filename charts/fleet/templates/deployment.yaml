@@ -33,8 +33,6 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        - name: FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS
-          value: {{ quote $.Values.propagateDebugSettingsToAgents }}
         {{- if $.Values.clusterEnqueueDelay }}
         - name: FLEET_CLUSTER_ENQUEUE_DELAY
           value: {{ $.Values.clusterEnqueueDelay }}
@@ -181,6 +179,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS
+          value: {{ quote $.Values.propagateDebugSettingsToAgents }}
         {{- if $.Values.debug }}
         - name: CATTLE_DEV_MODE
           value: "true"
