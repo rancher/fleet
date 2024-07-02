@@ -125,7 +125,11 @@ func Command(obj Runnable, cmd cobra.Command) *cobra.Command {
 			maps[name] = v
 			flags.StringSliceP(name, alias, nil, usage)
 		case reflect.Bool:
-			flags.BoolVarP((*bool)(unsafe.Pointer(v.Addr().Pointer())), name, alias, false, usage)
+			initVal := false
+			if defValue == "true" {
+				initVal = true
+			}
+			flags.BoolVarP((*bool)(unsafe.Pointer(v.Addr().Pointer())), name, alias, initVal, usage)
 		default:
 			panic("Unknown kind on field " + fieldType.Name + " on " + objValue.Type().Name())
 		}
