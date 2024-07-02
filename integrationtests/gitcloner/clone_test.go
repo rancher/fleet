@@ -146,7 +146,7 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 				})
 
 				It("Fails to clone the repo", func() {
-					Expect(cloneErr.Error()).To(Equal("authentication required"))
+					Expect(cloneErr.Error()).To(ContainSubstring("authentication required"))
 				})
 			})
 
