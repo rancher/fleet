@@ -17,8 +17,8 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/docker v26.1.4+incompatible
 	github.com/evanphx/json-patch v5.9.0+incompatible
-	github.com/go-git/go-billy/v5 v5.5.0
-	github.com/go-git/go-git/v5 v5.12.0
+	github.com/go-git/go-billy/v5 v5.5.1-0.20240701174852-839dcd3ad096
+	github.com/go-git/go-git/v5 v5.12.1-0.20240629213349-b00c68ab7140
 	github.com/go-logr/logr v1.4.2
 	github.com/go-playground/webhooks/v6 v6.3.0
 	github.com/gobwas/glob v0.2.3
@@ -101,7 +101,7 @@ require (
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/cpuguy83/dockercfg v0.3.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
-	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
+	github.com/cyphar/filepath-securejoin v0.2.5 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/cli v25.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect

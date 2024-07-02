@@ -117,8 +117,10 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 			client := mocks.NewMockClient(ctlr)
 			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound"))
 			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
-			if err != test.expectedErr {
-				t.Errorf("expected error is: %v, but got %v", test.expectedErr, err)
+			if test.expectedErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.Contains(t, err.Error(), test.expectedErr.Error())
 			}
 			if latestCommit != test.expectedCommit {
 				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
