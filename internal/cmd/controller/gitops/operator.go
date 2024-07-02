@@ -10,6 +10,7 @@ import (
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
+	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/poll"
@@ -86,12 +87,25 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 
 	namespace := g.Namespace
 
+	leaderOpts, err := options.NewLeaderElectionOptions()
+	if err != nil {
+		return err
+	}
+
+	var leaderElectionSuffix string
+	if g.ShardID != "" {
+		leaderElectionSuffix = fmt.Sprintf("-%s", g.ShardID)
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		Metrics:                 g.setupMetrics(),
 		LeaderElection:          g.EnableLeaderElection,
-		LeaderElectionID:        "gitjob-leader",
+		LeaderElectionID:        fmt.Sprintf("fleet-gitops-leader-election-shard%s", leaderElectionSuffix),
 		LeaderElectionNamespace: namespace,
+		LeaseDuration:           leaderOpts.LeaseDuration,
+		RenewDeadline:           leaderOpts.RenewDeadline,
+		RetryPeriod:             leaderOpts.RetryPeriod,
 	})
 
 	if err != nil {

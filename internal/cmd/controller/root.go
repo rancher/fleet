@@ -15,6 +15,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops"
+	"github.com/rancher/fleet/internal/cmd/controller/options"
 
 	"github.com/spf13/cobra"
 
@@ -35,21 +36,6 @@ type FleetManager struct {
 	Namespace      string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
 	DisableMetrics bool   `usage:"disable metrics" name:"disable-metrics"`
 	ShardID        string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
-}
-
-type LeaderElectionOptions struct {
-	// LeaseDuration is the duration that non-leader candidates will
-	// wait to force acquire leadership. This is measured against time of
-	// last observed ack. Default is 15 seconds.
-	LeaseDuration *time.Duration
-
-	// RenewDeadline is the duration that the acting controlplane will retry
-	// refreshing leadership before giving up. Default is 10 seconds.
-	RenewDeadline *time.Duration
-
-	// RetryPeriod is the duration the LeaderElector clients should wait
-	// between tries of actions. Default is 2 seconds.
-	RetryPeriod *time.Duration
 }
 
 type ControllerReconcilerWorkers struct {
@@ -85,35 +71,11 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
 
 	kubeconfig := ctrl.GetConfigOrDie()
-
-	leaderOpts := LeaderElectionOptions{}
-
 	workersOpts := ControllerReconcilerWorkers{}
 
-	if d := os.Getenv("CATTLE_ELECTION_LEASE_DURATION"); d != "" {
-		v, err := time.ParseDuration(d)
-		if err != nil {
-			setupLog.Error(err, "failed to parse CATTLE_ELECTION_LEASE_DURATION", "duration", d)
-			return err
-
-		}
-		leaderOpts.LeaseDuration = &v
-	}
-	if d := os.Getenv("CATTLE_ELECTION_RENEW_DEADLINE"); d != "" {
-		v, err := time.ParseDuration(d)
-		if err != nil {
-			setupLog.Error(err, "failed to parse CATTLE_ELECTION_RENEW_DEADLINE", "duration", d)
-			return err
-		}
-		leaderOpts.RenewDeadline = &v
-	}
-	if d := os.Getenv("CATTLE_ELECTION_RETRY_PERIOD"); d != "" {
-		v, err := time.ParseDuration(d)
-		if err != nil {
-			setupLog.Error(err, "failed to parse CATTLE_ELECTION_RETRY_PERIOD", "duration", d)
-			return err
-		}
-		leaderOpts.RetryPeriod = &v
+	leaderOpts, err := options.NewLeaderElectionOptions()
+	if err != nil {
+		return err
 	}
 
 	bindAddresses := BindAddresses{
