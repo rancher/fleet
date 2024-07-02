@@ -50,7 +50,7 @@ func PurgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 	}
 
 	for _, bundle := range bundles.Items {
-		err := c.Delete(ctx, &bundle)
+		err := c.Delete(ctx, &bundle) // nolint: gosec // does not store pointer
 		if client.IgnoreNotFound(err) != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func PurgeBundleDeployments(ctx context.Context, c client.Client, bundle types.N
 			}
 		}
 
-		err := c.Delete(ctx, &bd)
+		err := c.Delete(ctx, &bd) // nolint: gosec // does not store pointer
 		if err != nil {
 			return err
 		}
@@ -115,7 +115,7 @@ func PurgeImageScans(ctx context.Context, c client.Client, gitrepo types.Namespa
 
 	for _, image := range images.Items {
 		if image.Spec.GitRepoName == gitrepo.Name {
-			err := c.Delete(ctx, &image)
+			err := c.Delete(ctx, &image) // nolint: gosec // does not store pointer
 			if err != nil {
 				return err
 			}
