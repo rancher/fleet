@@ -245,19 +245,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		apiServerCA = cfg.APIServerCA
 	}
 
-	if cfg.AgentTLSMode != config.AgentTLSModeStrict && cfg.AgentTLSMode != config.AgentTLSModeSystemStore {
-		return status,
-			fmt.Errorf(
-				"provided config value for agentTLSMode is none of [%q,%q]",
-				config.AgentTLSModeStrict,
-				config.AgentTLSModeSystemStore,
-			)
-	}
-
-	restConfig, err := i.restConfigFromKubeConfig(
-		secret.Data[config.KubeConfigSecretValueKey],
-		cfg.AgentTLSMode == config.AgentTLSModeSystemStore,
-	)
+	restConfig, err := i.restConfigFromKubeConfig(secret.Data[config.KubeConfigSecretValueKey], cfg.AgentTLSMode)
 	if err != nil {
 		return status, err
 	}
@@ -411,7 +399,15 @@ func isLegacyAgentNamespaceSelectedByUser() bool {
 
 // restConfigFromKubeConfig checks kubeconfig data and tries to connect to server. If server is behind public CA, remove
 // CertificateAuthorityData in kubeconfig file unless strict TLS mode is enabled.
-func (i *importHandler) restConfigFromKubeConfig(data []byte, trustSystemStoreCAs bool) (*rest.Config, error) {
+func (i *importHandler) restConfigFromKubeConfig(data []byte, agentTLSMode string) (*rest.Config, error) {
+	if agentTLSMode != config.AgentTLSModeStrict && agentTLSMode != config.AgentTLSModeSystemStore {
+		return nil, fmt.Errorf(
+			"provided config value for agentTLSMode is none of [%q,%q]",
+			config.AgentTLSModeStrict,
+			config.AgentTLSModeSystemStore,
+		)
+	}
+
 	clientConfig, err := clientcmd.NewClientConfigFromBytes(data)
 	if err != nil {
 		return nil, err
@@ -422,7 +418,7 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte, trustSystemStoreCA
 		return nil, err
 	}
 
-	if trustSystemStoreCAs && raw.Contexts[raw.CurrentContext] != nil {
+	if agentTLSMode == config.AgentTLSModeSystemStore && raw.Contexts[raw.CurrentContext] != nil {
 		cluster := raw.Contexts[raw.CurrentContext].Cluster
 		if raw.Clusters[cluster] != nil {
 			if _, err := http.Get(raw.Clusters[cluster].Server); err == nil {
