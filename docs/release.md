@@ -15,29 +15,25 @@ If a bug fix needs to be brought into a release, such as during the release cand
 
 After merge verify that the Github Action test runs for the release branch were successful.
 
----
+## When do we branch?
 
-## Pre-Release
+We branch the next release branch release/v0.x from master only, when we start on 0.x+1 features. This should keep the distance between both branches to a minimum.
 
-1. Ensure that all modules are at their desired versions in `go.mod`
-1. Ensure that all nested and external images are at their desired versions (check `charts/` as well, and you can the following [ripgrep](https://github.com/BurntSushi/ripgrep) command at the root of the repository to see all images used: `rg "repository:" -A 1 | rg "tag:" -B 1`
-1. Run `go mod tidy` and `go generate` and ensure that `git status` is clean
-1. Determine the tag for the next intended release (must be valid [SemVer](https://semver.org/) prepended with `v`)
+We have to make sure all the QA relevant commits are part of the release plan and their issues have the correct milestone, etc.
 
-## Release Candidates
+```
+% git merge-base master release/v0.6                                                                  
+2312ff8f8823320629769f9ab408472ed58c2442
+% git log 2312ff8f8823320629769f9ab408472ed58c2442..master
+```
 
-1. Checkout the release branch (e.g., `release-0.4`) or create it based off of the latest `main` branch. The branch name should be the first 2 parts of the semantic version with `release-` prepended.
-1. Use `git tag` and append the tag from the **Pre-Release** section with `-rcX` where `X` is an unsigned integer that starts with `1` (if `-rcX` already exists, increment `X` by one)
+After branching, we cherry pick PRs with separate issues for QA. The issues should use '[v0.x]' in their title.
 
-## Full Releases
+## What else to do after a release
 
-1. Open a draft release on the GitHub releases page
-1. Send draft link to maintainers with view permissions to ensure that contents are valid
-1. Create GitHub release and create a new tag on the appropriate release branch while doing so (using the tag from the **Pre-Release** section)
+More detailed instructions, e.g. how to use the release workflows and interact with the rancher/charts repo are in the Wiki.
 
-## Post-Release
-
-1. Pull Fleet images from DockerHub to ensure manifests work as expected
-1. Open a PR in [rancher/charts](https://github.com/rancher/charts) that ensures every Fleet-related chart is using the new RC (branches and number of PRs is dependent on Rancher)
-
-
+* generate release notes, make sure all changes are included since last release
+* edit release notes, only user issues that are relevant to users, fix spelling, capitalization
+* update versioned docs in fleet-docs with yarn
+* adapt CI so scheduled test are run for new version
