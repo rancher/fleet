@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
@@ -130,23 +131,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if bundle.DeletionTimestamp.IsZero() {
-		if !controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
-			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
-					return err
-				}
-
-				controllerutil.AddFinalizer(bundle, bundleFinalizer)
-
-				return r.Update(ctx, bundle)
-			})
-
-			if client.IgnoreNotFound(err) != nil {
-				return ctrl.Result{}, err
-			}
-		}
-	} else {
+	if !bundle.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
 			metrics.BundleCollector.Delete(req.Name, req.Namespace)
 
@@ -175,7 +160,29 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	logger.V(1).Info("Reconciling bundle, checking targets, calculating changes, building objects", "generation", bundle.Generation, "observedGeneration", bundle.Status.ObservedGeneration)
+	if !controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
+				return err
+			}
+
+			controllerutil.AddFinalizer(bundle, bundleFinalizer)
+
+			return r.Update(ctx, bundle)
+		})
+
+		if client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	logger.V(1).Info(
+		"Reconciling bundle, checking targets, calculating changes, building objects",
+		"generation",
+		bundle.Generation,
+		"observedGeneration",
+		bundle.Status.ObservedGeneration,
+	)
 
 	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
 	manifestID := bundle.Spec.ContentsID
@@ -217,8 +224,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// the `helm.Chart` field, change which resources are used. The
 		// agents have access to all resources and use their specific
 		// set of `BundleDeploymentOptions`.
-		err := r.Store.Store(ctx, resourcesManifest)
-		if err != nil {
+		if err := r.Store.Store(ctx, resourcesManifest); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -249,35 +255,10 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// DependsOn with the bundle's DependsOn (pure function) and replacing
 	// the labels with the bundle's labels
 	for _, target := range matchedTargets {
-		if target.Deployment == nil {
-			continue
-		}
-		if target.Deployment.Namespace == "" {
-			logger.V(1).Info("Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace", "bundledeployment", target.Deployment)
-			continue
-		}
-
-		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
-		// copy labels from Bundle as they might have changed
-		bd := target.BundleDeployment()
-
-		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
-		// been created.
-		controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
-
-		bd.Spec.OCIContents = contentsInOCI
-
-		updated := bd.DeepCopy()
-		op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
-			bd.Spec = updated.Spec
-			bd.Labels = updated.GetLabels()
-			return nil
-		})
-		if err != nil && !apierrors.IsAlreadyExists(err) {
-			logger.Error(err, "Reconcile failed to create or update bundledeployment", "bundledeployment", bd, "operation", op)
+		bd, err := r.createBundle(ctx, logger, target, contentsInOCI)
+		if err != nil {
 			return ctrl.Result{}, err
 		}
-		logger.V(1).Info(upper(op)+" bundledeployment", "bundledeployment", bd, "operation", op)
 
 		if contentsInOCI {
 			// we need to create the OCI registry credentials secret in the BundleDeployment's namespace
@@ -291,8 +272,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.Bundle{}
-		err := r.Get(ctx, req.NamespacedName, t)
-		if err != nil {
+		if err := r.Get(ctx, req.NamespacedName, t); err != nil {
 			return err
 		}
 		t.Status = bundle.Status
@@ -322,6 +302,57 @@ func upper(op controllerutil.OperationResult) string {
 	default:
 		return "Unknown"
 	}
+}
+
+func (r *BundleReconciler) createBundle(
+	ctx context.Context,
+	logger logr.Logger,
+	target *target.Target,
+	contentsInOCI bool,
+) (*fleet.BundleDeployment, error) {
+	if target.Deployment == nil {
+		return nil, nil
+	}
+	if target.Deployment.Namespace == "" {
+		logger.V(1).Info(
+			"Skipping bundledeployment with empty namespace, "+
+				"waiting for agentmanagement to set cluster.status.namespace",
+			"bundledeployment",
+			target.Deployment,
+		)
+		return nil, nil
+	}
+
+	// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
+	// copy labels from Bundle as they might have changed
+	bd := target.BundleDeployment()
+
+	// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
+	// been created.
+	controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
+
+	bd.Spec.OCIContents = contentsInOCI
+
+	updated := bd.DeepCopy()
+	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
+		bd.Spec = updated.Spec
+		bd.Labels = updated.GetLabels()
+		return nil
+	})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		logger.Error(
+			err,
+			"Reconcile failed to create or update bundledeployment",
+			"bundledeployment",
+			bd,
+			"operation",
+			op,
+		)
+		return nil, err
+	}
+	logger.V(1).Info(upper(op)+" bundledeployment", "bundledeployment", bd, "operation", op)
+
+	return bd, nil
 }
 
 func (r *BundleReconciler) createDeploymentOCISecret(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
