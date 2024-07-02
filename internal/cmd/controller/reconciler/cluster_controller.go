@@ -145,7 +145,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		for _, bd := range bundleDeployments.Items {
 			if bd.Labels[fleet.BundleLabel] == bundle.Name && bd.Labels[fleet.BundleNamespaceLabel] == bundle.Namespace {
 				logger.V(1).Info("cleaning up bundleDeployment not matching the cluster", "bundledeployment", bd)
-				err := r.Delete(ctx, &bd)
+				err := r.Delete(ctx, &bd) // nolint: gosec // does not store pointer
 				if err != nil {
 					logger.V(1).Error(err, "deleting bundleDeployment returned an error")
 				}
