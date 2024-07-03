@@ -22,7 +22,7 @@ import (
 	"github.com/rancher/fleet/internal/ociwrapper"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v2/pkg/yaml"
+	"github.com/rancher/wrangler/v3/pkg/yaml"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

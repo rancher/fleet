@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rancher/wrangler/v2/pkg/ratelimit"
+	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 
 	corev1 "k8s.io/api/core/v1"
 	apierror "k8s.io/apimachinery/pkg/api/errors"

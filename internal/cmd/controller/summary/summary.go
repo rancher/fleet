@@ -9,8 +9,8 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v2/pkg/condition"
-	"github.com/rancher/wrangler/v2/pkg/genericcondition"
+	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 )
 
 // IncrementState increments counters in the BundleSummary. We store up to 10 non ready resources in the summary, with the bundldedeployment's state.

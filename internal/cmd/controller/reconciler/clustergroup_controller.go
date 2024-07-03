@@ -15,7 +15,7 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
-	"github.com/rancher/wrangler/v2/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/condition"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

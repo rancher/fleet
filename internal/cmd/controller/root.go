@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
-	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops"
 
 	"github.com/spf13/cobra"
@@ -56,16 +55,9 @@ var (
 	}
 )
 
-func (r *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
-	if err := r.SetupDebug(); err != nil {
+func (f *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
+	if err := f.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
-	}
-
-	// if debug is enabled in controller, enable in agents too (unless otherwise specified)
-	propagateDebug, _ := strconv.ParseBool(os.Getenv("FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS"))
-	if propagateDebug && r.Debug {
-		agent.DebugEnabled = true
-		agent.DebugLevel = r.DebugLevel
 	}
 
 	return nil

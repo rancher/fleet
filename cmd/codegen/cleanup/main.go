@@ -5,7 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/wrangler/v2/pkg/cleanup"
+	"github.com/rancher/wrangler/v3/pkg/cleanup"
 )
 
 func main() {

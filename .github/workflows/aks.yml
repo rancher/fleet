@@ -125,8 +125,10 @@ jobs:
         name: Deploy Fleet
         run: |
           export KUBECONFIG="$GITHUB_WORKSPACE/kubeconfig-fleet-ci"
+          kc_node=$(kubectl get nodes --no-headers -o name | head -n 1)
+          node=${kc_node#node/}
           echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
-          SHARDS='[{"id":"shard0"},{"id":"shard1"},{"id":"shard2"}]' ./.github/scripts/deploy-fleet.sh \
+          NODE=$node SHARDS='[{"id":"shard0"},{"id":"shard1"},{"id":"shard2"}]' ./.github/scripts/deploy-fleet.sh \
                                        ${{ steps.meta-fleet.outputs.tags }} \
                                        ${{ steps.meta-fleet-agent.outputs.tags }}
       -

@@ -16,7 +16,7 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
-	"github.com/rancher/wrangler/v2/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/condition"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"

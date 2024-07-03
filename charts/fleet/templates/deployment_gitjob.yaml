@@ -100,6 +100,11 @@ spec:
 {{- if $.Values.nodeSelector }}
 {{ toYaml $.Values.nodeSelector | indent 8 }}
 {{- end }}
+{{- if $shard.nodeSelector -}}
+{{- range $key, $value := $shard.nodeSelector }}
+{{ $key | indent 8}}: {{ $value }}
+{{- end }}
+{{- end }}
       tolerations: {{ include "linux-node-tolerations" $shard.id | nindent 8 }}
 {{- if $.Values.tolerations }}
 {{ toYaml $.Values.tolerations | indent 8 }}

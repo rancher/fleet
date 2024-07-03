@@ -5,10 +5,10 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers"
 
-	"github.com/rancher/wrangler/v2/pkg/kubeconfig"
-	"github.com/rancher/wrangler/v2/pkg/leader"
-	"github.com/rancher/wrangler/v2/pkg/ratelimit"
-	"github.com/rancher/wrangler/v2/pkg/schemes"
+	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
+	"github.com/rancher/wrangler/v3/pkg/leader"
+	"github.com/rancher/wrangler/v3/pkg/ratelimit"
+	"github.com/rancher/wrangler/v3/pkg/schemes"
 
 	"github.com/sirupsen/logrus"
 

@@ -21,11 +21,11 @@ import (
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v2/pkg/apply"
-	corecontrollers "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
-	"github.com/rancher/wrangler/v2/pkg/name"
-	"github.com/rancher/wrangler/v2/pkg/randomtoken"
-	"github.com/rancher/wrangler/v2/pkg/yaml"
+	"github.com/rancher/wrangler/v3/pkg/apply"
+	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
+	"github.com/rancher/wrangler/v3/pkg/name"
+	"github.com/rancher/wrangler/v3/pkg/randomtoken"
+	"github.com/rancher/wrangler/v3/pkg/yaml"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -9,8 +9,8 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
 
-	"github.com/rancher/wrangler/v2/pkg/kv"
-	"github.com/rancher/wrangler/v2/pkg/yaml"
+	"github.com/rancher/wrangler/v3/pkg/kv"
+	"github.com/rancher/wrangler/v3/pkg/yaml"
 )
 
 func (h *Helm) EnsureInstalled(bundleID, resourcesID string) (bool, error) {
