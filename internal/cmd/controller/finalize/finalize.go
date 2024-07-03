@@ -50,14 +50,14 @@ func PurgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 	}
 
 	for _, bundle := range bundles.Items {
-		err := c.Delete(ctx, &bundle)
-		if client.IgnoreNotFound(err) != nil {
-			return err
-		}
-
 		nn := types.NamespacedName{Namespace: bundle.Namespace, Name: bundle.Name}
 		if err = PurgeBundleDeployments(ctx, c, nn); err != nil {
 			return client.IgnoreNotFound(err)
+		}
+
+		err := c.Delete(ctx, &bundle)
+		if client.IgnoreNotFound(err) != nil {
+			return err
 		}
 	}
 
