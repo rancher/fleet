@@ -1,0 +1,190 @@
+---
+version: 2
+
+project_name: fleet
+release:
+  prerelease: auto
+
+before:
+  hooks:
+    - go mod download
+
+archives:
+  - id: fleet-controller
+    format: binary
+    name_template: "{{ .Binary }}"
+    builds:
+      - fleet-controller
+
+  - id: fleet-agent
+    format: binary
+    name_template: "{{ .Binary }}"
+    builds:
+      - fleet-agent
+
+  - id: fleet-cli
+    format: binary
+    name_template: "{{ .Binary }}"
+    builds:
+      - fleet-cli
+
+builds:
+  -
+    id: fleet-controller
+    main: ./cmd/fleetcontroller
+    binary: fleetcontroller-{{ .Os }}-{{ .Arch }}{{ if .Arm }}64{{ end }}
+    no_unique_dist_dir: true
+    # gcflags:
+    #   - all="-N -l"
+    ldflags:
+      - -w -s
+      - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
+      - -X github.com/rancher/fleet/pkg/version.Version={{ .Tag }}
+    targets:
+    - linux_amd64_v1
+    - linux_arm64
+  -
+    id: fleet-agent
+    main: ./cmd/fleetagent
+    binary: fleetagent-{{ .Os }}-{{ .Arch }}{{ if .Arm }}64{{ end }}
+    no_unique_dist_dir: true
+    ldflags:
+      - -w -s
+      - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
+      - -X github.com/rancher/fleet/pkg/version.Version={{ .Tag }}
+    targets:
+    - linux_amd64_v1
+    - linux_arm64
+    - windows_amd64
+  -
+    id: fleet-cli
+    main: ./cmd/fleetcli
+    binary: fleet-{{ .Os }}-{{ .Arch }}{{ if .Arm }}64{{ end }}
+    no_unique_dist_dir: true
+    ldflags:
+      - -w -s
+      - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
+      - -X github.com/rancher/fleet/pkg/version.Version={{ .Tag }}
+    targets:
+    - linux_amd64_v1
+    - linux_arm64
+    - windows_amd64
+
+changelog:
+  ## Delegate Changelog to release-drafter
+  disable: false
+  use: github
+
+env:
+  - CGO_ENABLED=0
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+dockers:
+  # fleet-controller images
+  -
+    use: buildx
+
+    # GOOS of the built binaries/packages that should be used.
+    goos: linux
+
+    # GOARCH of the built binaries/packages that should be used.
+    goarch: amd64
+
+    # IDs to filter the binaries/packages.
+    ids:
+    - fleet-controller
+
+    # Templates of the Docker image names.
+    image_templates:
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
+
+    # Path to the Dockerfile (from the project root).
+    dockerfile: package/Dockerfile
+
+    # Template of the docker build flags.
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=ARCH=amd64"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/amd64"
+  -
+    use: buildx
+    goos: linux
+    goarch: arm64
+    ids:
+    - fleet-controller
+    image_templates:
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
+    dockerfile: package/Dockerfile
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=ARCH=arm64"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/arm64/v8"
+  # fleet-agent images
+  -
+    use: buildx
+    goos: linux
+    goarch: amd64
+    ids:
+    - fleet-agent
+    - fleet-cli
+    image_templates:
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    dockerfile: package/Dockerfile.agent
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=ARCH=amd64"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/amd64"
+    extra_files: [ "package/log.sh" ]
+  -
+    use: buildx
+    goos: linux
+    goarch: arm64
+    ids:
+    - fleet-agent
+    - fleet-cli
+    image_templates:
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    dockerfile: package/Dockerfile.agent
+    build_flag_templates:
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source=https://github.com/rancher/fleet"
+    - "--build-arg=ARCH=arm64"
+    - "--build-arg=BUILD_ENV=goreleaser"
+    - "--platform=linux/arm64/v8"
+    extra_files: [ "package/log.sh" ]
+
+docker_manifests:
+  # https://goreleaser.com/customization/docker_manifest/
+  - name_template: "docker.io/rancher/fleet:{{ .Tag }}"
+    image_templates:
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
+
+  - name_template: "docker.io/rancher/fleet-agent:{{ .Tag }}"
+    image_templates:
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
