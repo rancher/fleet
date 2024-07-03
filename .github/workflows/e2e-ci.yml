@@ -29,6 +29,11 @@ jobs:
           # https://hub.docker.com/r/rancher/k3s/tags
           - v1.29.0-k3s1
           - v1.24.17-k3s1
+        test_type:
+          - name: default
+          - name: sharding
+            shards: '[{"id":"shard0"},{"id":"shard1"},{"id":"shard2"}]'
+          - name: infra-setup
     steps:
       -
         uses: actions/checkout@v4
@@ -43,17 +48,17 @@ jobs:
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
-        name: Build Fleet Binaries
+        name: Build Fleet
         run: |
           ./.github/scripts/build-fleet-binaries.sh
-
-          cd e2e/testenv/infra
-          go build
-      -
-        name: Build Docker Images
-        run: |
           ./.github/scripts/build-fleet-images.sh
-
+      -
+        name: Build Infra Tool
+        if: ${{ matrix.test_type.name == 'infra-setup' }}
+        run: |
+          pushd e2e/testenv/infra
+          go build
+          popd
           cd e2e/assets/gitrepo
           # Buildkit needed here for proper here-document support
           DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
@@ -81,17 +86,36 @@ jobs:
           limit-access-to-actor: true
       -
         name: Deploy Fleet
+        env:
+          SHARDS: ${{ matrix.test_type.shards }}
         run: |
-          SHARDS='[{"id":"shard0"},{"id":"shard1"},{"id":"shard2"}]' ./.github/scripts/deploy-fleet.sh
+          ./.github/scripts/deploy-fleet.sh
       -
-        name: Create Zot certificates for OCI tests
+        name: E2E Tests
+        if: ${{ matrix.test_type.name == 'default' }}
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          # Generate cert and key for TLS
+          ginkgo --github-output --label-filter='!infra-setup && !sharding' e2e/single-cluster e2e/keep-resources e2e/drift
+      -
+        name: E2E Sharding/Metrics Tests
+        if: ${{ matrix.test_type.name == 'sharding' }}
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
+          ginkgo --github-output --label-filter='sharding' e2e/single-cluster
+          ginkgo --github-output e2e/metrics
+          SHARD=shard1 ginkgo --github-output e2e/metrics
+      -
+        name: Create Zot certificates for OCI tests
+        if: ${{ matrix.test_type.name == 'infra-setup' }}
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
           ./.github/scripts/create-zot-certs.sh "FleetCI-RootCA"
       -
-        name: E2E Tests
+        name: E2E Infra Tests
+        if: ${{ matrix.test_type.name == 'infra-setup' }}
         env:
           FLEET_E2E_NS: fleet-local
           # Git and OCI credentials are here used in a local, ephemeral environment. Leaks would be harmless.
@@ -103,33 +127,25 @@ jobs:
         run: |
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
 
-          # 1. Run test cases not needing infra
-          ginkgo --github-output --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources e2e/drift
-
-          # 2. Run tests for metrics
-          ginkgo --github-output e2e/metrics
-          SHARD=shard1 ginkgo --github-output e2e/metrics
-
-          # 3. Run tests requiring only the git server
+          # Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
           ginkgo --github-output --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
 
-          # 4. Run tests requiring a Helm registry
+          # Run tests requiring a Helm registry
           e2e/testenv/infra/infra setup --helm-registry=true
           ginkgo --github-output --label-filter='helm-registry' e2e/single-cluster
 
           e2e/testenv/infra/infra teardown --helm-registry=true
 
-          # 5. Run tests requiring an OCI registry
+          # Run tests requiring an OCI registry
           e2e/testenv/infra/infra setup --oci-registry=true
           ginkgo --github-output --label-filter='oci-registry' e2e/single-cluster
 
-          # 6. Tear down all infra
           e2e/testenv/infra/infra teardown
-
       -
         name: Acceptance Tests for Examples
         if: >
+          matrix.test_type.name == 'default' &&
           github.event_name == 'schedule'
         env:
           FLEET_E2E_NS: fleet-local
@@ -139,6 +155,7 @@ jobs:
         name: Fleet Tests Requiring Github Secrets
         # These tests can't run for PRs, because PRs don't have access to the secrets
         if: >
+          matrix.test_type.name == 'default' &&
           github.event_name != 'pull_request' &&
           github.repository == 'rancher/fleet'
 

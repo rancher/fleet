@@ -6,6 +6,7 @@ import (
 
 	"github.com/reugn/go-quartz/quartz"
 
+	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
@@ -35,7 +36,7 @@ func start(
 	ctx context.Context,
 	systemNamespace string,
 	config *rest.Config,
-	leaderOpts LeaderElectionOptions,
+	leaderOpts cmd.LeaderElectionOptions,
 	workersOpts ControllerReconcilerWorkers,
 	bindAddresses BindAddresses,
 	disableMetrics bool,

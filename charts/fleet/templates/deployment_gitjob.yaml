@@ -57,6 +57,18 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+          {{- if $.Values.leaderElection.leaseDuration }}
+            - name: CATTLE_ELECTION_LEASE_DURATION
+              value: {{$.Values.leaderElection.leaseDuration}}
+          {{- end }}
+          {{- if $.Values.leaderElection.retryPeriod }}
+            - name: CATTLE_ELECTION_RETRY_PERIOD
+              value: {{$.Values.leaderElection.retryPeriod}}
+          {{- end }}
+          {{- if $.Values.leaderElection.renewDeadline }}
+            - name: CATTLE_ELECTION_RENEW_DEADLINE
+              value: {{$.Values.leaderElection.renewDeadline}}
+          {{- end }}
           {{- if $.Values.proxy }}
             - name: HTTP_PROXY
               value: {{ $.Values.proxy }}
@@ -87,6 +99,11 @@ spec:
       nodeSelector: {{ include "linux-node-selector" $shard.id | nindent 8 }}
 {{- if $.Values.nodeSelector }}
 {{ toYaml $.Values.nodeSelector | indent 8 }}
+{{- end }}
+{{- if $shard.nodeSelector -}}
+{{- range $key, $value := $shard.nodeSelector }}
+{{ $key | indent 8}}: {{ $value }}
+{{- end }}
 {{- end }}
       tolerations: {{ include "linux-node-tolerations" $shard.id | nindent 8 }}
 {{- if $.Values.tolerations }}
