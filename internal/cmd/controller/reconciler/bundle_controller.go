@@ -260,7 +260,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 
-		if contentsInOCI {
+		if bd != nil && contentsInOCI {
 			// we need to create the OCI registry credentials secret in the BundleDeployment's namespace
 			if err := r.createDeploymentOCISecret(ctx, bundle, bd); err != nil {
 				return ctrl.Result{}, err
