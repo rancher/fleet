@@ -227,6 +227,12 @@ type BundleTarget struct {
 	ClusterGroupSelector *metav1.LabelSelector `json:"clusterGroupSelector,omitempty"`
 	// DoNotDeploy if set to true, will not deploy to this target.
 	DoNotDeploy bool `json:"doNotDeploy,omitempty"`
+	// NamespaceLabels are labels that will be appended to the namespace created by Fleet.
+	// +nullable
+	NamespaceLabels *map[string]string `json:"namespaceLabels,omitempty"`
+	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
+	// +nullable
+	NamespaceAnnotations *map[string]string `json:"namespaceAnnotations,omitempty"`
 }
 
 // BundleSummary contains the number of bundle deployments in each state and a
