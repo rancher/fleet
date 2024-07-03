@@ -59,12 +59,12 @@ func (cs *ClusterStatus) PersistentPre(cmd *cobra.Command, _ []string) error {
 	if err := cs.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
+	zopts = cs.OverrideZapOpts(zopts)
 	return nil
 }
 
 func (cs *ClusterStatus) Run(cmd *cobra.Command, args []string) error {
-	zopts.Development = cs.Debug
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	var err error

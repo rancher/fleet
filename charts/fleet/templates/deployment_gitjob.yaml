@@ -44,6 +44,8 @@ spec:
           - "{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
           {{- if $.Values.debug }}
           - --debug
+          - --debug-level
+          - {{ quote $.Values.debugLevel }}
           {{- end }}
           {{- if $shard.id }}
           - --shard-id
