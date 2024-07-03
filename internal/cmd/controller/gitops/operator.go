@@ -74,13 +74,12 @@ func (g *GitOperator) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := g.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
+	zopts = g.OverrideZapOpts(zopts)
 
 	return nil
 }
 
 func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
-	// TODO for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
-	zopts.Development = g.Debug
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("gitjob-reconciler"))
 

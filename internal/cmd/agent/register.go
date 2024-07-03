@@ -39,12 +39,12 @@ func (r *Register) PersistentPre(cmd *cobra.Command, _ []string) error {
 	if err := r.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
+	zopts = r.OverrideZapOpts(zopts)
 	return nil
 }
 
 func (r *Register) Run(cmd *cobra.Command, args []string) error {
-	zopts.Development = r.Debug
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	clientConfig := kubeconfig.GetNonInteractiveClientConfig(r.Kubeconfig)
