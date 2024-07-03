@@ -16,7 +16,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops"
-	"github.com/rancher/fleet/internal/cmd/controller/options"
 
 	"github.com/spf13/cobra"
 
@@ -81,7 +80,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 	kubeconfig := ctrl.GetConfigOrDie()
 	workersOpts := ControllerReconcilerWorkers{}
 
-	leaderOpts, err := options.NewLeaderElectionOptions()
+	leaderOpts, err := command.NewLeaderElectionOptions()
 	if err != nil {
 		return err
 	}
