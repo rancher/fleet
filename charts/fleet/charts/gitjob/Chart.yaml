@@ -1,5 +1,5 @@
 apiVersion: v2
-appVersion: 0.9.8
+appVersion: 0.9.10
 description: Controller that run jobs based on git events
 name: gitjob
-version: 0.9.8
+version: 0.9.10
