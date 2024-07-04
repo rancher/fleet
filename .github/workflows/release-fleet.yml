@@ -1,0 +1,119 @@
+# Fleet release workflow
+name: Fleet release
+
+on:
+  push:
+    tags:
+      - v**
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write # this is important, it's how we authenticate with Vault
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+  SETUP_K3D_VERSION: 'v5.5.1'
+
+jobs:
+  build-fleet:
+    runs-on: ubuntu-latest
+    if: github.repository == 'rancher/fleet'
+    steps:
+      - name: Check out Fleet
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+
+      - name: "Read Vault Secrets"
+        uses: rancher-eio/read-vault-secrets@main
+        with:
+          secrets: |
+            secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
+            secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
+            secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
+
+      - name: Run FOSSA scan
+        uses: fossas/fossa-action@v1.3.3
+        with:
+          api-key: ${{ env.FOSSA_API_KEY }}
+
+      - name: Run FOSSA tests
+        uses: fossas/fossa-action@v1.3.3
+        with:
+          api-key: ${{ env.FOSSA_API_KEY }}
+          run-tests: false
+
+      - name: Check for code changes
+        run: |
+          ./.github/scripts/check-for-auto-generated-changes.sh
+          go mod verify
+
+      - name: Run unit tests
+        run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests)
+
+      - name: Install Ginkgo CLI
+        run: go install github.com/onsi/ginkgo/v2/ginkgo
+
+      - name: Run integration tests
+        env:
+          SETUP_ENVTEST_VER: v0.0.0-20240115093953-9e6e3b144a69
+          ENVTEST_K8S_VERSION: 1.28
+        run: ./.github/scripts/run-integration-tests.sh
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into Docker Container registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        id: goreleaser
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --verbose
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload charts to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          repo: "rancher"
+        run: |
+          version=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.version')
+          tag=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.tag')
+          echo "publishing helm chart for (repo: $repo, tag: $tag, version: $version)"
+
+          # Replace rancher/fleet, rancher/fleet-agent and rancher/gitjob image names, but not eg. rancher/kubectl
+          sed -i \
+              -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
+              -e "s/tag:.*/tag: $tag/" \
+              charts/fleet/values.yaml
+
+          sed -i \
+              -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
+              -e "s/tag: dev/tag: $tag/" \
+              charts/fleet-agent/values.yaml
+
+          helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet
+          helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-crd
+          helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-agent
+
+          for f in $(find dist/ -name '*.tgz'); do
+            gh release upload $tag $f
+          done
