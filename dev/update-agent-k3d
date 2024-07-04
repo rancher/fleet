@@ -12,7 +12,6 @@ export GOARCH="${GOARCH:-amd64}"
 export CGO_ENABLED=0
 
 # fleet agent
-go build -gcflags='all=-N -l' -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
 go build -gcflags='all=-N -l' -o "bin/fleetagent-linux-$GOARCH" ./cmd/fleetagent
 docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
 
