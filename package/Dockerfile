@@ -1,7 +1,7 @@
 ARG BUILD_ENV=dapper
 ARG ARCH
 
-FROM --platform=linux/$ARCH registry.suse.com/bci/bci-base:15.5 AS base
+FROM --platform=linux/$ARCH registry.suse.com/bci/bci-base:15.6 AS base
 RUN zypper in --no-recommends -y git-core openssh; rm -fr /var/cache/* /var/log/*log
 
 FROM base AS copy_dapper
