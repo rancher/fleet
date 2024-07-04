@@ -2,13 +2,10 @@ package singlecluster_test
 
 import (
 	"encoding/json"
-	"os"
-	"path"
 	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
-	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,14 +16,13 @@ import (
 
 var _ = Describe("BundleDiffs", func() {
 	var (
-		asset           string
-		tmpdir          string
 		name            string
 		targetNamespace string
 
 		k        kubectl.Command
-		interval = 2 * time.Second
-		duration = 30 * time.Second
+		kw       kubectl.Command
+		interval = 1 * time.Second
+		duration = 15 * time.Second
 	)
 
 	bundleDeploymentStatus := func(repo string) (*v1alpha1.BundleDeploymentStatus, error) {
@@ -51,34 +47,41 @@ var _ = Describe("BundleDiffs", func() {
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 
-		var err error
-		targetNamespace, err = utils.NewNamespaceName()
-		Expect(err).ToNot(HaveOccurred())
-		name = "bundle-diff-" + targetNamespace
-	})
+		asset := "single-cluster/bundle-diffs.yaml"
 
-	JustBeforeEach(func() {
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
-		err := testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
-			Name            string
-			TargetNamespace string
-		}{
-			name,
-			targetNamespace,
-		})
-		Expect(err).ToNot(HaveOccurred())
+		// name matches name from gitrepo for use in label selectors
+		name = "bundle-diffs-test"
 
-		out, err := k.Apply("-f", gitrepo)
+		// namespace needs to match diff.comparePatches in fleet.yaml
+		targetNamespace = "bundle-diffs-example"
+		kw = k.Namespace(targetNamespace)
+
+		out, err := k.Apply("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
 
+		By("waiting for resources to be ready", func() {
+			Eventually(func() bool {
+				status, err := bundleDeploymentStatus(name)
+				if err != nil || status == nil {
+					return false
+				}
+				GinkgoWriter.Printf("bundledeployment status: %v", status)
+				return status.Ready && status.NonModified
+			}).Should(BeTrue())
+
+			Eventually(func() string {
+				out, _ := kw.Get("services")
+
+				return out
+			}).Should(ContainSubstring("app-service"))
+
+			// wait for potential redeploys to finish
+			time.Sleep(5 * time.Second)
+		})
+
 		DeferCleanup(func() {
-			out, err := k.Delete("-f", gitrepo)
+			out, err := k.Delete("-f", testenv.AssetPath(asset))
 			Expect(err).ToNot(HaveOccurred(), out)
-
-			os.RemoveAll(tmpdir)
-
-			_, _ = k.Delete("namespace", targetNamespace)
 
 			// test cases use the same namespace, so we have to
 			// make sure resources are cleaned up
@@ -90,50 +93,29 @@ var _ = Describe("BundleDiffs", func() {
 
 				return false
 			}).Should(BeTrue(), "bundledeployment should be deleted")
+
+			_, _ = k.Delete("namespace", targetNamespace)
 		})
+
 	})
 
 	When("fleet.yaml contains bundle-diff patches", func() {
-		BeforeEach(func() {
-			asset = "single-cluster/bundle-diffs.yaml"
-		})
+		Context("adding new values", func() {
+			BeforeEach(func() {
+				out, err := kw.Patch(
+					"service", "app-service",
+					"--type=json",
+					"-p", `[{"op": "add", "path": "/spec/ports/0", "value": {"name":"test","port":1023,"protocol":"TCP"}}]`,
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
 
-		JustBeforeEach(func() {
-			By("waiting for resources to be ready", func() {
-				Eventually(func() bool {
-					status, err := bundleDeploymentStatus(name)
-					if err != nil || status == nil {
-						return false
-					}
-					return status.Ready && status.NonModified
-				}).Should(BeTrue())
-
-				Eventually(func() string {
-					out, _ := k.Namespace(targetNamespace).Get("services")
-
-					return out
-				}).Should(ContainSubstring("app-service"))
-			})
-		})
-
-		Context("modifying a ignored resource", func() {
-			JustBeforeEach(func() {
-				By("modifying the workload resources", func() {
-					kw := k.Namespace(targetNamespace)
-					out, err := kw.Patch(
-						"service", "app-service",
-						"--type=json",
-						"-p", `[{"op": "add", "path": "/spec/ports/0", "value": {"name":"test","port":1023,"protocol":"TCP"}}]`,
-					)
-					Expect(err).ToNot(HaveOccurred(), out)
-
-					out, err = kw.Patch(
-						"configmap", "app-config",
-						"--type=merge",
-						"-p", `{"data":{"value":"by-test-code"}}`,
-					)
-					Expect(err).ToNot(HaveOccurred(), out)
-				})
+				// adds a value
+				out, err = kw.Patch(
+					"configmap", "app-config",
+					"--type=merge",
+					"-p", `{"data":{"newvalue":"by-test-code"}}`,
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
 			})
 
 			It("ignores changes", func() {
@@ -148,17 +130,36 @@ var _ = Describe("BundleDiffs", func() {
 			})
 		})
 
-		Context("modifying a monitored resource", func() {
-			JustBeforeEach(func() {
-				By("modifying a monitored value", func() {
-					kw := k.Namespace(targetNamespace)
-					out, err := kw.Patch(
-						"service", "app-service",
-						"--type=json",
-						"-p", `[{"op": "add", "path": "/spec/selector", "value": {"name": "app", "value": "modification"}}]`,
-					)
-					Expect(err).ToNot(HaveOccurred(), out)
-				})
+		Context("modifying existing values, that are ignored", func() {
+			BeforeEach(func() {
+				out, err := kw.Patch(
+					"configmap", "app-config",
+					"--type=merge",
+					"-p", `{"data":{"test":"by-test-code"}}`,
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
+			})
+
+			It("ignores changes", func() {
+				Consistently(func() bool {
+					status, err := bundleDeploymentStatus(name)
+					if err != nil || status == nil {
+						return false
+					}
+
+					return status.NonModified
+				}, duration, interval).Should(BeTrue(), "ignores modification")
+			})
+		})
+
+		Context("modifying existing values, that are not ignored", func() {
+			BeforeEach(func() {
+				out, err := kw.Patch(
+					"service", "app-service",
+					"--type=json",
+					"-p", `[{"op": "add", "path": "/spec/selector", "value": {"env": "modification"}}]`,
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
 			})
 
 			It("detects modifications", func() {
@@ -168,8 +169,9 @@ var _ = Describe("BundleDiffs", func() {
 						return false
 					}
 
+					GinkgoWriter.Printf("bundledeployment status: %v", status)
 					return status.NonModified
-				}, duration, interval).Should(BeFalse(), "detects modification")
+				}, duration*2, interval).Should(BeFalse(), "detects modification")
 			})
 		})
 	})
