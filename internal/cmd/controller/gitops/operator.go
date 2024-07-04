@@ -119,12 +119,13 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		ShardID:   g.ShardID,
 	}
 
-	group := errgroup.Group{}
+	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
 		return startWebhook(ctx, namespace, g.Listen, mgr.GetClient(), mgr.GetCache())
 	})
 	group.Go(func() error {
 		setupLog.Info("starting manager")
+
 		if err = reconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}
