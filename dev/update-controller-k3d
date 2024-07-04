@@ -13,6 +13,7 @@ export CGO_ENABLED=0
 
 # fleetcontroller
 go build -gcflags='all=-N -l' -o bin/fleetcontroller-linux-"$GOARCH" ./cmd/fleetcontroller
+go build -gcflags='all=-N -l' -o "bin/fleet-linux-$GOARCH" ./cmd/fleetcli
 docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH"  .
 
 fleet_ctx=$(kubectl config current-context)
