@@ -9,13 +9,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/rancher/fleet/integrationtests/utils"
-	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/v3/pkg/genericcondition"
-	"github.com/rancher/wrangler/v3/pkg/name"
-
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -23,6 +16,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	"github.com/rancher/wrangler/v3/pkg/name"
+
+	"github.com/rancher/fleet/integrationtests/utils"
+	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 const (
@@ -51,7 +51,6 @@ func checkCondition(gitrepo *v1alpha1.GitRepo, condType string, status corev1.Co
 }
 
 var _ = Describe("GitJob controller", func() {
-
 	When("a new GitRepo is created", func() {
 		var (
 			gitRepo     v1alpha1.GitRepo
@@ -614,7 +613,6 @@ var _ = Describe("GitRepo", func() {
 })
 
 var _ = Describe("GitRepo Status Fields", func() {
-
 	var (
 		gitrepo *v1alpha1.GitRepo
 		bd      *v1alpha1.BundleDeployment

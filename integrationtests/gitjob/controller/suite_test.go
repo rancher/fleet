@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	ctrlreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/manifest"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/mocks"
@@ -89,6 +90,8 @@ var _ = BeforeSuite(func() {
 
 	sched := quartz.NewStdScheduler()
 	Expect(sched).ToNot(BeNil())
+
+	config.Set(&config.Config{})
 
 	err = (&reconciler.GitJobReconciler{
 		Client:     mgr.GetClient(),

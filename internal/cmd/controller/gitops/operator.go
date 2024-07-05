@@ -8,16 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	command "github.com/rancher/fleet/internal/cmd"
-	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
-	"github.com/rancher/fleet/internal/metrics"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/git"
-	"github.com/rancher/fleet/pkg/version"
-	"github.com/rancher/fleet/pkg/webhook"
 	"github.com/reugn/go-quartz/quartz"
 	"github.com/spf13/cobra"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -27,8 +19,16 @@ import (
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-
 	"golang.org/x/sync/errgroup"
+
+	command "github.com/rancher/fleet/internal/cmd"
+	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
+	fcreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
+	"github.com/rancher/fleet/internal/metrics"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/git"
+	"github.com/rancher/fleet/pkg/version"
+	"github.com/rancher/fleet/pkg/webhook"
 )
 
 var (
@@ -121,7 +121,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		workers = w
 	}
 
-	reconciler := &reconciler.GitJobReconciler{
+	gitJobReconciler := &reconciler.GitJobReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
 		Image:      g.Image,
@@ -132,14 +132,30 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		Clock:      reconciler.RealClock{},
 	}
 
+	configReconciler := &fcreconciler.ConfigReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		SystemNamespace: namespace,
+		ShardID:         g.ShardID,
+	}
+
+	if err := fcreconciler.Load(ctx, mgr.GetAPIReader(), namespace); err != nil {
+		setupLog.Error(err, "failed to load config")
+		return err
+	}
+
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
 		return startWebhook(ctx, namespace, g.Listen, mgr.GetClient(), mgr.GetCache())
 	})
 	group.Go(func() error {
-		setupLog.Info("starting manager")
+		setupLog.Info("starting config manager")
+		if err = configReconciler.SetupWithManager(mgr); err != nil {
+			return err
+		}
 
-		if err = reconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Info("starting gitops manager")
+		if err = gitJobReconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}
 

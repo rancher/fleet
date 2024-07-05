@@ -37,6 +37,10 @@ ignoreClusterRegistrationLabels: false
 # comma separated list of domains or ip addresses that will not use the proxy
 noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
 
+# The amount of time to wait for a response from the server before canceling the
+# request.  Used to retrieve the latest commit of configured git repositories.
+gitClientTimeout: 30s
+
 bootstrap:
   enabled: true
   # The namespace that will be autocreated and the local cluster will be registered in
