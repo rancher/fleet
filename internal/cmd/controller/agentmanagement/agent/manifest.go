@@ -213,6 +213,12 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 							Command: []string{
 								"fleetagent",
 							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "kube",
+									MountPath: "/.kube",
+								},
+							},
 						},
 						{
 							Name:            name + "-clusterstatus",
@@ -232,6 +238,14 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 							Command: []string{
 								"fleetagent",
 								"clusterstatus",
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "kube",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
 							},
 						},
 					},
