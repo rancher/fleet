@@ -1,4 +1,4 @@
-// copied from argoproj/gitops-engine/pkg/diff/diff.go
+// +vendored argoproj/gitops-engine/pkg/diff/diff.go
 /*
 The package provide functions that allows to compare set of Kubernetes resources using the logic equivalent to
 `kubectl diff`.
@@ -21,9 +21,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/kubernetes/scheme"
 
-	jsonutil "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/json"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/kubernetes_vendor/pkg/api/v1/endpoints"
-	kubescheme "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/scheme"
+	jsonutil "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff/json"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff/kubernetes_vendor/pkg/api/v1/endpoints"
+	kubescheme "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff/scheme"
 )
 
 const couldNotMarshalErrMsg = "Could not unmarshal to object of type %s: %v"

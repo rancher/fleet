@@ -1,3 +1,6 @@
+// Package monitor provides functionality for monitoring and updating the status of a bundle deployment.
+// It includes functions for determining whether the agent should be redeployed, whether the status should be updated,
+// and for updating the status based on the resources and helm release history.
 package monitor
 
 import (
@@ -155,10 +158,15 @@ func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeploy
 		ns = m.defaultNamespace
 	}
 
+	// resources.Objects contains the desired state of the resources from helm history
 	plan, err := m.applied.DryRun(ns, applied.GetSetID(bd.Name, m.labelPrefix, m.labelSuffix), resources.Objects...)
 	if err != nil {
 		return err
 	}
+
+	// applied.Diff only takes plan.Update into account. plan.Update
+	// contains objects which have changes to existing values. Adding a new
+	// key to a map is not considered an update.
 	plan, err = applied.Diff(plan, bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
 		return err
@@ -237,6 +245,10 @@ func nonReady(logger logr.Logger, plan apply.Plan, ignoreOptions fleet.IgnoreOpt
 	return result
 }
 
+// modified returns a list of modified statuses based on the provided plan and previous release resources.
+// The function iterates through the plan's create, delete, and update actions and constructs a modified status
+// for each resource.
+// If the number of modified statuses exceeds 10, the function stops and returns the current result.
 func modified(plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
 	defer func() {
 		sort.Slice(result, func(i, j int) bool {

@@ -22,7 +22,7 @@ import (
 	"hash"
 	"sort"
 
-	hashutil "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/kubernetes_vendor/pkg/util/hash"
+	hashutil "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff/kubernetes_vendor/pkg/util/hash"
 	v1 "k8s.io/api/core/v1"
 )
 

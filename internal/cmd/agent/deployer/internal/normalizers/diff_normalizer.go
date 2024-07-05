@@ -1,4 +1,7 @@
-// extracted from argoproj/argo-cd/util/argo/normalizers/diff_normalizer.go
+// Package normalizers contains normalizers for resources. Normalizers are used to modify resources before they are compared.
+// This includes the "ignore" normalizer, which removes a matched path and the knownTypes normalizer.
+//
+// +vendored argoproj/argo-cd/util/argo/normalizers/diff_normalizer.go
 package normalizers
 
 import (
@@ -11,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/glob"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/normalizers/glob"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/resource"
 )
 

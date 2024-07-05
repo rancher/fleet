@@ -1,4 +1,4 @@
-// copied from argoproj/gitops-engine/pkg/diff/diff_options.go
+// +vendored argoproj/gitops-engine/pkg/diff/diff_options.go
 package diff
 
 import (

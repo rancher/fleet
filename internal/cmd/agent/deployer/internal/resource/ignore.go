@@ -1,4 +1,4 @@
-// extracted from argoproj/argo-cd/pkg/apis/application/v1alpha1/types.go
+// +vendored argoproj/argo-cd/pkg/apis/application/v1alpha1/types.go
 package resource
 
 import (
