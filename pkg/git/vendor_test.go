@@ -77,25 +77,25 @@ var _ = Describe("git's vendor specific functions tests", func() {
 		})
 
 		It("returns an error when the server timeouts", func() {
-			clientTimeout = 1
+			clientTimeout := time.Second
 			svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				time.Sleep(time.Second*clientTimeout + 1)
+				time.Sleep(clientTimeout + 1)
 				w.WriteHeader(http.StatusGatewayTimeout)
 			}))
-			commit, err := latestCommitFromCommitsURL(svr.URL, &options{})
+			commit, err := latestCommitFromCommitsURL(svr.URL, &options{Timeout: clientTimeout})
 			Expect(err).To(HaveOccurred())
 			Expect(commit).To(BeEmpty())
 		})
 
 		It("returns no error when cannot get a valid client, and changed returned is true", func() {
-			clientTimeout = 1
+			clientTimeout := time.Second
 			svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusGatewayTimeout)
 			}))
 			caBundle := []byte(`-----BEGIN CERTIFICATE-----
 SUPER FAKE CERT
 -----END CERTIFICATE-----`)
-			commit, err := latestCommitFromCommitsURL(svr.URL, &options{CABundle: caBundle})
+			commit, err := latestCommitFromCommitsURL(svr.URL, &options{CABundle: caBundle, Timeout: clientTimeout})
 			// no error and returns true, so the client is forced to run the List to get results
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("x509: malformed certificate"))

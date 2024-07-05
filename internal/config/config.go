@@ -108,6 +108,11 @@ type Config struct {
 	// to trust CA bundles from the operating system's store. If set to `strict`, then the agent shall only connect
 	// to a server which uses the exact CA configured when creating/updating the agent.
 	AgentTLSMode string `json:"agentTLSMode,omitempty"`
+
+	// The amount of time to wait for a response from the server before
+	// canceling the request.  Used to retrieve the latest commit of configured
+	// git repositories.
+	GitClientTimeout metav1.Duration `json:"gitClientTimeout,omitempty"`
 }
 
 type Bootstrap struct {

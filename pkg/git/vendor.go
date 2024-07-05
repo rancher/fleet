@@ -56,7 +56,12 @@ func getRancherCommitsURL(url *neturl.URL, branch string) string {
 
 // latestCommitFromCommitsURL returns the latest commit using the given commits url
 func latestCommitFromCommitsURL(commitsUrl string, opts *options) (string, error) {
-	client, err := GetHTTPClientFromSecret(opts.Credential, opts.CABundle, opts.InsecureTLSVerify)
+	client, err := GetHTTPClientFromSecret(
+		opts.Credential,
+		opts.CABundle,
+		opts.InsecureTLSVerify,
+		opts.Timeout,
+	)
 	if err != nil {
 		return "", err
 	}
