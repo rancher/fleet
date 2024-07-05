@@ -1,4 +1,4 @@
-// copied from argoproj/argo-cd/util/glob/glob.go
+// +vendored argoproj/argo-cd/util/glob/glob.go
 package glob
 
 import (

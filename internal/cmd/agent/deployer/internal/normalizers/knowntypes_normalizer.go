@@ -1,4 +1,4 @@
-// copied from argoproj/argo-cd/util/argo/normalizers/knowntypes_normalizer.go
+// +vendored argoproj/argo-cd/util/argo/normalizers/knowntypes_normalizer.go
 package normalizers
 
 import (
