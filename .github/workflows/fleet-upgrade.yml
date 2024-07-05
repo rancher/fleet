@@ -62,7 +62,7 @@ jobs:
       -
         name: Create example workload
         run: |
-          kubectl apply -n fleet-local -f e2e/assets/installation/bundle-diffs.yaml
+          kubectl apply -n fleet-local -f e2e/assets/installation/simple.yaml
       -
         name: Build Fleet Binaries
         run: |
@@ -79,7 +79,7 @@ jobs:
         name: Verify Example Workload
         run: |
           # we waited long enough by importing the image first
-          kubectl get configmap -n bundle-diffs-example | grep -q -m 1 "app-config"
+          kubectl get configmap -n simple-example | grep -q -m 1 "simple-config"
       -
         name: Upgrade to Dev Version
         run: |

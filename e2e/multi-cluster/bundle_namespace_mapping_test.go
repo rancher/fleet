@@ -61,7 +61,7 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 				Consistently(func() string {
 					out, _ := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-namespace="+namespace)
 					return out
-				}, duration, interval).ShouldNot(ContainSubstring("simpleapp-bundle-diffs"))
+				}, duration, interval).ShouldNot(ContainSubstring("simpleapp-simple"))
 			})
 		})
 	})
@@ -80,11 +80,11 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 				Eventually(func() string {
 					out, _ := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-namespace="+namespace)
 					return out
-				}).Should(ContainSubstring("simpleapp-bundle-diffs"))
+				}).Should(ContainSubstring("simpleapp-simple"))
 				Eventually(func() string {
 					out, _ := kd.Namespace("project1simpleapp").Get("configmaps")
 					return out
-				}).Should(ContainSubstring("app-config"))
+				}).Should(ContainSubstring("simple-config"))
 			})
 		})
 
