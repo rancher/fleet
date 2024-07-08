@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ociwrapper"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -551,6 +552,17 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		volumeMounts = append(volumeMounts, volMnt)
 	}
 
+	shardID := gitrepo.Labels[sharding.ShardingRefLabel]
+
+	var nodeSelector map[string]string
+	if shardID != "" {
+		nodeSelector, _ = r.getNodeSelectorForShard(ctx, shardID)
+	} else {
+		nodeSelector = make(map[string]string)
+	}
+
+	nodeSelector["kubernetes.io/os"] = "linux"
+
 	saName := name.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
 	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled())
@@ -589,7 +601,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 						},
 					},
 				},
-				NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
+				NodeSelector: nodeSelector,
 				Tolerations: []corev1.Toleration{{
 					Key:      "cattle.io/os",
 					Operator: "Equal",
@@ -1027,4 +1039,23 @@ func reconcileResult(gitPollerWasExecuted bool, gitrepo *v1alpha1.GitRepo) recon
 		return reconcile.Result{RequeueAfter: getPollingIntervalDuration(gitrepo)}
 	}
 	return reconcile.Result{}
+}
+
+func (r *GitJobReconciler) getNodeSelectorForShard(ctx context.Context, shardID string) (map[string]string, error) {
+	podList := &corev1.PodList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(config.DefaultNamespace),
+		client.MatchingLabels{
+			"app":                      "fleet-controller",
+			"fleet.cattle.io/shard-id": shardID},
+	}
+	if err := r.List(ctx, podList, listOpts...); err != nil {
+		return nil, fmt.Errorf("failed to list fleet-controller pods: %w", err)
+	}
+
+	if len(podList.Items) == 0 {
+		return nil, fmt.Errorf("no fleet-controller pods found for shard %s", shardID)
+	}
+
+	return podList.Items[0].Spec.NodeSelector, nil
 }

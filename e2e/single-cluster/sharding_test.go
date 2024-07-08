@@ -3,6 +3,7 @@ package singlecluster_test
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -75,6 +76,32 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 					out, _ := k.Namespace(targetNamespace).Get("configmaps")
 					return out
 				}).Should(ContainSubstring("test-simple-chart-config"))
+
+				By("checking the gitjob pod has the same nodeSelector as the sharded controller")
+				Eventually(func() bool {
+					shardNodeSelector, err := k.Namespace("cattle-fleet-system").Get("pods", "-o=jsonpath={.items[0].spec.nodeSelector}", "-l", "app=fleet-controller", "-l", fmt.Sprintf("fleet.cattle.io/shard-id=%s", shard))
+					if err != nil {
+						return false
+					}
+
+					podNames, _ := k.Namespace("fleet-local").Get("pods", "-o", "jsonpath={.items[*].metadata.name}")
+
+					var targetPod string
+					for _, podName := range strings.Split(podNames, " ") {
+						if strings.HasPrefix(podName, "sharding-test") {
+							targetPod = podName
+							break
+						}
+					}
+
+					if targetPod == "" {
+						return false
+					}
+
+					podNodeSelector, _ := k.Namespace("fleet-local").Get("pod", targetPod, "-o", "jsonpath={.spec.nodeSelector}")
+
+					return podNodeSelector == shardNodeSelector
+				}).Should(BeTrue())
 
 				for _, s := range shards {
 					Eventually(func(g Gomega) {
