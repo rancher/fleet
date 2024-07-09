@@ -129,7 +129,12 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace, clusterI
 		return nil, fmt.Errorf("looking up secret %s/%s: %w", namespace, config.AgentBootstrapConfigName, err)
 	}
 
-	clientConfig := createClientConfigFromSecret(secret)
+	cfg, err := config.Lookup(ctx, secret.Namespace, config.AgentConfigName, k8s.ConfigMap())
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up client config %s/%s: %w", secret.Namespace, config.AgentConfigName, err)
+	}
+
+	clientConfig := createClientConfigFromSecret(secret, cfg.AgentTLSMode == config.AgentTLSModeSystemStore)
 
 	ns, _, err := clientConfig.Namespace()
 	if err != nil {
@@ -139,11 +144,6 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace, clusterI
 	kc, err := clientConfig.ClientConfig()
 	if err != nil {
 		return nil, err
-	}
-
-	cfg, err := config.Lookup(ctx, secret.Namespace, config.AgentConfigName, k8s.ConfigMap())
-	if err != nil {
-		return nil, fmt.Errorf("failed to look up client config %s/%s: %w", secret.Namespace, config.AgentConfigName, err)
 	}
 
 	fleetK8s, err := kubernetes.NewForConfig(kc)
@@ -278,15 +278,30 @@ func values(data map[string][]byte) map[string][]byte {
 
 // createClientConfigFromSecret reads the fleet-agent-bootstrap secret and
 // creates a clientConfig to access the upstream cluster
-func createClientConfigFromSecret(secret *corev1.Secret) clientcmd.ClientConfig {
+func createClientConfigFromSecret(secret *corev1.Secret, trustSystemStoreCAs bool) clientcmd.ClientConfig {
 	data := values(secret.Data)
 	apiServerURL := string(data[config.APIServerURLKey])
 	apiServerCA := data[config.APIServerCAKey]
 	namespace := string(data[ClusterNamespace])
 	token := string(data[Token])
 
-	if _, err := http.Get(apiServerURL); err == nil {
-		apiServerCA = nil
+	if trustSystemStoreCAs { // Save a request to the API server URL if system CAs are not to be trusted.
+		if _, err := http.Get(apiServerURL); err == nil {
+			apiServerCA = nil
+		}
+	} else {
+		// Bypass the OS trust store through env vars, see https://pkg.go.dev/crypto/x509#SystemCertPool
+		// We set values to paths belonging to the root filesystem, which is read-only, to prevent tampering.
+		// Note: this will not work on Windows nor Mac OS. Agent are expected to run on Linux nodes.
+		err := os.Setenv("SSL_CERT_FILE", "/dev/null")
+		if err != nil {
+			logrus.Errorf("failed to set env var SSL_CERT_FILE: %s", err.Error())
+		}
+
+		err = os.Setenv("SSL_CERT_DIR", "/dev/null")
+		if err != nil {
+			logrus.Errorf("failed to set env var SSL_CERT_DIR: %s", err.Error())
+		}
 	}
 
 	cfg := clientcmdapi.Config{
