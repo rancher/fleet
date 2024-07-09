@@ -25,7 +25,7 @@ require (
 	github.com/gogits/go-gogs-client v0.0.0-20210131175652-1d7215cd8d85
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.6.0
-	github.com/google/go-containerregistry v0.19.2
+	github.com/google/go-containerregistry v0.20.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-getter v1.7.5
 	github.com/jpillora/backoff v1.0.0
