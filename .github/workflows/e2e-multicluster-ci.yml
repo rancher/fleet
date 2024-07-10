@@ -18,7 +18,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.5.1'
+  SETUP_K3D_VERSION: 'v5.7.1'
 
 jobs:
   e2e-fleet-mc-test:

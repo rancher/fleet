@@ -16,7 +16,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.5.1'
+  SETUP_K3D_VERSION: 'v5.7.1'
 
 jobs:
   e2e-fleet-test:
@@ -27,7 +27,7 @@ jobs:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
-          - v1.29.0-k3s1
+          - v1.30.2-k3s2
           - v1.24.17-k3s1
         test_type:
           - name: default
