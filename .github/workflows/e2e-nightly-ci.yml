@@ -1,5 +1,5 @@
 # Nightly workflow tests more k8s versions than the e2e-ci workflow for PR does
-name: Nightly E2E Fleet
+name: E2E Nightly Fleet
 
 on:
   schedule:

@@ -1,5 +1,5 @@
 # Upgrade Fleet in given Rancher versions to given Fleet release and run tests
-name: Upgrade Fleet in Rancher
+name: E2E Upgrade Fleet in Rancher
 
 on:
   workflow_dispatch:

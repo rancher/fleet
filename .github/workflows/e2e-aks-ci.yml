@@ -1,4 +1,4 @@
-name: CI AKS
+name: E2E on AKS
 
 on:
   schedule:
