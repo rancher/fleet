@@ -11,7 +11,9 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
+// This test uses two clusters to demonstrate matching clusters in different
+// namespaces. Therefore it's setup and input configuration is difficult.
+var _ = Describe("Bundle Namespace Mapping", func() {
 	var (
 		k  kubectl.Command
 		kd kubectl.Command
