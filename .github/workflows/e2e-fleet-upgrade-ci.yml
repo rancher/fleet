@@ -1,5 +1,5 @@
-# Upgrade from latest released fleet to dev version
-name: Upgrade Fleet Standalone to HEAD
+# Upgrade Fleet standalone from latest released to dev version
+name: E2E Upgrade Fleet Standalone to HEAD
 
 on:
   schedule:
