@@ -4,12 +4,6 @@ name: E2E Upgrade Fleet Standalone to HEAD
 on:
   schedule:
     - cron: '0 8 */2 * *'
-  workflow_dispatch:
-    inputs:
-      enable_tmate:
-        description: 'Enable debugging via tmate'
-        required: false
-        default: "false"
   pull_request:
 
 env:
@@ -48,13 +42,6 @@ jobs:
             --agents 1
             --network "nw01"
             --image docker.io/rancher/k3s:${{matrix.k3s_version}}
-      -
-        name: Set Up Tmate Debug Session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
       -
         name: Deploy Latest Release
         run: |
