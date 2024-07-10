@@ -1,5 +1,5 @@
 # Upgrade fleet in latest Rancher to dev version and run MC tests
-name: Upgrade Fleet in Rancher To HEAD
+name: E2E Upgrade Fleet in Rancher To HEAD
 
 on:
   schedule:
