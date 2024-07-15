@@ -6490,6 +6490,11 @@ spec:
                   description: GitJobStatus is the status of the last Git job run,
                     e.g. "Current" if there was no error.
                   type: string
+                lastPollingTriggered:
+                  description: LastPollingTime is the last time the polling check
+                    was triggered
+                  format: date-time
+                  type: string
                 lastSyncedImageScanTime:
                   description: LastSyncedImageScanTime is the time of the last image
                     scan.
