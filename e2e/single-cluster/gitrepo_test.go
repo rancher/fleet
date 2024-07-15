@@ -263,6 +263,10 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				return err
 			}).ShouldNot(HaveOccurred(), out)
 
+			// Clone previously created repo
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			Expect(err).ToNot(HaveOccurred())
+
 			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
 				Name            string
 				Repo            string
@@ -276,10 +280,6 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				"24h",           // prevent polling
 				targetNamespace, // to avoid conflicts with other tests
 			})
-			Expect(err).ToNot(HaveOccurred())
-
-			// Clone previously created repo
-			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
 			Expect(err).ToNot(HaveOccurred())
 		})
 

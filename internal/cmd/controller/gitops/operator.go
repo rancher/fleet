@@ -12,7 +12,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/git/poll"
+	"github.com/rancher/fleet/pkg/git"
 	"github.com/rancher/fleet/pkg/version"
 	"github.com/rancher/fleet/pkg/webhook"
 	"github.com/reugn/go-quartz/quartz"
@@ -122,13 +122,14 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	reconciler := &reconciler.GitJobReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Image:     g.Image,
-		GitPoller: poll.NewHandler(ctx, mgr.GetClient()),
-		Scheduler: sched,
-		Workers:   workers,
-		ShardID:   g.ShardID,
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		Image:      g.Image,
+		Scheduler:  sched,
+		Workers:    workers,
+		ShardID:    g.ShardID,
+		GitFetcher: &git.Fetch{},
+		Clock:      reconciler.RealClock{},
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
