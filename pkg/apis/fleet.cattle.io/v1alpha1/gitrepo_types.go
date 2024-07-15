@@ -193,6 +193,8 @@ type GitRepoStatus struct {
 	ResourceErrors []string `json:"resourceErrors,omitempty"`
 	// LastSyncedImageScanTime is the time of the last image scan.
 	LastSyncedImageScanTime metav1.Time `json:"lastSyncedImageScanTime,omitempty"`
+	// LastPollingTime is the last time the polling check was triggered
+	LastPollingTime metav1.Time `json:"lastPollingTriggered,omitempty"`
 }
 
 // GitRepoResourceCounts contains the number of resources in each state.
