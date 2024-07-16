@@ -1,0 +1,41 @@
+---
+apiVersion: fleet.cattle.io/v1alpha1
+content: H4sICORfomYAA2NoYXJ0Lmpzb24AjVKxasMwFJztr3hojpU4hQ6GFkrWds1SdXixnxNRWTaSbBqM/72SnIRQmpDBAr+7e3cnNKYJM2Tb3pRkWQGfaZKM/kuYxob8gJWtruU+Kw9o3HITTn7ERrFFZHnUkXaBiJ3ckrGy1QUMa6HDggKu5UJXZEsjOxdJb+DIOogQuAM6GMjIWpIF6exJKbQ7dn4Pdp2SJQal0MPZZ8VzvhLagxdrwXKeP/spE/q739EV8PoCOV+fMObzT4v7dR01nUKfcjmPG+weKZ97Z6mrAjZR9YGd0A05rNBhITTAfDWhfWalt6DZLztXvhADJSQfUPWUr59C8LN8HIFvw9zyMIBpeqzUMGv+7zGvrqjGXrks/N1cWiuiW2/hQKqJBaLl31cAMGeIjHMd+sF4ExG6aXo3fG9UAXvV7lDxOV2peuvIvOOO1HxNp81p8pVOvw+bEsv9AgAA
+kind: Content
+metadata:
+  creationTimestamp: null
+  name: s-f616452ccd6c2e6962b6b48419504496f87dc6ee536ce834eb994035ce00f
+sha256sum: f616452ccd6c2e6962b6b48419504496f87dc6ee536ce834eb994035ce00fd24
+
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: BundleDeployment
+metadata:
+  creationTimestamp: null
+  labels:
+    fleet.cattle.io/bundle-name: testbundle-simple-chart
+    fleet.cattle.io/bundle-namespace: fleet-local
+    fleet.cattle.io/cluster: local
+    fleet.cattle.io/cluster-namespace: fleet-local
+    fleet.cattle.io/commit: e40edabfeada51874ac9caf5770655b720177380
+    fleet.cattle.io/managed: "true"
+  name: testbundle-simple-chart
+  namespace: cluster-fleet-local-local-1a3d67d0a899
+spec:
+  deploymentID: s-f616452ccd6c2e6962b6b48419504496f87dc6ee536ce834eb994035ce00f:c32e813ecbf48f56833aa2267cd3d8758eecc94f9948fb0dea510147a57760b5
+  options:
+    helm:
+      chart: config-chart
+      values:
+        name: example-value
+    ignore: {}
+  stagedDeploymentID: s-f616452ccd6c2e6962b6b48419504496f87dc6ee536ce834eb994035ce00f:c32e813ecbf48f56833aa2267cd3d8758eecc94f9948fb0dea510147a57760b5
+  stagedOptions:
+    helm:
+      chart: config-chart
+      values:
+        name: example-value
+    ignore: {}
+status:
+  display: {}
+

@@ -89,7 +89,7 @@ func printMatch(ctx context.Context, bundle *fleet.Bundle, target *fleet.BundleT
 
 	manifest := manifest.New(bundle.Spec.Resources)
 
-	objs, err := helmdeployer.Template(ctx, bundle.Name, manifest, opts)
+	objs, err := helmdeployer.Template(ctx, bundle.Name, manifest, opts, "")
 	if err != nil {
 		return err
 	}
