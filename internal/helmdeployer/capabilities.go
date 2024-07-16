@@ -54,7 +54,7 @@ func getCapabilities(c action.Configuration) (*chartutil.Capabilities, error) {
 		}
 	}
 
-	c.Capabilities = chartutil.DefaultCapabilities
+	c.Capabilities = chartutil.DefaultCapabilities.Copy()
 	c.Capabilities.APIVersions = apiVersions
 	c.Capabilities.KubeVersion = chartutil.KubeVersion{
 		Version: kubeVersion.GitVersion,

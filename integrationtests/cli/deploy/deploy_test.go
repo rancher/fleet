@@ -166,4 +166,26 @@ var _ = Describe("Fleet CLI Deploy", func() {
 			Expect(apierrors.IsNotFound(err)).To(BeTrue())
 		})
 	})
+
+	When("Printing results with --dry-run where the chart specifies kubeVersion >= 1.26.0", func() {
+		BeforeEach(func() {
+			args = []string{
+				"--input-file", clihelper.AssetsPath + "bundledeployment/bd-with-kube-version.yaml",
+				"--dry-run",
+				"--kube-version", "v1.27.0",
+			}
+		})
+
+		It("prints a manifest and bundledeployment", func() {
+			buf, err := act(args)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(buf).To(gbytes.Say("- apiVersion: v1"))
+			Expect(buf).To(gbytes.Say("  data:"))
+			Expect(buf).To(gbytes.Say("    name: example-value"))
+
+			cm := &corev1.ConfigMap{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-simple-chart-config"}, cm)
+			Expect(apierrors.IsNotFound(err)).To(BeTrue())
+		})
+	})
 })
