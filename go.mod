@@ -17,7 +17,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/docker v27.0.3+incompatible
 	github.com/evanphx/json-patch v5.9.0+incompatible
-	github.com/go-git/go-billy/v5 v5.5.1-0.20240701174852-839dcd3ad096
+	github.com/go-git/go-billy/v5 v5.5.1-0.20240715164247-b2bff47672df
 	github.com/go-git/go-git/v5 v5.12.1-0.20240629213349-b00c68ab7140
 	github.com/go-logr/logr v1.4.2
 	github.com/go-playground/webhooks/v6 v6.3.0
