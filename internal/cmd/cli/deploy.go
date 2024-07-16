@@ -44,9 +44,10 @@ func NewDeploy() *cobra.Command {
 }
 
 type Deploy struct {
-	InputFile string `usage:"Location of the YAML file containing the content and the bundledeployment resource" short:"i"`
-	DryRun    bool   `usage:"Print the resources that would be deployed, but do not actually deploy them" short:"d"`
-	Namespace string `usage:"Set the default namespace. Deploy helm chart into this namespace." short:"n"`
+	InputFile   string `usage:"Location of the YAML file containing the content and the bundledeployment resource" short:"i"`
+	DryRun      bool   `usage:"Print the resources that would be deployed, but do not actually deploy them" short:"d"`
+	Namespace   string `usage:"Set the default namespace. Deploy helm chart into this namespace." short:"n"`
+	KubeVersion string `usage:"For dry runs, sets the Kubernetes version to assume when validating Chart Kubernetes version constraints."`
 
 	// AgentNamespace is set as an annotation on the chart.yaml in the helm release. Fleet-agent will manage charts with a matching label.
 	AgentNamespace string `usage:"Set the agent namespace, normally cattle-fleet-system. If set, fleet agent will garbage collect the helm release, i.e. delete it if the bundledeployment is missing." short:"a"`
@@ -116,7 +117,7 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if d.DryRun {
-		resources, err := helmdeployer.Template(ctx, bd.Name, manifest, bd.Spec.Options)
+		resources, err := helmdeployer.Template(ctx, bd.Name, manifest, bd.Spec.Options, d.KubeVersion)
 		if err != nil {
 			return err
 		}
