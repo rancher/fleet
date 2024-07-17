@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/resources"
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -142,22 +143,6 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 				},
 			},
 		},
-		&rbacv1.Role{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name.SafeConcatName(saName, "role"),
-				Namespace: token.Namespace,
-				Labels: map[string]string{
-					fleet.ManagedLabel: "true",
-				},
-			},
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"create"},
-					APIGroups: []string{fleet.SchemeGroupVersion.Group},
-					Resources: []string{fleet.ClusterRegistrationResourceNamePlural},
-				},
-			},
-		},
 		&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name.SafeConcatName(saName, "to", "role"),
@@ -175,21 +160,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
-				Kind:     "Role",
-				Name:     name.SafeConcatName(saName, "role"),
-			},
-		},
-		&rbacv1.Role{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name.SafeConcatName(saName, "creds"),
-				Namespace: h.systemRegistrationNamespace,
-			},
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"get"},
-					APIGroups: []string{""},
-					Resources: []string{"secrets"},
-				},
+				Kind:     "ClusterRole",
+				Name:     resources.ImportRegistration,
 			},
 		},
 		&rbacv1.RoleBinding{
@@ -206,8 +178,8 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
-				Kind:     "Role",
-				Name:     name.SafeConcatName(saName, "creds"),
+				Kind:     "ClusterRole",
+				Name:     resources.ImportCredentials,
 			},
 		},
 	}, secrets...), status, nil

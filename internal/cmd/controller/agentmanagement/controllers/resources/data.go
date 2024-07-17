@@ -13,6 +13,8 @@ import (
 const (
 	BundleDeploymentClusterRole = "fleet-bundle-deployment"
 	ContentClusterRole          = "fleet-content"
+	ImportRegistration          = "fleet-import-registration"
+	ImportCredentials           = "fleet-import-creds" // nolint:gosec // this is not a credential
 )
 
 // ApplyBootstrapResources creates the cluster roles, system namespace and system registration namespace
@@ -54,11 +56,39 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 				},
 			},
 		},
+		// used by import- service accounts
+		&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ImportCredentials,
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"secrets"},
+				},
+			},
+		},
+		// used by import- service accounts
+		&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ImportRegistration,
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"create"},
+					APIGroups: []string{fleet.SchemeGroupVersion.Group},
+					Resources: []string{fleet.ClusterRegistrationResourceNamePlural},
+				},
+			},
+		},
+		// namespace for the controllers (e.g. cattle-fleet-system)
 		&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: systemNamespace,
 			},
 		},
+		// namespace for secrets used in the cluster registration process (e.g. cattle-fleet-clusters-system)
 		&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: systemRegistrationNamespace,
