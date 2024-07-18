@@ -19,8 +19,8 @@ agentTLSMode: "system-store"
 token: ""
 
 # Labels to add to the cluster upon registration only. They are not added after the fact.
-#labels:
-#  foo: bar
+# labels:
+#   foo: bar
 
 # The client ID of the cluster to associate with
 clientID: ""

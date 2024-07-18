@@ -1,0 +1,64 @@
+bootstrap:
+  enabled: false
+
+global:
+  cattle:
+    systemDefaultRegistry: "ghcr.io"
+
+nodeSelector:
+  kubernetes.io/os: mac
+
+tolerations:
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    operator: "Equal"
+    value: "true"
+    effect: NoSchedule
+
+priorityClassName: "prio1"
+
+gitops:
+  enabled: true
+
+metrics:
+  enabled: true
+
+debug: false
+debugLevel: 4
+propagateDebugSettingsToAgents: true
+
+cpuPprof:
+  period: "60s"
+  volumeConfiguration:
+    hostPath:
+      path: /tmp/pprof
+      type: DirectoryOrCreate
+
+migrations:
+  clusterRegistrationCleanup: true
+
+leaderElection:
+  leaseDuration: 30s
+  retryPeriod: 10s
+  renewDeadline: 25s
+
+controller:
+  reconciler:
+    workers:
+      gitrepo: "1"
+      bundle: "1"
+      bundledeployment: "1"
+
+extraEnv:
+  - name: EXPERIMENTAL_OCI_STORAGE
+    value: "true"
+
+shards:
+  - id: shard0
+    nodeSelector:
+      kubernetes.io/hostname: k3d-upstream-server-0
+  - id: shard1
+    nodeSelector:
+      kubernetes.io/hostname: k3d-upstream-server-1
+  - id: shard2
+    nodeSelector:
+      kubernetes.io/hostname: k3d-upstream-server-2
