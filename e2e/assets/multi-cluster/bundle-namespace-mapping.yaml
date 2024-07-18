@@ -41,7 +41,7 @@ spec:
   repo: https://github.com/rancher/fleet-test-data
   branch: master
   paths:
-  - bundle-diffs
+  - simple
 
   {{.TargetNamespace}}
 

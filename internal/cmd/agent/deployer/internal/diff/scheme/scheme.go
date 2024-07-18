@@ -1,4 +1,4 @@
-// copied from https://github.com/argoproj/gitops-engine/blob/master/pkg/utils/kube/scheme/scheme.go
+// +vendored https://github.com/argoproj/gitops-engine/blob/master/pkg/utils/kube/scheme/scheme.go
 package scheme
 
 import (

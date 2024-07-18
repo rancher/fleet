@@ -15,7 +15,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/cheggaaa/pb v1.0.29
 	github.com/davecgh/go-spew v1.1.1
-	github.com/docker/docker v26.1.4+incompatible
+	github.com/docker/docker v27.0.3+incompatible
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/go-git/go-billy/v5 v5.5.1-0.20240701174852-839dcd3ad096
 	github.com/go-git/go-git/v5 v5.12.1-0.20240629213349-b00c68ab7140
@@ -38,22 +38,22 @@ require (
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.55.0
-	github.com/rancher/fleet/pkg/apis v0.10.0-rc.19
-	github.com/rancher/lasso v0.0.0-20240430201833-6f3def65ffc5
-	github.com/rancher/wrangler/v3 v3.0.0-rc2
+	github.com/rancher/fleet/pkg/apis v0.10.0-rc.20
+	github.com/rancher/lasso v0.0.0-20240705194423-b2a060d103c1
+	github.com/rancher/wrangler/v3 v3.0.0
 	github.com/reugn/go-quartz v0.11.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
-	github.com/testcontainers/testcontainers-go v0.31.0
+	github.com/testcontainers/testcontainers-go v0.32.0
 	go.uber.org/mock v0.4.0
-	go.uber.org/zap v1.26.0
-	golang.org/x/crypto v0.24.0
+	go.uber.org/zap v1.27.0
+	golang.org/x/crypto v0.25.0
 	golang.org/x/sync v0.7.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
-	helm.sh/helm/v3 v3.15.2
+	helm.sh/helm/v3 v3.15.3
 	k8s.io/api v0.30.2
 	k8s.io/apiextensions-apiserver v0.30.2
 	k8s.io/apimachinery v0.30.2
@@ -74,9 +74,9 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.110.6 // indirect
+	cloud.google.com/go v0.110.8 // indirect
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
-	cloud.google.com/go/iam v1.1.1 // indirect
+	cloud.google.com/go/iam v1.1.2 // indirect
 	cloud.google.com/go/storage v1.30.1 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
@@ -85,8 +85,8 @@ require (
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/squirrel v1.5.4 // indirect
-	github.com/Microsoft/go-winio v0.6.1 // indirect
-	github.com/Microsoft/hcsshim v0.11.4 // indirect
+	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/Microsoft/hcsshim v0.11.5 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/aws/aws-sdk-go v1.44.122 // indirect
@@ -97,13 +97,14 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
-	github.com/containerd/containerd v1.7.15 // indirect
+	github.com/containerd/containerd v1.7.18 // indirect
+	github.com/containerd/errdefs v0.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/cpuguy83/dockercfg v0.3.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.5 // indirect
-	github.com/distribution/reference v0.5.0 // indirect
+	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v25.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
@@ -140,8 +141,8 @@ require (
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
-	github.com/googleapis/gax-go/v2 v2.11.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.2.4 // indirect
+	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
@@ -159,7 +160,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/klauspost/compress v1.16.5 // indirect
+	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
@@ -225,19 +226,19 @@ require (
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
-	golang.org/x/term v0.21.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
+	golang.org/x/term v0.22.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
-	google.golang.org/api v0.126.0 // indirect
+	google.golang.org/api v0.128.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20230803162519-f966b187b2e5 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230726155614-23370e0ffb3e // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
-	google.golang.org/grpc v1.58.3 // indirect
+	google.golang.org/genproto v0.0.0-20231012201019-e917dd12ba7a // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20231002182017-d307bd883b97 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231016165738-49dd2c1f3d0b // indirect
+	google.golang.org/grpc v1.59.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect

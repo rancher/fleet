@@ -11,7 +11,9 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
+// This test uses two clusters to demonstrate matching clusters in different
+// namespaces. Therefore it's setup and input configuration is difficult.
+var _ = Describe("Bundle Namespace Mapping", func() {
 	var (
 		k  kubectl.Command
 		kd kubectl.Command
@@ -61,7 +63,7 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 				Consistently(func() string {
 					out, _ := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-namespace="+namespace)
 					return out
-				}, duration, interval).ShouldNot(ContainSubstring("simpleapp-bundle-diffs"))
+				}, duration, interval).ShouldNot(ContainSubstring("simpleapp-simple"))
 			})
 		})
 	})
@@ -80,11 +82,11 @@ var _ = Describe("Bundle Namespace Mapping", Label("difficult"), func() {
 				Eventually(func() string {
 					out, _ := k.Get("bundledeployments", "-A", "-l", "fleet.cattle.io/bundle-namespace="+namespace)
 					return out
-				}).Should(ContainSubstring("simpleapp-bundle-diffs"))
+				}).Should(ContainSubstring("simpleapp-simple"))
 				Eventually(func() string {
 					out, _ := kd.Namespace("project1simpleapp").Get("configmaps")
 					return out
-				}).Should(ContainSubstring("app-config"))
+				}).Should(ContainSubstring("simple-config"))
 			})
 		})
 

@@ -1,21 +1,15 @@
 # Upgrade Fleet standalone from latest released to dev version
-name: Upgrade Fleet Standalone to HEAD
+name: E2E Upgrade Fleet Standalone to HEAD
 
 on:
   schedule:
     - cron: '0 8 */2 * *'
-  workflow_dispatch:
-    inputs:
-      enable_tmate:
-        description: 'Enable debugging via tmate'
-        required: false
-        default: "false"
   pull_request:
 
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.5.1'
+  SETUP_K3D_VERSION: 'v5.7.1'
 
 jobs:
   fleet-upgrade-test:
@@ -23,7 +17,7 @@ jobs:
     strategy:
       matrix:
         k3s_version:
-          - v1.27.5-k3s1
+          - v1.30.2-k3s2
     steps:
       -
         uses: actions/checkout@v4
@@ -49,20 +43,13 @@ jobs:
             --network "nw01"
             --image docker.io/rancher/k3s:${{matrix.k3s_version}}
       -
-        name: Set Up Tmate Debug Session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
-      -
         name: Deploy Latest Release
         run: |
           ./.github/scripts/deploy-fleet-latest-release.sh
       -
         name: Create example workload
         run: |
-          kubectl apply -n fleet-local -f e2e/assets/installation/bundle-diffs.yaml
+          kubectl apply -n fleet-local -f e2e/assets/installation/simple.yaml
       -
         name: Build Fleet Binaries
         run: |
@@ -79,7 +66,7 @@ jobs:
         name: Verify Example Workload
         run: |
           # we waited long enough by importing the image first
-          kubectl get configmap -n bundle-diffs-example | grep -q -m 1 "app-config"
+          kubectl get configmap -n simple-example | grep -q -m 1 "simple-config"
       -
         name: Upgrade to Dev Version
         run: |

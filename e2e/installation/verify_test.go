@@ -38,8 +38,8 @@ var _ = Describe("Fleet Installation", func() {
 
 	Context("Verify bundles are deployed", Label("single-cluster"), func() {
 		It("finds the original workload", func() {
-			out, _ := k.Namespace("bundle-diffs-example").Get("services")
-			Expect(out).To(ContainSubstring("app-service"))
+			out, _ := k.Namespace("simple-example").Get("services")
+			Expect(out).To(ContainSubstring("simple-service"))
 		})
 	})
 
@@ -107,7 +107,7 @@ var _ = Describe("Fleet Installation", func() {
 			Eventually(func() string {
 				out, _ := k.Namespace("testexample").Get("configmaps")
 				return out
-			}).Should(ContainSubstring("app-config"))
+			}).Should(ContainSubstring("simple-config"))
 		})
 
 	})

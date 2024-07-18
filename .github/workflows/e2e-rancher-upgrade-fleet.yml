@@ -1,5 +1,5 @@
 # Upgrade Fleet in given Rancher versions to given Fleet release and run tests
-name: Upgrade Fleet in Rancher
+name: E2E Upgrade Fleet in Rancher
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.5.1'
+  SETUP_K3D_VERSION: 'v5.7.1'
 
 jobs:
   rancher-fleet-upgrade:

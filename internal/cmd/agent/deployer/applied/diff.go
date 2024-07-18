@@ -6,9 +6,9 @@ import (
 	jsonpatch "github.com/evanphx/json-patch"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diffnormalize"
+	argo "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/normalizers"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/resource"
-	fleetnorm "github.com/rancher/fleet/internal/cmd/agent/deployer/normalizers"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/normalizers"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
@@ -27,7 +27,7 @@ func Diff(plan apply.Plan, bd *fleet.BundleDeployment, ns string, objs ...runtim
 	desired := objectset.NewObjectSet(objs...).ObjectsByGVK()
 	live := objectset.NewObjectSet(plan.Objects...).ObjectsByGVK()
 
-	norms, err := normalizers(live, bd)
+	norms, err := newNormalizers(live, bd)
 	if err != nil {
 		return plan, err
 	}
@@ -72,6 +72,7 @@ func Diff(plan apply.Plan, bd *fleet.BundleDeployment, ns string, objs ...runtim
 				errs = append(errs, err)
 				continue
 			}
+			// this will overwrite an existing entry in the Update map
 			plan.Update.Add(gvk, key.Namespace, key.Name, string(patch))
 		}
 		if len(errs) > 0 {
@@ -81,9 +82,18 @@ func Diff(plan apply.Plan, bd *fleet.BundleDeployment, ns string, objs ...runtim
 	return plan, nil
 }
 
-func normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (diff.Normalizer, error) {
+// newNormalizers creates a normalizer that removes fields from resources.
+// The normalizer is composed of:
+//
+//   - StatusNormalizer
+//   - MutatingWebhookNormalizer
+//   - ValidatingWebhookNormalizer
+//   - normalizers.NewIgnoreNormalizer (patch.JsonPointers)
+//   - normalizers.NewKnownTypesNormalizer (rollout.argoproj.io)
+//   - patch.Operations
+func newNormalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (diff.Normalizer, error) {
 	var ignore []resource.ResourceIgnoreDifferences
-	jsonPatchNorm := &fleetnorm.JSONPatchNormalizer{}
+	jsonPatchNorm := &normalizers.JSONPatchNormalizer{}
 	if bd.Spec.Options.Diff != nil {
 		for _, patch := range bd.Spec.Options.Diff.ComparePatches {
 			groupVersion, err := schema.ParseGroupVersion(patch.APIVersion)
@@ -114,11 +124,15 @@ func normalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (diff.N
 		}
 	}
 
-	ignoreNorm, err := diffnormalize.NewDiffNormalizer(ignore, nil)
+	ignoreNormalizer, err := argo.NewIgnoreNormalizer(ignore, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	norm := fleetnorm.New(live, ignoreNorm, jsonPatchNorm)
-	return norm, nil
+	knownTypesNorm, err := argo.NewKnownTypesNormalizer(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return normalizers.New(live, ignoreNormalizer, knownTypesNorm, jsonPatchNorm), nil
 }

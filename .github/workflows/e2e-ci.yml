@@ -2,12 +2,6 @@
 name: E2E Fleet
 
 on:
-  workflow_dispatch:
-    inputs:
-      enable_tmate:
-        description: 'Enable debugging via tmate'
-        required: false
-        default: "false"
   pull_request:
   push:
     branches:
@@ -16,7 +10,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.5.1'
+  SETUP_K3D_VERSION: 'v5.7.1'
 
 jobs:
   e2e-fleet-test:
@@ -27,7 +21,7 @@ jobs:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
-          - v1.29.0-k3s1
+          - v1.30.2-k3s2
           - v1.24.17-k3s1
         test_type:
           - name: default
@@ -77,13 +71,6 @@ jobs:
         name: Import Images Into k3d
         run: |
           ./.github/scripts/k3d-import-retry.sh rancher/fleet:dev rancher/fleet-agent:dev nginx-git:test -c upstream
-      -
-        name: Set Up Tmate Debug Session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
       -
         name: Deploy Fleet
         env:

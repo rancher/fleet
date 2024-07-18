@@ -1,4 +1,4 @@
-// copied from argoproj/gitops-engine/pkg/utils/json/json.go
+// +vendored argoproj/gitops-engine/pkg/utils/json/json.go
 package json
 
 // https://github.com/ksonnet/ksonnet/blob/master/pkg/kubecfg/diff.go
