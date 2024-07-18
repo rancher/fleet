@@ -554,14 +554,13 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	shardID := gitrepo.Labels[sharding.ShardingRefLabel]
 
-	var nodeSelector map[string]string
+	nodeSelector := map[string]string{"kubernetes.io/os": "linux"}
 	if shardID != "" {
-		nodeSelector, _ = r.getNodeSelectorForShard(ctx, shardID)
-	} else {
-		nodeSelector = make(map[string]string)
+		shardNodeSelector, _ := r.getNodeSelectorForShard(ctx, shardID)
+		for k, v := range shardNodeSelector {
+			nodeSelector[k] = v
+		}
 	}
-
-	nodeSelector["kubernetes.io/os"] = "linux"
 
 	saName := name.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
