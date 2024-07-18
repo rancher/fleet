@@ -79,26 +79,37 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 
 				By("checking the gitjob pod has the same nodeSelector as the sharded controller")
 				Eventually(func() bool {
-					shardNodeSelector, err := k.Namespace("cattle-fleet-system").Get("pods", "-o=jsonpath={.items[0].spec.nodeSelector}", "-l", "app=fleet-controller", "-l", fmt.Sprintf("fleet.cattle.io/shard-id=%s", shard))
+					shardNodeSelector, err := k.Namespace("cattle-fleet-system").Get(
+						"pods",
+						"-o=jsonpath={.items[0].spec.nodeSelector}",
+						"-l",
+						"app=fleet-controller",
+						"-l",
+						fmt.Sprintf("fleet.cattle.io/shard-id=%s", shard),
+					)
 					if err != nil {
 						return false
 					}
 
-					podNames, _ := k.Namespace("fleet-local").Get("pods", "-o", "jsonpath={.items[*].metadata.name}")
+					pods, _ := k.Namespace("fleet-local").Get(
+						"pods",
+						"-o",
+						`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.nodeSelector}{"\n"}{end}`,
+					)
 
-					var targetPod string
-					for _, podName := range strings.Split(podNames, " ") {
+					var podNodeSelector string
+					for _, pod := range strings.Split(pods, "\n") {
+						fields := strings.Split(pod, "\t")
+						podName := fields[0]
 						if strings.HasPrefix(podName, "sharding-test") {
-							targetPod = podName
+							podNodeSelector = fields[1]
 							break
 						}
 					}
 
-					if targetPod == "" {
+					if podNodeSelector == "" {
 						return false
 					}
-
-					podNodeSelector, _ := k.Namespace("fleet-local").Get("pod", targetPod, "-o", "jsonpath={.spec.nodeSelector}")
 
 					return podNodeSelector == shardNodeSelector
 				}).Should(BeTrue())
