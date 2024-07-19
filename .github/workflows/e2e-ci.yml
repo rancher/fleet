@@ -172,7 +172,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
+          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ matrix.test_type.name }}-${{ github.run_id }}
           path: |
             tmp/*.json
             tmp/*.log
