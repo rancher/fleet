@@ -38,7 +38,7 @@ require (
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.55.0
-	github.com/rancher/fleet/pkg/apis v0.10.0-rc.20
+	github.com/rancher/fleet/pkg/apis v0.10.0
 	github.com/rancher/lasso v0.0.0-20240705194423-b2a060d103c1
 	github.com/rancher/wrangler/v3 v3.0.0
 	github.com/reugn/go-quartz v0.11.2
