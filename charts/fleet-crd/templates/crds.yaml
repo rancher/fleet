@@ -5440,6 +5440,13 @@ spec:
                     either be predefined, or generated when importing the cluster.'
                   nullable: true
                   type: string
+                hostNetwork:
+                  description: 'HostNetwork sets the agent StatefulSet to use hostNetwork:
+                    true setting.
+
+                    Allows for provisioning of network related bundles (CNI configuration).'
+                  nullable: true
+                  type: boolean
                 kubeConfigSecret:
                   description: 'KubeConfigSecret is the name of the secret containing
                     the kubeconfig for the downstream cluster.
