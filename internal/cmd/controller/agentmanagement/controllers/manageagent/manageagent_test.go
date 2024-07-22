@@ -7,6 +7,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/ptr"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
@@ -267,6 +268,62 @@ func TestOnClusterChangeTolerations(t *testing.T) {
 
 			if status.AgentTolerationsHash != tt.expectedStatus.AgentTolerationsHash {
 				t.Fatalf("agent tolerations hash is not equal: %v vs %v", status.AgentTolerationsHash, tt.expectedStatus.AgentTolerationsHash)
+			}
+		})
+	}
+}
+
+func TestOnClusterChangeHostNetwork(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	namespaces := fake.NewMockNonNamespacedControllerInterface[*corev1.Namespace, *corev1.NamespaceList](ctrl)
+	h := &handler{namespaces: namespaces}
+
+	for _, tt := range []struct {
+		name           string
+		cluster        *fleet.Cluster
+		status         fleet.ClusterStatus
+		expectedStatus fleet.ClusterStatus
+		enqueues       int
+	}{
+		{
+			name:           "Empty",
+			cluster:        &fleet.Cluster{},
+			status:         fleet.ClusterStatus{},
+			expectedStatus: fleet.ClusterStatus{},
+			enqueues:       0,
+		},
+		{
+			name:           "Equal HostNetwork",
+			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{HostNetwork: ptr.To(true)}},
+			status:         fleet.ClusterStatus{AgentHostNetwork: true},
+			expectedStatus: fleet.ClusterStatus{AgentHostNetwork: true},
+			enqueues:       0,
+		},
+		{
+			name:           "Changed HostNetwork",
+			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{HostNetwork: ptr.To(true)}},
+			status:         fleet.ClusterStatus{AgentHostNetwork: false},
+			expectedStatus: fleet.ClusterStatus{AgentHostNetwork: true},
+			enqueues:       1,
+		},
+		{
+			name:           "Removed Resources",
+			cluster:        &fleet.Cluster{Spec: fleet.ClusterSpec{}},
+			status:         fleet.ClusterStatus{AgentHostNetwork: true},
+			expectedStatus: fleet.ClusterStatus{AgentHostNetwork: false},
+			enqueues:       1,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			namespaces.EXPECT().Enqueue(gomock.Any()).Times(tt.enqueues)
+
+			status, err := h.onClusterStatusChange(tt.cluster, tt.status)
+			if err != nil {
+				t.Error(err)
+			}
+
+			if status.AgentHostNetwork != tt.expectedStatus.AgentHostNetwork {
+				t.Fatalf("agent hostStatus is not equal: %v vs %v", status.AgentHostNetwork, tt.expectedStatus.AgentHostNetwork)
 			}
 		})
 	}
