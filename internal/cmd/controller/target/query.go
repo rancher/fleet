@@ -3,12 +3,12 @@ package target
 import (
 	"context"
 
-	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -19,10 +19,11 @@ func (m *Manager) BundlesForCluster(ctx context.Context, cluster *fleet.Cluster)
 		return nil, nil, err
 	}
 
+	logger := log.FromContext(ctx).WithName("target")
 	for _, bundle := range bundles {
 		bm, err := matcher.New(bundle)
 		if err != nil {
-			logrus.Errorf("ignore bad app %s/%s: %v", bundle.Namespace, bundle.Name, err)
+			logger.Error(err, "ignore bad app bundle", "namespace", bundle.Namespace, "name", bundle.Name)
 			continue
 		}
 
@@ -68,11 +69,12 @@ func (m *Manager) getBundlesInScopeForCluster(ctx context.Context, cluster *flee
 		return nil, err
 	}
 
+	logger := log.FromContext(ctx).WithName("target")
 	for _, mapping := range mappings.Items {
 		mapping := mapping
 		matcher, err := newBundleMapping(&mapping)
 		if err != nil {
-			logrus.Errorf("invalid BundleNamespaceMapping %s/%s skipping: %v", mapping.Namespace, mapping.Name, err)
+			logger.Error(err, "invalid BundleNamespaceMapping, skipping", "namespace", mapping.Namespace, "name", mapping.Name)
 			continue
 		}
 		if !matcher.MatchesNamespace(ctx, m.client, cluster.Namespace) {
@@ -93,6 +95,7 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 		return nil, err
 	}
 
+	logger := log.FromContext(ctx).WithName("target")
 	for _, cg := range cgs.Items {
 		cg := cg
 		if cg.Spec.Selector == nil {
@@ -100,8 +103,8 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 		}
 		sel, err := metav1.LabelSelectorAsSelector(cg.Spec.Selector)
 		if err != nil {
-			logrus.Errorf("invalid selector on clusterGroup %s/%s [%v]: %v", cg.Namespace, cg.Name,
-				cg.Spec.Selector, err)
+			logger.Error(err, "invalid selector on clusterGroup", "namespace", cg.Namespace, "name", cg.Name,
+				"selector", cg.Spec.Selector)
 			continue
 		}
 		if sel.Matches(labels.Set(cluster.Labels)) {

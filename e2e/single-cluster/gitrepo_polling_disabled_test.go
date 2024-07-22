@@ -85,7 +85,11 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 		})
 
 		JustBeforeEach(func() {
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo-polling-disabled.yaml"), struct {
+			var err error
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "disable_polling")
+			Expect(err).ToNot(HaveOccurred())
+
+			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo-polling-disabled.yaml"), struct {
 				Name            string
 				Repo            string
 				Branch          string
@@ -96,9 +100,6 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 				gh.Branch,
 				targetNamespace,
 			})
-			Expect(err).ToNot(HaveOccurred())
-
-			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "disable_polling")
 			Expect(err).ToNot(HaveOccurred())
 		})
 

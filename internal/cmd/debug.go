@@ -7,7 +7,10 @@ import (
 	"fmt"
 
 	"github.com/sirupsen/logrus"
+	"go.uber.org/zap/zapcore"
+
 	"k8s.io/klog/v2"
+	crzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 type DebugConfig struct {
@@ -34,4 +37,19 @@ func (c *DebugConfig) SetupDebug() error {
 	}
 
 	return nil
+}
+
+// OverrideZapOpts, for compatibility override zap opts with legacy debug opts.
+func (c *DebugConfig) OverrideZapOpts(zopts *crzap.Options) *crzap.Options {
+	if zopts == nil {
+		zopts = &crzap.Options{}
+	}
+
+	zopts.Development = c.Debug
+
+	if c.Debug && c.DebugLevel > 0 {
+		zopts.Level = zapcore.Level(c.DebugLevel * -1)
+	}
+
+	return zopts
 }

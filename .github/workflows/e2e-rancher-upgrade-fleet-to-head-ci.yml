@@ -1,5 +1,5 @@
 # Upgrade fleet in latest Rancher to dev version and run MC tests
-name: Upgrade Fleet in Rancher To HEAD
+name: E2E Upgrade Fleet in Rancher To HEAD
 
 on:
   schedule:
@@ -11,10 +11,6 @@ on:
         description: "checkout git branch/tag"
         required: true
         default: "main"
-      enable_tmate:
-        description: 'Enable debugging via tmate'
-        required: false
-        default: "false"
   push:
     tags: [ 'v*' ]
     paths-ignore:
@@ -23,8 +19,8 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.5.1'
-  SETUP_K3S_VERSION: 'v1.26.8-k3s1'
+  SETUP_K3D_VERSION: 'v5.7.1'
+  SETUP_K3S_VERSION: 'v1.30.2-k3s2'
 
 jobs:
   rancher-fleet-integration:
@@ -137,13 +133,6 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
-      -
-        name: Set up tmate debug session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
       -
         name: Set up latest Rancher
         env:

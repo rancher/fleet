@@ -13,7 +13,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-var _ = Describe("Bundle Depends On", Label("difficult"), func() {
+var _ = Describe("Bundle Depends On", func() {
 	var (
 		k kubectl.Command
 

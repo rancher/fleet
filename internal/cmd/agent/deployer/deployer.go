@@ -62,7 +62,6 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 		return status, err
 	}
 
-	logger.Info("Checking if bundle needs to be deployed")
 	release, err := d.helmdeploy(ctx, bd)
 	if err != nil {
 		// When an error from DeployBundle is returned it causes DeployBundle
@@ -86,6 +85,7 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 	}
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
+	logger.Info("Deployed bundle", "release", release, "appliedDeploymentID", status.AppliedDeploymentID)
 
 	if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, release); err != nil {
 		return fleet.BundleDeploymentStatus{}, err

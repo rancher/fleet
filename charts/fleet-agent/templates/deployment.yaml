@@ -59,6 +59,9 @@ spec:
             drop:
             - ALL
         {{- end }}
+        volumeMounts:
+          - mountPath: /.kube
+            name: kube
       - env:
         - name: NAMESPACE
           valueFrom:
@@ -82,6 +85,9 @@ spec:
             drop:
             - ALL
         {{- end }}
+      volumes:
+        - name: kube
+          emptyDir: {}
       serviceAccountName: fleet-agent
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
 {{- if .Values.fleetAgent.nodeSelector }}

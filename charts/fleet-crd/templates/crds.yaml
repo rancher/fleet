@@ -1652,15 +1652,19 @@ spec:
                     properties:
                       content:
                         description: The content of the resource, can be compressed.
+                        nullable: true
                         type: string
                       encoding:
                         description: Encoding is either empty or "base64+gz".
+                        nullable: true
                         type: string
                       name:
                         description: Name of the resource, can include the bundle's
                           internal path.
+                        nullable: true
                         type: string
                     type: object
+                  nullable: true
                   type: array
                 rolloutStrategy:
                   description: 'RolloutStrategy controls the rollout of bundles, by
@@ -1730,6 +1734,7 @@ spec:
                           clusterGroupSelector:
                             description: Selector matching cluster group labels to
                               include in this partition
+                            nullable: true
                             properties:
                               matchExpressions:
                                 description: matchExpressions is a list of label selector
@@ -1865,6 +1870,7 @@ spec:
                           name:
                             description: A user-friendly name given to the partition
                               used for Display (optional).
+                            nullable: true
                             type: string
                         type: object
                       nullable: true
@@ -2743,6 +2749,7 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  nullable: true
                                   type: array
                                 name:
                                   description: Name is the name of the resource.
@@ -2793,8 +2800,10 @@ spec:
                                         nullable: true
                                         type: string
                                     type: object
+                                  nullable: true
                                   type: array
                               type: object
+                            nullable: true
                             type: array
                           notReady:
                             description: 'NotReady is the number of bundle deployments
@@ -2866,6 +2875,7 @@ spec:
                         nullable: true
                         type: string
                     type: object
+                  nullable: true
                   type: array
                 resourcesSha256Sum:
                   description: ResourcesSHA256Sum corresponds to the JSON serialization
@@ -2955,6 +2965,7 @@ spec:
                                   nullable: true
                                   type: string
                               type: object
+                            nullable: true
                             type: array
                           name:
                             description: Name is the name of the resource.
@@ -3004,8 +3015,10 @@ spec:
                                   nullable: true
                                   type: string
                               type: object
+                            nullable: true
                             type: array
                         type: object
+                      nullable: true
                       type: array
                     notReady:
                       description: 'NotReady is the number of bundle deployments that
@@ -3384,6 +3397,7 @@ spec:
                                   nullable: true
                                   type: string
                               type: object
+                            nullable: true
                             type: array
                           name:
                             description: Name is the name of the resource.
@@ -3433,8 +3447,10 @@ spec:
                                   nullable: true
                                   type: string
                               type: object
+                            nullable: true
                             type: array
                         type: object
+                      nullable: true
                       type: array
                     notReady:
                       description: 'NotReady is the number of bundle deployments that
@@ -5282,6 +5298,7 @@ spec:
                     required:
                       - name
                     type: object
+                  nullable: true
                   type: array
                 agentNamespace:
                   description: AgentNamespace defaults to the system namespace, e.g.
@@ -5414,6 +5431,7 @@ spec:
                           just a regular string.'
                         type: string
                     type: object
+                  nullable: true
                   type: array
                 clientID:
                   description: 'ClientID is a unique string that will identify the
@@ -5456,7 +5474,9 @@ spec:
                 templateValues:
                   description: TemplateValues defines a cluster specific mapping of
                     values to be sent to fleet.yaml values templating.
+                  nullable: true
                   type: object
+                  x-kubernetes-preserve-unknown-fields: true
               type: object
             status:
               properties:
@@ -5621,6 +5641,7 @@ spec:
                     state:
                       description: State of the cluster, either one of the bundle
                         states, or "WaitCheckIn".
+                      nullable: true
                       type: string
                   type: object
                 namespace:
@@ -5754,6 +5775,7 @@ spec:
                                   nullable: true
                                   type: string
                               type: object
+                            nullable: true
                             type: array
                           name:
                             description: Name is the name of the resource.
@@ -5803,8 +5825,10 @@ spec:
                                   nullable: true
                                   type: string
                               type: object
+                            nullable: true
                             type: array
                         type: object
+                      nullable: true
                       type: array
                     notReady:
                       description: 'NotReady is the number of bundle deployments that
@@ -6466,6 +6490,11 @@ spec:
                   description: GitJobStatus is the status of the last Git job run,
                     e.g. "Current" if there was no error.
                   type: string
+                lastPollingTriggered:
+                  description: LastPollingTime is the last time the polling check
+                    was triggered
+                  format: date-time
+                  type: string
                 lastSyncedImageScanTime:
                   description: LastSyncedImageScanTime is the time of the last image
                     scan.
@@ -6536,6 +6565,7 @@ spec:
                     properties:
                       apiVersion:
                         description: APIVersion is the API version of the resource.
+                        nullable: true
                         type: string
                       error:
                         description: Error is true if any Error in the PerClusterState
@@ -6544,6 +6574,7 @@ spec:
                       id:
                         description: ID is the name of the resource, e.g. "namespace1/my-config"
                           or "backingimagemanagers.storage.io".
+                        nullable: true
                         type: string
                       incompleteState:
                         description: 'IncompleteState is true if a bundle summary
@@ -6556,15 +6587,19 @@ spec:
                         type: boolean
                       kind:
                         description: Kind is the k8s kind of the resource.
+                        nullable: true
                         type: string
                       message:
                         description: Message is the first message from the PerClusterStates.
+                        nullable: true
                         type: string
                       name:
                         description: Name of the resource.
+                        nullable: true
                         type: string
                       namespace:
                         description: Namespace of the resource.
+                        nullable: true
                         type: string
                       perClusterState:
                         description: PerClusterState is a list of states for each
@@ -6575,6 +6610,7 @@ spec:
                           properties:
                             clusterId:
                               description: ClusterID is the id of the cluster.
+                              nullable: true
                               type: string
                             error:
                               description: Error is true if the resource is in an
@@ -6585,12 +6621,16 @@ spec:
                               description: Message combines the messages from the
                                 bundle's summary. Messages are joined with the delimiter
                                 ';'.
+                              nullable: true
                               type: string
                             patch:
                               description: Patch for modified resources.
+                              nullable: true
                               type: object
+                              x-kubernetes-preserve-unknown-fields: true
                             state:
                               description: State is the state of the resource.
+                              nullable: true
                               type: string
                             transitioning:
                               description: 'Transitioning is true if the resource
@@ -6599,6 +6639,7 @@ spec:
                                 copied from the bundle''s summary for non-ready resources.'
                               type: boolean
                           type: object
+                        nullable: true
                         type: array
                       state:
                         description: State is the state of the resource, e.g. "Unknown",
@@ -6696,6 +6737,7 @@ spec:
                                   nullable: true
                                   type: string
                               type: object
+                            nullable: true
                             type: array
                           name:
                             description: Name is the name of the resource.
@@ -6745,8 +6787,10 @@ spec:
                                   nullable: true
                                   type: string
                               type: object
+                            nullable: true
                             type: array
                         type: object
+                      nullable: true
                       type: array
                     notReady:
                       description: 'NotReady is the number of bundle deployments that

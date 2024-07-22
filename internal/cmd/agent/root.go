@@ -29,7 +29,7 @@ type FleetAgent struct {
 
 var (
 	setupLog = ctrl.Log.WithName("setup")
-	zopts    = zap.Options{
+	zopts    = &zap.Options{
 		Development: true,
 	}
 )
@@ -38,13 +38,12 @@ func (a *FleetAgent) PersistentPre(cmd *cobra.Command, _ []string) error {
 	if err := a.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
+	zopts = a.OverrideZapOpts(zopts)
 	return nil
 }
 
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
-	// for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
-	zopts.Development = a.Debug
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	localConfig := ctrl.GetConfigOrDie()

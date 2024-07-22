@@ -21,6 +21,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      -
+        name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.3.1
+        with:
+          version: v3.3.0
+      -
+        name: Run chart-testing (lint)
+        run: ct lint --all --validate-maintainers=false charts/
       -
         uses: actions/setup-go@v5
         with:

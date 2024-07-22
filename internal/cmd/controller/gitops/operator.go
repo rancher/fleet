@@ -12,7 +12,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/git/poll"
+	"github.com/rancher/fleet/pkg/git"
 	"github.com/rancher/fleet/pkg/version"
 	"github.com/rancher/fleet/pkg/webhook"
 	"github.com/reugn/go-quartz/quartz"
@@ -74,13 +74,12 @@ func (g *GitOperator) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := g.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
+	zopts = g.OverrideZapOpts(zopts)
 
 	return nil
 }
 
 func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
-	// TODO for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
-	zopts.Development = g.Debug
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("gitjob-reconciler"))
 
@@ -123,21 +122,23 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	reconciler := &reconciler.GitJobReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Image:     g.Image,
-		GitPoller: poll.NewHandler(ctx, mgr.GetClient()),
-		Scheduler: sched,
-		Workers:   workers,
-		ShardID:   g.ShardID,
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		Image:      g.Image,
+		Scheduler:  sched,
+		Workers:    workers,
+		ShardID:    g.ShardID,
+		GitFetcher: &git.Fetch{},
+		Clock:      reconciler.RealClock{},
 	}
 
-	group := errgroup.Group{}
+	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
 		return startWebhook(ctx, namespace, g.Listen, mgr.GetClient(), mgr.GetCache())
 	})
 	group.Go(func() error {
 		setupLog.Info("starting manager")
+
 		if err = reconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}

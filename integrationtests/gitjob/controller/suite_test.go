@@ -17,8 +17,8 @@ import (
 	ctrlreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
-	"github.com/rancher/fleet/internal/mocks"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/git/mocks"
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -33,13 +33,14 @@ const (
 )
 
 var (
-	cfg        *rest.Config
-	testEnv    *envtest.Environment
-	ctx        context.Context
-	cancel     context.CancelFunc
-	k8sClient  client.Client
-	logsBuffer bytes.Buffer
-	namespace  string
+	cfg            *rest.Config
+	testEnv        *envtest.Environment
+	ctx            context.Context
+	cancel         context.CancelFunc
+	k8sClient      client.Client
+	logsBuffer     bytes.Buffer
+	namespace      string
+	expectedCommit string
 )
 
 func TestGitJobController(t *testing.T) {
@@ -73,25 +74,29 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	ctlr := gomock.NewController(GinkgoT())
-	gitPollerMock := mocks.NewMockGitPoller(ctlr)
 
 	// redirect logs to a buffer that we can read in the tests
 	GinkgoWriter.TeeTo(&logsBuffer)
 	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	// do nothing if gitPoller is called. gitPoller calls are tested in unit tests
-	gitPollerMock.EXPECT().AddOrModifyGitRepoPollJob(gomock.Any(), gomock.Any()).AnyTimes()
-	gitPollerMock.EXPECT().CleanUpGitRepoPollJobs(gomock.Any()).AnyTimes()
+	// return whatever commit the test is expecting
+	fetcherMock := mocks.NewMockGitFetcher(ctlr)
+	fetcherMock.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+		func(ctx context.Context, gitrepo *v1alpha1.GitRepo, client client.Client) (string, error) {
+			return expectedCommit, nil
+		},
+	)
 
 	sched := quartz.NewStdScheduler()
 	Expect(sched).ToNot(BeNil())
 
 	err = (&reconciler.GitJobReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Image:     "image",
-		GitPoller: gitPollerMock,
-		Scheduler: sched,
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		Image:      "image",
+		Scheduler:  sched,
+		GitFetcher: fetcherMock,
+		Clock:      reconciler.RealClock{},
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

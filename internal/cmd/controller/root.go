@@ -50,7 +50,7 @@ type BindAddresses struct {
 
 var (
 	setupLog = ctrl.Log.WithName("setup")
-	zopts    = zap.Options{
+	zopts    = &zap.Options{
 		Development: true,
 	}
 )
@@ -59,14 +59,13 @@ func (f *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := f.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
+	zopts = f.OverrideZapOpts(zopts)
 
 	return nil
 }
 
 func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
-	// for compatibility, override zap opts with legacy debug opts. remove once manifests are updated.
-	zopts.Development = f.Debug
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
 
 	kubeconfig := ctrl.GetConfigOrDie()
@@ -136,7 +135,7 @@ func App() *cobra.Command {
 	root.AddCommand(
 		cleanup.App(),
 		agentmanagement.App(),
-		gitops.App(&zopts),
+		gitops.App(zopts),
 	)
 	return root
 }
