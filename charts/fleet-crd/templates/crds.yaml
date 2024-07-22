@@ -5529,6 +5529,11 @@ spec:
                     used to detect changes.
                   nullable: true
                   type: string
+                agentHostNetwork:
+                  description: AgentHostNetwork defines observed state of spec.hostNetwork
+                    setting that is currently used.
+                  nullable: true
+                  type: boolean
                 agentMigrated:
                   description: 'AgentMigrated is always set to true after importing
                     a cluster. If

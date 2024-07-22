@@ -160,6 +160,9 @@ type ClusterStatus struct {
 	// AgentPrivateRepoURL is the private repo URL for the agent that is currently used.
 	// +nullable
 	AgentPrivateRepoURL string `json:"agentPrivateRepoURL,omitempty"`
+	// AgentHostNetwork defines observed state of spec.hostNetwork setting that is currently used.
+	// +nullable
+	AgentHostNetwork bool `json:"agentHostNetwork,omitempty"`
 	// AgentDeployedGeneration is the generation of the agent that is currently deployed.
 	// +nullable
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`
