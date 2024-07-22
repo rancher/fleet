@@ -99,7 +99,7 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 				}
 				if mapping.Scope.Name() == meta.RESTScopeNameRoot {
 					apiVersion, kind := gvk.ToAPIVersionAndKind()
-					return nil, fmt.Errorf("invalid cluster scoped object [name=%s kind=%v apiVersion=%s] found, consider using \"defaultNamespace\", not \"namespace\" in fleet.yaml", m.GetName(),
+					return nil, fmt.Errorf("invalid cluster scoped object [name=%s kind=%v apiVersion=%s] found. Your config uses targetNamespace or namespace and thus forbids cluster scoped resources. If you do not intend to disallow cluster scoped resources, you could switch to defaultNamespace", m.GetName(),
 						kind, apiVersion)
 				}
 			}
