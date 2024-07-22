@@ -104,6 +104,54 @@ func TestManifestAgentTolerations(t *testing.T) {
 	}
 }
 
+func TestManifestAgentHostNetwork(t *testing.T) {
+	const namespace = "fleet-system"
+	const scope = "test-scope"
+	baseOpts := ManifestOptions{
+		AgentEnvVars:          []corev1.EnvVar{},
+		AgentImage:            "rancher/fleet:1.2.3",
+		AgentImagePullPolicy:  "Always",
+		AgentTolerations:      []corev1.Toleration{},
+		CheckinInterval:       "1s",
+		PrivateRepoURL:        "private.rancher.com:5000",
+		SystemDefaultRegistry: "default.rancher.com",
+	}
+
+	for _, testCase := range []struct {
+		name            string
+		getOpts         func() ManifestOptions
+		expectedNetwork bool
+	}{
+		{
+			name: "DefaultSetting",
+			getOpts: func() ManifestOptions {
+				return baseOpts
+			},
+			expectedNetwork: false,
+		},
+		{
+			name: "With hostNetwork",
+			getOpts: func() ManifestOptions {
+				withHostNetwork := baseOpts
+				withHostNetwork.HostNetwork = true
+				return withHostNetwork
+			},
+			expectedNetwork: true,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			agent := getAgentFromManifests(namespace, scope, testCase.getOpts())
+			if agent == nil {
+				t.Fatal("there were no deployments returned from the manifests")
+			}
+
+			if !cmp.Equal(agent.Spec.Template.Spec.HostNetwork, testCase.expectedNetwork) {
+				t.Fatalf("hostNetwork is not as expected: %v", agent.Spec.Template.Spec.HostNetwork)
+			}
+		})
+	}
+}
+
 func TestManifestAgentAffinity(t *testing.T) {
 	const namespace = "fleet-system"
 

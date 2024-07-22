@@ -125,6 +125,12 @@ type ClusterSpec struct {
 	// +nullable
 	// AgentResources sets the resources for the cluster's agent deployment.
 	AgentResources *corev1.ResourceRequirements `json:"agentResources,omitempty"`
+
+	// +nullable
+	// +optional
+	// HostNetwork sets the agent StatefulSet to use hostNetwork: true setting.
+	// Allows for provisioning of network related bundles (CNI configuration).
+	HostNetwork *bool `json:"hostNetwork,omitempty"`
 }
 
 type ClusterStatus struct {
