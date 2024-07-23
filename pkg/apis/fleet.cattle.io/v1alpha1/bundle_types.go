@@ -229,10 +229,10 @@ type BundleTarget struct {
 	DoNotDeploy bool `json:"doNotDeploy,omitempty"`
 	// NamespaceLabels are labels that will be appended to the namespace created by Fleet.
 	// +nullable
-	NamespaceLabels *map[string]string `json:"namespaceLabels,omitempty"`
+	NamespaceLabels map[string]string `json:"namespaceLabels,omitempty"`
 	// NamespaceAnnotations are annotations that will be appended to the namespace created by Fleet.
 	// +nullable
-	NamespaceAnnotations *map[string]string `json:"namespaceAnnotations,omitempty"`
+	NamespaceAnnotations map[string]string `json:"namespaceAnnotations,omitempty"`
 }
 
 // BundleSummary contains the number of bundle deployments in each state and a
