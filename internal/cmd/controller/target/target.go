@@ -58,6 +58,7 @@ func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 		Spec: t.Deployment.Spec,
 	}
 	bd.Spec.Paused = t.IsPaused()
+
 	for _, bundleTarget := range t.Bundle.Spec.Targets {
 		if bundleTarget.NamespaceLabels != nil {
 			for key, value := range *bundleTarget.NamespaceLabels {
@@ -65,15 +66,15 @@ func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 				(*bd.Spec.StagedOptions.NamespaceLabels)[key] = value
 			}
 		}
-	}
-	for _, bundleTargets := range t.Bundle.Spec.Targets {
-		if bundleTargets.NamespaceAnnotations != nil {
-			for key, value := range *bundleTargets.NamespaceAnnotations {
+
+		if bundleTarget.NamespaceAnnotations != nil {
+			for key, value := range *bundleTarget.NamespaceAnnotations {
 				(*bd.Spec.Options.NamespaceAnnotations)[key] = value
 				(*bd.Spec.StagedOptions.NamespaceAnnotations)[key] = value
 			}
 		}
 	}
+
 	bd.Spec.DependsOn = t.Bundle.Spec.DependsOn
 	bd.Spec.CorrectDrift = t.Options.CorrectDrift
 	return bd
