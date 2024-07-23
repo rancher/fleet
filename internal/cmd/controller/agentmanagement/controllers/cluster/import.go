@@ -97,7 +97,8 @@ func (i *importHandler) onConfig(config *config.Config) error {
 
 		hasConfigChanged := config.APIServerURL != cluster.Status.APIServerURL ||
 			hashStatusField(config.APIServerCA) != cluster.Status.APIServerCAHash ||
-			config.AgentTLSMode != cluster.Status.AgentTLSMode
+			config.AgentTLSMode != cluster.Status.AgentTLSMode ||
+			hasGarbageCollectionIntervalChanged(config, cluster)
 
 		if hasConfigChanged {
 			logrus.Infof("API server config changed, trigger cluster import for cluster %s/%s", cluster.Namespace, cluster.Name)
@@ -314,9 +315,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			APIServerCA:  apiServerCA,
 			APIServerURL: apiServerURL,
 			ConfigOptions: agent.ConfigOptions{
-				ClientID:     cluster.Spec.ClientID,
-				Labels:       clusterLabels,
-				AgentTLSMode: cfg.AgentTLSMode,
+				ClientID:                  cluster.Spec.ClientID,
+				Labels:                    clusterLabels,
+				AgentTLSMode:              cfg.AgentTLSMode,
+				GarbageCollectionInterval: cfg.GarbageCollectionInterval,
 			},
 			ManifestOptions: agent.ManifestOptions{
 				AgentEnvVars:     cluster.Spec.AgentEnvVars,
@@ -385,6 +387,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	status.APIServerURL = apiServerURL
 	status.APIServerCAHash = hashStatusField(apiServerCA)
 	status.AgentTLSMode = cfg.AgentTLSMode
+	status.GarbageCollectionInterval = &cfg.GarbageCollectionInterval
 
 	return status, nil
 }
@@ -431,4 +434,10 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte, agentTLSMode strin
 	}
 
 	return clientcmd.NewDefaultClientConfig(raw, &clientcmd.ConfigOverrides{}).ClientConfig()
+}
+
+func hasGarbageCollectionIntervalChanged(config *config.Config, cluster fleet.Cluster) bool {
+	return (config.GarbageCollectionInterval.Duration != 0 && cluster.Status.GarbageCollectionInterval == nil) ||
+		(cluster.Status.GarbageCollectionInterval != nil &&
+			config.GarbageCollectionInterval.Duration != cluster.Status.GarbageCollectionInterval.Duration)
 }

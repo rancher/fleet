@@ -185,7 +185,9 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 		localDynamic,
 		helmDeployer,
 		fleetNamespace,
-		defaultNamespace)
+		defaultNamespace,
+		0,
+	)
 
 	return &controller.BundleDeploymentReconciler{
 		Client: upstreamClient,

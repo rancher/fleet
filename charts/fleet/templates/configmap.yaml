@@ -12,6 +12,9 @@ data:
       "apiServerCA": "{{b64enc .Values.apiServerCA}}",
       "agentCheckinInterval": "{{.Values.agentCheckinInterval}}",
       "agentTLSMode": "{{.Values.agentTLSMode}}",
+      {{ if .Values.garbageCollectionInterval }}
+      "garbageCollectionInterval": "{{.Values.garbageCollectionInterval}}",
+      {{ end }}
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",

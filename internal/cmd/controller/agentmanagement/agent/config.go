@@ -12,9 +12,10 @@ import (
 )
 
 type ConfigOptions struct {
-	Labels       map[string]string
-	ClientID     string
-	AgentTLSMode string
+	Labels                    map[string]string
+	ClientID                  string
+	AgentTLSMode              string
+	GarbageCollectionInterval metav1.Duration
 }
 
 func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string, cg *client.Getter, opts *ConfigOptions) ([]runtime.Object, error) {
@@ -38,9 +39,10 @@ func agentConfig(ctx context.Context, agentNamespace, controllerNamespace string
 
 func configObjects(controllerNamespace string, co *ConfigOptions) ([]runtime.Object, error) {
 	cm, err := config.ToConfigMap(controllerNamespace, config.AgentConfigName, &config.Config{
-		Labels:       co.Labels,
-		ClientID:     co.ClientID,
-		AgentTLSMode: co.AgentTLSMode,
+		Labels:                    co.Labels,
+		ClientID:                  co.ClientID,
+		AgentTLSMode:              co.AgentTLSMode,
+		GarbageCollectionInterval: co.GarbageCollectionInterval,
 	})
 	if err != nil {
 		return nil, err

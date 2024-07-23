@@ -108,6 +108,9 @@ type Config struct {
 	// to trust CA bundles from the operating system's store. If set to `strict`, then the agent shall only connect
 	// to a server which uses the exact CA configured when creating/updating the agent.
 	AgentTLSMode string `json:"agentTLSMode,omitempty"`
+
+	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
+	GarbageCollectionInterval metav1.Duration `json:"garbageCollectionInterval,omitempty"`
 }
 
 type Bootstrap struct {

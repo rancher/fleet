@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"helm.sh/helm/v3/pkg/action"
 
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -26,26 +27,48 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+type HelmDeployer interface {
+	NewListAction() *action.List
+	ListDeployments(list helmdeployer.ListAction) ([]helmdeployer.DeployedBundle, error)
+	DeleteRelease(ctx context.Context, deployed helmdeployer.DeployedBundle) error
+	Delete(ctx context.Context, name string) error
+}
+
 type Cleanup struct {
 	client           client.Client
 	fleetNamespace   string
 	defaultNamespace string
-	helmDeployer     *helmdeployer.Helm
+	helmDeployer     HelmDeployer
 	cleanupOnce      sync.Once
 
 	mapper meta.RESTMapper
 	// localDynamicClient is a dynamic client for the cluster the agent is running on (local cluster).
 	localDynamicClient *dynamic.DynamicClient
+
+	garbageCollectionInterval time.Duration
 }
 
-func New(upstream client.Client, mapper meta.RESTMapper, localDynamicClient *dynamic.DynamicClient, deployer *helmdeployer.Helm, fleetNamespace string, defaultNamespace string) *Cleanup {
+func New(
+	upstream client.Client,
+	mapper meta.RESTMapper,
+	localDynamicClient *dynamic.DynamicClient,
+	deployer HelmDeployer,
+	fleetNamespace string,
+	defaultNamespace string,
+	garbageCollectionInterval time.Duration,
+) *Cleanup {
+	if garbageCollectionInterval == 0 {
+		garbageCollectionInterval = durations.GarbageCollect
+	}
+
 	return &Cleanup{
-		client:             upstream,
-		mapper:             mapper,
-		localDynamicClient: localDynamicClient,
-		helmDeployer:       deployer,
-		fleetNamespace:     fleetNamespace,
-		defaultNamespace:   defaultNamespace,
+		client:                    upstream,
+		mapper:                    mapper,
+		localDynamicClient:        localDynamicClient,
+		helmDeployer:              deployer,
+		fleetNamespace:            fleetNamespace,
+		defaultNamespace:          defaultNamespace,
+		garbageCollectionInterval: garbageCollectionInterval,
 	}
 }
 
@@ -92,7 +115,7 @@ func (c *Cleanup) garbageCollect(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(wait.Jitter(durations.GarbageCollect, 1.0)):
+		case <-time.After(wait.Jitter(c.garbageCollectionInterval, 1.0)):
 		}
 	}
 }
