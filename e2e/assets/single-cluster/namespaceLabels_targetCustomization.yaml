@@ -4,7 +4,7 @@ metadata:
   name: test
   namespace: fleet-local
 spec:
-  repo: https://github.com/Tommy12789/fleet-examples-tommy
-  branch: test
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
   paths:
-    - namespaceLabels_targetCustomization
+    - target-customization-namespace-labels
