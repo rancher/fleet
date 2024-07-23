@@ -1,4 +1,4 @@
-package manifest
+package manifest_test
 
 import (
 	"bytes"
@@ -11,14 +11,15 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-func testManifest(t *testing.T, data string) *Manifest {
+func testManifest(t *testing.T, data string) *manifest.Manifest {
 	t.Helper()
 
-	m, err := FromJSON([]byte(data), "")
+	m, err := manifest.FromJSON([]byte(data), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +36,7 @@ func Test_contentStore_Store(t *testing.T) {
 	resources := `{"resources": [{"name": "foo", "content": "bar"}]}`
 	checksum := "752ebbb975f52eea5e87950ef2ca5de4055de3c68a17f54d94527d7fd79c21fd"
 	type args struct {
-		manifest *Manifest
+		manifest *manifest.Manifest
 		cached   bool
 	}
 	tests := []struct {
@@ -48,7 +49,7 @@ func Test_contentStore_Store(t *testing.T) {
 			args: args{
 				manifest: testManifest(t, resources),
 			},
-			want: toSHA256ID(checksum),
+			want: manifest.ToSHA256ID(checksum),
 		},
 		{
 			name: "existing manifest",
@@ -56,7 +57,7 @@ func Test_contentStore_Store(t *testing.T) {
 				manifest: testManifest(t, resources),
 				cached:   true,
 			},
-			want: toSHA256ID(checksum),
+			want: manifest.ToSHA256ID(checksum),
 		},
 	}
 	for _, tt := range tests {
@@ -64,7 +65,7 @@ func Test_contentStore_Store(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			client := mocks.NewMockClient(ctrl)
 
-			store := &ContentStore{client}
+			store := &manifest.ContentStore{client}
 			ctx := context.TODO()
 			nsn := types.NamespacedName{Name: tt.want}
 

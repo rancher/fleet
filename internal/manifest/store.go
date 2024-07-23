@@ -14,12 +14,12 @@ import (
 
 func NewStore(client client.Client) *ContentStore {
 	return &ContentStore{
-		client: client,
+		Client: client,
 	}
 }
 
 type ContentStore struct {
-	client client.Client
+	Client client.Client
 }
 
 // Store stores the manifest as a content resource.
@@ -30,7 +30,7 @@ func (c *ContentStore) Store(ctx context.Context, manifest *Manifest) error {
 		return err
 	}
 
-	if err := c.client.Get(ctx, types.NamespacedName{Name: id}, &fleet.Content{}); err != nil && !apierrors.IsNotFound(err) {
+	if err := c.Client.Get(ctx, types.NamespacedName{Name: id}, &fleet.Content{}); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	} else if err == nil {
 		return nil
@@ -55,7 +55,7 @@ func (c *ContentStore) createContents(ctx context.Context, id string, manifest *
 		return err
 	}
 
-	err = c.client.Create(ctx, &fleet.Content{
+	err = c.Client.Create(ctx, &fleet.Content{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: id,
 		},
