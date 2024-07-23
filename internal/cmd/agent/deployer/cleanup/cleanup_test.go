@@ -28,15 +28,45 @@ func TestCleanupReleases(t *testing.T) {
 			BundleID:    "ID1",
 			ReleaseName: fmt.Sprintf("%s/TestRelease1", defaultNS),
 		},
+		{
+			BundleID:    "ID2",
+			ReleaseName: fmt.Sprintf("%s/TestRelease2", defaultNS),
+		},
+		{
+			BundleID:    "ID3",
+			ReleaseName: fmt.Sprintf("%s/TestRelease3", defaultNS),
+		},
 	}
 
 	mockClient := mocks.NewMockClient(mockCtrl)
 	bd := &fleet.BundleDeployment{}
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID1"}, bd).DoAndReturn(
-		func(ctx context.Context, nn types.NamespacedName, bd *fleet.BundleDeployment, opts ...interface{}) error {
+		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {
 			bd.Spec.Options.TargetNamespace = defaultNS
 			bd.Spec.Options.Helm = &fleet.HelmOptions{
-				ReleaseName: "TestRelease1",
+				ReleaseName: "TestRelease1", // will be kept
+			}
+
+			return nil
+		},
+	)
+
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID2"}, bd).DoAndReturn(
+		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {
+			bd.Spec.Options.TargetNamespace = defaultNS
+			bd.Spec.Options.Helm = &fleet.HelmOptions{
+				ReleaseName: "TestRelease2-old", // will be deleted
+			}
+
+			return nil
+		},
+	)
+
+	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID3"}, bd).DoAndReturn(
+		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {
+			bd.Spec.Options.TargetNamespace = defaultNS + "-old" // will be deleted
+			bd.Spec.Options.Helm = &fleet.HelmOptions{
+				ReleaseName: "TestRelease3",
 			}
 
 			return nil
@@ -46,7 +76,8 @@ func TestCleanupReleases(t *testing.T) {
 	mockHelmDeployer := mocks.NewMockHelmDeployer(mockCtrl)
 	mockHelmDeployer.EXPECT().NewListAction()
 	mockHelmDeployer.EXPECT().ListDeployments(gomock.Any()).Return(deployedBundles, nil)
-	mockHelmDeployer.EXPECT().DeleteRelease(gomock.Any(), deployedBundles[0]).Return(nil)
+	mockHelmDeployer.EXPECT().DeleteRelease(gomock.Any(), deployedBundles[1]).Return(nil)
+	mockHelmDeployer.EXPECT().DeleteRelease(gomock.Any(), deployedBundles[2]).Return(nil)
 
 	cleanup := New(mockClient, nil, nil, mockHelmDeployer, fleetNS, defaultNS, 1*time.Second)
 
