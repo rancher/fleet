@@ -179,10 +179,11 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// update our mini controller, which watches deployed resources for drift
-	err = r.DriftDetect.Refresh(logger, req.String(), bd, resources)
-	if err != nil {
-		logger.V(1).Error(err, "Failed to refresh drift detection", "step", "drift")
-		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
+	if bd.Spec.CorrectDrift != nil && bd.Spec.CorrectDrift.Enabled {
+		if err = r.DriftDetect.Refresh(logger, req.String(), bd, resources); err != nil {
+			logger.V(1).Error(err, "Failed to refresh drift detection", "step", "drift")
+			merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
+		}
 	}
 
 	err = r.Cleanup.CleanupReleases(ctx, key, bd)

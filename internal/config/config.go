@@ -113,6 +113,9 @@ type Config struct {
 	// canceling the request.  Used to retrieve the latest commit of configured
 	// git repositories.
 	GitClientTimeout metav1.Duration `json:"gitClientTimeout,omitempty"`
+
+	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
+	GarbageCollectionInterval metav1.Duration `json:"garbageCollectionInterval,omitempty"`
 }
 
 type Bootstrap struct {

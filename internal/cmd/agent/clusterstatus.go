@@ -89,7 +89,7 @@ func (cs *ClusterStatus) Run(cmd *cobra.Command, args []string) error {
 
 	// cannot start without kubeconfig for upstream cluster
 	setupLog.Info("Fetching kubeconfig for upstream cluster from registration", "namespace", cs.Namespace)
-	agentInfo, err := register.Get(ctx, cs.Namespace, localConfig)
+	agentInfo, _, err := register.Get(ctx, cs.Namespace, localConfig)
 	if err != nil {
 		setupLog.Error(err, "failed to get kubeconfig from upstream cluster")
 		return err
