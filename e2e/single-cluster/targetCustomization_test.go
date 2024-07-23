@@ -33,14 +33,23 @@ var _ = Describe("Helm deploy options", func() {
 		BeforeEach(func() {
 			asset = "single-cluster/namespaceLabels_targetCustomization.yaml"
 		})
-		When("namespaceLabels set as targetCustomization ", func() {
-			It("deploy the bundledeployment with the merged namespaceLabels", func() {
+		When("namespaceLabels and namespaceAnnotations are set as targetCustomization ", func() {
+			It("deploys the bundledeployment with the merged namespaceLabels and namespaceAnnotations", func() {
+				out, err := k.Get("cluster", "local", "-o", "jsonpath={.status.namespace}")
+				Expect(err).ToNot(HaveOccurred(), out)
+
+				clusterNS := strings.TrimSpace(out)
+				clusterK := k.Namespace(clusterNS)
 				Eventually(func() string {
-					bundleDeploymentNames, _ := k.Namespace("cluster-fleet-local-local-1a3d67d0a899").Get("bundledeployments", "-o", "jsonpath={.items[*].metadata.name}")
+					bundleDeploymentNames, _ := clusterK.Get(
+						"bundledeployments",
+						"-o",
+						"jsonpath={.items[*].metadata.name}",
+					)
 
 					var bundleDeploymentName string
 					for _, podName := range strings.Split(bundleDeploymentNames, " ") {
-						if strings.HasPrefix(podName, "test-namespacelabels-targetcustomization") {
+						if strings.HasPrefix(podName, "test-target-customization-namespace-labels") {
 							bundleDeploymentName = podName
 							break
 						}
@@ -49,16 +58,25 @@ var _ = Describe("Helm deploy options", func() {
 						return "nil"
 					}
 
-					bundleDeploymentNamespacesLabels, _ := k.Namespace("cluster-fleet-local-local-1a3d67d0a899").Get("bundledeployments", bundleDeploymentName, "-o", "jsonpath={.spec.options.namespaceLabels}")
+					bundleDeploymentNamespacesLabels, _ := clusterK.Get(
+						"bundledeployments",
+						bundleDeploymentName,
+						"-o",
+						"jsonpath={.spec.options.namespaceLabels}",
+					)
 					return bundleDeploymentNamespacesLabels
 				}).Should(Equal(`{"foo":"bar","this.is/a":"test"}`))
 
 				Eventually(func() string {
-					bundleDeploymentNames, _ := k.Namespace("cluster-fleet-local-local-1a3d67d0a899").Get("bundledeployments", "-o", "jsonpath={.items[*].metadata.name}")
+					bundleDeploymentNames, _ := clusterK.Get(
+						"bundledeployments",
+						"-o",
+						"jsonpath={.items[*].metadata.name}",
+					)
 
 					var bundleDeploymentName string
 					for _, podName := range strings.Split(bundleDeploymentNames, " ") {
-						if strings.HasPrefix(podName, "test-namespacelabels-targetcustomization") {
+						if strings.HasPrefix(podName, "test-target-customization-namespace-labels") {
 							bundleDeploymentName = podName
 							break
 						}
@@ -67,7 +85,12 @@ var _ = Describe("Helm deploy options", func() {
 						return "nil"
 					}
 
-					bundleDeploymentNamespacesLabels, _ := k.Namespace("cluster-fleet-local-local-1a3d67d0a899").Get("bundledeployments", bundleDeploymentName, "-o", "jsonpath={.spec.options.namespaceAnnotations}")
+					bundleDeploymentNamespacesLabels, _ := clusterK.Get(
+						"bundledeployments",
+						bundleDeploymentName,
+						"-o",
+						"jsonpath={.spec.options.namespaceAnnotations}",
+					)
 					return bundleDeploymentNamespacesLabels
 				}).Should(Equal(`{"foo":"bar","this.is/a":"test"}`))
 
