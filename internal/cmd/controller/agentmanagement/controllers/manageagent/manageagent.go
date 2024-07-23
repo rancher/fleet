@@ -6,6 +6,7 @@
 package manageagent
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -28,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -169,6 +171,11 @@ func (h *handler) updateClusterStatus(cluster *fleet.Cluster, status fleet.Clust
 		changed = true
 	}
 
+	if hostNetwork := *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)); status.AgentHostNetwork != hostNetwork {
+		status.AgentHostNetwork = hostNetwork
+		changed = true
+	}
+
 	if c, hash, err := hashChanged(cluster.Spec.AgentAffinity, status.AgentAffinityHash); err != nil {
 		return status, changed, err
 	} else if c {
@@ -263,6 +270,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			SystemDefaultRegistry: cfg.SystemDefaultRegistry,
 			AgentAffinity:         cluster.Spec.AgentAffinity,
 			AgentResources:        cluster.Spec.AgentResources,
+			HostNetwork:           *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
 		},
 	)
 	agentYAML, err := yaml.Export(objs...)

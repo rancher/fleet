@@ -37,6 +37,7 @@ type ManifestOptions struct {
 	SystemDefaultRegistry string
 	AgentAffinity         *corev1.Affinity
 	AgentResources        *corev1.ResourceRequirements
+	HostNetwork           bool
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
@@ -297,6 +298,9 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 
 	// additional tolerations from cluster
 	app.Spec.Template.Spec.Tolerations = append(app.Spec.Template.Spec.Tolerations, opts.AgentTolerations...)
+
+	// Set hostNetwork
+	app.Spec.Template.Spec.HostNetwork = opts.HostNetwork
 
 	// overwrite affinity if present on cluster
 	if opts.AgentAffinity != nil {

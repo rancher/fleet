@@ -89,6 +89,9 @@ spec:
         - name: kube
           emptyDir: {}
       serviceAccountName: fleet-agent
+      {{- if .Values.fleetAgent.hostNetwork }}
+      hostNetwork: true
+      {{- end }}
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
 {{- if .Values.fleetAgent.nodeSelector }}
 {{ toYaml .Values.fleetAgent.nodeSelector | indent 8 }}

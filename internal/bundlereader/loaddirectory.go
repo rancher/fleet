@@ -36,23 +36,38 @@ type ignoreTree struct {
 }
 
 // isIgnored checks whether any path within xt matches path, and returns true if so.
-func (xt *ignoreTree) isIgnored(path string) (bool, error) {
+func (xt *ignoreTree) isIgnored(path string, info fs.DirEntry) (bool, error) {
 	steps := xt.findNode(path, false, nil)
 
 	for _, step := range steps {
 		for _, ignoredPath := range step.ignoredPaths {
-			toIgnore, err := filepath.Match(ignoredPath, filepath.Base(path))
-			if err != nil {
-				return false, err
-			}
+			if isAllFilesInDirPattern(ignoredPath) {
+				// ignores a folder
+				if info.IsDir() {
+					dirNameInPattern := strings.TrimSuffix(ignoredPath, "/*")
+					if dirNameInPattern == filepath.Base(path) {
+						return true, nil
+					}
+				}
+			} else {
+				toIgnore, err := filepath.Match(ignoredPath, filepath.Base(path))
+				if err != nil {
+					return false, err
+				}
 
-			if toIgnore {
-				return true, nil
+				if toIgnore {
+					return true, nil
+				}
 			}
 		}
 	}
 
 	return false, nil
+}
+
+func isAllFilesInDirPattern(path string) bool {
+	match, _ := regexp.MatchString("^.+/\\*", path)
+	return match
 }
 
 // addNode reads a `.fleetignore` file in dir's root and adds each of its entries to ignored paths for dir.
@@ -260,7 +275,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 			return err
 		}
 
-		ignore, err := ignoredPaths.isIgnored(path)
+		ignore, err := ignoredPaths.isIgnored(path, info)
 		if err != nil {
 			return err
 		}

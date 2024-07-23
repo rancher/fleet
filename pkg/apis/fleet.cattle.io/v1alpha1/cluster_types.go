@@ -125,6 +125,12 @@ type ClusterSpec struct {
 	// +nullable
 	// AgentResources sets the resources for the cluster's agent deployment.
 	AgentResources *corev1.ResourceRequirements `json:"agentResources,omitempty"`
+
+	// +nullable
+	// +optional
+	// HostNetwork sets the agent StatefulSet to use hostNetwork: true setting.
+	// Allows for provisioning of network related bundles (CNI configuration).
+	HostNetwork *bool `json:"hostNetwork,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -154,6 +160,9 @@ type ClusterStatus struct {
 	// AgentPrivateRepoURL is the private repo URL for the agent that is currently used.
 	// +nullable
 	AgentPrivateRepoURL string `json:"agentPrivateRepoURL,omitempty"`
+	// AgentHostNetwork defines observed state of spec.hostNetwork setting that is currently used.
+	// +nullable
+	AgentHostNetwork bool `json:"agentHostNetwork,omitempty"`
 	// AgentDeployedGeneration is the generation of the agent that is currently deployed.
 	// +nullable
 	AgentDeployedGeneration *int64 `json:"agentDeployedGeneration,omitempty"`

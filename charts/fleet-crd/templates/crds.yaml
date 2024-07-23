@@ -5440,6 +5440,13 @@ spec:
                     either be predefined, or generated when importing the cluster.'
                   nullable: true
                   type: string
+                hostNetwork:
+                  description: 'HostNetwork sets the agent StatefulSet to use hostNetwork:
+                    true setting.
+
+                    Allows for provisioning of network related bundles (CNI configuration).'
+                  nullable: true
+                  type: boolean
                 kubeConfigSecret:
                   description: 'KubeConfigSecret is the name of the secret containing
                     the kubeconfig for the downstream cluster.
@@ -5522,6 +5529,11 @@ spec:
                     used to detect changes.
                   nullable: true
                   type: string
+                agentHostNetwork:
+                  description: AgentHostNetwork defines observed state of spec.hostNetwork
+                    setting that is currently used.
+                  nullable: true
+                  type: boolean
                 agentMigrated:
                   description: 'AgentMigrated is always set to true after importing
                     a cluster. If
@@ -6489,6 +6501,11 @@ spec:
                 gitJobStatus:
                   description: GitJobStatus is the status of the last Git job run,
                     e.g. "Current" if there was no error.
+                  type: string
+                lastPollingTriggered:
+                  description: LastPollingTime is the last time the polling check
+                    was triggered
+                  format: date-time
                   type: string
                 lastSyncedImageScanTime:
                   description: LastSyncedImageScanTime is the time of the last image

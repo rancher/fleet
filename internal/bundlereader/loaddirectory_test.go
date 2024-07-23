@@ -321,6 +321,207 @@ func TestGetContent(t *testing.T) {
 				"bar/something2.yaml": []byte("something2"),
 			},
 		},
+		{
+			name: "root .fleetignore contains folder/* entries",
+			directoryStructure: fsNode{
+				isDir: true,
+				name:  "root-fleetignore-all-files-in-dir",
+				children: []fsNode{
+					{
+						name:     "something.yaml",
+						contents: "foo",
+					},
+					{
+						name:     ".fleetignore",
+						contents: "foo/*\n",
+					},
+					{
+						name:  "foo",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     "ignore-always.yaml",
+								contents: "will be ignored",
+							},
+							{
+								name:     "something.yaml",
+								contents: "will be ignored",
+							},
+						},
+					},
+					{
+						name:  "bar",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     "something.yaml",
+								contents: "something",
+							},
+							{
+								name:     "something2.yaml",
+								contents: "something2",
+							},
+							{
+								name:  "foo",
+								isDir: true,
+								children: []fsNode{
+									{
+										name:     "ignore.yaml",
+										contents: "will be ignored",
+									},
+									{
+										name:     "ignore2.yaml",
+										contents: "will be ignored",
+									},
+									{
+										name:     "something.yaml",
+										contents: "will be ignored",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedFiles: map[string][]byte{
+				"something.yaml":      []byte("foo"),
+				"bar/something.yaml":  []byte("something"),
+				"bar/something2.yaml": []byte("something2"),
+			},
+		},
+		{
+			name: "non root .fleetignore contains folder/* entries",
+			directoryStructure: fsNode{
+				isDir: true,
+				name:  "non-root-fleetignore-all-files-in-dir",
+				children: []fsNode{
+					{
+						name:     "something.yaml",
+						contents: "foo",
+					},
+					{
+						name:  "foo",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     "something1.yaml",
+								contents: "something1",
+							},
+							{
+								name:     "something2.yaml",
+								contents: "something2",
+							},
+						},
+					},
+					{
+						name:  "bar",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     "something.yaml",
+								contents: "something",
+							},
+							{
+								name:     "something2.yaml",
+								contents: "something2",
+							},
+							{
+								name:     ".fleetignore",
+								contents: "foo/*\n",
+							},
+							{
+								name:  "foo",
+								isDir: true,
+								children: []fsNode{
+									{
+										name:     "ignore.yaml",
+										contents: "will be ignored",
+									},
+									{
+										name:     "ignore2.yaml",
+										contents: "will be ignored",
+									},
+									{
+										name:     "something.yaml",
+										contents: "will be ignored",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedFiles: map[string][]byte{
+				"something.yaml":      []byte("foo"),
+				"foo/something1.yaml": []byte("something1"),
+				"foo/something2.yaml": []byte("something2"),
+				"bar/something.yaml":  []byte("something"),
+				"bar/something2.yaml": []byte("something2"),
+			},
+		},
+		{
+			name: ".fleetignore contains folder/* entry does not apply to files",
+			directoryStructure: fsNode{
+				isDir: true,
+				name:  "fleetignore-all-files-in-dir-does-not-apply-to-files",
+				children: []fsNode{
+					{
+						name:     "something.yaml",
+						contents: "foo",
+					},
+					{
+						name:     ".fleetignore",
+						contents: "foo/*\n",
+					},
+					{
+						name:     "foo",
+						contents: "everybody was a kung-foo fighting",
+					},
+					{
+						name:  "bar",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     "something.yaml",
+								contents: "something",
+							},
+							{
+								name:     "something2.yaml",
+								contents: "something2",
+							},
+							{
+								name:     ".fleetignore",
+								contents: "foo/*\n",
+							},
+							{
+								name:  "foo",
+								isDir: true,
+								children: []fsNode{
+									{
+										name:     "ignore.yaml",
+										contents: "will be ignored",
+									},
+									{
+										name:     "ignore2.yaml",
+										contents: "will be ignored",
+									},
+									{
+										name:     "something.yaml",
+										contents: "will be ignored",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedFiles: map[string][]byte{
+				"something.yaml":      []byte("foo"),
+				"foo":                 []byte("everybody was a kung-foo fighting"),
+				"bar/something.yaml":  []byte("something"),
+				"bar/something2.yaml": []byte("something2"),
+			},
+		},
 	}
 
 	base, err := os.MkdirTemp("", "test-fleet")

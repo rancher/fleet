@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -32,6 +33,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -323,6 +325,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				PrivateRepoURL:   cluster.Spec.PrivateRepoURL,
 				AgentAffinity:    cluster.Spec.AgentAffinity,
 				AgentResources:   cluster.Spec.AgentResources,
+				HostNetwork:      *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
 			},
 		})
 	if err != nil {
