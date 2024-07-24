@@ -5,9 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -16,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 func init() {
@@ -68,16 +67,6 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		err := k8sClient.Create(context.TODO(), &bundled)
 		Expect(err).To(BeNil())
 		Expect(bundled).To(Not(BeNil()))
-	}
-
-	createNamespace := func() string {
-		namespace, err := utils.NewNamespaceName()
-		Expect(err).ToNot(HaveOccurred())
-
-		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
-		Expect(k8sClient.Create(context.Background(), ns)).ToNot(HaveOccurred())
-
-		return namespace
 	}
 
 	When("New bundle deployment is created", func() {

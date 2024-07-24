@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rancher/wrangler/v3/pkg/genericcondition"
-	"github.com/rancher/wrangler/v3/pkg/summary"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	"github.com/rancher/wrangler/v3/pkg/summary"
 )
 
 const BundleDeploymentResourceNamePlural = "bundledeployments"
@@ -408,7 +409,9 @@ type ModifiedStatus struct {
 	// +nullable
 	Name   string `json:"name,omitempty"`
 	Create bool   `json:"missing,omitempty"`
-	Delete bool   `json:"delete,omitempty"`
+	// Exist is true if the resource exists but is not owned by us. This can happen if a resource was adopted by another bundle whereas the first bundle still exists and due to that reports that it does not own it.
+	Exist  bool `json:"exist,omitempty"`
+	Delete bool `json:"delete,omitempty"`
 	// +nullable
 	Patch string `json:"patch,omitempty"`
 }
@@ -416,7 +419,11 @@ type ModifiedStatus struct {
 func (in ModifiedStatus) String() string {
 	msg := name(in.APIVersion, in.Kind, in.Namespace, in.Name)
 	if in.Create {
-		return msg + " missing"
+		if in.Exist {
+			return msg + " is not owned by us"
+		} else {
+			return msg + " missing"
+		}
 	} else if in.Delete {
 		return msg + " extra"
 	}
