@@ -11,25 +11,25 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
-	"github.com/rancher/fleet/internal/helmdeployer"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
 	"github.com/rancher/wrangler/v3/pkg/apply"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/objectset"
 	"github.com/rancher/wrangler/v3/pkg/summary"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
+	"github.com/rancher/fleet/internal/helmdeployer"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 type Monitor struct {
+	client  client.Client
 	applied *applied.Applied
-	mapper  meta.RESTMapper
 
 	deployer *helmdeployer.Helm
 
@@ -38,10 +38,10 @@ type Monitor struct {
 	labelSuffix      string
 }
 
-func New(applied *applied.Applied, mapper meta.RESTMapper, deployer *helmdeployer.Helm, defaultNamespace string, labelSuffix string) *Monitor {
+func New(client client.Client, applied *applied.Applied, deployer *helmdeployer.Helm, defaultNamespace string, labelSuffix string) *Monitor {
 	return &Monitor{
+		client:           client,
 		applied:          applied,
-		mapper:           mapper,
 		deployer:         deployer,
 		defaultNamespace: defaultNamespace,
 		labelPrefix:      defaultNamespace,
@@ -173,7 +173,7 @@ func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeploy
 	}
 
 	bd.Status.NonReadyStatus = nonReady(logger, plan, bd.Spec.Options.IgnoreOptions)
-	bd.Status.ModifiedStatus = modified(plan, resourcesPreviousRelease)
+	bd.Status.ModifiedStatus = modified(m.client, plan, resourcesPreviousRelease)
 	bd.Status.Ready = false
 	bd.Status.NonModified = false
 
@@ -193,7 +193,7 @@ func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeploy
 
 		ns := ma.GetNamespace()
 		gvk := obj.GetObjectKind().GroupVersionKind()
-		if ns == "" && isNamespaced(m.mapper, gvk) {
+		if ns == "" && isNamespaced(m.client.RESTMapper(), gvk) {
 			ns = resources.DefaultNamespace
 		}
 
@@ -249,7 +249,7 @@ func nonReady(logger logr.Logger, plan apply.Plan, ignoreOptions fleet.IgnoreOpt
 // The function iterates through the plan's create, delete, and update actions and constructs a modified status
 // for each resource.
 // If the number of modified statuses exceeds 10, the function stops and returns the current result.
-func modified(plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
+func modified(c client.Client, plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
 	defer func() {
 		sort.Slice(result, func(i, j int) bool {
 			return sortKey(result[i]) < sortKey(result[j])
@@ -262,12 +262,22 @@ func modified(plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources)
 			}
 
 			apiVersion, kind := gvk.ToAPIVersionAndKind()
+
+			obj := &unstructured.Unstructured{}
+			obj.SetGroupVersionKind(gvk)
+			key := client.ObjectKey{
+				Namespace: key.Namespace,
+				Name:      key.Name,
+			}
+			err := c.Get(context.Background(), key, obj)
+
 			result = append(result, fleet.ModifiedStatus{
 				Kind:       kind,
 				APIVersion: apiVersion,
 				Namespace:  key.Namespace,
 				Name:       key.Name,
 				Create:     true,
+				Exist:      err == nil,
 			})
 		}
 	}

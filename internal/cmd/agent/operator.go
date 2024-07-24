@@ -188,8 +188,8 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 		return nil, err
 	}
 	monitor := monitor.New(
+		localClient,
 		applied,
-		localClient.RESTMapper(),
 		helmDeployer,
 		defaultNamespace,
 		agentScope,
