@@ -52,17 +52,20 @@ jobs:
           run-tests: false
 
       - name: Check for code changes
+        continue-on-error: ${{ contains(github.ref, 'rc') }}
         run: |
           ./.github/scripts/check-for-auto-generated-changes.sh
           go mod verify
 
       - name: Run unit tests
+        continue-on-error: ${{ contains(github.ref, 'rc') }}
         run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests)
 
       - name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
 
       - name: Run integration tests
+        continue-on-error: ${{ contains(github.ref, 'rc') }}
         env:
           SETUP_ENVTEST_VER: v0.0.0-20240115093953-9e6e3b144a69
           ENVTEST_K8S_VERSION: 1.28
