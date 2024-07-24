@@ -132,9 +132,7 @@ func PurgeContent(ctx context.Context, c client.Client, name, deplID string) err
 		}
 	}
 
-	hasOtherFinalizers := (len(content.Finalizers) > 1) ||
-		((len(content.Finalizers) == 1) && content.Finalizers[0] != name)
-	if !hasOtherFinalizers {
+	if len(content.Finalizers) == 0 {
 		logrus.Infof("Deleting content resource %s", contentID)
 		if err := c.Delete(ctx, content); err != nil {
 			return err
