@@ -151,6 +151,11 @@ func SetStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *fleet.Gi
 		condition.Cond(con.Type.String()).Reason(gitRepo, con.Reason)
 	}
 
+	// status.Compute possible results are
+	//   - InProgress
+	//   - Current
+	//   - Failed
+	//   - Terminating
 	switch result.Status {
 	case status.FailedStatus:
 		kstatus.SetError(gitRepo, terminationMessage)
@@ -158,6 +163,13 @@ func SetStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *fleet.Gi
 		if strings.Contains(result.Message, "Job Completed") {
 			gitRepo.Status.Commit = job.Annotations["commit"]
 		}
+		kstatus.SetActive(gitRepo)
+	case status.InProgressStatus:
+		kstatus.SetTransitioning(gitRepo, "")
+	case status.TerminatingStatus:
+		// set active set both conditions to False
+		// the job is terminating so avoid reporting errors in
+		// that case
 		kstatus.SetActive(gitRepo)
 	}
 
