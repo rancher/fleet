@@ -59,10 +59,6 @@ func (c Command) Create(args ...string) (string, error) {
 	return c.Run(append([]string{"create"}, args...)...)
 }
 
-func (c Command) Logs(args ...string) (string, error) {
-	return c.Run(append([]string{"logs"}, args...)...)
-}
-
 func (c Command) Patch(args ...string) (string, error) {
 	return c.Run(append([]string{"patch"}, args...)...)
 }

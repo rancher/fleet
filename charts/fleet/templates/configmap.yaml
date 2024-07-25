@@ -11,7 +11,6 @@ data:
       "apiServerURL": "{{.Values.apiServerURL}}",
       "apiServerCA": "{{b64enc .Values.apiServerCA}}",
       "agentCheckinInterval": "{{.Values.agentCheckinInterval}}",
-      "agentTLSMode": "{{.Values.agentTLSMode}}",
       "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
       "bootstrap": {
         "paths": "{{.Values.bootstrap.paths}}",

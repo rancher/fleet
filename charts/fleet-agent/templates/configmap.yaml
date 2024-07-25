@@ -8,6 +8,5 @@ data:
       {{ if .Values.labels }}
       "labels":{{toJson .Values.labels}},
       {{ end }}
-      "clientID":"{{.Values.clientID}}",
-      "agentTLSMode": "{{.Values.agentTLSMode}}"
+      "clientID":"{{.Values.clientID}}"
     }

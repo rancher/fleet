@@ -11,10 +11,6 @@ apiServerURL: ""
 # If left empty it is assumed this Kubernetes API TLS is signed by a well known CA.
 apiServerCA: ""
 
-# Determines whether the agent should trust CA bundles from the operating system's trust store when connecting to a
-# management cluster. True in `system-store` mode, false in `strict` mode.
-agentTLSMode: "system-store"
-
 # The cluster registration value
 token: ""
 

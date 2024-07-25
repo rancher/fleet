@@ -20,8 +20,6 @@ const (
 	ManagerConfigName        = "fleet-controller"
 	AgentConfigName          = "fleet-agent"
 	AgentBootstrapConfigName = "fleet-agent-bootstrap"
-	AgentTLSModeStrict       = "strict"
-	AgentTLSModeSystemStore  = "system-store"
 	Key                      = "config"
 	// DefaultNamespace is the default for the system namespace, which
 	// contains the manager and agent
@@ -61,11 +59,6 @@ type Config struct {
 	APIServerCA                     []byte            `json:"apiServerCA,omitempty"`
 	Bootstrap                       Bootstrap         `json:"bootstrap,omitempty"`
 	IgnoreClusterRegistrationLabels bool              `json:"ignoreClusterRegistrationLabels,omitempty"`
-
-	// AgentTLSMode supports two values: `system-store` and `strict`. If set to `system-store`, instructs the agent
-	// to trust CA bundles from the operating system's store. If set to `strict`, then the agent shall only connect
-	// to a server which uses the exact CA configured when creating/updating the agent.
-	AgentTLSMode string `json:"agentTLSMode,omitempty"`
 }
 
 type Bootstrap struct {
