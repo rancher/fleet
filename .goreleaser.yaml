@@ -71,9 +71,8 @@ builds:
     - windows_amd64
 
 changelog:
-  ## Delegate Changelog to release-drafter
   disable: false
-  use: github
+  use: github-native
 
 env:
   - CGO_ENABLED=0
