@@ -413,9 +413,16 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 	Eventually(func() error {
 		c := gogs.NewClient(url, "")
 		//nolint:gosec // need insecure TLS option for testing
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		conf := &tls.Config{InsecureSkipVerify: true}
+
+		// only continue if it's a TLS connection
+		addr := strings.Replace(url, "https://", "", 1)
+		_, err := tls.Dial("tcp", addr, conf)
+		if err != nil {
+			return err
 		}
+
+		tr := &http.Transport{TLSClientConfig: conf}
 		httpClient := &http.Client{Transport: tr} // #nosec G402
 		c.SetHTTPClient(httpClient)
 		token, err := c.CreateAccessToken(gogsUser, gogsPass, gogs.CreateAccessTokenOption{
