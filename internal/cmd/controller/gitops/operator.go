@@ -10,6 +10,7 @@ import (
 
 	"github.com/reugn/go-quartz/quartz"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -19,7 +20,6 @@ import (
 	clog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	"golang.org/x/sync/errgroup"
 
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
@@ -52,6 +52,7 @@ type GitOperator struct {
 	Image                string `name:"gitjob-image" default:"rancher/fleet:dev" usage:"The gitjob image that will be used in the generated job."`
 	Listen               string `default:":8080" usage:"The port the webhook listens."`
 	ShardID              string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
+	ShardNodeSelector    string `usage:"node selector to apply to jobs based on the shard ID, if any" name:"shard-node-selector"`
 }
 
 func App(zo *zap.Options) *cobra.Command {
@@ -67,6 +68,7 @@ func (c *GitOperator) HelpFunc(cmd *cobra.Command, strings []string) {
 	_ = cmd.Flags().MarkHidden("disable-gitops")
 	_ = cmd.Flags().MarkHidden("disable-metrics")
 	_ = cmd.Flags().MarkHidden("shard-id")
+	_ = cmd.Flags().MarkHidden("shard-node-selector")
 	cmd.Parent().HelpFunc()(cmd, strings)
 }
 
@@ -122,14 +124,15 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	gitJobReconciler := &reconciler.GitJobReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		Image:      g.Image,
-		Scheduler:  sched,
-		Workers:    workers,
-		ShardID:    g.ShardID,
-		GitFetcher: &git.Fetch{},
-		Clock:      reconciler.RealClock{},
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		Image:           g.Image,
+		Scheduler:       sched,
+		Workers:         workers,
+		ShardID:         g.ShardID,
+		JobNodeSelector: g.ShardNodeSelector,
+		GitFetcher:      &git.Fetch{},
+		Clock:           reconciler.RealClock{},
 	}
 
 	configReconciler := &fcreconciler.ConfigReconciler{

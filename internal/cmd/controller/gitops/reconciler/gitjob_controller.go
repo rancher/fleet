@@ -2,17 +2,18 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
-	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ociwrapper"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -75,13 +76,14 @@ func (RealClock) Since(t time.Time) time.Duration { return time.Since(t) }
 // CronJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
 type GitJobReconciler struct {
 	client.Client
-	Scheme     *runtime.Scheme
-	Image      string
-	Scheduler  quartz.Scheduler
-	Workers    int
-	ShardID    string
-	GitFetcher GitFetcher
-	Clock      TimeGetter
+	Scheme          *runtime.Scheme
+	Image           string
+	Scheduler       quartz.Scheduler
+	Workers         int
+	ShardID         string
+	JobNodeSelector string
+	GitFetcher      GitFetcher
+	Clock           TimeGetter
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -555,8 +557,12 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	shardID := gitrepo.Labels[sharding.ShardingRefLabel]
 
 	nodeSelector := map[string]string{"kubernetes.io/os": "linux"}
-	if shardID != "" {
-		shardNodeSelector, _ := r.getNodeSelectorForShard(ctx, shardID)
+	if shardID != "" && len(strings.TrimSpace(r.JobNodeSelector)) > 0 {
+		var shardNodeSelector map[string]string
+		if err := json.Unmarshal([]byte(r.JobNodeSelector), &shardNodeSelector); err != nil {
+			return nil, fmt.Errorf("could not decode shard node selector: %w", err)
+		}
+
 		for k, v := range shardNodeSelector {
 			nodeSelector[k] = v
 		}
@@ -1038,23 +1044,4 @@ func reconcileResult(gitPollerWasExecuted bool, gitrepo *v1alpha1.GitRepo) recon
 		return reconcile.Result{RequeueAfter: getPollingIntervalDuration(gitrepo)}
 	}
 	return reconcile.Result{}
-}
-
-func (r *GitJobReconciler) getNodeSelectorForShard(ctx context.Context, shardID string) (map[string]string, error) {
-	podList := &corev1.PodList{}
-	listOpts := []client.ListOption{
-		client.InNamespace(config.DefaultNamespace),
-		client.MatchingLabels{
-			"app":                      "fleet-controller",
-			"fleet.cattle.io/shard-id": shardID},
-	}
-	if err := r.List(ctx, podList, listOpts...); err != nil {
-		return nil, fmt.Errorf("failed to list fleet-controller pods: %w", err)
-	}
-
-	if len(podList.Items) == 0 {
-		return nil, fmt.Errorf("no fleet-controller pods found for shard %s", shardID)
-	}
-
-	return podList.Items[0].Spec.NodeSelector, nil
 }
