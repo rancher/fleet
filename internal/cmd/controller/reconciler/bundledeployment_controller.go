@@ -6,6 +6,7 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -79,6 +80,19 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			})
 			if err != nil {
 				return ctrl.Result{}, err
+			}
+
+			if !bd.Spec.OCIContents {
+				if err := finalize.PurgeContent(ctx, r.Client, bd.Name, bd.Spec.DeploymentID); err != nil {
+					logger.Error(
+						err,
+						"Reconcile failed to purge old content resource",
+						"bundledeployment",
+						bd,
+						"deploymentID",
+						bd.Spec.DeploymentID,
+					)
+				}
 			}
 		}
 

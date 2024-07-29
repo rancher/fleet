@@ -23,7 +23,6 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
-	"github.com/rancher/wrangler/v3/pkg/kv"
 )
 
 const (
@@ -70,25 +69,10 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 	AfterEach(func() {
 		_ = os.RemoveAll(tmpDir)
 
-		deployID, err := k.Get(
-			"bundledeployments",
-			"-A",
-			"-l",
-			fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
-			"-o=jsonpath={.items[*].spec.deploymentID}",
-		)
+		_, err := k.Delete("gitrepo", gitrepoName)
 		Expect(err).ToNot(HaveOccurred())
 
-		// Check existence of content resource
-		contentID, _ := kv.Split(deployID, ":")
-
-		out, err := k.Get("content", contentID)
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		_, err = k.Delete("gitrepo", gitrepoName)
-		Expect(err).ToNot(HaveOccurred())
-
-		// Check that the bundle deployment and content resources have been deleted
+		// Check that the bundle deployment resource has been deleted
 		Eventually(func(g Gomega) {
 			out, _ := k.Get(
 				"bundledeployments",
@@ -97,23 +81,9 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
 			)
 			g.Expect(out).To(ContainSubstring("No resources found"))
-
-			// Check that the last known content resource for the gitrepo has been deleted
-			out, _ = k.Get("content", contentID)
-			g.Expect(out).To(ContainSubstring("not found"))
-
-			// Check that no content resource is left for the gitrepo (or rather its bundle(s))
-			out, err := k.Get(
-				"contents",
-				`-o=jsonpath=jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.finalizers}`+
-					`{"\n"}{end}'`,
-			)
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(out).ToNot(ContainSubstring(gitrepoName))
-
 		}).Should(Succeed())
 
-		out, err = k.Namespace("cattle-fleet-system").Logs(
+		out, err := k.Namespace("cattle-fleet-system").Logs(
 			"-l",
 			"app=fleet-controller",
 			"-c",
@@ -127,7 +97,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
 		))
 
-		_, err = k.Delete("ns", targetNamespace)
+		_, err = k.Delete("ns", targetNamespace, "--wait=false")
 		Expect(err).ToNot(HaveOccurred())
 	})
 

@@ -94,8 +94,7 @@ func PurgeBundleDeployments(ctx context.Context, c client.Client, bundle types.N
 			}
 		}
 
-		err := c.Delete(ctx, &bd)
-		if err != nil {
+		if err := c.Delete(ctx, &bd); err != nil {
 			return err
 		}
 
@@ -133,10 +132,10 @@ func PurgeContent(ctx context.Context, c client.Client, name, deplID string) err
 	}
 
 	if len(content.Finalizers) == 0 {
-		logrus.Infof("Deleting content resource %s", contentID)
 		if err := c.Delete(ctx, content); err != nil {
 			return err
 		}
+		logrus.Infof("Deleted content resource %s", contentID)
 	}
 
 	return nil
