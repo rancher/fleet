@@ -23,11 +23,34 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 		release    string
 		expectedNs corev1.Namespace
 	}{
+		"Empty sets of NamespaceLabels and NamespaceAnnotations are supported": {
+			bd: &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
+				Options: fleet.BundleDeploymentOptions{
+					NamespaceLabels:      nil, // equivalent to map[string]string{}
+					NamespaceAnnotations: nil,
+				},
+			}},
+			ns: corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "namespace",
+					Labels: map[string]string{"kubernetes.io/metadata.name": "namespace"},
+				},
+			},
+			release: "namespace/foo/bar",
+			expectedNs: corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "namespace",
+					Labels:      map[string]string{"kubernetes.io/metadata.name": "namespace"},
+					Annotations: nil,
+				},
+			},
+		},
+
 		"NamespaceLabels and NamespaceAnnotations are appended": {
 			bd: &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 				Options: fleet.BundleDeploymentOptions{
-					NamespaceLabels:      &map[string]string{"optLabel1": "optValue1", "optLabel2": "optValue2"},
-					NamespaceAnnotations: &map[string]string{"optAnn1": "optValue1"},
+					NamespaceLabels:      map[string]string{"optLabel1": "optValue1", "optLabel2": "optValue2"},
+					NamespaceAnnotations: map[string]string{"optAnn1": "optValue1"},
 				},
 			}},
 			ns: corev1.Namespace{
@@ -49,8 +72,8 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 		"NamespaceLabels and NamespaceAnnotations removes entries that are not in the options, except the name label": {
 			bd: &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 				Options: fleet.BundleDeploymentOptions{
-					NamespaceLabels:      &map[string]string{"optLabel": "optValue"},
-					NamespaceAnnotations: &map[string]string{},
+					NamespaceLabels:      map[string]string{"optLabel": "optValue"},
+					NamespaceAnnotations: map[string]string{},
 				},
 			}},
 			ns: corev1.Namespace{
@@ -73,8 +96,8 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 		"NamespaceLabels and NamespaceAnnotations updates existing values": {
 			bd: &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 				Options: fleet.BundleDeploymentOptions{
-					NamespaceLabels:      &map[string]string{"bdLabel": "labelUpdated"},
-					NamespaceAnnotations: &map[string]string{"bdAnn": "annUpdated"},
+					NamespaceLabels:      map[string]string{"bdLabel": "labelUpdated"},
+					NamespaceAnnotations: map[string]string{"bdAnn": "annUpdated"},
 				},
 			}},
 			ns: corev1.Namespace{
@@ -130,8 +153,8 @@ func TestSetNamespaceLabelsAndAnnotations(t *testing.T) {
 func TestSetNamespaceLabelsAndAnnotationsError(t *testing.T) {
 	bd := &fleet.BundleDeployment{Spec: fleet.BundleDeploymentSpec{
 		Options: fleet.BundleDeploymentOptions{
-			NamespaceLabels:      &map[string]string{"optLabel1": "optValue1", "optLabel2": "optValue2"},
-			NamespaceAnnotations: &map[string]string{"optAnn1": "optValue1"},
+			NamespaceLabels:      map[string]string{"optLabel1": "optValue1", "optLabel2": "optValue2"},
+			NamespaceAnnotations: map[string]string{"optAnn1": "optValue1"},
 		},
 	}}
 	release := "test/foo/bar"
