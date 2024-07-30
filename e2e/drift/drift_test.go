@@ -29,10 +29,12 @@ var _ = Describe("Drift", Ordered, func() {
 	JustBeforeEach(func() {
 		out, err := k.Namespace(env.Namespace).Apply("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
-		Eventually(func() bool {
-			b := getBundle(bundleName, k)
-			return b.Status.Summary.Ready == 1
-		}).Should(BeTrue())
+
+		var bundle fleet.Bundle
+		Eventually(func() int {
+			bundle = getBundle(bundleName, k)
+			return bundle.Status.Summary.Ready
+		}).Should(Equal(1), fmt.Sprintf("Summary: %+v", bundle.Status.Summary))
 
 		defer func() {
 			if r := recover(); r != nil {
@@ -49,6 +51,7 @@ var _ = Describe("Drift", Ordered, func() {
 
 	AfterAll(func() {
 		_, _ = k.Delete("ns", namespace)
+		_, _ = k.Delete("ns", "drift-ignore-status")
 	})
 
 	When("Drift correction is not enabled", func() {
@@ -211,10 +214,12 @@ var _ = Describe("Drift", Ordered, func() {
 			// Status must be ignored for drift correction, despite being part of the manifests
 			It("Is marked as ready", func() {
 				bundleName := "drift-correction-test-drift-ignore-status"
-				Eventually(func() bool {
-					b := getBundle(bundleName, k)
-					return b.Status.Summary.Ready == 1
-				}).Should(BeTrue())
+
+				var bundle fleet.Bundle
+				Eventually(func() int {
+					bundle = getBundle(bundleName, k)
+					return bundle.Status.Summary.Ready
+				}).Should(Equal(1), fmt.Sprintf("Summary: %+v", bundle.Status.Summary))
 			})
 		})
 	})
