@@ -198,11 +198,11 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			updateExperimentalFlagValue(k, experimentalFlagBefore)
 		}
 
-		// purge content id if needed
+		// check that contents have been purged when deleting the gitrepo
 		if contentIDToPurge != "" {
 			out, err := k.Delete("contents", contentIDToPurge)
-			Expect(out).To(ContainSubstring("deleted"))
-			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("not found"))
+			Expect(err).To(HaveOccurred())
 		}
 	})
 
