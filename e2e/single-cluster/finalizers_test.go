@@ -79,25 +79,27 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 		_, _ = k.Delete("bundle", fmt.Sprintf("%s-%s", gitrepoName, path), "--wait=false")
 
 		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
-	})
 
-	AfterAll(func() {
 		// Check that the content resource has been deleted, once all GitRepos and bundle deployments
 		// referencing it have also been deleted.
-		Eventually(func(g Gomega) {
-			// Check that the last known content resource for the gitrepo has been deleted
-			out, _ := k.Get("content", contentID)
-			g.Expect(out).To(ContainSubstring("not found"))
+		// We do not run this test when directly deleting a bundle deployment deletion, because this leads to
+		// recreation of the corresponding content resource as the bundle still exists.
+		if !strings.Contains(gitrepoName, "bundledeployment-test") {
+			Eventually(func(g Gomega) {
+				// Check that the last known content resource for the gitrepo has been deleted
+				out, _ := k.Get("content", contentID)
+				g.Expect(out).To(ContainSubstring("not found"))
 
-			// Check that no content resource is left for the gitrepo's bundledeployment(s)
-			out, err := k.Get(
-				"contents",
-				`-o=jsonpath=jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.finalizers}`+
-					`{"\n"}{end}'`,
-			)
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(out).ToNot(ContainSubstring(gitrepoName))
-		}).Should(Succeed())
+				// Check that no content resource is left for the gitrepo's bundledeployment(s)
+				out, err := k.Get(
+					"contents",
+					`-o=jsonpath=jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.finalizers}`+
+						`{"\n"}{end}'`,
+				)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(out).ToNot(ContainSubstring(gitrepoName))
+			}).Should(Succeed())
+		}
 	})
 
 	When("deleting an existing GitRepo", func() {

@@ -121,7 +121,6 @@ func PurgeContent(ctx context.Context, c client.Client, name, deplID string) err
 				return err
 			}
 
-			logrus.Infof("Removing finalizer %s from content resource %s", name, contentID)
 			controllerutil.RemoveFinalizer(content, name)
 
 			return c.Update(ctx, content)
@@ -129,6 +128,8 @@ func PurgeContent(ctx context.Context, c client.Client, name, deplID string) err
 		if err != nil {
 			return err
 		}
+
+		logrus.Infof("Removed finalizer %s from content resource %s", name, contentID)
 	}
 
 	if len(content.Finalizers) == 0 {
