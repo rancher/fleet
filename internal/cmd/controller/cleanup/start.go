@@ -3,7 +3,6 @@ package cleanup
 import (
 	"context"
 
-	"github.com/rancher/fleet/internal/cmd/controller/cleanup/content"
 	"github.com/rancher/fleet/internal/cmd/controller/cleanup/controllers"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/leader"
@@ -34,10 +33,6 @@ func start(ctx context.Context, kubeConfig, namespace string) error {
 			logrus.Fatal(err)
 		}
 		if err := controllers.Register(ctx, appCtx); err != nil {
-			logrus.Fatal(err)
-		}
-		content.PurgeOrphanedInBackground(ctx, appCtx.Content(), appCtx.BundleDeployment(), appCtx.Core.Namespace())
-		if err := appCtx.Start(ctx); err != nil {
 			logrus.Fatal(err)
 		}
 	})
