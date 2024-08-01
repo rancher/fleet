@@ -13,7 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-var _ = Describe("Drift", func() {
+var _ = Describe("Drift", Ordered, func() {
 	var (
 		asset      string
 		k          kubectl.Command
@@ -47,6 +47,9 @@ var _ = Describe("Drift", func() {
 	AfterEach(func() {
 		out, err := k.Namespace(env.Namespace).Delete("-f", testenv.AssetPath(asset), "--wait")
 		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	AfterAll(func() {
 		_, _ = k.Delete("ns", namespace)
 		_, _ = k.Delete("ns", "drift-ignore-status")
 	})
