@@ -3,8 +3,8 @@ apiVersion: fleet.cattle.io/v1alpha1
 metadata:
   name: drift-test
 spec:
-  repo: https://github.com/rancher/fleet-test-data
-  branch: master
+  repo: https://github.com/weyfonk/fleet-test-data
+  branch: faster-drift-e2e-tests
   paths:
     - drift
 
