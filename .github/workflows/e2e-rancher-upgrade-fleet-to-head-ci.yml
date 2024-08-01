@@ -33,7 +33,7 @@ env:
 
 jobs:
   rancher-integration:
-    runs-on: ubuntu-latest
+    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
 
     steps:
       - name: Add paths into PATH
