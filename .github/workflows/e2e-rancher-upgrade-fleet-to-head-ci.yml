@@ -87,6 +87,7 @@ jobs:
 
           wget -q https://github.com/rancher/cli/releases/download/$latest_version/rancher-linux-amd64-$latest_version.tar.gz
           tar -xz --strip-components=2 -f rancher-linux-amd64-$latest_version.tar.gz -C ~/.local/bin
+          export PATH=~/.local/bin:$PATH
           rancher --version
 
       - name: Set up k3d control-plane cluster
@@ -119,7 +120,6 @@ jobs:
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
  
-            # 1. Clone rancher/rancher
       - name: Checkout rancher/rancher
         uses: actions/checkout@v4
         with:
@@ -174,6 +174,7 @@ jobs:
         env:
           public_hostname: "172.18.0.1.sslip.io"
         run: |
+          export PATH=~/.local/bin:$PATH
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
 
