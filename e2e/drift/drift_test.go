@@ -123,7 +123,7 @@ var _ = Describe("Drift", Ordered, func() {
 					out, _ := kw.Get("deployment", "nginx-deployment", "-o=json")
 					var deployment appsv1.Deployment
 					_ = json.Unmarshal([]byte(out), &deployment)
-					return deployment.Spec.Template.Spec.Containers[0].Image == "nginx:1.14.2"
+					return deployment.Spec.Template.Spec.Containers[0].Image == "k8s.gcr.io/pause"
 				}).Should(BeTrue())
 			})
 		})
