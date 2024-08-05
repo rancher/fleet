@@ -128,11 +128,12 @@ jobs:
           path: rancher
 
       - name: Set up latest Rancher
-        env:
-          public_hostname: "172.18.0.1.sslip.io"
         run: |
           set -x
+
           kubectl config use-context k3d-upstream
+
+          ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
           helm repo add jetstack https://charts.jetstack.io
           helm install cert-manager jetstack/cert-manager \
@@ -151,7 +152,7 @@ jobs:
             --create-namespace \
             --namespace cattle-system \
             --set replicas=1 \
-            --set hostname="$public_hostname" \
+            --set hostname=$ip.sslip.io \
             --set bootstrapPassword=admin \
             --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
             --set "extraEnv[0].value=https://github.com/${{ inputs.charts_repo }}" \
@@ -172,10 +173,12 @@ jobs:
           helm list -A
 
       - name: Register Rancher's downstream clusters
-        env:
-          public_hostname: "172.18.0.1.sslip.io"
         run: |
+          ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
           export PATH=~/.local/bin:$PATH
+          export public_hostname=$ip.sslip.io
+
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
 
