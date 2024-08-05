@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -98,6 +99,7 @@ var _ = BeforeSuite(func() {
 		Scheduler:  sched,
 		GitFetcher: fetcherMock,
 		Clock:      reconciler.RealClock{},
+		Recorder:   mgr.GetEventRecorderFor(fmt.Sprintf("gitjob-controller%s", "")),
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

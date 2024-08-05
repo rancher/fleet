@@ -23,6 +23,7 @@ import (
 
 	"github.com/rancher/wrangler/v3/pkg/name"
 
+	fleetevent "github.com/rancher/fleet/pkg/event"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -84,6 +86,7 @@ type GitJobReconciler struct {
 	JobNodeSelector string
 	GitFetcher      GitFetcher
 	Clock           TimeGetter
+	Recorder        record.EventRecorder
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -144,8 +147,9 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
 	oldStatus := gitrepo.Status.DeepCopy()
-	gitrepo, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
+	_, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
 	if err != nil {
+		r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
 		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
 	}
 
@@ -178,7 +182,10 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	gitPollerWasExecuted, _ := r.checkPollingTask(ctx, gitrepo)
+	gitPollerWasExecuted, err := r.checkPollingTask(ctx, gitrepo)
+	if err != nil {
+		r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+	}
 	// From this point onwards we have to take into account if the poller
 	// task was executed.
 	// If so, we need to return a Result with EnqueueAfter set.
@@ -189,7 +196,9 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		Name:      jobName(gitrepo),
 	}, &job)
 	if err != nil && !errors.IsNotFound(err) {
-		return reconcileResult(gitPollerWasExecuted, gitrepo), fmt.Errorf("error retrieving git job: %w", err)
+		err = fmt.Errorf("error retrieving git job: %w", err)
+		r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+		return reconcileResult(gitPollerWasExecuted, gitrepo), err
 	}
 
 	// Gitjob handling
@@ -200,10 +209,14 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err == nil && commit != "" {
 				gitrepo.Status.Commit = commit
 			}
+			if err != nil {
+				r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+			}
 		}
 
 		if gitrepo.Status.Commit != "" {
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
+				r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
 				return reconcileResult(gitPollerWasExecuted, gitrepo), grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 			}
 			logger.V(1).Info("Creating Git job resources")
