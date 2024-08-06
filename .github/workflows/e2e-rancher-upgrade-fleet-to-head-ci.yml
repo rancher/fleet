@@ -139,13 +139,6 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
- 
-      - name: Checkout rancher/rancher
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          repository: rancher/rancher
-          path: rancher
 
       - name: Set up latest Rancher
         run: |
