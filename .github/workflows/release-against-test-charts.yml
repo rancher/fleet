@@ -174,3 +174,4 @@ jobs:
       ref: ${{ github.ref }}
       charts_repo: ${{github.event.inputs.charts_repo}}
       charts_branch: ${{ needs.push-test-rancher-charts.outputs.target_branch }}
+      fleet_version: 999.9.9+up9.9.9
