@@ -29,10 +29,12 @@ var _ = Describe("Drift", Ordered, func() {
 	JustBeforeEach(func() {
 		out, err := k.Namespace(env.Namespace).Apply("-f", testenv.AssetPath(asset))
 		Expect(err).ToNot(HaveOccurred(), out)
-		Eventually(func() bool {
-			b := getBundle(bundleName, k)
-			return b.Status.Summary.Ready == 1
-		}).Should(BeTrue())
+
+		var bundle fleet.Bundle
+		Eventually(func() int {
+			bundle = getBundle(bundleName, k)
+			return bundle.Status.Summary.Ready
+		}).Should(Equal(1), fmt.Sprintf("Summary: %+v", bundle.Status.Summary))
 
 		defer func() {
 			if r := recover(); r != nil {
@@ -49,6 +51,7 @@ var _ = Describe("Drift", Ordered, func() {
 
 	AfterAll(func() {
 		_, _ = k.Delete("ns", namespace)
+		_, _ = k.Delete("ns", "drift-ignore-status")
 	})
 
 	When("Drift correction is not enabled", func() {
@@ -61,7 +64,7 @@ var _ = Describe("Drift", Ordered, func() {
 			JustBeforeEach(func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
-					"service", "nginx-service",
+					"service", "drift-dummy-service",
 					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/spec/externalName", "value": "modified"}]`,
@@ -77,7 +80,7 @@ var _ = Describe("Drift", Ordered, func() {
 				}).Should(BeTrue())
 				By("Changes haven't been rolled back")
 				kw := k.Namespace(namespace)
-				out, _ := kw.Get("services", "nginx-service", "-o=json")
+				out, _ := kw.Get("services", "drift-dummy-service", "-o=json")
 				var service corev1.Service
 				_ = json.Unmarshal([]byte(out), &service)
 				Expect(service.Spec.ExternalName).Should(Equal("modified"))
@@ -94,7 +97,7 @@ var _ = Describe("Drift", Ordered, func() {
 			JustBeforeEach(func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
-					"service", "nginx-service",
+					"service", "drift-dummy-service",
 					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/spec/externalName", "value": "modified"}]`,
@@ -110,10 +113,10 @@ var _ = Describe("Drift", Ordered, func() {
 				}).Should(BeTrue())
 				Eventually(func() bool {
 					kw := k.Namespace(namespace)
-					out, _ := kw.Get("services", "nginx-service", "-o=json")
+					out, _ := kw.Get("services", "drift-dummy-service", "-o=json")
 					var service corev1.Service
 					_ = json.Unmarshal([]byte(out), &service)
-					return service.Spec.ExternalName == "nginx"
+					return service.Spec.ExternalName == "drift-dummy"
 				}).Should(BeTrue())
 			})
 		})
@@ -122,10 +125,10 @@ var _ = Describe("Drift", Ordered, func() {
 			JustBeforeEach(func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
-					"deployment", "nginx-deployment",
+					"deployment", "drift-dummy-deployment",
 					"-o=json",
 					"--type=json",
-					"-p", `[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "nginx:modified"}]`,
+					"-p", `[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "foo:modified"}]`,
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
 				GinkgoWriter.Print(out)
@@ -138,10 +141,10 @@ var _ = Describe("Drift", Ordered, func() {
 				}).Should(BeTrue())
 				Eventually(func() bool {
 					kw := k.Namespace(namespace)
-					out, _ := kw.Get("deployment", "nginx-deployment", "-o=json")
+					out, _ := kw.Get("deployment", "drift-dummy-deployment", "-o=json")
 					var deployment appsv1.Deployment
 					_ = json.Unmarshal([]byte(out), &deployment)
-					return deployment.Spec.Template.Spec.Containers[0].Image == "nginx:1.14.2"
+					return deployment.Spec.Template.Spec.Containers[0].Image == "k8s.gcr.io/pause"
 				}).Should(BeTrue())
 			})
 		})
@@ -188,7 +191,7 @@ var _ = Describe("Drift", Ordered, func() {
 			JustBeforeEach(func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
-					"service", "nginx-service",
+					"service", "drift-dummy-service",
 					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/spec/ports/0/port", "value": 1234}]`,
@@ -201,7 +204,7 @@ var _ = Describe("Drift", Ordered, func() {
 				Eventually(func() string {
 					out, _ := k.Namespace(env.Namespace).Get("bundles", bundleName, "-o=jsonpath={.status.conditions[*].message}")
 					return out
-				}).Should(ContainSubstring(`service.v1 drift/nginx-service modified {"spec":{"ports":[` +
+				}).Should(ContainSubstring(`service.v1 drift/drift-dummy-service modified {"spec":{"ports":[` +
 					`{"name":"http","port":80,"protocol":"TCP","targetPort":"http-web-svc"},` +
 					`{"name":"http","port":1234,"protocol":"TCP","targetPort":"http-web-svc"}]}}`))
 			})
@@ -211,10 +214,12 @@ var _ = Describe("Drift", Ordered, func() {
 			// Status must be ignored for drift correction, despite being part of the manifests
 			It("Is marked as ready", func() {
 				bundleName := "drift-correction-test-drift-ignore-status"
-				Eventually(func() bool {
-					b := getBundle(bundleName, k)
-					return b.Status.Summary.Ready == 1
-				}).Should(BeTrue())
+
+				var bundle fleet.Bundle
+				Eventually(func() int {
+					bundle = getBundle(bundleName, k)
+					return bundle.Status.Summary.Ready
+				}).Should(Equal(1), fmt.Sprintf("Summary: %+v", bundle.Status.Summary))
 			})
 		})
 	})
@@ -230,7 +235,7 @@ var _ = Describe("Drift", Ordered, func() {
 			JustBeforeEach(func() {
 				kw := k.Namespace(namespace)
 				out, err := kw.Patch(
-					"service", "nginx-service",
+					"service", "drift-dummy-service",
 					"-o=json",
 					"--type=json",
 					"-p", `[{"op": "replace", "path": "/spec/ports/0/port", "value": 5678}]`,
@@ -247,7 +252,7 @@ var _ = Describe("Drift", Ordered, func() {
 				}).Should(Equal(1), fmt.Sprintf("Summary: %+v", bundle.Status.Summary))
 				Eventually(func() bool {
 					kw := k.Namespace(namespace)
-					out, _ := kw.Get("services", "nginx-service", "-o=json")
+					out, _ := kw.Get("services", "drift-dummy-service", "-o=json")
 					var service corev1.Service
 					_ = json.Unmarshal([]byte(out), &service)
 					return service.Spec.Ports[0].Port == 80
