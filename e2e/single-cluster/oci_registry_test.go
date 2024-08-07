@@ -282,41 +282,33 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			})
 
 			It("creates the bundle with no OCI storage", func() {
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					// check for the bundle
 					out, _ := k.Namespace("fleet-local").Get("bundles")
-					if !strings.Contains(out, "sample-simple-chart-oci") {
-						return false
-					}
+					g.Expect(out).To(ContainSubstring("sample-simple-chart-oci"))
 
 					// check for contentsID
 					contentsID, err := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.spec.contentsId}`)
 					Expect(err).ToNot(HaveOccurred())
-					if contentsID != "" {
-						return false
-					}
+					g.Expect(contentsID).To(BeEmpty())
+
 					GinkgoWriter.Printf("ContentsID: %s\n", contentsID)
 
 					// bundle secret should not be created
 					secrets, _ := k.Namespace("fleet-local").Get("secrets", "-o", "custom-columns=NAME:metadata.name", "--no-headers")
-					if strings.Contains(secrets, "s-") {
-						return false
-					}
+					g.Expect(secrets).ToNot(ContainSubstring("s-"))
 
 					// gets the bundles sha256 for the resources
 					// We'll use that to identify the contents resource for this bundle
 					resourcesSha256, _ := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.status.resourcesSha256Sum}`)
-					if resourcesSha256 == "" {
-						return false
-					}
+					g.Expect(resourcesSha256).ToNot(BeEmpty())
+
 					// delete the last 3 chars from the sha256 so it matches the contents ID
 					resourcesSha256 = resourcesSha256[:len(resourcesSha256)-3]
 
 					// check that it created a content resource with the above sha256
 					contents, _ := k.Get("contents")
-					if !strings.Contains(contents, resourcesSha256) {
-						return false
-					}
+					g.Expect(contents).To(ContainSubstring(resourcesSha256))
 
 					// save the contents id to purge after the test
 					// this will prevent interference with the previous test
@@ -325,8 +317,8 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 
 					// finally check that the helm chart was deployed
 					configmaps, _ := k.Namespace("fleet-local").Get("configmaps")
-					return strings.Contains(configmaps, "sample-config")
-				}).Should(BeTrue())
+					g.Expect(configmaps).To(ContainSubstring("sample-config"))
+				}).Should(Succeed())
 			})
 		})
 	})
