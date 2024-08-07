@@ -78,7 +78,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 				}).Should(ContainSubstring("test-simple-chart-config"))
 
 				By("checking the gitjob pod has the same nodeSelector as the sharded controller")
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					shardNodeSelector, err := k.Namespace("cattle-fleet-system").Get(
 						"pods",
 						"-o=jsonpath={.items[0].spec.nodeSelector}",
@@ -87,9 +87,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 						"-l",
 						fmt.Sprintf("fleet.cattle.io/shard-id=%s", shard),
 					)
-					if err != nil {
-						return false
-					}
+					g.Expect(err).ToNot(HaveOccurred())
 
 					pods, _ := k.Namespace("fleet-local").Get(
 						"pods",
@@ -107,12 +105,9 @@ var _ = Describe("Filtering events by shard", Label("sharding"), Ordered, func()
 						}
 					}
 
-					if podNodeSelector == "" {
-						return false
-					}
-
-					return podNodeSelector == shardNodeSelector
-				}).Should(BeTrue())
+					g.Expect(podNodeSelector).ToNot(BeEmpty())
+					g.Expect(podNodeSelector).To(Equal(shardNodeSelector))
+				}).Should(Succeed())
 
 				for _, s := range shards {
 					Eventually(func(g Gomega) {
