@@ -138,7 +138,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	return objs
 }
 
-func resolve(global, prefix, image string) string {
+func Resolve(global, prefix, image string) string {
 	if global != "" && prefix != "" {
 		image = strings.TrimPrefix(image, global)
 	}
@@ -152,7 +152,7 @@ func resolve(global, prefix, image string) string {
 func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1.StatefulSet {
 	name := DefaultName
 	serviceAccount := DefaultName
-	image := resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
+	image := Resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
 
 	app := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{

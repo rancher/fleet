@@ -8,6 +8,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rancher/fleet/internal/config"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git"
 	corev1 "k8s.io/api/core/v1"
@@ -76,6 +77,9 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 		})
 
 		It("returns the commit for the expected revision", func() {
+			config.Set(&config.Config{
+				GitClientTimeout: metav1.Duration{Duration: 0},
+			})
 			secret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-secret",
