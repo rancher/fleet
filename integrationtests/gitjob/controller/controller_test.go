@@ -42,12 +42,12 @@ func getCondition(gitrepo *v1alpha1.GitRepo, condType string) (genericcondition.
 	return genericcondition.GenericCondition{}, false
 }
 
-func checkCondition(gitrepo *v1alpha1.GitRepo, condType string, status corev1.ConditionStatus) bool {
+func checkCondition(gitrepo *v1alpha1.GitRepo, condType string, status corev1.ConditionStatus, message string) bool {
 	cond, found := getCondition(gitrepo, condType)
 	if !found {
 		return false
 	}
-	return cond.Type == condType && cond.Status == status
+	return cond.Type == condType && cond.Status == status && cond.Message == message
 }
 
 var _ = Describe("GitJob controller", func() {
@@ -128,15 +128,100 @@ var _ = Describe("GitJob controller", func() {
 					return k8sClient.Status().Update(ctx, &job)
 				}).Should(Not(HaveOccurred()))
 
-				Eventually(func() bool {
-					Expect(k8sClient.Get(
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(
 						ctx,
 						types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace},
 						&gitRepo,
 					)).ToNot(HaveOccurred())
+					g.Expect(gitRepo.Status.Commit).To(Equal(commit))
+					g.Expect(gitRepo.Status.GitJobStatus).To(Equal("Current"))
 
-					return gitRepo.Status.Commit == commit && gitRepo.Status.GitJobStatus == "Current"
-				}).Should(BeTrue())
+					// check the conditions related to the job
+					// Current.... Stalled=false Reconcilling=false
+					g.Expect(checkCondition(&gitRepo, "Reconciling", corev1.ConditionFalse, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Stalled", corev1.ConditionFalse, "")).To(BeTrue())
+					// check the rest
+					g.Expect(checkCondition(&gitRepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
+				}).Should(Succeed())
+			})
+		})
+
+		When("a job is in progress", func() {
+			BeforeEach(func() {
+				gitRepoName = "progress"
+			})
+
+			It("sets LastExecutedCommit and JobStatus in GitRepo and InProgress condition", func() {
+				// simulate job was successful
+				Eventually(func() error {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+					// We could be checking this when the job is still not created
+					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+					job.Status.Succeeded = 1
+					job.Status.Conditions = []batchv1.JobCondition{
+						{
+							Type:   "Ready",
+							Status: "False",
+						},
+					}
+					return k8sClient.Status().Update(ctx, &job)
+				}).Should(Not(HaveOccurred()))
+
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(
+						ctx,
+						types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace},
+						&gitRepo,
+					)).ToNot(HaveOccurred())
+					g.Expect(gitRepo.Status.Commit).To(Equal(commit))
+					g.Expect(gitRepo.Status.GitJobStatus).To(Equal("InProgress"))
+					// check the conditions related to the job
+					// Inprogress.... Stalled=false and Reconcilling=true
+					g.Expect(checkCondition(&gitRepo, "Reconciling", corev1.ConditionTrue, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Stalled", corev1.ConditionFalse, "")).To(BeTrue())
+					// check the rest
+					g.Expect(checkCondition(&gitRepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
+				}).Should(Succeed())
+			})
+		})
+
+		When("a job is terminating", func() {
+			BeforeEach(func() {
+				gitRepoName = "terminating"
+			})
+
+			It("has the expected conditions", func() {
+				// simulate job was successful
+				Eventually(func() error {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+					// We could be checking this when the job is still not created
+					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+					// Delete the job
+					return k8sClient.Delete(ctx, &job)
+				}).Should(Not(HaveOccurred()))
+
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(
+						ctx,
+						types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace},
+						&gitRepo,
+					)).ToNot(HaveOccurred())
+					g.Expect(gitRepo.Status.Commit).To(Equal(commit))
+					g.Expect(gitRepo.Status.GitJobStatus).To(Equal("Terminating"))
+					// check the conditions related to the job
+					// Terminating.... Stalled=false and Reconcilling=false
+					g.Expect(checkCondition(&gitRepo, "Reconciling", corev1.ConditionFalse, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Stalled", corev1.ConditionFalse, "")).To(BeTrue())
+					// check the rest
+					g.Expect(checkCondition(&gitRepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
+				}).Should(Succeed())
 			})
 		})
 
@@ -162,11 +247,24 @@ var _ = Describe("GitJob controller", func() {
 					return k8sClient.Status().Update(ctx, &job)
 				}).Should(Not(HaveOccurred()))
 
-				Eventually(func() bool {
-					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).ToNot(HaveOccurred())
-					// Job Status should be failed and commit should be as expected
-					return gitRepo.Status.GitJobStatus == "Failed" && gitRepo.Status.Commit == commit
-				}).Should(BeTrue())
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(
+						ctx,
+						types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace},
+						&gitRepo,
+					)).ToNot(HaveOccurred())
+					g.Expect(gitRepo.Status.Commit).To(Equal(commit))
+					g.Expect(gitRepo.Status.GitJobStatus).To(Equal("Failed"))
+					// check the conditions related to the job
+					// Failed.... Stalled=true and Reconcilling=false
+					g.Expect(checkCondition(&gitRepo, "Reconciling", corev1.ConditionFalse, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Stalled", corev1.ConditionTrue, "Job Failed. failed: 1/1")).To(BeTrue())
+
+					// check the rest
+					g.Expect(checkCondition(&gitRepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
+				}).Should(Succeed())
 
 				By("verifying that the job is deleted if Spec.Generation changed")
 				Expect(simulateIncreaseGitRepoGeneration(gitRepo)).ToNot(HaveOccurred())
@@ -505,11 +603,11 @@ var _ = Describe("GitRepo", func() {
 				g.Expect(gitrepo.Status.Display.ReadyBundleDeployments).To(Equal("0/0"))
 				g.Expect(gitrepo.Status.Display.Error).To(BeFalse())
 				g.Expect(len(gitrepo.Status.Conditions)).To(Equal(5))
-				g.Expect(checkCondition(gitrepo, "GitPolling", corev1.ConditionTrue)).To(BeTrue())
-				g.Expect(checkCondition(gitrepo, "Reconciling", corev1.ConditionTrue)).To(BeTrue())
-				g.Expect(checkCondition(gitrepo, "Stalled", corev1.ConditionFalse)).To(BeTrue())
-				g.Expect(checkCondition(gitrepo, "Ready", corev1.ConditionTrue)).To(BeTrue())
-				g.Expect(checkCondition(gitrepo, "Accepted", corev1.ConditionTrue)).To(BeTrue())
+				g.Expect(checkCondition(gitrepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())
+				g.Expect(checkCondition(gitrepo, "Reconciling", corev1.ConditionTrue, "")).To(BeTrue())
+				g.Expect(checkCondition(gitrepo, "Stalled", corev1.ConditionFalse, "")).To(BeTrue())
+				g.Expect(checkCondition(gitrepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
+				g.Expect(checkCondition(gitrepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
 			}).Should(Succeed())
 		})
 	})
