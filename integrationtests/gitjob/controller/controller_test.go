@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -144,6 +145,27 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(checkCondition(&gitRepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())
 					g.Expect(checkCondition(&gitRepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
 					g.Expect(checkCondition(&gitRepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
+				}).Should(Succeed())
+
+				// it should log 2 events
+				// first one is to log the new commit from the poller
+				// second one is to inform that the job was created
+				Eventually(func(g Gomega) {
+					events, _ := k8sClientSet.CoreV1().Events(gitRepo.Namespace).List(context.TODO(),
+						metav1.ListOptions{
+							FieldSelector: "involvedObject.name=success",
+							TypeMeta:      metav1.TypeMeta{Kind: "GitRepo"},
+						})
+					g.Expect(events).ToNot(BeNil())
+					g.Expect(len(events.Items)).To(Equal(2))
+					g.Expect(events.Items[0].Reason).To(Equal("GotNewCommit"))
+					g.Expect(events.Items[0].Message).To(Equal("9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"))
+					g.Expect(events.Items[0].Type).To(Equal("Normal"))
+					g.Expect(events.Items[0].Source.Component).To(Equal("gitjob-controller"))
+					g.Expect(events.Items[1].Reason).To(Equal("Created"))
+					g.Expect(events.Items[1].Message).To(Equal("GitJob was created"))
+					g.Expect(events.Items[1].Type).To(Equal("Normal"))
+					g.Expect(events.Items[1].Source.Component).To(Equal("gitjob-controller"))
 				}).Should(Succeed())
 			})
 		})
@@ -345,6 +367,31 @@ var _ = Describe("GitJob controller", func() {
 
 				return string(job.UID) != string(newJob.UID)
 			}).Should(BeTrue())
+			// it should log 3 events
+			// first one is to log the new commit from the poller
+			// second one is to inform that the job was created
+			// third one reports on the job being deleted because of ForceUpdateGeneration
+			Eventually(func(g Gomega) {
+				events, _ := k8sClientSet.CoreV1().Events(gitRepo.Namespace).List(context.TODO(),
+					metav1.ListOptions{
+						FieldSelector: "involvedObject.name=force-deletion",
+						TypeMeta:      metav1.TypeMeta{Kind: "GitRepo"},
+					})
+				g.Expect(events).ToNot(BeNil())
+				g.Expect(len(events.Items)).To(Equal(3))
+				g.Expect(events.Items[0].Reason).To(Equal("GotNewCommit"))
+				g.Expect(events.Items[0].Message).To(Equal("9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"))
+				g.Expect(events.Items[0].Type).To(Equal("Normal"))
+				g.Expect(events.Items[0].Source.Component).To(Equal("gitjob-controller"))
+				g.Expect(events.Items[1].Reason).To(Equal("Created"))
+				g.Expect(events.Items[1].Message).To(Equal("GitJob was created"))
+				g.Expect(events.Items[1].Type).To(Equal("Normal"))
+				g.Expect(events.Items[1].Source.Component).To(Equal("gitjob-controller"))
+				g.Expect(events.Items[2].Reason).To(Equal("JobDeleted"))
+				g.Expect(events.Items[2].Message).To(Equal("job deletion triggered because of ForceUpdateGeneration"))
+				g.Expect(events.Items[2].Type).To(Equal("Normal"))
+				g.Expect(events.Items[2].Source.Component).To(Equal("gitjob-controller"))
+			}).Should(Succeed())
 		})
 
 		It("verifies that UpdateGeneration in Status is equal to ForceSyncGeneration", func() {
