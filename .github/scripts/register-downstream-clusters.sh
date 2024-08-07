@@ -47,12 +47,9 @@ rancher clusters create second --import
 until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' | grep -Eq "c-[a-z0-9]" ; do sleep 1; done
 id=$( rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' )
 
-kubectl get clusters -A -o wide # DEBUG
-kubectl get clusterregistrationtokens -A -o wide # DEBUG
-
 kubectl config use-context "$cluster_downstream"
 kubectl create clusterrolebinding cluster-admin-binding --clusterrole cluster-admin --user $user
-rancher cluster import "$id"
+until [ -n "$(rancher cluster import "$id" | grep curl)" ]; do sleep 1; done
 rancher cluster import "$id" | grep curl | sh
 
 until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .Cluster.state' | grep -q active; do
