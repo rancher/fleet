@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"time"
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
@@ -16,6 +17,7 @@ type options struct {
 	CABundle          []byte
 	InsecureTLSVerify bool
 	Headers           map[string]string
+	Timeout           time.Duration
 	log               logr.Logger
 }
 

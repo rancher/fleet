@@ -58,6 +58,7 @@ func (r *ConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						object.GetName() == config.ManagerConfigName
 				}),
 				predicate.Or(
+					predicate.ResourceVersionChangedPredicate{},
 					predicate.GenerationChangedPredicate{},
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},

@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 
+	"github.com/rancher/fleet/internal/config"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -46,6 +47,7 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 		CABundle:          gitrepo.Spec.CABundle,
 		Credential:        &secret,
 		InsecureTLSVerify: gitrepo.Spec.InsecureSkipTLSverify,
+		Timeout:           config.Get().GitClientTimeout.Duration,
 		log:               log.FromContext(ctx),
 	})
 	if err != nil {
