@@ -49,7 +49,7 @@ id=$( rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' )
 
 kubectl config use-context "$cluster_downstream"
 kubectl create clusterrolebinding cluster-admin-binding --clusterrole cluster-admin --user $user
-rancher cluster import "$id"
+until [ -n "$(rancher cluster import "$id" | grep curl)" ]; do sleep 1; done
 rancher cluster import "$id" | grep curl | sh
 
 until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .Cluster.state' | grep -q active; do
