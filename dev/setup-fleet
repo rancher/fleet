@@ -29,7 +29,7 @@ if [ -n "$shards_json" ]; then
       for key in $(echo "$node_selector" | jq -r 'keys[]'); do
         value=$(echo "$node_selector" | jq -r --arg key "$key" '.[$key]')
         escaped_key=$(echo "$key" | sed 's/\./\\./g')
-        shards_settings="$shards_settings --set shards[$index].nodeSelector.\"$escaped_key\"=$value"
+        shards_settings="$shards_settings --set shards[$index].nodeSelector.$escaped_key=$value"
       done
     fi
     index=$((index + 1))

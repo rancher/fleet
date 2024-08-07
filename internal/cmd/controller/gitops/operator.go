@@ -52,6 +52,7 @@ type GitOperator struct {
 	Image                string `name:"gitjob-image" default:"rancher/fleet:dev" usage:"The gitjob image that will be used in the generated job."`
 	Listen               string `default:":8080" usage:"The port the webhook listens."`
 	ShardID              string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
+	ShardNodeSelector    string `usage:"node selector to apply to jobs based on the shard ID, if any" name:"shard-node-selector"`
 }
 
 func App(zo *zap.Options) *cobra.Command {
@@ -67,6 +68,7 @@ func (c *GitOperator) HelpFunc(cmd *cobra.Command, strings []string) {
 	_ = cmd.Flags().MarkHidden("disable-gitops")
 	_ = cmd.Flags().MarkHidden("disable-metrics")
 	_ = cmd.Flags().MarkHidden("shard-id")
+	_ = cmd.Flags().MarkHidden("shard-node-selector")
 	cmd.Parent().HelpFunc()(cmd, strings)
 }
 
@@ -122,14 +124,15 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	reconciler := &reconciler.GitJobReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		Image:      g.Image,
-		Scheduler:  sched,
-		Workers:    workers,
-		ShardID:    g.ShardID,
-		GitFetcher: &git.Fetch{},
-		Clock:      reconciler.RealClock{},
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		Image:           g.Image,
+		Scheduler:       sched,
+		Workers:         workers,
+		ShardID:         g.ShardID,
+		JobNodeSelector: g.ShardNodeSelector,
+		GitFetcher:      &git.Fetch{},
+		Clock:           reconciler.RealClock{},
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
