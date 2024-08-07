@@ -149,7 +149,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	oldStatus := gitrepo.Status.DeepCopy()
 	_, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
 	if err != nil {
-		r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToApplyRestrictions", err.Error())
 		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
 	}
 
@@ -182,9 +182,12 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	commitBefore := gitrepo.Status.Commit
 	gitPollerWasExecuted, err := r.checkPollingTask(ctx, gitrepo)
 	if err != nil {
-		r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToCheckCommit", err.Error())
+	} else if gitPollerWasExecuted && commitBefore != gitrepo.Status.Commit {
+		r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
 	}
 	// From this point onwards we have to take into account if the poller
 	// task was executed.
@@ -197,7 +200,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}, &job)
 	if err != nil && !errors.IsNotFound(err) {
 		err = fmt.Errorf("error retrieving git job: %w", err)
-		r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToGetGitJob", err.Error())
 		return reconcileResult(gitPollerWasExecuted, gitrepo), err
 	}
 
@@ -211,12 +214,16 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 			if err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+			} else {
+				if gitPollerWasExecuted && commitBefore != gitrepo.Status.Commit {
+					r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
+				}
 			}
 		}
 
 		if gitrepo.Status.Commit != "" {
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
-				r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
+				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
 				return reconcileResult(gitPollerWasExecuted, gitrepo), grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 			}
 			logger.V(1).Info("Creating Git job resources")
@@ -229,6 +236,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err := r.createJob(ctx, gitrepo); err != nil {
 				return reconcileResult(gitPollerWasExecuted, gitrepo), fmt.Errorf("error creating git job: %w", err)
 			}
+			r.Recorder.Event(gitrepo, fleetevent.Normal, "Created", "GitJob was created")
 		}
 	} else if gitrepo.Status.Commit != "" {
 		if err = r.deleteJobIfNeeded(ctx, gitrepo, &job); err != nil {
@@ -402,25 +410,46 @@ func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitR
 
 func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
 	logger := log.FromContext(ctx)
+	jobDeleted := false
+	jobDeletedMessage := ""
 	// if force delete is set, delete the job to make sure a new job is created
 	if gitRepo.Spec.ForceSyncGeneration != gitRepo.Status.UpdateGeneration {
 		gitRepo.Status.UpdateGeneration = gitRepo.Spec.ForceSyncGeneration
-		logger.Info("job deletion triggered because of ForceUpdateGeneration")
+		jobDeletedMessage = "job deletion triggered because of ForceUpdateGeneration"
+		logger.Info(jobDeletedMessage)
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 			return err
 		}
+		jobDeleted = true
 	}
 
 	// k8s Jobs are immutable. Recreate the job if the GitRepo Spec has changed.
-	if gitRepo.Generation != gitRepo.Status.ObservedGeneration {
+	// Avoid deleting the job twice
+	if !jobDeleted && generationChanged(gitRepo) {
+		jobDeletedMessage = "job deletion triggered because of generation change"
 		gitRepo.Status.ObservedGeneration = gitRepo.Generation
-		logger.Info("job deletion triggered because of generation change")
+		logger.Info(jobDeletedMessage)
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 			return err
 		}
+		jobDeleted = true
+	}
+
+	if jobDeleted {
+		r.Recorder.Event(gitRepo, fleetevent.Normal, "JobDeleted", jobDeletedMessage)
 	}
 
 	return nil
+}
+
+func generationChanged(r *v1alpha1.GitRepo) bool {
+	// checks if generation changed.
+	// it ignores the case when Status.ObservedGeneration=0 because that's
+	// the initial value of a just created GitRepo and the initial value
+	// for Generation in k8s is 1.
+	// If we don't ignore we would be deleting the gitjob that was just created
+	// until later we reconcile ObservedGeneration with Generation
+	return (r.Generation != r.Status.ObservedGeneration) && r.Status.ObservedGeneration > 0
 }
 
 func jobName(obj *v1alpha1.GitRepo) string {

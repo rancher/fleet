@@ -190,7 +190,12 @@ func TestReconcile_LatestCommitErrorIsSetInConditions(t *testing.T) {
 	).Times(1)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(&gitRepoMatcher{gitRepo}, fleetevent.Warning, "Failed", "TEST ERROR")
+	recorderMock.EXPECT().Event(
+		&gitRepoMatcher{gitRepo},
+		fleetevent.Warning,
+		"FailedToCheckCommit",
+		"TEST ERROR",
+	)
 	r := GitJobReconciler{
 		Client:     client,
 		Scheme:     scheme,
@@ -260,12 +265,21 @@ func TestReconcile_LatestCommitIsOkay(t *testing.T) {
 		},
 	).Times(1)
 
+	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+	recorderMock.EXPECT().Event(
+		&gitRepoMatcher{gitRepo},
+		fleetevent.Normal,
+		"GotNewCommit",
+		"1883fd54bc5dfd225acf02aecbb6cb8020458e33",
+	)
+
 	r := GitJobReconciler{
 		Client:     client,
 		Scheme:     scheme,
 		Image:      "",
 		GitFetcher: fetcher,
 		Clock:      RealClock{},
+		Recorder:   recorderMock,
 	}
 
 	ctx := context.TODO()
@@ -394,12 +408,21 @@ func TestReconcile_LatestCommitShouldBeCalled(t *testing.T) {
 		},
 	).Times(1)
 
+	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+	recorderMock.EXPECT().Event(
+		&gitRepoMatcher{gitRepo},
+		fleetevent.Normal,
+		"GotNewCommit",
+		"1883fd54bc5dfd225acf02aecbb6cb8020458e33",
+	)
+
 	r := GitJobReconciler{
 		Client:     client,
 		Scheme:     scheme,
 		Image:      "",
 		GitFetcher: fetcher,
 		Clock:      RealClock{},
+		Recorder:   recorderMock,
 	}
 
 	ctx := context.TODO()
@@ -455,10 +478,12 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 	)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(&gitRepoMatcher{gitRepo},
+	recorderMock.EXPECT().Event(
+		&gitRepoMatcher{gitRepo},
 		fleetevent.Warning,
-		"Failed",
-		"empty targetNamespace denied, because allowedTargetNamespaces restriction is present")
+		"FailedToApplyRestrictions",
+		"empty targetNamespace denied, because allowedTargetNamespaces restriction is present",
+	)
 
 	r := GitJobReconciler{
 		Client:   mockClient,
@@ -514,10 +539,18 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 	)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(&gitRepoMatcher{gitRepo},
+	recorderMock.EXPECT().Event(
+		&gitRepoMatcher{gitRepo},
+		fleetevent.Normal,
+		"GotNewCommit",
+		"1883fd54bc5dfd225acf02aecbb6cb8020458e33",
+	)
+	recorderMock.EXPECT().Event(
+		&gitRepoMatcher{gitRepo},
 		fleetevent.Warning,
-		"Failed",
-		"error retrieving git job: GITJOB ERROR")
+		"FailedToGetGitJob",
+		"error retrieving git job: GITJOB ERROR",
+	)
 
 	r := GitJobReconciler{
 		Client:     mockClient,
@@ -582,10 +615,18 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(&gitRepoMatcher{gitRepo},
+	recorderMock.EXPECT().Event(
+		&gitRepoMatcher{gitRepo},
+		fleetevent.Normal,
+		"GotNewCommit",
+		"1883fd54bc5dfd225acf02aecbb6cb8020458e33",
+	)
+	recorderMock.EXPECT().Event(
+		&gitRepoMatcher{gitRepo},
 		fleetevent.Warning,
-		"Failed",
-		"failed to look up HelmSecretNameForPaths, error: SECRET ERROR")
+		"FailedValidatingSecret",
+		"failed to look up HelmSecretNameForPaths, error: SECRET ERROR",
+	)
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Times(1).Return(statusClient)
