@@ -133,6 +133,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		JobNodeSelector: g.ShardNodeSelector,
 		GitFetcher:      &git.Fetch{},
 		Clock:           reconciler.RealClock{},
+		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("gitjob-controller%s", g.ShardID)),
 	}
 
 	group, ctx := errgroup.WithContext(ctx)

@@ -20,6 +20,7 @@ import (
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/mocks"
 
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,6 +42,7 @@ var (
 	logsBuffer     bytes.Buffer
 	namespace      string
 	expectedCommit string
+	k8sClientSet   *kubernetes.Clientset
 )
 
 func TestGitJobController(t *testing.T) {
@@ -62,6 +64,9 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	err = v1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	k8sClientSet, err = kubernetes.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
@@ -97,6 +102,7 @@ var _ = BeforeSuite(func() {
 		Scheduler:  sched,
 		GitFetcher: fetcherMock,
 		Clock:      reconciler.RealClock{},
+		Recorder:   mgr.GetEventRecorderFor("gitjob-controller"),
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
