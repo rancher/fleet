@@ -16,8 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-var clientTimeout = time.Duration(30)
-
 // GetAuthFromSecret returns the AuthMethod calculated from the given secret
 // The credentials secret is expected to be either basic-auth or ssh-auth (with extra known_hosts data option)
 func GetAuthFromSecret(url string, creds *corev1.Secret) (transport.AuthMethod, error) {
@@ -59,7 +57,7 @@ func GetAuthFromSecret(url string, creds *corev1.Secret) (transport.AuthMethod, 
 
 // GetHTTPClientFromSecret returns a HTTP client filled from the information in the given secret
 // and optional CABundle and insecureTLSVerify
-func GetHTTPClientFromSecret(creds *corev1.Secret, CABundle []byte, insecureTLSVerify bool) (*http.Client, error) {
+func GetHTTPClientFromSecret(creds *corev1.Secret, CABundle []byte, insecureTLSVerify bool, timeout time.Duration) (*http.Client, error) {
 	var (
 		username  string
 		password  string
@@ -99,7 +97,7 @@ func GetHTTPClientFromSecret(creds *corev1.Secret, CABundle []byte, insecureTLSV
 
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   clientTimeout * time.Second,
+		Timeout:   timeout,
 	}
 	if username != "" || password != "" {
 		client.Transport = &basicRoundTripper{

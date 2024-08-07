@@ -1,4 +1,4 @@
-package agent
+package agent_test
 
 import (
 	"reflect"
@@ -10,7 +10,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 )
+
+const namespace = "fleet-system"
 
 func TestImageResolve(t *testing.T) {
 	tests := []struct {
@@ -25,15 +29,15 @@ func TestImageResolve(t *testing.T) {
 	}
 
 	for _, d := range tests {
-		image := resolve(d.systemDefaultRegistry, d.privateRepoURL, d.image)
+		image := agent.Resolve(d.systemDefaultRegistry, d.privateRepoURL, d.image)
 		if image != d.expected {
 			t.Errorf("expected %s, got %s", d.expected, image)
 		}
 	}
 }
 
-func getAgentFromManifests(namespace string, scope string, opts ManifestOptions) *appsv1.StatefulSet {
-	objects := Manifest(namespace, scope, opts)
+func getAgentFromManifests(scope string, opts agent.ManifestOptions) *appsv1.StatefulSet {
+	objects := agent.Manifest(namespace, scope, opts)
 	for _, obj := range objects {
 		dep, ok := obj.(*appsv1.StatefulSet)
 		if ok {
@@ -44,9 +48,8 @@ func getAgentFromManifests(namespace string, scope string, opts ManifestOptions)
 }
 
 func TestManifestAgentTolerations(t *testing.T) {
-	const namespace = "fleet-system"
 	const scope = "test-scope"
-	baseOpts := ManifestOptions{
+	baseOpts := agent.ManifestOptions{
 		AgentEnvVars:          []corev1.EnvVar{},
 		AgentImage:            "rancher/fleet:1.2.3",
 		AgentImagePullPolicy:  "Always",
@@ -67,19 +70,19 @@ func TestManifestAgentTolerations(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name                string
-		getOpts             func() ManifestOptions
+		getOpts             func() agent.ManifestOptions
 		expectedTolerations []corev1.Toleration
 	}{
 		{
 			name: "BaseOpts",
-			getOpts: func() ManifestOptions {
+			getOpts: func() agent.ManifestOptions {
 				return baseOpts
 			},
 			expectedTolerations: baseTolerations,
 		},
 		{
 			name: "ExtraToleration",
-			getOpts: func() ManifestOptions {
+			getOpts: func() agent.ManifestOptions {
 				withTolerationsOpts := baseOpts
 				withTolerationsOpts.AgentTolerations = []corev1.Toleration{
 					{Key: "fleet-agent", Operator: "Equals", Value: "true", Effect: "NoSchedule"},
@@ -92,7 +95,7 @@ func TestManifestAgentTolerations(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			agent := getAgentFromManifests(namespace, scope, testCase.getOpts())
+			agent := getAgentFromManifests(scope, testCase.getOpts())
 			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
@@ -105,9 +108,8 @@ func TestManifestAgentTolerations(t *testing.T) {
 }
 
 func TestManifestAgentHostNetwork(t *testing.T) {
-	const namespace = "fleet-system"
 	const scope = "test-scope"
-	baseOpts := ManifestOptions{
+	baseOpts := agent.ManifestOptions{
 		AgentEnvVars:          []corev1.EnvVar{},
 		AgentImage:            "rancher/fleet:1.2.3",
 		AgentImagePullPolicy:  "Always",
@@ -119,19 +121,19 @@ func TestManifestAgentHostNetwork(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name            string
-		getOpts         func() ManifestOptions
+		getOpts         func() agent.ManifestOptions
 		expectedNetwork bool
 	}{
 		{
 			name: "DefaultSetting",
-			getOpts: func() ManifestOptions {
+			getOpts: func() agent.ManifestOptions {
 				return baseOpts
 			},
 			expectedNetwork: false,
 		},
 		{
 			name: "With hostNetwork",
-			getOpts: func() ManifestOptions {
+			getOpts: func() agent.ManifestOptions {
 				withHostNetwork := baseOpts
 				withHostNetwork.HostNetwork = true
 				return withHostNetwork
@@ -140,7 +142,7 @@ func TestManifestAgentHostNetwork(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			agent := getAgentFromManifests(namespace, scope, testCase.getOpts())
+			agent := getAgentFromManifests(scope, testCase.getOpts())
 			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
@@ -153,8 +155,6 @@ func TestManifestAgentHostNetwork(t *testing.T) {
 }
 
 func TestManifestAgentAffinity(t *testing.T) {
-	const namespace = "fleet-system"
-
 	// this is the value from manifest.go
 	builtinAffinity := &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{
 		PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
@@ -180,27 +180,27 @@ func TestManifestAgentAffinity(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name             string
-		getOpts          func() ManifestOptions
+		getOpts          func() agent.ManifestOptions
 		expectedAffinity *corev1.Affinity
 	}{
 		{
 			name:             "Builtin Affinity",
-			getOpts:          func() ManifestOptions { return ManifestOptions{} },
+			getOpts:          func() agent.ManifestOptions { return agent.ManifestOptions{} },
 			expectedAffinity: builtinAffinity,
 		},
 		{
 			name:             "Remove Affinity",
-			getOpts:          func() ManifestOptions { return ManifestOptions{AgentAffinity: &corev1.Affinity{}} },
+			getOpts:          func() agent.ManifestOptions { return agent.ManifestOptions{AgentAffinity: &corev1.Affinity{}} },
 			expectedAffinity: &corev1.Affinity{},
 		},
 		{
 			name:             "Override Affinity",
-			getOpts:          func() ManifestOptions { return ManifestOptions{AgentAffinity: customAffinity} },
+			getOpts:          func() agent.ManifestOptions { return agent.ManifestOptions{AgentAffinity: customAffinity} },
 			expectedAffinity: customAffinity,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			agent := getAgentFromManifests(namespace, "", testCase.getOpts())
+			agent := getAgentFromManifests("", testCase.getOpts())
 			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
@@ -213,8 +213,6 @@ func TestManifestAgentAffinity(t *testing.T) {
 }
 
 func TestManifestAgentResources(t *testing.T) {
-	const namespace = "fleet-system"
-
 	// this is the value from manifest.go
 	builtinResources := corev1.ResourceRequirements{}
 
@@ -232,27 +230,29 @@ func TestManifestAgentResources(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name              string
-		getOpts           func() ManifestOptions
+		getOpts           func() agent.ManifestOptions
 		expectedResources corev1.ResourceRequirements
 	}{
 		{
 			name:              "Builtin Resources",
-			getOpts:           func() ManifestOptions { return ManifestOptions{} },
+			getOpts:           func() agent.ManifestOptions { return agent.ManifestOptions{} },
 			expectedResources: builtinResources,
 		},
 		{
-			name:              "Remove Resources",
-			getOpts:           func() ManifestOptions { return ManifestOptions{AgentResources: &corev1.ResourceRequirements{}} },
+			name: "Remove Resources",
+			getOpts: func() agent.ManifestOptions {
+				return agent.ManifestOptions{AgentResources: &corev1.ResourceRequirements{}}
+			},
 			expectedResources: corev1.ResourceRequirements{},
 		},
 		{
 			name:              "Override Resources",
-			getOpts:           func() ManifestOptions { return ManifestOptions{AgentResources: &customResources} },
+			getOpts:           func() agent.ManifestOptions { return agent.ManifestOptions{AgentResources: &customResources} },
 			expectedResources: customResources,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			agent := getAgentFromManifests(namespace, "", testCase.getOpts())
+			agent := getAgentFromManifests("", testCase.getOpts())
 			if agent == nil {
 				t.Fatal("there were no deployments returned from the manifests")
 			}
