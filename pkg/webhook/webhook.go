@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	goPlaygroundAzuredevops "github.com/go-playground/webhooks/v6/azuredevops"
+	"github.com/go-playground/webhooks/v6/azuredevops"
 	gogsclient "github.com/gogits/go-gogs-client"
 	"github.com/gorilla/mux"
 	"gopkg.in/go-playground/webhooks.v5/bitbucket"
@@ -20,7 +20,6 @@ import (
 	"gopkg.in/go-playground/webhooks.v5/gogs"
 
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/webhook/azuredevops"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -171,7 +170,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	case r.Header.Get("X-Event-Key") != "":
 		payload, err = w.bitbucketServer.Parse(r, bitbucketserver.RepositoryReferenceChangedEvent)
 	case r.Header.Get("X-Vss-Activityid") != "" || r.Header.Get("X-Vss-Subscriptionid") != "":
-		payload, err = w.azureDevops.Parse(r, goPlaygroundAzuredevops.GitPushEventType)
+		payload, err = w.azureDevops.Parse(r, azuredevops.GitPushEventType)
 	default:
 		w.log.V(1).Info("Ignoring unknown webhook event")
 		return
@@ -366,7 +365,7 @@ func parsePayload(payload interface{}) (revision, branch, tag string, repoURLs [
 		repoURLs = append(repoURLs, t.Repo.HTMLURL)
 		branch, tag = getBranchTagFromRef(t.Ref)
 		revision = t.After
-	case goPlaygroundAzuredevops.GitPushEvent:
+	case azuredevops.GitPushEvent:
 		repoURLs = append(repoURLs, t.Resource.Repository.RemoteURL)
 		for _, refUpdate := range t.Resource.RefUpdates {
 			branch, tag = getBranchTagFromRef(refUpdate.Name)
