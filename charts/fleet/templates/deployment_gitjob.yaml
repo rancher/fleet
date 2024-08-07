@@ -51,6 +51,10 @@ spec:
           - --shard-id
           - {{ quote $shard.id }}
           {{- end }}
+          {{- if $shard.nodeSelector }}
+          - --shard-node-selector
+          - {{ toJson $shard.nodeSelector | squote }}
+          {{- end }}
           {{- if not $.Values.metrics.enabled }}
           - --disable-metrics
           {{- end }}

@@ -2,10 +2,12 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -74,13 +76,14 @@ func (RealClock) Since(t time.Time) time.Duration { return time.Since(t) }
 // CronJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
 type GitJobReconciler struct {
 	client.Client
-	Scheme     *runtime.Scheme
-	Image      string
-	Scheduler  quartz.Scheduler
-	Workers    int
-	ShardID    string
-	GitFetcher GitFetcher
-	Clock      TimeGetter
+	Scheme          *runtime.Scheme
+	Image           string
+	Scheduler       quartz.Scheduler
+	Workers         int
+	ShardID         string
+	JobNodeSelector string
+	GitFetcher      GitFetcher
+	Clock           TimeGetter
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -551,6 +554,20 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		volumeMounts = append(volumeMounts, volMnt)
 	}
 
+	shardID := gitrepo.Labels[sharding.ShardingRefLabel]
+
+	nodeSelector := map[string]string{"kubernetes.io/os": "linux"}
+	if shardID != "" && len(strings.TrimSpace(r.JobNodeSelector)) > 0 {
+		var shardNodeSelector map[string]string
+		if err := json.Unmarshal([]byte(r.JobNodeSelector), &shardNodeSelector); err != nil {
+			return nil, fmt.Errorf("could not decode shard node selector: %w", err)
+		}
+
+		for k, v := range shardNodeSelector {
+			nodeSelector[k] = v
+		}
+	}
+
 	saName := name.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
 	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled())
@@ -589,7 +606,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 						},
 					},
 				},
-				NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
+				NodeSelector: nodeSelector,
 				Tolerations: []corev1.Toleration{{
 					Key:      "cattle.io/os",
 					Operator: "Equal",
