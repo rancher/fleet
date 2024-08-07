@@ -152,7 +152,7 @@ jobs:
           helm install cert-manager jetstack/cert-manager \
             --namespace cert-manager \
             --create-namespace \
-            --set installCRDs=true \
+            --set crds.enabled=true \
             --set extraArgs[0]=--enable-certificate-owner-ref=true
 
           kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
