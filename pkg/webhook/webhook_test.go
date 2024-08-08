@@ -9,8 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubectl/pkg/scheme"
 
+	"github.com/go-playground/webhooks/v6/azuredevops"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/webhook/azuredevops"
 	"gopkg.in/go-playground/webhooks.v5/github"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
