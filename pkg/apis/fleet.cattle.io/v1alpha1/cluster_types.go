@@ -214,6 +214,9 @@ type ClusterStatus struct {
 	Display ClusterDisplay `json:"display,omitempty"`
 	// AgentStatus contains information about the agent.
 	Agent AgentStatus `json:"agent,omitempty"`
+
+	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
+	GarbageCollectionInterval *metav1.Duration `json:"garbageCollectionInterval,omitempty"`
 }
 
 type ClusterDisplay struct {

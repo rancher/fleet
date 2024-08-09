@@ -6,6 +6,8 @@ spec:
   repo: {{.Repo}}
   branch: {{.Branch}}
   pollingInterval: {{.PollingInterval}}
+  {{- if .TargetNamespace }}
   targetNamespace: {{.TargetNamespace}}
+  {{- end }}
   paths:
   - examples

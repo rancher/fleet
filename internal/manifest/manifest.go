@@ -109,10 +109,10 @@ func (m *Manifest) ID() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return toSHA256ID(shasum), nil
+	return ToSHA256ID(shasum), nil
 }
 
-// toSHA256ID generates a valid Kubernetes name (max length of 64) from a provided SHA256 sum
-func toSHA256ID(shasum string) string {
+// ToSHA256ID generates a valid Kubernetes name (max length of 64) from a provided SHA256 sum
+func ToSHA256ID(shasum string) string {
 	return ("s-" + shasum)[:63]
 }
