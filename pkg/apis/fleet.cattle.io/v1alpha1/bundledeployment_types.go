@@ -407,6 +407,7 @@ type ModifiedStatus struct {
 	// +nullable
 	Name   string `json:"name,omitempty"`
 	Create bool   `json:"missing,omitempty"`
+	Exist  bool   `json:"exist,omitempty"`
 	Delete bool   `json:"delete,omitempty"`
 	// +nullable
 	Patch string `json:"patch,omitempty"`
@@ -415,7 +416,11 @@ type ModifiedStatus struct {
 func (in ModifiedStatus) String() string {
 	msg := name(in.APIVersion, in.Kind, in.Namespace, in.Name)
 	if in.Create {
-		return msg + " missing"
+		if in.Exist {
+			return msg + " is not owned by us"
+		} else {
+			return msg + " missing"
+		}
 	} else if in.Delete {
 		return msg + " extra"
 	}

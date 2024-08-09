@@ -908,6 +908,8 @@ spec:
                         type: string
                       delete:
                         type: boolean
+                      exist:
+                        type: boolean
                       kind:
                         nullable: true
                         type: string
@@ -2734,6 +2736,8 @@ spec:
                                         type: string
                                       delete:
                                         type: boolean
+                                      exist:
+                                        type: boolean
                                       kind:
                                         nullable: true
                                         type: string
@@ -2949,6 +2953,8 @@ spec:
                                   nullable: true
                                   type: string
                                 delete:
+                                  type: boolean
+                                exist:
                                   type: boolean
                                 kind:
                                   nullable: true
@@ -3381,6 +3387,8 @@ spec:
                                   nullable: true
                                   type: string
                                 delete:
+                                  type: boolean
+                                exist:
                                   type: boolean
                                 kind:
                                   nullable: true
@@ -5776,6 +5784,8 @@ spec:
                                   type: string
                                 delete:
                                   type: boolean
+                                exist:
+                                  type: boolean
                                 kind:
                                   nullable: true
                                   type: string
@@ -6737,6 +6747,8 @@ spec:
                                   nullable: true
                                   type: string
                                 delete:
+                                  type: boolean
+                                exist:
                                   type: boolean
                                 kind:
                                   nullable: true

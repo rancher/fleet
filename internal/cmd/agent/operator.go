@@ -217,8 +217,8 @@ func newReconciler(
 		return nil, err
 	}
 	monitor := monitor.New(
+		localClient,
 		applied,
-		localClient.RESTMapper(),
 		helmDeployer,
 		defaultNamespace,
 		agentScope,

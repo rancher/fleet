@@ -159,8 +159,8 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 	Expect(err).ToNot(HaveOccurred())
 
 	monitor := monitor.New(
+		localClient,
 		applied,
-		mapper,
 		helmDeployer,
 		defaultNamespace,
 		agentScope,
