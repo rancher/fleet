@@ -60,7 +60,7 @@ require (
 	k8s.io/cli-runtime v0.30.2
 	k8s.io/client-go v0.30.2
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kube-openapi v0.0.0-20240620174524-b456828f718b
+	k8s.io/kube-openapi v0.0.0-20240808142205-8e686545bdb8
 	k8s.io/kubectl v0.30.2
 	k8s.io/kubernetes v1.30.3
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
@@ -88,7 +88,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.11.5 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
-	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
+	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.44.122 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
