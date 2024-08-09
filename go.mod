@@ -18,7 +18,7 @@ require (
 	github.com/docker/docker v27.1.1+incompatible
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/go-git/go-billy/v5 v5.5.1-0.20240701174852-839dcd3ad096
-	github.com/go-git/go-git/v5 v5.12.1-0.20240629213349-b00c68ab7140
+	github.com/go-git/go-git/v5 v5.12.1-0.20240809133458-4fd9979d5c29
 	github.com/go-logr/logr v1.4.2
 	github.com/go-playground/webhooks/v6 v6.4.0
 	github.com/gobwas/glob v0.2.3
@@ -202,7 +202,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.23.12 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
-	github.com/skeema/knownhosts v1.2.2 // indirect
+	github.com/skeema/knownhosts v1.3.0 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
@@ -226,7 +226,7 @@ require (
 	golang.org/x/mod v0.20.0 // indirect
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
+	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/term v0.23.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
