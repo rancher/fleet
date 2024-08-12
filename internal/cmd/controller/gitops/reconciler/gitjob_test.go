@@ -16,7 +16,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/mocks"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	fleetevent "github.com/rancher/fleet/pkg/event"
@@ -35,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func getCondition(gitrepo *v1alpha1.GitRepo, condType string) (genericcondition.GenericCondition, bool) {
+func getCondition(gitrepo *fleetv1.GitRepo, condType string) (genericcondition.GenericCondition, bool) {
 	for _, cond := range gitrepo.Status.Conditions {
 		if cond.Type == condType {
 			return cond, true
@@ -1269,7 +1268,7 @@ func TestCheckforPollingTask(t *testing.T) {
 				Clock:      ClockMock{t: test.timeNow},
 				GitFetcher: fetcher,
 			}
-			res, err := r.checkPollingTask(context.TODO(), test.gitrepo)
+			res, err := r.repoPolled(context.TODO(), test.gitrepo)
 			if res != test.expectedResult {
 				t.Errorf("unexpected result. Expecting %t, got %t", test.expectedResult, res)
 			}
