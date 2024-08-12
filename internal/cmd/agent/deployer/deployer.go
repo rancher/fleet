@@ -176,13 +176,13 @@ func (d *Deployer) setNamespaceLabelsAndAnnotations(ctx context.Context, bd *fle
 	}
 
 	if bd.Spec.Options.NamespaceLabels != nil {
-		addLabelsFromOptions(ns.Labels, bd.Spec.Options.NamespaceLabels)
+		addLabelsFromOptions(ns.Labels, *bd.Spec.Options.NamespaceLabels)
 	}
 	if bd.Spec.Options.NamespaceAnnotations != nil {
 		if ns.Annotations == nil {
 			ns.Annotations = map[string]string{}
 		}
-		addAnnotationsFromOptions(ns.Annotations, bd.Spec.Options.NamespaceAnnotations)
+		addAnnotationsFromOptions(ns.Annotations, *bd.Spec.Options.NamespaceAnnotations)
 	}
 	err = d.updateNamespace(ctx, ns)
 	if err != nil {

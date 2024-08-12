@@ -61,13 +61,13 @@ func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 
 	for _, bundleTarget := range t.Bundle.Spec.Targets {
 		for key, value := range bundleTarget.NamespaceLabels {
-			bd.Spec.Options.NamespaceLabels[key] = value
-			bd.Spec.StagedOptions.NamespaceLabels[key] = value
+			(*bd.Spec.Options.NamespaceLabels)[key] = value
+			(*bd.Spec.StagedOptions.NamespaceLabels)[key] = value
 		}
 
 		for key, value := range bundleTarget.NamespaceAnnotations {
-			bd.Spec.Options.NamespaceAnnotations[key] = value
-			bd.Spec.StagedOptions.NamespaceAnnotations[key] = value
+			(*bd.Spec.Options.NamespaceAnnotations)[key] = value
+			(*bd.Spec.StagedOptions.NamespaceAnnotations)[key] = value
 		}
 	}
 
