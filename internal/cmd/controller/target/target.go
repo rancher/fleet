@@ -60,14 +60,18 @@ func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 	bd.Spec.Paused = t.IsPaused()
 
 	for _, bundleTarget := range t.Bundle.Spec.Targets {
-		for key, value := range bundleTarget.NamespaceLabels {
-			(*bd.Spec.Options.NamespaceLabels)[key] = value
-			(*bd.Spec.StagedOptions.NamespaceLabels)[key] = value
+		if bundleTarget.NamespaceLabels != nil {
+			for key, value := range *bundleTarget.NamespaceLabels {
+				(*bd.Spec.Options.NamespaceLabels)[key] = value
+				(*bd.Spec.StagedOptions.NamespaceLabels)[key] = value
+			}
 		}
 
-		for key, value := range bundleTarget.NamespaceAnnotations {
-			(*bd.Spec.Options.NamespaceAnnotations)[key] = value
-			(*bd.Spec.StagedOptions.NamespaceAnnotations)[key] = value
+		if bundleTarget.NamespaceAnnotations != nil {
+			for key, value := range *bundleTarget.NamespaceAnnotations {
+				(*bd.Spec.Options.NamespaceAnnotations)[key] = value
+				(*bd.Spec.StagedOptions.NamespaceAnnotations)[key] = value
+			}
 		}
 	}
 
