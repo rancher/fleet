@@ -8,15 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	command "github.com/rancher/fleet/internal/cmd"
-	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
-	"github.com/rancher/fleet/internal/metrics"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/git"
-	"github.com/rancher/fleet/pkg/version"
-	"github.com/rancher/fleet/pkg/webhook"
 	"github.com/reugn/go-quartz/quartz"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -28,7 +22,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"golang.org/x/sync/errgroup"
+	command "github.com/rancher/fleet/internal/cmd"
+	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
+	"github.com/rancher/fleet/internal/metrics"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/git"
+	"github.com/rancher/fleet/pkg/version"
+	"github.com/rancher/fleet/pkg/webhook"
 )
 
 var (
@@ -133,6 +133,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		JobNodeSelector: g.ShardNodeSelector,
 		GitFetcher:      &git.Fetch{},
 		Clock:           reconciler.RealClock{},
+		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("gitjob-controller%s", g.ShardID)),
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
