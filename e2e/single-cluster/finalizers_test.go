@@ -9,18 +9,20 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rancher/wrangler/v3/pkg/kv"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-var _ = Describe("Deleting a resource with finalizers", func() {
+var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 	var (
 		k               kubectl.Command
 		gitrepoName     string
 		path            string
 		r               = rand.New(rand.NewSource(GinkgoRandomSeed()))
 		targetNamespace string
+		contentID       string
 	)
 
 	BeforeEach(func() {
@@ -29,12 +31,32 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 	})
 
 	JustBeforeEach(func() {
-		gitrepoName = testenv.RandomFilename("finalizers-test", r)
 		path = "simple-chart"
+
+		err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", "", path)
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			deployID, err := k.Get(
+				"bundledeployments",
+				"-A",
+				"-l",
+				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+				"-o=jsonpath={.items[*].spec.deploymentID}",
+			)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(deployID).ToNot(BeEmpty())
+
+			// Check existence of content resource
+			contentID, _ = kv.Split(deployID, ":")
+
+			out, err := k.Get("content", contentID)
+			g.Expect(err).ToNot(HaveOccurred(), out)
+		}).Should(Succeed())
 	})
 
 	AfterEach(func() {
-		_, err := k.Namespace("cattle-fleet-system").Run(
+		out, err := k.Namespace("cattle-fleet-system").Run(
 			"scale",
 			"deployment",
 			"fleet-controller",
@@ -42,6 +64,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			"--timeout=5s",
 		)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(out).To(ContainSubstring("deployment.apps/fleet-controller scaled"))
 
 		_, err = k.Namespace("cattle-fleet-system").Run(
 			"scale",
@@ -52,18 +75,37 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		_, _ = k.Delete("gitrepo", gitrepoName)
-		_, _ = k.Delete("bundle", fmt.Sprintf("%s-%s", gitrepoName, path))
+		_, _ = k.Delete("gitrepo", gitrepoName, "--wait=false")
+		_, _ = k.Delete("bundle", fmt.Sprintf("%s-%s", gitrepoName, path), "--wait=false")
+
 		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
+
+		// Check that the content resource has been deleted, once all GitRepos and bundle deployments
+		// referencing it have also been deleted.
+		// We do not run this test when directly deleting a bundle deployment deletion, because this leads to
+		// recreation of the corresponding content resource as the bundle still exists.
+		if !strings.Contains(gitrepoName, "bundledeployment-test") {
+			Eventually(func(g Gomega) {
+				// Check that the last known content resource for the gitrepo has been deleted
+				out, _ := k.Get("content", contentID)
+				g.Expect(out).To(ContainSubstring("not found"))
+
+				// Check that no content resource is left for the gitrepo's bundledeployment(s)
+				out, err := k.Get(
+					"contents",
+					`-o=jsonpath=jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.finalizers}`+
+						`{"\n"}{end}'`,
+				)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(out).ToNot(ContainSubstring(gitrepoName))
+			}).Should(Succeed())
+		}
 	})
 
 	When("deleting an existing GitRepo", func() {
-		JustBeforeEach(func() {
-			By("creating a GitRepo")
-			err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", "", path)
-			Expect(err).ToNot(HaveOccurred())
+		BeforeEach(func() {
+			gitrepoName = testenv.RandomFilename("finalizers-gitrepo-test", r)
 		})
-
 		It("updates the deployment", func() {
 			By("checking the bundle and bundle deployment exist")
 			Eventually(func() string {
@@ -177,12 +219,9 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 	})
 
 	When("deleting an existing bundle", func() {
-		JustBeforeEach(func() {
-			By("creating a GitRepo")
-			err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", "", path)
-			Expect(err).ToNot(HaveOccurred())
+		BeforeEach(func() {
+			gitrepoName = testenv.RandomFilename("finalizers-bundle-test", r)
 		})
-
 		It("updates the deployment", func() {
 			By("checking the bundle and bundle deployment exist")
 			Eventually(func() string {
@@ -231,12 +270,9 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 	})
 
 	When("deleting an existing bundledeployment", func() {
-		JustBeforeEach(func() {
-			By("creating a GitRepo")
-			err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", "", path)
-			Expect(err).ToNot(HaveOccurred())
+		BeforeEach(func() {
+			gitrepoName = testenv.RandomFilename("finalizers-bundledeployment-test", r)
 		})
-
 		It("updates the deployment", func() {
 			By("checking the bundle and bundle deployment exist")
 			Eventually(func() string {
@@ -253,7 +289,7 @@ var _ = Describe("Deleting a resource with finalizers", func() {
 			_, err := k.Namespace("cattle-fleet-system").Run(
 				"scale",
 				"deployment",
-				"gitjob",
+				"fleet-controller",
 				"--replicas=0",
 				"--timeout=5s",
 			)

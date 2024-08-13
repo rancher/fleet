@@ -69,19 +69,21 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 	AfterEach(func() {
 		_ = os.RemoveAll(tmpDir)
 
-		// Check that the bundle deployment is properly deleted
-		out, _ := k.Get("bundledeployments", "-A")
-		Expect(out).To(ContainSubstring(gitrepoName))
-
 		_, err := k.Delete("gitrepo", gitrepoName)
 		Expect(err).ToNot(HaveOccurred())
 
-		Eventually(func() string {
-			out, _ := k.Get("bundledeployments", "-A")
-			return out
-		}).ShouldNot(ContainSubstring(gitrepoName))
+		// Check that the bundle deployment resource has been deleted
+		Eventually(func(g Gomega) {
+			out, _ := k.Get(
+				"bundledeployments",
+				"-A",
+				"-l",
+				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+			)
+			g.Expect(out).To(ContainSubstring("No resources found"))
+		}).Should(Succeed())
 
-		out, err = k.Namespace("cattle-fleet-system").Logs(
+		out, err := k.Namespace("cattle-fleet-system").Logs(
 			"-l",
 			"app=fleet-controller",
 			"-c",
@@ -95,7 +97,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
 		))
 
-		_, err = k.Delete("ns", targetNamespace)
+		_, err = k.Delete("ns", targetNamespace, "--wait=false")
 		Expect(err).ToNot(HaveOccurred())
 	})
 
