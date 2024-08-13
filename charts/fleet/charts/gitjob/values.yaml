@@ -1,6 +1,6 @@
 gitjob:
   repository: rancher/gitjob
-  tag: v0.9.12
+  tag: v0.9.13
 
 global:
   cattle:
