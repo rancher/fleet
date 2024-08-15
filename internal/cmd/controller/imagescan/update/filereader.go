@@ -108,8 +108,9 @@ func (r *ScreeningLocalReader) Read() ([]*yaml.RNode, error) {
 		}
 
 		rdr := &kio.ByteReader{
-			Reader:         bytes.NewBuffer(filebytes),
-			SetAnnotations: annotations,
+			Reader:            bytes.NewBuffer(filebytes),
+			SetAnnotations:    annotations,
+			PreserveSeqIndent: true,
 		}
 
 		nodes, err := rdr.Read()
