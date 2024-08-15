@@ -13,8 +13,12 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/fieldmeta"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sigs.k8s.io/kustomize/kyaml/kio/kioutil"
-	"sigs.k8s.io/kustomize/kyaml/setters2"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
+)
+
+const (
+	// This is preserved from setters2
+	K8sCliExtensionKey = "x-k8s-cli"
 )
 
 // Credit: https://github.com/fluxcd/image-automation-controller
@@ -221,7 +225,7 @@ func setAll(filter *SetAllCallback, callback func(file, setterName string, node 
 func setterSchema(name, value string) spec.Schema {
 	schema := spec.StringProperty()
 	schema.Extensions = map[string]interface{}{}
-	schema.Extensions.Add(setters2.K8sCliExtensionKey, map[string]interface{}{
+	schema.Extensions.Add(K8sCliExtensionKey, map[string]interface{}{
 		"setter": map[string]string{
 			"name":  name,
 			"value": value,

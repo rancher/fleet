@@ -17,10 +17,11 @@ limitations under the License.
 package update
 
 import (
+	"encoding/json"
+
 	"k8s.io/kube-openapi/pkg/validation/spec"
 	"sigs.k8s.io/kustomize/kyaml/fieldmeta"
 	"sigs.k8s.io/kustomize/kyaml/openapi"
-	"sigs.k8s.io/kustomize/kyaml/setters2"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
@@ -103,8 +104,17 @@ func accept(v visitor, object *yaml.RNode, p string, settersSchema *spec.Schema)
 	return nil
 }
 
+type setter struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type extension struct {
+	Setter *setter `json:"setter,omitempty"`
+}
+
 // set applies the value from ext to field
-func (s *SetAllCallback) set(field *yaml.RNode, ext *setters2.CliExtension, sch *spec.Schema) error {
+func (s *SetAllCallback) set(field *yaml.RNode, ext *extension, sch *spec.Schema) error {
 	// check full setter
 	if ext.Setter == nil {
 		return nil
@@ -129,7 +139,7 @@ func (s *SetAllCallback) visitScalar(object *yaml.RNode, p string, fieldSchema *
 		return nil
 	}
 	// get the openAPI for this field describing how to apply the setter
-	ext, err := setters2.GetExtFromSchema(fieldSchema.Schema)
+	ext, err := getExtFromSchema(fieldSchema.Schema)
 	if err != nil {
 		return err
 	}
@@ -140,4 +150,20 @@ func (s *SetAllCallback) visitScalar(object *yaml.RNode, p string, fieldSchema *
 	// perform a direct set of the field if it matches
 	err = s.set(object, ext, fieldSchema.Schema)
 	return err
+}
+
+func getExtFromSchema(schema *spec.Schema) (*extension, error) {
+	cep := schema.VendorExtensible.Extensions[K8sCliExtensionKey]
+	if cep == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(cep)
+	if err != nil {
+		return nil, err
+	}
+	val := &extension{}
+	if err := json.Unmarshal(b, val); err != nil {
+		return nil, err
+	}
+	return val, nil
 }
