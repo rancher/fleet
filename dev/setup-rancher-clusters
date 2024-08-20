@@ -10,6 +10,7 @@ fi
 public_hostname="${public_hostname-172.18.0.1.sslip.io}"
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+rancherpassword="${RANCHER_PASSWORD-rancherpassword}"
 
 # helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
 # helm repo update rancher-latest
@@ -37,7 +38,9 @@ helm upgrade rancher rancher-latest/rancher --version "$version" \
   --set "extraEnv[0].name=CATTLE_SERVER_URL" \
   --set "extraEnv[0].value=https://$public_hostname" \
   --set "extraEnv[1].name=CATTLE_BOOTSTRAP_PASSWORD" \
-  --set "extraEnv[1].value=rancherpassword"
+  --set "extraEnv[1].value=$rancherpassword" \
+  --set "extraEnv[2].name=CATTLE_AGENT_TLS_MODE" \
+  --set "extraEnv[2].value=system-store"
 
 # wait for deployment of rancher
 kubectl -n cattle-system rollout status deploy/rancher

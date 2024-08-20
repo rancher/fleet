@@ -13,7 +13,7 @@ upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 kubectl config use-context "$upstream_ctx"
 
 dev/setup-fleet
-dev/setup-fleet-downstream
+dev/setup-fleet-managed-downstream
 
 kubectl config use-context "$upstream_ctx"
 
