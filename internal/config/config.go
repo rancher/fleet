@@ -5,15 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
-
-	"github.com/rancher/fleet/pkg/version"
+	"time"
 
 	corev1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
-
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
+
+	"github.com/rancher/fleet/pkg/version"
 )
 
 const (
@@ -44,8 +44,9 @@ const (
 )
 
 var (
-	DefaultManagerImage = "rancher/fleet" + ":" + version.Version
-	DefaultAgentImage   = "rancher/fleet-agent" + ":" + version.Version
+	DefaultManagerImage     = "rancher/fleet" + ":" + version.Version
+	DefaultAgentImage       = "rancher/fleet-agent" + ":" + version.Version
+	DefaultGitClientTimeout = metav1.Duration{Duration: 30 * time.Second}
 
 	config       *Config
 	callbacks    = map[int]func(*Config) error{}
@@ -111,7 +112,8 @@ type Config struct {
 
 	// The amount of time to wait for a response from the server before
 	// canceling the request.  Used to retrieve the latest commit of configured
-	// git repositories.
+	// git repositories. A non-existent value or 0 will result in a timeout of
+	// 30 seconds.
 	GitClientTimeout metav1.Duration `json:"gitClientTimeout,omitempty"`
 
 	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
@@ -199,7 +201,8 @@ func Lookup(_ context.Context, namespace, name string, configMaps corev1.ConfigM
 
 func DefaultConfig() *Config {
 	return &Config{
-		AgentImage: DefaultAgentImage,
+		AgentImage:       DefaultAgentImage,
+		GitClientTimeout: DefaultGitClientTimeout,
 	}
 }
 
