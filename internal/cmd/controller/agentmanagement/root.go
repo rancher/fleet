@@ -23,7 +23,6 @@ func (a *AgentManagement) HelpFunc(cmd *cobra.Command, strings []string) {
 	_ = cmd.Flags().MarkHidden("disable-gitops")
 	_ = cmd.Flags().MarkHidden("disable-metrics")
 	_ = cmd.Flags().MarkHidden("shard-id")
-	_ = cmd.Flags().MarkHidden("shard-node-selector")
 	cmd.Parent().HelpFunc()(cmd, strings)
 }
 
