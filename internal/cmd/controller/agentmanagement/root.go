@@ -20,7 +20,6 @@ type AgentManagement struct {
 
 // HelpFunc hides the global flag from the help output
 func (a *AgentManagement) HelpFunc(cmd *cobra.Command, strings []string) {
-	_ = cmd.Flags().MarkHidden("disable-gitops")
 	_ = cmd.Flags().MarkHidden("disable-metrics")
 	_ = cmd.Flags().MarkHidden("shard-id")
 	_ = cmd.Flags().MarkHidden("shard-node-selector")

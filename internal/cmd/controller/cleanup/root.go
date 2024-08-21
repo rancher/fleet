@@ -15,7 +15,6 @@ type CleanUp struct {
 
 // HelpFunc hides the global flags from the help output
 func (c *CleanUp) HelpFunc(cmd *cobra.Command, strings []string) {
-	_ = cmd.Flags().MarkHidden("disable-gitops")
 	_ = cmd.Flags().MarkHidden("disable-metrics")
 	_ = cmd.Flags().MarkHidden("shard-id")
 	_ = cmd.Flags().MarkHidden("shard-node-selector")
