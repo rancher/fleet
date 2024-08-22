@@ -53,12 +53,6 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 		chart.Metadata.Annotations[CommitAnnotation] = manifest.Commit
 	}
 
-	if options.Helm.SkipSchemaValidation {
-		// TODO: instead of manipulating the chart object, use helm's own functionality when it's available:
-		//       https://github.com/helm/helm/pull/11510
-		chart.Schema = nil
-	}
-
 	if resources, err := h.install(ctx, bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
 	} else if h.template {
@@ -144,6 +138,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		u.Namespace = defaultNamespace
 		u.Timeout = timeout
 		u.DryRun = dryRun
+		u.SkipSchemaValidation = options.Helm.SkipSchemaValidation
 		u.PostRenderer = pr
 		u.WaitForJobs = options.Helm.WaitForJobs
 		if u.Timeout > 0 {
@@ -167,6 +162,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 	u.Namespace = defaultNamespace
 	u.Timeout = timeout
 	u.DryRun = dryRun
+	u.SkipSchemaValidation = options.Helm.SkipSchemaValidation
 	u.DisableOpenAPIValidation = h.template || dryRun
 	u.PostRenderer = pr
 	u.WaitForJobs = options.Helm.WaitForJobs
