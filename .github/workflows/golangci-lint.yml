@@ -38,4 +38,4 @@ jobs:
           # The condition sets this to true for PR events.
           only-new-issues: "${{ github.event_name == 'pull_request'}}"
 
-          skip-pkg-cache: true
+          skip-cache: true
