@@ -40,8 +40,17 @@ This does not cover other tools included in Fleet.
 
 Fleet expects its Go code to be formatted with `goimports`.
 
+Imports are organized in groups, with blank lines between them. The standard
+library packages are always in the first group, followed by a group for github
+imports, a separate group for Fleet's own modules and groups for rancher and
+k8s. Dot imports are a separate group, e.g. in tests.
+If in doubt follow the existing style in the package.
+
+
 Fleet further follows the style guidelines at
 
   - [Effective Go](https://go.dev/doc/effective_go) and
   - [Go Wiki Code Review Comments](https://go.dev/wiki/CodeReviewComments)
   - [Go Style At Google](https://google.github.io/styleguide/go/guide)
+
+The used linters are configured in [.golangci.json](https://github.com/rancher/fleet/blob/main/.golangci.json).
