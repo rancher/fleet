@@ -54,7 +54,7 @@ var (
 
 // Cluster corresponds to a Kubernetes cluster. Fleet deploys bundles to targeted clusters.
 // Clusters to which Fleet deploys manifests are referred to as downstream
-// clusters. In the single cluster use case, the Fleet manager Kubernetes
+// clusters. In the single cluster use case, the Fleet Kubernetes
 // cluster is both the manager and downstream cluster at the same time.
 type Cluster struct {
 	metav1.TypeMeta   `json:",inline"`

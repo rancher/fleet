@@ -7,7 +7,7 @@ annotations:
   catalog.cattle.io/release-name: fleet-crd
 apiVersion: v2
 appVersion: 0.0.0
-description: Fleet Manager CustomResourceDefinitions
+description: Fleet CustomResourceDefinitions
 icon: https://charts.rancher.io/assets/logos/fleet.svg
 name: fleet-crd
 version: 0.0.0

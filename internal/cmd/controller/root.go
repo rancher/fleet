@@ -29,7 +29,7 @@ import (
 	"github.com/rancher/fleet/pkg/version"
 )
 
-type FleetManager struct {
+type FleetController struct {
 	command.DebugConfig
 	Kubeconfig     string `usage:"Kubeconfig file"`
 	Namespace      string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
@@ -55,7 +55,7 @@ var (
 	}
 )
 
-func (f *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
+func (f *FleetController) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := f.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to setup debug logging: %w", err)
 	}
@@ -64,7 +64,7 @@ func (f *FleetManager) PersistentPre(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
+func (f *FleetController) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx := clog.IntoContext(cmd.Context(), ctrl.Log)
 
@@ -124,7 +124,7 @@ func (f *FleetManager) Run(cmd *cobra.Command, args []string) error {
 }
 
 func App() *cobra.Command {
-	root := command.Command(&FleetManager{}, cobra.Command{
+	root := command.Command(&FleetController{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
 	fs := flag.NewFlagSet("", flag.ExitOnError)

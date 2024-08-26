@@ -10,7 +10,7 @@ annotations:
   catalog.cattle.io/release-name: fleet
 apiVersion: v2
 appVersion: 0.0.0
-description: Fleet Manager - GitOps at Scale
+description: Fleet Controller - GitOps at Scale
 icon: https://charts.rancher.io/assets/logos/fleet.svg
 name: fleet
 version: 0.0.0

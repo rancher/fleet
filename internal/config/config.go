@@ -1,4 +1,4 @@
-// Package config implements the config for the fleet manager and agent
+// Package config implements the config for the fleet controller and agent
 package config
 
 import (
@@ -24,7 +24,7 @@ const (
 	AgentTLSModeSystemStore  = "system-store"
 	Key                      = "config"
 	// DefaultNamespace is the default for the system namespace, which
-	// contains the manager and agent
+	// contains the controller and agent
 	DefaultNamespace       = "cattle-fleet-system"
 	LegacyDefaultNamespace = "fleet-system"
 	// ImportTokenSecretValuesKey is the key in the import token secret,
@@ -53,7 +53,7 @@ var (
 	callbackLock sync.Mutex
 )
 
-// Config is the config for the fleet manager and agent. Each use slightly
+// Config is the config for the fleet controller and agent. Each use slightly
 // different fields from this struct. It is stored as JSON in configmaps under
 // the 'config' key.
 type Config struct {

@@ -18,6 +18,11 @@ import (
 )
 
 func main() {
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(1)
+	}
+
 	docDir := filepath.Join("./", os.Args[1])
 
 	// fleet cli for gitjob
@@ -145,4 +150,8 @@ sidebar_label: "%s"
 `, sidebarLabel)
 
 	return errors.Wrap(err, "error writing file header")
+}
+
+func usage() {
+	fmt.Fprintln(os.Stdout, "Usage: ", os.Args[0], " <directory>")
 }

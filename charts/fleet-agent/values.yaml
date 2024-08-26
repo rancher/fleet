@@ -3,11 +3,11 @@ image:
   repository: rancher/fleet-agent
   tag: dev
 
-# The public URL of the Kubernetes API server running the Fleet Manager must be set here
+# The public URL of the Kubernetes API server running the Fleet Controller must be set here
 # Example: https://example.com:6443
 apiServerURL: ""
 
-# The the pem encoded value of the CA of the Kubernetes API server running the Fleet Manager.
+# The pem encoded value of the CA of the Kubernetes API server running the Fleet Controller.
 # If left empty it is assumed this Kubernetes API TLS is signed by a well known CA.
 apiServerCA: ""
 
