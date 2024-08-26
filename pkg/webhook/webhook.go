@@ -298,8 +298,23 @@ func HandleHooks(ctx context.Context, namespace string, client client.Client, cl
 
 func (w *Webhook) logAndReturn(rw http.ResponseWriter, err error) {
 	w.log.Error(err, "Webhook processing failed")
-	rw.WriteHeader(500)
+	rw.WriteHeader(getErrorCodeFromErr(err))
 	_, _ = rw.Write([]byte(err.Error()))
+}
+
+func getErrorCodeFromErr(err error) int {
+	// check if the error is a verification of identity error
+	// secret check, or basic credentials or token verification
+	// depending on the provider
+	if err == gogs.ErrHMACVerificationFailed ||
+		err == github.ErrHMACVerificationFailed ||
+		err == gitlab.ErrGitLabTokenVerificationFailed ||
+		err == bitbucket.ErrUUIDVerificationFailed ||
+		err == bitbucketserver.ErrHMACVerificationFailed ||
+		err == azuredevops.ErrBasicAuthVerificationFailed {
+		return 401
+	}
+	return 500
 }
 
 // git ref docs: https://git-scm.com/book/en/v2/Git-Internals-Git-References
