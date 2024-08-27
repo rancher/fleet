@@ -250,7 +250,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	rw.WriteHeader(200)
+	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write([]byte("succeeded"))
 }
 
@@ -312,9 +312,16 @@ func getErrorCodeFromErr(err error) int {
 		err == bitbucket.ErrUUIDVerificationFailed ||
 		err == bitbucketserver.ErrHMACVerificationFailed ||
 		err == azuredevops.ErrBasicAuthVerificationFailed {
-		return 401
+		return http.StatusUnauthorized
+	} else if err == gogs.ErrInvalidHTTPMethod ||
+		err == github.ErrInvalidHTTPMethod ||
+		err == gitlab.ErrInvalidHTTPMethod ||
+		err == bitbucket.ErrInvalidHTTPMethod ||
+		err == bitbucketserver.ErrInvalidHTTPMethod ||
+		err == azuredevops.ErrInvalidHTTPMethod {
+		return http.StatusMethodNotAllowed
 	}
-	return 500
+	return http.StatusInternalServerError
 }
 
 // git ref docs: https://git-scm.com/book/en/v2/Git-Internals-Git-References

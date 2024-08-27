@@ -243,51 +243,51 @@ func TestAuthErrorCodes(t *testing.T) {
 	}{
 		"gogs-verification": {
 			err:               gogs.ErrHMACVerificationFailed,
-			expectedErrorCode: 401,
+			expectedErrorCode: http.StatusUnauthorized,
 		},
 		"gogs-no-verification": {
 			err:               gogs.ErrInvalidHTTPMethod,
-			expectedErrorCode: 500,
+			expectedErrorCode: http.StatusMethodNotAllowed,
 		},
 		"github-verification": {
 			err:               github.ErrHMACVerificationFailed,
-			expectedErrorCode: 401,
+			expectedErrorCode: http.StatusUnauthorized,
 		},
 		"github-no-verification": {
 			err:               github.ErrEventNotFound,
-			expectedErrorCode: 500,
+			expectedErrorCode: http.StatusInternalServerError,
 		},
 		"gitlab-verification": {
 			err:               gitlab.ErrGitLabTokenVerificationFailed,
-			expectedErrorCode: 401,
+			expectedErrorCode: http.StatusUnauthorized,
 		},
 		"gitlab-no-verification": {
 			err:               gitlab.ErrMissingGitLabEventHeader,
-			expectedErrorCode: 500,
+			expectedErrorCode: http.StatusInternalServerError,
 		},
 		"bitbucket-verification": {
 			err:               bitbucket.ErrUUIDVerificationFailed,
-			expectedErrorCode: 401,
+			expectedErrorCode: http.StatusUnauthorized,
 		},
 		"bitbucket-no-verification": {
 			err:               bitbucket.ErrEventNotFound,
-			expectedErrorCode: 500,
+			expectedErrorCode: http.StatusInternalServerError,
 		},
 		"bitbucketserver-verification": {
 			err:               bitbucketserver.ErrHMACVerificationFailed,
-			expectedErrorCode: 401,
+			expectedErrorCode: http.StatusUnauthorized,
 		},
 		"bitbucketserver-no-verification": {
 			err:               bitbucketserver.ErrEventNotFound,
-			expectedErrorCode: 500,
+			expectedErrorCode: http.StatusInternalServerError,
 		},
 		"azure-verification": {
 			err:               azuredevops.ErrBasicAuthVerificationFailed,
-			expectedErrorCode: 401,
+			expectedErrorCode: http.StatusUnauthorized,
 		},
 		"azure-no-verification": {
 			err:               azuredevops.ErrInvalidHTTPMethod,
-			expectedErrorCode: 500,
+			expectedErrorCode: http.StatusMethodNotAllowed,
 		},
 	}
 
