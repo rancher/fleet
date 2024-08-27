@@ -3,16 +3,26 @@ package webhook
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 
+	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/go-playground/webhooks/v6/azuredevops"
+	"github.com/rancher/fleet/internal/mocks"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"gopkg.in/go-playground/webhooks.v5/bitbucket"
+	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"
 	"gopkg.in/go-playground/webhooks.v5/github"
+	"gopkg.in/go-playground/webhooks.v5/gitlab"
+	"gopkg.in/go-playground/webhooks.v5/gogs"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	cfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"net/http"
@@ -221,6 +231,203 @@ func TestGitHubPingWebhook(t *testing.T) {
 
 	// Verify the response message is correct
 	expectedResponse := "Webhook received successfully"
+	if rr.Body.String() != expectedResponse {
+		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body, expectedResponse)
+	}
+}
+
+func TestAuthErrorCodes(t *testing.T) {
+	tests := map[string]struct {
+		err               error
+		expectedErrorCode int
+	}{
+		"gogs-verification": {
+			err:               gogs.ErrHMACVerificationFailed,
+			expectedErrorCode: http.StatusUnauthorized,
+		},
+		"gogs-no-verification": {
+			err:               gogs.ErrInvalidHTTPMethod,
+			expectedErrorCode: http.StatusMethodNotAllowed,
+		},
+		"github-verification": {
+			err:               github.ErrHMACVerificationFailed,
+			expectedErrorCode: http.StatusUnauthorized,
+		},
+		"github-no-verification": {
+			err:               github.ErrEventNotFound,
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+		"gitlab-verification": {
+			err:               gitlab.ErrGitLabTokenVerificationFailed,
+			expectedErrorCode: http.StatusUnauthorized,
+		},
+		"gitlab-no-verification": {
+			err:               gitlab.ErrMissingGitLabEventHeader,
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+		"bitbucket-verification": {
+			err:               bitbucket.ErrUUIDVerificationFailed,
+			expectedErrorCode: http.StatusUnauthorized,
+		},
+		"bitbucket-no-verification": {
+			err:               bitbucket.ErrEventNotFound,
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+		"bitbucketserver-verification": {
+			err:               bitbucketserver.ErrHMACVerificationFailed,
+			expectedErrorCode: http.StatusUnauthorized,
+		},
+		"bitbucketserver-no-verification": {
+			err:               bitbucketserver.ErrEventNotFound,
+			expectedErrorCode: http.StatusInternalServerError,
+		},
+		"azure-verification": {
+			err:               azuredevops.ErrBasicAuthVerificationFailed,
+			expectedErrorCode: http.StatusUnauthorized,
+		},
+		"azure-no-verification": {
+			err:               azuredevops.ErrInvalidHTTPMethod,
+			expectedErrorCode: http.StatusMethodNotAllowed,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			errCode := getErrorCodeFromErr(test.err)
+
+			if errCode != test.expectedErrorCode {
+				t.Errorf("expected error code does not match. Got %d, expected %d", errCode, test.expectedErrorCode)
+			}
+		})
+	}
+}
+
+func TestGitHubWrongSecret(t *testing.T) {
+	// GitRepo creation
+	gitRepo := &v1alpha1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+		Spec: v1alpha1.GitRepoSpec{
+			Repo:   "https://github.com/example/repo",
+			Branch: "main",
+		},
+	}
+
+	// Kubernetes scheme and client configuration
+	sch := scheme.Scheme
+	err := v1alpha1.AddToScheme(sch)
+	if err != nil {
+		t.Fatalf("unable to add to scheme: %v", err)
+	}
+	client := cfake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(gitRepo).Build()
+
+	// Webhook initialisation
+	w := &Webhook{
+		client:    client,
+		namespace: "default",
+	}
+
+	w.github, _ = github.New(github.Options.Secret("badsecret"))
+
+	// The secret header check is not going to pass so we don't need any particular payload
+	jsonBody := []byte("{}")
+
+	// Request creation
+	req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(jsonBody))
+	if err != nil {
+		t.Fatalf("Failed to create HTTP request: %v", err)
+	}
+	req.Header.Set("X-Github-Event", "push")
+	// calculate the value to store in the X-Hub-Signature header
+	mac := hmac.New(sha1.New, []byte("supersecretvalue"))
+	_, _ = mac.Write(jsonBody)
+	expectedMAC := hex.EncodeToString(mac.Sum(nil))
+	req.Header.Set("X-Hub-Signature", fmt.Sprintf("sha1=%s", expectedMAC))
+
+	// request execution
+	rr := httptest.NewRecorder()
+	w.ServeHTTP(rr, req)
+
+	// Verify the response status code is correct
+	if status := rr.Code; status != http.StatusUnauthorized {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusUnauthorized)
+	}
+}
+
+func TestGitHubRightSecretAndCommitUpdated(t *testing.T) {
+	expectedCommit := "af69d162de5a276abc86e0686b2b44033cd3f442"
+
+	ctlr := gomock.NewController(t)
+	mockClient := mocks.NewMockClient(ctlr)
+
+	gitRepo := &v1alpha1.GitRepo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+		},
+		Spec: v1alpha1.GitRepoSpec{
+			Repo:   "https://github.com/example/repo",
+			Branch: "main",
+		},
+	}
+
+	// List GitRepos mock call
+	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
+		func(ctx context.Context, list *v1alpha1.GitRepoList, opts ...client.ListOption) error {
+			list.Items = append(list.Items, *gitRepo)
+			return nil
+		},
+	)
+	// Get GitRepo mock call
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	statusClient := mocks.NewMockSubResourceWriter(ctlr)
+
+	// Status().Update() mock call
+	mockClient.EXPECT().Status().Return(statusClient).Times(1)
+	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *v1alpha1.GitRepo, opts ...interface{}) {
+			// check that the commit is the expected one
+			if repo.Status.Commit != expectedCommit {
+				t.Errorf("expecting girepo commit %s, got %s", expectedCommit, repo.Status.Commit)
+			}
+		},
+	).Times(1)
+
+	w := &Webhook{
+		client:    mockClient,
+		namespace: "default",
+	}
+
+	w.github, _ = github.New(github.Options.Secret(""))
+
+	// we set only the values that we're going to use in the push event to make things simple
+	jsonBody := []byte(fmt.Sprintf(`
+	{
+	  "ref":"refs/heads/main",
+	  "after":"%s",
+	  "repository":{
+		"html_url":"https://github.com/example/repo"
+      }
+    }`, expectedCommit))
+
+	// Request creation
+	req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader(jsonBody))
+	if err != nil {
+		t.Fatalf("Failed to create HTTP request: %v", err)
+	}
+	req.Header.Set("X-Github-Event", "push")
+
+	// request execution
+	rr := httptest.NewRecorder()
+	w.ServeHTTP(rr, req)
+
+	// Verify the response status code is correct
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+
+	// Verify the response message is correct
+	expectedResponse := "succeeded"
 	if rr.Body.String() != expectedResponse {
 		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body, expectedResponse)
 	}
