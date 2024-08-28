@@ -658,12 +658,20 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 					},
 				},
 				NodeSelector: nodeSelector,
-				Tolerations: []corev1.Toleration{{
-					Key:      "cattle.io/os",
-					Operator: "Equal",
-					Value:    "linux",
-					Effect:   "NoSchedule",
-				}},
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "cattle.io/os",
+						Operator: "Equal",
+						Value:    "linux",
+						Effect:   "NoSchedule",
+					},
+					{
+						Key:      "node.cloudprovider.kubernetes.io/uninitialized",
+						Operator: "Equal",
+						Value:    "true",
+						Effect:   "NoSchedule",
+					},
+				},
 			},
 		},
 	}, nil
