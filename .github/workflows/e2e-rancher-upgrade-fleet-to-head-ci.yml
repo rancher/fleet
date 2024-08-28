@@ -158,6 +158,7 @@ jobs:
 
           kubectl config use-context k3d-upstream
 
+          until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
           ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
           helm repo add jetstack https://charts.jetstack.io
