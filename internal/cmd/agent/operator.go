@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/internal/cmd/agent/register"
 	"github.com/rancher/fleet/internal/cmd/agent/trigger"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -54,7 +55,7 @@ func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agent
 	// Registration is done in an init container. If we are here, we are already registered.
 	// Retrieve the existing config from the registration.
 	// Cannot start without kubeconfig for upstream cluster:
-	upstreamConfig, fleetNamespace, clusterName, err := loadRegistration(ctx, systemNamespace, localConfig)
+	upstreamConfig, agentConfig, fleetNamespace, clusterName, err := loadRegistration(ctx, systemNamespace, localConfig)
 	if err != nil {
 		setupLog.Error(err, "unable to load registration and start manager")
 		return err
@@ -84,7 +85,16 @@ func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agent
 	localCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	reconciler, err := newReconciler(ctx, localCtx, mgr, localConfig, systemNamespace, fleetNamespace, agentScope)
+	reconciler, err := newReconciler(
+		ctx,
+		localCtx,
+		mgr,
+		localConfig,
+		systemNamespace,
+		fleetNamespace,
+		agentScope,
+		agentConfig,
+	)
 	if err != nil {
 		setupLog.Error(err, "unable to set up bundledeployment reconciler")
 		return err
@@ -116,29 +126,48 @@ func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agent
 	return nil
 }
 
-func loadRegistration(ctx context.Context, systemNamespace string, localConfig *rest.Config) (*rest.Config, string, string, error) {
-	agentInfo, err := register.Get(ctx, systemNamespace, localConfig)
+func loadRegistration(
+	ctx context.Context,
+	systemNamespace string,
+	localConfig *rest.Config,
+) (*rest.Config, config.Config, string, string, error) {
+	agentInfo, agentConfig, err := register.Get(ctx, systemNamespace, localConfig)
 	if err != nil {
 		setupLog.Error(err, "cannot get registration info for upstream cluster")
-		return nil, "", "", err
+		return nil, config.Config{}, "", "", err
 	}
 
 	// fleetNamespace is the upstream cluster namespace from AgentInfo, e.g. cluster-fleet-ID
 	fleetNamespace, _, err := agentInfo.ClientConfig.Namespace()
 	if err != nil {
 		setupLog.Error(err, "cannot get upstream namespace from registration")
-		return nil, "", "", err
+		return nil, config.Config{}, "", "", err
 	}
 
 	upstreamConfig, err := agentInfo.ClientConfig.ClientConfig()
 	if err != nil {
 		setupLog.Error(err, "cannot get upstream kubeconfig from registration")
-		return nil, "", "", err
+		return nil, config.Config{}, "", "", err
 	}
-	return upstreamConfig, fleetNamespace, agentInfo.ClusterName, nil
+
+	if agentConfig == nil {
+		setupLog.Error(err, "unexpected nil agent config")
+		return nil, config.Config{}, "", "", err
+	}
+
+	return upstreamConfig, *agentConfig, fleetNamespace, agentInfo.ClusterName, nil
 }
 
-func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConfig *rest.Config, systemNamespace, fleetNamespace, agentScope string) (*controller.BundleDeploymentReconciler, error) {
+func newReconciler(
+	ctx context.Context,
+	localCtx context.Context,
+	mgr manager.Manager,
+	localConfig *rest.Config,
+	systemNamespace string,
+	fleetNamespace string,
+	agentScope string,
+	agentConfig config.Config,
+) (*controller.BundleDeploymentReconciler, error) {
 	upstreamClient := mgr.GetClient()
 
 	// Build client for local cluster
@@ -215,6 +244,7 @@ func newReconciler(ctx, localCtx context.Context, mgr manager.Manager, localConf
 		helmDeployer,
 		fleetNamespace,
 		defaultNamespace,
+		agentConfig.GarbageCollectionInterval.Duration,
 	)
 
 	return &controller.BundleDeploymentReconciler{

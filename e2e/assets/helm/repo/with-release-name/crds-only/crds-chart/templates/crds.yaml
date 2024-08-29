@@ -1,0 +1,41 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+  name: foobars.crd.test
+spec:
+  group: crd.test
+  names:
+    kind: Foobar
+    listKind: FoobarList
+    plural: foobars
+    singular: foobar
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: 'Foobar is a dummy resource.'
+          properties:
+            apiVersion:
+              description: 'APIVersion is always necessary.'
+              type: string
+            foo:
+              description: 'Foo is important.'
+              nullable: true
+              type: string
+            bar:
+              description: 'Bar does not walk into a Foo. A Foo walks into a bar.'
+              nullable: true
+              type: string
+            kind:
+              description: 'Kindness is everything.'
+              type: string
+            metadata:
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

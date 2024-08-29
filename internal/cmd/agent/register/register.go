@@ -50,18 +50,18 @@ type AgentInfo struct {
 // Get a registration token from the local cluster and fail if it does not exist.
 // This does not create a new registration process and only works after
 // registration has been completed.
-func Get(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, error) {
+func Get(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, *config.Config, error) {
 	cfg = rest.CopyConfig(cfg)
 	// disable the rate limiter
 	cfg.RateLimiter = ratelimit.None
 	k8s, err := core.NewFactoryFromConfig(cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	agentConfig, err := config.Lookup(ctx, namespace, config.AgentConfigName, k8s.Core().V1().ConfigMap())
 	if err != nil {
-		return nil, fmt.Errorf(
+		return nil, nil, fmt.Errorf(
 			"failed to look up client config %s/%s: %w",
 			namespace,
 			config.AgentConfigName,
@@ -76,22 +76,22 @@ func Get(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, e
 	secret, err := k8s.Core().V1().Secret().Get(namespace, CredName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		logrus.Warn("Cannot find fleet-agent secret")
-		return nil, err
+		return nil, nil, err
 	} else if err != nil {
 		logrus.Error("Cannot get fleet-agent secret")
-		return nil, err
+		return nil, nil, err
 	}
 
 	clientConfig, err := clientcmd.NewClientConfigFromBytes(secret.Data[Kubeconfig])
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return &AgentInfo{
 		ClusterNamespace: string(secret.Data[ClusterNamespace]),
 		ClusterName:      string(secret.Data[ClusterName]),
 		ClientConfig:     clientConfig,
-	}, nil
+	}, agentConfig, nil
 }
 
 // Register creates a fleet-agent secret with the upstream kubeconfig, by

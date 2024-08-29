@@ -5656,6 +5656,10 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                garbageCollectionInterval:
+                  description: GarbageCollectionInterval determines how often agents
+                    clean up obsolete Helm releases.
+                  type: string
                 namespace:
                   description: 'Namespace is the cluster namespace, it contains the
                     clusters service
