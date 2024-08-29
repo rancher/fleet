@@ -71,6 +71,27 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 			}).Should(Succeed())
 		})
 
+		It("correctly sets the status values for Clusters", func() {
+			Eventually(func(g Gomega) {
+				out, err := k.Get("cluster", "local", "-n", "fleet-local", "-o", "jsonpath='{.status.display.readyBundles}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+
+				g.Expect(out).Should(Equal("'2/2'"))
+			}).Should(Succeed())
+		})
+
+		It("correctly sets the status values for ClusterGroups", func() {
+			Eventually(func(g Gomega) {
+				out, err := k.Get("clustergroup", "default", "-n", "fleet-local", "-o", "jsonpath='{.status.display.readyBundles}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+				g.Expect(out).Should(Equal("'2/2'"))
+
+				out, err = k.Get("clustergroup", "default", "-n", "fleet-local", "-o", "jsonpath='{.status.display.readyClusters}'")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+				g.Expect(out).Should(Equal("'1/1'"))
+			}).Should(Succeed())
+		})
+
 		It("correctly sets the status values for bundle", func() {
 			Eventually(func(g Gomega) {
 				out, err := k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
