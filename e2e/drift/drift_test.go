@@ -200,15 +200,7 @@ var _ = Describe("Drift", Ordered, func() {
 				GinkgoWriter.Print(out)
 			})
 
-			It("Modifies bundle status", func() {
-				Eventually(func() string {
-					out, _ := k.Namespace(env.Namespace).Get("bundles", bundleName, "-o=jsonpath={.status.conditions[*].message}")
-					return out
-				}).Should(ContainSubstring(`service.v1 drift/drift-dummy-service modified {"spec":{"ports":[` +
-					`{"name":"http","port":80,"protocol":"TCP","targetPort":"http-web-svc"},` +
-					`{"name":"http","port":1234,"protocol":"TCP","targetPort":"http-web-svc"}]}}`))
-			})
-
+			// Note: more accurate checks on status changes are now done in integration tests.
 			It("Corrects drift when drift correction is set to force", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace(env.Namespace).Get("bundles", bundleName, "-o=jsonpath={.status.conditions[*].message}")
