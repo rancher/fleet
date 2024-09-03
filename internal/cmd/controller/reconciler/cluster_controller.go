@@ -85,6 +85,9 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					if n.Status.AppliedDeploymentID != o.Status.AppliedDeploymentID {
 						return true
 					}
+					if n.Status.Ready != o.Status.Ready {
+						return true
+					}
 					return false
 				},
 				DeleteFunc: func(e event.DeleteEvent) bool {
