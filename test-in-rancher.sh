@@ -39,10 +39,9 @@ helm upgrade --install rancher rancher-latest/rancher \
     --create-namespace \
     --set hostname=$ip.sslip.io \
     --set bootstrapPassword=admin \
+    --set agentTLSMode=system-store \
     --set "extraEnv[0].name=CATTLE_SERVER_URL" \
     --set "extraEnv[0].value=https://$ip.sslip.io" \
-    --set "extraEnv[1].name=CATTLE_AGENT_TLS_MODE" \
-    --set "extraEnv[1].value=system-store" \
     --set replicas=1 \
 #    --set rancherImageTag=$tag \
 #    --set extraEnv[0].name=CATTLE_FLEET_VERSION \

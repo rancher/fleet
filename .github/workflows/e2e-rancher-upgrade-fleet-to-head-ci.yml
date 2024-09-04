@@ -180,6 +180,7 @@ jobs:
             --set replicas=1 \
             --set hostname=$ip.sslip.io \
             --set bootstrapPassword=admin \
+            --set agentTLSMode=system-store \
             --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
             --set "extraEnv[0].value=https://github.com/${{ inputs.charts_repo }}" \
             --set "extraEnv[1].name=CATTLE_CHART_DEFAULT_BRANCH" \
@@ -188,8 +189,6 @@ jobs:
             --set "extraEnv[2].value=${{ inputs.fleet_version }}" \
             --set "extraEnv[3].name=CATTLE_SERVER_URL" \
             --set "extraEnv[3].value=https://$ip.sslip.io" \
-            --set "extraEnv[4].name=CATTLE_AGENT_TLS_MODE" \
-            --set "extraEnv[4].value=system-store"
 
           # wait for deployment of rancher
           kubectl -n cattle-system rollout status deploy/rancher
