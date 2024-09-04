@@ -54,7 +54,7 @@ jobs:
           export CHARTS_DIR="${GITHUB_WORKSPACE}/charts"
           ./fleet/.github/scripts/release-against-charts.sh ${{github.event.inputs.prev_fleet}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.prev_chart}}  ${{github.event.inputs.new_chart}}  ${{github.event.inputs.should_replace}}
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}
           push-to-fork: rancherbot/charts
