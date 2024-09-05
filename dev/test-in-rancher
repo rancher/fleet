@@ -3,18 +3,19 @@
 set -euxo
 
 branch=${CHARTS_BRANCH-""}
-tag=${RANCHER_TAG-"test-fleet"}
 
 # Build Rancher
 # This is not needed if all you want is to test Fleet against an existing Rancher release
-pushd ../rancher
-TARGET_REPO=rancher/rancher:$tag ./dev-scripts/build-local.sh
-popd
+#pushd ../rancher
+#make quick
+#popd
 
 # XXX: this could be improved by using a single server instead of 3; calling this script is lazy but overkill
 ./dev/setup-k3d
 
-k3d image import rancher/rancher:$tag -m direct -c upstream
+
+# XXX: this needs the tag output by `make quick`; not sure how to cleanly automate this
+#k3d image import rancher/rancher:$tag -m direct -c upstream
 
 until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
 ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')

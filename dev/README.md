@@ -51,6 +51,23 @@ dev/update-agent-k3d
 dev/update-controller-k3d
 ```
 
+## Running tests in Rancher
+
+Any Fleet commit can be tested against the latest Rancher release, by:
+
+1. Running `./.github/workflows/release-against-test-charts.yml`, which will
+create Fleet charts based on the chosen git ref, and store them in the specified
+repo and branch, with version `999.9.9+up9.9.9` to prevent collisions with any
+other existing Fleet chart versions.
+
+2. Setting the charts branch environment variable:
+```
+export CHARTS_BRANCH=<branch_created_in_previous_step>
+```
+3. Running script `dev/test-in-rancher`, which will install Rancher using Helm,
+including test Fleet charts generated earlier. Once it is done, single- or
+multi-cluster test suites can be run against an actual Rancher setup.
+
 ## Configuration
 
 ### Running scripts manually
