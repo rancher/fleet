@@ -57,3 +57,8 @@ Fields used for structured logging must follow camelCase.
 
 Check how code living in the same file, or package, or higher up the call stack, does logging. Ensure that constant
 log messages and field names are phrased and formatted in consistent ways.
+
+# Useful links
+
+* [Dave Cheney on
+logging](https://web.archive.org/web/20240521184322/https://dave.cheney.net/2015/11/05/lets-talk-about-logging)
