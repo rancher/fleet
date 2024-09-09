@@ -1,4 +1,8 @@
-# Dev Scripts
+# Logging
+
+Instructions on writing useful, well-formatted log messages can be found [here](./LOGGING.md).
+
+# Testing: Dev Scripts
 
 These scripts are used for running tests locally in k3d. Don't use these on
 production systems.
