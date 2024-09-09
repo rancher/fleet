@@ -48,9 +48,14 @@ Fleet logging makes use of the following levels:
 * `Error` for errors, although those could
 [arguably](https://web.archive.org/web/20240521184322/https://dave.cheney.net/2015/11/05/lets-talk-about-logging) be
 logged as `Info` as well.
+
 ## Verbosity
 
-Log messages can have a numerical verbosity. The default verbosity is 0, we also use 1 for debug logs and 4 for logs that aid in tracing problems. If log messages should not be included in the output of a binary started with the `--debug` argument, there level should be higher than 5.
+Log messages can have a numerical verbosity. The default verbosity is 0, we also use 1 for debug logs and 4 for logs
+that aid in tracing problems.
+If log messages should not be included in the output of a binary started with the `--debug` argument, their level should
+be higher than 5.
+
 # Formatting
 
 Fields used for structured logging must follow camelCase.
