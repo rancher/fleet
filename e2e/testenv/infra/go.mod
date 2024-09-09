@@ -2,7 +2,7 @@ module github.com/rancher/fleet/e2e/testenv/infra
 
 go 1.21
 
-toolchain go1.21.0
+toolchain go1.22.7
 
 replace github.com/rancher/fleet => ../../../
 
