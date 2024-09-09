@@ -1,7 +1,7 @@
 # Context: controller-runtime
 
 Since 0.10, Fleet uses [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime) as its Kubernetes
-controller framework. It implements _structured logging_, which basically means logging a _constant_ log messages with
+controller framework. It implements _structured logging_, which basically means logging _constant_ log messages with
 variable key-value pairs.
 
 For instance:
