@@ -25,7 +25,7 @@ on:
       go_version:
         description: "Go version used for bumping the api. This should be the same version as in the go.mod file of the project."
         required: true
-        default: '1.21.*'
+        default: '1.22.*'
 
 env:
   GOARCH: amd64
