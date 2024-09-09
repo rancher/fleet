@@ -15,6 +15,10 @@ apiServerCA: ""
 # management cluster. True in `system-store` mode, false in `strict` mode.
 agentTLSMode: "system-store"
 
+# The amount of time that agents will wait before they clean up old Helm releases.
+# A non-existent value or 0 will result in an interval of 15 minutes.
+garbageCollectionInterval: "15m"
+
 # The cluster registration value
 token: ""
 

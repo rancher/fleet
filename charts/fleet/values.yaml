@@ -23,6 +23,10 @@ agentTLSMode: "system-store"
 # A duration string for how often agents should report a heartbeat
 agentCheckinInterval: "15m"
 
+# The amount of time that agents will wait before they clean up old Helm releases.
+# A non-existent value or 0 will result in an interval of 15 minutes.
+garbageCollectionInterval: "15m"
+
 # Whether you want to allow cluster upon registration to specify their labels.
 ignoreClusterRegistrationLabels: false
 
