@@ -75,7 +75,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 				controllerutil.RemoveFinalizer(t, bundleDeploymentFinalizer)
 
-				return r.Update(ctx, bd)
+				return r.Update(ctx, t)
 			})
 			if err != nil {
 				return ctrl.Result{}, err
@@ -139,7 +139,7 @@ func bundleDeploymentStatusChangedPredicate() predicate.Funcs {
 			if n == nil || o == nil {
 				return false
 			}
-			return !reflect.DeepEqual(n.Status, o.Status)
+			return !reflect.DeepEqual(n.Status, o.Status) || !n.DeletionTimestamp.IsZero()
 		},
 	}
 }
