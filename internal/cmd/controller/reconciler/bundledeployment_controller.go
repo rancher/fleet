@@ -139,7 +139,7 @@ func bundleDeploymentStatusChangedPredicate() predicate.Funcs {
 			if n == nil || o == nil {
 				return false
 			}
-			return !reflect.DeepEqual(n.Status, o.Status) || !n.DeletionTimestamp.IsZero()
+			return !n.DeletionTimestamp.IsZero() || !reflect.DeepEqual(n.Status, o.Status)
 		},
 	}
 }
