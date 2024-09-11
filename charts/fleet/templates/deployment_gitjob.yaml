@@ -102,6 +102,9 @@ spec:
                 drop:
                 - ALL
           {{- end }}
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
       nodeSelector: {{ include "linux-node-selector" $shard.id | nindent 8 }}
 {{- if $.Values.nodeSelector }}
 {{ toYaml $.Values.nodeSelector | indent 8 }}
@@ -125,6 +128,9 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
 {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
 {{- end }}
 ---
 {{- end }}
