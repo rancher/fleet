@@ -142,7 +142,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment status will not be Ready, and will contain the error message", func() {
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
 						APIVersion: "v1",
@@ -152,8 +152,13 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					}
-					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}")
-				}).Should(BeTrue(), "BundleDeployment status does not contain modified message")
+					isOK, status := env.isNotReadyAndModified(
+						name,
+						modifiedStatus,
+						"service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
+					)
+					g.Expect(isOK).To(BeTrue(), status)
+				}).Should(Succeed())
 			})
 
 			It("Modify service to have its original value", func() {
@@ -183,7 +188,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment status will eventually be extra", func() {
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
 						APIVersion: "v1",
@@ -193,8 +198,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     true,
 						Patch:      "",
 					}
-					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-finalizer extra")
-				}, timeout, 20*time.Millisecond).Should(BeTrue())
+					isOK, status := env.isNotReadyAndModified(
+						name,
+						modifiedStatus,
+						"service.v1 "+namespace+"/svc-finalizer extra",
+					)
+
+					g.Expect(isOK).To(BeTrue(), status)
+				}, timeout, 20*time.Millisecond).Should(Succeed())
 			})
 
 			It("Remove finalizer", func() {
@@ -219,7 +230,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment status will eventually be missing", func() {
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
 						APIVersion: "v1",
@@ -229,8 +240,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "",
 					}
-					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-test missing")
-				}).Should(BeTrue())
+					isOK, status := env.isNotReadyAndModified(
+						name,
+						modifiedStatus,
+						"service.v1 "+namespace+"/svc-test missing",
+					)
+
+					g.Expect(isOK).To(BeTrue(), status)
+				}).Should(Succeed())
 			})
 		})
 	})
@@ -296,7 +313,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment status will not be Ready, and will contain the error message", func() {
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
 						APIVersion: "v1",
@@ -306,8 +323,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					}
-					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}")
-				}).Should(BeTrue(), "BundleDeployment status does not contain modified message")
+					isOK, status := env.isNotReadyAndModified(
+						name,
+						modifiedStatus,
+						"service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
+					)
+
+					g.Expect(isOK).To(BeTrue(), status)
+				}).Should(Succeed())
 			})
 
 			It("Modify service to have its original value", func() {
@@ -337,7 +360,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment status will eventually be extra", func() {
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
 						APIVersion: "v1",
@@ -347,8 +370,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     true,
 						Patch:      "",
 					}
-					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-finalizer extra")
-				}, timeout, 20*time.Millisecond).Should(BeTrue())
+					isOK, status := env.isNotReadyAndModified(
+						name,
+						modifiedStatus,
+						"service.v1 "+namespace+"/svc-finalizer extra",
+					)
+
+					g.Expect(isOK).To(BeTrue(), status)
+				}, timeout, 20*time.Millisecond).Should(Succeed())
 			})
 
 			It("Remove finalizer", func() {
@@ -373,7 +402,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 
 			It("BundleDeployment status will eventually be missing", func() {
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
 						APIVersion: "v1",
@@ -383,8 +412,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "",
 					}
-					return env.isNotReadyAndModified(name, modifiedStatus, "service.v1 "+namespace+"/svc-test missing")
-				}).Should(BeTrue())
+					isOK, status := env.isNotReadyAndModified(
+						name,
+						modifiedStatus,
+						"service.v1 "+namespace+"/svc-test missing",
+					)
+
+					g.Expect(isOK).To(BeTrue(), status)
+				}).Should(Succeed())
 			})
 		})
 	})
