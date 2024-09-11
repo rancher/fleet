@@ -273,6 +273,9 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
 				return result(repoPolled, gitrepo), fmt.Errorf("failed to create targets config map for git job: %w", err)
 			}
+			if err := r.createCABundleSecret(ctx, gitrepo); err != nil {
+				return result(repoPolled, gitrepo), fmt.Errorf("failed to create cabundle secret for git job: %w", err)
+			}
 			if err := r.createJob(ctx, gitrepo); err != nil {
 				return result(repoPolled, gitrepo), fmt.Errorf("error creating git job: %w", err)
 			}
@@ -387,6 +390,28 @@ func (r *GitJobReconciler) createTargetsConfigMap(ctx context.Context, gitrepo *
 	data := configMap.BinaryData
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
 		configMap.BinaryData = data
+		return nil
+	})
+
+	return err
+}
+
+func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: gitrepo.ObjectMeta.Namespace,
+			Name:      caBundleName(gitrepo),
+		},
+		Data: map[string][]byte{
+			bundleCAFile: gitrepo.Spec.CABundle,
+		},
+	}
+	if err := controllerutil.SetControllerReference(gitrepo, secret, r.Scheme); err != nil {
+		return err
+	}
+	data := secret.StringData
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.StringData = data
 		return nil
 	})
 
