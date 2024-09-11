@@ -44,7 +44,8 @@ const (
 	gogsHTTPSPort = "3000"
 	gogsSSHPort   = "22"
 	testRepoName  = "test-repo"
-	timeout       = 120 * time.Second
+	timeout       = 240 * time.Second
+	interval      = 10 * time.Second
 )
 
 var (
@@ -370,7 +371,6 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 		ContainerRequest: req,
 		Started:          true,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -378,34 +378,34 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 	// create ca bundle and certs needed for https
 	_, _, err = container.Exec(context.Background(), []string{"./gogs", "cert", "-ca=true", "-duration=8760h0m0s", "-host=localhost"})
 	if err != nil {
-		return nil, err
+		return container, err
 	}
 	_, _, err = container.Exec(context.Background(), []string{"chown", "git:git", "cert.pem", "key.pem"})
 	if err != nil {
-		return nil, err
+		return container, err
 	}
 	caReader, err := container.CopyFileFromContainer(context.Background(), "/app/gogs/cert.pem")
 	if err != nil {
-		return nil, err
+		return container, err
 	}
 	gogsCABundle, err = io.ReadAll(caReader)
 	if err != nil {
-		return nil, err
+		return container, err
 	}
 
 	// restart gogs container to make sure https certs are picked
 	err = container.Stop(context.Background(), &[]time.Duration{timeout}[0])
 	if err != nil {
-		return nil, err
+		return container, err
 	}
 	err = container.Start(context.Background())
 	if err != nil {
-		return nil, err
+		return container, err
 	}
 
 	url, err := getHTTPSURL(context.Background(), container)
 	if err != nil {
-		return nil, err
+		return container, err
 	}
 
 	// create access token, we need to wait until the https server is available. We can't check this in testcontainers.WaitFor
@@ -417,9 +417,20 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 
 		// only continue if it's a TLS connection
 		addr := strings.Replace(url, "https://", "", 1)
-		_, err := tls.Dial("tcp", addr, conf)
-		if err != nil {
-			return err
+		if _, err := tls.Dial("tcp", addr, conf); err != nil {
+			GinkgoWriter.Printf("error dialing: %v", err)
+			orgErr := err
+
+			// debug the connection
+			conn, err := tls.Dial("tcp", addr, nil)
+			if err != nil {
+				GinkgoWriter.Printf("error dialing without tls: %v", err)
+				return orgErr
+			}
+			body, _ := io.ReadAll(conn)
+			GinkgoWriter.Printf("tcp connection response: %s", body)
+
+			return orgErr
 		}
 
 		tr := &http.Transport{TLSClientConfig: conf}
@@ -429,13 +440,14 @@ func createGogsContainerWithHTTPS() (testcontainers.Container, error) {
 			Name: "test",
 		})
 		if err != nil {
+			GinkgoWriter.Printf("error creating access token: %v", err)
 			return err
 		}
 		gogsClient = gogs.NewClient(url, token.Sha1)
 		gogsClient.SetHTTPClient(httpClient)
 
 		return nil
-	}, timeout, "10s").ShouldNot(HaveOccurred())
+	}, timeout, interval).ShouldNot(HaveOccurred())
 
 	return container, nil
 }
