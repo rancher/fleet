@@ -153,7 +153,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 
 		It("does not deploy the gitrepo", func() {
 			By("checking the configmap does not exist")
-			Eventually(func() string {
+			Consistently(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("configmaps")
 				return out
 			}).ShouldNot(ContainSubstring("test-simple-chart-config"))
