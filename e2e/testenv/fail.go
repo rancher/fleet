@@ -24,14 +24,14 @@ func FailAndGather(message string, callerSkip ...int) {
 
 	ginkgo.GinkgoWriter.Printf("💬 Gathering cluster info for '%s' to '%s'...\n", ginkgo.CurrentSpecReport().FullText(), pwd)
 	cmd := exec.Command("crust-gather", "collect",
-		"--exclude-namespace=kube-system", "--exclude-kind=Lease", "--duration=5s",
-		"-f", path)
+		"--exclude-namespace=kube-system", "--exclude-kind=Lease", "--duration=10s",
+		"-verror", "-f", path)
 	cmd.Stdout = ginkgo.GinkgoWriter
 	cmd.Stderr = ginkgo.GinkgoWriter
-	err := cmd.Run()
-	if err != nil {
-		ginkgo.GinkgoWriter.Printf("⛔ failed to gather cluster info: %v", err)
-	}
+	// Outputting errors, but don't care about error code as crust-gather
+	// often runs into a "deadline" error. Data collection is successful
+	// nevertheless.
+	_ = cmd.Run()
 
 	ginkgo.Fail(message, callerSkip...)
 }

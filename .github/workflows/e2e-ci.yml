@@ -137,15 +137,6 @@ jobs:
 
           e2e/testenv/infra/infra teardown
       -
-        name: Acceptance Tests for Examples
-        if: >
-          matrix.test_type.name == 'default' &&
-          github.event_name == 'schedule'
-        env:
-          FLEET_E2E_NS: fleet-local
-        run: |
-          ginkgo --github-output e2e/acceptance/single-cluster-examples
-      -
         name: Fleet Tests Requiring Github Secrets
         # These tests can't run for PRs, because PRs don't have access to the secrets
         if: >

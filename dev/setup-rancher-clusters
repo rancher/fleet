@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euxo pipefail
+set -eux
 
 if [ ! -d ./.github/scripts ]; then
   echo "please change the current directory to the fleet repo checkout"
@@ -12,13 +12,10 @@ upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
 rancherpassword="${RANCHER_PASSWORD-rancherpassword}"
 
-# helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
-# helm repo update rancher-latest
-helm repo update
-
 version="${1-}"
+channel="${2-latest}" # latest or alpha
 if [ -z "$version" ]; then
-  version=$(curl -s https://api.github.com/repos/rancher/rancher/releases | jq -r "sort_by(.tag_name) | [ .[] | select(.draft | not) ] | .[-1].tag_name")
+  version=$(curl "https://releases.rancher.com/server-charts/$channel/index.yaml" | yq -r '.entries | to_entries | .[].value[] | .version' latest.yaml | sort -V | tail -1)
 fi
 
 kubectl config use-context "$upstream_ctx"
@@ -27,13 +24,14 @@ kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.5
 kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
 
 # set CATTLE_SERVER_URL and CATTLE_BOOTSTRAP_PASSWORD to get rancher out of "bootstrap" mode
-helm upgrade rancher rancher-latest/rancher --version "$version" \
+helm upgrade rancher "https://releases.rancher.com/server-charts/${channel}/rancher-${version#v}.tgz" \
   --devel \
   --install --wait \
   --create-namespace \
   --namespace cattle-system \
   --set replicas=1 \
   --set hostname="$public_hostname" \
+  --set agentTLSMode=system-store \
   --set bootstrapPassword=admin \
   --set "extraEnv[0].name=CATTLE_SERVER_URL" \
   --set "extraEnv[0].value=https://$public_hostname" \
