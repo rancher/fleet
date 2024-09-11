@@ -15,7 +15,7 @@ rancherpassword="${RANCHER_PASSWORD-rancherpassword}"
 version="${1-}"
 channel="${2-latest}" # latest or alpha
 if [ -z "$version" ]; then
-  version=$(curl "https://releases.rancher.com/server-charts/$channel/index.yaml" | yq -r '.entries | to_entries | .[].value[] | .version' latest.yaml | sort -V | tail -1)
+  version=$(curl -SsLf "https://releases.rancher.com/server-charts/$channel/index.yaml" | yq -r '.entries | to_entries | .[].value[] | .version' | sort -V | tail -1)
 fi
 
 kubectl config use-context "$upstream_ctx"
