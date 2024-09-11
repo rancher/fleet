@@ -9,6 +9,7 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 9376
+      name: myport
 ---
 apiVersion: v1
 kind: Service
