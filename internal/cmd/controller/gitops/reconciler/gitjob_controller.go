@@ -403,7 +403,7 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 			Name:      caBundleName(gitrepo),
 		},
 		Data: map[string][]byte{
-			"additional-ca.crt": gitrepo.Spec.CABundle,
+			bundleCAFile: gitrepo.Spec.CABundle,
 		},
 	}
 	if err := controllerutil.SetControllerReference(gitrepo, secret, r.Scheme); err != nil {
