@@ -60,15 +60,46 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					return out
 				}).Should(ContainSubstring("test-simple-chart-config"))
 
-				By("checking the gitjob pod has the same nodeSelector as the sharded controller")
+				By("checking the bundle bears the shard label with the right shard ID")
+				bundleName := fmt.Sprintf("%s-simple-chart", gitrepoName)
+				Eventually(func(g Gomega) {
+					shardLabelValue, err := k.Get(
+						"bundle",
+						bundleName,
+						`-o jsonpath='{.metadata.labels.fleet\.cattle\.io/shard-ref}'`,
+					)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(shardLabelValue).To(Equal(shard))
+				})
+
+				By("checking the bundle deployment bears the shard label with the right shard ID")
+				clusterNS, err := k.Get(
+					"cluster.fleet.cattle.io",
+					"local",
+					"-n",
+					"fleet-local",
+					`-o=jsonpath='{.status.namespace}'`,
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(func(g Gomega) {
+					shardLabelValue, err := k.Get(
+						"bundledeployment",
+						bundleName,
+						"-n",
+						clusterNS,
+						`-o=jsonpath='{.metadata.labels.fleet\.cattle\.io/shard-ref}'`,
+					)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(shardLabelValue).To(Equal(shard))
+				})
+
+				By("checking the gitjob pod has the same nodeSelector as the sharded controller deployment")
 				Eventually(func(g Gomega) {
 					shardNodeSelector, err := k.Namespace("cattle-fleet-system").Get(
-						"pods",
-						"-o=jsonpath={.items[0].spec.nodeSelector}",
-						"-l",
-						"app=fleet-controller",
-						"-l",
-						fmt.Sprintf("fleet.cattle.io/shard-id=%s", shard),
+						"deploy",
+						fmt.Sprintf("fleet-controller-shard-%s", shard),
+						"-o=jsonpath={.spec.template.spec.nodeSelector}",
 					)
 					g.Expect(err).ToNot(HaveOccurred())
 
