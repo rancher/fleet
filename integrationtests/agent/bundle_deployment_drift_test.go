@@ -115,7 +115,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			}))
 		})
 
-		Context("A release resource is modified", func() {
+		Context("A release resource is modified", Ordered, func() {
 			It("Receives a modification on a service", func() {
 				svc, err := env.getService(svcName)
 				Expect(err).NotTo(HaveOccurred())
