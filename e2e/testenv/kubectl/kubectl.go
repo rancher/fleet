@@ -70,6 +70,10 @@ func (c Command) Patch(args ...string) (string, error) {
 	return c.Run(append([]string{"patch"}, args...)...)
 }
 
+func (c Command) Label(args ...string) (string, error) {
+	return c.Run(append([]string{"label"}, args...)...)
+}
+
 func (c Command) Run(args ...string) (string, error) {
 	if c.cnt != "" {
 		args = append([]string{"--context", c.cnt}, args...)
