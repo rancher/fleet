@@ -12,7 +12,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.7.1'
+  SETUP_K3D_VERSION: 'v5.7.4'
 
 jobs:
   e2e-fleet-mc-test:
@@ -31,6 +31,9 @@ jobs:
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
+      -
+        name: Install crust-gather CLI
+        run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
       -
         name: Build Fleet Binaries
         run: |
@@ -209,10 +212,11 @@ jobs:
         run: |
           ginkgo --github-output e2e/acceptance/multi-cluster-examples
       -
-        name: Dump Failed Environment
+        name: Dump Failed Downstream Environment
         if: failure()
         run: |
-          ./.github/scripts/dump-failed-k3ds.sh
+          kubectl config use-context k3d-downstream
+          crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/downstream
       -
         name: Upload Logs
         uses: actions/upload-artifact@v4
@@ -220,6 +224,6 @@ jobs:
         with:
           name: gha-fleet-mc-e2e-logs-${{ github.sha }}-${{ github.run_id }}
           path: |
-            tmp/*.json
-            tmp/*.log
+            tmp/downstream
+            tmp/upstream
           retention-days: 2

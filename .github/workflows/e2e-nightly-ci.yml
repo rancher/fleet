@@ -9,17 +9,17 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.7.1'
+  SETUP_K3D_VERSION: 'v5.7.4'
 
 jobs:
-  e2e-fleet-test:
+  e2e-fleet-nightly-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         k3s_version:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
-          - v1.30.2-k3s2
+          - v1.30.4-k3s1
           - v1.27.5-k3s1
           - v1.24.17-k3s1
         test_type:
@@ -39,6 +39,9 @@ jobs:
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
+      -
+        name: Install crust-gather CLI
+        run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
       -
         name: Build Fleet Binaries
         run: |
@@ -142,18 +145,11 @@ jobs:
 
           ginkgo --github-output e2e/require-secrets
       -
-        name: Dump Failed Environment
-        if: failure()
-        run: |
-          mkdir -p tmp
-          ./.github/scripts/dump-failed-k3ds.sh
-      -
         name: Upload Logs
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: gha-nightly-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
           path: |
-            tmp/*.json
-            tmp/*.log
+            tmp/upstream
           retention-days: 2
