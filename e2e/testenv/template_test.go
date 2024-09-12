@@ -61,6 +61,6 @@ var _ = Describe("Randomizing filenames", func() {
 })
 
 func TestTemplate(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(testenv.FailAndGather)
 	RunSpecs(t, "Template Suite")
 }

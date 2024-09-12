@@ -38,7 +38,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.7.1'
+  SETUP_K3D_VERSION: 'v5.7.4'
 
 jobs:
   rancher-fleet-upgrade:
@@ -58,6 +58,9 @@ jobs:
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
+      -
+        name: Install crust-gather CLI
+        run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
       -
         uses: actions/cache@v4
         id: rancher-cli-cache
@@ -171,10 +174,11 @@ jobs:
         run: |
           ginkgo --github-output e2e/multi-cluster
       -
-        name: Dump failed environment
+        name: Dump Failed Downstream Environment
         if: failure()
         run: |
-          ./.github/scripts/dump-failed-k3ds.sh
+          kubectl config use-context k3d-downstream
+          crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/downstream
       -
         name: Upload logs
         uses: actions/upload-artifact@v4
@@ -182,6 +186,6 @@ jobs:
         with:
           name: gha-fleet-upgrade-rancher-logs-${{ github.event.inputs.rancher_version }}-${{ github.event.inputs.k3s_version }}-${{ github.sha }}-${{ github.run_id }}
           path: |
-            tmp/*.json
-            tmp/*.log
+            tmp/downstream
+            tmp/upstream
           retention-days: 2

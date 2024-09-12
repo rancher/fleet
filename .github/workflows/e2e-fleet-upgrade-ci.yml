@@ -9,15 +9,18 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.7.1'
+  SETUP_K3D_VERSION: 'v5.7.4'
 
 jobs:
   fleet-upgrade-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        k3s_version:
-          - v1.30.2-k3s2
+        k3s:
+          - name: k3s-new
+            version: v1.30.4-k3s1
+    name: fleet-upgrade-test-${{ matrix.k3s.name }}
+
     steps:
       -
         uses: actions/checkout@v4
@@ -32,6 +35,9 @@ jobs:
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
+        name: Install crust-gather CLI
+        run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
+      -
         name: Provision k3d Cluster
         uses: AbsaOSS/k3d-action@v2
         # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
@@ -41,7 +47,7 @@ jobs:
           args: >-
             --agents 1
             --network "nw01"
-            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
+            --image docker.io/rancher/k3s:${{matrix.k3s.version}}
       -
         name: Deploy Latest Release
         run: |
@@ -78,17 +84,11 @@ jobs:
         run: |
           ginkgo --github-output --label-filter="!multi-cluster" e2e/installation
       -
-        name: Dump Failed Environment
-        if: failure()
-        run: |
-          ./.github/scripts/dump-failed-k3ds.sh
-      -
         name: Upload Logs
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
+          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s.version }}-${{ github.run_id }}
           path: |
-            tmp/*.json
-            tmp/*.log
+            tmp/upstream
           retention-days: 2

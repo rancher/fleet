@@ -10,7 +10,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.7.1'
+  SETUP_K3D_VERSION: 'v5.7.4'
 
 jobs:
   e2e-fleet-test:
@@ -18,16 +18,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        k3s_version:
+        k3s:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
-          - v1.30.2-k3s2
-          - v1.24.17-k3s1
+          - name: k3s-new
+            version: v1.30.4-k3s1
+          - name: k3s-old
+            version: v1.24.17-k3s1
         test_type:
           - name: default
           - name: sharding
             shards: '[{"id":"shard0"},{"id":"shard1"},{"id":"shard2"}]'
           - name: infra-setup
+    name: e2e-fleet-test-${{ matrix.k3s.name }}-${{ matrix.test_type.name }}
+
     steps:
       -
         uses: actions/checkout@v4
@@ -41,6 +45,9 @@ jobs:
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
+      -
+        name: Install crust-gather CLI
+        run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
       -
         name: Build Fleet
         run: |
@@ -66,7 +73,7 @@ jobs:
           args: >-
             --agents 1
             --network "nw01"
-            --image docker.io/rancher/k3s:${{matrix.k3s_version}}
+            --image docker.io/rancher/k3s:${{matrix.k3s.version}}
       -
         name: Import Images Into k3d
         run: |
@@ -151,7 +158,7 @@ jobs:
           GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"
           GIT_REPO_HOST: "github.com"
           GIT_REPO_USER: "git"
-          GIT_REPO_BRANCH: ${{ matrix.k3s_version }}
+          GIT_REPO_BRANCH: ${{ matrix.k3s.version }}
           CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
           CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
         run: |
@@ -162,18 +169,11 @@ jobs:
 
           ginkgo --github-output e2e/require-secrets
       -
-        name: Dump Failed Environment
-        if: failure()
-        run: |
-          mkdir -p tmp
-          ./.github/scripts/dump-failed-k3ds.sh
-      -
         name: Upload Logs
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ matrix.test_type.name }}-${{ github.run_id }}
+          name: gha-fleet-e2e-logs-${{ github.sha }}-${{ matrix.k3s.version }}-${{ matrix.test_type.name }}-${{ github.run_id }}
           path: |
-            tmp/*.json
-            tmp/*.log
+            tmp/upstream
           retention-days: 2

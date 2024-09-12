@@ -12,7 +12,7 @@ import (
 )
 
 func TestE2E(t *testing.T) {
-	RegisterFailHandler(Fail)
+	RegisterFailHandler(testenv.FailAndGather)
 	RunSpecs(t, "E2E Suite for Single-Cluster")
 }
 
