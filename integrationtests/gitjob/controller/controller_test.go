@@ -63,6 +63,8 @@ var _ = Describe("GitJob controller", func() {
 		JustBeforeEach(func() {
 			expectedCommit = commit
 			gitRepo = createGitRepo(gitRepoName)
+			gitRepo.Spec.CABundle = []byte("LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tZm9vLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=")
+
 			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
 			Eventually(func() string {
 				var gitRepoFromCluster v1alpha1.GitRepo
@@ -100,6 +102,17 @@ var _ = Describe("GitJob controller", func() {
 					return false
 				}
 				if err := k8sClient.Get(ctx, ns, &rbacv1.RoleBinding{}); err != nil {
+					return false
+				}
+
+				return true
+			}).Should(BeTrue())
+
+			// it should create a secret for the CA bundle
+			Eventually(func() bool {
+				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
+				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
+				if err := k8sClient.Get(ctx, ns, &corev1.Secret{}); err != nil {
 					return false
 				}
 
