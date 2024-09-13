@@ -43,8 +43,8 @@ func New(localClient client.Client, upstreamClient client.Reader, lookup Lookup,
 	}
 }
 
-func (d *Deployer) Resources(name string, release string) (*helmdeployer.Resources, error) {
-	return d.helm.Resources(name, release)
+func (d *Deployer) Resources(name string, releaseID string) (*helmdeployer.Resources, error) {
+	return d.helm.Resources(name, releaseID)
 }
 
 func (d *Deployer) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeployment) (string, error) {
@@ -62,7 +62,7 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 		return status, err
 	}
 
-	release, err := d.helmdeploy(ctx, bd)
+	releaseID, err := d.helmdeploy(ctx, bd)
 	if err != nil {
 		// When an error from DeployBundle is returned it causes DeployBundle
 		// to requeue and keep trying to deploy on a loop. If there is something
@@ -83,11 +83,11 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 		}
 		return status, err
 	}
-	status.Release = release
+	status.Release = releaseID
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
-	logger.Info("Deployed bundle", "release", release, "appliedDeploymentID", status.AppliedDeploymentID)
+	logger.Info("Deployed bundle", "release", releaseID, "appliedDeploymentID", status.AppliedDeploymentID)
 
-	if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, release); err != nil {
+	if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, releaseID); err != nil {
 		return fleet.BundleDeploymentStatus{}, err
 	}
 
@@ -152,12 +152,12 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 	}
 
 	manifest.Commit = bd.Labels["fleet.cattle.io/commit"]
-	resource, err := d.helm.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
+	resources, err := d.helm.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
 	if err != nil {
 		return "", err
 	}
 
-	return resource.ID, nil
+	return resources.ID, nil
 }
 
 // setNamespaceLabelsAndAnnotations updates the namespace for the release, applying all labels and annotations to that namespace as configured in the bundle spec.

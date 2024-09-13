@@ -136,6 +136,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		bd.Status = setCondition(status, nil, condition.Cond(fleetv1.BundleDeploymentConditionDeployed))
 	}
 
+	// retrieve the resources from the helm history.
 	// if we can't retrieve the resources, we don't need to try any of the other operations and requeue now
 	resources, err := r.Deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {

@@ -51,8 +51,11 @@ type Helm struct {
 	labelSuffix      string
 }
 
+// Resources contains information from a helm release
 type Resources struct {
-	ID               string           `json:"id,omitempty"`
+	// ID of the helm release
+	ID string `json:"id,omitempty"`
+	// DefaultNamespace is the namespace of the helm release
 	DefaultNamespace string           `json:"defaultNamespace,omitempty"`
 	Objects          []runtime.Object `json:"objects,omitempty"`
 }

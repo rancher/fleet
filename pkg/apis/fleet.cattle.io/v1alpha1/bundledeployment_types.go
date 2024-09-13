@@ -336,6 +336,7 @@ type BundleDeploymentStatus struct {
 	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
 	// +nullable
 	AppliedDeploymentID string `json:"appliedDeploymentID,omitempty"`
+	// Release is the Helm release ID
 	// +nullable
 	Release     string `json:"release,omitempty"`
 	Ready       bool   `json:"ready,omitempty"`
