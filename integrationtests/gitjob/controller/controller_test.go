@@ -10,6 +10,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gcustom"
+	gomegatypes "github.com/onsi/gomega/types"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -58,6 +60,7 @@ var _ = Describe("GitJob controller", func() {
 			gitRepoName string
 			job         batchv1.Job
 			jobName     string
+			secretName  string
 		)
 
 		JustBeforeEach(func() {
@@ -90,32 +93,39 @@ var _ = Describe("GitJob controller", func() {
 			Expect(job.Spec.Template.Spec.Containers).To(HaveLen(1))
 			Expect(job.Spec.Template.Spec.Containers[0].Args).To(ContainElements("fleet", "apply"))
 
+			gitRepoOwnerRef := metav1.OwnerReference{
+				Kind:       "GitRepo",
+				APIVersion: "fleet.cattle.io/v1alpha1",
+				Name:       gitRepoName,
+			}
+
 			// it should create RBAC resources for that gitRepo
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
 				saName := name.SafeConcatName("git", gitRepo.Name)
 				ns := types.NamespacedName{Name: saName, Namespace: gitRepo.Namespace}
 
-				if err := k8sClient.Get(ctx, ns, &corev1.ServiceAccount{}); err != nil {
-					return false
-				}
-				if err := k8sClient.Get(ctx, ns, &rbacv1.Role{}); err != nil {
-					return false
-				}
-				if err := k8sClient.Get(ctx, ns, &rbacv1.RoleBinding{}); err != nil {
-					return false
-				}
+				var sa corev1.ServiceAccount
+				g.Expect(k8sClient.Get(ctx, ns, &sa)).ToNot(HaveOccurred())
+				Expect(sa.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 
-				return true
-			}).Should(BeTrue())
+				var ro rbacv1.Role
+				g.Expect(k8sClient.Get(ctx, ns, &ro)).ToNot(HaveOccurred())
+				Expect(ro.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+
+				var rb rbacv1.RoleBinding
+				g.Expect(k8sClient.Get(ctx, ns, &rb)).ToNot(HaveOccurred())
+				Expect(rb.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+			}).Should(Succeed())
 
 			// it should create a secret for the CA bundle
 			Eventually(func(g Gomega) {
-				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
+				secretName = fmt.Sprintf("%s-cabundle", gitRepoName)
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 				var secret corev1.Secret
 
 				err := k8sClient.Get(ctx, ns, &secret)
 				g.Expect(err).ToNot(HaveOccurred())
+				Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 
 				data, ok := secret.Data["additional-ca.crt"]
 				g.Expect(ok).To(BeTrue())
@@ -828,4 +838,24 @@ func waitDeleteGitrepo(gitRepo v1alpha1.GitRepo) {
 		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
 		return errors.IsNotFound(err)
 	}).Should(BeTrue())
+}
+
+func beOwnedBy(expected interface{}) gomegatypes.GomegaMatcher {
+	return gcustom.MakeMatcher(func(meta metav1.ObjectMeta) (bool, error) {
+		ref, ok := expected.(metav1.OwnerReference)
+		if !ok {
+			return false, fmt.Errorf("beOwnedBy matcher expects metav1.OwnerReference")
+		}
+
+		for _, or := range meta.OwnerReferences {
+			if or.Kind == ref.Kind && or.APIVersion == ref.APIVersion && or.Name == ref.Name {
+				return true, nil
+			}
+		}
+
+		return false, nil
+	}).WithTemplate(
+		"Expected:\n{{.FormattedActual}}\n{{.To}} contain owner reference " +
+			"matching Kind, APIVersion and Name of \n{{format .Data 1}}",
+	).WithTemplateData(expected)
 }
