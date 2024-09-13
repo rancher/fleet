@@ -8,6 +8,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/rancher/wrangler/v3/pkg/kv"
 	"github.com/rancher/wrangler/v3/pkg/yaml"
@@ -94,8 +95,16 @@ func (h *Helm) getRelease(releaseName, namespace string, version int) (*release.
 	return nil, ErrNoRelease
 }
 
-func releaseToResourceID(release *release.Release) string {
+func ReleaseToResourceID(release *release.Release) string {
 	return fmt.Sprintf("%s/%s:%d", release.Namespace, release.Name, release.Version)
+}
+
+func ReleaseToObjects(release *release.Release) ([]runtime.Object, error) {
+	var (
+		err error
+	)
+	objs, err := yaml.ToObjects(bytes.NewBufferString(release.Manifest))
+	return objs, err
 }
 
 func releaseToResources(release *release.Release) (*Resources, error) {
@@ -104,7 +113,7 @@ func releaseToResources(release *release.Release) (*Resources, error) {
 	)
 	resources := &Resources{
 		DefaultNamespace: release.Namespace,
-		ID:               releaseToResourceID(release),
+		ID:               ReleaseToResourceID(release),
 	}
 
 	resources.Objects, err = yaml.ToObjects(bytes.NewBufferString(release.Manifest))

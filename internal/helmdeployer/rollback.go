@@ -47,7 +47,7 @@ func (h *Helm) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeploy
 	if err != nil {
 		return "", err
 	}
-	return releaseToResourceID(release), nil
+	return ReleaseToResourceID(release), nil
 }
 
 func removeFailedRollback(cfg action.Configuration, currentRelease *release.Release, err error) error {

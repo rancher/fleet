@@ -57,5 +57,5 @@ func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest,
 		return nil, err
 	}
 
-	return resources.Objects, nil
+	return ReleaseToObjects(resources)
 }

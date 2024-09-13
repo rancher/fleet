@@ -159,12 +159,17 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	resources, err := deployer.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
+	release, err := deployer.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
 	if err != nil {
 		return err
 	}
 
-	b, err = yaml.Marshal(resources)
+	objects, err := helmdeployer.ReleaseToObjects(release)
+	if err != nil {
+		return err
+	}
+
+	b, err = yaml.Marshal(objects)
 	if err != nil {
 		return err
 	}
