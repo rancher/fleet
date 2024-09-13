@@ -41,7 +41,10 @@ func (h *Helm) Resources(bundleID, resourcesID string) (*Resources, error) {
 	} else if err != nil {
 		return nil, err
 	}
-	return releaseToResources(release)
+
+	resources := &Resources{DefaultNamespace: release.Namespace}
+	resources.Objects, err = ReleaseToObjects(release)
+	return resources, err
 }
 
 func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string) (*Resources, error) {
@@ -56,7 +59,10 @@ func (h *Helm) ResourcesFromPreviousReleaseVersion(bundleID, resourcesID string)
 	} else if err != nil {
 		return nil, err
 	}
-	return releaseToResources(release)
+
+	resources := &Resources{DefaultNamespace: release.Namespace}
+	resources.Objects, err = ReleaseToObjects(release)
+	return resources, err
 }
 
 func getReleaseNameVersionAndNamespace(bundleID, resourcesID string) (string, int, string, error) {
@@ -100,22 +106,8 @@ func ReleaseToResourceID(release *release.Release) string {
 }
 
 func ReleaseToObjects(release *release.Release) ([]runtime.Object, error) {
-	var (
-		err error
-	)
+	var err error
+
 	objs, err := yaml.ToObjects(bytes.NewBufferString(release.Manifest))
 	return objs, err
-}
-
-func releaseToResources(release *release.Release) (*Resources, error) {
-	var (
-		err error
-	)
-	resources := &Resources{
-		DefaultNamespace: release.Namespace,
-		ID:               ReleaseToResourceID(release),
-	}
-
-	resources.Objects, err = yaml.ToObjects(bytes.NewBufferString(release.Manifest))
-	return resources, err
 }

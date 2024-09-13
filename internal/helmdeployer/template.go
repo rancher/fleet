@@ -52,10 +52,10 @@ func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest,
 	h.globalCfg.Log = logrus.Infof
 	h.globalCfg.Releases = storage.Init(mem)
 
-	resources, err := h.Deploy(ctx, bundleID, manifest, options)
+	release, err := h.Deploy(ctx, bundleID, manifest, options)
 	if err != nil {
 		return nil, err
 	}
 
-	return ReleaseToObjects(resources)
+	return ReleaseToObjects(release)
 }
