@@ -109,15 +109,18 @@ var _ = Describe("GitJob controller", func() {
 			}).Should(BeTrue())
 
 			// it should create a secret for the CA bundle
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
 				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
-				if err := k8sClient.Get(ctx, ns, &corev1.Secret{}); err != nil {
-					return false
-				}
+				var secret corev1.Secret
 
-				return true
-			}).Should(BeTrue())
+				err := k8sClient.Get(ctx, ns, &secret)
+				g.Expect(err).ToNot(HaveOccurred())
+
+				data, ok := secret.Data["additional-ca.crt"]
+				g.Expect(ok).To(BeTrue())
+				g.Expect(data).To(Equal(gitRepo.Spec.CABundle))
+			}).Should(Succeed())
 		})
 
 		When("a job completes successfully", func() {
