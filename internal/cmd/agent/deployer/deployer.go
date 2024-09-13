@@ -152,12 +152,12 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 	}
 
 	manifest.Commit = bd.Labels["fleet.cattle.io/commit"]
-	resources, err := d.helm.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
+	release, err := d.helm.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
 	if err != nil {
 		return "", err
 	}
 
-	return resources.ID, nil
+	return helmdeployer.ReleaseToResourceID(release), nil
 }
 
 // setNamespaceLabelsAndAnnotations updates the namespace for the release, applying all labels and annotations to that namespace as configured in the bundle spec.

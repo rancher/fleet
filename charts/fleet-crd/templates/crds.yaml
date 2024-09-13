@@ -974,6 +974,7 @@ spec:
                 ready:
                   type: boolean
                 release:
+                  description: Release is the Helm release ID
                   nullable: true
                   type: string
                 resources:

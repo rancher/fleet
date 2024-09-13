@@ -23,7 +23,7 @@ import (
 )
 
 // Deploy deploys an unpacked content resource with helm. bundleID is the name of the bundledeployment.
-func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*Resources, error) {
+func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions) (*release.Release, error) {
 	if options.Helm == nil {
 		options.Helm = &fleet.HelmOptions{}
 	}
@@ -56,15 +56,10 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 	if release, err := h.install(ctx, bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
 	} else if h.template {
-		return releaseToResources(release)
+		return release, nil
 	}
 
-	release, err := h.install(ctx, bundleID, manifest, chart, options, false)
-	if err != nil {
-		return nil, err
-	}
-
-	return releaseToResources(release)
+	return h.install(ctx, bundleID, manifest, chart, options, false)
 }
 
 // install runs helm install or upgrade and supports dry running the action. Will run helm rollback in case of a failed upgrade.

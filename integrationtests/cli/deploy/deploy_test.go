@@ -115,9 +115,9 @@ var _ = Describe("Fleet CLI Deploy", func() {
 		It("creates resources", func() {
 			buf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(buf).To(gbytes.Say("defaultNamespace: default"))
-			Expect(buf).To(gbytes.Say("objects"))
 			Expect(buf).To(gbytes.Say("- apiVersion: v1"))
+			Expect(buf).To(gbytes.Say("  data:"))
+			Expect(buf).To(gbytes.Say("    name: example-value"))
 
 			cm := &corev1.ConfigMap{}
 			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "test-simple-chart-config"}, cm)
@@ -136,9 +136,9 @@ var _ = Describe("Fleet CLI Deploy", func() {
 		It("creates resources", func() {
 			buf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(buf).To(gbytes.Say("defaultNamespace: " + namespace))
-			Expect(buf).To(gbytes.Say("objects"))
 			Expect(buf).To(gbytes.Say("- apiVersion: v1"))
+			Expect(buf).To(gbytes.Say("  data:"))
+			Expect(buf).To(gbytes.Say("    name: example-value"))
 
 			cm := &corev1.ConfigMap{}
 			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-simple-chart-config"}, cm)
