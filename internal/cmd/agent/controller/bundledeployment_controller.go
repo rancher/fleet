@@ -124,7 +124,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	merr := []error{}
 
 	// helm deploy the bundledeployment
-	status, err := r.Deployer.DeployBundle(ctx, bd)
+	resources, status, err := r.Deployer.DeployBundle(ctx, bd)
 	if err != nil {
 		logger.V(1).Error(err, "Failed to deploy bundle", "status", status)
 
@@ -132,19 +132,20 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		bd.Status = setCondition(bd.Status, err, condition.Cond(fleetv1.BundleDeploymentConditionDeployed))
 
 		merr = append(merr, fmt.Errorf("failed deploying bundle: %w", err))
+
+		// couldn't deploy the bundle, try to load old manifest
+		resources, err = r.Deployer.Resources(bd.Name, bd.Status.Release)
+		// if we can't retrieve the resources, we don't need to try any of the other operations and requeue now
+		if err != nil {
+			logger.V(1).Info("Failed to retrieve bundledeployment's resources")
+			if statusErr := r.updateStatus(ctx, req.NamespacedName, bd.Status); statusErr != nil {
+				merr = append(merr, err)
+				merr = append(merr, fmt.Errorf("failed to update the status: %w", statusErr))
+			}
+			return ctrl.Result{}, errutil.NewAggregate(merr)
+		}
 	} else {
 		bd.Status = setCondition(status, nil, condition.Cond(fleetv1.BundleDeploymentConditionDeployed))
-	}
-
-	// if we can't retrieve the resources, we don't need to try any of the other operations and requeue now
-	resources, err := r.Deployer.Resources(bd.Name, bd.Status.Release)
-	if err != nil {
-		logger.V(1).Info("Failed to retrieve bundledeployment's resources")
-		if statusErr := r.updateStatus(ctx, req.NamespacedName, bd.Status); statusErr != nil {
-			merr = append(merr, err)
-			merr = append(merr, fmt.Errorf("failed to update the status: %w", statusErr))
-		}
-		return ctrl.Result{}, errutil.NewAggregate(merr)
 	}
 
 	if monitor.ShouldUpdateStatus(bd) {

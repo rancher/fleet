@@ -53,16 +53,16 @@ func (d *Deployer) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDe
 
 // DeployBundle deploys the bundle deployment with the helm SDK. It does not
 // mutate bd, instead it returns the modified status
-func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment) (fleet.BundleDeploymentStatus, error) {
+func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment) (*helmdeployer.Resources, fleet.BundleDeploymentStatus, error) {
 	status := bd.Status
 	logger := log.FromContext(ctx).WithName("DeployBundle").WithValues("deploymentID", bd.Spec.DeploymentID, "appliedDeploymentID", status.AppliedDeploymentID)
 
 	if err := d.checkDependency(ctx, bd); err != nil {
 		logger.V(1).Info("Bundle has a dependency that is not ready", "error", err)
-		return status, err
+		return nil, status, err
 	}
 
-	release, err := d.helmdeploy(ctx, bd)
+	releaseID, resources, err := d.helmdeploy(ctx, bd)
 	if err != nil {
 		// When an error from DeployBundle is returned it causes DeployBundle
 		// to requeue and keep trying to deploy on a loop. If there is something
@@ -79,31 +79,31 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 			// current one is running properly.
 			newStatus.Release = ""
 			newStatus.AppliedDeploymentID = bd.Spec.DeploymentID
-			return newStatus, nil
+			return resources, newStatus, nil
 		}
-		return status, err
+		return nil, status, err
 	}
-	status.Release = release
+	status.Release = releaseID
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
-	logger.Info("Deployed bundle", "release", release, "appliedDeploymentID", status.AppliedDeploymentID)
+	logger.Info("Deployed bundle", "release", releaseID, "appliedDeploymentID", status.AppliedDeploymentID)
 
-	if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, release); err != nil {
-		return fleet.BundleDeploymentStatus{}, err
+	if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, releaseID); err != nil {
+		return nil, fleet.BundleDeploymentStatus{}, err
 	}
 
 	// Setting the error to nil clears any existing error
 	condition.Cond(fleet.BundleDeploymentConditionInstalled).SetError(&status, "", nil)
-	return status, nil
+	return resources, status, nil
 }
 
 // Deploy the bundle deployment, i.e. with helmdeployer.
 // This loads the manifest and the contents from the upstream cluster.
-func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (string, error) {
+func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (string, *helmdeployer.Resources, error) {
 	if bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
 		if ok, err := d.helm.EnsureInstalled(bd.Name, bd.Status.Release); err != nil {
-			return "", err
+			return "", nil, err
 		} else if ok {
-			return bd.Status.Release, nil
+			return bd.Status.Release, nil, nil
 		}
 	}
 	manifestID, _ := kv.Split(bd.Spec.DeploymentID, ":")
@@ -116,21 +116,21 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 		var secret corev1.Secret
 		secretID := types.NamespacedName{Name: manifestID, Namespace: bd.Namespace}
 		if err := d.upstreamClient.Get(ctx, secretID, &secret); err != nil {
-			return "", err
+			return "", nil, err
 		}
 		ref, ok := secret.Data[ociwrapper.OCISecretReference]
 		if !ok {
-			return "", fmt.Errorf("expected data [reference] not found in secret: %s", manifestID)
+			return "", nil, fmt.Errorf("expected data [reference] not found in secret: %s", manifestID)
 		}
 		username := string(secret.Data[ociwrapper.OCISecretUsername])
 		password := string(secret.Data[ociwrapper.OCISecretPassword])
 		basicHttp, err := strconv.ParseBool(string(secret.Data[ociwrapper.OCISecretBasicHTTP]))
 		if err != nil {
-			return "", fmt.Errorf("value for [ociRegistry.http] in secret %s cannot be parsed as boolean", manifestID)
+			return "", nil, fmt.Errorf("value for [ociRegistry.http] in secret %s cannot be parsed as boolean", manifestID)
 		}
 		insecure, err := strconv.ParseBool(string(secret.Data[ociwrapper.OCISecretInsecure]))
 		if err != nil {
-			return "", fmt.Errorf("value for [ociRegistry.insecure] in secret %s cannot be parsed as boolean", manifestID)
+			return "", nil, fmt.Errorf("value for [ociRegistry.insecure] in secret %s cannot be parsed as boolean", manifestID)
 		}
 		ociOpts := ociwrapper.OCIOpts{
 			Reference:       string(ref),
@@ -142,22 +142,22 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 		oci := ociwrapper.NewOCIWrapper()
 		manifest, err = oci.PullManifest(ctx, ociOpts, manifestID)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 	} else {
 		manifest, err = d.lookup.Get(ctx, d.upstreamClient, manifestID)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 	}
 
 	manifest.Commit = bd.Labels["fleet.cattle.io/commit"]
-	resource, err := d.helm.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
+	resources, err := d.helm.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	return resource.ID, nil
+	return resources.ID, resources, nil
 }
 
 // setNamespaceLabelsAndAnnotations updates the namespace for the release, applying all labels and annotations to that namespace as configured in the bundle spec.

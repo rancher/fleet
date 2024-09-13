@@ -59,10 +59,10 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 		chart.Schema = nil
 	}
 
-	if resources, err := h.install(ctx, bundleID, manifest, chart, options, true); err != nil {
+	if release, err := h.install(ctx, bundleID, manifest, chart, options, true); err != nil {
 		return nil, err
 	} else if h.template {
-		return releaseToResources(resources)
+		return releaseToResources(release)
 	}
 
 	release, err := h.install(ctx, bundleID, manifest, chart, options, false)
