@@ -172,7 +172,10 @@ func newSharedControllerFactory(config *rest.Config, mapper meta.RESTMapper, nam
 		DefaultNamespace: namespace,
 		DefaultResync:    durations.DefaultResyncAgent,
 	})
-	slowRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(durations.SlowFailureRateLimiterBase, durations.SlowFailureRateLimiterMax)
+	slowRateLimiter := workqueue.NewTypedItemExponentialFailureRateLimiter[any](
+		durations.SlowFailureRateLimiterBase,
+		durations.SlowFailureRateLimiterMax,
+	)
 
 	return controller.NewSharedControllerFactory(cacheFactory, &controller.SharedControllerFactoryOptions{
 		KindRateLimiter: map[schema.GroupVersionKind]workqueue.RateLimiter{

@@ -140,8 +140,14 @@ func NewAppContext(cfg clientcmd.ClientConfig) (*AppContext, error) {
 }
 
 func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
-	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(durations.FailureRateLimiterBase, durations.FailureRateLimiterMax)
-	clusterRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(durations.SlowFailureRateLimiterBase, durations.SlowFailureRateLimiterMax)
+	rateLimit := workqueue.NewTypedItemExponentialFailureRateLimiter[any](
+		durations.FailureRateLimiterBase,
+		durations.FailureRateLimiterMax,
+	)
+	clusterRateLimiter := workqueue.NewTypedItemExponentialFailureRateLimiter[any](
+		durations.SlowFailureRateLimiterBase,
+		durations.SlowFailureRateLimiterMax,
+	)
 	clientFactory, err := client.NewSharedClientFactory(rest, nil)
 	if err != nil {
 		return nil, err

@@ -56,6 +56,10 @@
         "text": "G107: Potential HTTP request made with variable url"
       },
       {
+        "path": "internal/cmd",
+        "text": "SA1019: workqueue.RateLimiter is deprecated"
+      },
+      {
         "path": "internal/cmd/agent/deployer/internal/",
         "linters": [
           "revive"
