@@ -60,13 +60,14 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 		Expect(bundled).To(Not(BeNil()))
 		Expect(bundled.Spec.DeploymentID).ToNot(Equal(bundled.Status.AppliedDeploymentID))
 		Expect(bundled.Status.Ready).To(BeFalse())
-		Eventually(func() bool {
-			err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, &bundled)
-			if err != nil {
-				return false
-			}
-			return bundled.Status.Ready
-		}).Should(BeTrue(), "BundleDeployment not ready: status: %+v", bundled.Status)
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(
+				context.TODO(),
+				types.NamespacedName{Namespace: clusterNS, Name: name},
+				&bundled,
+			)).To(Succeed())
+			g.Expect(bundled.Status.Ready).To(BeTrue())
+		}).Should(Succeed(), "BundleDeployment not ready: status: %+v", bundled.Status)
 		Expect(bundled.Spec.DeploymentID).To(Equal(bundled.Status.AppliedDeploymentID))
 	}
 
@@ -97,16 +98,15 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 	assertConfigMap := func(validate func(corev1.ConfigMap) error) {
 		cm := corev1.ConfigMap{}
 		var err error
-		Eventually(func() error {
+		Eventually(func(g Gomega) {
 			err = k8sClient.Get(
 				ctx,
 				types.NamespacedName{Namespace: namespace, Name: "cm1"},
 				&cm,
 			)
-			if err != nil {
-				return err
-			}
-			return validate(cm)
+			g.Expect(err).To(Succeed())
+			err = validate(cm)
+			g.Expect(err).To(Succeed())
 		}).Should(Succeed(), "assertConfigMap error: %v in %+v", err, cm)
 	}
 
@@ -115,16 +115,15 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 	assertBundleDeployment := func(name string, validate func(*v1alpha1.BundleDeployment) error) {
 		bd := v1alpha1.BundleDeployment{}
 		var err error
-		Eventually(func() error {
+		Eventually(func(g Gomega) {
 			err = k8sClient.Get(
 				ctx,
 				types.NamespacedName{Namespace: clusterNS, Name: name},
 				&bd,
 			)
-			if err != nil {
-				return err
-			}
-			return validate(&bd)
+			g.Expect(err).ToNot(HaveOccurred())
+			err = validate(&bd)
+			g.Expect(err).ToNot(HaveOccurred())
 		}).Should(Succeed(), "assertBundleDeployment: error %v in %+v", err, bd)
 	}
 
@@ -165,24 +164,20 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 		return nil
 	}
 
-	changeConfigMap := func(name string, change func(*corev1.ConfigMap)) {
+	updateConfigMap := func(name string, update func(*corev1.ConfigMap)) {
 		cm := &corev1.ConfigMap{}
-		Eventually(func() error {
-			return k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, cm)
-		}).Should(Succeed())
-		change(cm)
-		Eventually(func() error {
-			return k8sClient.Update(ctx, cm)
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, cm)).To(Succeed())
+			update(cm)
+			g.Expect(k8sClient.Update(ctx, cm)).To(Succeed())
 		}).Should(Succeed())
 	}
 
 	deleteConfigMap := func(name string) {
 		cm := &corev1.ConfigMap{}
-		Eventually(func() error {
-			return k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, cm)
-		}).Should(Succeed())
-		Eventually(func() error {
-			return k8sClient.Delete(ctx, cm)
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, cm)).To(Succeed())
+			g.Expect(k8sClient.Delete(ctx, cm)).To(Succeed())
 		}).Should(Succeed())
 	}
 
@@ -285,7 +280,7 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 					"objectset.rio.cattle.io/hash": "0f3e1d9d146fa8b290c0de403881184751430e59",
 				})
 			})
-			changeConfigMap("cm1", func(cm *corev1.ConfigMap) {
+			updateConfigMap("cm1", func(cm *corev1.ConfigMap) {
 				cm.Labels = map[string]string{}
 			})
 			assertBundleDeployment("remove-metadata", bundleDeploymentNotOwnedByUs)
