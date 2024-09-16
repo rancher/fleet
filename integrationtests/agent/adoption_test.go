@@ -35,13 +35,11 @@ data:
 var _ = Describe("Adoption", Label("adopt"), func() {
 	var (
 		namespace string
-		// env       *specEnv
 		env adoptEnv
 	)
 
 	BeforeEach(func() {
 		namespace = createNamespace()
-		// env = &specEnv{namespace: namespace}
 		env = adoptEnv{namespace: namespace, env: &specEnv{namespace: namespace}}
 	})
 
