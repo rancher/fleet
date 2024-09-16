@@ -159,6 +159,9 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 	u.TakeOwnership = true
 	u.EnableDNS = !options.Helm.DisableDNS
 	u.Force = options.Helm.Force
+	if options.CorrectDrift != nil {
+		u.Force = u.Force || options.CorrectDrift.Force
+	}
 	u.Atomic = options.Helm.Atomic
 	u.MaxHistory = options.Helm.MaxHistory
 	if u.MaxHistory == 0 {
