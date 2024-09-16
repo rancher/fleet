@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -243,15 +244,21 @@ type specEnv struct {
 	namespace string
 }
 
-func (se specEnv) isNotReadyAndModified(name string, modifiedStatus v1alpha1.ModifiedStatus, message string) bool {
+func (se specEnv) isNotReadyAndModified(name string, modifiedStatus v1alpha1.ModifiedStatus, message string) (bool, string) {
 	bd := &v1alpha1.BundleDeployment{}
 	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
 	Expect(err).NotTo(HaveOccurred())
 	isReadyCondition := checkCondition(bd.Status.Conditions, "Ready", "False", message)
 
-	return cmp.Equal(bd.Status.ModifiedStatus, []v1alpha1.ModifiedStatus{modifiedStatus}) &&
+	isOK := cmp.Equal(bd.Status.ModifiedStatus, []v1alpha1.ModifiedStatus{modifiedStatus}) &&
 		!bd.Status.NonModified &&
 		isReadyCondition
+
+	if !isOK {
+		return false, fmt.Sprintf("Status: %#v\n Conditions: %#v", bd.Status.ModifiedStatus, bd.Status.Conditions)
+	}
+
+	return true, ""
 }
 
 func (se specEnv) isBundleDeploymentReadyAndNotModified(name string) bool {
