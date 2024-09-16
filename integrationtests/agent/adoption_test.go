@@ -95,7 +95,7 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 
 	// assertConfigMap checks that the ConfigMap exists and that it passes the
 	// provided validate function.
-	assertConfigMap := func(validate func(corev1.ConfigMap) error) {
+	assertConfigMap := func(validate func(Gomega, corev1.ConfigMap)) {
 		cm := corev1.ConfigMap{}
 		var err error
 		Eventually(func(g Gomega) {
@@ -105,7 +105,7 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 				&cm,
 			)
 			g.Expect(err).To(Succeed())
-			err = validate(cm)
+			validate(g, cm)
 			g.Expect(err).To(Succeed())
 		}).Should(Succeed(), "assertConfigMap error: %v in %+v", err, cm)
 	}
@@ -127,41 +127,12 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 		}).Should(Succeed(), "assertBundleDeployment: error %v in %+v", err, bd)
 	}
 
-	// mapPartialMatch checks that the super map contains all the keys and values
-	// of the sub map. If the value in the sub map is an empty string, the key
-	// must exist in the super map but the value is not compared.
-	mapPartialMatch := func(super, sub map[string]string) error {
-		for k, v := range sub {
-			if v == "" {
-				if _, ok := super[k]; !ok {
-					return fmt.Errorf("key %s not found in %+v", k, super)
-				}
-			} else {
-				if v2, ok := super[k]; !ok || v2 != v {
-					return fmt.Errorf("key %s not found or value %s does not match %s in %+v", k, v2, v, super)
-				}
-			}
-		}
-		return nil
-	}
-
 	// configMapAdoptedAndMerged checks that the ConfigMap is adopted. It may
 	// need to be extended to check for more labels and annotations.
-	isConfigMapAdopted := func(cm *corev1.ConfigMap) error {
-		err := mapPartialMatch(cm.Labels, map[string]string{
-			"app.kubernetes.io/managed-by": "Helm",
-		})
-		if err != nil {
-			return err
-		}
-		err = mapPartialMatch(cm.Annotations, map[string]string{
-			"meta.helm.sh/release-name":      "",
-			"meta.helm.sh/release-namespace": "",
-		})
-		if err != nil {
-			return err
-		}
-		return nil
+	assertConfigMapAdopted := func(g Gomega, cm *corev1.ConfigMap) {
+		g.Expect(cm.Labels).To(HaveKeyWithValue("app.kubernetes.io/managed-by", "Helm"))
+		g.Expect(cm.Annotations).To(HaveKey("meta.helm.sh/release-name"))
+		g.Expect(cm.Annotations).To(HaveKey("meta.helm.sh/release-namespace"))
 	}
 
 	updateConfigMap := func(name string, update func(*corev1.ConfigMap)) {
@@ -230,28 +201,13 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 	When("a resource of a bundle deployment is removed", Label("remove-resource"), func() {
 		It("should report the deleted resource as missing", func() {
 			createBundleDeployment("remove-resource", false)
-			assertConfigMap(func(cm corev1.ConfigMap) error {
-				var err error
-				err = mapPartialMatch(cm.Data, map[string]string{"key": "value"})
-				if err != nil {
-					return err
-				}
-				err = mapPartialMatch(cm.Annotations, map[string]string{
-					"meta.helm.sh/release-name":      "remove-resource",
-					"meta.helm.sh/release-namespace": "",
-					"objectset.rio.cattle.io/id":     "default-remove-resource",
-				})
-				if err != nil {
-					return err
-				}
-				err = mapPartialMatch(cm.Labels, map[string]string{
-					"app.kubernetes.io/managed-by": "Helm",
-					"objectset.rio.cattle.io/hash": "ca7682543199bb801d0c14587a1158d936508160",
-				})
-				if err != nil {
-					return err
-				}
-				return nil
+			assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
+				g.Expect(cm.Data).To(Equal(map[string]string{"key": "value"}))
+				g.Expect(cm.Annotations).To(HaveKeyWithValue("meta.helm.sh/release-name", "remove-resource"))
+				g.Expect(cm.Annotations).To(HaveKeyWithValue("objectset.rio.cattle.io/id", "default-remove-resource"))
+				g.Expect(cm.Annotations).To(HaveKey("meta.helm.sh/release-namespace"))
+				g.Expect(cm.Labels).To(HaveKeyWithValue("app.kubernetes.io/managed-by", "Helm"))
+				g.Expect(cm.Labels).To(HaveKey("objectset.rio.cattle.io/hash"))
 			})
 			// This is required for the resource to be watched.
 			time.Sleep(5 * time.Second)
@@ -263,22 +219,13 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 	When("all labels of a resource of a bundle deployment are removed", Label("remove-labels"), func() {
 		It("should report that resource as \"not owned by us\"", func() {
 			createBundleDeployment("remove-metadata", false)
-			assertConfigMap(func(cm corev1.ConfigMap) error {
-				if err := mapPartialMatch(cm.Data, map[string]string{"key": "value"}); err != nil {
-					return err
-				}
-				if err := mapPartialMatch(cm.Annotations, map[string]string{
-					"meta.helm.sh/release-name":      "remove-metadata",
-					"meta.helm.sh/release-namespace": "",
-					"objectset.rio.cattle.io/id":     "default-remove-metadata",
-				}); err != nil {
-					return err
-				}
-
-				return mapPartialMatch(cm.Labels, map[string]string{
-					"app.kubernetes.io/managed-by": "Helm",
-					"objectset.rio.cattle.io/hash": "0f3e1d9d146fa8b290c0de403881184751430e59",
-				})
+			assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
+				g.Expect(cm.Data).To(Equal(map[string]string{"key": "value"}))
+				g.Expect(cm.Annotations).To(HaveKeyWithValue("meta.helm.sh/release-name", "remove-metadata"))
+				g.Expect(cm.Annotations).To(HaveKeyWithValue("objectset.rio.cattle.io/id", "default-remove-metadata"))
+				g.Expect(cm.Annotations).To(HaveKey("meta.helm.sh/release-namespace"))
+				g.Expect(cm.Labels).To(HaveKeyWithValue("app.kubernetes.io/managed-by", "Helm"))
+				g.Expect(cm.Labels).To(HaveKeyWithValue("objectset.rio.cattle.io/hash", "0f3e1d9d146fa8b290c0de403881184751430e59"))
 			})
 			updateConfigMap("cm1", func(cm *corev1.ConfigMap) {
 				cm.Labels = map[string]string{}
@@ -292,11 +239,9 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 		It("verifies that the ConfigMap is adopted and its content merged", func() {
 			createConfigMap(map[string]string{"foo": "bar"}, nil, nil)
 			createBundleDeployment("adopt-clean", true)
-			assertConfigMap(func(cm corev1.ConfigMap) error {
-				if err := isConfigMapAdopted(&cm); err != nil {
-					return err
-				}
-				return mapPartialMatch(cm.Data, map[string]string{"foo": "bar", "key": "value"})
+			assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
+				assertConfigMapAdopted(g, &cm)
+				g.Expect(cm.Data).To(Equal(map[string]string{"foo": "bar", "key": "value"}))
 			})
 		})
 	})
@@ -315,20 +260,11 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 				map[string]string{objectSetIDKey: objectSetIDValue},
 			)
 			createBundleDeployment("adopt-wrangler-metadata", true)
-			assertConfigMap(func(cm corev1.ConfigMap) error {
-				if err := isConfigMapAdopted(&cm); err != nil {
-					return err
-				}
-				if err := mapPartialMatch(cm.Data, map[string]string{"foo": "bar", "key": "value"}); err != nil {
-					return err
-				}
-				if mapPartialMatch(cm.Annotations, map[string]string{objectSetIDKey: objectSetIDValue}) == nil {
-					return fmt.Errorf("ObjectSet ID should have been updated")
-				}
-				if mapPartialMatch(cm.Labels, map[string]string{objectSetHashKey: objectSetHashValue}) == nil {
-					return fmt.Errorf("ObjectSet Hash should have been updated")
-				}
-				return nil
+			assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
+				assertConfigMapAdopted(g, &cm)
+				g.Expect(cm.Data).To(Equal(map[string]string{"foo": "bar", "key": "value"}))
+				g.Expect(cm.Annotations).ToNot(HaveKeyWithValue(objectSetIDKey, objectSetIDValue))
+				g.Expect(cm.Labels).ToNot(HaveKeyWithValue(objectSetHashKey, objectSetHashValue))
 			})
 		})
 	})
@@ -341,20 +277,11 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 				map[string]string{"objectset.rio.cattle.io/id": "$#@"},
 			)
 			createBundleDeployment("adopt-invalid-wrangler-metadata", true)
-			assertConfigMap(func(cm corev1.ConfigMap) error {
-				if err := isConfigMapAdopted(&cm); err != nil {
-					return err
-				}
-				if err := mapPartialMatch(cm.Data, map[string]string{"foo": "bar", "key": "value"}); err != nil {
-					return err
-				}
-				if err := mapPartialMatch(cm.Annotations, map[string]string{"objectset.rio.cattle.io/id": "$#@"}); err == nil {
-					return fmt.Errorf("object set ID should not have been adopted")
-				}
-				if err := mapPartialMatch(cm.Labels, map[string]string{"objectset.rio.cattle.io/hash": "234"}); err == nil {
-					return fmt.Errorf("object set hash should not have been adopted")
-				}
-				return nil
+			assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
+				assertConfigMapAdopted(g, &cm)
+				g.Expect(cm.Data).To(Equal(map[string]string{"foo": "bar", "key": "value"}))
+				g.Expect(cm.Annotations).ToNot(HaveKeyWithValue("objectset.rio.cattle.io/id", "$#@"))
+				g.Expect(cm.Labels).ToNot(HaveKeyWithValue("objectset.rio.cattle.io/hash", "234"))
 			})
 		})
 	})
@@ -367,20 +294,11 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 				map[string]string{"bar": "xzy"},
 			)
 			createBundleDeployment("adopt-random-metadata", true)
-			assertConfigMap(func(cm corev1.ConfigMap) error {
-				if err := isConfigMapAdopted(&cm); err != nil {
-					return err
-				}
-				if err := mapPartialMatch(cm.Data, map[string]string{"foo": "bar", "key": "value"}); err != nil {
-					return err
-				}
-				if err := mapPartialMatch(cm.Annotations, map[string]string{"bar": "xzy"}); err != nil {
-					return err
-				}
-				if err := mapPartialMatch(cm.Labels, map[string]string{"foo": "234"}); err != nil {
-					return err
-				}
-				return nil
+			assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
+				assertConfigMapAdopted(g, &cm)
+				g.Expect(cm.Data).To(Equal(map[string]string{"foo": "bar", "key": "value"}))
+				g.Expect(cm.Annotations).To(HaveKeyWithValue("bar", "xzy"))
+				g.Expect(cm.Labels).To(HaveKeyWithValue("foo", "234"))
 			})
 		})
 	})
