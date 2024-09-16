@@ -54,7 +54,8 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 				g.Expect(cm.Labels).To(HaveKeyWithValue("app.kubernetes.io/managed-by", "Helm"))
 				g.Expect(cm.Labels).To(HaveKey("objectset.rio.cattle.io/hash"))
 			})
-			// This is required for the resource to be watched.
+			// This is required for the resource to be properly watched, so that
+			// when it is deleted, the bundle changes its status.
 			time.Sleep(5 * time.Second)
 			env.deleteConfigMap("cm1")
 			env.assertBundleDeployment("remove-resource", env.bundleDeploymentResourceMissing)
