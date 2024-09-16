@@ -149,7 +149,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: gha-nightly-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ github.run_id }}
+          name: gha-nightly-e2e-logs-${{ github.sha }}-${{ matrix.k3s_version }}-${{ matrix.test_type }}-${{ github.run_id }}
           path: |
             tmp/upstream
           retention-days: 2
