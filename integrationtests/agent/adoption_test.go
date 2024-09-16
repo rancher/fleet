@@ -229,10 +229,6 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 
 	BeforeEach(func() {
 		namespace = createNamespace()
-		DeferCleanup(func() {
-			Expect(k8sClient.Delete(ctx, &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
-		})
 		env = &specEnv{namespace: namespace}
 	})
 
@@ -297,6 +293,7 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 	})
 
 	When("a bundle deployment adopts a \"clean\" resource", Label("clean"), func() {
+		// A clean resource is a resource that does not bear labels or annotations indicating that it would belong to any other resource than our bundle deployment.
 		It("verifies that the ConfigMap is adopted and its content merged", func() {
 			createConfigMap(map[string]string{"foo": "bar"}, nil, nil)
 			createBundleDeployment("adopt-clean", true)
@@ -353,7 +350,16 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 				if err := isConfigMapAdopted(&cm); err != nil {
 					return err
 				}
-				return mapPartialMatch(cm.Data, map[string]string{"foo": "bar", "key": "value"})
+				if err := mapPartialMatch(cm.Data, map[string]string{"foo": "bar", "key": "value"}); err != nil {
+					return err
+				}
+				if err := mapPartialMatch(cm.Annotations, map[string]string{"objectset.rio.cattle.io/id": "$#@"}); err == nil {
+					return fmt.Errorf("object set ID should not have been adopted")
+				}
+				if err := mapPartialMatch(cm.Labels, map[string]string{"objectset.rio.cattle.io/hash": "234"}); err == nil {
+					return fmt.Errorf("object set hash should not have been adopted")
+				}
+				return nil
 			})
 		})
 	})
@@ -370,7 +376,16 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 				if err := isConfigMapAdopted(&cm); err != nil {
 					return err
 				}
-				return mapPartialMatch(cm.Data, map[string]string{"foo": "bar", "key": "value"})
+				if err := mapPartialMatch(cm.Data, map[string]string{"foo": "bar", "key": "value"}); err != nil {
+					return err
+				}
+				if err := mapPartialMatch(cm.Annotations, map[string]string{"bar": "xzy"}); err != nil {
+					return err
+				}
+				if err := mapPartialMatch(cm.Labels, map[string]string{"foo": "234"}); err != nil {
+					return err
+				}
+				return nil
 			})
 		})
 	})

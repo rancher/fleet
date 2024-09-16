@@ -73,10 +73,6 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		BeforeAll(func() {
 			name = "orphanbundletest1"
 			namespace = createNamespace()
-			DeferCleanup(func() {
-				Expect(k8sClient.Delete(ctx, &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
-			})
 			env = &specEnv{namespace: namespace}
 
 			// this BundleDeployment will create a deployment with the resources from assets/deployment-v1.yaml

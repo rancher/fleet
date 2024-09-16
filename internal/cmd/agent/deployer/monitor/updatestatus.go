@@ -275,13 +275,10 @@ func modified(c client.Client, logger logr.Logger, plan apply.Plan, resourcesPre
 			}
 			err := c.Get(context.Background(), key, obj)
 
-			exists := true
-			if apierrors.IsNotFound(err) {
-				exists = false
-			}
+			exists := !apierrors.IsNotFound(err)
 
 			if exists {
-				logger.Info("BundleDeployment resource not owned by us",
+				logger.Info("Resource of BundleDeployment not owned by us",
 					"name", key.Name,
 					"kind", kind,
 					"apiVersion", apiVersion,
