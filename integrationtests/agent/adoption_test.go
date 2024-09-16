@@ -35,7 +35,7 @@ data:
 var _ = Describe("Adoption", Label("adopt"), func() {
 	var (
 		namespace string
-		env adoptEnv
+		env       adoptEnv
 	)
 
 	BeforeEach(func() {
@@ -82,7 +82,7 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 	When("a bundle deployment adopts a \"clean\" resource", Label("clean"), func() {
 		// A clean resource is a resource that does not bear labels or annotations indicating that it would belong to any other resource than our bundle deployment.
 		It("verifies that the ConfigMap is adopted and its content merged", func() {
-			env.createConfigMap(map[string]string{"foo": "bar"}, nil, nil)
+			env.createConfigMap(map[string]map[string]string{"data": {"foo": "bar"}})
 			env.createBundleDeployment("adopt-clean", true)
 			env.assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
 				env.assertConfigMapAdopted(g, &cm)
@@ -99,11 +99,11 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 				objectSetHashValue = "33ed67317c57ea78702e369c4c025f8df88553cc"
 				objectSetIDValue   = "some-assumed-old-id"
 			)
-			env.createConfigMap(
-				map[string]string{"foo": "bar"},
-				map[string]string{objectSetHashKey: objectSetHashValue},
-				map[string]string{objectSetIDKey: objectSetIDValue},
-			)
+			env.createConfigMap(map[string]map[string]string{
+				"data":        {"foo": "bar"},
+				"labels":      {objectSetHashKey: objectSetHashValue},
+				"annotations": {objectSetIDKey: objectSetIDValue},
+			})
 			env.createBundleDeployment("adopt-wrangler-metadata", true)
 			env.assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
 				env.assertConfigMapAdopted(g, &cm)
@@ -116,16 +116,16 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 
 	When("a bundle deployment adopts a resource with invalid wrangler metadata", Label("wrangler-metadata"), func() {
 		It("verifies that the ConfigMap is adopted and its content merged", func() {
-			env.createConfigMap(
-				map[string]string{"foo": "bar"},
-				map[string]string{"objectset.rio.cattle.io/hash": "234"},
-				map[string]string{"objectset.rio.cattle.io/id": "$#@"},
-			)
+			env.createConfigMap(map[string]map[string]string{
+				"data":        {"foo": "bar"},
+				"annotations": {"objectset.rio.cattle.io/hash": "234"},
+				"labels":      {"objectset.rio.cattle.io/id": "foo123"},
+			})
 			env.createBundleDeployment("adopt-invalid-wrangler-metadata", true)
 			env.assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
 				env.assertConfigMapAdopted(g, &cm)
 				g.Expect(cm.Data).To(Equal(map[string]string{"foo": "bar", "key": "value"}))
-				g.Expect(cm.Annotations).ToNot(HaveKeyWithValue("objectset.rio.cattle.io/id", "$#@"))
+				g.Expect(cm.Annotations).ToNot(HaveKeyWithValue("objectset.rio.cattle.io/id", "foo123"))
 				g.Expect(cm.Labels).ToNot(HaveKeyWithValue("objectset.rio.cattle.io/hash", "234"))
 			})
 		})
@@ -133,11 +133,11 @@ var _ = Describe("Adoption", Label("adopt"), func() {
 
 	When("a bundle deployment adopts a resource with random metadata", Label("random-metadata"), func() {
 		It("verifies that the ConfigMap is adopted and its content merged", func() {
-			env.createConfigMap(
-				map[string]string{"foo": "bar"},
-				map[string]string{"foo": "234"},
-				map[string]string{"bar": "xzy"},
-			)
+			env.createConfigMap(map[string]map[string]string{
+				"data":        {"foo": "bar"},
+				"labels":      {"foo": "234"},
+				"annotations": {"bar": "xzy"},
+			})
 			env.createBundleDeployment("adopt-random-metadata", true)
 			env.assertConfigMap(func(g Gomega, cm corev1.ConfigMap) {
 				env.assertConfigMapAdopted(g, &cm)
@@ -204,15 +204,15 @@ func (e adoptEnv) waitForConfigMap(name string) {
 	}).Should(Succeed())
 }
 
-func (e adoptEnv) createConfigMap(data, labels, annotations map[string]string) *corev1.ConfigMap {
+func (e adoptEnv) createConfigMap(cmData map[string]map[string]string) *corev1.ConfigMap {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "cm1",
 			Namespace:   e.namespace,
-			Labels:      labels,
-			Annotations: annotations,
+			Labels:      cmData["labels"],
+			Annotations: cmData["annotations"],
 		},
-		Data: data,
+		Data: cmData["data"],
 	}
 	Expect(k8sClient.Create(ctx, cm)).To(Succeed())
 	e.waitForConfigMap("cm1")
@@ -230,9 +230,9 @@ func (e adoptEnv) assertConfigMap(validate func(Gomega, corev1.ConfigMap)) {
 			types.NamespacedName{Namespace: e.namespace, Name: "cm1"},
 			&cm,
 		)
-		g.Expect(err).To(Succeed())
+		g.Expect(err).ToNot(HaveOccurred())
 		validate(g, cm)
-		g.Expect(err).To(Succeed())
+		g.Expect(err).ToNot(HaveOccurred())
 	}).Should(Succeed(), "assertConfigMap error: %v in %+v", err, cm)
 }
 
