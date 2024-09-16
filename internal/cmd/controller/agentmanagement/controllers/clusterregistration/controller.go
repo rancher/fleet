@@ -14,7 +14,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/resources"
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	"github.com/rancher/fleet/internal/config"
-	fname "github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/name"
 	"github.com/rancher/fleet/internal/registration"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
@@ -24,7 +24,6 @@ import (
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	rbaccontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
-	"github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 
 	v1 "k8s.io/api/core/v1"
@@ -349,7 +348,7 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		return nil, err
 	}
 
-	clusterName := name.SafeConcatName("cluster", fname.KeyHash(request.Spec.ClientID))
+	clusterName := name.SafeConcatName("cluster", name.KeyHash(request.Spec.ClientID))
 	if cluster, err := h.clusterCache.Get(request.Namespace, clusterName); !apierrors.IsNotFound(err) {
 		if cluster.Spec.ClientID != request.Spec.ClientID {
 			// This would happen with a hash collision

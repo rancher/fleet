@@ -22,9 +22,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
-	"github.com/rancher/wrangler/v3/pkg/name"
 
 	"github.com/rancher/fleet/integrationtests/utils"
+	"github.com/rancher/fleet/internal/name"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 

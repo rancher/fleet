@@ -17,13 +17,13 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/metrics"
+	"github.com/rancher/fleet/internal/name"
 	"github.com/rancher/fleet/internal/ociwrapper"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
-	"github.com/rancher/wrangler/v3/pkg/name"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
