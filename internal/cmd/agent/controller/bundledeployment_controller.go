@@ -11,8 +11,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v3/pkg/condition"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -129,11 +127,11 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		logger.V(1).Error(err, "Failed to deploy bundle", "status", status)
 
 		// do not use the returned status, instead set the condition and possibly a timestamp
-		bd.Status = setCondition(bd.Status, err, condition.Cond(fleetv1.BundleDeploymentConditionDeployed))
+		bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 
 		merr = append(merr, fmt.Errorf("failed deploying bundle: %w", err))
 	} else {
-		bd.Status = setCondition(status, nil, condition.Cond(fleetv1.BundleDeploymentConditionDeployed))
+		bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 	}
 
 	// retrieve the resources from the helm history.
@@ -155,11 +153,11 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			logger.Error(err, "Cannot monitor deployed bundle")
 
 			// if there is an error, do not use the returned status from monitor
-			bd.Status = setCondition(bd.Status, err, condition.Cond(fleetv1.BundleDeploymentConditionMonitored))
+			bd.Status = setCondition(bd.Status, err, monitor.Cond(fleetv1.BundleDeploymentConditionMonitored))
 			merr = append(merr, fmt.Errorf("failed updating status: %w", err))
 		} else {
 			// we add to the status from deployer.DeployBundle
-			bd.Status = setCondition(status, nil, condition.Cond(fleetv1.BundleDeploymentConditionMonitored))
+			bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionMonitored))
 		}
 
 		// Run drift correction
@@ -167,7 +165,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			if release, err := r.Deployer.RemoveExternalChanges(ctx, bd); err != nil {
 				merr = append(merr, fmt.Errorf("failed reconciling drift: %w", err))
 				// Propagate drift correction error to bundle deployment status.
-				condition.Cond(fleetv1.BundleDeploymentConditionReady).SetError(&status, "", err)
+				monitor.Cond(fleetv1.BundleDeploymentConditionReady).SetError(&status, "", err)
 			} else {
 				bd.Status.Release = release
 			}
@@ -182,7 +180,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// update our mini controller, which watches deployed resources for drift
-	err = r.DriftDetect.Refresh(logger, req.String(), bd, resources)
+	err = r.DriftDetect.Refresh(ctx, req.String(), bd, resources)
 	if err != nil {
 		logger.V(1).Error(err, "Failed to refresh drift detection", "step", "drift")
 		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
@@ -218,7 +216,7 @@ func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, req types
 }
 
 // setCondition sets the condition and updates the timestamp, if the condition changed
-func setCondition(newStatus fleetv1.BundleDeploymentStatus, err error, cond condition.Cond) fleetv1.BundleDeploymentStatus {
+func setCondition(newStatus fleetv1.BundleDeploymentStatus, err error, cond monitor.Cond) fleetv1.BundleDeploymentStatus {
 	cond.SetError(&newStatus, "", ignoreConflict(err))
 	return newStatus
 }

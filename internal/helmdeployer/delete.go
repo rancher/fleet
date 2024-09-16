@@ -9,9 +9,8 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
 
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
-	"github.com/rancher/wrangler/v3/pkg/kv"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )

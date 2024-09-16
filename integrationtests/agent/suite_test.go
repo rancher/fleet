@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -37,8 +38,8 @@ import (
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/agent/controller"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/desiredset"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/internal/cmd/agent/trigger"
@@ -53,6 +54,7 @@ var (
 	ctx       context.Context
 	cancel    context.CancelFunc
 	k8sClient client.Client
+	dsClient  *desiredset.Client
 )
 
 const (
@@ -157,12 +159,12 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 	localDynamic, err := dynamic.NewForConfig(mgr.GetConfig())
 	Expect(err).ToNot(HaveOccurred())
 
-	applied, err := applied.NewWithClient(mgr.GetConfig())
+	dsClient, err = desiredset.New(mgr.GetConfig())
 	Expect(err).ToNot(HaveOccurred())
 
 	monitor := monitor.New(
 		localClient,
-		applied,
+		dsClient,
 		helmDeployer,
 		defaultNamespace,
 		agentScope,
@@ -174,7 +176,7 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 		trigger,
 		upstreamClient,
 		mgr.GetAPIReader(),
-		applied,
+		dsClient,
 		defaultNamespace,
 		defaultNamespace,
 		agentScope,

@@ -17,23 +17,19 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/rancher/wrangler/v3/pkg/apply"
-	"github.com/rancher/wrangler/v3/pkg/condition"
-	"github.com/rancher/wrangler/v3/pkg/objectset"
-	"github.com/rancher/wrangler/v3/pkg/summary"
-
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/desiredset"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/summary"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 type Monitor struct {
-	client  client.Client
-	applied *applied.Applied
+	client     client.Client
+	desiredset *desiredset.Client
 
 	deployer *helmdeployer.Helm
 
@@ -42,10 +38,10 @@ type Monitor struct {
 	labelSuffix      string
 }
 
-func New(client client.Client, applied *applied.Applied, deployer *helmdeployer.Helm, defaultNamespace string, labelSuffix string) *Monitor {
+func New(client client.Client, ds *desiredset.Client, deployer *helmdeployer.Helm, defaultNamespace string, labelSuffix string) *Monitor {
 	return &Monitor{
 		client:           client,
-		applied:          applied,
+		desiredset:       ds,
 		deployer:         deployer,
 		defaultNamespace: defaultNamespace,
 		labelPrefix:      defaultNamespace,
@@ -77,7 +73,7 @@ func ShouldUpdateStatus(bd *fleet.BundleDeployment) bool {
 
 	// If the bundle failed to install the status should not be updated. Updating
 	// here would remove the condition message that was previously set on it.
-	if condition.Cond(fleet.BundleDeploymentConditionInstalled).IsFalse(bd) {
+	if Cond(fleet.BundleDeploymentConditionInstalled).IsFalse(bd) {
 		return false
 	}
 
@@ -90,7 +86,7 @@ func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, 
 	// updateFromResources mutates bd.Status, so copy it first
 	origStatus := *bd.Status.DeepCopy()
 	bd = bd.DeepCopy()
-	err := m.updateFromResources(logger, bd, resources)
+	err := m.updateFromResources(ctx, logger, bd, resources)
 	if err != nil {
 
 		// Returning an error will cause UpdateStatus to requeue in a loop.
@@ -106,7 +102,7 @@ func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, 
 	status := bd.Status
 
 	readyError := readyError(status)
-	condition.Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
+	Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
 
 	status.SyncGeneration = &bd.Spec.Options.ForceSyncGeneration
 	if readyError != nil {
@@ -151,7 +147,7 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 
 // updateFromResources updates the status with information from the
 // helm release history and an apply dry run.
-func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) error {
+func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) error {
 	resourcesPreviousRelease, err := m.deployer.ResourcesFromPreviousReleaseVersion(bd.Name, bd.Status.Release)
 	if err != nil {
 		return err
@@ -163,15 +159,15 @@ func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeploy
 	}
 
 	// resources.Objects contains the desired state of the resources from helm history
-	plan, err := m.applied.DryRun(ns, applied.GetSetID(bd.Name, m.labelPrefix, m.labelSuffix), resources.Objects...)
+	plan, err := m.desiredset.Plan(ctx, ns, desiredset.GetSetID(bd.Name, m.labelPrefix, m.labelSuffix), resources.Objects...)
 	if err != nil {
 		return err
 	}
 
-	// applied.Diff only takes plan.Update into account. plan.Update
+	// dryrun.Diff only takes plan.Update into account. plan.Update
 	// contains objects which have changes to existing values. Adding a new
 	// key to a map is not considered an update.
-	plan, err = applied.Diff(plan, bd, resources.DefaultNamespace, resources.Objects...)
+	plan, err = desiredset.Diff(plan, bd, resources.DefaultNamespace, resources.Objects...)
 	if err != nil {
 		return err
 	}
@@ -214,7 +210,7 @@ func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeploy
 	return nil
 }
 
-func nonReady(logger logr.Logger, plan apply.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
+func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
 	defer func() {
 		sort.Slice(result, func(i, j int) bool {
 			return result[i].UID < result[j].UID
@@ -253,7 +249,7 @@ func nonReady(logger logr.Logger, plan apply.Plan, ignoreOptions fleet.IgnoreOpt
 // The function iterates through the plan's create, delete, and update actions and constructs a modified status
 // for each resource.
 // If the number of modified statuses exceeds 10, the function stops and returns the current result.
-func modified(c client.Client, logger logr.Logger, plan apply.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
+func modified(c client.Client, logger logr.Logger, plan desiredset.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
 	defer func() {
 		sort.Slice(result, func(i, j int) bool {
 			return sortKey(result[i]) < sortKey(result[j])
