@@ -19,6 +19,8 @@ type Env struct {
 	Upstream string
 	// Downstream context for fleet-agent cluster
 	Downstream string
+	// Managed downstream cluster
+	ManagedDownstream string
 	// Namespace which contains the cluster resource for most E2E tests
 	// (cluster registration namespace)
 	Namespace string
@@ -32,6 +34,7 @@ func New() *Env {
 		Kubectl:                      kubectl.New("", "default"),
 		Upstream:                     "k3d-upstream",
 		Downstream:                   "k3d-downstream",
+		ManagedDownstream:            "k3d-managed-downstream",
 		Namespace:                    "fleet-local",
 		ClusterRegistrationNamespace: "fleet-default",
 	}
