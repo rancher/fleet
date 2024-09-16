@@ -6,13 +6,12 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	fname "github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/name"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/kv"
-	"github.com/rancher/wrangler/v3/pkg/name"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 
 	v1 "k8s.io/api/core/v1"
@@ -103,7 +102,7 @@ func clusterNamespace(clusterNamespace, clusterName string) string {
 	return name.SafeConcatName("cluster",
 		clusterNamespace,
 		clusterName,
-		fname.KeyHash(clusterNamespace+"::"+clusterName))
+		name.KeyHash(clusterNamespace+"::"+clusterName))
 }
 
 func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {

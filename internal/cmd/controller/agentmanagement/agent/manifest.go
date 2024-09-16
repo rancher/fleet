@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/wrangler/v3/pkg/name"
+	"github.com/rancher/fleet/internal/name"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

@@ -4,9 +4,9 @@ import (
 	"strings"
 
 	"github.com/rancher/fleet/internal/config"
+	"github.com/rancher/fleet/internal/name"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
-	"github.com/rancher/wrangler/v3/pkg/name"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
