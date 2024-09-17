@@ -207,7 +207,6 @@ func (e adoptEnv) createBundleDeployment(name string, takeOwnership bool) {
 }
 
 func (e adoptEnv) waitForConfigMap(name string) {
-	time.Sleep(5 * time.Second)
 	Eventually(func() error {
 		_, err := e.env.getConfigMap(name)
 		return err
@@ -234,7 +233,6 @@ func (e adoptEnv) assertConfigMap(validate func(Gomega, corev1.ConfigMap)) {
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 		validate(g, cm)
-		g.Expect(err).ToNot(HaveOccurred())
 	}).Should(Succeed(), "assertConfigMap error: %v in %+v", err, cm)
 }
 
