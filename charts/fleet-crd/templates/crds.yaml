@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: bundledeployments.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -1019,7 +1019,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: bundlenamespacemappings.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -1199,7 +1199,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: bundles.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -1224,7 +1224,6 @@ spec:
             options.
 
             It will be deployed as a Helm chart to target clusters.
-
 
 
             When a GitRepo is scanned it will produce one or more bundles. Bundles
@@ -3077,7 +3076,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: clustergroups.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3497,7 +3496,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: clusterregistrations.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3601,7 +3600,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: clusterregistrationtokens.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3680,7 +3679,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: clusters.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -5197,13 +5196,7 @@ spec:
 
                                   almost certainly wrong.
 
-                                  TODO: Add other useful fields. apiVersion, kind,
-                                  uid?
-
-                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-
-                                  TODO: Drop `kubebuilder:default` when controller-gen
-                                  doesn''t need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.'
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
                                 type: string
                               optional:
                                 description: Specify whether the ConfigMap or its
@@ -5278,13 +5271,7 @@ spec:
 
                                   almost certainly wrong.
 
-                                  TODO: Add other useful fields. apiVersion, kind,
-                                  uid?
-
-                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-
-                                  TODO: Drop `kubebuilder:default` when controller-gen
-                                  doesn''t need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.'
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
                                 type: string
                               optional:
                                 description: Specify whether the Secret or its key
@@ -5317,11 +5304,9 @@ spec:
                         that are used by this container.
 
 
-
                         This is an alpha field and requires enabling the
 
                         DynamicResourceAllocation feature gate.
-
 
 
                         This field is immutable. It can only be set for containers.'
@@ -5891,7 +5876,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: contents.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -5959,7 +5944,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: gitreporestrictions.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6065,7 +6050,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: gitrepos.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6433,6 +6418,8 @@ spec:
                         type: string
                     type: object
                   type: array
+              required:
+                - imageScanCommit
               type: object
             status:
               properties:
@@ -6858,7 +6845,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.3
   name: imagescans.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6984,12 +6971,7 @@ spec:
 
                         almost certainly wrong.
 
-                        TODO: Add other useful fields. apiVersion, kind, uid?
-
-                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-
-                        TODO: Drop `kubebuilder:default` when controller-gen doesn''t
-                        need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.'
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
                       type: string
                   type: object
                   x-kubernetes-map-type: atomic
@@ -7004,6 +6986,9 @@ spec:
                     to replace fields
                   nullable: true
                   type: string
+              required:
+                - image
+                - interval
               type: object
             status:
               properties:
