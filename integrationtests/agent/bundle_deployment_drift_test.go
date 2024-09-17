@@ -96,9 +96,9 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			It("Preserves the modification on the service", func() {
 				Consistently(func(g Gomega) {
 					svc, err := env.getService(svcName)
-					Expect(err).NotTo(HaveOccurred())
+					g.Expect(err).NotTo(HaveOccurred())
 
-					Expect(svc.Spec.ExternalName).Should(Equal("modified"))
+					g.Expect(svc.Spec.ExternalName).Should(Equal("modified"))
 				}, 2*time.Second, 100*time.Millisecond)
 			})
 		})
@@ -120,6 +120,30 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				Expect(k8sClient.Delete(context.TODO(), &v1alpha1.BundleDeployment{
 					ObjectMeta: metav1.ObjectMeta{Namespace: clusterNS, Name: name},
 				})).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("Modifying externalName in a service resource", func() {
+			BeforeEach(func() {
+				namespace = createNamespace()
+				name = "drift-service-externalname-test"
+			})
+
+			It("Corrects drift", func() {
+				By("Receiving a modification on a service")
+				svc, err := env.getService(svcName)
+				Expect(err).NotTo(HaveOccurred())
+				patchedSvc := svc.DeepCopy()
+				patchedSvc.Spec.ExternalName = "modified"
+				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
+
+				By("Restoring the service resource to its previous state")
+				Eventually(func(g Gomega) {
+					svc, err := env.getService(svcName)
+					g.Expect(err).NotTo(HaveOccurred())
+
+					g.Expect(svc.Spec.ExternalName).Should(Equal("svc-test"))
+				})
 			})
 		})
 

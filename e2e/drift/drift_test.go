@@ -59,33 +59,6 @@ var _ = Describe("Drift", Ordered, func() {
 			asset = "drift/correction-enabled/gitrepo.yaml"
 			bundleName = "drift-correction-test-drift"
 		})
-		Context("Modifying externalName in service", func() {
-			JustBeforeEach(func() {
-				kw := k.Namespace(namespace)
-				out, err := kw.Patch(
-					"service", "drift-dummy-service",
-					"-o=json",
-					"--type=json",
-					"-p", `[{"op": "replace", "path": "/spec/externalName", "value": "modified"}]`,
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
-				GinkgoWriter.Print(out)
-			})
-
-			It("Drift is corrected", func() {
-				Eventually(func() bool {
-					b := getBundle(bundleName, k)
-					return b.Status.Summary.Ready == 1
-				}).Should(BeTrue())
-				Eventually(func() bool {
-					kw := k.Namespace(namespace)
-					out, _ := kw.Get("services", "drift-dummy-service", "-o=json")
-					var service corev1.Service
-					_ = json.Unmarshal([]byte(out), &service)
-					return service.Spec.ExternalName == "drift-dummy"
-				}).Should(BeTrue())
-			})
-		})
 
 		Context("Modifying image in deployment", func() {
 			JustBeforeEach(func() {
