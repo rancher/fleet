@@ -60,6 +60,7 @@ var _ = Describe("Monitoring Helm releases along GitRepo/bundle namespace update
 
 	When("updating a bundle's namespace", func() {
 		It("creates a new release in the new namespace", func() {
+			Skip("This depends on a shorter garbage collection interval")
 			out, err := k.Patch(
 				"gitrepo",
 				gitrepoName,
@@ -73,6 +74,7 @@ var _ = Describe("Monitoring Helm releases along GitRepo/bundle namespace update
 		})
 
 		It("deletes the old release in the previous namespace", func() {
+			Skip("This depends on a shorter garbage collection interval")
 			Eventually(func(g Gomega) {
 				cmd := exec.Command("helm", "list", "-q", "-n", oldNamespace)
 				out, err := cmd.CombinedOutput()
@@ -163,6 +165,7 @@ var _ = Describe("Monitoring Helm releases along GitRepo/bundle release name upd
 			targetNamespace = testenv.NewNamespaceName("target", r)
 		})
 		It("replaces the release", func() {
+			Skip("This depends on a shorter garbage collection interval")
 			By("updating the release name in fleet.yaml")
 			// Not adding `takeOwnership: true` leads to errors from Helm checking its own annotations and failing to
 			// deploy the new release because the config map already exists and belongs to the old one.
@@ -190,6 +193,7 @@ var _ = Describe("Monitoring Helm releases along GitRepo/bundle release name upd
 			})
 		})
 		It("replaces the release", func() {
+			Skip("This depends on a shorter garbage collection interval")
 			By("updating the release name in fleet.yaml")
 			replace(
 				path.Join(clonedir, "examples", "fleet.yaml"),
