@@ -66,7 +66,7 @@ eventually helm upgrade --install fleet charts/fleet \
   $shards_settings \
   --set-string extraEnv[0].name=EXPERIMENTAL_OCI_STORAGE \
   --set-string extraEnv[0].value=true \
-  --set garbageCollectionInterval=20m
+  --set garbageCollectionInterval=1s
 
 # wait for controller and agent rollout
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
