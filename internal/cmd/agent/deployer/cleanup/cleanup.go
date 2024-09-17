@@ -96,11 +96,9 @@ func (c *Cleanup) OldAgent(ctx context.Context, modifiedStatuses []fleet.Modifie
 }
 
 func (c *Cleanup) CleanupReleases(ctx context.Context, key string, bd *fleet.BundleDeployment) error {
-	/*
-		c.cleanupOnce.Do(func() {
-			go c.garbageCollect(ctx)
-		})
-	*/
+	c.cleanupOnce.Do(func() {
+		go c.garbageCollect(ctx)
+	})
 
 	if bd != nil {
 		return nil
