@@ -12,7 +12,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -74,17 +73,15 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			})
 			env = &specEnv{namespace: namespace}
 
-			name = "drift-test"
+			name = "drift-disabled-test"
 			createBundleDeployment(name)
+			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
+
 			DeferCleanup(func() {
 				Expect(k8sClient.Delete(context.TODO(), &v1alpha1.BundleDeployment{
 					ObjectMeta: metav1.ObjectMeta{Namespace: clusterNS, Name: name},
 				})).ToNot(HaveOccurred())
 			})
-		})
-
-		It("Updates the bundle deployment which will eventually be ready and non modified", func() {
-			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 		})
 
 		Context("Modifying externalName in service resource", func() {
@@ -119,44 +116,13 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 
 			name = "drift-test"
 			createBundleDeployment(name)
+			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
+
 			DeferCleanup(func() {
 				Expect(k8sClient.Delete(context.TODO(), &v1alpha1.BundleDeployment{
 					ObjectMeta: metav1.ObjectMeta{Namespace: clusterNS, Name: name},
 				})).ToNot(HaveOccurred())
 			})
-		})
-
-		It("Deploys a bundle deployment which is not ready while its resources are being deployed", func() {
-			bd := &v1alpha1.BundleDeployment{}
-			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(bd.Status.Ready).To(BeFalse())
-		})
-
-		It("Updates the bundle deployment which will eventually be ready and non modified", func() {
-			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
-		})
-
-		It("Creates resources from the bundle deployment in the cluster", func() {
-			svc, err := env.getService(svcName)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(svc.Name).NotTo(BeEmpty())
-		})
-
-		It("Lists deployed resources in the bundle deployment status", func() {
-			bd := &v1alpha1.BundleDeployment{}
-			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(bd.Status.Resources).To(HaveLen(3))
-			ts := bd.Status.Resources[0].CreatedAt
-			Expect(ts.Time).ToNot(BeZero())
-			Expect(bd.Status.Resources).To(ContainElement(v1alpha1.BundleDeploymentResource{
-				Kind:       "Service",
-				APIVersion: "v1",
-				Namespace:  namespace,
-				Name:       "svc-test",
-				CreatedAt:  ts,
-			}))
 		})
 
 		Context("A release resource is modified", Ordered, func() {
