@@ -54,40 +54,6 @@ var _ = Describe("Drift", Ordered, func() {
 		_, _ = k.Delete("ns", "drift-ignore-status")
 	})
 
-	When("Drift correction is not enabled", func() {
-		BeforeEach(func() {
-			asset = "drift/correction-disabled/gitrepo.yaml"
-			bundleName = "drift-test-drift"
-		})
-
-		Context("Modifying externalName in service resource", func() {
-			JustBeforeEach(func() {
-				kw := k.Namespace(namespace)
-				out, err := kw.Patch(
-					"service", "drift-dummy-service",
-					"-o=json",
-					"--type=json",
-					"-p", `[{"op": "replace", "path": "/spec/externalName", "value": "modified"}]`,
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
-				GinkgoWriter.Print(out)
-			})
-
-			It("Bundle is modified", func() {
-				Eventually(func() bool {
-					b := getBundle(bundleName, k)
-					return b.Status.Summary.Modified == 1
-				}).Should(BeTrue())
-				By("Changes haven't been rolled back")
-				kw := k.Namespace(namespace)
-				out, _ := kw.Get("services", "drift-dummy-service", "-o=json")
-				var service corev1.Service
-				_ = json.Unmarshal([]byte(out), &service)
-				Expect(service.Spec.ExternalName).Should(Equal("modified"))
-			})
-		})
-	})
-
 	When("Drift correction is enabled without force", func() {
 		BeforeEach(func() {
 			asset = "drift/correction-enabled/gitrepo.yaml"

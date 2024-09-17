@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"time"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -21,9 +22,10 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 	const svcName = "svc-test"
 
 	var (
-		namespace string
-		name      string
-		env       *specEnv
+		namespace    string
+		name         string
+		env          *specEnv
+		correctDrift v1alpha1.CorrectDrift
 	)
 
 	createBundleDeployment := func(name string) {
@@ -36,9 +38,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				DeploymentID: "v1",
 				Options: v1alpha1.BundleDeploymentOptions{
 					DefaultNamespace: namespace,
-					CorrectDrift: &v1alpha1.CorrectDrift{
-						Enabled: true,
-					},
+					CorrectDrift:     &correctDrift,
 					Helm: &v1alpha1.HelmOptions{
 						MaxHistory: 2,
 					},
@@ -64,9 +64,53 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 		return newNs
 	}
 
-	When("Simulating drift", func() {
+	When("Drift correction is not enabled", func() {
 		BeforeAll(func() {
 			namespace = createNamespace()
+			correctDrift = v1alpha1.CorrectDrift{Enabled: false}
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(ctx, &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
+			})
+			env = &specEnv{namespace: namespace}
+
+			name = "drift-test"
+			createBundleDeployment(name)
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(context.TODO(), &v1alpha1.BundleDeployment{
+					ObjectMeta: metav1.ObjectMeta{Namespace: clusterNS, Name: name},
+				})).ToNot(HaveOccurred())
+			})
+		})
+
+		It("Updates the bundle deployment which will eventually be ready and non modified", func() {
+			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
+		})
+
+		Context("Modifying externalName in service resource", func() {
+			It("Receives a modification on a service", func() {
+				svc, err := env.getService(svcName)
+				Expect(err).NotTo(HaveOccurred())
+				patchedSvc := svc.DeepCopy()
+				patchedSvc.Spec.ExternalName = "modified"
+				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
+			})
+
+			It("Preserves the modification on the service", func() {
+				Consistently(func(g Gomega) {
+					svc, err := env.getService(svcName)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(svc.Spec.ExternalName).Should(Equal("modified"))
+				}, 2*time.Second, 100*time.Millisecond)
+			})
+		})
+	})
+
+	When("Drift correction is enabled without force", func() {
+		BeforeAll(func() {
+			namespace = createNamespace()
+			correctDrift = v1alpha1.CorrectDrift{Enabled: true}
 			DeferCleanup(func() {
 				Expect(k8sClient.Delete(ctx, &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
