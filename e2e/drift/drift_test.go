@@ -88,43 +88,6 @@ var _ = Describe("Drift", Ordered, func() {
 			})
 		})
 
-		Context("Modifying data in configmap", func() {
-			JustBeforeEach(func() {
-				kw := k.Namespace(namespace)
-				out, err := kw.Patch(
-					"configmap", "configmap",
-					"-o=json",
-					"--type=json",
-					"-p", `[{"op": "replace", "path": "/data/foo", "value": "modified"}]`,
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
-				GinkgoWriter.Print(out)
-			})
-
-			It("Drift is corrected", func() {
-				Eventually(func() bool {
-					b := getBundle(bundleName, k)
-					return b.Status.Summary.Ready == 1
-				}).Should(BeTrue())
-				Eventually(func() bool {
-					kw := k.Namespace(namespace)
-					out, _ := kw.Get("configmap", "configmap", "-o=json")
-					var configMap corev1.ConfigMap
-					_ = json.Unmarshal([]byte(out), &configMap)
-					return configMap.Data["foo"] == "bar"
-				}).Should(BeTrue())
-
-				kw := k.Namespace(namespace)
-				out, err := kw.Get(
-					"secrets",
-					"--field-selector=type=helm.sh/release.v1",
-					`-o=go-template={{printf "%d" (len  .items)}}`,
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
-				Expect(out).To(Equal("2")) // Max Helm history
-			})
-		})
-
 		// Helm rollback uses three-way merge by default (without force), which fails when trying to rollback a change made on an item in the ports array.
 		Context("Modifying port in service", func() {
 			JustBeforeEach(func() {

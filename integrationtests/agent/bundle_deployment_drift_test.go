@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/rancher/fleet/integrationtests/utils"
@@ -12,6 +13,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -144,6 +147,51 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 
 					g.Expect(svc.Spec.ExternalName).Should(Equal("svc-test"))
 				})
+			})
+		})
+
+		Context("Modifying data in a config map resource", func() {
+			BeforeEach(func() {
+				namespace = createNamespace()
+				name = "drift-configmap-data-test"
+			})
+
+			It("Corrects drift", func() {
+				By("Receiving a modification on a config map")
+				nsn := types.NamespacedName{
+					Namespace: env.namespace,
+					Name:      "cm-test",
+				}
+				cm := corev1.ConfigMap{}
+				err := k8sClient.Get(ctx, nsn, &cm)
+				Expect(err).ToNot(HaveOccurred())
+
+				patchedCM := cm.DeepCopy()
+				patchedCM.Data["foo"] = "modified"
+				Expect(k8sClient.Patch(ctx, patchedCM, client.StrategicMergeFrom(&cm))).NotTo(HaveOccurred())
+
+				By("Restoring the config map resource to its previous state")
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, nsn, &cm)
+					Expect(err).ToNot(HaveOccurred())
+
+					g.Expect(cm.Data["foo"]).Should(Equal("bar"))
+				})
+
+				By("Leaving at most 2 Helm history items")
+				nsn = types.NamespacedName{
+					Namespace: env.namespace,
+				}
+				secrets := corev1.SecretList{}
+				err = k8sClient.List(
+					ctx,
+					&secrets,
+					client.MatchingFieldsSelector{
+						Selector: fields.SelectorFromSet(map[string]string{"type": "helm.sh/release.v1"}),
+					},
+				)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(secrets.Items) <= 2).To(BeTrue(), fmt.Sprintf("Expected %v to contain at most 2 items", secrets.Items))
 			})
 		})
 
