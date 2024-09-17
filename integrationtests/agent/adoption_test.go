@@ -214,12 +214,11 @@ func (e adoptEnv) waitForConfigMap(name string) {
 	}).Should(Succeed())
 }
 
-func (e adoptEnv) createConfigMap(cm *corev1.ConfigMap) *corev1.ConfigMap {
+func (e adoptEnv) createConfigMap(cm *corev1.ConfigMap) {
 	cm.ObjectMeta.Name = "cm1"
 	cm.ObjectMeta.Namespace = e.namespace
 	Expect(k8sClient.Create(ctx, cm)).To(Succeed())
 	e.waitForConfigMap("cm1")
-	return cm
 }
 
 // assertConfigMap checks that the ConfigMap exists and that it passes the
