@@ -64,9 +64,9 @@ other existing Fleet chart versions.
 ```
 export CHARTS_BRANCH=<branch_created_in_previous_step>
 ```
-3. Running script `dev/test-in-rancher`, which will install Rancher using Helm,
-including test Fleet charts generated earlier. Once it is done, single- or
-multi-cluster test suites can be run against an actual Rancher setup.
+3. Running script `dev/setup-rancher-with-dev-fleet`, which will install Rancher
+using Helm, including test Fleet charts generated earlier. Once it is done,
+single- or multi-cluster test suites can be run against an actual Rancher setup.
 
 ## Configuration
 
