@@ -59,7 +59,7 @@ const (
 	gitPollingCondition        = "GitPolling"
 )
 
-var two = int32(2)
+var zero = int32(0)
 
 type GitFetcher interface {
 	LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, client client.Client) (string, error)
@@ -649,7 +649,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled())
 
 	return &batchv1.JobSpec{
-		BackoffLimit: &two,
+		BackoffLimit: &zero,
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				CreationTimestamp: metav1.Time{Time: time.Unix(0, 0)},
