@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -22,11 +23,20 @@ import (
 
 func init() {
 	withStatus, _ := os.ReadFile(assetsPath + "/deployment-with-status.yaml")
+	withDeployment, _ := os.ReadFile(assetsPath + "/deployment-with-deployment.yaml")
 
 	resources["with-status"] = []v1alpha1.BundleResource{
 		{
 			Name:     "deployment-with-status.yaml",
 			Content:  string(withStatus),
+			Encoding: "",
+		},
+	}
+
+	resources["with-deployment"] = []v1alpha1.BundleResource{
+		{
+			Name:     "deployment-with-deployment.yaml",
+			Content:  string(withDeployment),
 			Encoding: "",
 		},
 	}
@@ -124,7 +134,11 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			env = &specEnv{namespace: namespace}
 
 			createBundleDeployment(name)
-			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
+
+			// deployment resources cannot be ready as they rely on being able to pull Docker images
+			if name != "drift-deployment-image-test" {
+				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
+			}
 
 			DeferCleanup(func() {
 				Expect(k8sClient.Delete(context.TODO(), &v1alpha1.BundleDeployment{
@@ -154,6 +168,47 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					g.Expect(err).NotTo(HaveOccurred())
 
 					g.Expect(svc.Spec.ExternalName).Should(Equal("svc-test"))
+				})
+			})
+		})
+
+		Context("Modifying image in a deployment resource", func() {
+			BeforeEach(func() {
+				namespace = createNamespace()
+				name = "drift-deployment-image-test"
+				deplID = "with-deployment"
+			})
+
+			It("Corrects drift", func() {
+				By("Receiving a modification on a deployment")
+				dpl := appsv1.Deployment{}
+				GinkgoWriter.Print(fmt.Sprintf("Looking for deployment in namespace %q", namespace))
+				nsn := types.NamespacedName{
+					Namespace: namespace,
+					Name:      "drift-dummy-deployment",
+				}
+
+				Eventually(func(g Gomega) {
+					bd := &v1alpha1.BundleDeployment{}
+					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
+					// The bundle deployment will not be ready, because no image can be pulled for
+					// the deployment in envtest clusters.
+					Expect(err).NotTo(HaveOccurred())
+
+					err = k8sClient.Get(ctx, nsn, &dpl)
+					g.Expect(err).ToNot(HaveOccurred())
+				}).Should(Succeed())
+
+				patchedDpl := dpl.DeepCopy()
+				patchedDpl.Spec.Template.Spec.Containers[0].Image = "foo:modified"
+				Expect(k8sClient.Patch(ctx, patchedDpl, client.StrategicMergeFrom(&dpl))).NotTo(HaveOccurred())
+
+				By("Restoring the deployment resource to its previous state")
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, nsn, &dpl)
+					g.Expect(err).NotTo(HaveOccurred())
+
+					g.Expect(dpl.Spec.Template.Spec.Containers[0].Image).Should(Equal("k8s.gcr.io/pause"))
 				})
 			})
 		})

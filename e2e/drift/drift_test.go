@@ -9,7 +9,6 @@ import (
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
 )
 
 var _ = Describe("Drift", Ordered, func() {
@@ -57,34 +56,6 @@ var _ = Describe("Drift", Ordered, func() {
 		BeforeEach(func() {
 			asset = "drift/correction-enabled/gitrepo.yaml"
 			bundleName = "drift-correction-test-drift"
-		})
-
-		Context("Modifying image in deployment", func() {
-			JustBeforeEach(func() {
-				kw := k.Namespace(namespace)
-				out, err := kw.Patch(
-					"deployment", "drift-dummy-deployment",
-					"-o=json",
-					"--type=json",
-					"-p", `[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "foo:modified"}]`,
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
-				GinkgoWriter.Print(out)
-			})
-
-			It("Drift is corrected", func() {
-				Eventually(func() bool {
-					b := getBundle(bundleName, k)
-					return b.Status.Summary.Ready == 1
-				}).Should(BeTrue())
-				Eventually(func() bool {
-					kw := k.Namespace(namespace)
-					out, _ := kw.Get("deployment", "drift-dummy-deployment", "-o=json")
-					var deployment appsv1.Deployment
-					_ = json.Unmarshal([]byte(out), &deployment)
-					return deployment.Spec.Template.Spec.Containers[0].Image == "k8s.gcr.io/pause"
-				}).Should(BeTrue())
-			})
 		})
 
 		// Helm rollback uses three-way merge by default (without force), which fails when trying to rollback a change made on an item in the ports array.
