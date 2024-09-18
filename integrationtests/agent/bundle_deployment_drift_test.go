@@ -70,10 +70,6 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 		BeforeAll(func() {
 			namespace = createNamespace()
 			correctDrift = v1alpha1.CorrectDrift{Enabled: false}
-			DeferCleanup(func() {
-				Expect(k8sClient.Delete(ctx, &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
-			})
 			env = &specEnv{namespace: namespace}
 
 			name = "drift-disabled-test"
@@ -110,10 +106,6 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 	When("Drift correction is enabled without force", func() {
 		JustBeforeEach(func() {
 			correctDrift = v1alpha1.CorrectDrift{Enabled: true}
-			DeferCleanup(func() {
-				Expect(k8sClient.Delete(ctx, &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
-			})
 			env = &specEnv{namespace: namespace}
 
 			createBundleDeployment(name)
@@ -229,6 +221,54 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					)
 					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
+			})
+		})
+	})
+
+	When("Drift correction is enabled with force", func() {
+		JustBeforeEach(func() {
+			correctDrift = v1alpha1.CorrectDrift{Enabled: true, Force: true}
+			env = &specEnv{namespace: namespace}
+
+			createBundleDeployment(name)
+			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
+
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(context.TODO(), &v1alpha1.BundleDeployment{
+					ObjectMeta: metav1.ObjectMeta{Namespace: clusterNS, Name: name},
+				})).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("Modifying a port in a service resource", func() {
+			BeforeEach(func() {
+				namespace = createNamespace()
+				name = "drift-force-service-port-test"
+			})
+
+			It("Corrects drift", func() {
+				By("Receiving a modification on a service")
+				svc, err := env.getService(svcName)
+				Expect(err).NotTo(HaveOccurred())
+				patchedSvc := svc.DeepCopy()
+				patchedSvc.Spec.Ports[0].TargetPort = intstr.FromInt(4242)
+				patchedSvc.Spec.Ports[0].Port = 4242
+				patchedSvc.Spec.Ports[0].Name = "myport"
+				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
+
+				By("Restoring the service resource to its previous state")
+				Eventually(func(g Gomega) {
+					svc, err := env.getService(svcName)
+					g.Expect(err).NotTo(HaveOccurred())
+
+					g.Expect(svc.Spec.Ports).ToNot(BeEmpty())
+					g.Expect(svc.Spec.Ports[0].Port).Should(Equal(80))
+					g.Expect(svc.Spec.Ports[0].TargetPort).Should(Equal(9376))
+					g.Expect(svc.Spec.Ports[0].Name).Should(Equal("myport"))
+				})
+
+				By("Updating the bundle deployment status to be ready and not modified")
+				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 	})

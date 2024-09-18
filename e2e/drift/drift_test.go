@@ -10,7 +10,6 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 )
 
 var _ = Describe("Drift", Ordered, func() {
@@ -135,43 +134,6 @@ var _ = Describe("Drift", Ordered, func() {
 					bundle = getBundle(bundleName, k)
 					return bundle.Status.Summary.Ready
 				}).Should(Equal(1), fmt.Sprintf("Summary: %+v", bundle.Status.Summary))
-			})
-		})
-	})
-
-	When("Drift correction is enabled with force", func() {
-		BeforeEach(func() {
-			asset = "drift/force/gitrepo.yaml"
-			bundleName = "drift-force-test-drift"
-		})
-
-		//Helm rollback does a PUT to override all resources when --force is used.
-		Context("Modifying port in service", func() {
-			JustBeforeEach(func() {
-				kw := k.Namespace(namespace)
-				out, err := kw.Patch(
-					"service", "drift-dummy-service",
-					"-o=json",
-					"--type=json",
-					"-p", `[{"op": "replace", "path": "/spec/ports/0/port", "value": 5678}]`,
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
-				GinkgoWriter.Print(out)
-			})
-
-			It("Bundle Status is Ready, and changes are rolled back", func() {
-				var bundle fleet.Bundle
-				Eventually(func() int {
-					bundle = getBundle(bundleName, k)
-					return bundle.Status.Summary.Ready
-				}).Should(Equal(1), fmt.Sprintf("Summary: %+v", bundle.Status.Summary))
-				Eventually(func() bool {
-					kw := k.Namespace(namespace)
-					out, _ := kw.Get("services", "drift-dummy-service", "-o=json")
-					var service corev1.Service
-					_ = json.Unmarshal([]byte(out), &service)
-					return service.Spec.Ports[0].Port == 80
-				}).Should(BeTrue())
 			})
 		})
 	})
