@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/rancher/fleet/integrationtests/utils"
@@ -19,6 +20,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+func init() {
+	withStatus, _ := os.ReadFile(assetsPath + "/deployment-with-status.yaml")
+
+	resources["with-status"] = []v1alpha1.BundleResource{
+		{
+			Name:     "deployment-with-status.yaml",
+			Content:  string(withStatus),
+			Encoding: "",
+		},
+	}
+}
+
 var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 
 	const svcName = "svc-test"
@@ -26,6 +39,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 	var (
 		namespace    string
 		name         string
+		deplID       string
 		env          *specEnv
 		correctDrift v1alpha1.CorrectDrift
 	)
@@ -37,7 +51,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				Namespace: clusterNS,
 			},
 			Spec: v1alpha1.BundleDeploymentSpec{
-				DeploymentID: "v1",
+				DeploymentID: deplID,
 				Options: v1alpha1.BundleDeploymentOptions{
 					DefaultNamespace: namespace,
 					CorrectDrift:     &correctDrift,
@@ -69,6 +83,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 	When("Drift correction is not enabled", func() {
 		BeforeAll(func() {
 			namespace = createNamespace()
+			deplID = "v1"
 			correctDrift = v1alpha1.CorrectDrift{Enabled: false}
 			env = &specEnv{namespace: namespace}
 
@@ -122,6 +137,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			BeforeEach(func() {
 				namespace = createNamespace()
 				name = "drift-service-externalname-test"
+				deplID = "v1"
 			})
 
 			It("Corrects drift", func() {
@@ -146,6 +162,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			BeforeEach(func() {
 				namespace = createNamespace()
 				name = "drift-configmap-data-test"
+				deplID = "v1"
 			})
 
 			It("Corrects drift", func() {
@@ -171,9 +188,6 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				})
 
 				By("Leaving at most 2 Helm history items")
-				nsn = types.NamespacedName{
-					Namespace: env.namespace,
-				}
 				secrets := corev1.SecretList{}
 				err = k8sClient.List(
 					ctx,
@@ -181,9 +195,23 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					client.MatchingFieldsSelector{
 						Selector: fields.SelectorFromSet(map[string]string{"type": "helm.sh/release.v1"}),
 					},
+					client.InNamespace(env.namespace),
 				)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(len(secrets.Items) <= 2).To(BeTrue(), fmt.Sprintf("Expected %v to contain at most 2 items", secrets.Items))
+				Expect(len(secrets.Items) <= 2).To(BeTrue(), fmt.Sprintf("Expected %#v to contain at most 2 items", secrets.Items))
+			})
+		})
+
+		// Status must be ignored for drift correction, despite being part of the manifests
+		Context("Resource manifests containing status fields", func() {
+			BeforeEach(func() {
+				namespace = createNamespace()
+				name = "drift-status-ignore-test"
+				deplID = "with-status"
+			})
+
+			It("Marks the bundle deployment as ready", func() {
+				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 
@@ -191,6 +219,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			BeforeEach(func() {
 				namespace = createNamespace()
 				name = "drift-test"
+				deplID = "v1"
 			})
 
 			It("Updates the BundleDeployment status as not Ready, including the error message", func() {

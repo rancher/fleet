@@ -123,19 +123,6 @@ var _ = Describe("Drift", Ordered, func() {
 				}).ShouldNot(ContainSubstring(`drift-dummy-service modified`))
 			})
 		})
-
-		Context("Resource manifests containing status fields", func() {
-			// Status must be ignored for drift correction, despite being part of the manifests
-			It("Is marked as ready", func() {
-				bundleName := "drift-correction-test-drift-ignore-status"
-
-				var bundle fleet.Bundle
-				Eventually(func() int {
-					bundle = getBundle(bundleName, k)
-					return bundle.Status.Summary.Ready
-				}).Should(Equal(1), fmt.Sprintf("Summary: %+v", bundle.Status.Summary))
-			})
-		})
 	})
 })
 
