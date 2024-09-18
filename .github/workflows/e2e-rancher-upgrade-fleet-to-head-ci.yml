@@ -61,37 +61,44 @@ jobs:
     runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
 
     steps:
-      - name: Add paths into PATH
+      -
+        name: Add paths into PATH
         run: |
           export PATH=~/.local/bin:$PATH
           mkdir -p ~/.local/bin
 
-      - name: Checkout
+      -
+        name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
 
-      - name: Install Go
+      -
+        name: Install Go
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
 
-      - name: Install Ginkgo CLI
+      -
+        name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
 
-      - name: Install crust-gather CLI
+      -
+        name: Install crust-gather CLI
         run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
 
-      - name: Set up build cache
+      -
+        name: Set up build cache
         uses: actions/cache@v4
         id: rancher-cli-cache
         with:
           path: ~/.local/bin
           key: ${{ runner.os }}-rancher-cli
 
-      - name: Install Dependencies
+      -
+        name: Install Dependencies
         run: |
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           mv kubectl ~/.local/bin/
@@ -105,7 +112,8 @@ jobs:
 
           sudo apt-get update && sudo apt install -y wget
 
-      - name: Install Rancher CLI
+      -
+        name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
           latest_version=$(curl -ILs -o /dev/null -w %{url_effective} github.com/rancher/cli/releases/latest | sed 's,.*/,,')
@@ -115,7 +123,8 @@ jobs:
           export PATH=~/.local/bin:$PATH
           rancher --version
 
-      - name: Set up k3d control-plane cluster
+      -
+        name: Set up k3d control-plane cluster
         uses: AbsaOSS/k3d-action@v2
         with:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
@@ -130,7 +139,8 @@ jobs:
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
 
-      - name: Set up k3d downstream cluster
+      -
+        name: Set up k3d downstream cluster
         uses: AbsaOSS/k3d-action@v2
         with:
           k3d-version: ${{ env.SETUP_K3D_VERSION }}
@@ -145,14 +155,16 @@ jobs:
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
 
-      - name: Set Up Tmate Debug Session
+      -
+        name: Set Up Tmate Debug Session
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
         uses: mxschmitt/action-tmate@v3
         timeout-minutes: 15
         with:
           limit-access-to-actor: true
 
-      - name: Set up latest Rancher
+      -
+        name: Set up latest Rancher
         run: |
           set -x
 
@@ -201,7 +213,8 @@ jobs:
 
           helm list -A
 
-      - name: Register Rancher's downstream clusters
+      -
+        name: Register Rancher's downstream clusters
         run: |
           ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
@@ -224,7 +237,8 @@ jobs:
           until kubectl get bundles -n fleet-local test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
           until kubectl get bundles -n fleet-default test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
 
-      - name: E2E tests for examples
+      -
+        name: E2E tests for examples
         env:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
@@ -232,13 +246,15 @@ jobs:
           kubectl config use-context k3d-upstream
           ginkgo --github-output e2e/multi-cluster
 
-      - name: Dump Failed Downstream Environment
+      -
+        name: Dump Failed Downstream Environment
         if: failure()
         run: |
           kubectl config use-context k3d-downstream
           crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/downstream
 
-      - name: Upload logs
+      -
+        name: Upload logs
         uses: actions/upload-artifact@v4
         if: failure()
         with:
