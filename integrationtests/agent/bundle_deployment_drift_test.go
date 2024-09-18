@@ -182,7 +182,6 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			It("Corrects drift", func() {
 				By("Receiving a modification on a deployment")
 				dpl := appsv1.Deployment{}
-				GinkgoWriter.Print(fmt.Sprintf("Looking for deployment in namespace %q", namespace))
 				nsn := types.NamespacedName{
 					Namespace: namespace,
 					Name:      "drift-dummy-deployment",
@@ -270,6 +269,8 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			})
 		})
 
+		// Helm rollback uses three-way merge by default (without force), which fails when trying to rollback a
+		// change made on an item in the ports array.
 		Context("Drift correction fails", func() {
 			BeforeEach(func() {
 				namespace = createNamespace()
@@ -305,6 +306,33 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					)
 					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
+
+				By("Correcting drift once drift correction is set to force")
+				nsn := types.NamespacedName{Namespace: clusterNS, Name: name}
+				bd := v1alpha1.BundleDeployment{}
+
+				err = k8sClient.Get(ctx, nsn, &bd, &client.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				patchedBD := bd.DeepCopy()
+				patchedBD.Spec.Options.CorrectDrift.Force = true
+				Expect(k8sClient.Patch(ctx, patchedBD, client.MergeFrom(&bd))).NotTo(HaveOccurred())
+
+				Eventually(func(g Gomega) {
+					err = k8sClient.Get(ctx, nsn, &bd, &client.GetOptions{})
+					g.Expect(err).ToNot(HaveOccurred())
+
+					svc, err := env.getService(svcName)
+					g.Expect(err).NotTo(HaveOccurred())
+
+					g.Expect(svc.Spec.Ports).ToNot(BeEmpty())
+					g.Expect(svc.Spec.Ports[0].Port).Should(Equal(80))
+					g.Expect(svc.Spec.Ports[0].TargetPort).Should(Equal(9376))
+					g.Expect(svc.Spec.Ports[0].Name).Should(Equal("myport"))
+				})
+
+				By("Updating the bundle deployment status to be ready and not modified")
+				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 	})
