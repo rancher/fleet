@@ -1,9 +1,9 @@
-package name_test
+package names_test
 
 import (
 	"fmt"
 
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -36,7 +36,7 @@ var _ = Describe("Name", func() {
 
 		It("matches expected results", func() {
 			for _, t := range tests {
-				r := name.Limit(t.arg, t.n)
+				r := names.Limit(t.arg, t.n)
 				Expect(r).To(Equal(t.result), fmt.Sprintf("%#v", t))
 			}
 		})
@@ -58,7 +58,7 @@ var _ = Describe("Name", func() {
 
 		It("matches expected results", func() {
 			for _, t := range tests {
-				r := name.HelmReleaseName(t.arg)
+				r := names.HelmReleaseName(t.arg)
 				Expect(r).To(Equal(t.result), fmt.Sprintf("%#v", t))
 			}
 		})

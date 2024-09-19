@@ -16,7 +16,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
@@ -202,7 +202,7 @@ func (h *handler) updateClusterStatus(cluster *fleet.Cluster, status fleet.Clust
 
 func (h *handler) resolveNS(namespace, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if cluster, ok := obj.(*fleet.Cluster); ok {
-		if _, err := h.bundleCache.Get(namespace, name.SafeConcatName(AgentBundleName, cluster.Name)); err != nil {
+		if _, err := h.bundleCache.Get(namespace, names.SafeConcatName(AgentBundleName, cluster.Name)); err != nil {
 			return []relatedresource.Key{{Name: namespace}}, nil
 		}
 	}
@@ -280,7 +280,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 
 	return &fleet.Bundle{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name.SafeConcatName(AgentBundleName, cluster.Name),
+			Name:      names.SafeConcatName(AgentBundleName, cluster.Name),
 			Namespace: ns,
 		},
 		Spec: fleet.BundleSpec{

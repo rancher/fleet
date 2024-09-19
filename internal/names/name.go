@@ -1,5 +1,5 @@
-// Package name provides functions for truncating and hashing strings and for generating valid k8s resource names.
-package name
+// Package names provides functions for truncating and hashing strings and for generating valid k8s resource names.
+package names
 
 import (
 	"crypto/md5" // nolint:gosec // Non-crypto use

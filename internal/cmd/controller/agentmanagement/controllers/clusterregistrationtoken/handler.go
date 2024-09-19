@@ -11,7 +11,7 @@ import (
 
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
@@ -75,7 +75,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 	logrus.Debugf("Cluster registration token '%s/%s', creating import service account, roles and secret", token.Namespace, token.Name)
 
 	var (
-		saName  = name.SafeConcatName(token.Name, string(token.UID))
+		saName  = names.SafeConcatName(token.Name, string(token.UID))
 		secrets []runtime.Object
 	)
 	status.SecretName = ""
@@ -144,7 +144,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		},
 		&rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      name.SafeConcatName(saName, "role"),
+				Name:      names.SafeConcatName(saName, "role"),
 				Namespace: token.Namespace,
 				Labels: map[string]string{
 					fleet.ManagedLabel: "true",
@@ -160,7 +160,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		},
 		&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      name.SafeConcatName(saName, "to", "role"),
+				Name:      names.SafeConcatName(saName, "to", "role"),
 				Namespace: token.Namespace,
 				Labels: map[string]string{
 					fleet.ManagedLabel: "true",
@@ -176,12 +176,12 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
 				Kind:     "Role",
-				Name:     name.SafeConcatName(saName, "role"),
+				Name:     names.SafeConcatName(saName, "role"),
 			},
 		},
 		&rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      name.SafeConcatName(saName, "creds"),
+				Name:      names.SafeConcatName(saName, "creds"),
 				Namespace: h.systemRegistrationNamespace,
 			},
 			Rules: []rbacv1.PolicyRule{
@@ -194,7 +194,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 		},
 		&rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      name.SafeConcatName(saName, "creds"),
+				Name:      names.SafeConcatName(saName, "creds"),
 				Namespace: h.systemRegistrationNamespace,
 			},
 			Subjects: []rbacv1.Subject{
@@ -207,7 +207,7 @@ func (h *handler) OnChange(token *fleet.ClusterRegistrationToken, status fleet.C
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
 				Kind:     "Role",
-				Name:     name.SafeConcatName(saName, "creds"),
+				Name:     names.SafeConcatName(saName, "creds"),
 			},
 		},
 	}, secrets...), status, nil

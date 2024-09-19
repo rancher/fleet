@@ -17,7 +17,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/metrics"
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ociwrapper"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetevent "github.com/rancher/fleet/pkg/event"
@@ -351,7 +351,7 @@ func (r *GitJobReconciler) addGitRepoFinalizer(ctx context.Context, nsName types
 
 func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
 	// No update needed, values are the same. So we ignore AlreadyExists.
-	saName := name.SafeConcatName("git", gitrepo.Name)
+	saName := names.SafeConcatName("git", gitrepo.Name)
 	sa := grutil.NewServiceAccount(gitrepo.Namespace, saName)
 	if err := controllerutil.SetControllerReference(gitrepo, sa, r.Scheme); err != nil {
 		return err
@@ -487,7 +487,7 @@ func generationChanged(r *v1alpha1.GitRepo) bool {
 }
 
 func jobName(obj *v1alpha1.GitRepo) string {
-	return name.SafeConcatName(obj.Name, name.Hex(obj.Spec.Repo+obj.Status.Commit, 5))
+	return names.SafeConcatName(obj.Name, names.Hex(obj.Spec.Repo+obj.Status.Commit, 5))
 }
 
 func caBundleName(obj *v1alpha1.GitRepo) string {
@@ -644,7 +644,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		}
 	}
 
-	saName := name.SafeConcatName("git", gitrepo.Name)
+	saName := names.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
 	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled())
 
