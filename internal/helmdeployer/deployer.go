@@ -12,7 +12,7 @@ import (
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 
-	name2 "github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -119,7 +119,7 @@ func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 	// releaseName has a limit of 53 in helm https://github.com/helm/helm/blob/main/pkg/action/install.go#L58
 	// fleet apply already produces valid names, but we need to make sure
 	// that bundles from other sources are valid
-	return timeout, ns, name2.HelmReleaseName(bundleID)
+	return timeout, ns, names.HelmReleaseName(bundleID)
 }
 
 func (h *Helm) getCfg(ctx context.Context, namespace, serviceAccountName string) (action.Configuration, error) {

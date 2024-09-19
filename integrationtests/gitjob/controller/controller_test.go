@@ -24,7 +24,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -86,7 +86,7 @@ var _ = Describe("GitJob controller", func() {
 				if err != nil {
 					return err
 				}
-				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
 
@@ -101,7 +101,7 @@ var _ = Describe("GitJob controller", func() {
 
 			// it should create RBAC resources for that gitRepo
 			Eventually(func(g Gomega) {
-				saName := name.SafeConcatName("git", gitRepo.Name)
+				saName := names.SafeConcatName("git", gitRepo.Name)
 				ns := types.NamespacedName{Name: saName, Namespace: gitRepo.Namespace}
 
 				var sa corev1.ServiceAccount
@@ -316,7 +316,7 @@ var _ = Describe("GitJob controller", func() {
 				By("verifying that the job is deleted if Spec.Generation changed")
 				Expect(simulateIncreaseGitRepoGeneration(gitRepo)).ToNot(HaveOccurred())
 				Eventually(func() bool {
-					jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+					jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 					return errors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job))
 				}).Should(BeTrue())
 			})
@@ -337,7 +337,7 @@ var _ = Describe("GitJob controller", func() {
 
 			By("creating a Job")
 			Eventually(func() error {
-				jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
 		})
@@ -350,7 +350,7 @@ var _ = Describe("GitJob controller", func() {
 				const newCommit = "9ca3a0adbbba32"
 				expectedCommit = newCommit
 				Eventually(func() error {
-					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+newCommit, 5))
+					jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+newCommit, 5))
 					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 				}).Should(Not(HaveOccurred()))
 			})
@@ -370,7 +370,7 @@ var _ = Describe("GitJob controller", func() {
 			gitRepo = createGitRepo(gitRepoName)
 			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
 			Eventually(func() error {
-				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
 			// store the generation value to compare against later
@@ -443,7 +443,7 @@ var _ = Describe("GitJob controller", func() {
 			gitRepo = createGitRepo(gitRepoName)
 			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
 			Eventually(func() error {
-				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
 
@@ -488,7 +488,7 @@ var _ = Describe("GitJob controller", func() {
 
 			By("Creating a job")
 			Eventually(func() error {
-				jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+stableCommit, 5))
+				jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+stableCommit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
 		})
@@ -558,7 +558,7 @@ var _ = Describe("GitJob controller", func() {
 
 			It("doesn't create RBAC resources", func() {
 				Consistently(func() bool {
-					saName := name.SafeConcatName("git", gitRepo.Name)
+					saName := names.SafeConcatName("git", gitRepo.Name)
 					ns := types.NamespacedName{Name: saName, Namespace: gitRepo.Namespace}
 
 					if err := k8sClient.Get(ctx, ns, &corev1.ServiceAccount{}); !errors.IsNotFound(err) {
@@ -576,7 +576,7 @@ var _ = Describe("GitJob controller", func() {
 
 			It("doesn't create the job", func() {
 				Consistently(func() bool {
-					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+					jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 					newJob := &batchv1.Job{}
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepo.Namespace}, newJob)
 					return errors.IsNotFound(err)
@@ -597,7 +597,7 @@ var _ = Describe("GitJob controller", func() {
 
 			It("doesn't create RBAC resources", func() {
 				Consistently(func() bool {
-					saName := name.SafeConcatName("git", gitRepo.Name)
+					saName := names.SafeConcatName("git", gitRepo.Name)
 					ns := types.NamespacedName{Name: saName, Namespace: gitRepo.Namespace}
 
 					if err := k8sClient.Get(ctx, ns, &corev1.ServiceAccount{}); !errors.IsNotFound(err) {
@@ -615,7 +615,7 @@ var _ = Describe("GitJob controller", func() {
 
 			It("doesn't create the job", func() {
 				Consistently(func() bool {
-					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
+					jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 					newJob := &batchv1.Job{}
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepo.Namespace}, newJob)
 					return errors.IsNotFound(err)

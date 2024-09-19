@@ -6,7 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
@@ -99,10 +99,10 @@ func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relate
 // for a given cluster name, e.g.:
 // "cluster-fleet-local-cluster-294db1acfa77-d9ccf852678f"
 func clusterNamespace(clusterNamespace, clusterName string) string {
-	return name.SafeConcatName("cluster",
+	return names.SafeConcatName("cluster",
 		clusterNamespace,
 		clusterName,
-		name.KeyHash(clusterNamespace+"::"+clusterName))
+		names.KeyHash(clusterNamespace+"::"+clusterName))
 }
 
 func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {

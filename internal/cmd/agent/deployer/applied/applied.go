@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
 
@@ -23,12 +23,12 @@ func GetSetID(bundleID, labelPrefix, labelSuffix string) string {
 		if labelSuffix == "" {
 			return config.AgentBootstrapConfigName
 		}
-		return name.SafeConcatName(config.AgentBootstrapConfigName, labelSuffix)
+		return names.SafeConcatName(config.AgentBootstrapConfigName, labelSuffix)
 	}
 	if labelSuffix != "" {
-		return name.SafeConcatName(labelPrefix, bundleID, labelSuffix)
+		return names.SafeConcatName(labelPrefix, bundleID, labelSuffix)
 	}
-	return name.SafeConcatName(labelPrefix, bundleID)
+	return names.SafeConcatName(labelPrefix, bundleID)
 }
 
 // GetLabelsAndAnnotations returns the labels and annotations, like

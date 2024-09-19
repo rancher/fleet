@@ -18,7 +18,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -179,7 +179,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 }
 
 func (i *importHandler) deleteOldAgentBundle(cluster *fleet.Cluster) error {
-	if err := i.bundleClient.Delete(cluster.Namespace, name.SafeConcatName(manageagent.AgentBundleName, cluster.Name), nil); err != nil {
+	if err := i.bundleClient.Delete(cluster.Namespace, names.SafeConcatName(manageagent.AgentBundleName, cluster.Name), nil); err != nil {
 		return err
 	}
 	i.namespaceController.Enqueue(cluster.Namespace)
@@ -271,7 +271,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	setID := applied.GetSetID(config.AgentBootstrapConfigName, "", cluster.Spec.AgentNamespace)
 	apply = apply.WithDynamicLookup().WithSetID(setID).WithNoDeleteGVK(fleetns.GVK())
 
-	tokenName := name.SafeConcatName(ImportTokenPrefix + cluster.Name)
+	tokenName := names.SafeConcatName(ImportTokenPrefix + cluster.Name)
 	token, err := i.tokens.Get(cluster.Namespace, tokenName)
 	if err != nil {
 		// ignore error

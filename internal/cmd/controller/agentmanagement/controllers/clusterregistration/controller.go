@@ -14,7 +14,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/resources"
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/registration"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
@@ -197,7 +197,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		}
 	}
 
-	saName := name.SafeConcatName(request.Name, string(request.UID))
+	saName := names.SafeConcatName(request.Name, string(request.UID))
 	sa, err := h.serviceAccountCache.Get(cluster.Status.Namespace, saName)
 	if err != nil && apierrors.IsNotFound(err) {
 		// create request service account if missing
@@ -311,7 +311,7 @@ func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.Clus
 		// starts
 		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name.SafeConcatName(request.Name, "content"),
+				Name: names.SafeConcatName(request.Name, "content"),
 				Labels: map[string]string{
 					fleet.ManagedLabel: "true",
 				},
@@ -348,7 +348,7 @@ func (h *handler) createOrGetCluster(request *fleet.ClusterRegistration) (*fleet
 		return nil, err
 	}
 
-	clusterName := name.SafeConcatName("cluster", name.KeyHash(request.Spec.ClientID))
+	clusterName := names.SafeConcatName("cluster", names.KeyHash(request.Spec.ClientID))
 	if cluster, err := h.clusterCache.Get(request.Namespace, clusterName); !apierrors.IsNotFound(err) {
 		if cluster.Spec.ClientID != request.Spec.ClientID {
 			// This would happen with a hash collision

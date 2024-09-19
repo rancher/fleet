@@ -1,4 +1,4 @@
-package name
+package names
 
 import (
 	"crypto/sha256"

@@ -18,7 +18,7 @@ import (
 	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/fleetyaml"
 	"github.com/rancher/fleet/internal/manifest"
-	name2 "github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ociwrapper"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -216,7 +216,7 @@ func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options
 	// The bundleID is a valid helm release name, it's used as a default if a release name is not specified in helm options.
 	// It's also used to create the bundle name.
 	bundleID := filepath.Join(name, baseDir)
-	bundleID = name2.HelmReleaseName(bundleID)
+	bundleID = names.HelmReleaseName(bundleID)
 
 	bundle, scans, err := readBundle(ctx, bundleID, baseDir, opts)
 	if err != nil {

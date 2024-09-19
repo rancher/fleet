@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/internal/config"
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -61,7 +61,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 	clusterRole := []runtime.Object{
 		&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name.SafeConcatName(admin.Namespace, admin.Name, "role"),
+				Name: names.SafeConcatName(admin.Namespace, admin.Name, "role"),
 			},
 			Rules: []rbacv1.PolicyRule{
 				{
@@ -77,7 +77,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 		},
 		&rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name.SafeConcatName(admin.Namespace, admin.Name, "role", "binding"),
+				Name: names.SafeConcatName(admin.Namespace, admin.Name, "role", "binding"),
 			},
 			Subjects: []rbacv1.Subject{
 				{
@@ -89,7 +89,7 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: rbacv1.GroupName,
 				Kind:     "ClusterRole",
-				Name:     name.SafeConcatName(admin.Namespace, admin.Name, "role"),
+				Name:     names.SafeConcatName(admin.Namespace, admin.Name, "role"),
 			},
 		},
 	}

@@ -3,7 +3,7 @@ package grutil
 import (
 	"encoding/json"
 
-	"github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -31,10 +31,10 @@ func NewTargetsConfigMap(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 		return nil, err
 	}
 
-	hash := name.KeyHash(string(data))
+	hash := names.KeyHash(string(data))
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name.SafeConcatName(repo.Name, "config", hash),
+			Name:      names.SafeConcatName(repo.Name, "config", hash),
 			Namespace: repo.Namespace,
 		},
 		BinaryData: map[string][]byte{

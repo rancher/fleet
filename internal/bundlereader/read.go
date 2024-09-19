@@ -14,7 +14,7 @@ import (
 	"strconv"
 
 	"github.com/rancher/fleet/internal/fleetyaml"
-	fname "github.com/rancher/fleet/internal/name"
+	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/sirupsen/logrus"
@@ -162,7 +162,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 		scans = append(scans, &fleet.ImageScan{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: fname.SafeConcatName("imagescan", name, strconv.Itoa(i)),
+				Name: names.SafeConcatName("imagescan", name, strconv.Itoa(i)),
 			},
 			Spec: scan.ImageScanSpec,
 		})
