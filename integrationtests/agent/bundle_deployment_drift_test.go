@@ -315,9 +315,10 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				patchedBD := bd.DeepCopy()
-				patchedBD.Spec.Options.CorrectDrift.Force = true
+				patchedBD.Spec.CorrectDrift.Force = true
 				Expect(k8sClient.Patch(ctx, patchedBD, client.MergeFrom(&bd))).NotTo(HaveOccurred())
 
+				By("Restoring the service resource to its previous state")
 				Eventually(func(g Gomega) {
 					err = k8sClient.Get(ctx, nsn, &bd, &client.GetOptions{})
 					g.Expect(err).ToNot(HaveOccurred())
