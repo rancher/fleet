@@ -49,7 +49,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.27.0
 	golang.org/x/sync v0.8.0
-	gopkg.in/go-playground/webhooks.v5 v5.17.0
+	gopkg.in/go-playground/webhooks.v6 v6.4.0
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.16.1
