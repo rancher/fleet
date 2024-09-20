@@ -743,6 +743,7 @@ var _ = Describe("GitRepo Status Fields", func() {
 
 		It("updates the status fields", func() {
 			bundle := &v1alpha1.Bundle{}
+			By("Receiving a bundle update")
 			Eventually(func() error {
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
 				Expect(err).ToNot(HaveOccurred())
@@ -751,10 +752,13 @@ var _ = Describe("GitRepo Status Fields", func() {
 			}).ShouldNot(HaveOccurred())
 			Expect(bundle.Status.Summary.Ready).ToNot(Equal(1))
 
+			By("Updating the GitRepo status to not ready")
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: gitrepo.Name}, gitrepo)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(gitrepo.Status.Summary.Ready).To(Equal(0))
 
+			// This simulates what the bundle deployment reconciler would do.
+			By("Updating the Bundle deployment status to ready")
 			bd := &v1alpha1.BundleDeployment{}
 			Eventually(func() error {
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
@@ -768,6 +772,7 @@ var _ = Describe("GitRepo Status Fields", func() {
 				return k8sClient.Status().Update(ctx, bd)
 			}).ShouldNot(HaveOccurred())
 
+			By("Updating the GitRepo status to ready")
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
 				Expect(err).NotTo(HaveOccurred())
@@ -776,6 +781,18 @@ var _ = Describe("GitRepo Status Fields", func() {
 			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: gitrepo.Name}, gitrepo)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(gitrepo.Status.Summary.Ready).To(Equal(1))
+
+			By("Deleting a bundle")
+			err = k8sClient.Delete(ctx, bundle)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: gitrepo.Name}, gitrepo)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(gitrepo.Status.Summary.Ready).To(Equal(0))
+				g.Expect(gitrepo.Status.Summary.DesiredReady).To(Equal(0))
+				g.Expect(gitrepo.Status.Display.ReadyBundleDeployments).To(Equal("0/0"))
+			}).Should(Succeed())
 		})
 	})
 })

@@ -1,0 +1,21 @@
+# This deployment is meant to represent the bug at https://github.com/rancher/fleet/issues/2521
+# It includes:
+# - A spec field set to its default value (spec.publishNotReadyAddresses in this case)
+# - A non-empty "status", despite being a subresource and not modifiable by apply
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-status-test
+spec:
+  publishNotReadyAddresses: false
+  selector:
+    app.kubernetes.io/name: MyApp
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9376
+      name: myport
+status:
+  loadBalancer:
+    ingress:
+      - hostname: foo.bar
