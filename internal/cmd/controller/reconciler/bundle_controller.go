@@ -261,7 +261,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// DependsOn with the bundle's DependsOn (pure function) and replacing
 	// the labels with the bundle's labels
 	for _, target := range matchedTargets {
-		bd, err := r.createBundle(ctx, logger, target, contentsInOCI, manifestID)
+		bd, err := r.createBundleDeployment(ctx, logger, target, contentsInOCI, manifestID)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -310,7 +310,7 @@ func upper(op controllerutil.OperationResult) string {
 	}
 }
 
-func (r *BundleReconciler) createBundle(
+func (r *BundleReconciler) createBundleDeployment(
 	ctx context.Context,
 	logger logr.Logger,
 	target *target.Target,
