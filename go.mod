@@ -5,7 +5,7 @@ go 1.22.0
 toolchain go1.22.7
 
 replace (
-	github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
+	github.com/imdario/mergo => github.com/imdario/mergo v1.0.1
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
 )
 
