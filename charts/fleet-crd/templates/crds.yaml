@@ -275,7 +275,6 @@ spec:
                     helm:
                       description: Helm options for the deployment, like the chart
                         name, repo and values.
-                      nullable: true
                       properties:
                         atomic:
                           description: Atomic sets the --atomic flag when Helm is
@@ -622,7 +621,6 @@ spec:
                     helm:
                       description: Helm options for the deployment, like the chart
                         name, repo and values.
-                      nullable: true
                       properties:
                         atomic:
                           description: Atomic sets the --atomic flag when Helm is
@@ -1456,7 +1454,6 @@ spec:
                 helm:
                   description: Helm options for the deployment, like the chart name,
                     repo and values.
-                  nullable: true
                   properties:
                     atomic:
                       description: Atomic sets the --atomic flag when Helm is performing
@@ -2301,7 +2298,6 @@ spec:
                       helm:
                         description: Helm options for the deployment, like the chart
                           name, repo and values.
-                        nullable: true
                         properties:
                           atomic:
                             description: Atomic sets the --atomic flag when Helm is
@@ -6237,12 +6233,10 @@ spec:
                     authorEmail:
                       description: AuthorEmail gives the email to provide when making
                         a commit
-                      nullable: true
                       type: string
                     authorName:
                       description: AuthorName gives the name to provide when making
                         a commit
-                      nullable: true
                       type: string
                     messageTemplate:
                       description: 'MessageTemplate provides a template for the commit
@@ -6250,7 +6244,6 @@ spec:
 
                         into which will be interpolated the details of the change
                         made.'
-                      nullable: true
                       type: string
                   type: object
                 imageScanInterval:

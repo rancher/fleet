@@ -72,7 +72,7 @@ type BundleDeploymentOptions struct {
 	Kustomize *KustomizeOptions `json:"kustomize,omitempty"`
 
 	// Helm options for the deployment, like the chart name, repo and values.
-	// +nullable
+	// +optional
 	Helm *HelmOptions `json:"helm,omitempty"`
 
 	// ServiceAccount which will be used to perform this deployment.
@@ -98,6 +98,7 @@ type BundleDeploymentOptions struct {
 	DeleteNamespace bool `json:"deleteNamespace,omitempty"`
 
 	//IgnoreOptions can be used to ignore fields when monitoring the bundle.
+	// +optional
 	IgnoreOptions `json:"ignore,omitempty"`
 
 	// CorrectDrift specifies how drift correction should work.
