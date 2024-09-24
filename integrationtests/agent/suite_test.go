@@ -9,21 +9,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/rancher/fleet/internal/cmd/agent/controller"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
-	"github.com/rancher/fleet/internal/cmd/agent/trigger"
-	"github.com/rancher/fleet/internal/helmdeployer"
-	"github.com/rancher/fleet/internal/manifest"
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
-	"github.com/rancher/wrangler/v3/pkg/genericcondition"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -37,13 +26,25 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kubectl/pkg/scheme"
-
 	ctrl "sigs.k8s.io/controller-runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	"github.com/rancher/fleet/integrationtests/utils"
+	"github.com/rancher/fleet/internal/cmd/agent/controller"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
+	"github.com/rancher/fleet/internal/cmd/agent/trigger"
+	"github.com/rancher/fleet/internal/helmdeployer"
+	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 var (
@@ -160,8 +161,8 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 	Expect(err).ToNot(HaveOccurred())
 
 	monitor := monitor.New(
+		localClient,
 		applied,
-		mapper,
 		helmDeployer,
 		defaultNamespace,
 		agentScope,
@@ -282,6 +283,20 @@ func (se specEnv) getService(name string) (corev1.Service, error) {
 	return svc, nil
 }
 
+func (se specEnv) getConfigMap(name string) (corev1.ConfigMap, error) {
+	nsn := types.NamespacedName{
+		Namespace: se.namespace,
+		Name:      name,
+	}
+	cm := corev1.ConfigMap{}
+	err := k8sClient.Get(ctx, nsn, &cm)
+	if err != nil {
+		return corev1.ConfigMap{}, err
+	}
+
+	return cm, nil
+}
+
 func checkCondition(conditions []genericcondition.GenericCondition, conditionType string, status string, message string) bool {
 	for _, condition := range conditions {
 		if condition.Type == conditionType && string(condition.Status) == status && strings.Contains(condition.Message, message) {
@@ -290,4 +305,14 @@ func checkCondition(conditions []genericcondition.GenericCondition, conditionTyp
 	}
 
 	return false
+}
+
+func createNamespace() string {
+	namespace, err := utils.NewNamespaceName()
+	Expect(err).ToNot(HaveOccurred())
+
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
+	Expect(k8sClient.Create(context.Background(), ns)).ToNot(HaveOccurred())
+
+	return namespace
 }

@@ -62,9 +62,6 @@ var _ = Describe("Helm Chart uses Capabilities", Ordered, func() {
 
 		Expect(k8sClient.Create(context.Background(),
 			&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).ToNot(HaveOccurred())
-		DeferCleanup(func() {
-			Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: env.namespace}})).ToNot(HaveOccurred())
-		})
 	})
 
 	createBundle := func(env *specEnv, id string, name string) {

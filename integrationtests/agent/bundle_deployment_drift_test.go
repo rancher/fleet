@@ -6,9 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/rancher/fleet/integrationtests/utils"
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -19,6 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/rancher/fleet/integrationtests/utils"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 func init() {
