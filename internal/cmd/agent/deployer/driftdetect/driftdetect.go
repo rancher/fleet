@@ -130,12 +130,12 @@ func (d *DriftDetect) allResources(ctx context.Context, bd *fleet.BundleDeployme
 		ns = d.defaultNamespace
 	}
 
-	plan, err := d.desiredset.Plan(ctx, ns, desiredset.GetSetID(bd.Name, d.labelPrefix, d.labelSuffix), resources.Objects...)
+	plan, err := d.desiredset.PlanDelete(ctx, ns, desiredset.GetSetID(bd.Name, d.labelPrefix, d.labelSuffix), resources.Objects...)
 	if err != nil {
 		return nil, err
 	}
 
-	for gvk, keys := range plan.Delete {
+	for gvk, keys := range plan {
 		for _, key := range keys {
 			u := &unstructured.Unstructured{}
 			u.SetGroupVersionKind(gvk)

@@ -3,12 +3,11 @@ package desiredset
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"encoding/base64"
+	"fmt"
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 
 	data2 "github.com/rancher/fleet/internal/cmd/agent/deployer/data"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/data/convert"
@@ -20,11 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-)
-
-const (
-	LabelApplied = "objectset.rio.cattle.io/applied"
 )
 
 var (
@@ -161,9 +155,7 @@ func sanitizePatch(patch []byte, removeObjectSetAnnotation bool) ([]byte, error)
 	return json.Marshal(data)
 }
 
-func (o *desiredSet) applyPatch(ctx context.Context, gvk schema.GroupVersionKind, debugID string, oldObject, newObject runtime.Object) (bool, error) {
-	logger := log.FromContext(ctx).WithName("CompareObjects")
-
+func (o *desiredSet) applyPatch(logger logr.Logger, gvk schema.GroupVersionKind, oldObject, newObject runtime.Object) (bool, error) {
 	oldMetadata, err := meta.Accessor(oldObject)
 	if err != nil {
 		return false, err
@@ -181,7 +173,7 @@ func (o *desiredSet) applyPatch(ctx context.Context, gvk schema.GroupVersionKind
 
 	patch, err := doPatch(logger, gvk, modified, current)
 	if err != nil {
-		return false, errors.Wrap(err, "patch generation")
+		return false, fmt.Errorf("patch generation: %w", err)
 	}
 
 	if string(patch) == "{}" {
@@ -197,7 +189,7 @@ func (o *desiredSet) applyPatch(ctx context.Context, gvk schema.GroupVersionKind
 		return false, nil
 	}
 
-	logger.V(4).Info("DesiredSet - Looking at Patch", "gvk", gvk, "namespace", oldMetadata.GetNamespace(), "name", oldMetadata.GetName(), "debugID", debugID, "patch", string(patch), "modified", string(modified), "current", string(current))
+	logger.V(4).Info("DesiredSet - Looking at patch for fields", "patch", string(patch), "modified", string(modified), "current", string(current))
 
 	patch, err = sanitizePatch(patch, true)
 	if err != nil {
@@ -205,26 +197,18 @@ func (o *desiredSet) applyPatch(ctx context.Context, gvk schema.GroupVersionKind
 	}
 
 	if string(patch) != "{}" {
-		logger.V(1).Info("DesiredSet - Updated Plan", "gvk", gvk, "namespace", oldMetadata.GetNamespace(), "name", oldMetadata.GetName(), "debugID", debugID, "patch", string(patch))
-		o.plan.Update.Add(gvk, oldMetadata.GetNamespace(), oldMetadata.GetName(), string(patch))
+		o.plan.Update.Set(gvk, oldMetadata.GetNamespace(), oldMetadata.GetName(), string(patch))
+		logger.V(1).Info("DesiredSet - Updated plan with patch", "patch", string(patch))
 	}
 
 	return true, nil
 }
 
-func (o *desiredSet) compareObjects(ctx context.Context, gvk schema.GroupVersionKind, debugID string, oldObject, newObject runtime.Object) error {
-	logger := log.FromContext(ctx)
-	oldMetadata, err := meta.Accessor(oldObject)
-	if err != nil {
-		return err
-	}
-
-	o.plan.Objects = append(o.plan.Objects, oldObject)
-
-	if ran, err := o.applyPatch(ctx, gvk, debugID, oldObject, newObject); err != nil {
+func (o *desiredSet) compareObjects(logger logr.Logger, gvk schema.GroupVersionKind, oldObject runtime.Object, newObject runtime.Object) error {
+	if ran, err := o.applyPatch(logger, gvk, oldObject, newObject); err != nil {
 		return err
 	} else if !ran {
-		logger.V(1).Info("DesiredSet - No change", "gvk", gvk, "namespace", oldMetadata.GetNamespace(), "name", oldMetadata.GetName(), "debugID", debugID)
+		logger.V(1).Info("DesiredSet - No change")
 	}
 
 	return nil

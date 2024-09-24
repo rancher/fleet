@@ -4,12 +4,11 @@ import (
 	"context"
 	"crypto/sha1" // nolint:gosec // non crypto usage
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
-
-	"github.com/pkg/errors"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +21,7 @@ import (
 )
 
 const (
+	LabelApplied   = "objectset.rio.cattle.io/applied"
 	LabelID        = "objectset.rio.cattle.io/id"
 	LabelGVK       = "objectset.rio.cattle.io/owner-gvk"
 	LabelName      = "objectset.rio.cattle.io/owner-name"
@@ -71,7 +71,7 @@ func (o *desiredSet) apply(ctx context.Context) error {
 
 	labelSet, annotationSet, err := GetLabelsAndAnnotations(o.setID)
 	if err != nil {
-		return o.err(err)
+		return o.addErr(err)
 	}
 
 	rl := o.getRateLimit(labelSet[LabelHash])
@@ -86,19 +86,18 @@ func (o *desiredSet) apply(ctx context.Context) error {
 
 	objList, err := o.injectLabelsAndAnnotations(labelSet, annotationSet)
 	if err != nil {
-		return o.err(err)
+		return o.addErr(err)
 	}
 
 	objs := o.collect(objList)
 
-	debugID := o.debugID()
 	sel, err := getSelector(labelSet)
 	if err != nil {
-		return o.err(err)
+		return o.addErr(err)
 	}
 
 	for _, gvk := range o.objs.GVKOrder(o.knownGVK()...) {
-		o.process(ctx, debugID, sel, gvk, objs[gvk])
+		o.process(ctx, sel, gvk, objs[gvk])
 	}
 
 	return o.Err()
@@ -106,10 +105,6 @@ func (o *desiredSet) apply(ctx context.Context) error {
 
 func (o *desiredSet) knownGVK() (ret []schema.GroupVersionKind) {
 	return
-}
-
-func (o *desiredSet) debugID() string {
-	return o.setID
 }
 
 func (o *desiredSet) collect(objList []runtime.Object) objectset.ObjectByGVK {
@@ -136,7 +131,7 @@ func (o *desiredSet) injectLabelsAndAnnotations(labels, annotations map[string]s
 			obj = obj.DeepCopyObject()
 			meta, err := meta.Accessor(obj)
 			if err != nil {
-				return nil, errors.Wrapf(err, "failed to get metadata for %s", key)
+				return nil, fmt.Errorf("failed to get metadata for %s: %w", key, err)
 			}
 
 			setLabels(meta, labels)

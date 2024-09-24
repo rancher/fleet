@@ -71,7 +71,7 @@ func Diff(plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Obje
 				continue
 			}
 			// this will overwrite an existing entry in the Update map
-			plan.Update.Add(gvk, key.Namespace, key.Name, string(patch))
+			plan.Update.Set(gvk, key.Namespace, key.Name, string(patch))
 		}
 		if len(errs) > 0 {
 			return plan, merr.NewErrors(errs...)

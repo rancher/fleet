@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/desiredset"
 
 	corev1 "k8s.io/api/core/v1"
@@ -17,6 +18,13 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 
 	When("a pod changes", func() {
 		var pod *corev1.Pod
+		unchanged := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "default",
+			},
+			Data: map[string]string{},
+		}
 
 		BeforeEach(func() {
 			pod = &corev1.Pod{
@@ -32,11 +40,11 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 		})
 
 		It("reflects in the plan", func() {
-			plan, err := dsClient.Plan(ctx, "default", "set123", pod)
+			plan, err := dsClient.Plan(ctx, "default", "set123", pod, unchanged)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(plan.Create).To(HaveLen(1))
-			Expect(plan.Delete).To(HaveLen(1))
+			Expect(plan.Create).To(HaveLen(2))
+			Expect(plan.Delete).To(HaveLen(2))
 			Expect(plan.Update).To(HaveLen(0))
 			Expect(plan.Objects).To(HaveLen(0))
 
@@ -51,11 +59,11 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 					_ = k8sClient.Delete(context.Background(), pod)
 				})
 
-				plan, err = dsClient.Plan(ctx, "default", "set123", pod)
+				plan, err = dsClient.Plan(ctx, "default", "set123", pod, unchanged)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(plan.Create).To(HaveLen(1))
-				Expect(plan.Delete).To(HaveLen(1))
+				Expect(plan.Create).To(HaveLen(2))
+				Expect(plan.Delete).To(HaveLen(2))
 				Expect(plan.Update).To(HaveLen(0))
 				Expect(plan.Objects).To(HaveLen(1))
 			})
@@ -63,11 +71,11 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 			By("modifying the desired state", func() {
 				pod.Spec.Containers[0].Command = []string{"echo", "test"}
 
-				plan, err = dsClient.Plan(ctx, "default", "set123", pod)
+				plan, err = dsClient.Plan(ctx, "default", "set123", pod, unchanged)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(plan.Create).To(HaveLen(1))
-				Expect(plan.Delete).To(HaveLen(1))
+				Expect(plan.Create).To(HaveLen(2))
+				Expect(plan.Delete).To(HaveLen(2))
 				Expect(plan.Update).To(HaveLen(1))
 				Expect(plan.Objects).To(HaveLen(1))
 			})

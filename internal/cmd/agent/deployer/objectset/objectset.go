@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/pkg/errors"
-
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/merr"
 
 	"github.com/rancher/wrangler/v3/pkg/schemes"
@@ -110,13 +108,13 @@ func (o *ObjectSet) add(obj runtime.Object) {
 
 	gvk, err := o.objects.Add(obj)
 	if err != nil {
-		o.err(errors.Wrapf(err, "failed to add %T", obj))
+		o.err(fmt.Errorf("failed to add %T: %w", obj, err))
 		return
 	}
 
 	_, err = o.objectsByGK.add(obj)
 	if err != nil {
-		o.err(errors.Wrapf(err, "failed to add %T", obj))
+		o.err(fmt.Errorf("failed to add %T: %w", obj, err))
 		return
 	}
 
@@ -203,7 +201,7 @@ func getGVK(obj runtime.Object) (schema.GroupVersionKind, error) {
 
 	gvks, _, err := schemes.All.ObjectKinds(obj)
 	if err != nil {
-		return schema.GroupVersionKind{}, errors.Wrapf(err, "failed to find gvk for %T, you may need to import the wrangler generated controller package", obj)
+		return schema.GroupVersionKind{}, fmt.Errorf("failed to find gvk for %T, you may need to import the wrangler generated controller package: %w", obj, err)
 	}
 
 	if len(gvks) == 0 {

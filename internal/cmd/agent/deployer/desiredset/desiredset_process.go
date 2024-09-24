@@ -2,10 +2,11 @@ package desiredset
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 
-	"github.com/pkg/errors"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/merr"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
@@ -90,34 +91,34 @@ func (o *desiredSet) filterCrossVersion(gvk schema.GroupVersionKind, keys []obje
 	return result
 }
 
-func (o *desiredSet) process(ctx context.Context, debugID string, set labels.Selector, gvk schema.GroupVersionKind, objs objectset.ObjectByKey) {
+func (o *desiredSet) process(ctx context.Context, set labels.Selector, gvk schema.GroupVersionKind, objs objectset.ObjectByKey) {
 	controller, client, err := o.getControllerAndClient(gvk)
 	if err != nil {
-		_ = o.err(err)
+		_ = o.addErr(err)
 		return
 	}
 
 	nsed, err := o.client.clients.IsNamespaced(gvk)
 	if err != nil {
-		_ = o.err(err)
+		_ = o.addErr(err)
 		return
 	}
 
 	if nsed {
 		if err := o.adjustNamespace(objs); err != nil {
-			_ = o.err(err)
+			_ = o.addErr(err)
 			return
 		}
 	} else {
 		if err := o.clearNamespace(objs); err != nil {
-			_ = o.err(err)
+			_ = o.addErr(err)
 			return
 		}
 	}
 
 	existing, err := o.list(ctx, controller, client, set, objs)
 	if err != nil {
-		_ = o.err(errors.Wrapf(err, "failed to list %s for %s", gvk, debugID))
+		_ = o.addErr(fmt.Errorf("failed to list %s for %s: %w", gvk, o.setID, err))
 		return
 	}
 
@@ -129,10 +130,27 @@ func (o *desiredSet) process(ctx context.Context, debugID string, set labels.Sel
 	o.plan.Create[gvk] = toCreate
 	o.plan.Delete[gvk] = toDelete
 
+	// this is not needed for driftdetect.allResources, so PlanDelete exits early
+	if o.onlyDelete {
+		return
+	}
+
+	logger := log.FromContext(ctx).WithValues("setID", o.setID, "gvk", gvk)
 	for _, k := range toUpdate {
-		err := o.compareObjects(ctx, gvk, debugID, existing[k], objs[k])
+		oldObject := existing[k]
+		newObject := objs[k]
+
+		oldMetadata, err := meta.Accessor(oldObject)
 		if err != nil {
-			_ = o.err(errors.Wrapf(err, "failed to update %s %s for %s", k, gvk, debugID))
+			_ = o.addErr(fmt.Errorf("failed to update patch %s for %s, access meta: %w", gvk, o.setID, err))
+		}
+
+		o.plan.Objects = append(o.plan.Objects, oldObject)
+
+		logger := logger.WithValues("name", oldMetadata.GetName(), "namespace", oldMetadata.GetNamespace())
+		err = o.compareObjects(logger, gvk, oldObject, newObject)
+		if err != nil {
+			_ = o.addErr(fmt.Errorf("failed to update patch %s for %s: %w", gvk, o.setID, err))
 		}
 	}
 }

@@ -16,7 +16,7 @@ import (
 
 type PatchByGVK map[schema.GroupVersionKind]map[objectset.ObjectKey]string
 
-func (p PatchByGVK) Add(gvk schema.GroupVersionKind, namespace, name, patch string) {
+func (p PatchByGVK) Set(gvk schema.GroupVersionKind, namespace, name, patch string) {
 	d, ok := p[gvk]
 	if !ok {
 		d = map[objectset.ObjectKey]string{}
@@ -29,9 +29,19 @@ func (p PatchByGVK) Add(gvk schema.GroupVersionKind, namespace, name, patch stri
 }
 
 type Plan struct {
-	Create  objectset.ObjectKeyByGVK
-	Delete  objectset.ObjectKeyByGVK
-	Update  PatchByGVK
+	Create objectset.ObjectKeyByGVK
+
+	// Delete contains existing objects that are not in the desired state,
+	// unless their prune label is set to "false".
+	Delete objectset.ObjectKeyByGVK
+
+	// Update contains objects, already existing in the cluster, that have
+	// changes. The patch would restore their desired state, as represented
+	// in the helm manifest's resources passed into Plan(..., objs).
+	Update PatchByGVK
+
+	// Objects contains objects, already existing in the cluster, that have
+	// valid metadata
 	Objects []runtime.Object
 }
 
@@ -47,7 +57,15 @@ func New(config *rest.Config) (*Client, error) {
 // desired and live state. It needs a client.
 // This adds the "objectset.rio.cattle.io/applied" annotation, which is used for tracking changes.
 func (a *Client) Plan(ctx context.Context, defaultNS string, setID string, objs ...runtime.Object) (Plan, error) {
-	return newDesiredSet(a).dryRun(ctx, defaultNS, setID, objs...)
+	ds := newDesiredSet(a)
+	ds.setup(defaultNS, setID, objs...)
+	return ds.dryRun(ctx)
+}
+
+func (a *Client) PlanDelete(ctx context.Context, defaultNS string, setID string, objs ...runtime.Object) (objectset.ObjectKeyByGVK, error) {
+	ds := newDesiredSet(a)
+	ds.setup(defaultNS, setID, objs...)
+	return ds.dryRunDelete(ctx)
 }
 
 // GetSetID constructs a identifier from the provided args, bundleID "fleet-agent" is special
