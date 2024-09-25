@@ -69,10 +69,6 @@ spec:
         - name: CATTLE_DEV_MODE
           value: "true"
         {{- end }}
-        {{- if $.Values.controller.reconciler.workers.gitrepo }}
-        - name: GITREPO_RECONCILER_WORKERS
-          value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
-        {{- end }}
         {{- if $.Values.controller.reconciler.workers.bundle }}
         - name: BUNDLE_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.bundle }}
