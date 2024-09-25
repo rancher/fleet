@@ -99,9 +99,9 @@ controller:
   reconciler:
     # The number of workers that are allowed to each type of reconciler
     workers:
-      gitrepo: "1"
-      bundle: "1"
-      bundledeployment: "1"
+      gitrepo: "50"
+      bundle: "50"
+      bundledeployment: "50"
 
 # Extra environment variables passed to the fleet pods.
 # extraEnv:
