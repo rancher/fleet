@@ -170,6 +170,9 @@ type GitRepoStatus struct {
 	// Commit is the Git commit hash from the last git job run.
 	// +nullable
 	Commit string `json:"commit,omitempty"`
+	// WebhookCommit is the Git commit hash from the last git commit received from a webhook
+	// +nullable
+	WebhookCommit string `json:"webhookCommit,omitempty"`
 	// ReadyClusters is the lowest number of clusters that are ready over
 	// all the bundles of this GitRepo.
 	// +optional
