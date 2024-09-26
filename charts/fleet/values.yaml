@@ -96,6 +96,7 @@ propagateDebugSettingsToAgents: true
 
 migrations:
   clusterRegistrationCleanup: true
+  gitrepoJobsCleanup: true
 
 ## Leader election configuration
 leaderElection:
