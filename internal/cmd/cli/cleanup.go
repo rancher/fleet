@@ -16,20 +16,41 @@ import (
 
 // NewCleanup returns a subcommand to `cleanup` cluster registrations
 func NewCleanUp() *cobra.Command {
-	return command.Command(&CleanUp{}, cobra.Command{
-		Use:   "cleanup [flags]",
-		Short: "Clean up outdated cluster registrations",
+	cleanup := command.Command(&Cleanup{}, cobra.Command{
+		Short:         "Clean up outdated resources",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	})
+	cleanup.AddCommand(
+		NewClusterRegistration(),
+	)
+	return cleanup
+}
+
+func NewClusterRegistration() *cobra.Command {
+	return command.Command(&ClusterRegistration{}, cobra.Command{
+		Use:           "clusterregistration [flags]",
+		Short:         "Clean up outdated cluster registrations",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	})
 }
 
-type CleanUp struct {
+type Cleanup struct {
+}
+
+func (c *Cleanup) Run(cmd *cobra.Command, args []string) error {
+	return cmd.Help()
+}
+
+type ClusterRegistration struct {
 	FleetClient
 	Min    string `usage:"Minimum delay between deletes (default: 10ms)" name:"min"`
 	Max    string `usage:"Maximum delay between deletes (default: 5s)" name:"max"`
 	Factor string `usage:"Factor to increase delay between deletes (default: 1.1)" name:"factor"`
 }
 
-func (r *CleanUp) PersistentPre(_ *cobra.Command, _ []string) error {
+func (r *ClusterRegistration) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := r.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to set up debug logging: %w", err)
 	}
@@ -37,8 +58,9 @@ func (r *CleanUp) PersistentPre(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (a *CleanUp) Run(cmd *cobra.Command, args []string) error {
+func (a *ClusterRegistration) Run(cmd *cobra.Command, args []string) error {
 	var err error
+
 	min := 10 * time.Millisecond
 	if a.Min != "" {
 		min, err = time.ParseDuration(a.Min)
