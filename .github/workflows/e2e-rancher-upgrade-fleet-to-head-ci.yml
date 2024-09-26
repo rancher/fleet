@@ -1,9 +1,9 @@
-# Test fleet in Rancher with MC tests
-name: Test Fleet in Rancher
+# Upgrade fleet in latest Rancher to dev version and run MC tests
+name: E2E Upgrade Fleet in Rancher To HEAD
 
 on:
   schedule:
-    # Run everyday at 1:00 PM
+    # Run everyday day at 1:00 PM
     - cron:  '0 13 * * *'
   workflow_dispatch:
     inputs:
@@ -11,40 +11,6 @@ on:
         description: "checkout git branch/tag"
         required: true
         default: "main"
-        type: string
-      charts_repo:
-        description: Repository from which to source Fleet charts
-        default: "fleetrepoci/charts"
-        type: string
-      charts_branch:
-        description: Branch from which to source Fleet charts
-        type: string
-      fleet_version:
-        description: Fleet version to install in Rancher
-        type: string
-      enable_tmate:
-        description: Enable debugging via tmate
-        required: false
-        default: false
-        type: boolean
-  workflow_call:
-    # Variables to set when calling this reusable workflow
-    inputs:
-      ref:
-        description: "checkout git branch/tag"
-        required: true
-        default: "main"
-        type: string
-      charts_repo:
-        description: Repository from which to source Fleet charts
-        default: "fleetrepoci/charts"
-        type: string
-      charts_branch:
-        description: Branch from which to source Fleet charts
-        type: string
-      fleet_version:
-        description: Fleet version to install in Rancher
-        type: string
   push:
     tags: [ 'v*' ]
     paths-ignore:
@@ -57,72 +23,89 @@ env:
   SETUP_K3S_VERSION: 'v1.30.4-k3s1'
 
 jobs:
-  rancher-integration:
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
+  rancher-fleet-integration:
+    runs-on: ubuntu-latest
 
     steps:
       -
-        name: Add paths into PATH
-        run: |
-          export PATH=~/.local/bin:$PATH
-          mkdir -p ~/.local/bin
-
-      -
-        name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
-
       -
-        name: Install Go
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
-
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
-
       -
         name: Install crust-gather CLI
         run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
-
       -
-        name: Set up build cache
         uses: actions/cache@v4
         id: rancher-cli-cache
         with:
-          path: ~/.local/bin
-          key: ${{ runner.os }}-rancher-cli
-
-      -
-        name: Install Dependencies
-        run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          mv kubectl ~/.local/bin/
-          chmod +x ~/.local/bin/kubectl
-          kubectl version --client
-
-          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-          chmod 700 get_helm.sh
-          HELM_INSTALL_DIR=~/.local/bin ./get_helm.sh
-          helm version
-
-          sudo apt-get update && sudo apt install -y wget
-
+          path: /home/runner/.local/bin
+          key: ${{ runner.os }}-rancher-cli-2.6.0
       -
         name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
-          latest_version=$(curl -ILs -o /dev/null -w %{url_effective} github.com/rancher/cli/releases/latest | sed 's,.*/,,')
-
-          wget -q https://github.com/rancher/cli/releases/download/$latest_version/rancher-linux-amd64-$latest_version.tar.gz
-          tar -xz --strip-components=2 -f rancher-linux-amd64-$latest_version.tar.gz -C ~/.local/bin
-          export PATH=~/.local/bin:$PATH
+          # download an older CLI to avoid https://github.com/rancher/rancher/issues/37574
+          mkdir -p /home/runner/.local/bin
+          wget -q https://github.com/rancher/cli/releases/download/v2.6.0/rancher-linux-amd64-v2.6.0.tar.gz
+          tar -xz --strip-components=2 -f rancher-linux-amd64-v2.6.0.tar.gz -C /home/runner/.local/bin
           rancher --version
-
+      -
+        name: Build fleet binaries
+        run: |
+          ./.github/scripts/build-fleet-binaries.sh
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Get uuid
+        id: uuid
+        run: echo "::set-output name=uuid::$(uuidgen)"
+      -
+        id: meta-fleet
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ttl.sh/rancher/fleet-${{ steps.uuid.outputs.uuid }}
+          tags: type=raw,value=1h
+      -
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: package/Dockerfile
+          build-args: |
+            ARCH=${{ env.GOARCH }}
+          push: true
+          tags: ${{ steps.meta-fleet.outputs.tags }}
+          labels: ${{ steps.meta-fleet.outputs.labels }}
+      -
+        id: meta-fleet-agent
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ttl.sh/rancher/fleet-agent-${{ steps.uuid.outputs.uuid }}
+          tags: type=raw,value=1h
+      -
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: package/Dockerfile.agent
+          build-args: |
+            ARCH=${{ env.GOARCH }}
+          push: true
+          tags: ${{ steps.meta-fleet-agent.outputs.tags }}
+          labels: ${{ steps.meta-fleet-agent.outputs.labels }}
       -
         name: Set up k3d control-plane cluster
         uses: AbsaOSS/k3d-action@v2
@@ -138,7 +121,6 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
-
       -
         name: Set up k3d downstream cluster
         uses: AbsaOSS/k3d-action@v2
@@ -154,73 +136,17 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
             --network "nw01"
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
-
-      -
-        name: Set Up Tmate Debug Session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
-
       -
         name: Set up latest Rancher
+        env:
+          public_hostname: "172.18.0.1.sslip.io"
         run: |
-          set -x
-
-          kubectl config use-context k3d-upstream
-
-          until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
-          ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-
-          helm repo add jetstack https://charts.jetstack.io
-          helm install cert-manager jetstack/cert-manager \
-            --namespace cert-manager \
-            --create-namespace \
-            --set crds.enabled=true \
-            --set extraArgs[0]=--enable-certificate-owner-ref=true
-
-          kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
-
-          helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
-          # set CATTLE_SERVER_URL and CATTLE_BOOTSTRAP_PASSWORD to get rancher out of "bootstrap" mode
-          helm upgrade rancher rancher-latest/rancher \
-            --install --wait \
-            --devel \
-            --create-namespace \
-            --namespace cattle-system \
-            --set replicas=1 \
-            --set hostname=$ip.sslip.io \
-            --set bootstrapPassword=admin \
-            --set agentTLSMode=system-store \
-            --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
-            --set "extraEnv[0].value=https://github.com/${{ inputs.charts_repo }}" \
-            --set "extraEnv[1].name=CATTLE_CHART_DEFAULT_BRANCH" \
-            --set "extraEnv[1].value=${{ inputs.charts_branch }}" \
-            --set "extraEnv[2].name=CATTLE_FLEET_VERSION" \
-            --set "extraEnv[2].value=${{ inputs.fleet_version }}" \
-            --set "extraEnv[3].name=CATTLE_SERVER_URL" \
-            --set "extraEnv[3].value=https://$ip.sslip.io" \
-
-          # wait for deployment of rancher
-          kubectl -n cattle-system rollout status deploy/rancher
-
-          # wait for rancher to create fleet namespace, deployment and controller
-          until kubectl get deployments -n cattle-fleet-system | grep -q "fleet"; do sleep 3; done
-          kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
-
-          until kubectl get bundles -n fleet-local | grep -q "fleet-agent-local.*1/1"; do sleep 3; done
-
-          helm list -A
-
+          ./.github/scripts/setup-latest-rancher.sh
       -
         name: Register Rancher's downstream clusters
+        env:
+          public_hostname: "172.18.0.1.sslip.io"
         run: |
-          ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-
-          export PATH=~/.local/bin:$PATH
-          export public_hostname=$ip.sslip.io
-
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
 
@@ -236,7 +162,11 @@ jobs:
           # wait for bundle ready
           until kubectl get bundles -n fleet-local test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
           until kubectl get bundles -n fleet-default test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
-
+      -
+        name: Deploy development fleet
+        run: |
+          echo "${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}"
+          ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh ${{ steps.meta-fleet.outputs.tags }} ${{ steps.meta-fleet-agent.outputs.tags }}
       -
         name: E2E tests for examples
         env:
@@ -245,14 +175,12 @@ jobs:
         run: |
           kubectl config use-context k3d-upstream
           ginkgo --github-output e2e/multi-cluster
-
       -
         name: Dump Failed Downstream Environment
         if: failure()
         run: |
           kubectl config use-context k3d-downstream
           crust-gather collect --exclude-namespace=kube-system --exclude-kind=Lease --duration=5s -f tmp/downstream
-
       -
         name: Upload logs
         uses: actions/upload-artifact@v4
