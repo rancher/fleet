@@ -1,7 +1,6 @@
 package cleanup
 
 import (
-	"context"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/cli/cleanup"
@@ -22,25 +21,29 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 
 	JustBeforeEach(func() {
 		for _, c := range clusters {
-			_, err := env.Fleet.Cluster().Create(&c)
+			c := c.DeepCopy()
+			err := k8sClient.Create(ctx, c)
 			Expect(err).NotTo(HaveOccurred())
 		}
 		for i := len(clusterregistrations) - 1; i >= 0; i-- {
 			cr := clusterregistrations[i]
-			r, err := env.Fleet.ClusterRegistration().Create(&cr)
+			tmp := &clusterregistrations[i]
+
+			err := k8sClient.Create(ctx, tmp)
 			Expect(err).NotTo(HaveOccurred())
-			r.Status.Granted = cr.Status.Granted
-			r.Status.ClusterName = cr.Status.ClusterName
-			_, err = env.Fleet.ClusterRegistration().UpdateStatus(r)
+
+			tmp.Status.Granted = cr.Status.Granted
+			tmp.Status.ClusterName = cr.Status.ClusterName
+			err = k8sClient.Status().Update(ctx, tmp)
 			Expect(err).NotTo(HaveOccurred())
+
 			// need to sleep, so resources have different creation times
 			time.Sleep(1 * time.Second)
 		}
 	})
 
 	act := func() error {
-		getter := getter{}
-		return cleanup.ClusterRegistrations(context.TODO(), &getter, options)
+		return cleanup.ClusterRegistrations(ctx, k8sClient, options)
 	}
 
 	When("cleaning up", func() {
@@ -50,13 +53,13 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cluster-1",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "cluster-2",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 				},
 			}
@@ -66,14 +69,14 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 				{ // kept, controller might not have seen it yet
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "empty-inflight",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{},
 				},
 				{ // kept, could be a new registration
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "empty-inflight-cluster-1",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{
 						ClusterName: "cluster-1",
@@ -82,7 +85,7 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 				{ // kept
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "granted-cluster-1",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{
 						Granted:     true,
@@ -92,7 +95,7 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 				{ // removed, cluster does not exist
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "granted-cluster-does-not-exist",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{
 						Granted:     true,
@@ -102,7 +105,7 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 				{ // removed, cluster does not exist
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "inflight-cluster-does-not-exist",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{
 						ClusterName: "cluster-does-not-exist-2",
@@ -111,7 +114,7 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 				{ // removed, cluster does not exist
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "granted-outdated-cluster-does-not-exist",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{
 						Granted:     true,
@@ -121,14 +124,14 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 				{ // kept, controller might not have seen it yet
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "empty-old",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{},
 				},
 				{ // kept, could an ongoing registration
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "inflight-cluster-2",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{
 						ClusterName: "cluster-2",
@@ -137,7 +140,7 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 				{ // removed, there is a newer one
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "granted-outdated-cluster-1",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{
 						Granted:     true,
@@ -147,7 +150,7 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 				{ // kept
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "granted-cluster-2",
-						Namespace: env.Namespace,
+						Namespace: namespace,
 					},
 					Status: fleetv1.ClusterRegistrationStatus{
 						Granted:     true,
@@ -160,7 +163,8 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 		It("deletes all resources and leaves most recent ones", func() {
 			Expect(act()).NotTo(HaveOccurred())
 
-			clusterList, err := env.Fleet.Cluster().List("", metav1.ListOptions{})
+			clusterList := &fleetv1.ClusterList{}
+			err := k8sClient.List(ctx, clusterList)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(clusterList.Items).To(HaveLen(2))
 
@@ -170,7 +174,10 @@ var _ = Describe("Fleet CLI cleanup", Ordered, func() {
 			}
 			Expect(clusters).To(ContainElements("cluster-1", "cluster-2"))
 
-			registrationList, _ := env.Fleet.ClusterRegistration().List("", metav1.ListOptions{})
+			registrationList := &fleetv1.ClusterRegistrationList{}
+			err = k8sClient.List(ctx, registrationList)
+			Expect(err).NotTo(HaveOccurred())
+
 			cregs := []string{}
 			for _, cr := range registrationList.Items {
 				cregs = append(cregs, cr.Name)
