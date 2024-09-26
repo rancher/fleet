@@ -228,14 +228,6 @@ jobs:
           sleep 30
 
           ./.github/scripts/label-downstream-cluster.sh
-      -
-        name: Create example workload
-        run: |
-          kubectl apply -n fleet-local -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
-          kubectl apply -n fleet-default -f e2e/assets/fleet-upgrade/gitrepo-simple.yaml
-          # wait for bundle ready
-          until kubectl get bundles -n fleet-local test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
-          until kubectl get bundles -n fleet-default test-simple-simple-chart -o=jsonpath='{.status.conditions[?(@.type=="Ready")].status}' | grep -q "True"; do sleep 3; done
 
       -
         name: E2E tests for examples
