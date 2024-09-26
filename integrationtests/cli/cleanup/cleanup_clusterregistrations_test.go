@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Fleet CLI cleanup", Ordered, func() {
+var _ = Describe("Fleet CLI clusterregistration cleanup", Ordered, func() {
 	var (
 		options              cleanup.Options
 		clusters             []fleetv1.Cluster

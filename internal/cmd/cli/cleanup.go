@@ -26,6 +26,7 @@ func NewCleanUp() *cobra.Command {
 	})
 	cleanup.AddCommand(
 		NewClusterRegistration(),
+		NewGitjob(),
 	)
 	return cleanup
 }
@@ -34,6 +35,15 @@ func NewClusterRegistration() *cobra.Command {
 	return command.Command(&ClusterRegistration{}, cobra.Command{
 		Use:           "clusterregistration [flags]",
 		Short:         "Clean up outdated cluster registrations",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	})
+}
+
+func NewGitjob() *cobra.Command {
+	return command.Command(&Gitjob{}, cobra.Command{
+		Use:           "gitjob [flags]",
+		Short:         "Clean up outdated git jobs",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	})
@@ -119,4 +129,37 @@ func (a *ClusterRegistration) Run(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Cleaning up outdated cluster registrations: %#v\n", opts)
 
 	return cleanup.ClusterRegistrations(ctx, client, opts)
+}
+
+type Gitjob struct {
+	FleetClient
+	BatchSize int `usage:"Number of git jobs to retrieve at once" name:"batch-size" default:"5000"`
+}
+
+func (r *Gitjob) PersistentPre(_ *cobra.Command, _ []string) error {
+	if err := r.SetupDebug(); err != nil {
+		return fmt.Errorf("failed to set up debug logging: %w", err)
+	}
+	Client = client.NewGetter(r.Kubeconfig, r.Context, r.Namespace)
+	return nil
+}
+
+func (r *Gitjob) Run(cmd *cobra.Command, args []string) error {
+	bs := r.BatchSize
+	if bs <= 1 {
+		return errors.New("factor must be greater than 1")
+	}
+
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
+
+	cfg := ctrl.GetConfigOrDie()
+	client, err := newClient(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Cleaning up outdated git jobs, batch size at %d\n", bs)
+
+	return cleanup.GitJobs(ctx, client, bs)
 }

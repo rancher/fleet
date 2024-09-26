@@ -2,6 +2,7 @@ package cleanup
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -47,7 +49,9 @@ func TestFleetCLICleanUp(t *testing.T) {
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
 	ctx, cancel = context.WithCancel(context.TODO())
-	// Debugging: ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
+	if os.Getenv("DEBUG") != "" {
+		ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
+	}
 	ctx = log.IntoContext(ctx, ctrl.Log)
 
 	testEnv = &envtest.Environment{
