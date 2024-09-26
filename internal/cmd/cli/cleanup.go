@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/rancher/fleet/internal/client"
 	command "github.com/rancher/fleet/internal/cmd"
@@ -104,7 +107,16 @@ func (a *ClusterRegistration) Run(cmd *cobra.Command, args []string) error {
 		Factor: factor,
 	}
 
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
+	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
+
+	cfg := ctrl.GetConfigOrDie()
+	client, err := newClient(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("Cleaning up outdated cluster registrations: %#v\n", opts)
 
-	return cleanup.ClusterRegistrations(cmd.Context(), Client, opts)
+	return cleanup.ClusterRegistrations(ctx, client, opts)
 }
