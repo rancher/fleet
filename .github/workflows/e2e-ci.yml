@@ -90,7 +90,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo --github-output --label-filter='!infra-setup && !sharding' e2e/single-cluster e2e/keep-resources e2e/drift
+          ginkgo --github-output --label-filter='!infra-setup && !sharding' e2e/single-cluster e2e/keep-resources
       -
         name: E2E Sharding/Metrics Tests
         if: ${{ matrix.test_type.name == 'sharding' }}

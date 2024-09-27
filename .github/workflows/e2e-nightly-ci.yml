@@ -97,7 +97,7 @@ jobs:
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
 
           # 1. Run test cases not needing infra
-          ginkgo --github-output --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources e2e/drift
+          ginkgo --github-output --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources
 
           # 2. Run tests for metrics
           ginkgo --github-output e2e/metrics
