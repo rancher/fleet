@@ -14,6 +14,7 @@ import (
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -75,7 +76,7 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels["fleet.cattle.io/commit"] = a.Commit
+		labels[fleet.CommitLabel] = a.Commit
 	}
 
 	name := ""

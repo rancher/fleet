@@ -92,16 +92,16 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var leaderElectionSuffix string
+	var shardIDSuffix string
 	if g.ShardID != "" {
-		leaderElectionSuffix = fmt.Sprintf("-%s", g.ShardID)
+		shardIDSuffix = fmt.Sprintf("-%s", g.ShardID)
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		Metrics:                 g.setupMetrics(),
 		LeaderElection:          g.EnableLeaderElection,
-		LeaderElectionID:        fmt.Sprintf("fleet-gitops-leader-election-shard%s", leaderElectionSuffix),
+		LeaderElectionID:        fmt.Sprintf("fleet-gitops-leader-election-shard%s", shardIDSuffix),
 		LeaderElectionNamespace: namespace,
 		LeaseDuration:           leaderOpts.LeaseDuration,
 		RenewDeadline:           leaderOpts.RenewDeadline,
@@ -133,7 +133,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		JobNodeSelector: g.ShardNodeSelector,
 		GitFetcher:      &git.Fetch{},
 		Clock:           reconciler.RealClock{},
-		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("gitjob-controller%s", g.ShardID)),
+		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
 	}
 
 	group, ctx := errgroup.WithContext(ctx)

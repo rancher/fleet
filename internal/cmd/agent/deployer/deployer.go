@@ -151,7 +151,7 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 		}
 	}
 
-	manifest.Commit = bd.Labels["fleet.cattle.io/commit"]
+	manifest.Commit = bd.Labels[fleet.CommitLabel]
 	resource, err := d.helm.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
 	if err != nil {
 		return "", err

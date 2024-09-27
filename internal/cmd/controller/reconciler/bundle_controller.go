@@ -131,6 +131,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	if bundle.Labels[fleet.RepoLabel] != "" {
+		logger = logger.WithValues(
+			"gitrepo", bundle.Labels[fleet.RepoLabel],
+			"commit", bundle.Labels[fleet.CommitLabel],
+		)
+	}
+
 	if !bundle.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
 			metrics.BundleCollector.Delete(req.Name, req.Namespace)
