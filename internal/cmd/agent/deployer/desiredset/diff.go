@@ -1,4 +1,4 @@
-package applied
+package desiredset
 
 import (
 	"encoding/json"
@@ -8,12 +8,10 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/diff"
 	argo "github.com/rancher/fleet/internal/cmd/agent/deployer/internal/normalizers"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/internal/resource"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/merr"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/normalizers"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/objectset"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
-	"github.com/rancher/wrangler/v3/pkg/apply"
-	"github.com/rancher/wrangler/v3/pkg/merr"
-	"github.com/rancher/wrangler/v3/pkg/objectset"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,7 +21,7 @@ import (
 // Diff factors the bundledeployment's bundle diff patches into the plan from
 // DryRun. This way, the status of the bundledeployment can be updated
 // accurately.
-func Diff(plan apply.Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (apply.Plan, error) {
+func Diff(plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Object) (Plan, error) {
 	desired := objectset.NewObjectSet(objs...).ObjectsByGVK()
 	live := objectset.NewObjectSet(plan.Objects...).ObjectsByGVK()
 
@@ -73,7 +71,7 @@ func Diff(plan apply.Plan, bd *fleet.BundleDeployment, ns string, objs ...runtim
 				continue
 			}
 			// this will overwrite an existing entry in the Update map
-			plan.Update.Add(gvk, key.Namespace, key.Name, string(patch))
+			plan.Update.Set(gvk, key.Namespace, key.Name, string(patch))
 		}
 		if len(errs) > 0 {
 			return plan, merr.NewErrors(errs...)

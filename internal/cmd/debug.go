@@ -48,7 +48,7 @@ func (c *DebugConfig) OverrideZapOpts(zopts *crzap.Options) *crzap.Options {
 	zopts.Development = c.Debug
 
 	if c.Debug && c.DebugLevel > 0 {
-		zopts.Level = zapcore.Level(c.DebugLevel * -1)
+		zopts.Level = zapcore.Level(c.DebugLevel * -1) //nolint:gosec // no risk, just debug level
 	}
 
 	return zopts

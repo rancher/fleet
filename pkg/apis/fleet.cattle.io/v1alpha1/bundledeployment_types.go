@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
-	"github.com/rancher/wrangler/v3/pkg/summary"
 )
 
 const BundleDeploymentResourceNamePlural = "bundledeployments"

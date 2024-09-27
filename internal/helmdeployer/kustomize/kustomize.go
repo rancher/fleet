@@ -3,11 +3,9 @@ package kustomize
 import (
 	"path/filepath"
 
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/data/convert"
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/manifest"
-
-	"github.com/rancher/wrangler/v3/pkg/data/convert"
-	"github.com/rancher/wrangler/v3/pkg/slice"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,6 +45,15 @@ func Process(m *manifest.Manifest, content []byte, dir string) ([]runtime.Object
 	return objs, true, err
 }
 
+func containsString(slice []string, item string) bool {
+	for _, j := range slice {
+		if j == item {
+			return true
+		}
+	}
+	return false
+}
+
 func modifyKustomize(f filesys.FileSystem, dir string) error {
 	file := filepath.Join(dir, KustomizeYAML)
 	fileBytes, err := f.ReadFile(file)
@@ -60,7 +67,7 @@ func modifyKustomize(f filesys.FileSystem, dir string) error {
 	}
 
 	resources := convert.ToStringSlice(data["resources"])
-	if slice.ContainsString(resources, ManifestsYAML) {
+	if containsString(resources, ManifestsYAML) {
 		return nil
 	}
 

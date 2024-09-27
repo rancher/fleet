@@ -10,7 +10,8 @@ import (
 	"helm.sh/helm/v3/pkg/storage/driver"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/rancher/wrangler/v3/pkg/kv"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
+
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 )
 

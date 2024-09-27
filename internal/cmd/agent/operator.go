@@ -7,8 +7,8 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/agent/controller"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/applied"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/desiredset"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/internal/cmd/agent/register"
@@ -212,13 +212,13 @@ func newReconciler(
 	if err != nil {
 		return nil, err
 	}
-	applied, err := applied.NewWithClient(localConfig)
+	ds, err := desiredset.New(localConfig)
 	if err != nil {
 		return nil, err
 	}
 	monitor := monitor.New(
 		localClient,
-		applied,
+		ds,
 		helmDeployer,
 		defaultNamespace,
 		agentScope,
@@ -230,7 +230,7 @@ func newReconciler(
 		trigger,
 		upstreamClient,
 		mgr.GetAPIReader(),
-		applied,
+		ds,
 		defaultNamespace,
 		defaultNamespace,
 		agentScope,
