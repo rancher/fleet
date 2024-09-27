@@ -85,15 +85,13 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// The Reconcile function compares the state specified by
-// the BundleDeployment object against the actual cluster state, and then
-// performs operations to make the cluster state reflect the state specified by
-// the user.
+// Reconcile compares the state specified by the BundleDeployment object
+// against the actual state, and decides if the bundle should be deployed.
+// The deployed resources are then monitored for drift.
+// It also updates the status of the BundleDeployment object with the results.
 //
 // For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.0/pkg/reconcile
 func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("bundledeployment")
 	ctx = log.IntoContext(ctx, logger)
@@ -149,7 +147,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	if monitor.ShouldUpdateStatus(bd) {
-		// update the bundledeployment status and check if we deploy an agent, or if we need to trigger drift correction
+		// update the bundledeployment status and check if we deploy an agent
 		status, err = r.Monitor.UpdateStatus(ctx, bd, resources)
 		if err != nil {
 			logger.Error(err, "Cannot monitor deployed bundle")
@@ -162,17 +160,6 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionMonitored))
 		}
 
-		// Run drift correction
-		if len(status.ModifiedStatus) > 0 && bd.Spec.CorrectDrift != nil && bd.Spec.CorrectDrift.Enabled {
-			if release, err := r.Deployer.RemoveExternalChanges(ctx, bd); err != nil {
-				merr = append(merr, fmt.Errorf("failed reconciling drift: %w", err))
-				// Propagate drift correction error to bundle deployment status.
-				monitor.Cond(fleetv1.BundleDeploymentConditionReady).SetError(&status, "", err)
-			} else {
-				bd.Status.Release = release
-			}
-		}
-
 		if len(bd.Status.ModifiedStatus) > 0 && monitor.ShouldRedeployAgent(bd) {
 			bd.Status.AppliedDeploymentID = ""
 			if err := r.Cleanup.OldAgent(ctx, status.ModifiedStatus); err != nil {
@@ -181,7 +168,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 
-	// update our mini controller, which watches deployed resources for drift
+	// update our driftdetect mini controller, which watches deployed resources for drift
 	err = r.DriftDetect.Refresh(ctx, req.String(), bd, resources)
 	if err != nil {
 		logger.V(1).Error(err, "Failed to refresh drift detection", "step", "drift")

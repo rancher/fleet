@@ -12,8 +12,8 @@ type Norm struct {
 }
 
 func (n Norm) Normalize(un *unstructured.Unstructured) error {
-	for _, normalizers := range n.normalizers {
-		if err := normalizers.Normalize(un); err != nil {
+	for _, normalizer := range n.normalizers {
+		if err := normalizer.Normalize(un); err != nil {
 			return err
 		}
 	}
