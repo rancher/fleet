@@ -10,6 +10,7 @@ func init() {
 }
 
 var (
+	CommitLabel          = "fleet.cattle.io/commit"
 	RepoLabel            = "fleet.cattle.io/repo-name"
 	BundleLabel          = "fleet.cattle.io/bundle-name"
 	BundleNamespaceLabel = "fleet.cattle.io/bundle-namespace"
