@@ -13,7 +13,6 @@ import (
 
 const (
 	metricPrefix  = "fleet"
-	commitLabel   = "fleet.cattle.io/commit"
 	repoNameLabel = "fleet.cattle.io/repo-name"
 )
 

@@ -223,7 +223,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	err = grutil.UpdateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
 	if err != nil {
-		logger.V(1).Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
+		logger.Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
 
 		return result(repoPolled, gitrepo), err
 	}
@@ -297,7 +297,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 }
 
 func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo) error {
-	logger.V(1).Info("Gitrepo deleted, deleting bundle, image scans")
+	logger.Info("Gitrepo deleted, deleting bundle, image scans")
 
 	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
 
