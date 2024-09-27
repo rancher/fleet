@@ -2,22 +2,25 @@ package cleanup
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/rancher/fleet/integrationtests/utils"
-	cliclient "github.com/rancher/fleet/internal/client"
-	"github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io"
-
-	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
-	"github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -28,24 +31,15 @@ const (
 )
 
 var (
-	cfg       *rest.Config
-	testEnv   *envtest.Environment
-	ctx       context.Context
-	cancel    context.CancelFunc
-	env       *cliclient.Client
+	cfg     *rest.Config
+	testEnv *envtest.Environment
+	ctx     context.Context
+	cancel  context.CancelFunc
+
+	namespace string
+	scheme    = runtime.NewScheme()
 	k8sClient client.Client
 )
-
-type getter struct {
-}
-
-func (g *getter) Get() (*cliclient.Client, error) {
-	return env, nil
-}
-
-func (g *getter) GetNamespace() string {
-	return ""
-}
 
 func TestFleetCLICleanUp(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -55,6 +49,11 @@ func TestFleetCLICleanUp(t *testing.T) {
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
 	ctx, cancel = context.WithCancel(context.TODO())
+	if os.Getenv("DEBUG") != "" {
+		ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
+	}
+	ctx = log.IntoContext(ctx, ctrl.Log)
+
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
 		ErrorIfCRDPathMissing: true,
@@ -65,11 +64,16 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	k8sClient, err = client.New(cfg, client.Options{})
+	// scheme for k8sClient
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	namespace, err := utils.NewNamespaceName()
+	// create a namespace
+	namespace, err = utils.NewNamespaceName()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient.Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -77,22 +81,6 @@ var _ = BeforeSuite(func() {
 		},
 	})).ToNot(HaveOccurred())
 
-	// set up clients
-	rbac, err := rbac.NewFactoryFromConfig(cfg)
-	Expect(err).ToNot(HaveOccurred())
-
-	fleet, err := fleet.NewFactoryFromConfig(cfg)
-	Expect(err).ToNot(HaveOccurred())
-
-	core, err := core.NewFactoryFromConfig(cfg)
-	Expect(err).ToNot(HaveOccurred())
-
-	env = &cliclient.Client{
-		Namespace: namespace,
-		RBAC:      rbac.Rbac().V1(),
-		Core:      core.Core().V1(),
-		Fleet:     fleet.Fleet().V1alpha1(),
-	}
 })
 
 var _ = AfterSuite(func() {
