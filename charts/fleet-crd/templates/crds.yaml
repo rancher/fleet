@@ -6891,8 +6891,8 @@ spec:
                   format: int64
                   type: integer
                 webhookCommit:
-                  description: WebhookCommit is the Git commit hash from the last
-                    git commit received from a webhook
+                  description: WebhookCommit is the latest Git commit hash received
+                    from a webhook
                   nullable: true
                   type: string
               type: object
