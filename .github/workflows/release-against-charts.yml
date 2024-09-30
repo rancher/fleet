@@ -2,10 +2,6 @@ name: Release Fleet against rancher/charts
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Branch to use for GitHub action workflow"
-        required: true
-        default: "main"
       charts_ref:
         description: "Submit PR against the following rancher/charts branch (e.g. dev-v2.7)"
         required: true
@@ -38,7 +34,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{github.event.inputs.ref}}
           path: fleet
       - name: Checkout rancher/charts
         uses: actions/checkout@v4
