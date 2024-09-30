@@ -15,9 +15,9 @@ bump_fleet_api() {
     go mod tidy
 }
 
-CHARTS_DIR=${CHARTS_DIR-"$(dirname -- "$0")/../../../rancher"}
+RANCHER_DIR=${RANCHER_DIR-"$(dirname -- "$0")/../../../rancher"}
 
-pushd "${CHARTS_DIR}" > /dev/null
+pushd "${RANCHER_DIR}" > /dev/null
 
 if [ ! -e ~/.gitconfig ]; then
     git config --global user.name "fleet-bot"
