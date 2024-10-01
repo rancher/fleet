@@ -61,13 +61,13 @@ var _ = Describe("GitJob controller", func() {
 			gitRepoName string
 			job         batchv1.Job
 			jobName     string
-			secretName  string
+			caBundle    []byte
 		)
 
 		JustBeforeEach(func() {
 			expectedCommit = commit
 			gitRepo = createGitRepo(gitRepoName)
-			gitRepo.Spec.CABundle = []byte("LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tZm9vLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=")
+			gitRepo.Spec.CABundle = caBundle
 
 			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
 			Eventually(func() string {
@@ -117,21 +117,55 @@ var _ = Describe("GitJob controller", func() {
 				g.Expect(k8sClient.Get(ctx, ns, &rb)).ToNot(HaveOccurred())
 				Expect(rb.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 			}).Should(Succeed())
+		})
 
-			// it should create a secret for the CA bundle
-			Eventually(func(g Gomega) {
-				secretName = fmt.Sprintf("%s-cabundle", gitRepoName)
+		When("a job is created without a specified CA bundle", func() {
+			BeforeEach(func() {
+				gitRepoName = "no-ca-bundle"
+				caBundle = nil
+			})
+
+			It("does not create a secret for the CA bundle", func() {
+				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 				var secret corev1.Secret
 
-				err := k8sClient.Get(ctx, ns, &secret)
-				g.Expect(err).ToNot(HaveOccurred())
-				Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+				Consistently(func(g Gomega) {
+					err := k8sClient.Get(ctx, ns, &secret)
 
-				data, ok := secret.Data["additional-ca.crt"]
-				g.Expect(ok).To(BeTrue())
-				g.Expect(data).To(Equal(gitRepo.Spec.CABundle))
-			}).Should(Succeed())
+					g.Expect(err).ToNot(BeNil())
+					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
+				}, time.Second*5, time.Second*1).Should(Succeed())
+			})
+		})
+
+		When("a job is created with a CA bundle", func() {
+			BeforeEach(func() {
+				gitRepoName = "with-ca-bundle"
+				caBundle = []byte("LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tZm9vLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=")
+			})
+
+			It("Creates a secret for the CA bundle", func() {
+				gitRepoOwnerRef := metav1.OwnerReference{
+					Kind:       "GitRepo",
+					APIVersion: "fleet.cattle.io/v1alpha1",
+					Name:       gitRepoName,
+				}
+
+				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
+				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
+				var secret corev1.Secret
+
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, ns, &secret)
+					g.Expect(err).ToNot(HaveOccurred())
+					Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+
+					data, ok := secret.Data["additional-ca.crt"]
+					g.Expect(ok).To(BeTrue())
+					g.Expect(data).To(Equal(gitRepo.Spec.CABundle))
+				}).Should(Succeed())
+			})
 		})
 
 		When("a job completes successfully", func() {
