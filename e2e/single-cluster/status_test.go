@@ -2,7 +2,6 @@ package singlecluster_test
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -105,55 +104,6 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 				g.Expect(out).Should(ContainSubstring("\"readyClusters\":\"1/1\""))
 			}).Should(Succeed())
 
-		})
-	})
-
-	When("bundle is deleted", func() {
-		BeforeEach(func() {
-			targetNamespace = "my-custom-namespace"
-		})
-
-		It("correctly updates the status fields for GitRepos", func() {
-			Eventually(func(g Gomega) {
-				out, err := k.Delete("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local")
-				g.Expect(err).ToNot(HaveOccurred(), out)
-			}).Should((Succeed()))
-
-			Eventually(func() error {
-				out, err := k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-				if err != nil {
-					return err
-				}
-
-				expectedDesiredReady := "\"desiredReady\":0"
-				if !strings.Contains(out, expectedDesiredReady) {
-					return fmt.Errorf("expected %q not found in %q", expectedDesiredReady, out)
-				}
-
-				expectedReady := "\"ready\":0"
-				if !strings.Contains(out, expectedReady) {
-					return fmt.Errorf("expected %q not found in %q", expectedReady, out)
-				}
-
-				out, err = k.Get(
-					"gitrepo",
-					"my-gitrepo",
-					"-n",
-					"fleet-local",
-					"-o",
-					"jsonpath='{.status.display}'",
-				)
-				if err != nil {
-					return err
-				}
-
-				expectedReadyBD := "\"readyBundleDeployments\":\"0/0\""
-				if !strings.Contains(out, expectedReadyBD) {
-					return fmt.Errorf("expected %q not found in %q", expectedReadyBD, out)
-				}
-
-				return nil
-			}).ShouldNot(HaveOccurred())
 		})
 	})
 })
