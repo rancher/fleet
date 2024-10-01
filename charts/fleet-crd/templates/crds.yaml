@@ -6475,7 +6475,6 @@ spec:
                 commit:
                   description: Commit is the Git commit hash from the last git job
                     run.
-                  nullable: true
                   type: string
                 conditions:
                   description: 'Conditions is a list of Wrangler conditions that describe
@@ -6893,7 +6892,6 @@ spec:
                 webhookCommit:
                   description: WebhookCommit is the latest Git commit hash received
                     from a webhook
-                  nullable: true
                   type: string
               type: object
           type: object
