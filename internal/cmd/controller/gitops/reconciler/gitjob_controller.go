@@ -428,6 +428,10 @@ func (r *GitJobReconciler) createTargetsConfigMap(ctx context.Context, gitrepo *
 }
 
 func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
+	if len(gitrepo.Spec.CABundle) == 0 {
+		return nil
+	}
+
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: gitrepo.ObjectMeta.Namespace,
