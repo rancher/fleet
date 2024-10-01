@@ -302,6 +302,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			By("updating the gitrepo's status")
 			expectedStatus := fleet.GitRepoStatus{
 				Commit:               commit,
+				WebhookCommit:        commit,
 				ReadyClusters:        1,
 				DesiredReadyClusters: 1,
 				GitJobStatus:         "Current",
@@ -425,6 +426,7 @@ func (matcher *gitRepoStatusMatcher) Match(actual interface{}) (success bool, er
 	}
 
 	return got.Commit == want.Commit &&
+			got.WebhookCommit == want.WebhookCommit &&
 			got.ReadyClusters == want.ReadyClusters &&
 			got.DesiredReadyClusters == want.DesiredReadyClusters &&
 			got.GitJobStatus == want.GitJobStatus &&

@@ -168,8 +168,11 @@ type GitRepoStatus struct {
 	// Update generation is the force update generation if spec.forceSyncGeneration is set
 	UpdateGeneration int64 `json:"updateGeneration,omitempty"`
 	// Commit is the Git commit hash from the last git job run.
-	// +nullable
+	// +optional
 	Commit string `json:"commit,omitempty"`
+	// WebhookCommit is the latest Git commit hash received from a webhook
+	// +optional
+	WebhookCommit string `json:"webhookCommit,omitempty"`
 	// ReadyClusters is the lowest number of clusters that are ready over
 	// all the bundles of this GitRepo.
 	// +optional

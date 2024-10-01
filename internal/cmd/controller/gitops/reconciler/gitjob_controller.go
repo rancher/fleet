@@ -102,7 +102,6 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				),
 			),
 		).
-		Owns(&batchv1.Job{}).
 		Watches(
 			// Fan out from bundle to gitrepo
 			&v1alpha1.Bundle{},
@@ -190,12 +189,17 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	} else if repoPolled && oldCommit != gitrepo.Status.Commit {
 		r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
 	}
+
+	// check for webhook commit
+	if gitrepo.Status.WebhookCommit != "" && gitrepo.Status.WebhookCommit != gitrepo.Status.Commit {
+		gitrepo.Status.Commit = gitrepo.Status.WebhookCommit
+	}
 	// From this point onwards we have to take into account if the poller
 	// task was executed.
 	// If so, we need to return a Result with EnqueueAfter set.
 
 	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled)
-	if err != nil {
+	if err != nil || res.Requeue {
 		return res, err
 	}
 
@@ -261,29 +265,25 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			}
 		}
 
-		if gitrepo.Status.Commit != "" {
+		if r.shouldCreateJob(gitrepo, oldCommit) {
+			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
 				return result(repoPolled, gitrepo), grutil.UpdateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 			}
-			logger.V(1).Info("Creating Git job resources")
-			if err := r.createJobRBAC(ctx, gitrepo); err != nil {
-				return result(repoPolled, gitrepo), fmt.Errorf("failed to create RBAC resources for git job: %w", err)
+			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
+				return result(repoPolled, gitrepo), err
 			}
-			if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
-				return result(repoPolled, gitrepo), fmt.Errorf("failed to create targets config map for git job: %w", err)
-			}
-			if err := r.createCABundleSecret(ctx, gitrepo); err != nil {
-				return result(repoPolled, gitrepo), fmt.Errorf("failed to create cabundle secret for git job: %w", err)
-			}
-			if err := r.createJob(ctx, gitrepo); err != nil {
-				return result(repoPolled, gitrepo), fmt.Errorf("error creating git job: %w", err)
-			}
-			r.Recorder.Event(gitrepo, fleetevent.Normal, "Created", "GitJob was created")
 		}
-	} else if gitrepo.Status.Commit != "" {
-		if err = r.deleteJobIfNeeded(ctx, gitrepo, &job); err != nil {
+	} else if gitrepo.Status.Commit != "" && gitrepo.Status.Commit == oldCommit {
+		err, recreateGitJob := r.deleteJobIfNeeded(ctx, gitrepo, &job)
+		if err != nil {
 			return result(repoPolled, gitrepo), fmt.Errorf("error deleting git job: %w", err)
+		}
+		// job was deleted and we need to recreate it
+		// Requeue so the reconciler creates the job again
+		if recreateGitJob {
+			return reconcile.Result{Requeue: true}, nil
 		}
 	}
 
@@ -328,6 +328,37 @@ func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logge
 	}
 
 	return nil
+}
+
+// shouldCreateJob checks if the conditions to create a new job are met.
+// It checks for all the conditions so, in case more than one is met, it sets all the
+// values related in one single reconciler loop
+func (r *GitJobReconciler) shouldCreateJob(gitrepo *v1alpha1.GitRepo, oldCommit string) bool {
+	if gitrepo.Status.Commit != "" && gitrepo.Status.Commit != oldCommit {
+		return true
+	}
+
+	if gitrepo.Spec.ForceSyncGeneration != gitrepo.Status.UpdateGeneration {
+		return true
+	}
+
+	// k8s Jobs are immutable. Recreate the job if the GitRepo Spec has changed.
+	// Avoid deleting the job twice
+	if generationChanged(gitrepo) {
+		return true
+	}
+
+	return false
+}
+
+func (r *GitJobReconciler) updateGenerationValuesIfNeeded(gitrepo *v1alpha1.GitRepo) {
+	if gitrepo.Spec.ForceSyncGeneration != gitrepo.Status.UpdateGeneration {
+		gitrepo.Status.UpdateGeneration = gitrepo.Spec.ForceSyncGeneration
+	}
+
+	if generationChanged(gitrepo) {
+		gitrepo.Status.ObservedGeneration = gitrepo.Generation
+	}
 }
 
 func (r *GitJobReconciler) addGitRepoFinalizer(ctx context.Context, nsName types.NamespacedName) error {
@@ -446,38 +477,60 @@ func (r *GitJobReconciler) createJob(ctx context.Context, gitRepo *v1alpha1.GitR
 	return r.Create(ctx, job)
 }
 
-func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
+func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v1alpha1.GitRepo, logger logr.Logger) error {
+	logger.V(1).Info("Creating Git job resources")
+	if err := r.createJobRBAC(ctx, gitrepo); err != nil {
+		return fmt.Errorf("failed to create RBAC resources for git job: %w", err)
+	}
+	if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
+		return fmt.Errorf("failed to create targets config map for git job: %w", err)
+	}
+	if err := r.createCABundleSecret(ctx, gitrepo); err != nil {
+		return fmt.Errorf("failed to create cabundle secret for git job: %w", err)
+	}
+	if err := r.createJob(ctx, gitrepo); err != nil {
+		return fmt.Errorf("error creating git job: %w", err)
+	}
+	r.Recorder.Event(gitrepo, fleetevent.Normal, "Created", "GitJob was created")
+	return nil
+}
+
+func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) (error, bool) {
 	logger := log.FromContext(ctx)
-	jobDeleted := false
-	jobDeletedMessage := ""
-	// if force delete is set, delete the job to make sure a new job is created
+
+	// the following cases imply that the job is still running but we need to stop it and
+	// create a new one
 	if gitRepo.Spec.ForceSyncGeneration != gitRepo.Status.UpdateGeneration {
-		gitRepo.Status.UpdateGeneration = gitRepo.Spec.ForceSyncGeneration
-		jobDeletedMessage = "job deletion triggered because of ForceUpdateGeneration"
+		jobDeletedMessage := "job deletion triggered because of ForceUpdateGeneration"
 		logger.Info(jobDeletedMessage)
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
-			return err
+			return err, true
 		}
-		jobDeleted = true
+		return nil, true
 	}
 
 	// k8s Jobs are immutable. Recreate the job if the GitRepo Spec has changed.
 	// Avoid deleting the job twice
-	if !jobDeleted && generationChanged(gitRepo) {
-		jobDeletedMessage = "job deletion triggered because of generation change"
-		gitRepo.Status.ObservedGeneration = gitRepo.Generation
+	if generationChanged(gitRepo) {
+		jobDeletedMessage := "job deletion triggered because of generation change"
 		logger.Info(jobDeletedMessage)
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
-			return err
+			return err, true
 		}
-		jobDeleted = true
+		return nil, true
 	}
 
-	if jobDeleted {
+	// check if the job finished and was successful
+	if job.Status.Succeeded == 1 {
+		jobDeletedMessage := "job deletion triggered because job succeeded"
+		logger.Info(jobDeletedMessage)
+		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
+			return err, false
+		}
 		r.Recorder.Event(gitRepo, fleetevent.Normal, "JobDeleted", jobDeletedMessage)
 	}
 
-	return nil
+	return nil, false
 }
 
 func generationChanged(r *v1alpha1.GitRepo) bool {
