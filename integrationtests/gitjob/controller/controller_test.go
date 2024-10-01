@@ -173,9 +173,10 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(checkCondition(&gitRepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
 				}).Should(Succeed())
 
-				// it should log 2 events
+				// it should log 3 events
 				// first one is to log the new commit from the poller
 				// second one is to inform that the job was created
+				// third one is to inform that the job was deleted because it succeeded
 				Eventually(func(g Gomega) {
 					events, _ := k8sClientSet.CoreV1().Events(gitRepo.Namespace).List(context.TODO(),
 						metav1.ListOptions{
@@ -183,7 +184,7 @@ var _ = Describe("GitJob controller", func() {
 							TypeMeta:      metav1.TypeMeta{Kind: "GitRepo"},
 						})
 					g.Expect(events).ToNot(BeNil())
-					g.Expect(len(events.Items)).To(Equal(2))
+					g.Expect(len(events.Items)).To(Equal(3))
 					g.Expect(events.Items[0].Reason).To(Equal("GotNewCommit"))
 					g.Expect(events.Items[0].Message).To(Equal("9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"))
 					g.Expect(events.Items[0].Type).To(Equal("Normal"))
@@ -192,7 +193,17 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(events.Items[1].Message).To(Equal("GitJob was created"))
 					g.Expect(events.Items[1].Type).To(Equal("Normal"))
 					g.Expect(events.Items[1].Source.Component).To(Equal("gitjob-controller"))
+					g.Expect(events.Items[2].Reason).To(Equal("JobDeleted"))
+					g.Expect(events.Items[2].Message).To(Equal("job deletion triggered because job succeeded"))
+					g.Expect(events.Items[2].Type).To(Equal("Normal"))
+					g.Expect(events.Items[2].Source.Component).To(Equal("gitjob-controller"))
 				}).Should(Succeed())
+
+				// job should not be present
+				Consistently(func() bool {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+					return errors.IsNotFound(err)
+				}, 10*time.Second, 1*time.Second).Should(BeTrue())
 			})
 		})
 
@@ -312,13 +323,6 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(checkCondition(&gitRepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
 					g.Expect(checkCondition(&gitRepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
 				}).Should(Succeed())
-
-				By("verifying that the job is deleted if Spec.Generation changed")
-				Expect(simulateIncreaseGitRepoGeneration(gitRepo)).ToNot(HaveOccurred())
-				Eventually(func() bool {
-					jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
-					return errors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job))
-				}).Should(BeTrue())
 			})
 		})
 	})
@@ -373,9 +377,51 @@ var _ = Describe("GitJob controller", func() {
 				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
+			// simulate job was successful
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				// We could be checking this when the job is still not created
+				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+				job.Status.Succeeded = 1
+				job.Status.Conditions = []batchv1.JobCondition{
+					{
+						Type:   "Complete",
+						Status: "True",
+					},
+				}
+				return k8sClient.Status().Update(ctx, &job)
+			}).Should(Not(HaveOccurred()))
+			// wait until the job has finished
+			Eventually(func() bool {
+				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				return errors.IsNotFound(err)
+			}).Should(BeTrue())
+
 			// store the generation value to compare against later
 			generationValue = gitRepo.Spec.ForceSyncGeneration
 			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
+			// simulate job was successful
+			Eventually(func() error {
+				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				// We could be checking this when the job is still not created
+				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+				job.Status.Succeeded = 1
+				job.Status.Conditions = []batchv1.JobCondition{
+					{
+						Type:   "Complete",
+						Status: "True",
+					},
+				}
+				return k8sClient.Status().Update(ctx, &job)
+			}).Should(Not(HaveOccurred()))
+			// wait until the job has finished
+			Eventually(func() bool {
+				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				return errors.IsNotFound(err)
+			}).Should(BeTrue())
 		})
 		BeforeEach(func() {
 			expectedCommit = commit
@@ -414,7 +460,7 @@ var _ = Describe("GitJob controller", func() {
 				g.Expect(events.Items[1].Type).To(Equal("Normal"))
 				g.Expect(events.Items[1].Source.Component).To(Equal("gitjob-controller"))
 				g.Expect(events.Items[2].Reason).To(Equal("JobDeleted"))
-				g.Expect(events.Items[2].Message).To(Equal("job deletion triggered because of ForceUpdateGeneration"))
+				g.Expect(events.Items[2].Message).To(Equal("job deletion triggered because job succeeded"))
 				g.Expect(events.Items[2].Type).To(Equal("Normal"))
 				g.Expect(events.Items[2].Source.Component).To(Equal("gitjob-controller"))
 			}).Should(Succeed())
@@ -446,6 +492,26 @@ var _ = Describe("GitJob controller", func() {
 				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
+			// simulate job was successful
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				// We could be checking this when the job is still not created
+				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+				job.Status.Succeeded = 1
+				job.Status.Conditions = []batchv1.JobCondition{
+					{
+						Type:   "Complete",
+						Status: "True",
+					},
+				}
+				return k8sClient.Status().Update(ctx, &job)
+			}).Should(Not(HaveOccurred()))
+			// wait until the job has finished
+			Eventually(func() bool {
+				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				return errors.IsNotFound(err)
+			}).Should(BeTrue())
 
 			// change a gitrepo field, this will change the Generation field. This simulates changing fleet apply parameters.
 			Expect(retry.RetryOnConflict(retry.DefaultRetry, func() error {

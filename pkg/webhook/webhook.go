@@ -222,7 +222,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			if gitrepo.Status.Commit != revision && revision != "" {
+			if gitrepo.Status.WebhookCommit != revision && revision != "" {
 				if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 					var gitRepoFromCluster v1alpha1.GitRepo
 					err := w.client.Get(
@@ -235,7 +235,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					if err != nil {
 						return err
 					}
-					gitRepoFromCluster.Status.Commit = revision
+					gitRepoFromCluster.Status.WebhookCommit = revision
 					// if PollingInterval is not set and webhook is configured, set it to 1 hour
 					if gitrepo.Spec.PollingInterval == nil {
 						gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{

@@ -95,8 +95,8 @@ func TestAzureDevopsWebhook(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected err %v", err)
 	}
-	if updatedGitRepo.Status.Commit != commit {
-		t.Errorf("expected commit %v, but got %v", commit, updatedGitRepo.Status.Commit)
+	if updatedGitRepo.Status.WebhookCommit != commit {
+		t.Errorf("expected webhook commit %v, but got %v", commit, updatedGitRepo.Status.WebhookCommit)
 	}
 }
 
@@ -141,8 +141,8 @@ func TestAzureDevopsWebhookWithSSHURL(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected err %v", err)
 	}
-	if updatedGitRepo.Status.Commit != commit {
-		t.Errorf("expected commit %v, but got %v", commit, updatedGitRepo.Status.Commit)
+	if updatedGitRepo.Status.WebhookCommit != commit {
+		t.Errorf("expected webhook commit %v, but got %v", commit, updatedGitRepo.Status.WebhookCommit)
 	}
 }
 
@@ -387,8 +387,8 @@ func TestGitHubRightSecretAndCommitUpdated(t *testing.T) {
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
 		func(ctx context.Context, repo *v1alpha1.GitRepo, opts ...interface{}) {
 			// check that the commit is the expected one
-			if repo.Status.Commit != expectedCommit {
-				t.Errorf("expecting girepo commit %s, got %s", expectedCommit, repo.Status.Commit)
+			if repo.Status.WebhookCommit != expectedCommit {
+				t.Errorf("expecting girepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
 			}
 		},
 	).Times(1)
