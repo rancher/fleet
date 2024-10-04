@@ -356,26 +356,29 @@ func runClusterStatusMonitor(ctx context.Context, c client.Client) {
 				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 					t := &v1alpha1.BundleDeployment{}
 					nsn := types.NamespacedName{Name: bd.Name, Namespace: bd.Namespace}
-					logger.Info("[DEBUG] getting bundle deployment", "cluster", cluster.Name, "bundledeployment", bd.Name)
 					if err := c.Get(ctx, nsn, t); err != nil {
 						return err
 					}
 					t.Status = bd.Status
-					// TODO status updates: update condition with type Ready
+					// Any information about resources living in an offline cluster is likely to be
+					// outdated.
 					t.Status.ModifiedStatus = nil
+					t.Status.NonReadyStatus = nil
 
 					for _, cond := range bd.Status.Conditions {
-						if cond.Type != "Ready" {
-							continue
+						switch cond.Type {
+						// XXX: which messages do we want to set and where?
+						case "Ready":
+							// FIXME: avoid relying on agent pkg for this?
+							mc := monitor.Cond(v1alpha1.BundleDeploymentConditionReady)
+							mc.SetError(&bd.Status, "Cluster offline", fmt.Errorf("cluster is offline"))
+							// XXX: do we want to set Deployed and Installed conditions as well?
+						case "Monitored":
+							mc := monitor.Cond(v1alpha1.BundleDeploymentConditionMonitored)
+							mc.SetError(&bd.Status, "Cluster offline", fmt.Errorf("cluster is offline"))
+
 						}
-
-						// FIXME: avoid relying on agent pkg for this?
-						mc := monitor.Cond(v1alpha1.BundleDeploymentConditionReady)
-						mc.SetError(&bd.Status, "Cluster offline", fmt.Errorf("cluster is offline"))
-						//cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
 					}
-
-					logger.Info("[DEBUG] updating bundle deployment status", "cluster", cluster.Name, "bundledeployment", bd.Name)
 
 					return c.Status().Update(ctx, t)
 				})
