@@ -11,25 +11,34 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 // Run monitors Fleet cluster resources' agent last seen dates. If a cluster's agent was last seen longer ago than
-// threshold, then Run updates statuses of all bundle deployments targeting that cluster, to reflect the fact that the
-// cluster is offline. This prevents those bundle deployments from displaying outdated status information.
+// a certain threshold, then Run updates statuses of all bundle deployments targeting that cluster, to reflect the fact
+// that the cluster is offline. This prevents those bundle deployments from displaying outdated status information.
+//
+// The threshold is computed based on the configured agent check-in interval, plus a 10 percent margin.
+// Therefore, this function requires configuration to have been loaded into the config package using `Load` before
+// running.
 //
 // Bundle deployment status updates done here are unlikely to conflict with those done by the bundle deployment
 // reconciler, which are either run from an online target cluster (from its Fleet agent) or triggered by other status
 // updates such as this one (eg. bundle deployment reconciler living in the Fleet controller).
-func Run(ctx context.Context, c client.Client, threshold time.Duration) {
+func Run(ctx context.Context, c client.Client) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(threshold):
+		case <-time.After(time.Minute): // XXX: should this be configurable?
 		}
 
-		// XXX: should the same value be used for both the polling interval and the threshold?
+		cfg := config.Get() // This enables config changes to take effect
+
+		// Add a 10% margin, which is arbitrary but should reduce the risk of false positives.
+		threshold := time.Duration(cfg.AgentCheckinInterval.Seconds() * 1.1)
+
 		UpdateOfflineBundleDeployments(ctx, c, threshold)
 	}
 }
@@ -45,8 +54,6 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 
 	for _, cluster := range clusters.Items {
 		lastSeen := cluster.Status.Agent.LastSeen
-
-		// FIXME threshold should not be lower than cluster status refresh default value (15 min)
 
 		logger.Info("Checking cluster status", "cluster", cluster.Name, "last seen", lastSeen.UTC().String())
 
