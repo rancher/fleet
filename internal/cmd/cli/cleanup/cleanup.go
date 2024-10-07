@@ -2,7 +2,6 @@ package cleanup
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -164,57 +163,24 @@ func GitJobs(ctx context.Context, cl client.Client, bs int) error {
 }
 
 func cleanupGitJobs(ctx context.Context, logger logr.Logger, cl client.Client, jobs []batchv1.Job) error {
-	// jobs by namespace, gitrepo
-	gitjobs := map[string]map[string][]batchv1.Job{}
-	// gitrepos with running jobs
-	running := map[string]map[string]struct{}{}
-
 	for _, job := range jobs {
 		if job.OwnerReferences == nil {
 			continue
 		}
 		for _, or := range job.OwnerReferences {
-			if or.Kind == "GitRepo" && or.APIVersion == "fleet.cattle.io/v1alpha1" {
-				if job.Status.Succeeded != 1 || job.Status.CompletionTime == nil {
-					if running[job.Namespace] == nil {
-						running[job.Namespace] = map[string]struct{}{}
-					}
-					running[job.Namespace][or.Name] = struct{}{}
-				} else {
-					if gitjobs[job.Namespace] == nil {
-						gitjobs[job.Namespace] = map[string][]batchv1.Job{}
-					}
-					gitjobs[job.Namespace][or.Name] = append(gitjobs[job.Namespace][or.Name], job)
-				}
-				break
+			if or.Kind != "GitRepo" || or.APIVersion != "fleet.cattle.io/v1alpha1" {
+				continue
 			}
-		}
-	}
-
-	for ns, gitrepos := range gitjobs {
-		for gitrepo, jobs := range gitrepos {
-			sort.Slice(jobs, func(i, j int) bool {
-				return jobs[j].Status.CompletionTime.Before(jobs[i].Status.CompletionTime)
-			})
-
-			// if there is a running job delete all the jobs in the
-			// list, otherwise all but the newest
-			start := 1
-			if _, ok := running[ns][gitrepo]; ok {
-				start = 0
-			}
-
-			logger.V(1).Info("Deleting jobs for gitrepo", "n", len(jobs)-start, "namespace", ns, "gitrepo", gitrepo)
-
-			for i := start; i < len(jobs); i++ {
-				job := jobs[i]
-				logger.V(1).Info("Deleting job", "namespace", ns, "name", job.Name, "gitrepo", gitrepo)
+			if job.Status.Succeeded == 1 && job.Status.CompletionTime != nil {
+				logger.V(1).Info("Deleting job", "namespace", job.Namespace, "name", job.Name, "gitrepo", or.Name)
 				err := cl.Delete(ctx, &job, client.PropagationPolicy(metav1.DeletePropagationBackground))
 				if err != nil && !apierrors.IsNotFound(err) {
-					logger.Error(err, "Failed to delete job", "namespace", ns, "name", job.Name)
+					logger.Error(err, "Failed to delete job", "namespace", job.Namespace, "name", job.Name)
 				}
 			}
+			break
 		}
 	}
+
 	return nil
 }
