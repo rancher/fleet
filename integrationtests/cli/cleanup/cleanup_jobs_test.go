@@ -68,6 +68,13 @@ var _ = Describe("Fleet CLI jobs cleanup", Ordered, func() {
 				UID:        "1",
 			}
 
+			owner4 := metav1.OwnerReference{
+				APIVersion: "something",
+				Kind:       "somekind",
+				Name:       "somename",
+				UID:        "1",
+			}
+
 			spec := batchv1.JobSpec{
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
@@ -165,10 +172,19 @@ var _ = Describe("Fleet CLI jobs cleanup", Ordered, func() {
 					Spec:   spec,
 					Status: succeeded(time.Now().Add(-1 * time.Hour)),
 				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "some-other-job",
+						Namespace:       namespace,
+						OwnerReferences: []metav1.OwnerReference{owner4},
+					},
+					Spec:   spec,
+					Status: succeeded(time.Now()),
+				},
 			}
 		})
 
-		It("deletes all resources and leaves most recent ones", func() {
+		It("deletes all resources that have the right owner and succeeded", func() {
 			Expect(act()).NotTo(HaveOccurred())
 
 			Eventually(func(g Gomega) {
@@ -182,8 +198,7 @@ var _ = Describe("Fleet CLI jobs cleanup", Ordered, func() {
 				}
 				g.Expect(names).To(ConsistOf(
 					namespace+"/job-running",
-					namespace+"/another-job",
-					otherns+"/job-1",
+					namespace+"/some-other-job",
 				))
 			}, 20*time.Second, 1*time.Second).Should(Succeed())
 		})
