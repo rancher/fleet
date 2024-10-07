@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/reugn/go-quartz/quartz"
 
@@ -172,7 +171,7 @@ func start(
 	}
 
 	setupLog.Info("starting cluster status monitor")
-	go clustermonitor.Run(ctx, mgr.GetClient(), 15*time.Second) // TODO load or hard-code sensible value
+	go clustermonitor.Run(ctx, mgr.GetClient())
 
 	setupLog.Info("starting job scheduler")
 	jobCtx, cancel := context.WithCancel(ctx)
