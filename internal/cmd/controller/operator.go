@@ -9,28 +9,24 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/fleet/internal/cmd"
+	"github.com/rancher/fleet/internal/cmd/controller/clustermonitor"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-
-	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 )
 
 var (
@@ -232,7 +228,7 @@ func start(
 	}
 
 	setupLog.Info("starting cluster status monitor")
-	go runClusterStatusMonitor(ctx, mgr.GetClient())
+	go clustermonitor.Run(ctx, mgr.GetClient(), 15*time.Second) // TODO load or hard-code sensible value
 
 	setupLog.Info("starting job scheduler")
 	jobCtx, cancel := context.WithCancel(ctx)
@@ -295,106 +291,4 @@ func AddBundleDownstreamResourceIndexer(ctx context.Context, mgr manager.Manager
 			return resources
 		},
 	)
-}
-
-func runClusterStatusMonitor(ctx context.Context, c client.Client) {
-	threshold := 15 * time.Second // TODO load or hard-code sensible value
-
-	logger := ctrl.Log.WithName("cluster status monitor")
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(threshold):
-		}
-
-		clusters := &v1alpha1.ClusterList{}
-		if err := c.List(ctx, clusters); err != nil {
-			logger.Error(err, "Failed to get list of clusters")
-			continue
-		}
-
-		for _, cluster := range clusters.Items {
-			lastSeen := cluster.Status.Agent.LastSeen
-
-			// FIXME threshold should not be lower than cluster status refresh default value (15 min)
-
-			// XXX: should the same value be used for both the polling interval and the threshold?
-			logger.Info("Checking cluster status", "cluster", cluster.Name, "last seen", lastSeen.UTC().String())
-
-			// XXX: do we want to run this more than once per cluster, updating the timestamp each time?
-			// Or would it make sense to keep the oldest possible timestamp in place, for users to know since when the
-			// cluster is offline?
-
-			// lastSeen being 0 would typically mean that the cluster is not registered yet, in which case bundle
-			// deployments should not be deployed there.
-			if lastSeen.IsZero() || time.Now().UTC().Sub(lastSeen.UTC()) < threshold {
-				continue
-			}
-
-			logger.Info("Detected offline cluster", "cluster", cluster.Name)
-
-			// Cluster is offline
-			bundleDeployments := &v1alpha1.BundleDeploymentList{}
-			if err := c.List(ctx, bundleDeployments, client.InNamespace(cluster.Status.Namespace)); err != nil {
-				logger.Error(
-					err,
-					"Failed to get list of bundle deployments for offline cluster",
-					"cluster",
-					cluster.Name,
-					"namespace",
-					cluster.Status.Namespace,
-				)
-				continue
-			}
-
-			// These updates should not conflict with those done by the bundle deployment reconciler (offline vs online
-			// clusters).
-			for _, bd := range bundleDeployments.Items {
-				logger.Info("Updating bundle deployment in offline cluster", "cluster", cluster.Name, "bundledeployment", bd.Name)
-				err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-					t := &v1alpha1.BundleDeployment{}
-					nsn := types.NamespacedName{Name: bd.Name, Namespace: bd.Namespace}
-					if err := c.Get(ctx, nsn, t); err != nil {
-						return err
-					}
-					t.Status = bd.Status
-					// Any information about resources living in an offline cluster is likely to be
-					// outdated.
-					t.Status.ModifiedStatus = nil
-					t.Status.NonReadyStatus = nil
-
-					for _, cond := range bd.Status.Conditions {
-						switch cond.Type {
-						// XXX: which messages do we want to set and where?
-						case "Ready":
-							// FIXME: avoid relying on agent pkg for this?
-							mc := monitor.Cond(v1alpha1.BundleDeploymentConditionReady)
-							mc.SetError(&bd.Status, "Cluster offline", fmt.Errorf("cluster is offline"))
-							// XXX: do we want to set Deployed and Installed conditions as well?
-						case "Monitored":
-							mc := monitor.Cond(v1alpha1.BundleDeploymentConditionMonitored)
-							mc.SetError(&bd.Status, "Cluster offline", fmt.Errorf("cluster is offline"))
-
-						}
-					}
-
-					return c.Status().Update(ctx, t)
-				})
-				if err != nil {
-					logger.Error(
-						err,
-						"Failed to update bundle deployment status for offline cluster",
-						"bundledeployment",
-						bd.Name,
-						"cluster",
-						cluster.Name,
-						"namespace",
-						cluster.Status.Namespace,
-					)
-				}
-			}
-		}
-	}
 }
