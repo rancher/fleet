@@ -358,16 +358,6 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(checkCondition(&gitRepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
 					g.Expect(checkCondition(&gitRepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
 				}).Should(Succeed())
-<<<<<<< HEAD
-
-				By("verifying that the job is deleted if Spec.Generation changed")
-				Expect(simulateIncreaseGitRepoGeneration(gitRepo)).ToNot(HaveOccurred())
-				Eventually(func() bool {
-					jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
-					return errors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job))
-				}).Should(BeTrue())
-=======
->>>>>>> 57c2f838 (Changes job handling in gitops controller (#2903))
 			})
 		})
 	})
@@ -438,7 +428,7 @@ var _ = Describe("GitJob controller", func() {
 			}).Should(Not(HaveOccurred()))
 			// wait until the job has finished
 			Eventually(func() bool {
-				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
+				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 				return errors.IsNotFound(err)
 			}).Should(BeTrue())
@@ -448,7 +438,7 @@ var _ = Describe("GitJob controller", func() {
 			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
 			// simulate job was successful
 			Eventually(func() error {
-				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
+				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 				// We could be checking this when the job is still not created
 				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
@@ -463,7 +453,7 @@ var _ = Describe("GitJob controller", func() {
 			}).Should(Not(HaveOccurred()))
 			// wait until the job has finished
 			Eventually(func() bool {
-				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
+				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 				return errors.IsNotFound(err)
 			}).Should(BeTrue())
@@ -553,7 +543,7 @@ var _ = Describe("GitJob controller", func() {
 			}).Should(Not(HaveOccurred()))
 			// wait until the job has finished
 			Eventually(func() bool {
-				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
+				jobName = name.SafeConcatName(gitRepoName, name.Hex(repo+commit, 5))
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 				return errors.IsNotFound(err)
 			}).Should(BeTrue())
