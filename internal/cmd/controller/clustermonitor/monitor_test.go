@@ -27,15 +27,11 @@ type BDStatusMatcher struct {
 
 func (m BDStatusMatcher) Matches(x interface{}) bool {
 	bd, ok := x.(*v1alpha1.BundleDeployment)
-	if !ok {
+	if !ok || bd == nil {
 		return false
 	}
 
 	bdStatus := bd.Status
-
-	if bd == nil {
-		return false
-	}
 
 	if bdStatus.ModifiedStatus != nil || bdStatus.NonReadyStatus != nil {
 		return false
@@ -71,7 +67,7 @@ type clusterWithOfflineMarker struct {
 	isOffline bool
 }
 
-func Test_Run(t *testing.T) {
+func Test_Run(t *testing.T) { //nolint: funlen // this is a test function, its length should not be an issue
 	cases := []struct {
 		name              string
 		clusters          []clusterWithOfflineMarker
@@ -345,8 +341,16 @@ func Test_Run(t *testing.T) {
 
 				for _, bd := range bundleDeplsForCluster {
 					testClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).DoAndReturn(
-						func(ctx context.Context, nsn types.NamespacedName, b *v1alpha1.BundleDeployment, opts ...client.GetOption) error {
-							b = &bd
+						func(
+							ctx context.Context,
+							nsn types.NamespacedName,
+							// b's initial value is never used, but the variable needs to be
+							// named for its value to be overwritten with values we care
+							// about, to simulate a response from the API server.
+							b *v1alpha1.BundleDeployment, //nolint: staticcheck
+							opts ...client.GetOption,
+						) error {
+							b = &bd //nolint: ineffassign,staticcheck // the value is used by the implementation, not directly by the tests.
 
 							return nil
 						},
