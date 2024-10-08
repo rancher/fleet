@@ -83,13 +83,18 @@ func (p *postRender) Run(renderedManifests *bytes.Buffer) (modifiedManifests *by
 		if err != nil {
 			return nil, err
 		}
+
 		objAnnotations := mergeMaps(m.GetAnnotations(), annotations)
-		if !p.opts.DeleteCRDResources &&
-			obj.GetObjectKind().GroupVersionKind().Kind == CRDKind {
-			objAnnotations[kube.ResourcePolicyAnno] = kube.KeepPolicy
+		if obj.GetObjectKind().GroupVersionKind().Kind == CRDKind {
+			if !p.opts.DeleteCRDResources { // keep CRD resources
+				objAnnotations[kube.ResourcePolicyAnno] = kube.KeepPolicy
+			} else {
+				delete(objAnnotations, kube.ResourcePolicyAnno)
+			}
 		}
-		m.SetLabels(mergeMaps(m.GetLabels(), labels))
 		m.SetAnnotations(objAnnotations)
+
+		m.SetLabels(mergeMaps(m.GetLabels(), labels))
 
 		if p.opts.TargetNamespace != "" {
 			if p.mapper != nil {

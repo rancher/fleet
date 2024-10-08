@@ -44,9 +44,7 @@ func TestPostRenderer_Run_DeleteCRDs(t *testing.T) {
 					APIVersion: "apiextensions.k8s.io/v1",
 				},
 			},
-			opts: v1alpha1.BundleDeploymentOptions{
-				DeleteCRDResources: true,
-			},
+			opts: v1alpha1.BundleDeploymentOptions{DeleteCRDResources: true},
 			expectedAnnotations: map[string]string{
 				"objectset.rio.cattle.io/id": "-",
 			},
@@ -58,25 +56,73 @@ func TestPostRenderer_Run_DeleteCRDs(t *testing.T) {
 					APIVersion: "apiextensions.k8s.io/v1",
 				},
 			},
-			opts: v1alpha1.BundleDeploymentOptions{
-				DeleteCRDResources: false,
-			},
+			opts: v1alpha1.BundleDeploymentOptions{DeleteCRDResources: false},
 			expectedAnnotations: map[string]string{
 				kube.ResourcePolicyAnno:      kube.KeepPolicy,
 				"objectset.rio.cattle.io/id": "-",
 			},
 		},
-		"Annotation not added for non CRDs resources": {
+		"Annotation not added to non CRDs resources": {
 			obj: &corev1.Pod{
 				TypeMeta: metav1.TypeMeta{
 					Kind: "Pod",
 				},
 			},
-			opts: v1alpha1.BundleDeploymentOptions{
-				DeleteCRDResources: false,
-			},
+			opts: v1alpha1.BundleDeploymentOptions{DeleteCRDResources: false},
 			expectedAnnotations: map[string]string{
 				"objectset.rio.cattle.io/id": "-",
+			},
+		},
+		"Policy exists, DeleteCRDResources is set, policy is removed": {
+			obj: &apiextensionsv1.CustomResourceDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       CRDKind,
+					APIVersion: "apiextensions.k8s.io/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						kube.ResourcePolicyAnno: kube.KeepPolicy,
+					},
+				},
+			},
+			opts: v1alpha1.BundleDeploymentOptions{DeleteCRDResources: true},
+			expectedAnnotations: map[string]string{
+				"objectset.rio.cattle.io/id": "-",
+			},
+		},
+		"Policy exists, DeleteCRDResources is not set, no change": {
+			obj: &apiextensionsv1.CustomResourceDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       CRDKind,
+					APIVersion: "apiextensions.k8s.io/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						kube.ResourcePolicyAnno: kube.KeepPolicy,
+					},
+				},
+			},
+			opts: v1alpha1.BundleDeploymentOptions{DeleteCRDResources: false},
+			expectedAnnotations: map[string]string{
+				kube.ResourcePolicyAnno:      kube.KeepPolicy,
+				"objectset.rio.cattle.io/id": "-",
+			},
+		},
+		"Policy exists, DeleteCRDResources is not set, no change on non CRDs resources": {
+			obj: &corev1.Pod{
+				TypeMeta: metav1.TypeMeta{
+					Kind: "Pod",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						kube.ResourcePolicyAnno: kube.KeepPolicy,
+					},
+				},
+			},
+			opts: v1alpha1.BundleDeploymentOptions{DeleteCRDResources: false},
+			expectedAnnotations: map[string]string{
+				"objectset.rio.cattle.io/id": "-",
+				kube.ResourcePolicyAnno:      kube.KeepPolicy,
 			},
 		},
 	}
