@@ -48,6 +48,11 @@ kubectl -n cattle-system rollout status deploy/rancher
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
 { grep -E -q -m 1 "fleet-agent-local.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-local -w)
 
+# Wait for Rancher to create the ingress before waiting for the loadbalancer
+while ! kubectl get ingress -n cattle-system rancher; do
+  sleep 1
+done
+
 ./.github/scripts/wait-for-loadbalancer.sh
 
 export cluster_downstream="$downstream_ctx"
