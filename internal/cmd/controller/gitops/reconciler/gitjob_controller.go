@@ -57,6 +57,8 @@ const (
 
 	defaultPollingSyncInterval = 15 * time.Second
 	gitPollingCondition        = "GitPolling"
+	generationLabel            = "generation"
+	forceSyncGenerationLabel   = "forceSyncGeneration"
 )
 
 var two = int32(2)
@@ -501,23 +503,33 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	// the following cases imply that the job is still running but we need to stop it and
 	// create a new one
 	if gitRepo.Spec.ForceSyncGeneration != gitRepo.Status.UpdateGeneration {
-		jobDeletedMessage := "job deletion triggered because of ForceUpdateGeneration"
-		logger.Info(jobDeletedMessage)
-		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
-			return err, true
+		if forceSync, ok := job.Labels[forceSyncGenerationLabel]; ok {
+			strForceSync := fmt.Sprintf("%d", gitRepo.Spec.ForceSyncGeneration)
+			if strForceSync != forceSync {
+				jobDeletedMessage := "job deletion triggered because of ForceUpdateGeneration"
+				logger.Info(jobDeletedMessage)
+				if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
+					return err, true
+				}
+				return nil, true
+			}
 		}
-		return nil, true
 	}
 
 	// k8s Jobs are immutable. Recreate the job if the GitRepo Spec has changed.
 	// Avoid deleting the job twice
 	if generationChanged(gitRepo) {
-		jobDeletedMessage := "job deletion triggered because of generation change"
-		logger.Info(jobDeletedMessage)
-		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
-			return err, true
+		if gen, ok := job.Labels[generationLabel]; ok {
+			strGen := fmt.Sprintf("%d", gitRepo.Generation)
+			if strGen != gen {
+				jobDeletedMessage := "job deletion triggered because of generation change"
+				logger.Info(jobDeletedMessage)
+				if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
+					return err, true
+				}
+				return nil, true
+			}
 		}
-		return nil, true
 	}
 
 	// check if the job finished and was successful
@@ -562,6 +574,10 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 			Annotations: map[string]string{
 				"generation": strconv.Itoa(int(obj.Generation)),
 				"commit":     obj.Status.Commit,
+			},
+			Labels: map[string]string{
+				forceSyncGenerationLabel: fmt.Sprintf("%d", obj.Spec.ForceSyncGeneration),
+				generationLabel:          fmt.Sprintf("%d", obj.Generation),
 			},
 			Namespace: obj.Namespace,
 			Name:      jobName(obj),
