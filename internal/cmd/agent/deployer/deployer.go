@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kv"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -62,7 +63,7 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 		return status, err
 	}
 
-	release, err := d.helmdeploy(ctx, bd)
+	release, err := d.helmdeploy(ctx, logger, bd)
 	if err != nil {
 		// When an error from DeployBundle is returned it causes DeployBundle
 		// to requeue and keep trying to deploy on a loop. If there is something
@@ -85,7 +86,6 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 	}
 	status.Release = release
 	status.AppliedDeploymentID = bd.Spec.DeploymentID
-	logger.Info("Deployed bundle", "release", release, "appliedDeploymentID", status.AppliedDeploymentID)
 
 	if err := d.setNamespaceLabelsAndAnnotations(ctx, bd, release); err != nil {
 		return fleet.BundleDeploymentStatus{}, err
@@ -98,7 +98,7 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 
 // Deploy the bundle deployment, i.e. with helmdeployer.
 // This loads the manifest and the contents from the upstream cluster.
-func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (string, error) {
+func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet.BundleDeployment) (string, error) {
 	if bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
 		if ok, err := d.helm.EnsureInstalled(bd.Name, bd.Status.Release); err != nil {
 			return "", err
@@ -156,6 +156,8 @@ func (d *Deployer) helmdeploy(ctx context.Context, bd *fleet.BundleDeployment) (
 	if err != nil {
 		return "", err
 	}
+
+	logger.Info("Deployed bundle", "release", resource.ID, "DeploymentID", bd.Spec.DeploymentID)
 
 	return resource.ID, nil
 }
