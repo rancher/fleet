@@ -57,8 +57,8 @@ const (
 
 	defaultPollingSyncInterval = 15 * time.Second
 	gitPollingCondition        = "GitPolling"
-	generationLabel            = "generation"
-	forceSyncGenerationLabel   = "forceSyncGeneration"
+	generationLabel            = "fleet.cattle.io/gitrepo-generation"
+	forceSyncGenerationLabel   = "fleet.cattle.io/force-sync-generation"
 )
 
 var two = int32(2)
@@ -504,10 +504,10 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	// create a new one
 	if gitRepo.Spec.ForceSyncGeneration != gitRepo.Status.UpdateGeneration {
 		if forceSync, ok := job.Labels[forceSyncGenerationLabel]; ok {
-			strForceSync := fmt.Sprintf("%d", gitRepo.Spec.ForceSyncGeneration)
-			if strForceSync != forceSync {
+			t := fmt.Sprintf("%d", gitRepo.Spec.ForceSyncGeneration)
+			if t != forceSync {
 				jobDeletedMessage := "job deletion triggered because of ForceUpdateGeneration"
-				logger.Info(jobDeletedMessage)
+				logger.V(1).Info(jobDeletedMessage)
 				if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 					return err, true
 				}
@@ -520,10 +520,10 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	// Avoid deleting the job twice
 	if generationChanged(gitRepo) {
 		if gen, ok := job.Labels[generationLabel]; ok {
-			strGen := fmt.Sprintf("%d", gitRepo.Generation)
-			if strGen != gen {
+			t := fmt.Sprintf("%d", gitRepo.Generation)
+			if t != gen {
 				jobDeletedMessage := "job deletion triggered because of generation change"
-				logger.Info(jobDeletedMessage)
+				logger.V(1).Info(jobDeletedMessage)
 				if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
 					return err, true
 				}
