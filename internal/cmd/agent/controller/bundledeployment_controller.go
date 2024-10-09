@@ -149,7 +149,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	if monitor.ShouldUpdateStatus(bd) {
-		// update the bundledeployment status and check if we deploy an agent, or if we need to trigger drift correction
+		// update the bundledeployment status and check if we deploy an agent
 		status, err = r.Monitor.UpdateStatus(ctx, bd, resources)
 		if err != nil {
 			logger.Error(err, "Cannot monitor deployed bundle")
@@ -160,17 +160,6 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		} else {
 			// we add to the status from deployer.DeployBundle
 			bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionMonitored))
-		}
-
-		// Run drift correction
-		if len(status.ModifiedStatus) > 0 && bd.Spec.CorrectDrift != nil && bd.Spec.CorrectDrift.Enabled {
-			if release, err := r.Deployer.RemoveExternalChanges(ctx, bd); err != nil {
-				merr = append(merr, fmt.Errorf("failed reconciling drift: %w", err))
-				// Propagate drift correction error to bundle deployment status.
-				monitor.Cond(fleetv1.BundleDeploymentConditionReady).SetError(&status, "", err)
-			} else {
-				bd.Status.Release = release
-			}
 		}
 
 		if len(bd.Status.ModifiedStatus) > 0 && monitor.ShouldRedeployAgent(bd) {

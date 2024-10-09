@@ -32,7 +32,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/ratelimit"
-	"github.com/rancher/wrangler/v3/pkg/ticker"
 )
 
 func NewClusterStatus() *cobra.Command {
@@ -204,11 +203,29 @@ func newMappers(ctx context.Context, fleetRESTConfig *rest.Config, clientconfig 
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discovery)
 
 	go func() {
-		for range ticker.Context(ctx, 30*time.Second) {
+		for range goTicker(ctx, 30*time.Second) {
 			discovery.Invalidate()
 			mapper.Reset()
 		}
 	}()
 
 	return fleetMapper, mapper, discovery, nil
+}
+
+func goTicker(ctx context.Context, duration time.Duration) <-chan time.Time {
+	ticker := time.NewTicker(duration)
+	c := make(chan time.Time)
+	go func() {
+		for {
+			select {
+			case t := <-ticker.C:
+				c <- t
+			case <-ctx.Done():
+				close(c)
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+	return c
 }
