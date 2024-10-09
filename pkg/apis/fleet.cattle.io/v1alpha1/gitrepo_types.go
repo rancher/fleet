@@ -306,16 +306,13 @@ type ResourcePerClusterState struct {
 type CommitSpec struct {
 	// AuthorName gives the name to provide when making a commit
 	// +optional
-	// +nullable
 	AuthorName string `json:"authorName"`
 	// AuthorEmail gives the email to provide when making a commit
 	// +optional
-	// +nullable
 	AuthorEmail string `json:"authorEmail"`
 	// MessageTemplate provides a template for the commit message,
 	// into which will be interpolated the details of the change made.
 	// +optional
-	// +nullable
 	MessageTemplate string `json:"messageTemplate,omitempty"`
 }
 
