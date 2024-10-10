@@ -7,6 +7,7 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/fleet/internal/cmd"
+	"github.com/rancher/fleet/internal/cmd/controller/clustermonitor"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/manifest"
@@ -168,6 +169,9 @@ func start(
 		setupLog.Error(err, "unable to set up ready check")
 		return err
 	}
+
+	setupLog.Info("starting cluster status monitor")
+	go clustermonitor.Run(ctx, mgr.GetClient())
 
 	setupLog.Info("starting job scheduler")
 	jobCtx, cancel := context.WithCancel(ctx)
