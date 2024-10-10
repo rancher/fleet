@@ -1,41 +1,44 @@
 {{- if .Values.migrations.gitrepoJobsCleanup }}
 ---
 apiVersion: batch/v1
-kind: Job
+kind: CronJob
 metadata:
   name: fleet-cleanup-gitrepo-jobs
-  annotations:
-    "helm.sh/hook": post-install, post-upgrade
-    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
 spec:
-  template:
-    metadata:
-      labels:
-        app: fleet-job
+  schedule: "@daily"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 1
+  jobTemplate:
     spec:
-      serviceAccountName: gitjob
-      restartPolicy: Never
-      securityContext:
-        runAsNonRoot: true
-        runAsGroup: 1000
-        runAsUser: 1000
-      containers:
-      - name: cleanup
-        image: "{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}"
-        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: false
-          privileged: false
-        command:
-        - fleet
-        args:
-        - cleanup
-        - gitjob
-      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
-      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
-  backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: fleet-job
+        spec:
+          serviceAccountName: gitjob
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsGroup: 1000
+            runAsUser: 1000
+          containers:
+          - name: cleanup
+            image: "{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}"
+            imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: false
+              privileged: false
+            command:
+            - fleet
+            args:
+            - cleanup
+            - gitjob
+          nodeSelector: {{ include "linux-node-selector" . | nindent 12 }}
+          tolerations: {{ include "linux-node-tolerations" . | nindent 12 }}
+      backoffLimit: 1
 {{- end }}
