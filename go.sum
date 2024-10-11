@@ -737,8 +737,8 @@ github.com/rancher/lasso v0.0.0-20240924233157-8f384efc8813 h1:V/LY8pUHZG9Kc+xED
 github.com/rancher/lasso v0.0.0-20240924233157-8f384efc8813/go.mod h1:IxgTBO55lziYhTEETyVKiT8/B5Rg92qYiRmcIIYoPgI=
 github.com/rancher/wrangler/v3 v3.0.0 h1:IHHCA+vrghJDPxjtLk4fmeSCFhNe9fFzLFj3m2B0YpA=
 github.com/rancher/wrangler/v3 v3.0.0/go.mod h1:Dfckuuq7MJk2JWVBDywRlZXMxEyPxHy4XqGrPEzu5Eg=
-github.com/reugn/go-quartz v0.11.2 h1:+jc54Ji06n/D/endEPmc+CuG/Jc8466nda1oxtFRrks=
-github.com/reugn/go-quartz v0.11.2/go.mod h1:no4ktgYbAAuY0E1SchR8cTx1LF4jYIzdgaQhzRPSkpk=
+github.com/reugn/go-quartz v0.13.0 h1:0eMxvj28Qu1npIDdN9Mzg9hwyksGH6XJt4Cz0QB8EUk=
+github.com/reugn/go-quartz v0.13.0/go.mod h1:0ghKksELp8MJ4h84T203aTHRF3Kug5BrxEW3ErBvhzY=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
