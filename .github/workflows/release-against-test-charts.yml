@@ -5,7 +5,7 @@ on:
       ref:
         description: "Branch to use for GitHub action workflow"
         required: true
-        default: "master"
+        default: "main"
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
         required: true
@@ -26,6 +26,8 @@ permissions:
 jobs:
   push-test-rancher-charts:
     runs-on: ubuntu-latest
+    outputs:
+      target_branch: ${{ steps.compute_target_branch.outputs.target_branch }}
     steps:
       - name: Set environment variables
         run: |
@@ -111,6 +113,7 @@ jobs:
           path: charts
 
       - name: Compute target branch name
+        id: compute_target_branch
         run: |
           target_branch_name=${{github.event.inputs.charts_target_branch}}
 
@@ -127,6 +130,7 @@ jobs:
           fi
 
           echo "target_branch=$target_branch_name" >> "$GITHUB_ENV"
+          echo "target_branch=$target_branch_name" >> "$GITHUB_OUTPUT"
 
       - name: Set up test charts repo with latest upstream state
         run: |
@@ -162,3 +166,12 @@ jobs:
         run: |
           cd charts
           git push -u origin $target_branch
+
+  test-fleet-in-rancher:
+    uses: ./.github/workflows/e2e-rancher-upgrade-fleet-to-head-ci.yml
+    needs: push-test-rancher-charts
+    with:
+      ref: ${{ github.ref }}
+      charts_repo: ${{github.event.inputs.charts_repo}}
+      charts_branch: ${{ needs.push-test-rancher-charts.outputs.target_branch }}
+      fleet_version: 999.9.9+up9.9.9
