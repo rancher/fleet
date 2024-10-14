@@ -292,6 +292,8 @@ func TestNewAgentBundle_PropagatesAgentImagePullSecrets(t *testing.T) {
 			if tc.configPullSecrets != nil {
 				cfg.ImagePullSecrets = *tc.configPullSecrets
 			}
+
+			cfg.AgentCheckinInterval = metav1.Duration{Duration: 1 * time.Second} // non-zero to prevent errors covered elsewhere.
 			config.Set(cfg)
 
 			checkRegisterAddToScheme(t, appsv1.AddToScheme)
