@@ -150,6 +150,15 @@ type Config struct {
 
 	// AgentWorkers specifies the maximum number of workers for each agent reconciler.
 	AgentWorkers AgentWorkers `json:"agentWorkers,omitempty"`
+
+	// ClusterMonitorInterval determines how often the cluster monitor will check for offline downstream clusters.
+	ClusterMonitorInterval metav1.Duration `json:"clusterMonitorInterval.omitempty"`
+
+	// ClusterMonitorThreshold determines how long must have elapsed since a downstream cluster's Fleet agent last
+	// reported its status to the management cluster, before that downstream cluster is considered offline.
+	// If this configured value is shorter than three times the agent check-in interval, then that check-in
+	// interval-based value will be used instead to prevent false positives.
+	ClusterMonitorThreshold metav1.Duration `json:"clusterMonitorThreshold.omitempty"`
 }
 
 type AgentWorkers struct {

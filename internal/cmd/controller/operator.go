@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/clustermonitor"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
-	"github.com/rancher/fleet/internal/config"
+	fleetcfg "github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
@@ -227,7 +228,15 @@ func start(
 	}
 
 	setupLog.Info("starting cluster status monitor")
-	go clustermonitor.Run(ctx, mgr.GetClient())
+	cfg := fleetcfg.Get()
+	// No need to run a similar check on the threshold, since its minimum value will be a multiple of the agent check-in
+	// interval anyway.
+	if cfg.ClusterMonitorInterval.Seconds() == 0 {
+		err := errors.New("cluster status monitor interval cannot be 0")
+		setupLog.Error(err, "cannot start cluster status monitor")
+		return err
+	}
+	go clustermonitor.Run(ctx, mgr.GetClient(), cfg.ClusterMonitorInterval.Duration, cfg.ClusterMonitorThreshold.Duration)
 
 	setupLog.Info("starting job scheduler")
 	jobCtx, cancel := context.WithCancel(ctx)
@@ -250,7 +259,7 @@ func AddContentNameLabelIndexer(ctx context.Context, mgr manager.Manager) error 
 	return mgr.GetFieldIndexer().IndexField(
 		ctx,
 		&fleet.BundleDeployment{},
-		config.ContentNameIndex,
+		fleetcfg.ContentNameIndex,
 		func(obj client.Object) []string {
 			content, ok := obj.(*fleet.BundleDeployment)
 			if !ok {
@@ -271,7 +280,7 @@ func AddBundleDownstreamResourceIndexer(ctx context.Context, mgr manager.Manager
 	return mgr.GetFieldIndexer().IndexField(
 		ctx,
 		&fleet.Bundle{},
-		config.BundleDownstreamResourceIndex,
+		fleetcfg.BundleDownstreamResourceIndex,
 		func(obj client.Object) []string {
 			bundle, ok := obj.(*fleet.Bundle)
 			if !ok {
