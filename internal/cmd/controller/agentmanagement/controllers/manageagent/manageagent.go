@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"sort"
 
 	"github.com/sirupsen/logrus"
@@ -329,6 +330,10 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 	priorityClassName := ""
 	if cluster.Spec.AgentSchedulingCustomization != nil && cluster.Spec.AgentSchedulingCustomization.PriorityClass != nil {
 		priorityClassName = scheduling.FleetAgentPriorityClassName
+	}
+
+	if cfg.AgentCheckinInterval.Seconds() == 0 {
+		return nil, errors.New("agent check-in interval cannot be 0")
 	}
 
 	if cluster.Spec.AgentTolerations != nil {
