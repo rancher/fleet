@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/reugn/go-quartz/quartz"
@@ -10,6 +11,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/clustermonitor"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
+	fleetcfg "github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -171,7 +173,15 @@ func start(
 	}
 
 	setupLog.Info("starting cluster status monitor")
-	go clustermonitor.Run(ctx, mgr.GetClient())
+	cfg := fleetcfg.Get()
+	// No need to run a similar check on the threshold, since its minimum value will be a multiple of the agent check-in
+	// interval anyway.
+	if cfg.ClusterMonitorInterval.Seconds() == 0 {
+		err := errors.New("cluster status monitor interval cannot be 0")
+		setupLog.Error(err, "cannot start cluster status monitor")
+		return err
+	}
+	go clustermonitor.Run(ctx, mgr.GetClient(), cfg.ClusterMonitorInterval.Duration, cfg.ClusterMonitorThreshold.Duration)
 
 	setupLog.Info("starting job scheduler")
 	jobCtx, cancel := context.WithCancel(ctx)
