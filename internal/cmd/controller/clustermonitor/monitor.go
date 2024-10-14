@@ -3,6 +3,7 @@ package clustermonitor
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -19,27 +20,28 @@ import (
 // a certain threshold, then Run updates statuses of all bundle deployments targeting that cluster, to reflect the fact
 // that the cluster is offline. This prevents those bundle deployments from displaying outdated status information.
 //
-// The threshold is computed based on the configured agent check-in interval, plus a 10 percent margin.
+// A cluster will be considered offline if its Fleet agent has not reported its status for more than:
+// - three times the agent check-in interval
+// - or any larger configured interval.
 // Therefore, this function requires configuration to have been loaded into the config package using `Load` before
 // running.
 //
 // Bundle deployment status updates done here are unlikely to conflict with those done by the bundle deployment
 // reconciler, which are either run from an online target cluster (from its Fleet agent) or triggered by other status
 // updates such as this one (eg. bundle deployment reconciler living in the Fleet controller).
-func Run(ctx context.Context, c client.Client) {
+func Run(ctx context.Context, c client.Client, interval, threshold time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(time.Minute): // XXX: should this be configurable?
+		case <-time.After(interval):
 		}
 
 		cfg := config.Get() // This enables config changes to take effect
 
-		// Add a 10% margin, which is arbitrary but should reduce the risk of false positives.
-		threshold := time.Duration(cfg.AgentCheckinInterval.Seconds() * 1.1)
+		thresholdSecs := math.Max(cfg.AgentCheckinInterval.Seconds()*3, threshold.Seconds())
 
-		UpdateOfflineBundleDeployments(ctx, c, threshold)
+		UpdateOfflineBundleDeployments(ctx, c, time.Second*time.Duration(thresholdSecs))
 	}
 }
 
