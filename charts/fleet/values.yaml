@@ -23,6 +23,15 @@ agentTLSMode: "system-store"
 # A duration string for how often agents should report a heartbeat
 agentCheckinInterval: "15m"
 
+# Determines how long must have elapsed since a downstream cluster's Fleet agent last reported its status to the
+# management cluster, before that downstream cluster is considered offline.
+# If this configured value is shorter than three times the agent check-in interval, then that check-in
+# interval-based value will be used instead to prevent false positives.
+clusterMonitorThreshold: "45m"
+
+# Determines how often the cluster monitor will check for offline downstream clusters.
+clusterMonitorInterval: "10m"
+
 # The amount of time that agents will wait before they clean up old Helm releases.
 # A non-existent value or 0 will result in an interval of 15 minutes.
 garbageCollectionInterval: "15m"
