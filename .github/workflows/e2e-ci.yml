@@ -24,8 +24,7 @@ jobs:
           - name: k3s-new
             version: v1.31.1-k3s1
           - name: k3s-old
-            version: v1.24.17-k3s1
-
+            version: v1.27.16-k3s1
         test_type:
           - name: default
           - name: sharding

@@ -21,8 +21,7 @@ jobs:
           # https://hub.docker.com/r/rancher/k3s/tags
           - v1.31.1-k3s1
           - v1.27.5-k3s1
-          - v1.24.17-k3s1
-
+          - v1.27.16-k3s1
         test_type:
           - acceptance
           - e2e-secrets
