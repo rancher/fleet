@@ -81,7 +81,7 @@ func ShouldUpdateStatus(bd *fleet.BundleDeployment) bool {
 }
 
 func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) (fleet.BundleDeploymentStatus, error) {
-	logger := log.FromContext(ctx).WithName("UpdateStatus")
+	logger := log.FromContext(ctx).WithName("update-status")
 
 	// updateFromResources mutates bd.Status, so copy it first
 	origStatus := *bd.Status.DeepCopy()
