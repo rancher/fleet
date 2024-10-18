@@ -67,8 +67,9 @@ func (m BDStatusMatcher) String() string {
 }
 
 type clusterWithOfflineMarker struct {
-	cluster   v1alpha1.Cluster
-	isOffline bool
+	cluster                v1alpha1.Cluster
+	isOffline              bool
+	isAlreadyMarkedOffline bool
 }
 
 func Test_Run(t *testing.T) { //nolint: funlen // this is a test function, its length should not be an issue
@@ -309,6 +310,150 @@ func Test_Run(t *testing.T) { //nolint: funlen // this is a test function, its l
 			},
 			listBDErr: nil,
 		},
+		{
+			name: "multiple offline clusters, some of them already marked offline",
+			clusters: []clusterWithOfflineMarker{
+				{
+					cluster: v1alpha1.Cluster{
+						Status: v1alpha1.ClusterStatus{
+							Agent: v1alpha1.AgentStatus{
+								LastSeen: metav1.Time{Time: time.Now().UTC()},
+							},
+						},
+					},
+				},
+				{
+					cluster: v1alpha1.Cluster{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "mycluster",
+						},
+						Status: v1alpha1.ClusterStatus{
+							Agent: v1alpha1.AgentStatus{
+								LastSeen: metav1.Time{Time: time.Now().UTC().Add(-10 * threshold)},
+							},
+							Namespace: "clusterns1",
+						},
+					},
+					isOffline: true,
+				},
+				{
+					cluster: v1alpha1.Cluster{
+						Status: v1alpha1.ClusterStatus{
+							Agent: v1alpha1.AgentStatus{
+								LastSeen: metav1.Time{Time: time.Now().UTC()},
+							},
+						},
+					},
+				},
+				{
+					cluster: v1alpha1.Cluster{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "mycluster2",
+						},
+						Status: v1alpha1.ClusterStatus{
+							Agent: v1alpha1.AgentStatus{
+								LastSeen: metav1.Time{Time: time.Now().UTC().Add(-5 * threshold)},
+							},
+							Namespace: "clusterns2",
+						},
+					},
+					isOffline:              true,
+					isAlreadyMarkedOffline: true,
+				},
+				{
+					cluster: v1alpha1.Cluster{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "mycluster3",
+						},
+						Status: v1alpha1.ClusterStatus{
+							Agent: v1alpha1.AgentStatus{
+								LastSeen: metav1.Time{Time: time.Now().UTC().Add(-3 * threshold)},
+							},
+							Namespace: "clusterns3",
+						},
+					},
+					isOffline: true,
+				},
+			},
+			listClustersErr: nil,
+			bundleDeployments: map[string][]v1alpha1.BundleDeployment{
+				"clusterns1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "mybundledeployment",
+							Namespace: "clusterns1",
+						},
+						Status: v1alpha1.BundleDeploymentStatus{
+							Conditions: []genericcondition.GenericCondition{
+								{
+									Type: "Ready",
+								},
+								{
+									Type: "Monitored",
+								},
+							},
+						},
+					},
+				},
+				"clusterns2": {
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "mybundledeployment",
+							Namespace: "clusterns2",
+						},
+						Status: v1alpha1.BundleDeploymentStatus{
+							Conditions: []genericcondition.GenericCondition{
+								{
+									Type:    "Ready",
+									Message: "cluster is offline",
+								},
+								{
+									Type:    "Monitored",
+									Message: "cluster is offline",
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "my-other-bundledeployment",
+							Namespace: "clusterns2",
+						},
+						Status: v1alpha1.BundleDeploymentStatus{
+							Conditions: []genericcondition.GenericCondition{
+								{
+									Type:    "Ready",
+									Message: "cluster is offline",
+								},
+								{
+									Type:    "Monitored",
+									Message: "cluster is offline",
+								},
+							},
+						},
+					},
+				},
+				"clusterns3": {
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "mybundledeployment",
+							Namespace: "clusterns3",
+						},
+						Status: v1alpha1.BundleDeploymentStatus{
+							Conditions: []genericcondition.GenericCondition{
+								{
+									Type: "Ready",
+								},
+								{
+									Type: "Monitored",
+								},
+							},
+						},
+					},
+				},
+			},
+			listBDErr: nil,
+		},
 	}
 
 	for _, tc := range cases {
@@ -342,6 +487,12 @@ func Test_Run(t *testing.T) { //nolint: funlen // this is a test function, its l
 						return tc.listBDErr
 					},
 				)
+
+				if cl.isAlreadyMarkedOffline {
+					// skip status updates for bundle deployments which have already been
+					// marked offline by a previous monitoring loop.
+					continue
+				}
 
 				for _, bd := range bundleDeplsForCluster {
 					testClient.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).DoAndReturn(
