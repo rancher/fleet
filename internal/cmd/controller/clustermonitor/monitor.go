@@ -2,7 +2,7 @@ package clustermonitor
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math"
 	"time"
 
@@ -15,6 +15,8 @@ import (
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
+
+const offlineMsg = "cluster is offline"
 
 // Run monitors Fleet cluster resources' agent last seen dates. If a cluster's agent was last seen longer ago than
 // a certain threshold, then Run updates statuses of all bundle deployments targeting that cluster, to reflect the fact
@@ -45,6 +47,9 @@ func Run(ctx context.Context, c client.Client, interval, threshold time.Duration
 	}
 }
 
+// UpdateOfflineBundleDeployments looks for offline clusters based on the provided threshold duration. For each cluster
+// considered offline, this updates its bundle deployments' statuses accordingly.
+// If a cluster's bundle deployments have already been marked as offline, they will be skipped.
 func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, threshold time.Duration) {
 	logger := ctrl.Log.WithName("cluster status monitor")
 
@@ -58,10 +63,6 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 		lastSeen := cluster.Status.Agent.LastSeen
 
 		logger.Info("Checking cluster status", "cluster", cluster.Name, "last seen", lastSeen.UTC().String())
-
-		// XXX: do we want to run this more than once per cluster, updating the timestamp each time?
-		// Or would it make sense to keep the oldest possible timestamp in place, for users to know since when the
-		// cluster is offline?
 
 		// lastSeen being 0 would typically mean that the cluster is not registered yet, in which case bundle
 		// deployments should not be deployed there.
@@ -85,7 +86,19 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 			continue
 		}
 
+	bd_update:
 		for _, bd := range bundleDeployments.Items {
+			for _, cond := range bd.Status.Conditions {
+				switch cond.Type {
+				case "Ready":
+					fallthrough
+				case "Monitored":
+					if cond.Message == offlineMsg {
+						break bd_update
+					}
+				}
+			}
+
 			logger.Info("Updating bundle deployment in offline cluster", "cluster", cluster.Name, "bundledeployment", bd.Name)
 			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				t := &v1alpha1.BundleDeployment{}
@@ -101,16 +114,16 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 
 				for _, cond := range bd.Status.Conditions {
 					switch cond.Type {
-					// XXX: which messages do we want to set and where?
 					case "Ready":
 						// FIXME: avoid relying on agent pkg for this?
 						mc := monitor.Cond(v1alpha1.BundleDeploymentConditionReady)
-						mc.SetError(&t.Status, "Cluster offline", fmt.Errorf("cluster is offline"))
+						mc.SetError(&t.Status, "Cluster offline", errors.New(offlineMsg))
+						mc.Unknown(&t.Status)
 						// XXX: do we want to set Deployed and Installed conditions as well?
 						// XXX: should we set conditions to `Unknown`?
 					case "Monitored":
 						mc := monitor.Cond(v1alpha1.BundleDeploymentConditionMonitored)
-						mc.SetError(&t.Status, "Cluster offline", fmt.Errorf("cluster is offline"))
+						mc.SetError(&t.Status, "Cluster offline", errors.New(offlineMsg))
 
 					}
 				}
