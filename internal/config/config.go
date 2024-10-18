@@ -152,7 +152,7 @@ type Config struct {
 	AgentWorkers AgentWorkers `json:"agentWorkers,omitempty"`
 
 	// ClusterMonitorInterval determines how often the cluster monitor will check for offline downstream clusters.
-	ClusterMonitorInterval metav1.Duration `json:"clusterMonitorInterval.omitempty"`
+	ClusterMonitorInterval metav1.Duration `json:"clusterMonitorInterval,omitempty"`
 
 	// ClusterMonitorThreshold determines how long must have elapsed since a downstream cluster's Fleet agent last
 	// reported its status to the management cluster, before that downstream cluster is considered offline.
