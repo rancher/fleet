@@ -72,7 +72,7 @@ func New(
 }
 
 func (c *Cleanup) OldAgent(ctx context.Context, modifiedStatuses []fleet.ModifiedStatus) error {
-	logger := log.FromContext(ctx).WithName("cleanupOldAgent")
+	logger := log.FromContext(ctx).WithName("cleanup-old-agent")
 	var errs []error
 	for _, modified := range modifiedStatuses {
 		if modified.Delete {
@@ -106,7 +106,7 @@ func (c *Cleanup) CleanupReleases(ctx context.Context, key string, bd *fleet.Bun
 }
 
 func (c *Cleanup) garbageCollect(ctx context.Context) {
-	logger := log.FromContext(ctx).WithName("garbageCollect")
+	logger := log.FromContext(ctx).WithName("garbage-collect")
 	for {
 		if err := c.cleanup(ctx, logger); err != nil {
 			logger.Error(err, "failed to cleanup orphaned releases")
