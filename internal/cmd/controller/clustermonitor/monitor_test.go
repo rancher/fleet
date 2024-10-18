@@ -42,7 +42,7 @@ func (m BDStatusMatcher) Matches(x interface{}) bool {
 		if cond.Type == "Ready" {
 			foundReady = true
 
-			if cond.Status != "False" ||
+			if cond.Status != "Unknown" ||
 				!strings.Contains(cond.Reason, "offline") ||
 				!strings.Contains(cond.Message, "offline") {
 				return false
