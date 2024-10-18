@@ -115,12 +115,10 @@ func UpdateOfflineBundleDeployments(ctx context.Context, c client.Client, thresh
 				for _, cond := range bd.Status.Conditions {
 					switch cond.Type {
 					case "Ready":
-						// FIXME: avoid relying on agent pkg for this?
 						mc := monitor.Cond(v1alpha1.BundleDeploymentConditionReady)
 						mc.SetError(&t.Status, "Cluster offline", errors.New(offlineMsg))
 						mc.Unknown(&t.Status)
 						// XXX: do we want to set Deployed and Installed conditions as well?
-						// XXX: should we set conditions to `Unknown`?
 					case "Monitored":
 						mc := monitor.Cond(v1alpha1.BundleDeploymentConditionMonitored)
 						mc.SetError(&t.Status, "Cluster offline", errors.New(offlineMsg))
