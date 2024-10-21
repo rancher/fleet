@@ -122,7 +122,6 @@ type GitRepoSpec struct {
 	ImageSyncInterval *metav1.Duration `json:"imageScanInterval,omitempty"`
 
 	// Commit specifies how to commit to the git repo when a new image is scanned and written back to git repo.
-	// +required
 	ImageScanCommit CommitSpec `json:"imageScanCommit,omitempty"`
 
 	// KeepResources specifies if the resources created must be kept after deleting the GitRepo.
