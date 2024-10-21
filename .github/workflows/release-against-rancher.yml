@@ -51,15 +51,8 @@ jobs:
           export CHARTS_DIR="${GITHUB_WORKSPACE}/rancher"
           ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}
-          push-to-fork: rancherbot/rancher
-          title: '[${{github.event.inputs.rancher_ref}}] fleet ${{github.event.inputs.new_chart}}+up${{github.event.inputs.new_fleet}} update'
-          body: |
-            Update Fleet to v${{github.event.inputs.new_fleet}}
-
-            Changelog: https://github.com/rancher/fleet/releases/tag/v${{github.event.inputs.new_fleet}}
-          branch-suffix: timestamp
-          base: ${{github.event.inputs.rancher_ref}}
-          path: ./rancher/
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUSH_TO_FORKS_SUBMIT_PRS }}
+        working-directory: ./rancher/
+        run: |
+          ../fleet/.github/scripts/create-pr.sh ${{github.event.inputs.rancher_ref}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} rancher
