@@ -1,11 +1,11 @@
 ---
 apiVersion: fleet.cattle.io/v1alpha1
-content: H4sIAAAAAAAA/4SRMW/bMBCF9/6KA2eLtlygA7fCa7t6KTucpZNNhKII8iTEEPTfA5KRESdOsgjQ3Xv33gfOIlAcxtBQFOrfLBz2JJRoBteZc9VcMPD2kL7yir0Vm7RhciyUQG+OFKIZnIJpr12yKnjr1K6l2ATjOYt+A1NkyCvgCzJMFExnKILh+OrUjq+eFKD31jSYnNpNa85O1nKnHXp/i9ailvUvudNCO7FsHiMw9d4iU9yWcY/+G6BauyfjWgWHbPiLXrueGFtkVNoBFNxEVEXTe0slqloxbsIkSTUntCPV+5+p6GqfZ5DHNI8yDWBZvoCYivBD73KqpQ5Hy1X6uz/SWaIH73ch2+eC+fr7lwMocVmx1qVnzKR5dR/yWbkxWAVnO5zQylKksWNkCn/wRLZgp0v/lx8vAQAA//+su6S1jAIAAA==
+content: H4sIAK9MFmcAA51TPW/bMBDd/SsOmi05SoEO2oKsyRQgS5nhTJ0sItSRICmhgeH/Hn5YbhGgtduFgO7eu3fv8HTcAFSOvJmdJF918CMWAI75jS3GiWK1koYHdajliC7sHtPbfOCkq+0KjIBAHBIWrXol55XhDpZ7wWlGB79PENyTl07ZkEEPEMgHyC0IIwZYyKlBkQcV/JkpOHzYOAet1UpiYgpeVp27pm3uBMfmRVpUbdN+j9VKcJXXPG1vMBdoshrjQrtSntDeaLUV/K647+AxE5/RCp4oYI8BO8EA5RDJa+1VVKEiWa8GL8AESQYW1DO199+ShZV+PELzmuq+SQU4nf7J3lKof3RURHoacNahTl/Xxg+a6C9pGElP2VTW/5oDgLJQRqwW6Sfm6+TWNflrhmanOzhos0fdlFWlnn0g94R70uWI/xkQT25RklBKM/OtP8QlJS+F/VDYX6KCzCbkkK+nSXds/LgbjXnvwDqqFfuAWm/zx2wPDntKWJ2NnWmDMR3s0f0KkDcT1caSw2Dc2Xd83zanzScIJmgxDgQAAA==
 kind: Content
 metadata:
   creationTimestamp: null
-  name: s-ee0480cffe0c0da150814f6844d7c5bc49cc05c158c5ba1efe9a45142f36e
-sha256sum: ee0480cffe0c0da150814f6844d7c5bc49cc05c158c5ba1efe9a45142f36eebc
+  name: s-eaab4652f067cb4cbb2498af40082a70b5bf089873703a72b6895e53daaf0dac
+sha256sum: eaab4652f067cb4cbb2498af40082a70b5bf089873703a72b6895e53daaf0dac
 
 ---
 apiVersion: fleet.cattle.io/v1alpha1
@@ -22,14 +22,14 @@ metadata:
   name: testbundle-simple-chart
   namespace: cluster-fleet-local-local-1a3d67d0a899
 spec:
-  deploymentID: s-ee0480cffe0c0da150814f6844d7c5bc49cc05c158c5ba1efe9a45142f36e:c32e813ecbf48f56833aa2267cd3d8758eecc94f9948fb0dea510147a57760b5
+  deploymentID: s-eaab4652f067cb4cbb2498af40082a70b5bf089873703a72b6895e53daaf0dac:c32e813ecbf48f56833aa2267cd3d8758eecc94f9948fb0dea510147a57760b5
   options:
     helm:
       chart: config-chart
       values:
         name: example-value
     ignore: {}
-  stagedDeploymentID: s-ee0480cffe0c0da150814f6844d7c5bc49cc05c158c5ba1efe9a45142f36e:c32e813ecbf48f56833aa2267cd3d8758eecc94f9948fb0dea510147a57760b5
+  stagedDeploymentID: s-eaab4652f067cb4cbb2498af40082a70b5bf089873703a72b6895e53daaf0dac:c32e813ecbf48f56833aa2267cd3d8758eecc94f9948fb0dea510147a57760b5
   stagedOptions:
     helm:
       chart: config-chart
