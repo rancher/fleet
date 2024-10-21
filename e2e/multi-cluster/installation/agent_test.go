@@ -36,8 +36,9 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 			"cattle-fleet-system",
 			"--type=merge",
 			"-p",
+			// Agent check-in interval cannot be 0. Any other value will do here.
 			fmt.Sprintf(
-				`{"data":{"config":"{\"apiServerURL\": \"https://google.com\", \"apiServerCA\": \"\", \"agentTLSMode\": \"%s\"}"}}`,
+				`{"data":{"config":"{\"apiServerURL\": \"https://google.com\", \"apiServerCA\": \"\", \"agentTLSMode\": \"%s\", \"agentCheckinInterval\": \"1m\"}"}}`,
 				agentMode,
 			),
 		)
