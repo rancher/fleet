@@ -77,34 +77,31 @@ jobs:
           tar -xz --strip-components=2 -f rancher-linux-amd64-v2.6.0.tar.gz -C /home/runner/.local/bin
           rancher --version
       -
+        name: Install k3d
+        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+      -
         name: Set up k3d control-plane cluster
-        uses: AbsaOSS/k3d-action@v2
-        with:
-          k3d-version: ${{ env.SETUP_K3D_VERSION }}
-          cluster-name: "upstream"
-          args: >-
-            -p "80:80@agent:0:direct"
-            -p "443:443@agent:0:direct"
-            --api-port 6443
-            --agents 1
-            --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*'
-            --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
-            --network "nw01"
+        run: |
+          k3d cluster create upstream --wait \
+            -p "80:80@agent:0:direct" \
+            -p "443:443@agent:0:direct" \
+            --api-port 6443 \
+            --agents 1 \
+            --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
+            --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
+            --network "nw01" \
             --image docker.io/rancher/k3s:${{github.event.inputs.k3s_version}}
       -
         name: Set up k3d downstream cluster
-        uses: AbsaOSS/k3d-action@v2
-        with:
-          k3d-version: ${{ env.SETUP_K3D_VERSION }}
-          cluster-name: "downstream"
-          args: >-
-            -p "81:80@agent:0:direct"
-            -p "444:443@agent:0:direct"
-            --api-port 6644
-            --agents 1
-            --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*'
-            --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*'
-            --network "nw01"
+        run: |
+          k3d cluster create downstream --wait \
+            -p "81:80@agent:0:direct" \
+            -p "444:443@agent:0:direct" \
+            --api-port 6644 \
+            --agents 1 \
+            --k3s-arg '--kubelet-arg=eviction-hard=imagefs.available<1%,nodefs.available<1%@agent:*' \
+            --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
+            --network "nw01" \
             --image docker.io/rancher/k3s:${{github.event.inputs.k3s_version}}
       -
         name: Set up Rancher
