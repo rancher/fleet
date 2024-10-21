@@ -85,15 +85,6 @@ debug: false
 debugLevel: 0
 propagateDebugSettingsToAgents: true
 
-## Optional CPU pprof configuration. Profiles are collected continuously and saved every period
-## Any valid volume configuration can be provided, the example below uses hostPath
-# cpuPprof:
-#   period: "60s"
-#   volumeConfiguration:
-#     hostPath:
-#       path: /tmp/pprof
-#       type: DirectoryOrCreate
-
 migrations:
   clusterRegistrationCleanup: true
   gitrepoJobsCleanup: true

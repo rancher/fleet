@@ -11,34 +11,4 @@ For example: you may encounter a pod with high compute usage, but that could be 
 
 [http pprof](https://pkg.go.dev/net/http/pprof) handlers are enabled by default with all [default profiles](https://pkg.go.dev/runtime/pprof#Profile) under the `/debug/pprof` prefix.
 
-Additionally, it is possible to enable continuous CPU profiling for `fleetcontroller` to observe how CPU usage changes over time.
-
-Add the following extra Helm values:
-```yaml
-cpuPprof:
-  period: "60s"
-  volumeConfiguration:
-    hostPath:
-      path: /tmp/pprof
-      type: DirectoryOrCreate
-```
-
-Notes:
- - `period` is the pprof CPU period and can be changed with any other value
- - `volumeConfiguration` can be any valid volume configuration (not necessarily `hostPath`)
-
-Alternatively, use the following Helm commandline arguments:
-```
---set cpuPprof.period=60s \
---set cpuPprof.volumeConfiguration.hostPath.path=/tmp/pprof \
---set cpuPprof.volumeConfiguration.hostPath.type=DirectoryOrCreate \
-```
-
-If using `hostPath`, make sure that the target directory (`/tmp/pprof` in above examples) is writable.
-
-Profiles can be inspected with the [pprof tool](https://github.com/google/pprof), eg.:
-
-```sh
-pprof -http=localhost:5000 ./2022-11-04_19_47_18.pprof.fleetcontroller.samples.cpu.pb.gz
-```
-
+To collect profiling information continuously one can use https://github.com/rancherlabs/support-tools/tree/master/collection/rancher/v2.x/profile-collector
