@@ -16,7 +16,7 @@ import (
 // RemoveExternalChanges does a helm rollback to remove changes made outside of fleet.
 // It removes the helm history entry if the rollback fails.
 func (h *Helm) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDeployment) (string, error) {
-	log.FromContext(ctx).WithName("RemoveExternalChanges").Info("Drift correction: rollback")
+	log.FromContext(ctx).WithName("remove-external-changes").Info("Drift correction: rollback")
 
 	_, defaultNamespace, releaseName := h.getOpts(bd.Name, bd.Spec.Options)
 	cfg, err := h.getCfg(ctx, defaultNamespace, bd.Spec.Options.ServiceAccount)

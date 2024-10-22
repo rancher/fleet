@@ -56,7 +56,7 @@ func (d *Deployer) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDe
 // mutate bd, instead it returns the modified status
 func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment) (fleet.BundleDeploymentStatus, error) {
 	status := bd.Status
-	logger := log.FromContext(ctx).WithName("DeployBundle").WithValues("deploymentID", bd.Spec.DeploymentID, "appliedDeploymentID", status.AppliedDeploymentID)
+	logger := log.FromContext(ctx).WithName("deploy-bundle").WithValues("deploymentID", bd.Spec.DeploymentID, "appliedDeploymentID", status.AppliedDeploymentID)
 
 	if err := d.checkDependency(ctx, bd); err != nil {
 		logger.V(1).Info("Bundle has a dependency that is not ready", "error", err)

@@ -909,18 +909,6 @@ func simulateIncreaseForceSyncGeneration(gitRepo v1alpha1.GitRepo) error {
 	})
 }
 
-func simulateIncreaseGitRepoGeneration(gitRepo v1alpha1.GitRepo) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		var gitRepoFromCluster v1alpha1.GitRepo
-		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
-		if err != nil {
-			return err
-		}
-		gitRepoFromCluster.Spec.ClientSecretName = "new"
-		return k8sClient.Update(ctx, &gitRepoFromCluster)
-	})
-}
-
 func createGitRepo(gitRepoName string) v1alpha1.GitRepo {
 	return v1alpha1.GitRepo{
 		ObjectMeta: metav1.ObjectMeta{
