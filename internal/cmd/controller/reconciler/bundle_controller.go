@@ -138,49 +138,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		)
 	}
 
-	if !bundle.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
-			metrics.BundleCollector.Delete(req.Name, req.Namespace)
-
-			logger.V(1).Info("Bundle not found, purging bundle deployments")
-			if err := finalize.PurgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
-				// A bundle deployment may have been purged by the GitRepo reconciler, hence we ignore
-				// not-found errors here.
-				return ctrl.Result{}, client.IgnoreNotFound(err)
-			}
-
-			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
-					return err
-				}
-
-				controllerutil.RemoveFinalizer(bundle, bundleFinalizer)
-
-				return r.Update(ctx, bundle)
-			})
-
-			if client.IgnoreNotFound(err) != nil {
-				return ctrl.Result{}, err
-			}
-		}
-
-		return ctrl.Result{}, nil
-	}
-
-	if !controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
-				return err
-			}
-
-			controllerutil.AddFinalizer(bundle, bundleFinalizer)
-
-			return r.Update(ctx, bundle)
-		})
-
-		if client.IgnoreNotFound(err) != nil {
-			return ctrl.Result{}, err
-		}
+	if res, err := r.addOrRemoveFinalizer(ctx, logger, req, bundle); res {
+		return ctrl.Result{}, err
 	}
 
 	logger.V(1).Info(
@@ -308,6 +267,58 @@ func upper(op controllerutil.OperationResult) string {
 	default:
 		return "Unknown"
 	}
+}
+
+// addOrRemoveFinalizer adds a finalizer to a recently created bundle, or removes it on a bundle marked for deletion.
+// It returns a boolean indicating whether the current reconcile loop should stop, along with any error which may have
+// occurred in the process.
+func (r *BundleReconciler) addOrRemoveFinalizer(ctx context.Context, logger logr.Logger, req ctrl.Request, bundle *fleet.Bundle) (bool, error) {
+	if !bundle.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
+			metrics.BundleCollector.Delete(req.Name, req.Namespace)
+
+			logger.V(1).Info("Bundle not found, purging bundle deployments")
+			if err := finalize.PurgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
+				// A bundle deployment may have been purged by the GitRepo reconciler, hence we ignore
+				// not-found errors here.
+				return true, client.IgnoreNotFound(err)
+			}
+
+			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
+					return err
+				}
+
+				controllerutil.RemoveFinalizer(bundle, bundleFinalizer)
+
+				return r.Update(ctx, bundle)
+			})
+
+			if client.IgnoreNotFound(err) != nil {
+				return true, err
+			}
+		}
+
+		return true, nil
+	}
+
+	if !controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
+				return err
+			}
+
+			controllerutil.AddFinalizer(bundle, bundleFinalizer)
+
+			return r.Update(ctx, bundle)
+		})
+
+		if client.IgnoreNotFound(err) != nil {
+			return true, err
+		}
+	}
+
+	return false, nil
 }
 
 func (r *BundleReconciler) createBundleDeployment(

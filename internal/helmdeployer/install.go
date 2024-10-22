@@ -64,7 +64,7 @@ func (h *Helm) Deploy(ctx context.Context, bundleID string, manifest *manifest.M
 
 // install runs helm install or upgrade and supports dry running the action. Will run helm rollback in case of a failed upgrade.
 func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.Manifest, chart *chart.Chart, options fleet.BundleDeploymentOptions, dryRun bool) (*release.Release, error) {
-	logger := log.FromContext(ctx).WithName("HelmDeployer").WithName("install").WithValues("commit", manifest.Commit, "dryRun", dryRun)
+	logger := log.FromContext(ctx).WithName("helm-deployer").WithName("install").WithValues("commit", manifest.Commit, "dryRun", dryRun)
 	timeout, defaultNamespace, releaseName := h.getOpts(bundleID, options)
 
 	values, err := h.getValues(ctx, options, defaultNamespace)
