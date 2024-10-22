@@ -25,6 +25,7 @@ metrics:
 debug: true
 debugLevel: 4
 propagateDebugSettingsToAgents: true
+disableSecurityContext: true
 
 cpuPprof:
   period: "60s"
