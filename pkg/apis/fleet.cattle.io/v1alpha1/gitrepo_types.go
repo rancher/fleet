@@ -122,7 +122,6 @@ type GitRepoSpec struct {
 	ImageSyncInterval *metav1.Duration `json:"imageScanInterval,omitempty"`
 
 	// Commit specifies how to commit to the git repo when a new image is scanned and written back to git repo.
-	// +required
 	ImageScanCommit CommitSpec `json:"imageScanCommit,omitempty"`
 
 	// KeepResources specifies if the resources created must be kept after deleting the GitRepo.
@@ -306,16 +305,13 @@ type ResourcePerClusterState struct {
 type CommitSpec struct {
 	// AuthorName gives the name to provide when making a commit
 	// +optional
-	// +nullable
 	AuthorName string `json:"authorName"`
 	// AuthorEmail gives the email to provide when making a commit
 	// +optional
-	// +nullable
 	AuthorEmail string `json:"authorEmail"`
 	// MessageTemplate provides a template for the commit message,
 	// into which will be interpolated the details of the change made.
 	// +optional
-	// +nullable
 	MessageTemplate string `json:"messageTemplate,omitempty"`
 }
 

@@ -134,7 +134,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 // These are the bundle's namespace, e.g. "fleet-local", and every namespace
 // matched by a bundle namespace mapping resource.
 func (m *Manager) getNamespacesForBundle(ctx context.Context, bundle *fleet.Bundle) ([]string, error) {
-	logger := log.FromContext(ctx).WithName("getNamespacesForBundle")
+	logger := log.FromContext(ctx).WithName("get-namespaces-for-bundle").WithValues("bundle", bundle)
 	mappings := &fleet.BundleNamespaceMappingList{}
 	err := m.client.List(ctx, mappings, client.InNamespace(bundle.Namespace))
 	if err != nil {
@@ -143,7 +143,7 @@ func (m *Manager) getNamespacesForBundle(ctx context.Context, bundle *fleet.Bund
 
 	nses := sets.NewString(bundle.Namespace)
 	for _, mapping := range mappings.Items {
-		logger.V(4).Info("Looking for matching namespaces", "bundleNamespaceMapping", mapping, "bundle", bundle)
+		logger.V(4).Info("Looking for matching namespaces", "bundleNamespaceMapping", mapping)
 		mapping := mapping // fix gosec warning regarding "Implicit memory aliasing in for loop"
 		matcher, err := newBundleMapping(&mapping)
 		if err != nil {

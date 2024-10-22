@@ -3,6 +3,7 @@ package agent_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -31,6 +32,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -74,9 +76,11 @@ var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
 
 	ctx, cancel = context.WithCancel(context.TODO())
+	existing := os.Getenv("CI_USE_EXISTING_CLUSTER") == "true"
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
 		ErrorIfCRDPathMissing: true,
+		UseExistingCluster:    &existing,
 	}
 
 	var err error
@@ -103,10 +107,26 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
+	driftChan := make(chan event.GenericEvent)
+
 	// Set up the bundledeployment reconciler
 	Expect(k8sClient.Create(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNS}})).ToNot(HaveOccurred())
-	reconciler := newReconciler(ctx, k8sManager, newLookup(resources))
+	reconciler := newReconciler(ctx, k8sManager, newLookup(resources), driftChan)
 	err = reconciler.SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
+
+	// Set up the driftdetect reconciler
+	driftReconciler := &controller.DriftReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+
+		Deployer:    reconciler.Deployer,
+		Monitor:     reconciler.Monitor,
+		DriftDetect: reconciler.DriftDetect,
+
+		DriftChan: driftChan,
+	}
+	err = driftReconciler.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
 	go func() {
@@ -124,7 +144,7 @@ var _ = AfterSuite(func() {
 // newReconciler creates a new BundleDeploymentReconciler that will watch for changes
 // in the test Fleet namespace, using configuration from the provided manager.
 // Resources are provided by the lookup parameter.
-func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *controller.BundleDeploymentReconciler {
+func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, driftChan chan event.GenericEvent) *controller.BundleDeploymentReconciler {
 	upstreamClient := mgr.GetClient()
 	// re-use client, since this is a single cluster test
 	localClient := upstreamClient
@@ -174,12 +194,11 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup) *co
 	trigger := trigger.New(ctx, localDynamic, mgr.GetRESTMapper())
 	driftdetect := driftdetect.New(
 		trigger,
-		upstreamClient,
-		mgr.GetAPIReader(),
 		dsClient,
 		defaultNamespace,
 		defaultNamespace,
 		agentScope,
+		driftChan,
 	)
 
 	// Build the clean up

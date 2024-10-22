@@ -28,6 +28,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -85,6 +86,8 @@ func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agent
 	localCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	driftChan := make(chan event.GenericEvent)
+
 	reconciler, err := newReconciler(
 		ctx,
 		localCtx,
@@ -94,6 +97,7 @@ func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agent
 		fleetNamespace,
 		agentScope,
 		agentConfig,
+		driftChan,
 	)
 	if err != nil {
 		setupLog.Error(err, "unable to set up bundledeployment reconciler")
@@ -106,6 +110,22 @@ func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agent
 		return err
 	}
 	//+kubebuilder:scaffold:builder
+
+	// RawSource watches for all events from the driftdetect mini controller
+	driftReconciler := &controller.DriftReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+
+		Deployer:    reconciler.Deployer,
+		Monitor:     reconciler.Monitor,
+		DriftDetect: reconciler.DriftDetect,
+
+		DriftChan: driftChan,
+	}
+	if err = driftReconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "BundleDeployment")
+		return err
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
@@ -167,6 +187,7 @@ func newReconciler(
 	fleetNamespace string,
 	agentScope string,
 	agentConfig config.Config,
+	driftChan chan event.GenericEvent,
 ) (*controller.BundleDeploymentReconciler, error) {
 	upstreamClient := mgr.GetClient()
 
@@ -228,12 +249,11 @@ func newReconciler(
 	trigger := trigger.New(ctx, localDynamic, localCluster.GetRESTMapper())
 	driftdetect := driftdetect.New(
 		trigger,
-		upstreamClient,
-		mgr.GetAPIReader(),
 		ds,
 		defaultNamespace,
 		defaultNamespace,
 		agentScope,
+		driftChan,
 	)
 
 	// Build the clean up, which deletes helm releases
