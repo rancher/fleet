@@ -44,7 +44,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.9.0
-	github.com/testcontainers/testcontainers-go v0.33.0
+	github.com/testcontainers/testcontainers-go v0.34.0
 	go.uber.org/mock v0.5.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.28.0
@@ -101,7 +101,7 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
-	github.com/cpuguy83/dockercfg v0.3.1 // indirect
+	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/cyphar/filepath-securejoin v0.3.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
