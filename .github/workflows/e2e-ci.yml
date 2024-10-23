@@ -57,15 +57,14 @@ jobs:
           # Buildkit needed here for proper here-document support
           DOCKER_BUILDKIT=1 docker build -f Dockerfile.gitserver -t nginx-git:test --build-arg="passwd=$(openssl passwd foo)" .
       -
+        name: Install k3d
+        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+      -
         name: Provision k3d Cluster
-        uses: AbsaOSS/k3d-action@v2
-        # k3d will automatically create a network named k3d-test-cluster-1 with the range 172.18.0.0/16
-        with:
-          k3d-version: ${{ env.SETUP_K3D_VERSION }}
-          cluster-name: "upstream"
-          args: >-
-            --agents 1
-            --network "nw01"
+        run: |
+          k3d cluster create upstream --wait \
+            --agents 1 \
+            --network "nw01" \
             --image docker.io/rancher/k3s:${{matrix.k3s_version}}
       -
         name: Import Images Into k3d
