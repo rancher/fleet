@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	command "github.com/rancher/fleet/internal/cmd"
@@ -117,17 +118,12 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if d.DryRun {
-		resources, err := helmdeployer.Template(ctx, bd.Name, manifest, bd.Spec.Options, d.KubeVersion)
+		rel, err := helmdeployer.Template(ctx, bd.Name, manifest, bd.Spec.Options, d.KubeVersion)
 		if err != nil {
 			return err
 		}
-		b, err = yaml.Marshal(resources)
-		if err != nil {
-			return err
-		}
-		cmd.Println(string(b))
 
-		return nil
+		return printRelease(cmd, rel)
 	}
 
 	cfg := ctrl.GetConfigOrDie()
@@ -159,17 +155,29 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	release, err := deployer.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
+	rel, err := deployer.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
 	if err != nil {
 		return err
 	}
 
-	objects, err := helmdeployer.ReleaseToObjects(release)
+	return printRelease(cmd, rel)
+}
+
+func printRelease(cmd *cobra.Command, rel *release.Release) error {
+	resources, err := wyaml.ToObjects(bytes.NewBufferString(rel.Manifest))
 	if err != nil {
 		return err
 	}
 
-	b, err = yaml.Marshal(objects)
+	for _, h := range rel.Hooks {
+		hookResources, err := wyaml.ToObjects(bytes.NewBufferString(h.Manifest))
+		if err != nil {
+			return err
+		}
+		resources = append(resources, hookResources...)
+	}
+
+	b, err := yaml.Marshal(resources)
 	if err != nil {
 		return err
 	}
