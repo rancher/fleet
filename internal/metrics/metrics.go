@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	metricPrefix  = "fleet"
-	repoNameLabel = "fleet.cattle.io/repo-name"
+	metricPrefix = "fleet"
 )
 
 var (
