@@ -45,14 +45,6 @@ spec:
         - name: NO_PROXY
           value: {{ $.Values.noProxy }}
         {{- end }}
-        {{- if $.Values.cpuPprof }}
-        - name: FLEET_CPU_PPROF_DIR
-          value: /tmp/pprof/
-        {{- end }}
-        {{- if $.Values.cpuPprof }}
-        - name: FLEET_CPU_PPROF_PERIOD
-          value: {{ quote $.Values.cpuPprof.period }}
-        {{- end }}
         {{- if $.Values.leaderElection.leaseDuration }}
         - name: CATTLE_ELECTION_LEASE_DURATION
           value: {{$.Values.leaderElection.leaseDuration}}
@@ -113,10 +105,6 @@ spec:
         volumeMounts:
           - mountPath: /tmp
             name: tmp
-        {{- if $.Values.cpuPprof }}
-          - mountPath: /tmp/pprof
-            name: pprof
-        {{- end }}
       {{- if not $shard.id }} # Only deploy cleanup and agent management through sharding-less deployment
       - env:
         - name: NAMESPACE
@@ -219,9 +207,6 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-      {{- if $.Values.cpuPprof }}
-        - name: pprof {{ toYaml $.Values.cpuPprof.volumeConfiguration | nindent 10 }}
-      {{- end }}
 
       serviceAccountName: fleet-controller
       nodeSelector: {{ include "linux-node-selector" $shard.id | nindent 8 }}
