@@ -302,16 +302,3 @@ container image and simply re-used it. You can remove it yourself, either by
 This container image will have `act` in his name.
 
 #### Using `act` fails
-
-**Error: The runs.using key in action.yml must be one of: [composite docker node12 node16], got node20**
-
-[action-tmate](https://github.com/mxschmitt/action-tmate) was updated recently
-and switched the value of `runs.using` from `node16` in version
-[3.16](https://github.com/mxschmitt/action-tmate/blob/v3.16/action.yml) to
-`node20` in version
-[3.17](https://github.com/mxschmitt/action-tmate/blob/v3.17/action.yml#L7),
-which is not yet supported by `act`! But an issue for act with a [corresponding
-PR](https://github.com/nektos/act/pull/1988) already exists.
-
-A temporary workaround is to comment the step in the workflow file out which
-includes `tmate`.
