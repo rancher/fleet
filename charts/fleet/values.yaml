@@ -84,6 +84,7 @@ metrics:
 debug: false
 debugLevel: 0
 propagateDebugSettingsToAgents: true
+disableSecurityContext: false
 
 migrations:
   clusterRegistrationCleanup: true

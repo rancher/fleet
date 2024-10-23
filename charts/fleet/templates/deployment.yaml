@@ -93,7 +93,8 @@ spec:
         - --debug
         - --debug-level
         - {{ quote $.Values.debugLevel }}
-        {{- else }}
+        {{- end }}
+        {{- if not $.Values.disableSecurityContext }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -149,7 +150,8 @@ spec:
         - --debug
         - --debug-level
         - {{ quote $.Values.debugLevel }}
-        {{- else }}
+        {{- end }}
+        {{- if not $.Values.disableSecurityContext }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -194,7 +196,8 @@ spec:
         - --debug
         - --debug-level
         - {{ quote $.Values.debugLevel }}
-        {{- else }}
+        {{- end }}
+        {{- if not $.Values.disableSecurityContext }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -226,7 +229,7 @@ spec:
       priorityClassName: "{{$.Values.priorityClassName}}"
       {{- end }}
 
-{{- if not $.Values.debug }}
+{{- if not $.Values.disableSecurityContext }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
