@@ -11,10 +11,6 @@ on:
         description: "checkout git branch/tag"
         required: true
         default: "master"
-      enable_tmate:
-        description: 'Enable debugging via tmate'
-        required: false
-        default: "false"
   push:
     tags: [ 'v*' ]
     paths-ignore:
@@ -147,13 +143,6 @@ jobs:
             --k3s-arg '--kubelet-arg=eviction-minimum-reclaim=imagefs.available=1%,nodefs.available=1%@agent:*' \
             --network "nw01" \
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
-      -
-        name: Set up tmate debug session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
       -
         name: Set up latest Rancher
         env:
