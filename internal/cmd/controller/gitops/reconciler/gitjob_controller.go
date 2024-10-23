@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -39,8 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -103,24 +100,6 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.LabelChangedPredicate{},
 				),
 			),
-		).
-		Watches(
-			// Fan out from bundle to gitrepo
-			&v1alpha1.Bundle{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
-				repo := a.GetLabels()[v1alpha1.RepoLabel]
-				if repo != "" {
-					return []ctrl.Request{{
-						NamespacedName: types.NamespacedName{
-							Namespace: a.GetNamespace(),
-							Name:      repo,
-						},
-					}}
-				}
-
-				return []ctrl.Request{}
-			}),
-			builder.WithPredicates(bundleStatusChangedPredicate()),
 		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
@@ -205,7 +184,16 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return res, err
 	}
 
-	err = setStatus(ctx, r.Client, gitrepo)
+	bdList := &v1alpha1.BundleDeploymentList{}
+	err = r.List(ctx, bdList, client.MatchingLabels{
+		v1alpha1.RepoLabel:            gitrepo.Name,
+		v1alpha1.BundleNamespaceLabel: gitrepo.Namespace,
+	})
+	if err != nil {
+		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+	}
+
+	err = setStatus(bdList, gitrepo)
 	if err != nil {
 		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
@@ -1110,30 +1098,6 @@ func proxyEnvVars() []corev1.EnvVar {
 	}
 
 	return envVars
-}
-
-// bundleStatusChangedPredicate returns true if the bundle
-// status has changed, or the bundle was created
-func bundleStatusChangedPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return true
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			n, isBundle := e.ObjectNew.(*v1alpha1.Bundle)
-			if !isBundle {
-				return false
-			}
-			o := e.ObjectOld.(*v1alpha1.Bundle)
-			if n == nil || o == nil {
-				return false
-			}
-			return !reflect.DeepEqual(n.Status, o.Status)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return true
-		},
-	}
 }
 
 // repoPolled returns true if the git poller was executed and the repo should still be polled.

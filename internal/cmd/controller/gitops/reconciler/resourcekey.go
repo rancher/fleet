@@ -1,19 +1,16 @@
 package reconciler
 
 import (
-	"context"
 	"encoding/json"
 	"sort"
 	"strings"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func setResourceKey(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) {
+func setResourceKey(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) {
 	state := bundleErrorState(gitrepo.Status.Summary)
-	gitrepo.Status.Resources, gitrepo.Status.ResourceErrors = fromResourceKey(ctx, c, gitrepo.Namespace, gitrepo.Name, state)
+	gitrepo.Status.Resources, gitrepo.Status.ResourceErrors = fromResourceKey(list, state)
 	gitrepo.Status = countResources(gitrepo.Status)
 }
 
@@ -32,23 +29,13 @@ func bundleErrorState(summary fleet.BundleSummary) string {
 // GitRepoResource states for all resources
 //
 // It populates gitrepo status resources from bundleDeployments. BundleDeployment.Status.Resources is the list of deployed resources.
-func fromResourceKey(ctx context.Context, c client.Client, namespace, name string, bundleErrorState string) ([]fleet.GitRepoResource, []string) {
+func fromResourceKey(list *fleet.BundleDeploymentList, bundleErrorState string) ([]fleet.GitRepoResource, []string) {
 	var (
 		resources []fleet.GitRepoResource
 		errors    []string
 	)
 
-	bdList := &fleet.BundleDeploymentList{}
-	err := c.List(ctx, bdList, client.MatchingLabels{
-		fleet.RepoLabel:            name,
-		fleet.BundleNamespaceLabel: namespace,
-	})
-	if err != nil {
-		errors = append(errors, err.Error())
-		return resources, errors
-	}
-
-	for _, bd := range bdList.Items {
+	for _, bd := range list.Items {
 		bd := bd // fix gosec warning regarding "Implicit memory aliasing in for loop"
 		bdResources := bundleDeploymentResources(bd)
 		incomplete, err := addState(bd, bdResources)

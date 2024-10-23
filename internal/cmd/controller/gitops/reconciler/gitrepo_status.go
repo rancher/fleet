@@ -24,22 +24,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func setStatus(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) error {
-	err := setStatusFromBundleDeployments(ctx, c, gitrepo)
+func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
+	sort.Slice(list.Items, func(i, j int) bool {
+		return list.Items[i].UID < list.Items[j].UID
+	})
+
+	err := setStatusFromBundleDeployments(list, gitrepo)
 	if err != nil {
 		return err
 	}
 
-	err = setStatusFromBundles(ctx, c, gitrepo)
-	if err != nil {
-		return err
+	if gitrepo.Status.GitJobStatus != "Current" {
+		gitrepo.Status.Display.State = "GitUpdating"
 	}
 
-	if err = updateDisplayState(gitrepo); err != nil {
-		return err
-	}
+	setResourceKey(list, gitrepo)
 
-	setResourceKey(ctx, c, gitrepo)
+	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
 
 	gitrepo.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
@@ -50,62 +51,14 @@ func setStatus(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) err
 	return nil
 }
 
-func setStatusFromBundles(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) error {
-	bundles := &fleet.BundleList{}
-	err := c.List(ctx, bundles, client.InNamespace(gitrepo.Namespace), client.MatchingLabels{
-		fleet.RepoLabel: gitrepo.Name,
-	})
-	if err != nil {
-		return err
-	}
-
-	sort.Slice(bundles.Items, func(i, j int) bool {
-		return bundles.Items[i].Name < bundles.Items[j].Name
-	})
-
-	var (
-		clustersDesiredReady int
-		clustersReady        = -1
-	)
-
-	for _, bundle := range bundles.Items {
-		if bundle.Status.Summary.DesiredReady > 0 {
-			clustersDesiredReady = bundle.Status.Summary.DesiredReady
-			if clustersReady < 0 || bundle.Status.Summary.Ready < clustersReady {
-				clustersReady = bundle.Status.Summary.Ready
-			}
-		}
-	}
-
-	if clustersReady < 0 {
-		clustersReady = 0
-	}
-	gitrepo.Status.DesiredReadyClusters = clustersDesiredReady
-	gitrepo.Status.ReadyClusters = clustersReady
-	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
-	return nil
-}
-
-func setStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) error {
-	list := &fleet.BundleDeploymentList{}
-	err := c.List(ctx, list, client.MatchingLabels{
-		fleet.RepoLabel:            gitrepo.Name,
-		fleet.BundleNamespaceLabel: gitrepo.Namespace,
-	})
-	if err != nil {
-		return err
-	}
-
-	gitrepo.Status.Summary = fleet.BundleSummary{}
-
-	sort.Slice(list.Items, func(i, j int) bool {
-		return list.Items[i].UID < list.Items[j].UID
-	})
-
+func setStatusFromBundleDeployments(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
 	var (
 		maxState fleet.BundleState
 		message  string
 	)
+	clusters := map[client.ObjectKey]bool{}
+	readyClusters := map[client.ObjectKey]int{}
+	gitrepo.Status.Summary = fleet.BundleSummary{}
 
 	for _, bd := range list.Items {
 		state := summary.GetDeploymentState(&bd)
@@ -115,7 +68,41 @@ func setStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 			maxState = state
 			message = summary.MessageFromDeployment(&bd)
 		}
+
+		// try to avoid old bundle deployments, which might be missing the labels
+		if bd.Labels == nil {
+			// this should not happen
+			continue
+		}
+
+		name := bd.Labels[fleet.ClusterLabel]
+		namespace := bd.Labels[fleet.ClusterNamespaceLabel]
+		if name == "" || namespace == "" {
+			// this should not happen
+			continue
+		}
+
+		key := client.ObjectKey{Name: name, Namespace: namespace}
+		clusters[key] = true
+		if state == fleet.Ready {
+			readyClusters[key]++
+		}
 	}
+
+	// unique number of clusters from bundledeployments
+	gitrepo.Status.DesiredReadyClusters = len(clusters)
+
+	// lowest amount of ready bundledeployments found in clusters
+	min := -1
+	for _, ready := range readyClusters {
+		if min < 0 || ready < min {
+			min = ready
+		}
+	}
+	if min < 0 {
+		min = 0
+	}
+	gitrepo.Status.ReadyClusters = min
 
 	if maxState == fleet.Ready {
 		maxState = ""
@@ -193,14 +180,6 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *fleet.Gi
 		// the job is terminating so avoid reporting errors in
 		// that case
 		kstatus.SetActive(gitRepo)
-	}
-
-	return nil
-}
-
-func updateDisplayState(gitrepo *fleet.GitRepo) error {
-	if gitrepo.Status.GitJobStatus != "Current" {
-		gitrepo.Status.Display.State = "GitUpdating"
 	}
 
 	return nil
