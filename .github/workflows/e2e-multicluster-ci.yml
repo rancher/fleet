@@ -59,40 +59,34 @@ jobs:
           docker build -f package/Dockerfile -t rancher/fleet:dev --build-arg="ARCH=$GOARCH" .
           docker build -f package/Dockerfile.agent -t rancher/fleet-agent:dev --build-arg="ARCH=$GOARCH" .
       -
+        name: Install k3d
+        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+      -
         name: Provision k3d Cluster
-        uses: AbsaOSS/k3d-action@v2
-        with:
-          k3d-version: ${{ env.SETUP_K3D_VERSION }}
-          cluster-name: "upstream"
-          args: >-
-            -p "80:80@agent:0:direct"
-            -p "443:443@agent:0:direct"
-            --api-port 6443
-            --agents 1
+        run: |
+          k3d cluster create upstream --wait \
+            -p "80:80@agent:0:direct" \
+            -p "443:443@agent:0:direct" \
+            --api-port 6443 \
+            --agents 1 \
             --network "nw01"
       -
         name: Provision k3d Downstream Cluster for agent-initiated registration
-        uses: AbsaOSS/k3d-action@v2
-        with:
-          k3d-version: ${{ env.SETUP_K3D_VERSION }}
-          cluster-name: "downstream"
-          args: >-
-            -p "81:80@agent:0:direct"
-            -p "444:443@agent:0:direct"
-            --api-port 6644
-            --agents 1
+        run: |
+          k3d cluster create downstream --wait \
+            -p "81:80@agent:0:direct" \
+            -p "444:443@agent:0:direct" \
+            --api-port 6644 \
+            --agents 1 \
             --network "nw01"
       -
         name: Provision k3d Downstream Cluster for manager-initiated registration
-        uses: AbsaOSS/k3d-action@v2
-        with:
-          k3d-version: ${{ env.SETUP_K3D_VERSION }}
-          cluster-name: "managed-downstream"
-          args: >-
-            -p "82:80@agent:0:direct"
-            -p "445:443@agent:0:direct"
-            --api-port 6645
-            --agents 1
+        run: |
+          k3d cluster create managed-downstream --wait \
+            -p "82:80@agent:0:direct" \
+            -p "445:443@agent:0:direct" \
+            --api-port 6645 \
+            --agents 1 \
             --network "nw01"
       -
         name: Import Images Into k3d
