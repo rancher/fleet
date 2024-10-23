@@ -14,7 +14,6 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
-	"github.com/rancher/fleet/internal/cmd/controller/grutil"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/names"
@@ -32,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -149,10 +149,10 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
 	oldStatus := gitrepo.Status.DeepCopy()
-	_, err := grutil.AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo)
+	_, err := authorizeAndAssignDefaults(ctx, r.Client, gitrepo)
 	if err != nil {
 		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToApplyRestrictions", err.Error())
-		return ctrl.Result{}, grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
+		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
 	}
 
 	if !gitrepo.DeletionTimestamp.IsZero() {
@@ -205,29 +205,12 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return res, err
 	}
 
-	err = grutil.SetStatusFromBundleDeployments(ctx, r.Client, gitrepo)
+	err = setStatus(ctx, r.Client, gitrepo)
 	if err != nil {
-		return result(repoPolled, gitrepo), grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
-	err = grutil.SetStatusFromBundles(ctx, r.Client, gitrepo)
-	if err != nil {
-		return result(repoPolled, gitrepo), grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
-	}
-
-	if err = grutil.UpdateDisplayState(gitrepo); err != nil {
-		return result(repoPolled, gitrepo), grutil.UpdateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
-	}
-
-	grutil.SetStatusFromResourceKey(ctx, r.Client, gitrepo)
-
-	gitrepo.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
-		gitrepo.Status.Summary.Ready,
-		gitrepo.Status.Summary.DesiredReady)
-
-	grutil.SetCondition(&gitrepo.Status, nil)
-
-	err = grutil.UpdateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
+	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
 
@@ -271,7 +254,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
-				return result(repoPolled, gitrepo), grutil.UpdateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+				return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
 				return result(repoPolled, gitrepo), err
@@ -291,8 +274,8 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
-	if err = grutil.SetStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
-		return result(repoPolled, gitrepo), grutil.UpdateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+	if err = setStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
+		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 	}
 
 	return reconcile.Result{}, nil
@@ -385,7 +368,7 @@ func (r *GitJobReconciler) addGitRepoFinalizer(ctx context.Context, nsName types
 func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
 	// No update needed, values are the same. So we ignore AlreadyExists.
 	saName := names.SafeConcatName("git", gitrepo.Name)
-	sa := grutil.NewServiceAccount(gitrepo.Namespace, saName)
+	sa := newServiceAccount(gitrepo.Namespace, saName)
 	if err := controllerutil.SetControllerReference(gitrepo, sa, r.Scheme); err != nil {
 		return err
 	}
@@ -393,7 +376,7 @@ func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.
 		return err
 	}
 
-	role := grutil.NewRole(gitrepo.Namespace, saName)
+	role := newRole(gitrepo.Namespace, saName)
 	if err := controllerutil.SetControllerReference(gitrepo, role, r.Scheme); err != nil {
 		return err
 	}
@@ -401,7 +384,7 @@ func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.
 		return err
 	}
 
-	rb := grutil.NewRoleBinding(gitrepo.Namespace, saName)
+	rb := newRoleBinding(gitrepo.Namespace, saName)
 	if err := controllerutil.SetControllerReference(gitrepo, rb, r.Scheme); err != nil {
 		return err
 	}
@@ -413,7 +396,7 @@ func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.
 }
 
 func (r *GitJobReconciler) createTargetsConfigMap(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
-	configMap, err := grutil.NewTargetsConfigMap(gitrepo)
+	configMap, err := newTargetsConfigMap(gitrepo)
 	if err != nil {
 		return err
 	}
@@ -661,7 +644,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	}
 
 	// compute configmap, needed because its name contains a hash
-	configMap, err := grutil.NewTargetsConfigMap(gitrepo)
+	configMap, err := newTargetsConfigMap(gitrepo)
 	if err != nil {
 		return nil, err
 	}
@@ -1202,4 +1185,45 @@ func result(repoPolled bool, gitrepo *v1alpha1.GitRepo) reconcile.Result {
 		return reconcile.Result{RequeueAfter: getPollingIntervalDuration(gitrepo)}
 	}
 	return reconcile.Result{}
+}
+
+// updateErrorStatus sets the condition in the status and tries to update the resource
+func updateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status v1alpha1.GitRepoStatus, orgErr error) error {
+	setCondition(&status, orgErr)
+	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
+		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
+		return errutil.NewAggregate(merr)
+	}
+	return orgErr
+}
+
+// updateStatus updates the status for the GitRepo resource. It retries on
+// conflict. If the status was updated successfully, it also collects (as in
+// updates) metrics for the resource GitRepo resource.
+func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status v1alpha1.GitRepoStatus) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		t := &v1alpha1.GitRepo{}
+		err := c.Get(ctx, req, t)
+		if err != nil {
+			return err
+		}
+		commit := t.Status.Commit
+		t.Status = status
+		if commit != "" && status.Commit == "" {
+			// we could incur in a race condition between the poller job
+			// setting the Commit and the first time the reconciler runs.
+			// The poller could be faster than the reconciler setting the
+			// Commit and we could reset back to "" in here
+			t.Status.Commit = commit
+		}
+
+		err = c.Status().Update(ctx, t)
+		if err != nil {
+			return err
+		}
+
+		metrics.GitRepoCollector.Collect(ctx, t)
+
+		return nil
+	})
 }
