@@ -52,12 +52,12 @@ func collectBundleDeploymentMetrics(obj any, metrics map[string]prometheus.Colle
 	labels := prometheus.Labels{
 		"name":              bundleDep.Name,
 		"namespace":         bundleDep.Namespace,
-		"cluster_name":      bundleDep.ObjectMeta.Labels["fleet.cattle.io/cluster"],
-		"cluster_namespace": bundleDep.ObjectMeta.Labels["fleet.cattle.io/cluster-namespace"],
-		"repo":              bundleDep.ObjectMeta.Labels[repoNameLabel],
+		"cluster_name":      bundleDep.ObjectMeta.Labels[fleet.ClusterLabel],
+		"cluster_namespace": bundleDep.ObjectMeta.Labels[fleet.ClusterNamespaceLabel],
+		"repo":              bundleDep.ObjectMeta.Labels[fleet.RepoLabel],
 		"commit":            bundleDep.ObjectMeta.Labels[fleet.CommitLabel],
-		"bundle":            bundleDep.ObjectMeta.Labels["fleet.cattle.io/bundle-name"],
-		"bundle_namespace":  bundleDep.ObjectMeta.Labels["fleet.cattle.io/bundle-namespace"],
+		"bundle":            bundleDep.ObjectMeta.Labels[fleet.BundleLabel],
+		"bundle_namespace":  bundleDep.ObjectMeta.Labels[fleet.BundleNamespaceLabel],
 		"generation":        fmt.Sprintf("%d", bundleDep.ObjectMeta.Generation),
 		"state":             string(currentState),
 	}
