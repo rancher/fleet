@@ -1,5 +1,8 @@
 name: Release Fleet against test Rancher charts repo
 on:
+  schedule:
+    # Run everyday at 1:00 PM
+    - cron:  '0 13 * * *'
   workflow_dispatch:
     inputs:
       ref:
