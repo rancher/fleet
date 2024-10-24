@@ -105,7 +105,7 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				),
 			),
 		).
-		Owns(&batchv1.Job{}, builder.WithPredicates(jobUpdatesOnly())).
+		Owns(&batchv1.Job{}, builder.WithPredicates(jobUpdatedPredicate())).
 		Watches(
 			// Fan out from bundle to gitrepo
 			&v1alpha1.Bundle{},
@@ -1222,7 +1222,7 @@ func webhookCommitChangedPredicate() predicate.Predicate {
 	}
 }
 
-func jobUpdatesOnly() predicate.Funcs {
+func jobUpdatedPredicate() predicate.Funcs {
 	return predicate.Funcs{
 		CreateFunc: func(e event.CreateEvent) bool {
 			return false
