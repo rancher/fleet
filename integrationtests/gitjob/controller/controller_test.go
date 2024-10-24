@@ -611,6 +611,7 @@ var _ = Describe("GitJob controller", func() {
 					}
 					return k8sClient.Status().Update(ctx, &job)
 				}).Should(Not(HaveOccurred()))
+
 				// wait until the job has finished
 				Eventually(func() bool {
 					jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+stableCommit, 5))
