@@ -23,6 +23,6 @@ git push fork "$BRANCH_NAME"
 
 # Create a pull request
 gh pr create --title "[${target_branch}] fleet ${new_chart}+up${new_fleet} update" \
-             --body "Update Fleet to v${new_fleet}\n\nChangelog: https://github.com/rancher/fleet/releases/tag/v${new_fleet}" \
+             --body "Update Fleet to v${new_fleet}"$'\n\n'"Changelog: https://github.com/rancher/fleet/releases/tag/v${new_fleet}" \
              --base "${target_branch}" \
              --repo "rancher/$repo" --head "rancherbot:$BRANCH_NAME"
