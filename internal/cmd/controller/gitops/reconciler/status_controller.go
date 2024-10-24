@@ -100,7 +100,16 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	logger.V(1).Info("Reconciling GitRepo status")
 
-	err = setStatus(ctx, r.Client, gitrepo)
+	bdList := &v1alpha1.BundleDeploymentList{}
+	err = r.List(ctx, bdList, client.MatchingLabels{
+		v1alpha1.RepoLabel:            gitrepo.Name,
+		v1alpha1.BundleNamespaceLabel: gitrepo.Namespace,
+	})
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	err = setStatus(bdList, gitrepo)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -143,18 +152,21 @@ func bundleStatusChangedPredicate() predicate.Funcs {
 		},
 	}
 }
-func setStatus(ctx context.Context, c client.Client, gitrepo *v1alpha1.GitRepo) error {
-	err := setStatusFromBundleDeployments(ctx, c, gitrepo)
+
+func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
+	// sort for resourceKey?
+	sort.Slice(list.Items, func(i, j int) bool {
+		return list.Items[i].UID < list.Items[j].UID
+	})
+
+	err := setStatusFromBundleDeployments(list, gitrepo)
 	if err != nil {
 		return err
 	}
 
-	err = setStatusFromBundles(ctx, c, gitrepo)
-	if err != nil {
-		return err
-	}
+	setResourceKey(list, gitrepo)
 
-	setResourceKey(ctx, c, gitrepo)
+	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
 
 	gitrepo.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
@@ -163,52 +175,9 @@ func setStatus(ctx context.Context, c client.Client, gitrepo *v1alpha1.GitRepo) 
 	return nil
 }
 
-func setStatusFromBundles(ctx context.Context, c client.Client, gitrepo *v1alpha1.GitRepo) error {
-	bundles := &v1alpha1.BundleList{}
-	err := c.List(ctx, bundles, client.InNamespace(gitrepo.Namespace), client.MatchingLabels{
-		v1alpha1.RepoLabel: gitrepo.Name,
-	})
-	if err != nil {
-		return err
-	}
-
-	sort.Slice(bundles.Items, func(i, j int) bool {
-		return bundles.Items[i].Name < bundles.Items[j].Name
-	})
-
-	var (
-		clustersDesiredReady int
-		clustersReady        = -1
-	)
-
-	for _, bundle := range bundles.Items {
-		if bundle.Status.Summary.DesiredReady > 0 {
-			clustersDesiredReady = bundle.Status.Summary.DesiredReady
-			if clustersReady < 0 || bundle.Status.Summary.Ready < clustersReady {
-				clustersReady = bundle.Status.Summary.Ready
-			}
-		}
-	}
-
-	if clustersReady < 0 {
-		clustersReady = 0
-	}
-	gitrepo.Status.DesiredReadyClusters = clustersDesiredReady
-	gitrepo.Status.ReadyClusters = clustersReady
-	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
-	return nil
-}
-
-func setStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrepo *v1alpha1.GitRepo) error {
-	list := &v1alpha1.BundleDeploymentList{}
-	err := c.List(ctx, list, client.MatchingLabels{
-		v1alpha1.RepoLabel:            gitrepo.Name,
-		v1alpha1.BundleNamespaceLabel: gitrepo.Namespace,
-	})
-	if err != nil {
-		return err
-	}
-
+func setStatusFromBundleDeployments(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
+	clusters := map[client.ObjectKey]bool{}
+	readyClusters := map[client.ObjectKey]int{}
 	gitrepo.Status.Summary = v1alpha1.BundleSummary{}
 
 	sort.Slice(list.Items, func(i, j int) bool {
@@ -228,7 +197,41 @@ func setStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 			maxState = state
 			message = summary.MessageFromDeployment(&bd)
 		}
+
+		// try to avoid old bundle deployments, which might be missing the labels
+		if bd.Labels == nil {
+			// this should not happen
+			continue
+		}
+
+		name := bd.Labels[v1alpha1.ClusterLabel]
+		namespace := bd.Labels[v1alpha1.ClusterNamespaceLabel]
+		if name == "" || namespace == "" {
+			// this should not happen
+			continue
+		}
+
+		key := client.ObjectKey{Name: name, Namespace: namespace}
+		clusters[key] = true
+		if state == v1alpha1.Ready {
+			readyClusters[key]++
+		}
 	}
+
+	// unique number of clusters from bundledeployments
+	gitrepo.Status.DesiredReadyClusters = len(clusters)
+
+	// lowest amount of ready bundledeployments found in clusters
+	min := -1
+	for _, ready := range readyClusters {
+		if min < 0 || ready < min {
+			min = ready
+		}
+	}
+	if min < 0 {
+		min = 0
+	}
+	gitrepo.Status.ReadyClusters = min
 
 	if maxState == v1alpha1.Ready {
 		maxState = ""
