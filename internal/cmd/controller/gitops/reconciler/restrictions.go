@@ -1,4 +1,4 @@
-package grutil
+package reconciler
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// AuthorizeAndAssignDefaults applies restrictions and returns a new GitRepo if it passes the restrictions
-func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) (*fleet.GitRepo, error) {
+// authorizeAndAssignDefaults applies restrictions and returns a new GitRepo if it passes the restrictions
+func authorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) (*fleet.GitRepo, error) {
 	restrictions := &fleet.GitRepoRestrictionList{}
 	err := c.List(ctx, restrictions, client.InNamespace(gitrepo.Namespace))
 	if err != nil {

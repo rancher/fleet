@@ -1,4 +1,4 @@
-package grutil
+package reconciler
 
 import (
 	"context"
@@ -6,12 +6,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func SetStatusFromResourceKey(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) {
+func setResourceKey(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) {
 	state := bundleErrorState(gitrepo.Status.Summary)
 	gitrepo.Status.Resources, gitrepo.Status.ResourceErrors = fromResourceKey(ctx, c, gitrepo.Namespace, gitrepo.Name, state)
 	gitrepo.Status = countResources(gitrepo.Status)
@@ -137,7 +137,7 @@ func addState(bd fleet.BundleDeployment, resources map[fleet.ResourceKey][]fleet
 		incomplete = true
 	}
 
-	cluster := bd.Labels[v1alpha1.ClusterNamespaceLabel] + "/" + bd.Labels[v1alpha1.ClusterLabel]
+	cluster := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
 	for _, nonReady := range bd.Status.NonReadyStatus {
 		key := fleet.ResourceKey{
 			Kind:       nonReady.Kind,
