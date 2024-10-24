@@ -12,6 +12,8 @@ data:
       "apiServerCA": "{{b64enc .Values.apiServerCA}}",
       "agentCheckinInterval": "{{.Values.agentCheckinInterval}}",
       "agentTLSMode": "{{.Values.agentTLSMode}}",
+      "clusterMonitorInterval": "{{.Values.clusterMonitorInterval}}",
+      "clusterMonitorThreshold": "{{.Values.clusterMonitorThreshold}}",
       {{ if .Values.garbageCollectionInterval }}
       "garbageCollectionInterval": "{{.Values.garbageCollectionInterval}}",
       {{ end }}
