@@ -108,6 +108,12 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
+	err = (&reconciler.StatusReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred())
+
 	store := manifest.NewStore(mgr.GetClient())
 	builder := target.New(mgr.GetClient())
 	err = (&ctrlreconciler.BundleReconciler{
