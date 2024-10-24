@@ -578,9 +578,11 @@ var _ = Describe("GitJob controller", func() {
 
 	When("a new GitRepo is created with DisablePolling set to true", func() {
 		var (
-			gitRepo     v1alpha1.GitRepo
-			gitRepoName string
-			job         batchv1.Job
+			gitRepo               v1alpha1.GitRepo
+			gitRepoName           string
+			job                   batchv1.Job
+			webhookCommit         string
+			forceUpdateGeneration int
 		)
 
 		JustBeforeEach(func() {
@@ -592,6 +594,41 @@ var _ = Describe("GitJob controller", func() {
 				jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+stableCommit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 			}).Should(Not(HaveOccurred()))
+
+			// change the webhookCommit if it's set
+			if webhookCommit != "" {
+				// simulate job was successful
+				Eventually(func() error {
+					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+stableCommit, 5))
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+					// We could be checking this when the job is still not created
+					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+					job.Status.Succeeded = 1
+					job.Status.Conditions = []batchv1.JobCondition{
+						{
+							Type:   "Complete",
+							Status: "True",
+						},
+					}
+					return k8sClient.Status().Update(ctx, &job)
+				}).Should(Not(HaveOccurred()))
+
+				// wait until the job has finished
+				Eventually(func() bool {
+					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+stableCommit, 5))
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+					return errors.IsNotFound(err)
+				}).Should(BeTrue())
+
+				// set now the webhook commit
+				expectedCommit = webhookCommit
+				Expect(setGitRepoWebhookCommit(gitRepo, webhookCommit)).To(Succeed())
+				// increase forceUpdateGeneration if need to exercise possible race conditions
+				// in the reconciler
+				for range forceUpdateGeneration {
+					Expect(simulateIncreaseForceSyncGeneration(gitRepo)).To(Succeed())
+				}
+			}
 		})
 
 		When("a job completes successfully", func() {
@@ -615,6 +652,39 @@ var _ = Describe("GitJob controller", func() {
 					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
 					return gitRepo.Status.Commit
 				}, "30s", "1s").Should(Equal(stableCommit))
+			})
+		})
+
+		When("WebhookCommit changes and user forces a redeployment", func() {
+			BeforeEach(func() {
+				gitRepoName = "disable-polling-commit-change-force-update"
+				webhookCommit = "af6116a6c5c3196043b4a456316ae257dad9b5db"
+				expectedCommit = stableCommit
+				// user clicks ForceUpdate 2 times
+				// This exercises possible race conditions in the reconciler
+				forceUpdateGeneration = 2
+			})
+
+			It("creates a new Job", func() {
+				Eventually(func() error {
+					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+webhookCommit, 5))
+					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				}).Should(Not(HaveOccurred()))
+			})
+		})
+
+		When("WebhookCommit changes", func() {
+			BeforeEach(func() {
+				gitRepoName = "disable-polling-commit-change"
+				webhookCommit = "af6116a6c5c3196043b4a456316ae257dad9b5db"
+				expectedCommit = stableCommit
+			})
+
+			It("creates a new Job", func() {
+				Eventually(func() error {
+					jobName := name.SafeConcatName(gitRepoName, name.Hex(repo+webhookCommit, 5))
+					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				}).Should(Not(HaveOccurred()))
 			})
 		})
 	})
@@ -911,15 +981,15 @@ func simulateIncreaseForceSyncGeneration(gitRepo v1alpha1.GitRepo) error {
 	})
 }
 
-func simulateIncreaseGitRepoGeneration(gitRepo v1alpha1.GitRepo) error {
+func setGitRepoWebhookCommit(gitRepo v1alpha1.GitRepo, commit string) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var gitRepoFromCluster v1alpha1.GitRepo
 		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
 		if err != nil {
 			return err
 		}
-		gitRepoFromCluster.Spec.ClientSecretName = "new"
-		return k8sClient.Update(ctx, &gitRepoFromCluster)
+		gitRepoFromCluster.Status.WebhookCommit = commit
+		return k8sClient.Status().Update(ctx, &gitRepoFromCluster)
 	})
 }
 
