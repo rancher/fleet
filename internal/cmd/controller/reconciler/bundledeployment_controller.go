@@ -107,23 +107,15 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		State:     string(summary.GetDeploymentState(bd)),
 	}
 
-	var t *fleet.BundleDeployment
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		t = &fleet.BundleDeployment{}
-		err := r.Get(ctx, req.NamespacedName, t)
-		if err != nil {
-			return err
-		}
-		t.Status = bd.Status
-		return r.Status().Update(ctx, t)
-	})
+	err = r.Status().Update(ctx, bd)
 	if err != nil {
-		logger.V(1).Error(err, "Reconcile failed final update to bundle deployment status", "status", bd.Status)
-	} else {
-		metrics.BundleDeploymentCollector.Collect(ctx, t)
+		logger.V(1).Error(err, "Reconcile failed update to bundle deployment status, requeueing", "status", bd.Status)
+		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, err
+	metrics.BundleDeploymentCollector.Collect(ctx, bd)
+
+	return ctrl.Result{}, nil
 }
 
 // bundleDeploymentStatusChangedPredicate returns true if the bundledeployment
