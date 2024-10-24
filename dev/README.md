@@ -20,7 +20,7 @@ Don't use these on production systems.
 
 ### For Mac users
 
-On Mac OS, Docker runs in a virtual machine; this means that <TODO insert more explanations here>
+On Mac OS, Docker runs in a virtual machine. This means the network setup is more complicated.
 
 > If you are unsure about which method you would like use for tunneling to localhost, we recommend [ngrok](https://ngrok.com).
 
