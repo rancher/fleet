@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -58,15 +58,9 @@ func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// The Reconcile function compares the state specified by
-// the GitRepo object against the actual cluster state, and then
-// performs operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
+// Reconcile reads the stat of the GitRepo and BundleDeployments and
+// computes status fields for the GitRepo. This status is used to
+// display information to the user.
 func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("gitops-status")
 	gitrepo := &v1alpha1.GitRepo{}
@@ -99,7 +93,16 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	logger.V(1).Info("Reconciling GitRepo status")
 
-	err = setStatus(ctx, r.Client, gitrepo)
+	bdList := &v1alpha1.BundleDeploymentList{}
+	err = r.List(ctx, bdList, client.MatchingLabels{
+		v1alpha1.RepoLabel:            gitrepo.Name,
+		v1alpha1.BundleNamespaceLabel: gitrepo.Namespace,
+	})
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	err = setStatus(bdList, gitrepo)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -111,7 +114,7 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	err = r.Client.Status().Update(ctx, gitrepo)
 	if err != nil {
 		logger.Error(err, "Reconcile failed update to git repo status", "status", gitrepo.Status)
-		return ctrl.Result{RequeueAfter: 1 * time.Second}, err
+		return ctrl.Result{RequeueAfter: durations.GitRepoStatusDelay}, err
 	}
 
 	return ctrl.Result{}, nil
@@ -140,18 +143,21 @@ func bundleStatusChangedPredicate() predicate.Funcs {
 		},
 	}
 }
-func setStatus(ctx context.Context, c client.Client, gitrepo *v1alpha1.GitRepo) error {
-	err := setStatusFromBundleDeployments(ctx, c, gitrepo)
+
+func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
+	// sort for resourceKey?
+	sort.Slice(list.Items, func(i, j int) bool {
+		return list.Items[i].UID < list.Items[j].UID
+	})
+
+	err := setStatusFromBundleDeployments(list, gitrepo)
 	if err != nil {
 		return err
 	}
 
-	err = setStatusFromBundles(ctx, c, gitrepo)
-	if err != nil {
-		return err
-	}
+	setResources(list, gitrepo)
 
-	setResourceKey(ctx, c, gitrepo)
+	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
 
 	gitrepo.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
@@ -160,52 +166,9 @@ func setStatus(ctx context.Context, c client.Client, gitrepo *v1alpha1.GitRepo) 
 	return nil
 }
 
-func setStatusFromBundles(ctx context.Context, c client.Client, gitrepo *v1alpha1.GitRepo) error {
-	bundles := &v1alpha1.BundleList{}
-	err := c.List(ctx, bundles, client.InNamespace(gitrepo.Namespace), client.MatchingLabels{
-		v1alpha1.RepoLabel: gitrepo.Name,
-	})
-	if err != nil {
-		return err
-	}
-
-	sort.Slice(bundles.Items, func(i, j int) bool {
-		return bundles.Items[i].Name < bundles.Items[j].Name
-	})
-
-	var (
-		clustersDesiredReady int
-		clustersReady        = -1
-	)
-
-	for _, bundle := range bundles.Items {
-		if bundle.Status.Summary.DesiredReady > 0 {
-			clustersDesiredReady = bundle.Status.Summary.DesiredReady
-			if clustersReady < 0 || bundle.Status.Summary.Ready < clustersReady {
-				clustersReady = bundle.Status.Summary.Ready
-			}
-		}
-	}
-
-	if clustersReady < 0 {
-		clustersReady = 0
-	}
-	gitrepo.Status.DesiredReadyClusters = clustersDesiredReady
-	gitrepo.Status.ReadyClusters = clustersReady
-	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
-	return nil
-}
-
-func setStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrepo *v1alpha1.GitRepo) error {
-	list := &v1alpha1.BundleDeploymentList{}
-	err := c.List(ctx, list, client.MatchingLabels{
-		v1alpha1.RepoLabel:            gitrepo.Name,
-		v1alpha1.BundleNamespaceLabel: gitrepo.Namespace,
-	})
-	if err != nil {
-		return err
-	}
-
+func setStatusFromBundleDeployments(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
+	count := map[client.ObjectKey]int{}
+	readyCount := map[client.ObjectKey]int{}
 	gitrepo.Status.Summary = v1alpha1.BundleSummary{}
 
 	sort.Slice(list.Items, func(i, j int) bool {
@@ -225,7 +188,39 @@ func setStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 			maxState = state
 			message = summary.MessageFromDeployment(&bd)
 		}
+
+		// gather status per cluster
+		// try to avoid old bundle deployments, which might be missing the labels
+		if bd.Labels == nil {
+			// this should not happen
+			continue
+		}
+
+		name := bd.Labels[v1alpha1.ClusterLabel]
+		namespace := bd.Labels[v1alpha1.ClusterNamespaceLabel]
+		if name == "" || namespace == "" {
+			// this should not happen
+			continue
+		}
+
+		key := client.ObjectKey{Name: name, Namespace: namespace}
+		count[key]++
+		if state == v1alpha1.Ready {
+			readyCount[key]++
+		}
 	}
+
+	// unique number of clusters from bundledeployments
+	gitrepo.Status.DesiredReadyClusters = len(count)
+
+	// number of clusters where all deployments are ready
+	readyClusters := 0
+	for key, n := range readyCount {
+		if count[key] == n {
+			readyClusters++
+		}
+	}
+	gitrepo.Status.ReadyClusters = readyClusters
 
 	if maxState == v1alpha1.Ready {
 		maxState = ""

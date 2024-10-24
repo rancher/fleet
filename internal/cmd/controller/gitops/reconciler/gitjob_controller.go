@@ -117,15 +117,10 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// The Reconcile function compares the state specified by
-// the GitRepo object against the actual cluster state, and then
-// performs operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
+// Reconcile  compares the state specified by the GitRepo object against the
+// actual cluster state. It checks the Git repository for new commits and
+// creates a job to clone the repository if a new commit is found. In case of
+// an error, the output of the job is stored in the status.
 func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("gitjob")
 	gitrepo := &v1alpha1.GitRepo{}
@@ -1232,7 +1227,6 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 	gitRepo.Status.GitJobStatus = result.Status.String()
 
 	for _, con := range result.Conditions {
-		// TODO check if tests are green without this
 		if con.Type.String() == "Ready" {
 			continue
 		}
@@ -1299,6 +1293,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 
 		commit := t.Status.Commit
 
+		// selectively update the status fields this reconciler is responsible for
 		t.Status.Commit = status.Commit
 		t.Status.GitJobStatus = status.GitJobStatus
 		t.Status.LastPollingTime = status.LastPollingTime
