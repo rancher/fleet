@@ -135,6 +135,13 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
 	}
 
+	statusReconciler := &reconciler.StatusReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		ShardID: g.ShardID,
+		Workers: workers,
+	}
+
 	configReconciler := &fcreconciler.ConfigReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
@@ -152,16 +159,20 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		return startWebhook(ctx, namespace, g.Listen, mgr.GetClient(), mgr.GetCache())
 	})
 	group.Go(func() error {
-		setupLog.Info("starting config manager")
+		setupLog.Info("starting config controller")
 		if err = configReconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}
 
-		setupLog.Info("starting gitops manager")
+		setupLog.Info("starting gitops controller")
 		if err = gitJobReconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}
 
+		setupLog.Info("starting gitops status controller")
+		if err = statusReconciler.SetupWithManager(mgr); err != nil {
+			return err
+		}
 		return mgr.Start(ctx)
 	})
 
