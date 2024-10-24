@@ -42,8 +42,6 @@ func setStatus(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) err
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)
 
-	setCondition(&gitrepo.Status, nil)
-
 	return nil
 }
 

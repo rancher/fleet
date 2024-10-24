@@ -200,11 +200,16 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if gitrepo.Status.WebhookCommit != "" && gitrepo.Status.WebhookCommit != gitrepo.Status.Commit {
 		gitrepo.Status.Commit = gitrepo.Status.WebhookCommit
 	}
+
 	// From this point onwards we have to take into account if the poller
 	// task was executed.
 	// If so, we need to return a Result with EnqueueAfter set.
+	result := reconcile.Result{}
+	if repoPolled {
+		result = reconcile.Result{RequeueAfter: getPollingIntervalDuration(gitrepo)}
+	}
 
-	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled)
+	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled, result)
 	if err != nil || res.Requeue {
 		return res, err
 	}
@@ -215,23 +220,23 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	err = setStatus(ctx, r.Client, gitrepo)
 	if err != nil {
-		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+		return result, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
-	setCondition(&gitrepo.Status, nil)
+	setAcceptedCondition(&gitrepo.Status, nil)
 
 	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
 
-		return result(repoPolled, gitrepo), err
+		return result, err
 	}
 
-	return result(repoPolled, gitrepo), nil
+	return result, nil
 }
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
-func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string, repoPolled bool) (reconcile.Result, error) {
+func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string, repoPolled bool, oldResult reconcile.Result) (reconcile.Result, error) {
 	name := types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}
 	var job batchv1.Job
 	err := r.Get(ctx, types.NamespacedName{
@@ -241,7 +246,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	if err != nil && !errors.IsNotFound(err) {
 		err = fmt.Errorf("error retrieving git job: %w", err)
 		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToGetGitJob", err.Error())
-		return result(repoPolled, gitrepo), err
+		return oldResult, err
 	}
 
 	if errors.IsNotFound(err) {
@@ -264,16 +269,16 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
-				return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+				return oldResult, updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
-				return result(repoPolled, gitrepo), err
+				return oldResult, err
 			}
 		}
 	} else if gitrepo.Status.Commit != "" && gitrepo.Status.Commit == oldCommit {
 		err, recreateGitJob := r.deleteJobIfNeeded(ctx, gitrepo, &job)
 		if err != nil {
-			return result(repoPolled, gitrepo), fmt.Errorf("error deleting git job: %w", err)
+			return oldResult, fmt.Errorf("error deleting git job: %w", err)
 		}
 		// job was deleted and we need to recreate it
 		// Requeue so the reconciler creates the job again
@@ -285,7 +290,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
 	if err = setStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
-		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+		return oldResult, updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 	}
 
 	return reconcile.Result{}, nil
@@ -1235,8 +1240,8 @@ func jobUpdatedPredicate() predicate.Funcs {
 	}
 }
 
-// setCondition sets the condition and updates the timestamp, if the condition changed
-func setCondition(status *v1alpha1.GitRepoStatus, err error) {
+// setAcceptedCondition sets the condition and updates the timestamp, if the condition changed
+func setAcceptedCondition(status *v1alpha1.GitRepoStatus, err error) {
 	cond := condition.Cond(v1alpha1.GitRepoAcceptedCondition)
 	origStatus := status.DeepCopy()
 	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
@@ -1247,7 +1252,7 @@ func setCondition(status *v1alpha1.GitRepoStatus, err error) {
 
 // updateErrorStatus sets the condition in the status and tries to update the resource
 func updateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status v1alpha1.GitRepoStatus, orgErr error) error {
-	setCondition(&status, orgErr)
+	setAcceptedCondition(&status, orgErr)
 	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
