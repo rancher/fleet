@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
-	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -16,7 +14,6 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,8 +32,8 @@ func setStatus(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) err
 		return err
 	}
 
-	if err = updateDisplayState(gitrepo); err != nil {
-		return err
+	if gitrepo.Status.GitJobStatus != "Current" {
+		gitrepo.Status.Display.State = "GitUpdating"
 	}
 
 	setResourceKey(ctx, c, gitrepo)
@@ -196,22 +193,4 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *fleet.Gi
 	}
 
 	return nil
-}
-
-func updateDisplayState(gitrepo *fleet.GitRepo) error {
-	if gitrepo.Status.GitJobStatus != "Current" {
-		gitrepo.Status.Display.State = "GitUpdating"
-	}
-
-	return nil
-}
-
-// setCondition sets the condition and updates the timestamp, if the condition changed
-func setCondition(status *fleet.GitRepoStatus, err error) {
-	cond := condition.Cond(fleet.GitRepoAcceptedCondition)
-	origStatus := status.DeepCopy()
-	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
-	if !equality.Semantic.DeepEqual(origStatus, status) {
-		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
-	}
 }

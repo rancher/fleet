@@ -13,6 +13,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/reugn/go-quartz/quartz"
 
+	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/metrics"
@@ -26,6 +27,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -207,10 +209,16 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return res, err
 	}
 
+	if gitrepo.Status.GitJobStatus != "Current" {
+		gitrepo.Status.Display.State = "GitUpdating"
+	}
+
 	err = setStatus(ctx, r.Client, gitrepo)
 	if err != nil {
 		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
+
+	setCondition(&gitrepo.Status, nil)
 
 	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
 	if err != nil {
@@ -1224,6 +1232,16 @@ func jobUpdatedPredicate() predicate.Funcs {
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			return false
 		},
+	}
+}
+
+// setCondition sets the condition and updates the timestamp, if the condition changed
+func setCondition(status *v1alpha1.GitRepoStatus, err error) {
+	cond := condition.Cond(v1alpha1.GitRepoAcceptedCondition)
+	origStatus := status.DeepCopy()
+	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
+	if !equality.Semantic.DeepEqual(origStatus, status) {
+		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
 	}
 }
 
