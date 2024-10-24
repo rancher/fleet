@@ -653,7 +653,7 @@ var _ = Describe("GitJob controller", func() {
 			})
 		})
 
-		When("WebhookCommit changes and user clicks ForceUpdateGeneration", func() {
+		When("WebhookCommit changes and user forces a redeployment", func() {
 			BeforeEach(func() {
 				gitRepoName = "disable-polling-commit-change-force-update"
 				webhookCommit = "af6116a6c5c3196043b4a456316ae257dad9b5db"
