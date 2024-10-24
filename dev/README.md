@@ -4,8 +4,8 @@ Instructions on writing useful, well-formatted log messages can be found [here](
 
 # Testing: Dev Scripts
 
-These scripts are used for running tests locally in k3d. Don't use these on
-production systems.
+These scripts are used for running tests locally in [k3d](https://github.com/rancher/k3d).
+Don't use these on production systems.
 
 ## Requirements
 
@@ -17,6 +17,14 @@ production systems.
 - k3d
 - kubectl
 - ...
+
+### For Mac users
+
+On Mac OS, Docker runs in a virtual machine. This means the network setup is more complicated.
+
+> If you are unsure about which method you would like use for tunneling to localhost, we recommend [ngrok](https://ngrok.com).
+
+More info [here](https://github.com/rancher/rancher/wiki/Setting-Up-Rancher-Development-Environment#ngrok).
 
 ## Running Tests on K3D
 
@@ -65,10 +73,36 @@ other existing Fleet chart versions.
 export CHARTS_BRANCH=<branch_created_in_previous_step>
 ```
 3. Ensuring you have access to a running cluster in which to install Rancher.
+For instance, a set of k3d clusters (1 upstream + 1 downstream) can be created
+on your local machine through `dev/setup-k3ds`.
 
-4. Running script `dev/setup-rancher-with-dev-fleet`, which will install Rancher
+4. Commenting out the pairs of lines (name + value) setting the following
+values for installing Rancher through Helm in script
+`dev/setup-rancher-with-dev-fleet`, to match the location and version of the
+Fleet build generated in step 1:
+* `--set extraEnv[0].name=CATTLE_FLEET_VERSION \` to use a custom Fleet version,
+otherwise Rancher will use the version pinned in its
+[settings](https://github.com/rancher/rancher/blob/main/build.yaml#L5).
+* `--set extraEnv[0].value=999.9.9+up9.9.9 \` to match the version from step 1.
+* `--set extraEnv[1].name=CATTLE_CHART_DEFAULT_URL \` to set a custom chart URL
+* `--set extraEnv[1].value=https://github.com/fleetrepoci/charts \`: this is the
+custom charts repository used in step 1 by default.
+Change it to a different URL if you have specified one in that step.
+* `--set extraEnv[2].name=CATTLE_CHART_DEFAULT_BRANCH \` to set a custom chart
+repo branch.
+* `--set extraEnv[2].value=$branch \`: this must match the branch name created
+in step 1.
+* `--set rancherImageTag=$tag \`: only needed for custom Rancher builds.
+If you have not built Rancher yourself, this is typically not needed and you
+can leave it commented out.
+
+5. Running script `dev/setup-rancher-with-dev-fleet`, which will install Rancher
 using Helm, including test Fleet charts generated earlier. Once it is done,
 single- or multi-cluster test suites can be run against an actual Rancher setup.
+
+This also enables use of the Rancher UI, after opening the URL output by Helm
+when installing the Rancher chart, then logging in using the `bootstrapPassword`
+set in that script.
 
 ## Configuration
 
