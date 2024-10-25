@@ -101,9 +101,11 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.GenerationChangedPredicate{},
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
+					webhookCommitChangedPredicate(),
 				),
 			),
 		).
+		Owns(&batchv1.Job{}, builder.WithPredicates(jobUpdatedPredicate())).
 		Watches(
 			// Fan out from bundle to gitrepo
 			&v1alpha1.Bundle{},
@@ -1202,4 +1204,42 @@ func result(repoPolled bool, gitrepo *v1alpha1.GitRepo) reconcile.Result {
 		return reconcile.Result{RequeueAfter: getPollingIntervalDuration(gitrepo)}
 	}
 	return reconcile.Result{}
+}
+
+func webhookCommitChangedPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldGitRepo, ok := e.ObjectOld.(*v1alpha1.GitRepo)
+			if !ok {
+				return true
+			}
+			newGitRepo, ok := e.ObjectNew.(*v1alpha1.GitRepo)
+			if !ok {
+				return true
+			}
+			return oldGitRepo.Status.WebhookCommit != newGitRepo.Status.WebhookCommit
+		},
+	}
+}
+
+func jobUpdatedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			n, isJob := e.ObjectNew.(*batchv1.Job)
+			if !isJob {
+				return false
+			}
+			o := e.ObjectOld.(*batchv1.Job)
+			if n == nil || o == nil {
+				return false
+			}
+			return !reflect.DeepEqual(n.Status, o.Status)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+	}
 }
