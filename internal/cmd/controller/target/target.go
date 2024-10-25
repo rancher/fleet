@@ -210,6 +210,9 @@ func (m *Manager) GetBundleDeploymentsForBundleInCluster(bundle *fleet.Bundle, c
 		return nil, err
 	}
 	bundleDeployments = slices.DeleteFunc(bundleDeployments, func(bd *fleet.BundleDeployment) bool {
+		if bd == nil || bd.Labels == nil {
+			return true
+		}
 		return bd.Labels[fleet.ClusterLabel] != cluster.Name
 	})
 
