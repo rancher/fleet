@@ -361,7 +361,9 @@ func (r *BundleReconciler) createBundleDeployment(
 			return client.IgnoreNotFound(err)
 		}
 
-		controllerutil.AddFinalizer(content, bd.Name)
+		if added := controllerutil.AddFinalizer(content, bd.Name); !added {
+			return nil
+		}
 
 		return r.Update(ctx, content)
 	})
