@@ -1,8 +1,6 @@
 module github.com/rancher/fleet/e2e/testenv/infra
 
-go 1.21
-
-toolchain go1.21.0
+go 1.22
 
 replace github.com/rancher/fleet => ../../../
 
@@ -12,7 +10,7 @@ replace k8s.io/client-go => k8s.io/client-go v0.27.4
 
 require (
 	github.com/rancher/fleet v0.0.0
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	helm.sh/helm/v3 v3.12.3
 )
 
@@ -68,8 +66,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
 	google.golang.org/grpc v1.58.3 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/client-go v12.0.0+incompatible // indirect
 	oras.land/oras-go v1.2.3 // indirect
-	sigs.k8s.io/yaml v1.3.0 // indirect
+	sigs.k8s.io/yaml v1.4.0 // indirect
 )
