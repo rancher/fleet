@@ -152,7 +152,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				logger.V(1).Info("cleaning up bundleDeployment not matching the cluster", "bundledeployment", bd)
 				err := r.Delete(ctx, &bd)
 				if err != nil {
-					logger.V(1).Error(err, "deleting bundleDeployment returned an error")
+					logger.V(1).Info("deleting bundleDeployment returned an error", "error", err)
 				}
 				deleted[bd.GetUID()] = true
 			}
@@ -228,7 +228,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	err = r.updateStatus(ctx, req.NamespacedName, cluster.Status)
 	if err != nil {
-		logger.V(1).Error(err, "Reconcile failed final update to cluster status", "status", cluster.Status)
+		logger.V(1).Info("Reconcile failed final update to cluster status", "status", cluster.Status, "error", err)
 	} else {
 		metrics.ClusterCollector.Collect(ctx, cluster)
 	}

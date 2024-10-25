@@ -72,7 +72,7 @@ func (c *CollectorCollection) Collect(ctx context.Context, obj metav1.ObjectMeta
 			if !ok {
 				msg = "unexpected error"
 			}
-			logger.V(0).Error(errors.New("error collecting metrics"), msg, r)
+			logger.Error(errors.New("error collecting metrics"), msg, r)
 		}
 	}()
 	c.Delete(obj.GetObjectMeta().GetName(), obj.GetObjectMeta().GetNamespace())
