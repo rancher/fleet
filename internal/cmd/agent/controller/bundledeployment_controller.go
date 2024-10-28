@@ -15,10 +15,8 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -115,6 +113,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	} else if err != nil {
 		return ctrl.Result{}, err
 	}
+	orig := bd.DeepCopy()
 
 	if bd.Spec.Paused {
 		logger.V(1).Info("Bundle paused, clearing drift detection")
@@ -123,11 +122,10 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 
-	merr := []error{}
+	var merr []error
 
 	// helm deploy the bundledeployment
-	status, err := r.Deployer.DeployBundle(ctx, bd)
-	if err != nil {
+	if status, err := r.Deployer.DeployBundle(ctx, bd); err != nil {
 		logger.V(1).Error(err, "Failed to deploy bundle", "status", status)
 
 		// do not use the returned status, instead set the condition and possibly a timestamp
@@ -142,7 +140,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	resources, err := r.Deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
 		logger.V(1).Info("Failed to retrieve bundledeployment's resources")
-		if statusErr := r.updateStatus(ctx, req.NamespacedName, bd.Status); statusErr != nil {
+		if statusErr := r.updateStatus(ctx, orig, bd); statusErr != nil {
 			merr = append(merr, err)
 			merr = append(merr, fmt.Errorf("failed to update the status: %w", statusErr))
 		}
@@ -151,7 +149,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	if monitor.ShouldUpdateStatus(bd) {
 		// update the bundledeployment status and check if we deploy an agent, or if we need to trigger drift correction
-		status, err = r.Monitor.UpdateStatus(ctx, bd, resources)
+		status, err := r.Monitor.UpdateStatus(ctx, bd, resources)
 		if err != nil {
 			logger.Error(err, "Cannot monitor deployed bundle")
 
@@ -181,21 +179,18 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// update our mini controller, which watches deployed resources for drift
-	err = r.DriftDetect.Refresh(logger, req.String(), bd, resources)
-	if err != nil {
+	if err := r.DriftDetect.Refresh(logger, req.String(), bd, resources); err != nil {
 		logger.V(1).Error(err, "Failed to refresh drift detection", "step", "drift")
 		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
 	}
 
-	err = r.Cleanup.CleanupReleases(ctx, key, bd)
-	if err != nil {
+	if err := r.Cleanup.CleanupReleases(ctx, key, bd); err != nil {
 		logger.V(1).Error(err, "Failed to clean up bundledeployment releases")
 	}
 
 	// final status update
 	logger.V(1).Info("Reconcile finished, updating the bundledeployment status")
-	err = r.updateStatus(ctx, req.NamespacedName, bd.Status)
-	if apierrors.IsNotFound(err) {
+	if err := r.updateStatus(ctx, orig, bd); apierrors.IsNotFound(err) {
 		merr = append(merr, fmt.Errorf("bundledeployment has been deleted: %w", err))
 	} else if err != nil {
 		merr = append(merr, fmt.Errorf("failed final update to bundledeployment status: %w", err))
@@ -204,16 +199,9 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	return ctrl.Result{}, errutil.NewAggregate(merr)
 }
 
-func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, req types.NamespacedName, status fleetv1.BundleDeploymentStatus) error {
-	return retry.RetryOnConflict(DefaultRetry, func() error {
-		newBD := &fleetv1.BundleDeployment{}
-		err := r.Get(ctx, req, newBD)
-		if err != nil {
-			return err
-		}
-		newBD.Status = status
-		return r.Status().Update(ctx, newBD)
-	})
+func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, orig *fleetv1.BundleDeployment, obj *fleetv1.BundleDeployment) error {
+	statusPatch := client.MergeFrom(orig)
+	return r.Status().Patch(ctx, obj, statusPatch)
 }
 
 // setCondition sets the condition and updates the timestamp, if the condition changed
