@@ -120,6 +120,8 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	var merr []error
 
+	logger.Info("[DEBUG] bundledeployment reconcile", "resources in BD status", len(bd.Status.Resources))
+
 	// helm deploy the bundledeployment
 	if status, err := r.Deployer.DeployBundle(ctx, bd); err != nil {
 		logger.V(1).Info("Failed to deploy bundle", "status", status, "error", err)
@@ -130,6 +132,8 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		merr = append(merr, fmt.Errorf("failed deploying bundle: %w", err))
 	} else {
 		bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
+		logger.Info("[DEBUG] bundledeployment reconcile", "resources in status from DeployBundle", len(status.Resources))
+		logger.Info("[DEBUG] set bd.Status to status", "resources in BD status", len(bd.Status.Resources))
 	}
 
 	// retrieve the resources from the helm history.

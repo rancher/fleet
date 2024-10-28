@@ -86,6 +86,8 @@ func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, 
 	// updateFromResources mutates bd.Status, so copy it first
 	origStatus := *bd.Status.DeepCopy()
 	bd = bd.DeepCopy()
+	logger.Info("[DEBUG] UpdateStatus", "resources in BD status", len(bd.Status.Resources))
+	logger.Info("[DEBUG] UpdateStatus", "resources in BD origStatus", len(origStatus.Resources))
 	err := m.updateFromResources(ctx, logger, bd, resources)
 	if err != nil {
 
