@@ -166,6 +166,8 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 		return err
 	}
 
+	logger.Info("[DEBUG] updateFromResources before Diff", "plan.Objects length", len(plan.Objects))
+
 	// dryrun.Diff only takes plan.Update into account. plan.Update
 	// contains objects which have changes to existing values. Adding a new
 	// key to a map is not considered an update.
@@ -173,6 +175,8 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 	if err != nil {
 		return err
 	}
+
+	logger.Info("[DEBUG] updateFromResources after Diff", "plan.Objects length", len(plan.Objects))
 
 	bd.Status.NonReadyStatus = nonReady(logger, plan, bd.Spec.Options.IgnoreOptions)
 	bd.Status.ModifiedStatus = modified(ctx, m.client, logger, plan, resourcesPreviousRelease)
