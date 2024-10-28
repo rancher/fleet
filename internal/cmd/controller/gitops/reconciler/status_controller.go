@@ -150,7 +150,7 @@ func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) e
 		return list.Items[i].UID < list.Items[j].UID
 	})
 
-	err := setStatusFromBundleDeployments(list, gitrepo)
+	err := setFields(list, gitrepo)
 	if err != nil {
 		return err
 	}
@@ -166,19 +166,17 @@ func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) e
 	return nil
 }
 
-func setStatusFromBundleDeployments(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
-	count := map[client.ObjectKey]int{}
-	readyCount := map[client.ObjectKey]int{}
-	gitrepo.Status.Summary = v1alpha1.BundleSummary{}
-
-	sort.Slice(list.Items, func(i, j int) bool {
-		return list.Items[i].UID < list.Items[j].UID
-	})
-
+// setFields sets bundledeployment related status fields:
+// Summary, ReadyClusters, DesiredReadyClusters, Display.State, Display.Message, Display.Error
+func setFields(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
 	var (
-		maxState v1alpha1.BundleState
-		message  string
+		maxState   v1alpha1.BundleState
+		message    string
+		count      = map[client.ObjectKey]int{}
+		readyCount = map[client.ObjectKey]int{}
 	)
+
+	gitrepo.Status.Summary = v1alpha1.BundleSummary{}
 
 	for _, bd := range list.Items {
 		state := summary.GetDeploymentState(&bd)
