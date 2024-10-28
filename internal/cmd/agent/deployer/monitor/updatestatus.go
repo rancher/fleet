@@ -191,7 +191,9 @@ func (m *Monitor) updateFromResources(logger logr.Logger, bd *fleet.BundleDeploy
 	}
 
 	logger.Info("[DEBUG] updateFromResources", "resources in BD status", len(bd.Status.Resources))
-	bd.Status.Resources = []fleet.BundleDeploymentResource{}
+	if len(plan.Objects) > 0 {
+		bd.Status.Resources = []fleet.BundleDeploymentResource{}
+	}
 	logger.Info("[DEBUG] updateFromResources", "plan.Objects length", len(plan.Objects))
 	for _, obj := range plan.Objects {
 		ma, err := meta.Accessor(obj)
