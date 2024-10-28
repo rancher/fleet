@@ -43,6 +43,9 @@ jobs:
           repository: rancher/charts
           ref: ${{github.event.inputs.charts_ref}}
           path: charts
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.*'
       - name: Install dependencies
         run: sudo snap install yq --channel=v4/stable
       - name: Run release script
