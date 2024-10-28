@@ -172,7 +172,7 @@ jobs:
           git push -u origin $target_branch
 
   test-fleet-in-rancher:
-    uses: ./.github/workflows/e2e-rancher-upgrade-fleet-to-head-ci.yml
+    uses: ./.github/workflows/e2e-test-fleet-in-rancher.yml
     needs: push-test-rancher-charts
     with:
       ref: ${{ github.ref }}
