@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -24,25 +25,28 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	"github.com/rancher/wrangler/v3/pkg/kstatus"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/cli-utils/pkg/kstatus/status"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -108,38 +112,15 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			),
 		).
 		Owns(&batchv1.Job{}, builder.WithPredicates(jobUpdatedPredicate())).
-		Watches(
-			// Fan out from bundle to gitrepo
-			&v1alpha1.Bundle{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
-				repo := a.GetLabels()[v1alpha1.RepoLabel]
-				if repo != "" {
-					return []ctrl.Request{{
-						NamespacedName: types.NamespacedName{
-							Namespace: a.GetNamespace(),
-							Name:      repo,
-						},
-					}}
-				}
-
-				return []ctrl.Request{}
-			}),
-			builder.WithPredicates(bundleStatusChangedPredicate()),
-		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// The Reconcile function compares the state specified by
-// the GitRepo object against the actual cluster state, and then
-// performs operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
+// Reconcile  compares the state specified by the GitRepo object against the
+// actual cluster state. It checks the Git repository for new commits and
+// creates a job to clone the repository if a new commit is found. In case of
+// an error, the output of the job is stored in the status.
 func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("gitjob")
 	gitrepo := &v1alpha1.GitRepo{}
@@ -179,7 +160,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	logger = logger.WithValues("generation", gitrepo.Generation, "commit", gitrepo.Status.Commit)
+	logger = logger.WithValues("generation", gitrepo.Generation, "commit", gitrepo.Status.Commit).WithValues("conditions", gitrepo.Status.Conditions)
 	ctx = log.IntoContext(ctx, logger)
 
 	logger.V(1).Info("Reconciling GitRepo")
@@ -212,15 +193,6 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled, result)
 	if err != nil || res.Requeue {
 		return res, err
-	}
-
-	if gitrepo.Status.GitJobStatus != "Current" {
-		gitrepo.Status.Display.State = "GitUpdating"
-	}
-
-	err = setStatus(ctx, r.Client, gitrepo)
-	if err != nil {
-		return result, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	setAcceptedCondition(&gitrepo.Status, nil)
@@ -1127,30 +1099,6 @@ func proxyEnvVars() []corev1.EnvVar {
 	return envVars
 }
 
-// bundleStatusChangedPredicate returns true if the bundle
-// status has changed, or the bundle was created
-func bundleStatusChangedPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return true
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			n, isBundle := e.ObjectNew.(*v1alpha1.Bundle)
-			if !isBundle {
-				return false
-			}
-			o := e.ObjectOld.(*v1alpha1.Bundle)
-			if n == nil || o == nil {
-				return false
-			}
-			return !reflect.DeepEqual(n.Status, o.Status)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return true
-		},
-	}
-}
-
 // repoPolled returns true if the git poller was executed and the repo should still be polled.
 func (r *GitJobReconciler) repoPolled(ctx context.Context, gitrepo *v1alpha1.GitRepo) (bool, error) {
 	if gitrepo.Spec.DisablePolling {
@@ -1240,6 +1188,78 @@ func jobUpdatedPredicate() predicate.Funcs {
 	}
 }
 
+// setStatusFromGitjob sets the status fields relative to the given job in the gitRepo
+func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1.GitRepo, job *batchv1.Job) error {
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
+	if err != nil {
+		return err
+	}
+	uJob := &unstructured.Unstructured{Object: obj}
+
+	result, err := status.Compute(uJob)
+	if err != nil {
+		return err
+	}
+
+	terminationMessage := ""
+	if result.Status == status.FailedStatus {
+		selector := labels.SelectorFromSet(labels.Set{"job-name": job.Name})
+		podList := &corev1.PodList{}
+		err := c.List(ctx, podList, &client.ListOptions{LabelSelector: selector})
+		if err != nil {
+			return err
+		}
+
+		sort.Slice(podList.Items, func(i, j int) bool {
+			return podList.Items[i].CreationTimestamp.Before(&podList.Items[j].CreationTimestamp)
+		})
+
+		terminationMessage = result.Message
+		if len(podList.Items) > 0 {
+			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
+				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
+					terminationMessage += podStatus.State.Terminated.Message
+				}
+			}
+		}
+	}
+
+	gitRepo.Status.GitJobStatus = result.Status.String()
+
+	for _, con := range result.Conditions {
+		if con.Type.String() == "Ready" {
+			continue
+		}
+		condition.Cond(con.Type.String()).SetStatus(gitRepo, string(con.Status))
+		condition.Cond(con.Type.String()).SetMessageIfBlank(gitRepo, con.Message)
+		condition.Cond(con.Type.String()).Reason(gitRepo, con.Reason)
+	}
+
+	// status.Compute() possible results are
+	//   - InProgress
+	//   - Current
+	//   - Failed
+	//   - Terminating
+	switch result.Status {
+	case status.FailedStatus:
+		kstatus.SetError(gitRepo, terminationMessage)
+	case status.CurrentStatus:
+		if strings.Contains(result.Message, "Job Completed") {
+			gitRepo.Status.Commit = job.Annotations["commit"]
+		}
+		kstatus.SetActive(gitRepo)
+	case status.InProgressStatus:
+		kstatus.SetTransitioning(gitRepo, "")
+	case status.TerminatingStatus:
+		// set active set both conditions to False
+		// the job is terminating so avoid reporting errors in
+		// that case
+		kstatus.SetActive(gitRepo)
+	}
+
+	return nil
+}
+
 // setAcceptedCondition sets the condition and updates the timestamp, if the condition changed
 func setAcceptedCondition(status *v1alpha1.GitRepoStatus, err error) {
 	cond := condition.Cond(v1alpha1.GitRepoAcceptedCondition)
@@ -1270,8 +1290,32 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 		if err != nil {
 			return err
 		}
+
 		commit := t.Status.Commit
-		t.Status = status
+
+		// selectively update the status fields this reconciler is responsible for
+		t.Status.Commit = status.Commit
+		t.Status.GitJobStatus = status.GitJobStatus
+		t.Status.LastPollingTime = status.LastPollingTime
+		t.Status.ObservedGeneration = status.ObservedGeneration
+		t.Status.UpdateGeneration = status.UpdateGeneration
+
+		// only keep the Ready condition from live status, it's calculated by the status reconciler
+		conds := []genericcondition.GenericCondition{}
+		for _, c := range t.Status.Conditions {
+			if c.Type == "Ready" {
+				conds = append(conds, c)
+				break
+			}
+		}
+		for _, c := range status.Conditions {
+			if c.Type == "Ready" {
+				continue
+			}
+			conds = append(conds, c)
+		}
+		t.Status.Conditions = conds
+
 		if commit != "" && status.Commit == "" {
 			// we could incur in a race condition between the poller job
 			// setting the Commit and the first time the reconciler runs.
