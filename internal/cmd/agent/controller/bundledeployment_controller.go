@@ -122,11 +122,10 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 
-	merr := []error{}
+	var merr []error
 
 	// helm deploy the bundledeployment
-	status, err := r.Deployer.DeployBundle(ctx, bd)
-	if err != nil {
+	if status, err := r.Deployer.DeployBundle(ctx, bd); err != nil {
 		logger.V(1).Error(err, "Failed to deploy bundle", "status", status)
 
 		// do not use the returned status, instead set the condition and possibly a timestamp
@@ -150,7 +149,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	if monitor.ShouldUpdateStatus(bd) {
 		// update the bundledeployment status and check if we deploy an agent, or if we need to trigger drift correction
-		status, err = r.Monitor.UpdateStatus(ctx, bd, resources)
+		status, err := r.Monitor.UpdateStatus(ctx, bd, resources)
 		if err != nil {
 			logger.Error(err, "Cannot monitor deployed bundle")
 
@@ -182,14 +181,12 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	// update our mini controller, which watches deployed resources for drift
-	err = r.DriftDetect.Refresh(logger, req.String(), bd, resources)
-	if err != nil {
+	if err := r.DriftDetect.Refresh(logger, req.String(), bd, resources); err != nil {
 		logger.V(1).Error(err, "Failed to refresh drift detection", "step", "drift")
 		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
 	}
 
-	err = r.Cleanup.CleanupReleases(ctx, key, bd)
-	if err != nil {
+	if err := r.Cleanup.CleanupReleases(ctx, key, bd); err != nil {
 		logger.V(1).Error(err, "Failed to clean up bundledeployment releases")
 	}
 
