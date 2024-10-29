@@ -109,7 +109,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	err = r.Status().Update(ctx, bd)
 	if err != nil {
-		logger.V(1).Error(err, "Reconcile failed update to bundle deployment status, requeueing", "status", bd.Status)
+		logger.V(1).Info("Reconcile failed update to bundle deployment status, requeueing", "status", bd.Status, "error", err)
 		return ctrl.Result{Requeue: true}, nil
 	}
 
