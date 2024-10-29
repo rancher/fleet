@@ -32,8 +32,10 @@ jobs:
 
     outputs:
       target_branch: ${{ steps.compute_target_branch.outputs.target_branch }}
+      charts_repo: ${{ steps.compute_env.outputs.charts_repo }}
     steps:
       - name: Set environment variables
+        id: compute_env
         run: |
           tmp=${{github.event.inputs.ref}}
           ref=${tmp:-${{github.ref}}}
@@ -45,8 +47,8 @@ jobs:
           charts_repo=${tmp:-fleetrepoci/charts}
 
           echo "ref=$ref" >> "$GITHUB_ENV"
-          echo "charts_base_branch=$charts_base_branch" >> "$GITHUB_ENV"
-          echo "charts_repo=$charts_repo" >> "$GITHUB_ENV"
+          echo "charts_base_branch=$charts_base_branch" >> "$GITHUB_OUTPUT"
+          echo "charts_repo=$charts_repo" >> "$GITHUB_OUTPUT"
 
       - name: Checkout rancher/fleet
         uses: actions/checkout@v4
@@ -113,7 +115,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{secrets.CI_PUSH_TO_FLEETREPOCI}}
-          repository: ${{ env.charts_repo }}
+          repository: ${{ steps.compute_env.outputs.charts_repo }}
           path: charts
 
       - name: Compute target branch name
@@ -124,7 +126,7 @@ jobs:
           if [ ${{github.event_name}} = 'pull_request' ]; then
             target_branch_name=${{github.event.pull_request.head.ref}}
           elif [ -z ${{github.event.inputs.charts_target_branch}} ]; then
-            target_branch_name=${{env.charts_base_branch}}-$(date +%Y%m%d%H%M%S)
+            target_branch_name=${{steps.compute_env.outputs.charts_base_branch}}-$(date +%Y%m%d%H%M%S)
           fi
 
           # Append prefix if not present
@@ -133,7 +135,6 @@ jobs:
             target_branch_name=$prefix$target_branch_name
           fi
 
-          echo "target_branch=$target_branch_name" >> "$GITHUB_ENV"
           echo "target_branch=$target_branch_name" >> "$GITHUB_OUTPUT"
 
       - name: Set up test charts repo with latest upstream state
@@ -142,10 +143,10 @@ jobs:
           # Add upstream remote and fetch from it
           git remote add -f upstream https://github.com/rancher/charts
 
-          git checkout -b $target_branch upstream/${{env.charts_base_branch}}
+          git checkout -b $target_branch upstream/${{steps.compute_env.outputs.charts_base_branch}}
           if [ $? -eq 128 ]; then # branch already exists
             git checkout $target_branch
-            git rebase upstream/${{env.charts_base_branch}}
+            git rebase upstream/${{steps.compute_env.outputs.charts_base_branch}}
           fi
 
       - name: Install dependencies
@@ -176,6 +177,6 @@ jobs:
     needs: push-test-rancher-charts
     with:
       ref: ${{ github.ref }}
-      charts_repo: ${{ env.charts_repo }}
+      charts_repo: ${{ needs.push-test-rancher-charts.outputs.charts_repo }}
       charts_branch: ${{ needs.push-test-rancher-charts.outputs.target_branch }}
       fleet_version: 999.9.9+up9.9.9
