@@ -1,10 +1,9 @@
 package reconciler
 
 import (
-	"fmt"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -116,7 +115,6 @@ var _ = Describe("Resourcekey", func() {
 
 	It("returns a list", func() {
 		setResources(list, gitrepo)
-		fmt.Printf("%#v\n", gitrepo.Status.Resources)
 
 		Expect(gitrepo.Status.Resources).To(HaveLen(2))
 		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.GitRepoResource{
