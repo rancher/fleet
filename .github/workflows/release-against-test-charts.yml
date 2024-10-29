@@ -143,10 +143,13 @@ jobs:
           # Add upstream remote and fetch from it
           git remote add -f upstream https://github.com/rancher/charts
 
-          git checkout -b $target_branch upstream/${{steps.compute_env.outputs.charts_base_branch}}
+          target_branch=${{steps.compute_target_branch.outputs.target_branch}}
+          base_branch=${{steps.compute_env.outputs.charts_base_branch}}
+
+          git checkout -b $target_branch upstream/$base_branch
           if [ $? -eq 128 ]; then # branch already exists
             git checkout $target_branch
-            git rebase upstream/${{steps.compute_env.outputs.charts_base_branch}}
+            git rebase upstream/$base_branch
           fi
 
       - name: Install dependencies
@@ -170,7 +173,7 @@ jobs:
       - name: Push to custom branch
         run: |
           cd charts
-          git push -u origin $target_branch
+          git push -u origin ${{ steps.compute_target_branch.outputs.target_branch }}
 
   test-fleet-in-rancher:
     uses: ./.github/workflows/e2e-test-fleet-in-rancher.yml
