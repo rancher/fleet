@@ -49,8 +49,9 @@ var _ = Describe("BundleDeployment Status Fields", func() {
 
 		It("updates the status fields", func() {
 			bd := &v1alpha1.BundleDeployment{}
+			name := types.NamespacedName{Namespace: namespace, Name: "name"}
 			Eventually(func() error {
-				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+				err := k8sClient.Get(ctx, name, bd)
 				if err != nil {
 					return err
 				}
@@ -61,7 +62,7 @@ var _ = Describe("BundleDeployment Status Fields", func() {
 			}).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
-				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+				err := k8sClient.Get(ctx, name, bd)
 				Expect(err).ToNot(HaveOccurred())
 				bd.Spec.StagedDeploymentID = bd.Spec.DeploymentID
 				err = k8sClient.Update(ctx, bd)
@@ -79,25 +80,25 @@ var _ = Describe("BundleDeployment Status Fields", func() {
 			By("Updating the bundledeployment spec, updates status fields")
 			Expect(bd.Spec.Options.DeleteNamespace).ToNot(BeTrue())
 
-			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+			err := k8sClient.Get(ctx, name, bd)
 			Expect(err).NotTo(HaveOccurred())
 			bd.Status.NonModified = false
 			err = k8sClient.Status().Update(ctx, bd)
 			Expect(err).NotTo(HaveOccurred())
 
-			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+			err = k8sClient.Get(ctx, name, bd)
 			Expect(bd.Status.NonModified).To(BeFalse())
 			Expect(bd.Status.Ready).To(BeTrue())
 			Expect(bd.Status.Display.State).To(Equal("Ready"))
 
 			Eventually(func() error {
-				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+				err = k8sClient.Get(ctx, name, bd)
 				Expect(err).NotTo(HaveOccurred())
 				bd.Spec.Options.DeleteNamespace = true
 				return k8sClient.Update(ctx, bd)
 			}).ShouldNot(HaveOccurred())
 
-			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+			err = k8sClient.Get(ctx, name, bd)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Display.State).To(Equal("Modified"))
 		})

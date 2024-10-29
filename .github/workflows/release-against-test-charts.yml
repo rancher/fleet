@@ -1,5 +1,8 @@
 name: Release Fleet against test Rancher charts repo
 on:
+  schedule:
+    # Run everyday at 1:00 PM
+    - cron:  '0 13 * * *'
   workflow_dispatch:
     inputs:
       ref:
@@ -25,7 +28,8 @@ permissions:
 
 jobs:
   push-test-rancher-charts:
-    runs-on: ubuntu-latest
+    runs-on: runs-on,runner=8cpu-linux-x64,run-id=${{ github.run_id }}
+
     outputs:
       target_branch: ${{ steps.compute_target_branch.outputs.target_branch }}
     steps:
@@ -168,7 +172,7 @@ jobs:
           git push -u origin $target_branch
 
   test-fleet-in-rancher:
-    uses: ./.github/workflows/e2e-rancher-upgrade-fleet-to-head-ci.yml
+    uses: ./.github/workflows/e2e-test-fleet-in-rancher.yml
     needs: push-test-rancher-charts
     with:
       ref: ${{ github.ref }}

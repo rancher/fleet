@@ -725,8 +725,8 @@ github.com/prometheus/client_model v0.6.1 h1:ZKSh/rekM+n3CeS952MLRAdFwIKqeY8b62p
 github.com/prometheus/client_model v0.6.1/go.mod h1:OrxVMOVHjw3lKMa8+x6HeMGkHMQyHDk9E3jmP2AmGiY=
 github.com/prometheus/common v0.4.1/go.mod h1:TNfzLD0ON7rHzMJeJkieUDPYmFC7Snx/y86RQel1bk4=
 github.com/prometheus/common v0.6.0/go.mod h1:eBmuwkDJBwy6iBfxCBob6t6dR6ENT/y+J+Zk0j9GMYc=
-github.com/prometheus/common v0.60.0 h1:+V9PAREWNvJMAuJ1x1BaWl9dewMW4YrHZQbx0sJNllA=
-github.com/prometheus/common v0.60.0/go.mod h1:h0LYf1R1deLSKtD4Vdg8gy4RuOvENW2J/h19V5NADQw=
+github.com/prometheus/common v0.60.1 h1:FUas6GcOw66yB/73KC+BOZoFJmbo/1pojoILArPAaSc=
+github.com/prometheus/common v0.60.1/go.mod h1:h0LYf1R1deLSKtD4Vdg8gy4RuOvENW2J/h19V5NADQw=
 github.com/prometheus/procfs v0.0.0-20181005140218-185b4288413d/go.mod h1:c3At6R/oaqEKCNdg8wHV1ftS6bRYblBhIjjI8uT2IGk=
 github.com/prometheus/procfs v0.0.2/go.mod h1:TjEm7ze935MbeOT/UhFTIMYKhuLP4wbCsTZCD3I8kEA=
 github.com/prometheus/procfs v0.0.3/go.mod h1:4A/X28fw3Fc593LaREMrKMqOKvUAntwMDaekg4FpcdQ=
@@ -734,8 +734,8 @@ github.com/prometheus/procfs v0.15.1 h1:YagwOFzUgYfKKHX6Dr+sHT7km/hxC76UB0leargg
 github.com/prometheus/procfs v0.15.1/go.mod h1:fB45yRUv8NstnjriLhBQLuOUt+WW4BsoGhij/e3PBqk=
 github.com/rancher/lasso v0.0.0-20240924233157-8f384efc8813 h1:V/LY8pUHZG9Kc+xEDWDOryOnCU6/Q+Lsr9QQEQnshpU=
 github.com/rancher/lasso v0.0.0-20240924233157-8f384efc8813/go.mod h1:IxgTBO55lziYhTEETyVKiT8/B5Rg92qYiRmcIIYoPgI=
-github.com/rancher/wrangler/v3 v3.0.1-rc.3 h1:C2d1GoP500SEFARVcb6EpbcNaXH3i8Yu9fzAe/0n4C0=
-github.com/rancher/wrangler/v3 v3.0.1-rc.3/go.mod h1:gUPHS1ANs2NyByfeERHwkGiQ1rlIa8BpTJZtNSgMlZw=
+github.com/rancher/wrangler/v3 v3.0.1-rc.4 h1:TOFp9Vv+D+O52MeuTM9M/aTT6OB/QZMoBchPfTSFMSc=
+github.com/rancher/wrangler/v3 v3.0.1-rc.4/go.mod h1:cGBYMrchAW13we6LlubfXAv1EJ3z0QzsXiGKTPr+IXg=
 github.com/reugn/go-quartz v0.13.0 h1:0eMxvj28Qu1npIDdN9Mzg9hwyksGH6XJt4Cz0QB8EUk=
 github.com/reugn/go-quartz v0.13.0/go.mod h1:0ghKksELp8MJ4h84T203aTHRF3Kug5BrxEW3ErBvhzY=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=

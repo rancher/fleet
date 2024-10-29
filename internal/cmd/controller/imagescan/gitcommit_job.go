@@ -135,7 +135,7 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 	}
 	if isStalled {
 		err := errors.New(strings.Join(messages, ";"))
-		logger.V(1).Error(err, "Image scan is stalled")
+		logger.V(1).Info("Image scan is stalled", "error", err)
 		return
 	}
 
@@ -154,7 +154,7 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 	tmp, err := os.MkdirTemp("", fmt.Sprintf("%s-%s", gitrepo.Namespace, gitrepo.Name))
 	if err != nil {
 		err = j.updateErrorStatus(ctx, gitrepo, err)
-		logger.V(1).Error(err, "Cannot create temp dir to clone repo")
+		logger.V(1).Info("Cannot create temp dir to clone repo", "error", err)
 		return
 	}
 	defer os.RemoveAll(tmp)
@@ -162,7 +162,7 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 	auth, err := readAuth(ctx, logger, j.client, gitrepo)
 	if err != nil {
 		err = j.updateErrorStatus(ctx, gitrepo, err)
-		logger.V(1).Error(err, "Cannot create temp dir to clone repo")
+		logger.V(1).Info("Cannot create temp dir to clone repo", "error", err)
 		return
 	}
 
@@ -186,7 +186,7 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 	})
 	if err != nil {
 		err = j.updateErrorStatus(ctx, gitrepo, err)
-		logger.V(1).Error(err, "Cannot clone git repo")
+		logger.V(1).Info("Cannot clone git repo", "error", err)
 		return
 	}
 
@@ -201,7 +201,7 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 		updatePath := filepath.Join(tmp, path)
 		if err := update.WithSetters(updatePath, updatePath, scans); err != nil {
 			err = j.updateErrorStatus(ctx, gitrepo, err)
-			logger.V(1).Error(err, "Cannot update image tags in repo")
+			logger.V(1).Info("Cannot update image tags in repo", "error", err)
 			return
 		}
 	}
@@ -209,7 +209,7 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 	commit, err := commitAllAndPush(context.Background(), repo, auth, gitrepo.Spec.ImageScanCommit)
 	if err != nil {
 		err = j.updateErrorStatus(ctx, gitrepo, err)
-		logger.V(1).Error(err, "Cannot commit and push to repo")
+		logger.V(1).Info("Cannot commit and push to repo", "error", err)
 		return
 	}
 	if commit != "" {

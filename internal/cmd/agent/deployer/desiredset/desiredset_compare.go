@@ -314,7 +314,7 @@ func doPatch(logger logr.Logger, gvk schema.GroupVersionKind, modified, current 
 	}
 
 	if err != nil {
-		logger.V(1).Error(err, "Failed to calculate patch", "gvk", gvk, "error", err)
+		logger.V(1).Info("Failed to calculate patch", "gvk", gvk, "error", err)
 	}
 
 	return patch, err
