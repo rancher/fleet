@@ -1,4 +1,4 @@
-package grutil
+package reconciler
 
 import (
 	"encoding/json"
@@ -12,11 +12,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NewTargetsConfigMap builds a config map, containing the GitTarget cluster matchers, converted to BundleTargets.
+// newTargetsConfigMap builds a config map, containing the GitTarget cluster matchers, converted to BundleTargets.
 // The BundleTargets are duplicated into TargetRestrictions. TargetRestrictions is a whilelist. A BundleDeployment
 // will be created for a Target just if it is inside a TargetRestrictions. If it is not inside TargetRestrictions a Target
 // is a TargetCustomization.
-func NewTargetsConfigMap(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
+func newTargetsConfigMap(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
 	spec := &fleet.BundleSpec{}
 	for _, target := range targetsOrDefault(repo.Spec.Targets) {
 		spec.Targets = append(spec.Targets, fleet.BundleTarget{

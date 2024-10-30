@@ -1,55 +1,72 @@
-package grutil
+package reconciler
 
 import (
-	"context"
 	"encoding/json"
 	"sort"
 	"strings"
 
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func SetStatusFromResourceKey(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) {
-	state := bundleErrorState(gitrepo.Status.Summary)
-	gitrepo.Status.Resources, gitrepo.Status.ResourceErrors = fromResourceKey(ctx, c, gitrepo.Namespace, gitrepo.Name, state)
-	gitrepo.Status = countResources(gitrepo.Status)
+func setResources(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) {
+	s := summaryState(gitrepo.Status.Summary)
+	r, errors := fromResources(list, s)
+	gitrepo.Status.ResourceErrors = errors
+	gitrepo.Status.ResourceCounts = countResources(r)
+	gitrepo.Status.Resources = merge(r)
 }
 
-func bundleErrorState(summary fleet.BundleSummary) string {
-	bundleErrorState := ""
+// merge takes a list of GitRepo resources and deduplicates resources deployed to multiple clusters,
+// ensuring that for such resources, the output contains a single resource entry with a field summarizing
+// its status on each cluster.
+func merge(resources []fleet.GitRepoResource) []fleet.GitRepoResource {
+	merged := map[string]fleet.GitRepoResource{}
+	for _, resource := range resources {
+		key := key(resource)
+		if existing, ok := merged[key]; ok {
+			existing.PerClusterState = append(existing.PerClusterState, resource.PerClusterState...)
+			merged[key] = existing
+		} else {
+			merged[key] = resource
+		}
+	}
+
+	var result []fleet.GitRepoResource
+	for _, resource := range merged {
+		result = append(result, resource)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return key(result[i]) < key(result[j])
+	})
+	return result
+}
+
+func key(resource fleet.GitRepoResource) string {
+	return resource.Type + "/" + resource.ID
+}
+
+func summaryState(summary fleet.BundleSummary) string {
 	if summary.WaitApplied > 0 {
-		bundleErrorState = "WaitApplied"
+		return "WaitApplied"
 	}
 	if summary.ErrApplied > 0 {
-		bundleErrorState = "ErrApplied"
+		return "ErrApplied"
 	}
-	return bundleErrorState
+	return ""
 }
 
-// fromResourceKey lists all bundledeployments for this GitRepo and returns a list of
-// GitRepoResource states for all resources
+// fromResources inspects all bundledeployments for this GitRepo and returns a list of
+// GitRepoResources and error messages.
 //
 // It populates gitrepo status resources from bundleDeployments. BundleDeployment.Status.Resources is the list of deployed resources.
-func fromResourceKey(ctx context.Context, c client.Client, namespace, name string, bundleErrorState string) ([]fleet.GitRepoResource, []string) {
+func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fleet.GitRepoResource, []string) {
 	var (
 		resources []fleet.GitRepoResource
 		errors    []string
 	)
 
-	bdList := &fleet.BundleDeploymentList{}
-	err := c.List(ctx, bdList, client.MatchingLabels{
-		fleet.RepoLabel:            name,
-		fleet.BundleNamespaceLabel: namespace,
-	})
-	if err != nil {
-		errors = append(errors, err.Error())
-		return resources, errors
-	}
-
-	for _, bd := range bdList.Items {
-		bd := bd // fix gosec warning regarding "Implicit memory aliasing in for loop"
+	for _, bd := range list.Items {
 		bdResources := bundleDeploymentResources(bd)
 		incomplete, err := addState(bd, bdResources)
 
@@ -60,32 +77,29 @@ func fromResourceKey(ctx context.Context, c client.Client, namespace, name strin
 			}
 		}
 
-		for k, state := range bdResources {
-			resource := toResourceState(k, state, incomplete, bundleErrorState)
+		for k, perCluster := range bdResources {
+			resource := toResourceState(k, perCluster, incomplete, summaryState)
 			resources = append(resources, resource)
 		}
 	}
 
 	sort.Strings(errors)
-	sort.Slice(resources, func(i, j int) bool {
-		return resources[i].Type+"/"+resources[i].ID < resources[j].Type+"/"+resources[j].ID
-	})
 
 	return resources, errors
 }
 
-func toResourceState(k fleet.ResourceKey, state []fleet.ResourcePerClusterState, incomplete bool, bundleErrorState string) fleet.GitRepoResource {
+func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterState, incomplete bool, summaryState string) fleet.GitRepoResource {
 	resource := fleet.GitRepoResource{
 		APIVersion:      k.APIVersion,
 		Kind:            k.Kind,
 		Namespace:       k.Namespace,
 		Name:            k.Name,
 		IncompleteState: incomplete,
-		PerClusterState: state,
+		PerClusterState: perCluster,
 	}
 	resource.Type, resource.ID = toType(resource)
 
-	for _, state := range state {
+	for _, state := range perCluster {
 		resource.State = state.State
 		resource.Error = state.Error
 		resource.Transitioning = state.Transitioning
@@ -93,22 +107,23 @@ func toResourceState(k fleet.ResourceKey, state []fleet.ResourcePerClusterState,
 		break
 	}
 
+	// fallback to state from gitrepo summary
 	if resource.State == "" {
 		if resource.IncompleteState {
-			if bundleErrorState != "" {
-				resource.State = bundleErrorState
+			if summaryState != "" {
+				resource.State = summaryState
 			} else {
 				resource.State = "Unknown"
 			}
-		} else if bundleErrorState != "" {
-			resource.State = bundleErrorState
+		} else if summaryState != "" {
+			resource.State = summaryState
 		} else {
 			resource.State = "Ready"
 		}
 	}
 
-	sort.Slice(state, func(i, j int) bool {
-		return state[i].ClusterID < state[j].ClusterID
+	sort.Slice(perCluster, func(i, j int) bool {
+		return perCluster[i].ClusterID < perCluster[j].ClusterID
 	})
 	return resource
 }
@@ -127,6 +142,9 @@ func toType(resource fleet.GitRepoResource) (string, string) {
 	return t, resource.Namespace + "/" + resource.Name
 }
 
+// addState adds per-cluster state information for nonReady and modified resources in a bundleDeployment.
+// It only adds up to 10 entries to not overwhelm the status.
+// It mutates resources and returns whether the reported state is incomplete and any errors encountered.
 func addState(bd fleet.BundleDeployment, resources map[fleet.ResourceKey][]fleet.ResourcePerClusterState) (bool, []error) {
 	var (
 		incomplete bool
@@ -137,7 +155,7 @@ func addState(bd fleet.BundleDeployment, resources map[fleet.ResourceKey][]fleet
 		incomplete = true
 	}
 
-	cluster := bd.Labels[v1alpha1.ClusterNamespaceLabel] + "/" + bd.Labels[v1alpha1.ClusterLabel]
+	cluster := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
 	for _, nonReady := range bd.Status.NonReadyStatus {
 		key := fleet.ResourceKey{
 			Kind:       nonReady.Kind,
@@ -202,39 +220,39 @@ func appendState(states map[fleet.ResourceKey][]fleet.ResourcePerClusterState, k
 func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey][]fleet.ResourcePerClusterState {
 	bdResources := map[fleet.ResourceKey][]fleet.ResourcePerClusterState{}
 	for _, resource := range bd.Status.Resources {
-		resourceKey := fleet.ResourceKey{
+		key := fleet.ResourceKey{
 			Kind:       resource.Kind,
 			APIVersion: resource.APIVersion,
 			Name:       resource.Name,
 			Namespace:  resource.Namespace,
 		}
-		bdResources[resourceKey] = []fleet.ResourcePerClusterState{}
+		bdResources[key] = []fleet.ResourcePerClusterState{}
 	}
 	return bdResources
 }
 
-func countResources(status fleet.GitRepoStatus) fleet.GitRepoStatus {
-	status.ResourceCounts = fleet.GitRepoResourceCounts{}
+func countResources(resources []fleet.GitRepoResource) fleet.GitRepoResourceCounts {
+	counts := fleet.GitRepoResourceCounts{}
 
-	for _, resource := range status.Resources {
-		status.ResourceCounts.DesiredReady++
+	for _, resource := range resources {
+		counts.DesiredReady++
 		switch resource.State {
 		case "Ready":
-			status.ResourceCounts.Ready++
+			counts.Ready++
 		case "WaitApplied":
-			status.ResourceCounts.WaitApplied++
+			counts.WaitApplied++
 		case "Modified":
-			status.ResourceCounts.Modified++
+			counts.Modified++
 		case "Orphan":
-			status.ResourceCounts.Orphaned++
+			counts.Orphaned++
 		case "Missing":
-			status.ResourceCounts.Missing++
+			counts.Missing++
 		case "Unknown":
-			status.ResourceCounts.Unknown++
+			counts.Unknown++
 		default:
-			status.ResourceCounts.NotReady++
+			counts.NotReady++
 		}
 	}
 
-	return status
+	return counts
 }
