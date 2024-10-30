@@ -4,10 +4,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/rancher/wrangler/v3/pkg/summary"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
 )
 
 var _ = Describe("Resourcekey", func() {
