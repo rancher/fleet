@@ -2,6 +2,7 @@ package helmdeployer
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strconv"
 
@@ -9,6 +10,7 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 
@@ -109,6 +111,13 @@ func ReleaseToResourceID(release *release.Release) string {
 func ReleaseToObjects(release *release.Release) ([]runtime.Object, error) {
 	var err error
 
+	logger := log.FromContext(context.TODO()).WithName("ReleaseToObjects")
+
+	logger.Info("[DEBUG] Populating objects from release manifest", "release", release)
+
 	objs, err := yaml.ToObjects(bytes.NewBufferString(release.Manifest))
+
+	logger.Info("[DEBUG] Populated objects from release manifest", "objs", objs)
+
 	return objs, err
 }
