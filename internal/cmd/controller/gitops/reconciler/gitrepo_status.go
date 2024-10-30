@@ -1,4 +1,4 @@
-package grutil
+package reconciler
 
 import (
 	"context"
@@ -107,8 +107,8 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 	return nil
 }
 
-// SetStatusFromGitjob sets the status fields relative to the given job in the gitRepo
-func SetStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *fleet.GitRepo, job *batchv1.Job) error {
+// setStatusFromGitjob sets the status fields relative to the given job in the gitRepo
+func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *fleet.GitRepo, job *batchv1.Job) error {
 	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
 	if err != nil {
 		return err
@@ -194,20 +194,20 @@ func SetCondition(status *fleet.GitRepoStatus, err error) {
 	}
 }
 
-// UpdateErrorStatus sets the condition in the status and tries to update the resource
-func UpdateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.GitRepoStatus, orgErr error) error {
+// updateErrorStatus sets the condition in the status and tries to update the resource
+func updateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.GitRepoStatus, orgErr error) error {
 	SetCondition(&status, orgErr)
-	if statusErr := UpdateStatus(ctx, c, req, status); statusErr != nil {
+	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
 	}
 	return orgErr
 }
 
-// UpdateStatus updates the status for the GitRepo resource. It retries on
+// updateStatus updates the status for the GitRepo resource. It retries on
 // conflict. If the status was updated successfully, it also collects (as in
 // updates) metrics for the resource GitRepo resource.
-func UpdateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.GitRepoStatus) error {
+func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.GitRepoStatus) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.GitRepo{}
 		err := c.Get(ctx, req, t)
