@@ -13,7 +13,9 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -63,8 +65,6 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return ctrl.Result{}, err
 	}
 
-	orig := bd.DeepCopy()
-
 	if bd.Spec.Paused {
 		logger.V(1).Info("Bundle paused, clearing drift detection")
 		err := r.DriftDetect.Clear(req.String())
@@ -106,7 +106,7 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	// final status update
 	logger.V(1).Info("Reconcile finished, updating the bundledeployment status")
-	err = r.updateStatus(ctx, orig, bd)
+	err = r.updateStatus(ctx, req.NamespacedName, bd.Status)
 	if apierrors.IsNotFound(err) {
 		merr = append(merr, fmt.Errorf("bundledeployment has been deleted: %w", err))
 	} else if err != nil {
@@ -116,11 +116,14 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	return ctrl.Result{}, errutil.NewAggregate(merr)
 }
 
-func (r *DriftReconciler) updateStatus(
-	ctx context.Context,
-	orig *fleetv1.BundleDeployment,
-	obj *fleetv1.BundleDeployment,
-) error {
-	statusPatch := client.MergeFrom(orig)
-	return r.Status().Patch(ctx, obj, statusPatch)
+func (r *DriftReconciler) updateStatus(ctx context.Context, req types.NamespacedName, status fleetv1.BundleDeploymentStatus) error {
+	return retry.RetryOnConflict(DefaultRetry, func() error {
+		newBD := &fleetv1.BundleDeployment{}
+		err := r.Get(ctx, req, newBD)
+		if err != nil {
+			return err
+		}
+		newBD.Status = status
+		return r.Status().Update(ctx, newBD)
+	})
 }
