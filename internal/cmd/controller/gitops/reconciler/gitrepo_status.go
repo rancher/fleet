@@ -73,7 +73,7 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 		return err
 	}
 
-	gitrepo.Status.Summary = fleet.BundleSummary{}
+	var bundleSummary fleet.BundleSummary
 
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
@@ -87,8 +87,8 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 	for _, bd := range list.Items {
 		bd := bd // fix gosec warning regarding "Implicit memory aliasing in for loop"
 		state := summary.GetDeploymentState(&bd)
-		summary.IncrementState(&gitrepo.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
-		gitrepo.Status.Summary.DesiredReady++
+		summary.IncrementState(&bundleSummary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
+		bundleSummary.DesiredReady++
 		if fleet.StateRank[state] > fleet.StateRank[maxState] {
 			maxState = state
 			message = summary.MessageFromDeployment(&bd)
@@ -99,7 +99,7 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 		maxState = ""
 		message = ""
 	}
-
+	gitrepo.Status.Summary = bundleSummary
 	gitrepo.Status.Display.State = string(maxState)
 	gitrepo.Status.Display.Message = message
 	gitrepo.Status.Display.Error = len(message) > 0
