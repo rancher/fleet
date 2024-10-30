@@ -32,6 +32,10 @@ func merge(resources []fleet.GitRepoResource) []fleet.GitRepoResource {
 	for _, resource := range merged {
 		result = append(result, resource)
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return key(result[i]) < key(result[j])
+	})
 	return result
 }
 
@@ -77,9 +81,6 @@ func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fle
 	}
 
 	sort.Strings(errors)
-	sort.Slice(resources, func(i, j int) bool {
-		return key(resources[i]) < key(resources[j])
-	})
 
 	return resources, errors
 }
