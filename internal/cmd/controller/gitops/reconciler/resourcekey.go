@@ -1,19 +1,16 @@
 package reconciler
 
 import (
-	"context"
 	"encoding/json"
 	"sort"
 	"strings"
 
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func SetStatusFromResourceKey(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) {
+func setResources(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) {
 	state := bundleErrorState(gitrepo.Status.Summary)
-	gitrepo.Status.Resources, gitrepo.Status.ResourceErrors = fromResourceKey(ctx, c, gitrepo.Namespace, gitrepo.Name, state)
+	gitrepo.Status.Resources, gitrepo.Status.ResourceErrors = fromResources(list, state)
 	gitrepo.Status = countResources(gitrepo.Status)
 }
 
@@ -28,27 +25,17 @@ func bundleErrorState(summary fleet.BundleSummary) string {
 	return bundleErrorState
 }
 
-// fromResourceKey lists all bundledeployments for this GitRepo and returns a list of
+// fromResources iterates over the bundledeployments for a GitRepo and returns a list of
 // GitRepoResource states for all resources
 //
 // It populates gitrepo status resources from bundleDeployments. BundleDeployment.Status.Resources is the list of deployed resources.
-func fromResourceKey(ctx context.Context, c client.Client, namespace, name string, bundleErrorState string) ([]fleet.GitRepoResource, []string) {
+func fromResources(list *fleet.BundleDeploymentList, bundleErrorState string) ([]fleet.GitRepoResource, []string) {
 	var (
 		resources []fleet.GitRepoResource
 		errors    []string
 	)
 
-	bdList := &fleet.BundleDeploymentList{}
-	err := c.List(ctx, bdList, client.MatchingLabels{
-		fleet.RepoLabel:            name,
-		fleet.BundleNamespaceLabel: namespace,
-	})
-	if err != nil {
-		errors = append(errors, err.Error())
-		return resources, errors
-	}
-
-	for _, bd := range bdList.Items {
+	for _, bd := range list.Items {
 		bd := bd // fix gosec warning regarding "Implicit memory aliasing in for loop"
 		bdResources := bundleDeploymentResources(bd)
 		incomplete, err := addState(bd, bdResources)
@@ -137,7 +124,7 @@ func addState(bd fleet.BundleDeployment, resources map[fleet.ResourceKey][]fleet
 		incomplete = true
 	}
 
-	cluster := bd.Labels[v1alpha1.ClusterNamespaceLabel] + "/" + bd.Labels[v1alpha1.ClusterLabel]
+	cluster := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
 	for _, nonReady := range bd.Status.NonReadyStatus {
 		key := fleet.ResourceKey{
 			Kind:       nonReady.Kind,
@@ -202,13 +189,13 @@ func appendState(states map[fleet.ResourceKey][]fleet.ResourcePerClusterState, k
 func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey][]fleet.ResourcePerClusterState {
 	bdResources := map[fleet.ResourceKey][]fleet.ResourcePerClusterState{}
 	for _, resource := range bd.Status.Resources {
-		resourceKey := fleet.ResourceKey{
+		key := fleet.ResourceKey{
 			Kind:       resource.Kind,
 			APIVersion: resource.APIVersion,
 			Name:       resource.Name,
 			Namespace:  resource.Namespace,
 		}
-		bdResources[resourceKey] = []fleet.ResourcePerClusterState{}
+		bdResources[key] = []fleet.ResourcePerClusterState{}
 	}
 	return bdResources
 }

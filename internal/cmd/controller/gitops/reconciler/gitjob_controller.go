@@ -220,8 +220,6 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
-	SetStatusFromResourceKey(ctx, r.Client, gitrepo)
-
 	gitrepo.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)

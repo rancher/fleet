@@ -104,6 +104,8 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 	gitrepo.Status.Display.Message = message
 	gitrepo.Status.Display.Error = len(message) > 0
 
+	setResources(list, gitrepo)
+
 	return nil
 }
 
