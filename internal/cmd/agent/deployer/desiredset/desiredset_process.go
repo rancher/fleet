@@ -122,7 +122,13 @@ func (o *desiredSet) process(ctx context.Context, set labels.Selector, gvk schem
 		return
 	}
 
+	logger := log.FromContext(ctx).WithValues("setID", o.setID, "gvk", gvk)
+
 	toCreate, toDelete, toUpdate := compareSets(existing, objs)
+
+	logger.Info("[DEBUG] sets compared", "toCreate", toCreate)
+	logger.Info("[DEBUG] sets compared", "toDelete", toDelete)
+	logger.Info("[DEBUG] sets compared", "toUpdate", toUpdate)
 
 	// check for resources in the objectset but under a different version of the same group/kind
 	toDelete = o.filterCrossVersion(gvk, toDelete)
@@ -135,7 +141,8 @@ func (o *desiredSet) process(ctx context.Context, set labels.Selector, gvk schem
 		return
 	}
 
-	logger := log.FromContext(ctx).WithValues("setID", o.setID, "gvk", gvk)
+	logger.Info("[DEBUG] process: before loop on toUpdate", "plan.Objects", o.plan.Objects)
+
 	for _, k := range toUpdate {
 		oldObject := existing[k]
 		newObject := objs[k]
@@ -153,6 +160,8 @@ func (o *desiredSet) process(ctx context.Context, set labels.Selector, gvk schem
 			_ = o.addErr(fmt.Errorf("failed to update patch %s for %s: %w", gvk, o.setID, err))
 		}
 	}
+
+	logger.Info("[DEBUG] process: after loop on toUpdate", "plan.Objects", o.plan.Objects)
 }
 
 func (o *desiredSet) list(ctx context.Context, informer cache.SharedIndexInformer, client dynamic.NamespaceableResourceInterface, selector labels.Selector, desiredObjects objectset.ObjectByKey) (map[objectset.ObjectKey]runtime.Object, error) {

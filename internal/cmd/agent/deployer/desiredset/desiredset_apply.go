@@ -61,6 +61,9 @@ func (o *desiredSet) getRateLimit(labelHash string) flowcontrol.RateLimiter {
 }
 
 func (o *desiredSet) apply(ctx context.Context) error {
+	logger := log.FromContext(ctx)
+	logger.Info("[DEBUG] call to apply")
+
 	if o.objs == nil || o.objs.Len() == 0 {
 		o.remove = true
 	}
@@ -97,8 +100,12 @@ func (o *desiredSet) apply(ctx context.Context) error {
 	}
 
 	for _, gvk := range o.objs.GVKOrder(o.knownGVK()...) {
+		logger := log.FromContext(ctx)
+		logger.Info("calling process", "selector", sel, "gvk", gvk)
 		o.process(ctx, sel, gvk, objs[gvk])
 	}
+
+	logger.Info("[DEBUG] error after call to process?", "err", o.Err())
 
 	return o.Err()
 }

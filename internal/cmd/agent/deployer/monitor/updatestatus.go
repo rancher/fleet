@@ -160,8 +160,11 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 		ns = m.defaultNamespace
 	}
 
+	setID := desiredset.GetSetID(bd.Name, m.labelPrefix, m.labelSuffix)
+	logger.Info("[DEBUG] Parameters fed to Plan", "ns", ns, "setID", setID, "objects", resources.Objects)
+
 	// resources.Objects contains the desired state of the resources from helm history
-	plan, err := m.desiredset.Plan(ctx, ns, desiredset.GetSetID(bd.Name, m.labelPrefix, m.labelSuffix), resources.Objects...)
+	plan, err := m.desiredset.Plan(ctx, ns, setID, resources.Objects...)
 	if err != nil {
 		return err
 	}
