@@ -2,12 +2,14 @@ package helmdeployer
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strconv"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/rancher/wrangler/v3/pkg/kv"
 	"github.com/rancher/wrangler/v3/pkg/yaml"
@@ -107,6 +109,12 @@ func releaseToResources(release *release.Release) (*Resources, error) {
 		ID:               releaseToResourceID(release),
 	}
 
+	logger := log.FromContext(context.TODO()).WithName("ReleaseToObjects")
+
+	logger.Info("[DEBUG] Populating objects from release manifest", "release", release)
+
 	resources.Objects, err = yaml.ToObjects(bytes.NewBufferString(release.Manifest))
+	logger.Info("[DEBUG] Populated objects from release manifest", "objs", resources.Objects)
+
 	return resources, err
 }
