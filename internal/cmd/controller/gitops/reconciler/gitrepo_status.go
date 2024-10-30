@@ -1,4 +1,4 @@
-package grutil
+package reconciler
 
 import (
 	"context"
@@ -73,7 +73,7 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 		return err
 	}
 
-	gitrepo.Status.Summary = fleet.BundleSummary{}
+	var bundleSummary fleet.BundleSummary
 
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
@@ -87,8 +87,8 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 	for _, bd := range list.Items {
 		bd := bd // fix gosec warning regarding "Implicit memory aliasing in for loop"
 		state := summary.GetDeploymentState(&bd)
-		summary.IncrementState(&gitrepo.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
-		gitrepo.Status.Summary.DesiredReady++
+		summary.IncrementState(&bundleSummary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
+		bundleSummary.DesiredReady++
 		if fleet.StateRank[state] > fleet.StateRank[maxState] {
 			maxState = state
 			message = summary.MessageFromDeployment(&bd)
@@ -99,16 +99,18 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 		maxState = ""
 		message = ""
 	}
-
+	gitrepo.Status.Summary = bundleSummary
 	gitrepo.Status.Display.State = string(maxState)
 	gitrepo.Status.Display.Message = message
 	gitrepo.Status.Display.Error = len(message) > 0
 
+	setResources(list, gitrepo)
+
 	return nil
 }
 
-// SetStatusFromGitjob sets the status fields relative to the given job in the gitRepo
-func SetStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *fleet.GitRepo, job *batchv1.Job) error {
+// setStatusFromGitjob sets the status fields relative to the given job in the gitRepo
+func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *fleet.GitRepo, job *batchv1.Job) error {
 	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(job)
 	if err != nil {
 		return err
@@ -194,20 +196,20 @@ func SetCondition(status *fleet.GitRepoStatus, err error) {
 	}
 }
 
-// UpdateErrorStatus sets the condition in the status and tries to update the resource
-func UpdateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.GitRepoStatus, orgErr error) error {
+// updateErrorStatus sets the condition in the status and tries to update the resource
+func updateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.GitRepoStatus, orgErr error) error {
 	SetCondition(&status, orgErr)
-	if statusErr := UpdateStatus(ctx, c, req, status); statusErr != nil {
+	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
 	}
 	return orgErr
 }
 
-// UpdateStatus updates the status for the GitRepo resource. It retries on
+// updateStatus updates the status for the GitRepo resource. It retries on
 // conflict. If the status was updated successfully, it also collects (as in
 // updates) metrics for the resource GitRepo resource.
-func UpdateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.GitRepoStatus) error {
+func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.GitRepoStatus) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.GitRepo{}
 		err := c.Get(ctx, req, t)
