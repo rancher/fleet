@@ -20,8 +20,8 @@ import (
 
 var (
 	DebugEnabled           bool
-	DisableSecurityContext bool
 	DebugLevel             = 0
+	DisableSecurityContext bool
 )
 
 const (
@@ -289,7 +289,7 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 		},
 	}
 
-	if !DebugEnabled {
+	if !DisableSecurityContext {
 		app.Spec.Template.Spec.SecurityContext = &corev1.PodSecurityContext{
 			RunAsNonRoot: &[]bool{true}[0],
 			RunAsUser:    &[]int64{1000}[0],
@@ -329,7 +329,8 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 
 		if DebugEnabled {
 			container.Command = append(container.Command, "--debug", "--debug-level", strconv.Itoa(DebugLevel))
-		} else {
+		}
+		if !DisableSecurityContext {
 			container.SecurityContext = &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &[]bool{false}[0],
 				ReadOnlyRootFilesystem:   &[]bool{true}[0],
