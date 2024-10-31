@@ -33,6 +33,11 @@ func (a *AgentManagement) PersistentPre(_ *cobra.Command, _ []string) error {
 		agent.DebugLevel = a.DebugLevel
 	}
 
+	disableSecurityContext, _ := strconv.ParseBool(os.Getenv("FLEET_DEBUG_DISABLE_SECURITY_CONTEXT"))
+	if propagateDebug && disableSecurityContext {
+		agent.DisableSecurityContext = true
+	}
+
 	return nil
 }
 

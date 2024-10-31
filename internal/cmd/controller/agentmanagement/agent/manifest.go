@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	DebugEnabled bool
-	DebugLevel   = 0
+	DebugEnabled           bool
+	DisableSecurityContext bool
+	DebugLevel             = 0
 )
 
 const (
