@@ -1,6 +1,8 @@
 package kustomize
 
 import (
+	"strings"
+
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/data"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/summary"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
@@ -31,7 +33,18 @@ func KStatusSummarizer(obj data.Object, conditions []summary.Condition, summary 
 	}
 
 	if result.Message != "" {
-		summary.Message = append(summary.Message, result.Message)
+		// Deduplicate status messages (https://github.com/rancher/fleet/issues/2859)
+		messages := make(map[string]bool)
+		var resultMessages []string
+		for _, message := range strings.Split(result.Message, ";") {
+			if _, ok := messages[message]; ok {
+				continue
+			}
+			messages[message] = true
+			resultMessages = append(resultMessages, message)
+		}
+
+		summary.Message = append(summary.Message, strings.Join(resultMessages, ";"))
 	}
 
 	return summary
