@@ -167,6 +167,8 @@ spec:
               fieldPath: metadata.namespace
         - name: FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS
           value: {{ quote $.Values.propagateDebugSettingsToAgents }}
+        - name: FLEET_DEBUG_DISABLE_SECURITY_CONTEXT
+          value: {{ quote $.Values.disableSecurityContext }}
         {{- if $.Values.debug }}
         - name: CATTLE_DEV_MODE
           value: "true"
