@@ -114,7 +114,7 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	err = r.Client.Status().Update(ctx, gitrepo)
 	if err != nil {
 		logger.Error(err, "Reconcile failed update to git repo status", "status", gitrepo.Status)
-		return ctrl.Result{RequeueAfter: durations.GitRepoStatusDelay}, err
+		return ctrl.Result{RequeueAfter: durations.GitRepoStatusDelay}, nil
 	}
 
 	return ctrl.Result{}, nil
