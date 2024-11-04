@@ -133,8 +133,10 @@ func init() {
 		checkOwner,
 		checkApplyOwned,
 		checkCattleTypes,
+		kStatusSummarizer,
 	}
 }
+
 
 func checkOwner(obj data.Object, conditions []Condition, summary fleetv1.Summary) fleetv1.Summary {
 	ustr := &unstructured.Unstructured{
@@ -477,6 +479,41 @@ func checkApplyOwned(obj data.Object, conditions []Condition, summary fleetv1.Su
 	}
 
 	summary.Relationships = append(summary.Relationships, rel)
+
+	return summary
+}
+
+func kStatusSummarizer(obj data.Object, conditions []Condition, summary fleetv1.Summary) fleetv1.Summary {
+	result, err := kstatus.Compute(&unstructured.Unstructured{Object: obj})
+	if err != nil {
+		return summary
+	}
+
+	switch result.Status {
+	case kstatus.InProgressStatus:
+		summary.Transitioning = true
+	case kstatus.FailedStatus:
+		summary.Error = true
+	case kstatus.CurrentStatus:
+	case kstatus.TerminatingStatus:
+		summary.Transitioning = true
+	case kstatus.UnknownStatus:
+	}
+
+	if result.Message != "" {
+		// Deduplicate status messages (https://github.com/rancher/fleet/issues/2859)
+		messages := make(map[string]bool)
+		var resultMessages []string
+		for _, message := range strings.Split(result.Message, ";") {
+			if _, ok := messages[message]; ok {
+				continue
+			}
+			messages[message] = true
+			resultMessages = append(resultMessages, message)
+		}
+
+		summary.Message = append(summary.Message, strings.Join(resultMessages, ";"))
+	}
 
 	return summary
 }
