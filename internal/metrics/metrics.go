@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -39,6 +40,12 @@ func RegisterMetrics() {
 }
 
 func RegisterGitOptsMetrics() {
+	enabled = true
+
+	GitRepoCollector.Register()
+}
+
+func RegisterHelmOpsMetrics() {
 	enabled = true
 
 	GitRepoCollector.Register()
@@ -105,5 +112,100 @@ func (c *CollectorCollection) Delete(name, namespace string) (deleted int) {
 func (c *CollectorCollection) Register() {
 	for _, metric := range c.metrics {
 		metrics.Registry.MustRegister(metric)
+	}
+}
+
+func getStatusMetrics(subsystem string, labels []string) map[string]prometheus.Collector {
+	return map[string]prometheus.Collector{
+		"resources_desired_ready": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "resources_desired_ready",
+				Help:      "The count of resources that are desired to be in a Ready state.",
+			},
+			labels,
+		),
+		"resources_missing": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "resources_missing",
+				Help:      "The count of resources that are in a Missing state.",
+			},
+			labels,
+		),
+		"resources_modified": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "resources_modified",
+				Help:      "The count of resources that are in a Modified state.",
+			},
+			labels,
+		),
+		"resources_not_ready": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "resources_not_ready",
+				Help:      "The count of resources that are in a NotReady state.",
+			},
+			labels,
+		),
+		"resources_orphaned": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "resources_orphaned",
+				Help:      "The count of resources that are in an Orphaned state.",
+			},
+			labels,
+		),
+		"resources_ready": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "resources_ready",
+				Help:      "The count of resources that are in a Ready state.",
+			},
+			labels,
+		),
+		"resources_unknown": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "resources_unknown",
+				Help:      "The count of resources that are in an Unknown state.",
+			},
+			labels,
+		),
+		"resources_wait_applied": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "resources_wait_applied",
+				Help:      "The count of resources that are in a WaitApplied state.",
+			},
+			labels,
+		),
+		"desired_ready_clusters": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "desired_ready_clusters",
+				Help:      "The amount of clusters desired to be in a ready state.",
+			},
+			labels,
+		),
+		"ready_clusters": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: metricPrefix,
+				Subsystem: subsystem,
+				Name:      "ready_clusters",
+				Help:      "The count of clusters in a Ready state.",
+			},
+			labels,
+		),
 	}
 }

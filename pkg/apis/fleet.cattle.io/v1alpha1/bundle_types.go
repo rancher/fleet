@@ -85,7 +85,7 @@ type BundleList struct {
 	Items           []Bundle `json:"items"`
 }
 
-type BundleSpec struct {
+type BundleSpecBase struct {
 	BundleDeploymentOptions `json:",inline"`
 
 	// Paused if set to true, will stop any BundleDeployments from being updated. It will be marked as out of sync.
@@ -111,10 +111,20 @@ type BundleSpec struct {
 	// DependsOn refers to the bundles which must be ready before this bundle can be deployed.
 	// +nullable
 	DependsOn []BundleRef `json:"dependsOn,omitempty"`
+}
+
+type BundleSpec struct {
+	BundleSpecBase `json:",inline"`
 
 	// ContentsID stores the contents id when deploying contents using an OCI registry.
 	// +nullable
 	ContentsID string `json:"contentsId,omitempty"`
+
+	// HelmAppOptions stores the options relative to HelmApp resources
+	// When this is not nil it means the bundle should be deployed taking a helm
+	// chart as the source for resources
+	// +nullable
+	HelmAppOptions *BundleHelmOptions `json:"helmAppOptions,omitempty"`
 }
 
 type BundleRef struct {
@@ -407,4 +417,13 @@ type PartitionStatus struct {
 	Unavailable int `json:"unavailable,omitempty"`
 	// Summary is a summary state for the partition, calculated over its non-ready resources.
 	Summary BundleSummary `json:"summary,omitempty"`
+}
+
+type BundleHelmOptions struct {
+	// SecretName stores the secret name for storing credentials when accessing
+	// a remote helm repository defined in a HelmApp resource
+	SecretName string `json:"helmAppSecretName,omitempty"`
+
+	// InsecureSkipTLSverify will use insecure HTTPS to clone the helm app resource.
+	InsecureSkipTLSverify bool `json:"helmAppInsecureSkipTLSVerify,omitempty"`
 }

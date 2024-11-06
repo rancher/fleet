@@ -5,6 +5,8 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
@@ -150,10 +152,18 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bundle.Status.ObservedGeneration,
 	)
 
+	// if the bundle has the helmops options set but the experimental flag is not
+	// set we don't deploy the bundle.
+	// This is to avoid intentional or accidental deployment of bundles with no
+	// resources or not well defined.
+	if bundle.Spec.HelmAppOptions != nil && !experimentalHelmOpsEnabled() {
+		return ctrl.Result{}, fmt.Errorf("Bundle contains data used by helm ops but env variable EXPERIMENTAL_HELM_OPS is not set to true")
+	}
 	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
+	contentsInHelmChart := bundle.Spec.HelmAppOptions != nil && experimentalHelmOpsEnabled()
 	manifestID := bundle.Spec.ContentsID
 	var resourcesManifest *manifest.Manifest
-	if !contentsInOCI {
+	if !contentsInOCI && !contentsInHelmChart {
 		resourcesManifest = manifest.FromBundle(bundle)
 		if bundle.Generation != bundle.Status.ObservedGeneration {
 			resourcesManifest.ResetSHASum()
@@ -177,8 +187,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	if !contentsInOCI && len(matchedTargets) > 0 {
-		// when not using the OCI registry we need to create a contents resource
+	if (!contentsInOCI && !contentsInHelmChart) && len(matchedTargets) > 0 {
+		// when not using the OCI registry or helm chart we need to create a contents resource
 		// so the BundleDeployments are able to access the contents to be deployed.
 		// Otherwise, do not create a content resource if there are no targets.
 		// `fleet apply` puts all resources into `bundle.Spec.Resources`.
@@ -220,16 +230,20 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// DependsOn with the bundle's DependsOn (pure function) and replacing
 	// the labels with the bundle's labels
 	for _, target := range matchedTargets {
-		bd, err := r.createBundleDeployment(ctx, logger, target, contentsInOCI, manifestID)
+		bd, err := r.createBundleDeployment(
+			ctx,
+			logger,
+			target,
+			contentsInOCI,
+			contentsInHelmChart,
+			bundle.Spec.HelmAppOptions,
+			manifestID)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		if bd != nil && contentsInOCI {
-			// we need to create the OCI registry credentials secret in the BundleDeployment's namespace
-			if err := r.createDeploymentOCISecret(ctx, bundle, bd); err != nil {
-				return ctrl.Result{}, err
-			}
+		if err := r.deploymentSecretHandling(ctx, bundle, bd); err != nil {
+			return ctrl.Result{}, err
 		}
 	}
 
@@ -326,6 +340,8 @@ func (r *BundleReconciler) createBundleDeployment(
 	logger logr.Logger,
 	target *target.Target,
 	contentsInOCI bool,
+	contentsInHelmChart bool,
+	helmAppOptions *fleet.BundleHelmOptions,
 	manifestID string,
 ) (*fleet.BundleDeployment, error) {
 	if target.Deployment == nil {
@@ -350,6 +366,7 @@ func (r *BundleReconciler) createBundleDeployment(
 	controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
 
 	bd.Spec.OCIContents = contentsInOCI
+	bd.Spec.HelmChartOptions = helmAppOptions
 
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if contentsInOCI {
@@ -379,7 +396,7 @@ func (r *BundleReconciler) createBundleDeployment(
 		// latest version of the bundle points to a different deployment ID.
 		// An empty value for bd.Spec.DeploymentID means that we are deploying the first version of this
 		// bundle, hence there are no Contents left over to purge.
-		if !bd.Spec.OCIContents &&
+		if (!bd.Spec.OCIContents || !contentsInHelmChart) &&
 			bd.Spec.DeploymentID != "" &&
 			bd.Spec.DeploymentID != updated.Spec.DeploymentID {
 			if err := finalize.PurgeContent(ctx, r.Client, bd.Name, bd.Spec.DeploymentID); err != nil {
@@ -396,6 +413,7 @@ func (r *BundleReconciler) createBundleDeployment(
 
 		bd.Spec = updated.Spec
 		bd.Labels = updated.GetLabels()
+
 		return nil
 	})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
@@ -414,28 +432,28 @@ func (r *BundleReconciler) createBundleDeployment(
 	return bd, nil
 }
 
-func (r *BundleReconciler) createDeploymentOCISecret(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
+func (r *BundleReconciler) createDeploymentSecret(ctx context.Context, secretName string, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
 	namespacedName := types.NamespacedName{
 		Namespace: bundle.Namespace,
-		Name:      bundle.Spec.ContentsID,
+		Name:      secretName,
 	}
-	var ociSecret corev1.Secret
-	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
+	var secret corev1.Secret
+	if err := r.Get(ctx, namespacedName, &secret); err != nil {
 		return err
 	}
 	// clone the secret, and just change the namespace so it's in the target's namespace
-	targetOCISecret := &corev1.Secret{
+	targetSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ociSecret.Name,
+			Name:      secret.Name,
 			Namespace: bd.Namespace,
 		},
-		Data: ociSecret.Data,
+		Data: secret.Data,
 	}
 
-	if err := controllerutil.SetControllerReference(bd, targetOCISecret, r.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.Create(ctx, targetOCISecret); err != nil {
+	if err := r.Create(ctx, targetSecret); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return err
 		}
@@ -462,4 +480,27 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 	}
 	// this is not a valid reference, it is only for display
 	return fmt.Sprintf("oci://%s/%s:latest", string(ref), bundle.Spec.ContentsID), nil
+}
+
+func (r *BundleReconciler) deploymentSecretHandling(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
+	if bd == nil {
+		return nil
+	}
+	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
+	contentsInHelmChart := bundle.Spec.HelmAppOptions != nil && experimentalHelmOpsEnabled()
+
+	if contentsInOCI {
+		return r.createDeploymentSecret(ctx, bundle.Spec.ContentsID, bundle, bd)
+	}
+	if contentsInHelmChart && bundle.Spec.HelmAppOptions.SecretName != "" {
+		return r.createDeploymentSecret(ctx, bundle.Spec.HelmAppOptions.SecretName, bundle, bd)
+	}
+	return nil
+}
+
+// experimentalHelmOpsEnabled returns true if the EXPERIMENTAL_HELM_OPS env variable is set to true
+// returns false otherwise
+func experimentalHelmOpsEnabled() bool {
+	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_HELM_OPS"))
+	return err == nil && value
 }

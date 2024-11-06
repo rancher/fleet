@@ -143,52 +143,54 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 			By("updating the gitrepo's status")
 			expectedStatus := fleet.GitRepoStatus{
-				Commit:               commit,
-				ReadyClusters:        1,
-				DesiredReadyClusters: 1,
-				GitJobStatus:         "Current",
-				Summary: fleet.BundleSummary{
-					NotReady:          0,
-					WaitApplied:       0,
-					ErrApplied:        0,
-					OutOfSync:         0,
-					Modified:          0,
-					Ready:             1,
-					Pending:           0,
-					DesiredReady:      1,
-					NonReadyResources: []fleet.NonReadyResource(nil),
-				},
-				Display: fleet.GitRepoDisplay{
-					ReadyBundleDeployments: "1/1",
-					// XXX: add state and message?
-				},
-				Conditions: []genericcondition.GenericCondition{
-					{
-						Type:   "Ready",
-						Status: "True",
+				Commit:       commit,
+				GitJobStatus: "Current",
+				StatusBase: fleet.StatusBase{
+					ReadyClusters:        1,
+					DesiredReadyClusters: 1,
+					Summary: fleet.BundleSummary{
+						NotReady:          0,
+						WaitApplied:       0,
+						ErrApplied:        0,
+						OutOfSync:         0,
+						Modified:          0,
+						Ready:             1,
+						Pending:           0,
+						DesiredReady:      1,
+						NonReadyResources: []fleet.NonReadyResource(nil),
 					},
-					{
-						Type:   "Accepted",
-						Status: "True",
+					Display: fleet.StatusDisplay{
+						ReadyBundleDeployments: "1/1",
+						// XXX: add state and message?
 					},
-					{
-						Type:   "Reconciling",
-						Status: "False",
+					Conditions: []genericcondition.GenericCondition{
+						{
+							Type:   "Ready",
+							Status: "True",
+						},
+						{
+							Type:   "Accepted",
+							Status: "True",
+						},
+						{
+							Type:   "Reconciling",
+							Status: "False",
+						},
+						{
+							Type:   "Stalled",
+							Status: "False",
+						},
 					},
-					{
-						Type:   "Stalled",
-						Status: "False",
+					ResourceCounts: fleet.GitRepoResourceCounts{
+						Ready:        1,
+						DesiredReady: 1,
+						WaitApplied:  0,
+						Modified:     0,
+						Orphaned:     0,
+						Missing:      0,
+						Unknown:      0,
+						NotReady:     0,
 					},
-				},
-				ResourceCounts: fleet.GitRepoResourceCounts{
-					Ready:        1,
-					DesiredReady: 1,
-					WaitApplied:  0,
-					Modified:     0,
-					Orphaned:     0,
-					Missing:      0,
-					Unknown:      0,
-					NotReady:     0,
 				},
 			}
 			Eventually(func(g Gomega) {
@@ -301,53 +303,55 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 			By("updating the gitrepo's status")
 			expectedStatus := fleet.GitRepoStatus{
-				Commit:               commit,
-				WebhookCommit:        commit,
-				ReadyClusters:        1,
-				DesiredReadyClusters: 1,
-				GitJobStatus:         "Current",
-				Summary: fleet.BundleSummary{
-					NotReady:          0,
-					WaitApplied:       0,
-					ErrApplied:        0,
-					OutOfSync:         0,
-					Modified:          0,
-					Ready:             1,
-					Pending:           0,
-					DesiredReady:      1,
-					NonReadyResources: []fleet.NonReadyResource(nil),
-				},
-				Display: fleet.GitRepoDisplay{
-					ReadyBundleDeployments: "1/1",
-					// XXX: add state and message?
-				},
-				Conditions: []genericcondition.GenericCondition{
-					{
-						Type:   "Ready",
-						Status: "True",
+				Commit:        commit,
+				WebhookCommit: commit,
+				GitJobStatus:  "Current",
+				StatusBase: fleet.StatusBase{
+					ReadyClusters:        1,
+					DesiredReadyClusters: 1,
+					Summary: fleet.BundleSummary{
+						NotReady:          0,
+						WaitApplied:       0,
+						ErrApplied:        0,
+						OutOfSync:         0,
+						Modified:          0,
+						Ready:             1,
+						Pending:           0,
+						DesiredReady:      1,
+						NonReadyResources: []fleet.NonReadyResource(nil),
 					},
-					{
-						Type:   "Accepted",
-						Status: "True",
+					Display: fleet.StatusDisplay{
+						ReadyBundleDeployments: "1/1",
+						// XXX: add state and message?
 					},
-					{
-						Type:   "Reconciling",
-						Status: "False",
+					Conditions: []genericcondition.GenericCondition{
+						{
+							Type:   "Ready",
+							Status: "True",
+						},
+						{
+							Type:   "Accepted",
+							Status: "True",
+						},
+						{
+							Type:   "Reconciling",
+							Status: "False",
+						},
+						{
+							Type:   "Stalled",
+							Status: "False",
+						},
 					},
-					{
-						Type:   "Stalled",
-						Status: "False",
+					ResourceCounts: fleet.GitRepoResourceCounts{
+						Ready:        1,
+						DesiredReady: 1,
+						WaitApplied:  0,
+						Modified:     0,
+						Orphaned:     0,
+						Missing:      0,
+						Unknown:      0,
+						NotReady:     0,
 					},
-				},
-				ResourceCounts: fleet.GitRepoResourceCounts{
-					Ready:        1,
-					DesiredReady: 1,
-					WaitApplied:  0,
-					Modified:     0,
-					Orphaned:     0,
-					Missing:      0,
-					Unknown:      0,
-					NotReady:     0,
 				},
 			}
 			Eventually(func(g Gomega) {

@@ -8,12 +8,12 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-func SetGitRepoResources(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) {
-	s := summaryState(gitrepo.Status.Summary)
+func SetResources(list *fleet.BundleDeploymentList, status *fleet.StatusBase) {
+	s := summaryState(status.Summary)
 	r, errors := fromResources(list, s)
-	gitrepo.Status.ResourceErrors = errors
-	gitrepo.Status.ResourceCounts = countResources(r)
-	gitrepo.Status.Resources = merge(r)
+	status.ResourceErrors = errors
+	status.ResourceCounts = countResources(r)
+	status.Resources = merge(r)
 }
 
 func SetClusterResources(list *fleet.BundleDeploymentList, cluster *fleet.Cluster) {
