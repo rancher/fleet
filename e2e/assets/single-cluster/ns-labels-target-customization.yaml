@@ -1,0 +1,10 @@
+kind: GitRepo
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: test
+  namespace: fleet-local
+spec:
+  repo: https://github.com/weyfonk/fleet-test-data
+  branch: 2441-fix-target-customizations
+  paths:
+    - target-customization-namespace-labels/with-default-values
