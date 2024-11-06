@@ -11,6 +11,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops"
+	"github.com/rancher/fleet/internal/cmd/controller/helmops"
 
 	"github.com/spf13/cobra"
 
@@ -129,6 +130,7 @@ func App() *cobra.Command {
 		cleanup.App(),
 		agentmanagement.App(),
 		gitops.App(zopts),
+		helmops.App(zopts),
 	)
 	return root
 }

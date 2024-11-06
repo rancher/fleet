@@ -50,7 +50,6 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 	if err != nil {
 		return nil, err
 	}
-
 	var targets []*Target
 	for _, namespace := range namespaces {
 		clusters := &fleet.ClusterList{}
@@ -58,7 +57,6 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 		if err != nil {
 			return nil, err
 		}
-
 		for _, cluster := range clusters.Items {
 			cluster := cluster
 			logger.V(4).Info("Cluster has namespace?", "cluster", cluster.Name, "namespace", cluster.Status.Namespace)

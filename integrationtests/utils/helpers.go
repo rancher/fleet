@@ -26,8 +26,39 @@ func CreateBundle(ctx context.Context, k8sClient client.Client, name, namespace 
 			Labels:    map[string]string{"foo": "bar"},
 		},
 		Spec: v1alpha1.BundleSpec{
-			Targets:            targets,
-			TargetRestrictions: restrictions,
+			BundleSpecBase: v1alpha1.BundleSpecBase{
+				Targets:            targets,
+				TargetRestrictions: restrictions,
+			},
+		},
+	}
+
+	return &bundle, k8sClient.Create(ctx, &bundle)
+}
+
+func CreateHelmBundle(ctx context.Context, k8sClient client.Client, name, namespace string, targets []v1alpha1.BundleTarget, targetRestrictions []v1alpha1.BundleTarget, helmOptions *v1alpha1.BundleHelmOptions) (*v1alpha1.Bundle, error) {
+	restrictions := []v1alpha1.BundleTargetRestriction{}
+	for _, r := range targetRestrictions {
+		restrictions = append(restrictions, v1alpha1.BundleTargetRestriction{
+			Name:                 r.Name,
+			ClusterName:          r.ClusterName,
+			ClusterSelector:      r.ClusterSelector,
+			ClusterGroup:         r.ClusterGroup,
+			ClusterGroupSelector: r.ClusterGroupSelector,
+		})
+	}
+	bundle := v1alpha1.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    map[string]string{"foo": "bar"},
+		},
+		Spec: v1alpha1.BundleSpec{
+			BundleSpecBase: v1alpha1.BundleSpecBase{
+				Targets:            targets,
+				TargetRestrictions: restrictions,
+			},
+			HelmAppOptions: helmOptions,
 		},
 	}
 

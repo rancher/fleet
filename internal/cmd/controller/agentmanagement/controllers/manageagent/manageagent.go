@@ -284,29 +284,31 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			Namespace: ns,
 		},
 		Spec: fleet.BundleSpec{
-			BundleDeploymentOptions: fleet.BundleDeploymentOptions{
-				DefaultNamespace: agentNamespace,
-				Helm: &fleet.HelmOptions{
-					TakeOwnership: true,
+			BundleSpecBase: fleet.BundleSpecBase{
+				BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+					DefaultNamespace: agentNamespace,
+					Helm: &fleet.HelmOptions{
+						TakeOwnership: true,
+					},
 				},
-			},
-			Resources: []fleet.BundleResource{
-				{
-					Name:    "agent.yaml",
-					Content: string(agentYAML),
+				Resources: []fleet.BundleResource{
+					{
+						Name:    "agent.yaml",
+						Content: string(agentYAML),
+					},
 				},
-			},
-			Targets: []fleet.BundleTarget{
-				{
-					ClusterSelector: &metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      "fleet.cattle.io/non-managed-agent",
-								Operator: metav1.LabelSelectorOpDoesNotExist,
+				Targets: []fleet.BundleTarget{
+					{
+						ClusterSelector: &metav1.LabelSelector{
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "fleet.cattle.io/non-managed-agent",
+									Operator: metav1.LabelSelectorOpDoesNotExist,
+								},
 							},
 						},
+						ClusterName: cluster.Name,
 					},
-					ClusterName: cluster.Name,
 				},
 			},
 		},

@@ -17,17 +17,18 @@ import (
 )
 
 const (
+	HelmAppFinalizer          = "fleet.cattle.io/helmapp-finalizer"
 	GitRepoFinalizer          = "fleet.cattle.io/gitrepo-finalizer"
 	BundleFinalizer           = "fleet.cattle.io/bundle-finalizer"
 	BundleDeploymentFinalizer = "fleet.cattle.io/bundle-deployment-finalizer"
 )
 
-// PurgeBundles deletes all bundles related to the given GitRepo namespaced name
+// PurgeBundles deletes all bundles related to the given resource namespaced name
 // It deletes resources in cascade. Deleting Bundles, its BundleDeployments, and
 // the related namespace if Bundle.Spec.DeleteNamespace is set to true.
-func PurgeBundles(ctx context.Context, c client.Client, gitrepo types.NamespacedName) error {
+func PurgeBundles(ctx context.Context, c client.Client, gitrepo types.NamespacedName, resourceLabel string) error {
 	bundles := &v1alpha1.BundleList{}
-	err := c.List(ctx, bundles, client.MatchingLabels{v1alpha1.RepoLabel: gitrepo.Name}, client.InNamespace(gitrepo.Namespace))
+	err := c.List(ctx, bundles, client.MatchingLabels{resourceLabel: gitrepo.Name}, client.InNamespace(gitrepo.Namespace))
 	if err != nil {
 		return err
 	}
