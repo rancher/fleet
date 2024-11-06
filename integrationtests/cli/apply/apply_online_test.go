@@ -77,16 +77,18 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 					Name:      "test_labels",
 				},
 				Spec: fleet.BundleSpec{
-					Resources: []fleet.BundleResource{
-						{
-							Name:    "fleet.yaml",
-							Content: "labels:\n  new: fleet-label2",
+					BundleSpecBase: fleet.BundleSpecBase{
+						Resources: []fleet.BundleResource{
+							{
+								Name:    "fleet.yaml",
+								Content: "labels:\n  new: fleet-label2",
+							},
 						},
-					},
-					Targets: []fleet.BundleTarget{
-						{
-							Name:         "default",
-							ClusterGroup: "default",
+						Targets: []fleet.BundleTarget{
+							{
+								Name:         "default",
+								ClusterGroup: "default",
+							},
 						},
 					},
 				},

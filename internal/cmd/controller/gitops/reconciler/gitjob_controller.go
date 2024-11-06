@@ -273,7 +273,7 @@ func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logge
 	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
 
 	nsName := types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}
-	if err := finalize.PurgeBundles(ctx, r.Client, nsName); err != nil {
+	if err := finalize.PurgeBundles(ctx, r.Client, nsName, v1alpha1.RepoLabel); err != nil {
 		return err
 	}
 

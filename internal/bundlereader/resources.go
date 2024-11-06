@@ -23,10 +23,11 @@ import (
 var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
 
 type Auth struct {
-	Username      string `json:"username,omitempty"`
-	Password      string `json:"password,omitempty"`
-	CABundle      []byte `json:"caBundle,omitempty"`
-	SSHPrivateKey []byte `json:"sshPrivateKey,omitempty"`
+	Username           string `json:"username,omitempty"`
+	Password           string `json:"password,omitempty"`
+	CABundle           []byte `json:"caBundle,omitempty"`
+	SSHPrivateKey      []byte `json:"sshPrivateKey,omitempty"`
+	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"`
 }
 
 // readResources reads and downloads all resources from the bundle
@@ -167,7 +168,7 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 				auth = Auth{}
 			}
 
-			chartURL, err := chartURL(chart, auth)
+			chartURL, err := ChartURL(*chart, auth)
 			if err != nil {
 				return nil, err
 			}
@@ -221,7 +222,7 @@ func loadDirectories(ctx context.Context, compress bool, disableDepsUpdate bool,
 		dir := dir
 		eg.Go(func() error {
 			defer sem.Release(1)
-			resources, err := loadDirectory(ctx, compress, disableDepsUpdate, dir.prefix, dir.base, dir.source, dir.version, dir.auth)
+			resources, err := LoadDirectory(ctx, compress, disableDepsUpdate, dir.prefix, dir.base, dir.source, dir.version, dir.auth)
 			if err != nil {
 				return err
 			}

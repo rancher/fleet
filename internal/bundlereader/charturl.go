@@ -14,25 +14,60 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// chartURL returns the URL to the helm chart from a helm repo server, by
+// ChartURL returns the URL and the version to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func chartURL(location *fleet.HelmOptions, auth Auth) (string, error) {
-	// repos are not supported in case of OCI Charts
+func ChartURLVersion(location fleet.HelmOptions, auth Auth) (string, string, error) {
 	if hasOCIURL.MatchString(location.Chart) {
-		return location.Chart, nil
+		return location.Chart, location.Version, nil
 	}
 
 	if location.Repo == "" {
-		return location.Chart, nil
+		return location.Chart, location.Version, nil
 	}
 
 	if !strings.HasSuffix(location.Repo, "/") {
 		location.Repo = location.Repo + "/"
 	}
 
+	chart, err := getHelmChartVersion(location, auth)
+	if err != nil {
+		return "", "", err
+	}
+
+	if len(chart.URLs) == 0 {
+		return "", "", fmt.Errorf("no URLs found for chart %s %s at %s", chart.Name, chart.Version, location.Repo)
+	}
+
+	chartURL, err := url.Parse(chart.URLs[0])
+	if err != nil {
+		return "", "", err
+	}
+
+	if chartURL.IsAbs() {
+		return chart.URLs[0], chart.Version, nil
+	}
+
+	repoURL, err := url.Parse(location.Repo)
+	if err != nil {
+		return "", "", err
+	}
+
+	return repoURL.ResolveReference(chartURL).String(), chart.Version, nil
+}
+
+// ChartURL returns the URL to the helm chart from a helm repo server, by
+// inspecting the repo's index.yaml
+func ChartURL(location fleet.HelmOptions, auth Auth) (string, error) {
+	url, _, err := ChartURLVersion(location, auth)
+	return url, err
+}
+
+// getHelmChartVersion returns the ChartVersion struct with the information to the given location
+// using the given authentication configuration
+func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVersion, error) {
 	request, err := http.NewRequest("GET", location.Repo+"index.yaml", nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if auth.Username != "" && auth.Password != "" {
@@ -47,56 +82,47 @@ func chartURL(location *fleet.HelmOptions, auth Auth) (string, error) {
 		pool.AppendCertsFromPEM(auth.CABundle)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = &tls.Config{
-			RootCAs:    pool,
-			MinVersion: tls.VersionTLS12,
+			RootCAs:            pool,
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
 		}
 		client.Transport = transport
+	} else {
+		if auth.InsecureSkipVerify {
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.TLSClientConfig = &tls.Config{
+				InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
+			}
+			client.Transport = transport
+		}
 	}
 
 	resp, err := client.Do(request)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("failed to read helm repo from %s, error code: %v, response body: %s", location.Repo+"index.yaml", resp.StatusCode, bytes)
+		return nil, fmt.Errorf("failed to read helm repo from %s, error code: %v, response body: %s", location.Repo+"index.yaml", resp.StatusCode, bytes)
 	}
 
 	repo := &repo.IndexFile{}
 	if err := yaml.Unmarshal(bytes, repo); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	repo.SortEntries()
 
 	chart, err := repo.Get(location.Chart, location.Version)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	if len(chart.URLs) == 0 {
-		return "", fmt.Errorf("no URLs found for chart %s %s at %s", chart.Name, chart.Version, location.Repo)
-	}
-
-	chartURL, err := url.Parse(chart.URLs[0])
-	if err != nil {
-		return "", err
-	}
-
-	if chartURL.IsAbs() {
-		return chart.URLs[0], nil
-	}
-
-	repoURL, err := url.Parse(location.Repo)
-	if err != nil {
-		return "", err
-	}
-
-	return repoURL.ResolveReference(chartURL).String(), nil
+	return chart, nil
 }

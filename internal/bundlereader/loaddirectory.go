@@ -166,7 +166,7 @@ func readFleetIgnore(path string) ([]string, error) {
 	return ignored, nil
 }
 
-func loadDirectory(ctx context.Context, compress bool, disableDepsUpdate bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
+func LoadDirectory(ctx context.Context, compress bool, disableDepsUpdate bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
 	files, err := GetContent(ctx, base, source, version, auth, disableDepsUpdate)
@@ -394,10 +394,19 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 		pool.AppendCertsFromPEM(auth.CABundle)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = &tls.Config{
-			RootCAs:    pool,
-			MinVersion: tls.VersionTLS12,
+			RootCAs:            pool,
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
 		}
 		httpGetter.Client.Transport = transport
+	} else {
+		if auth.InsecureSkipVerify {
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.TLSClientConfig = &tls.Config{
+				InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
+			}
+			httpGetter.Client.Transport = transport
+		}
 	}
 	return httpGetter
 }

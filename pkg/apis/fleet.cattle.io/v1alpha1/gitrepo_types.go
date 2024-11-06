@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -160,6 +159,7 @@ type GitTarget struct {
 }
 
 type GitRepoStatus struct {
+	StatusBase `json:",inline"`
 	// ObservedGeneration is the current generation of the resource in the cluster. It is copied from k8s
 	// metadata.Generation. The value is incremented for all changes, except for changes to .metadata or .status.
 	// +optional
@@ -172,28 +172,8 @@ type GitRepoStatus struct {
 	// WebhookCommit is the latest Git commit hash received from a webhook
 	// +optional
 	WebhookCommit string `json:"webhookCommit,omitempty"`
-	// ReadyClusters is the lowest number of clusters that are ready over
-	// all the bundles of this GitRepo.
-	// +optional
-	ReadyClusters int `json:"readyClusters"`
-	// DesiredReadyClusters	is the number of clusters that should be ready for bundles of this GitRepo.
-	// +optional
-	DesiredReadyClusters int `json:"desiredReadyClusters"`
 	// GitJobStatus is the status of the last Git job run, e.g. "Current" if there was no error.
 	GitJobStatus string `json:"gitJobStatus,omitempty"`
-	// Summary contains the number of bundle deployments in each state and a list of non-ready resources.
-	Summary BundleSummary `json:"summary,omitempty"`
-	// Display contains a human readable summary of the status.
-	Display GitRepoDisplay `json:"display,omitempty"`
-	// Conditions is a list of Wrangler conditions that describe the state
-	// of the GitRepo.
-	Conditions []genericcondition.GenericCondition `json:"conditions,omitempty"`
-	// Resources contains metadata about the resources of each bundle.
-	Resources []GitRepoResource `json:"resources,omitempty"`
-	// ResourceCounts contains the number of resources in each state over all bundles.
-	ResourceCounts GitRepoResourceCounts `json:"resourceCounts,omitempty"`
-	// ResourceErrors is a sorted list of errors from the resources.
-	ResourceErrors []string `json:"resourceErrors,omitempty"`
 	// LastSyncedImageScanTime is the time of the last image scan.
 	LastSyncedImageScanTime metav1.Time `json:"lastSyncedImageScanTime,omitempty"`
 	// LastPollingTime is the last time the polling check was triggered
