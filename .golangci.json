@@ -78,6 +78,18 @@
         "linters": [
           "gosec"
         ]
+      },
+      {
+        "path": "integrationtests",
+        "linters": [
+          "gosec"
+        ]
+      },
+      {
+        "path": "benchmarks",
+        "linters": [
+          "gosec"
+        ]
       }
     ]
   }
