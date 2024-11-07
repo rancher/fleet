@@ -4,7 +4,7 @@ metadata:
   name: test
   namespace: fleet-local
 spec:
-  repo: https://github.com/weyfonk/fleet-test-data
-  branch: 2441-fix-target-customizations
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
   paths:
     - target-customization-namespace-labels/without-default-values
