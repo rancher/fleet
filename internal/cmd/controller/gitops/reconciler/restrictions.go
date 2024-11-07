@@ -11,50 +11,56 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// authorizeAndAssignDefaults applies restrictions and returns a new GitRepo if it passes the restrictions
-func authorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) (*fleet.GitRepo, error) {
+// authorizeAndAssignDefaults applies restrictions and mutates the passed in
+// GitRepo if it passes the restrictions
+func authorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) error {
 	restrictions := &fleet.GitRepoRestrictionList{}
 	err := c.List(ctx, restrictions, client.InNamespace(gitrepo.Namespace))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if len(restrictions.Items) == 0 {
-		return gitrepo, nil
+		return nil
 	}
 
 	restriction := aggregate(restrictions.Items)
-	gitrepo = gitrepo.DeepCopy()
 
 	if len(restriction.AllowedTargetNamespaces) > 0 && gitrepo.Spec.TargetNamespace == "" {
-		return nil, fmt.Errorf("empty targetNamespace denied, because allowedTargetNamespaces restriction is present")
+		return fmt.Errorf("empty targetNamespace denied, because allowedTargetNamespaces restriction is present")
 	}
 
-	gitrepo.Spec.TargetNamespace, err = isAllowed(gitrepo.Spec.TargetNamespace, "", restriction.AllowedTargetNamespaces)
+	targetNamespace, err := isAllowed(gitrepo.Spec.TargetNamespace, "", restriction.AllowedTargetNamespaces)
 	if err != nil {
-		return nil, fmt.Errorf("disallowed targetNamespace %s: %w", gitrepo.Spec.TargetNamespace, err)
+		return fmt.Errorf("disallowed targetNamespace %s: %w", gitrepo.Spec.TargetNamespace, err)
 	}
 
-	gitrepo.Spec.ServiceAccount, err = isAllowed(gitrepo.Spec.ServiceAccount,
+	serviceAccount, err := isAllowed(gitrepo.Spec.ServiceAccount,
 		restriction.DefaultServiceAccount,
 		restriction.AllowedServiceAccounts)
 	if err != nil {
-		return nil, fmt.Errorf("disallowed serviceAccount %s: %w", gitrepo.Spec.ServiceAccount, err)
+		return fmt.Errorf("disallowed serviceAccount %s: %w", gitrepo.Spec.ServiceAccount, err)
 	}
 
-	gitrepo.Spec.Repo, err = isAllowedByRegex(gitrepo.Spec.Repo, "", restriction.AllowedRepoPatterns)
+	repo, err := isAllowedByRegex(gitrepo.Spec.Repo, "", restriction.AllowedRepoPatterns)
 	if err != nil {
-		return nil, fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.ServiceAccount, err)
+		return fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.ServiceAccount, err)
 	}
 
-	gitrepo.Spec.ClientSecretName, err = isAllowed(gitrepo.Spec.ClientSecretName,
+	clientSecretName, err := isAllowed(gitrepo.Spec.ClientSecretName,
 		restriction.DefaultClientSecretName,
 		restriction.AllowedClientSecretNames)
 	if err != nil {
-		return nil, fmt.Errorf("disallowed clientSecretName %s: %w", gitrepo.Spec.ServiceAccount, err)
+		return fmt.Errorf("disallowed clientSecretName %s: %w", gitrepo.Spec.ServiceAccount, err)
 	}
 
-	return gitrepo, nil
+	// set the defaults back to the GitRepo
+	gitrepo.Spec.TargetNamespace = targetNamespace
+	gitrepo.Spec.ServiceAccount = serviceAccount
+	gitrepo.Spec.Repo = repo
+	gitrepo.Spec.ClientSecretName = clientSecretName
+
+	return nil
 }
 
 func aggregate(restrictions []fleet.GitRepoRestriction) (result fleet.GitRepoRestriction) {

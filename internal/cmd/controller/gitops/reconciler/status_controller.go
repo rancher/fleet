@@ -73,8 +73,7 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
-	_, err := authorizeAndAssignDefaults(ctx, r.Client, gitrepo)
-	if err != nil {
+	if err := authorizeAndAssignDefaults(ctx, r.Client, gitrepo); err != nil {
 		// the gitjob_controller will handle the error
 		return ctrl.Result{}, nil
 	}
@@ -94,7 +93,7 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger.V(1).Info("Reconciling GitRepo status")
 
 	bdList := &v1alpha1.BundleDeploymentList{}
-	err = r.List(ctx, bdList, client.MatchingLabels{
+	err := r.List(ctx, bdList, client.MatchingLabels{
 		v1alpha1.RepoLabel:            gitrepo.Name,
 		v1alpha1.BundleNamespaceLabel: gitrepo.Namespace,
 	})
