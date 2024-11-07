@@ -76,6 +76,7 @@ changelog:
 
 env:
   - CGO_ENABLED=0
+  - REGISTRY={{ if isEnvSet "REGISTRY" }}{{ .Env.REGISTRY }}{{else}}docker.io{{end}}
 
 snapshot:
   name_template: "{{ .Tag }}-next"
@@ -98,7 +99,7 @@ dockers:
 
     # Templates of the Docker image names.
     image_templates:
-    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
+    - "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
 
     # Path to the Dockerfile (from the project root).
     dockerfile: package/Dockerfile
@@ -123,7 +124,7 @@ dockers:
     - fleet-controller
     - fleet-cli
     image_templates:
-    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
+    - "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile
     build_flag_templates:
     - "--pull"
@@ -144,7 +145,7 @@ dockers:
     ids:
     - fleet-agent
     image_templates:
-    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
     dockerfile: package/Dockerfile.agent
     build_flag_templates:
     - "--pull"
@@ -163,7 +164,7 @@ dockers:
     ids:
     - fleet-agent
     image_templates:
-    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile.agent
     build_flag_templates:
     - "--pull"
@@ -178,12 +179,12 @@ dockers:
 
 docker_manifests:
   # https://goreleaser.com/customization/docker_manifest/
-  - name_template: "docker.io/rancher/fleet:{{ .Tag }}"
+  - name_template: "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}"
     image_templates:
-    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
-    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
+    - "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
+    - "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
 
-  - name_template: "docker.io/rancher/fleet-agent:{{ .Tag }}"
+  - name_template: "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}"
     image_templates:
-    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
-    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"

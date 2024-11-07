@@ -20,6 +20,9 @@ jobs:
   build-fleet:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
 
+    env:
+      REGISTRY: "${{ contains(github.ref, '-hotfix-ch') && 'stgregistry.suse.com' || 'docker.io' }}"
+
     if: github.repository == 'rancher/fleet'
     steps:
       - name: Check out Fleet
@@ -39,6 +42,8 @@ jobs:
           secrets: |
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials username | DOCKER_USERNAME ;
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
+            secret/data/github/repo/${{ github.repository }}/stage-registry-username/credentials token | STAGE_REGISTRY_USERNAME ;
+            secret/data/github/repo/${{ github.repository }}/stage-registry-password/credentials token | STAGE_REGISTRY_PASSWORD ;
             secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
 
       - name: Run FOSSA scan
@@ -80,9 +85,18 @@ jobs:
 
       - name: Log into Docker Container registry
         uses: docker/login-action@v3
+        if: ${{ !contains(github.ref, '-hotfix-ch' )}}
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
+
+      - name: Log into Staging registry
+        uses: docker/login-action@v3
+        if: ${{ contains(github.ref, '-hotfix-ch' )}}
+        with:
+          username: ${{ env.STAGE_REGISTRY_USERNAME }}
+          password: ${{ env.STAGE_REGISTRY_PASSWORD }}
+          registry: ${{ env.REGISTRY }}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
