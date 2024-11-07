@@ -59,6 +59,8 @@ func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 	}
 	bd.Spec.Paused = t.IsPaused()
 
+	initialiseOptionsMaps(bd)
+
 	for _, bundleTarget := range t.Bundle.Spec.Targets {
 		if bundleTarget.NamespaceLabels != nil {
 			for key, value := range *bundleTarget.NamespaceLabels {
@@ -139,4 +141,25 @@ func (t *Target) state() fleet.BundleState {
 // message returns a relevant message from the target (pure function)
 func (t *Target) message() string {
 	return summary.MessageFromDeployment(t.Deployment)
+}
+
+// initialiseOptionsMaps initialises options and staged options maps of namespace labels and annotations on bd, if
+// needed.
+// Assumes that bd is not nil.
+func initialiseOptionsMaps(bd *fleet.BundleDeployment) {
+	if bd.Spec.Options.NamespaceLabels == nil {
+		bd.Spec.Options.NamespaceLabels = map[string]string{}
+	}
+
+	if bd.Spec.Options.NamespaceAnnotations == nil {
+		bd.Spec.Options.NamespaceAnnotations = map[string]string{}
+	}
+
+	if bd.Spec.StagedOptions.NamespaceLabels == nil {
+		bd.Spec.StagedOptions.NamespaceLabels = map[string]string{}
+	}
+
+	if bd.Spec.StagedOptions.NamespaceAnnotations == nil {
+		bd.Spec.StagedOptions.NamespaceAnnotations = map[string]string{}
+	}
 }
