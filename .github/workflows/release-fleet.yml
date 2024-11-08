@@ -21,7 +21,8 @@ jobs:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
 
     env:
-      REGISTRY: "${{ contains(github.ref, '-hotfix-ch') && 'stgregistry.suse.com' || 'docker.io' }}"
+      IS_HOTFIX: ${{ contains(github.ref, '-hotfix-ch-') }}
+      REGISTRY: "${{ contains(github.ref, '-hotfix-ch-') && 'stgregistry.suse.com' || 'docker.io' }}"
 
     if: github.repository == 'rancher/fleet'
     steps:
@@ -90,14 +91,14 @@ jobs:
 
       - name: Log into Docker Container registry
         uses: docker/login-action@v3
-        if: ${{ !contains(github.ref, '-hotfix-ch' )}}
+        if: ${{ env.IS_HOTFIX == 'false' }}
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
 
       - name: Log into Staging registry
         uses: docker/login-action@v3
-        if: ${{ contains(github.ref, '-hotfix-ch' )}}
+        if: ${{ env.IS_HOTFIX == 'true' }}
         with:
           username: ${{ env.STAGE_REGISTRY_USERNAME }}
           password: ${{ env.STAGE_REGISTRY_PASSWORD }}
