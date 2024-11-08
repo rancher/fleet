@@ -2,9 +2,19 @@
 version: 2
 
 project_name: fleet
+
+env:
+  - CGO_ENABLED=0
+  - IS_HOTFIX={{ if isEnvSet "IS_HOTFIX"}}{{ .Env.IS_HOTFIX }}{{else}}false{{end}}
+  - REGISTRY={{ if isEnvSet "REGISTRY" }}{{ .Env.REGISTRY }}{{else}}docker.io{{end}}
+
 release:
   prerelease: auto
   disable: "{{ .Env.IS_HOTFIX }}"
+
+changelog:
+  disable: false
+  use: github-native
 
 before:
   hooks:
@@ -70,15 +80,6 @@ builds:
     - linux_amd64_v1
     - linux_arm64
     - windows_amd64
-
-changelog:
-  disable: false
-  use: github-native
-
-env:
-  - CGO_ENABLED=0
-  - IS_HOTFIX={{ if isEnvSet "IS_HOTFIX"}}{{ .Env.IS_HOTFIX }}{{else}}false{{end}}
-  - REGISTRY={{ if isEnvSet "REGISTRY" }}{{ .Env.REGISTRY }}{{else}}docker.io{{end}}
 
 snapshot:
   name_template: "{{ .Tag }}-next"
