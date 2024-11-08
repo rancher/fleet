@@ -4,6 +4,7 @@ version: 2
 project_name: fleet
 release:
   prerelease: auto
+  disable: "{{ .Env.IS_HOTFIX }}"
 
 before:
   hooks:
@@ -76,6 +77,7 @@ changelog:
 
 env:
   - CGO_ENABLED=0
+  - IS_HOTFIX={{ if isEnvSet "IS_HOTFIX"}}{{ .Env.IS_HOTFIX }}{{else}}false{{end}}
   - REGISTRY={{ if isEnvSet "REGISTRY" }}{{ .Env.REGISTRY }}{{else}}docker.io{{end}}
 
 snapshot:
