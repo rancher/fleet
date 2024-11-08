@@ -1143,13 +1143,6 @@ func getPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
 	return gitrepo.Spec.PollingInterval.Duration
 }
 
-func result(repoPolled bool, gitrepo *v1alpha1.GitRepo) reconcile.Result {
-	if repoPolled {
-		return reconcile.Result{RequeueAfter: getPollingIntervalDuration(gitrepo)}
-	}
-	return reconcile.Result{}
-}
-
 func webhookCommitChangedPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
