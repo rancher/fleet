@@ -3,7 +3,7 @@ module github.com/rancher/fleet/pkg/apis
 go 1.22.0
 
 require (
-	github.com/rancher/wrangler/v3 v3.1.0-rc.1
+	github.com/rancher/wrangler/v3 v3.1.0
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 )
