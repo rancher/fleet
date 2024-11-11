@@ -157,16 +157,16 @@ jobs:
 
       - name: Run release script
         run: |
-          fleet_version=9.9.9
+          fleet_test_version=9.9.9
 
-          prev_chart=$(ls -1 ./charts/charts/fleet | tail -n 1)
-          prev_fleet=${prev_chart#*+up}
-          prev_chart=${prev_chart/+*}
+          latest_chart=$(grep '^version: ' ./charts/packages/fleet/fleet/package.yaml | cut -d' ' -f2)
+          latest_fleet=$(ls -1 ./charts/charts/fleet/ | grep $latest_chart)
+          latest_fleet=${latest_fleet#*+up}
 
           ./fleet/.github/scripts/release-against-test-charts.sh \
-            $prev_fleet \
-            $fleet_version \
-            $prev_chart \
+            $latest_fleet \
+            $fleet_test_version \
+            $latest_chart \
             999.9.9 \
             ${{ steps.uuid.outputs.uuid }}
 
