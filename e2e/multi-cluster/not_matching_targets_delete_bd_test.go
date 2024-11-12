@@ -31,7 +31,7 @@ var _ = Describe("Target clusters by label", func() {
 
 	BeforeEach(func() {
 		k = env.Kubectl.Context(env.Upstream)
-		kd = env.Kubectl.Context(env.ManagedDownstream)
+		kd = env.Kubectl.Context(env.Downstream)
 	})
 
 	JustBeforeEach(func() {
