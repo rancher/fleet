@@ -336,17 +336,19 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				// look for failed pods with the name sample-xxxx-xxxx
 				r, _ := regexp.Compile("sample-([a-z0-9]+)-([a-z0-9]+)")
 				var failedJob string
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					failedPods, err := getFailedPodNames(k, "fleet-local")
-					Expect(err).ToNot(HaveOccurred())
+					failedJob = ""
+
+					g.Expect(err).ToNot(HaveOccurred())
 					for _, pod := range failedPods {
 						if r.MatchString(pod) {
 							failedJob = pod
-							return true
+							break
 						}
 					}
-					return false
-				}).Should(BeTrue())
+					g.Expect(failedJob).ToNot(BeEmpty())
+				}).Should(Succeed())
 
 				Expect(failedJob).ShouldNot(BeEmpty())
 				// check that the logs of the job reflect the bad OCI registry
