@@ -103,11 +103,13 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					)
 					g.Expect(err).ToNot(HaveOccurred())
 
-					pods, _ := k.Namespace("fleet-local").Get(
+					pods, err := k.Namespace("fleet-local").Get(
 						"pods",
 						"-o",
 						`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.nodeSelector}{"\n"}{end}`,
 					)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(pods).ToNot(BeEmpty(), "no pod in namespace fleet-local")
 
 					var podNodeSelector string
 					for _, pod := range strings.Split(pods, "\n") {
@@ -119,7 +121,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 						}
 					}
 
-					g.Expect(podNodeSelector).ToNot(BeEmpty())
+					g.Expect(podNodeSelector).ToNot(BeEmpty(), "sharding-test* pod not found or has empty node selector")
 					g.Expect(podNodeSelector).To(Equal(shardNodeSelector))
 				}).Should(Succeed())
 			})
