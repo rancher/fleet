@@ -5727,10 +5727,7 @@ spec:
                       type: integer
                   type: object
                 summary:
-                  description: 'Summary is a summary of the bundledeployments. The
-                    resource counts
-
-                    are copied from the gitrepo resource.'
+                  description: Summary is a summary of the bundledeployments.
                   properties:
                     desiredReady:
                       description: 'DesiredReady is the number of bundle deployments
