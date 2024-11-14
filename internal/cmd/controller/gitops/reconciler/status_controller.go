@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
-	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 
@@ -33,12 +33,12 @@ type StatusReconciler struct {
 
 func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.GitRepo{}).
+		For(&fleet.GitRepo{}).
 		Watches(
 			// Fan out from bundle to gitrepo
-			&v1alpha1.Bundle{},
+			&fleet.Bundle{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
-				repo := a.GetLabels()[v1alpha1.RepoLabel]
+				repo := a.GetLabels()[fleet.RepoLabel]
 				if repo != "" {
 					return []ctrl.Request{{
 						NamespacedName: types.NamespacedName{
@@ -63,7 +63,7 @@ func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // display information to the user.
 func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("gitops-status")
-	gitrepo := &v1alpha1.GitRepo{}
+	gitrepo := &fleet.GitRepo{}
 
 	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
@@ -92,10 +92,10 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	logger.V(1).Info("Reconciling GitRepo status")
 
-	bdList := &v1alpha1.BundleDeploymentList{}
+	bdList := &fleet.BundleDeploymentList{}
 	err := r.List(ctx, bdList, client.MatchingLabels{
-		v1alpha1.RepoLabel:            gitrepo.Name,
-		v1alpha1.BundleNamespaceLabel: gitrepo.Namespace,
+		fleet.RepoLabel:            gitrepo.Name,
+		fleet.BundleNamespaceLabel: gitrepo.Namespace,
 	})
 	if err != nil {
 		return ctrl.Result{}, err
@@ -127,11 +127,11 @@ func bundleStatusChangedPredicate() predicate.Funcs {
 			return true
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			n, isBundle := e.ObjectNew.(*v1alpha1.Bundle)
+			n, isBundle := e.ObjectNew.(*fleet.Bundle)
 			if !isBundle {
 				return false
 			}
-			o := e.ObjectOld.(*v1alpha1.Bundle)
+			o := e.ObjectOld.(*fleet.Bundle)
 			if n == nil || o == nil {
 				return false
 			}
@@ -143,7 +143,7 @@ func bundleStatusChangedPredicate() predicate.Funcs {
 	}
 }
 
-func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
+func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
 	// sort for resourceKey?
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
@@ -167,21 +167,21 @@ func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) e
 
 // setFields sets bundledeployment related status fields:
 // Summary, ReadyClusters, DesiredReadyClusters, Display.State, Display.Message, Display.Error
-func setFields(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
+func setFields(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
 	var (
-		maxState   v1alpha1.BundleState
+		maxState   fleet.BundleState
 		message    string
 		count      = map[client.ObjectKey]int{}
 		readyCount = map[client.ObjectKey]int{}
 	)
 
-	gitrepo.Status.Summary = v1alpha1.BundleSummary{}
+	gitrepo.Status.Summary = fleet.BundleSummary{}
 
 	for _, bd := range list.Items {
 		state := summary.GetDeploymentState(&bd)
 		summary.IncrementState(&gitrepo.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
 		gitrepo.Status.Summary.DesiredReady++
-		if v1alpha1.StateRank[state] > v1alpha1.StateRank[maxState] {
+		if fleet.StateRank[state] > fleet.StateRank[maxState] {
 			maxState = state
 			message = summary.MessageFromDeployment(&bd)
 		}
@@ -193,8 +193,8 @@ func setFields(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) e
 			continue
 		}
 
-		name := bd.Labels[v1alpha1.ClusterLabel]
-		namespace := bd.Labels[v1alpha1.ClusterNamespaceLabel]
+		name := bd.Labels[fleet.ClusterLabel]
+		namespace := bd.Labels[fleet.ClusterNamespaceLabel]
 		if name == "" || namespace == "" {
 			// this should not happen
 			continue
@@ -202,7 +202,7 @@ func setFields(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) e
 
 		key := client.ObjectKey{Name: name, Namespace: namespace}
 		count[key]++
-		if state == v1alpha1.Ready {
+		if state == fleet.Ready {
 			readyCount[key]++
 		}
 	}
@@ -219,7 +219,7 @@ func setFields(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) e
 	}
 	gitrepo.Status.ReadyClusters = readyClusters
 
-	if maxState == v1alpha1.Ready {
+	if maxState == fleet.Ready {
 		maxState = ""
 		message = ""
 	}
