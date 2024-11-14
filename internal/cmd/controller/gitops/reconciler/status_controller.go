@@ -8,7 +8,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/status"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/resourcestatus"
-	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 
@@ -32,12 +32,12 @@ type StatusReconciler struct {
 
 func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.GitRepo{}).
+		For(&fleet.GitRepo{}).
 		Watches(
 			// Fan out from bundle to gitrepo
-			&v1alpha1.Bundle{},
+			&fleet.Bundle{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
-				repo := a.GetLabels()[v1alpha1.RepoLabel]
+				repo := a.GetLabels()[fleet.RepoLabel]
 				if repo != "" {
 					return []ctrl.Request{{
 						NamespacedName: types.NamespacedName{
@@ -62,7 +62,7 @@ func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // display information to the user.
 func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("gitops-status")
-	gitrepo := &v1alpha1.GitRepo{}
+	gitrepo := &fleet.GitRepo{}
 
 	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
@@ -91,10 +91,10 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	logger.V(1).Info("Reconciling GitRepo status")
 
-	bdList := &v1alpha1.BundleDeploymentList{}
+	bdList := &fleet.BundleDeploymentList{}
 	err := r.List(ctx, bdList, client.MatchingLabels{
-		v1alpha1.RepoLabel:            gitrepo.Name,
-		v1alpha1.BundleNamespaceLabel: gitrepo.Namespace,
+		fleet.RepoLabel:            gitrepo.Name,
+		fleet.BundleNamespaceLabel: gitrepo.Namespace,
 	})
 	if err != nil {
 		return ctrl.Result{}, err
@@ -118,7 +118,7 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
-func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
+func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
 	// sort for resourceKey?
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
