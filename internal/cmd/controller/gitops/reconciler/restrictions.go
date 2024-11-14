@@ -11,9 +11,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// authorizeAndAssignDefaults applies restrictions and mutates the passed in
+// AuthorizeAndAssignDefaults applies restrictions and mutates the passed in
 // GitRepo if it passes the restrictions
-func authorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) error {
+func AuthorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *fleet.GitRepo) error {
 	restrictions := &fleet.GitRepoRestrictionList{}
 	err := c.List(ctx, restrictions, client.InNamespace(gitrepo.Namespace))
 	if err != nil {
@@ -44,14 +44,14 @@ func authorizeAndAssignDefaults(ctx context.Context, c client.Client, gitrepo *f
 
 	repo, err := isAllowedByRegex(gitrepo.Spec.Repo, "", restriction.AllowedRepoPatterns)
 	if err != nil {
-		return fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.ServiceAccount, err)
+		return fmt.Errorf("disallowed repo %s: %w", gitrepo.Spec.Repo, err)
 	}
 
 	clientSecretName, err := isAllowed(gitrepo.Spec.ClientSecretName,
 		restriction.DefaultClientSecretName,
 		restriction.AllowedClientSecretNames)
 	if err != nil {
-		return fmt.Errorf("disallowed clientSecretName %s: %w", gitrepo.Spec.ServiceAccount, err)
+		return fmt.Errorf("disallowed clientSecretName %s: %w", gitrepo.Spec.ClientSecretName, err)
 	}
 
 	// set the defaults back to the GitRepo
