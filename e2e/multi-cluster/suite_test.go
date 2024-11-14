@@ -2,6 +2,7 @@
 package multicluster_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/rancher/fleet/e2e/testenv"
@@ -16,7 +17,8 @@ func TestE2E(t *testing.T) {
 }
 
 var (
-	env *testenv.Env
+	env       *testenv.Env
+	dsCluster = "second"
 )
 
 var _ = BeforeSuite(func() {
@@ -24,4 +26,8 @@ var _ = BeforeSuite(func() {
 	testenv.SetRoot("../..")
 
 	env = testenv.New()
+
+	if dsClusterEnvVar := os.Getenv("CI_REGISTERED_CLUSTER"); dsClusterEnvVar != "" {
+		dsCluster = dsClusterEnvVar
+	}
 })

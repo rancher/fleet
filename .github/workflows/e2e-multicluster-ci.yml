@@ -185,6 +185,9 @@ jobs:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
+          # Force use of non-managed downstream cluster for portability
+          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}' | grep -v second)
+
           kubectl config use-context k3d-upstream
           ginkgo --github-output e2e/multi-cluster
       -
