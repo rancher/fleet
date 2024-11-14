@@ -150,8 +150,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
 	oldStatus := gitrepo.Status.DeepCopy()
-	_, err := authorizeAndAssignDefaults(ctx, r.Client, gitrepo)
-	if err != nil {
+	if err := AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo); err != nil {
 		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToApplyRestrictions", err.Error())
 		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, *oldStatus, err)
 	}
