@@ -6,8 +6,10 @@ import (
 	"reflect"
 	"sort"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
-	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 
@@ -110,6 +112,13 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		gitrepo.Status.Display.State = "GitUpdating"
 	}
 
+	if len(bdList.Items) == 0 {
+		err = r.setStatusFromBundle(ctx, gitrepo)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	err = r.Client.Status().Update(ctx, gitrepo)
 	if err != nil {
 		logger.Error(err, "Reconcile failed update to git repo status", "status", gitrepo.Status)
@@ -162,6 +171,33 @@ func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) e
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)
 
+	return nil
+}
+
+// setStatusFromBundle fetches a bundle from a given gitrepo, takes the status conditions from the
+// bundle and applies it on the gitrepo. It should only be called if the gitrepo has no bundle
+// deployments from which the status is generated. The purpose is to make targeting issues, which
+// result in no bundle deployments being created, visible in the gitrepo status.
+func (r StatusReconciler) setStatusFromBundle(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
+	bList := &v1alpha1.BundleList{}
+	err := r.List(ctx, bList, client.MatchingLabels{
+		v1alpha1.RepoLabel: gitrepo.Name,
+	}, client.InNamespace(gitrepo.Namespace))
+	if err != nil {
+		return err
+	}
+
+	for _, bundle := range bList.Items {
+		if bundle.Status.Conditions == nil {
+			continue
+		}
+		for _, condition := range bundle.Status.Conditions {
+			if condition.Type == string(v1alpha1.Ready) && condition.Status == v1.ConditionFalse {
+				gitrepo.Status.Conditions = bundle.Status.Conditions
+				break
+			}
+		}
+	}
 	return nil
 }
 

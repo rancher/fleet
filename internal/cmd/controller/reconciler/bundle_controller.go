@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
@@ -15,8 +16,10 @@ import (
 	"github.com/rancher/fleet/internal/ociwrapper"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -174,7 +177,34 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	matchedTargets, err := r.Builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
-		return ctrl.Result{}, err
+		// When targeting fails, we want to update the bundle status with the error message from
+		// targeting.
+
+		// bundle.Status.Display = fleet.BundleDisplay{
+		// 	ReadyClusters: "0/0",
+		// }
+		bundle.Status.Conditions = []genericcondition.GenericCondition{
+			{
+				Type:   string(fleet.Ready),
+				Status: v1.ConditionFalse,
+				// TODO Targeting error? Is there a better wording?
+				Message: "Targeting error: " + err.Error(),
+			},
+		}
+
+		t := &fleet.Bundle{}
+		if err := r.Get(ctx, req.NamespacedName, t); err != nil {
+			return ctrl.Result{}, err
+		}
+		t.Status = bundle.Status
+
+		err := r.Status().Update(ctx, t)
+		if err != nil {
+			logger.V(1).Info("Reconcile failed update to bundle status", "status", bundle.Status, "error", err)
+			return ctrl.Result{}, err
+		} else {
+			metrics.BundleCollector.Collect(ctx, bundle)
+		}
 	}
 
 	if !contentsInOCI && len(matchedTargets) > 0 {
