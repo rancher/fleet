@@ -465,8 +465,7 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 	if err != nil {
 		logger.V(1).Info("Reconcile failed update to bundle status", "status", bundle.Status, "error", err)
 		return err
-	} else {
-		metrics.BundleCollector.Collect(ctx, bundle)
 	}
+	metrics.BundleCollector.Collect(ctx, bundle)
 	return nil
 }
