@@ -177,18 +177,21 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	matchedTargets, err := r.Builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
-		// When targeting fails, we want to update the bundle status with the error message from
-		// targeting.
+		// When targeting fails, we don't want to continue and make the error message visible in the
+		// UI, so we generate a status condition of type Ready.
+		//
+		// TODO Should we only add the error message to the status if there was an issue with
+		// rendering the manifests for the targets? Currently we add the error message to the status
+		// if any issue occurred in the target building process.
 
-		// bundle.Status.Display = fleet.BundleDisplay{
-		// 	ReadyClusters: "0/0",
-		// }
 		bundle.Status.Conditions = []genericcondition.GenericCondition{
 			{
 				Type:   string(fleet.Ready),
 				Status: v1.ConditionFalse,
 				// TODO Targeting error? Is there a better wording?
 				Message: "Targeting error: " + err.Error(),
+				// TODO Should we add a timestamp here?
+				// TODO Should the condition be created differently?
 			},
 		}
 
