@@ -112,7 +112,10 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return requests
 			}),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			builder.WithPredicates(
+				predicate.ResourceVersionChangedPredicate{},
+				// predicate.LabelChangedPredicate{},
+			),
 		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
@@ -196,9 +199,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		err := r.updateStatus(ctx, bundleOrig, bundle)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
+		return ctrl.Result{}, err
 	}
 
 	if !contentsInOCI && len(matchedTargets) > 0 {
@@ -240,9 +241,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	summary.SetReadyConditions(&bundle.Status, "Cluster", bundle.Status.Summary)
 	bundle.Status.ObservedGeneration = bundle.Generation
 
-	// build BundleDeployments out of targets discarding Status, replacing
-	// DependsOn with the bundle's DependsOn (pure function) and replacing
-	// the labels with the bundle's labels
+	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
+	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
 	for _, target := range matchedTargets {
 		bd, err := r.createBundleDeployment(ctx, logger, target, contentsInOCI, manifestID)
 		if err != nil {
@@ -250,7 +250,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		if bd != nil && contentsInOCI {
-			// we need to create the OCI registry credentials secret in the BundleDeployment's namespace
+			// we need to create the OCI registry credentials secret in the BundleDeployment's
+			// namespace
 			if err := r.createDeploymentOCISecret(ctx, bundle, bd); err != nil {
 				return ctrl.Result{}, err
 			}

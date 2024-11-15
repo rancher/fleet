@@ -112,11 +112,17 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		gitrepo.Status.Display.State = "GitUpdating"
 	}
 
-	if len(bdList.Items) == 0 {
-		err = r.setStatusFromBundle(ctx, gitrepo)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
+	// We're explicitly setting the status from the bundle here. If the bundle has no deployments,
+	// the status would not have been copied in `setStatus`. If there are deployments, the same
+	// status would have been copied from those deployments. So we're basically just making sure the
+	// status from the bundle is being set on the gitrepo, even if there are no bundle deployments,
+	// which is the case for issues with rendering the manifests, for instance. In that case no
+	// bundle deployments are created, but an error is set in a ready status condition on the
+	// bundle.
+
+	err = r.setStatusFromBundle(ctx, gitrepo)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
 	err = r.Client.Status().Update(ctx, gitrepo)
@@ -174,10 +180,10 @@ func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
 	return nil
 }
 
-// setStatusFromBundle fetches a bundle from a given gitrepo, takes the status conditions from the
-// bundle and applies it on the gitrepo. It should only be called if the gitrepo has no bundle
-// deployments from which the status is generated. The purpose is to make targeting issues, which
-// result in no bundle deployments being created, visible in the gitrepo status.
+// setStatusFromBundle fetches a bundle from a given gitrepo, takes the ready status conditions from
+// the bundle and applies it on the gitrepo. The purpose is to make rendering issues visible in the
+// gitrepo status. Those issues need to be made explicitly visible since the other statuses are
+// calculated from bundle deployments, which do not exist when rendering manifests fail.
 func (r StatusReconciler) setStatusFromBundle(ctx context.Context, gitrepo *fleet.GitRepo) error {
 	bList := &fleet.BundleList{}
 	err := r.List(ctx, bList, client.MatchingLabels{
