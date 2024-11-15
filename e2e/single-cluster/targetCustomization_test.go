@@ -85,14 +85,14 @@ var _ = Describe("Helm deploy options", func() {
 						return "nil"
 					}
 
-					bundleDeploymentNamespacesLabels, _ := clusterK.Get(
+					bundleDeploymentNamespacesAnnotations, _ := clusterK.Get(
 						"bundledeployments",
 						bundleDeploymentName,
 						"-o",
 						"jsonpath={.spec.options.namespaceAnnotations}",
 					)
-					return bundleDeploymentNamespacesLabels
-				}).Should(Equal(`{"foo":"bar","this.is/a":"test"}`))
+					return bundleDeploymentNamespacesAnnotations
+				}).Should(Equal(`{"foo":"bar","this.is/another":"test"}`))
 
 			})
 		})
