@@ -20,4 +20,4 @@ EOF
   args="$args --registry-config $TMP_CONFIG"
 fi
 
-k3d cluster create "$name" --servers 3 --api-port $(( 36443 + i )) -p "$(( 8080 + i )):80@server:0" -p "$(( 8443 + i )):443@server:0" $args
+k3d cluster create "$name" --servers 3 --api-port $(( 36443 + i )) -p "$(( 8080 + i )):8080@server:0" -p "$(( 8081 + i )):8081@server:0" -p "$(( 8082 + i )):8082@server:0" -p "$(( 8443 + i )):443@server:0" $args

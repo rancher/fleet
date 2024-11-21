@@ -85,7 +85,7 @@ var _ = Describe("Image Scan dynamic tests pushing to ttl.sh", Label("infra-setu
 		k = env.Kubectl.Namespace(env.Namespace)
 		tmpdir := GinkgoT().TempDir()
 		clonedir = path.Join(tmpdir, "clone")
-		repository = setupRepo(k, tmpdir, clonedir, tmpRepoDir)
+		repository, gh = setupRepo(k, tmpdir, clonedir, tmpRepoDir)
 	})
 
 	AfterEach(func() {
@@ -206,7 +206,7 @@ func getGitjobControllerReady(k kubectl.Command) bool {
 	return boolValue
 }
 
-func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) *git.Repository {
+func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) (*git.Repository, *githelper.Git) {
 	// Create git secret
 	out, err := k.Create(
 		"secret", "generic", "git-auth", "--type", "kubernetes.io/basic-auth",
@@ -241,7 +241,7 @@ func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) *git.Reposit
 
 	out, err = k.Apply("-f", gitrepo)
 	Expect(err).ToNot(HaveOccurred(), out)
-	return repo
+	return repo, gh
 }
 
 func tagAndPushImage(baseImage, image, tag string) string {

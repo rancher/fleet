@@ -132,7 +132,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		externalIP, err := k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 		Expect(err).ToNot(HaveOccurred(), externalIP)
 		Expect(net.ParseIP(externalIP)).ShouldNot(BeNil())
-		ociRegistry = fmt.Sprintf("%s:5000", externalIP)
+		ociRegistry = fmt.Sprintf("%s:8082", externalIP)
 
 		// store the actual value of the experimental env value
 		// we'll restore in the AfterEach statement if needed

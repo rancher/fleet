@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chartmuseum/helm-push/pkg/chartmuseum"
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	"github.com/spf13/cobra"
@@ -102,17 +102,9 @@ var setupCmd = &cobra.Command{
 			go spinUpGitServer(k, &wgGit)
 		}
 
-		var chartArchive []byte
-		var externalIP string
+		externalIP := os.Getenv("external_ip")
 
 		if withHelmRegistry || withOCIRegistry {
-			chartArchive, err = os.ReadFile("sleeper-chart-0.1.0.tgz")
-			if err != nil {
-				fail(fmt.Errorf("read packaged Helm chart: %v", err))
-			}
-
-			externalIP = os.Getenv("external_ip")
-
 			out, err := k.Create(
 				"secret", "tls", "helm-tls",
 				"--cert", path.Join(os.Getenv("CI_OCI_CERTS_DIR"), "helm.crt"),
@@ -139,7 +131,17 @@ var setupCmd = &cobra.Command{
 			wgOCI.Wait()
 
 			// Login and push a Helm chart to our local OCI registry
-			OCIClient, err := registry.NewClient()
+			tlsConf := &tls.Config{
+				InsecureSkipVerify: true,
+			}
+			OCIClient, err := registry.NewClient(
+				registry.ClientOptHTTPClient(&http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: tlsConf,
+						Proxy:           http.ProxyFromEnvironment,
+					},
+				}),
+			)
 			if err != nil {
 				fail(fmt.Errorf("create OCI registry client: %v", err))
 			}
@@ -147,7 +149,8 @@ var setupCmd = &cobra.Command{
 			if externalIP == "" {
 				externalIP = waitForLoadbalancer(k, "zot-service")
 			}
-			OCIHost := fmt.Sprintf("%s:5000", externalIP)
+
+			OCIHost := fmt.Sprintf("%s:8082", externalIP)
 
 			fmt.Printf("logging into OCI registry at %s...\n", OCIHost)
 			_ = eventually(func() (string, error) {
@@ -163,30 +166,14 @@ var setupCmd = &cobra.Command{
 				return "", nil
 			})
 
-			fmt.Println("determining Helm binary path...")
-			helmPath := os.Getenv("HELM_PATH")
-			if helmPath == "" {
-				helmPath = "/usr/bin/helm" // prevents eg. ~/.rd/bin/helm from being used, without support for skipping TLS
+			// TODO enable this when the Helm library supports `--insecure-skip-tls-verify`
+			chartArchive, err := os.ReadFile("sleeper-chart-0.1.0.tgz")
+			if err != nil {
+				fail(fmt.Errorf("reading helm chart: %v", err))
 			}
-
-			fmt.Println("pushing Helm chart to registry...")
-			pushCmd := exec.Command(
-				helmPath,
-				"push",
-				"sleeper-chart-0.1.0.tgz",
-				fmt.Sprintf("oci://%s", OCIHost),
-				"--insecure-skip-tls-verify",
-			)
-			if _, err := pushCmd.Output(); err != nil {
-				fail(fmt.Errorf("push to Helm registry: %v with output %s", err, pushCmd.Stderr))
+			if _, err := OCIClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", OCIHost)); err != nil {
+				fail(fmt.Errorf("push to OCI registry: %v", err))
 			}
-
-			/*
-				// TODO enable this when the Helm library supports `--insecure-skip-tls-verify`
-				if _, err := OCIClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.1.0", OCIHost)); err != nil {
-					fail(fmt.Errorf("push to OCI registry: %v", err))
-				}
-			*/
 		}
 
 		if withHelmRegistry {
@@ -201,30 +188,16 @@ var setupCmd = &cobra.Command{
 			}
 
 			_ = eventually(func() (string, error) {
-				SSLCfg := &tls.Config{
-					// works around having to install or reference a CA cert
-					InsecureSkipVerify: true, // nolint:gosec
-				}
-
-				client := http.Client{
-					Timeout: 10 * time.Second,
-					Transport: &http.Transport{
-						TLSClientConfig:       SSLCfg,
-						IdleConnTimeout:       10 * time.Second,
-						ExpectContinueTimeout: 1 * time.Second,
-					},
-				}
-
-				cmAddr := fmt.Sprintf("https://%s:8081/api/charts", externalIP)
-
-				req, err := http.NewRequest(http.MethodPost, cmAddr, bytes.NewReader(chartArchive))
+				c, err := chartmuseum.NewClient(
+					chartmuseum.URL(fmt.Sprintf("https://%s:8081", externalIP)),
+					chartmuseum.Username(os.Getenv("CI_OCI_USERNAME")),
+					chartmuseum.Password(os.Getenv("CI_OCI_PASSWORD")),
+					chartmuseum.InsecureSkipVerify(true),
+				)
 				if err != nil {
-					fail(fmt.Errorf("create POST request to ChartMuseum: %v", err))
+					return "", fmt.Errorf("creating chartmuseum client: %v", err)
 				}
-
-				req.SetBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD"))
-
-				resp, err := client.Do(req)
+				resp, err := c.UploadChartPackage("sleeper-chart-0.1.0.tgz", true)
 				if err != nil {
 					return "", fmt.Errorf("POST request to ChartMuseum failed: %v", err)
 				}
