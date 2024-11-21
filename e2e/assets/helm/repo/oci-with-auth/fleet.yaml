@@ -12,7 +12,7 @@ helm:
   # The directory of the chart in the repo.  Any valid go-getter supported
   # URL can also be used here to specify where to download the chart from.
   # If repo below is set, this value is the chart name in the repo.
-  chart: "oci://zot-service.fleet-local.svc.cluster.local:5000/sleeper-chart"
+  chart: "oci://zot-service.fleet-local.svc.cluster.local:8082/sleeper-chart"
 
   # Used if repo is set to look up the version of the chart
   version: "0.1.0"

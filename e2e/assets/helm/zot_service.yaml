@@ -7,6 +7,6 @@ spec:
     app: zot
   ports:
     - protocol: TCP
-      port: 5000
-      targetPort: 5000
+      port: 8082
+      targetPort: 8082
   type: LoadBalancer

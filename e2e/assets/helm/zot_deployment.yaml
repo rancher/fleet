@@ -19,7 +19,7 @@ spec:
           image: ghcr.io/project-zot/zot-linux-amd64:v1.4.3
           imagePullPolicy: IfNotPresent
           ports:
-          - containerPort: 5000
+          - containerPort: 8082
           volumeMounts:
           - name: config-file
             mountPath: /etc/zot/config.json
