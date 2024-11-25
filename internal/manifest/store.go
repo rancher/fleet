@@ -62,5 +62,5 @@ func (c *ContentStore) createContents(ctx context.Context, id string, manifest *
 		Content:   compressed,
 		SHA256Sum: digest,
 	})
-	return err
+	return client.IgnoreAlreadyExists(err)
 }

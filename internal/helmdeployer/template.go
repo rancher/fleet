@@ -14,10 +14,9 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
 	kubefake "helm.sh/helm/v3/pkg/kube/fake"
+	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
-
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 var (
@@ -25,7 +24,7 @@ var (
 )
 
 // Template runs helm template and returns the resources as a list of objects, without applying them.
-func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions, kubeVersionString string) ([]runtime.Object, error) {
+func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest, options fleet.BundleDeploymentOptions, kubeVersionString string) (*release.Release, error) {
 	h := &Helm{
 		globalCfg:    action.Configuration{},
 		useGlobalCfg: true,
@@ -52,10 +51,5 @@ func Template(ctx context.Context, bundleID string, manifest *manifest.Manifest,
 	h.globalCfg.Log = logrus.Infof
 	h.globalCfg.Releases = storage.Init(mem)
 
-	release, err := h.Deploy(ctx, bundleID, manifest, options)
-	if err != nil {
-		return nil, err
-	}
-
-	return ReleaseToObjects(release)
+	return h.Deploy(ctx, bundleID, manifest, options)
 }

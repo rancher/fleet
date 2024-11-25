@@ -173,7 +173,7 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 	}
 
 	bd.Status.NonReadyStatus = nonReady(logger, plan, bd.Spec.Options.IgnoreOptions)
-	bd.Status.ModifiedStatus = modified(m.client, logger, plan, resourcesPreviousRelease)
+	bd.Status.ModifiedStatus = modified(ctx, m.client, logger, plan, resourcesPreviousRelease)
 	bd.Status.Ready = false
 	bd.Status.NonModified = false
 
@@ -249,7 +249,7 @@ func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.Igno
 // The function iterates through the plan's create, delete, and update actions and constructs a modified status
 // for each resource.
 // If the number of modified statuses exceeds 10, the function stops and returns the current result.
-func modified(c client.Client, logger logr.Logger, plan desiredset.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
+func modified(ctx context.Context, c client.Client, logger logr.Logger, plan desiredset.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
 	defer func() {
 		sort.Slice(result, func(i, j int) bool {
 			return sortKey(result[i]) < sortKey(result[j])
@@ -269,7 +269,7 @@ func modified(c client.Client, logger logr.Logger, plan desiredset.Plan, resourc
 				Namespace: key.Namespace,
 				Name:      key.Name,
 			}
-			err := c.Get(context.Background(), key, obj)
+			err := c.Get(ctx, key, obj)
 
 			exists := !apierrors.IsNotFound(err)
 

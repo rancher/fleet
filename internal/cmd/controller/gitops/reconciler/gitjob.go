@@ -1,6 +1,6 @@
 // Copyright (c) 2021-2023 SUSE LLC
 
-package grutil
+package reconciler
 
 import (
 	corev1 "k8s.io/api/core/v1"
@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func NewServiceAccount(namespace string, name string) *corev1.ServiceAccount {
+func newServiceAccount(namespace string, name string) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -17,7 +17,7 @@ func NewServiceAccount(namespace string, name string) *corev1.ServiceAccount {
 	}
 }
 
-func NewRole(namespace string, name string) *rbacv1.Role {
+func newRole(namespace string, name string) *rbacv1.Role {
 	return &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -43,7 +43,7 @@ func NewRole(namespace string, name string) *rbacv1.Role {
 	}
 }
 
-func NewRoleBinding(namespace string, name string) *rbacv1.RoleBinding {
+func newRoleBinding(namespace string, name string) *rbacv1.RoleBinding {
 	return &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

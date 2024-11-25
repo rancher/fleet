@@ -31,7 +31,7 @@ var _ = Describe("Target clusters by label", func() {
 
 	BeforeEach(func() {
 		k = env.Kubectl.Context(env.Upstream)
-		kd = env.Kubectl.Context(env.ManagedDownstream)
+		kd = env.Kubectl.Context(env.Downstream)
 	})
 
 	JustBeforeEach(func() {
@@ -50,7 +50,7 @@ var _ = Describe("Target clusters by label", func() {
 			asset = "multi-cluster/bundle-deployment-labels.yaml"
 			data = TemplateData{env.ClusterRegistrationNamespace, namespace}
 			// set the expected label
-			out, err := k.Namespace(env.ClusterRegistrationNamespace).Label("clusters", "second", "envlabels=test")
+			out, err := k.Namespace(env.ClusterRegistrationNamespace).Label("cluster.fleet.cattle.io", dsCluster, "envlabels=test")
 			Expect(err).ToNot(HaveOccurred(), out)
 		})
 
@@ -65,7 +65,7 @@ var _ = Describe("Target clusters by label", func() {
 			}).Should(ContainSubstring("simple-config"))
 
 			// delete the label (bundledeployment should be deleted and resources in cluster deleted)
-			out, err := k.Namespace(env.ClusterRegistrationNamespace).Label("clusters", "second", "envlabels-")
+			out, err := k.Namespace(env.ClusterRegistrationNamespace).Label("cluster.fleet.cattle.io", dsCluster, "envlabels-")
 			Expect(err).ToNot(HaveOccurred(), out)
 
 			Eventually(func() string {
@@ -78,7 +78,7 @@ var _ = Describe("Target clusters by label", func() {
 			}).ShouldNot(ContainSubstring("simple-config"))
 
 			// re-apply the label (bundledeployment should be created and applied again)
-			out, err = k.Namespace(env.ClusterRegistrationNamespace).Label("clusters", "second", "envlabels=test")
+			out, err = k.Namespace(env.ClusterRegistrationNamespace).Label("cluster.fleet.cattle.io", dsCluster, "envlabels=test")
 			Expect(err).ToNot(HaveOccurred(), out)
 
 			Eventually(func() string {

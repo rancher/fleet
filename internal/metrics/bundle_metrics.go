@@ -113,7 +113,7 @@ func collectBundleMetrics(obj any, metrics map[string]prometheus.Collector) {
 		"name":       bundle.Name,
 		"namespace":  bundle.Namespace,
 		"commit":     bundle.ObjectMeta.Labels[fleet.CommitLabel],
-		"repo":       bundle.ObjectMeta.Labels[repoNameLabel],
+		"repo":       bundle.ObjectMeta.Labels[fleet.RepoLabel],
 		"generation": fmt.Sprintf("%d", bundle.ObjectMeta.Generation),
 		"state":      string(currentState),
 	}

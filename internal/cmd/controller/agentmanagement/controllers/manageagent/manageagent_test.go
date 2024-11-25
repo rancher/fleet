@@ -3,8 +3,8 @@ package manageagent
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
+	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/ptr"

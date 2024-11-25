@@ -244,7 +244,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.Status().Update(ctx, t)
 	})
 	if err != nil {
-		logger.V(1).Error(err, "Reconcile failed final update to bundle status", "status", bundle.Status)
+		logger.V(1).Info("Reconcile failed final update to bundle status", "status", bundle.Status, "error", err)
 	} else {
 		metrics.BundleCollector.Collect(ctx, bundle)
 	}
@@ -361,7 +361,9 @@ func (r *BundleReconciler) createBundleDeployment(
 			return client.IgnoreNotFound(err)
 		}
 
-		controllerutil.AddFinalizer(content, bd.Name)
+		if added := controllerutil.AddFinalizer(content, bd.Name); !added {
+			return nil
+		}
 
 		return r.Update(ctx, content)
 	})

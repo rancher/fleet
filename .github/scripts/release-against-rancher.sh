@@ -11,7 +11,7 @@ BUMP_API="$3"             # bump api if `true`
 bump_fleet_api() {
     COMMIT=$1
 
-    go get -u "github.com/rancher/fleet/pkg/apis@${COMMIT}"
+    go get -u "github.com/rancher/fleet/pkg/apis@v${NEW_FLEET_VERSION}" || go get -u "github.com/rancher/fleet/pkg/apis@${COMMIT}"
     go mod tidy
 }
 

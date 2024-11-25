@@ -141,8 +141,7 @@ type ClusterStatus struct {
 	// "cluster-fleet-local-cluster-294db1acfa77-d9ccf852678f"
 	Namespace string `json:"namespace,omitempty"`
 
-	// Summary is a summary of the bundledeployments. The resource counts
-	// are copied from the gitrepo resource.
+	// Summary is a summary of the bundledeployments.
 	Summary BundleSummary `json:"summary,omitempty"`
 	// ResourceCounts is an aggregate over the GitRepoResourceCounts.
 	ResourceCounts GitRepoResourceCounts `json:"resourceCounts,omitempty"`

@@ -29,7 +29,8 @@ on:
 
 jobs:
   create-rancher-charts-pr:
-    runs-on: ubuntu-latest
+    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,22 +43,18 @@ jobs:
           repository: rancher/charts
           ref: ${{github.event.inputs.charts_ref}}
           path: charts
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.*'
       - name: Install dependencies
         run: sudo snap install yq --channel=v4/stable
       - name: Run release script
         run: |
           export CHARTS_DIR="${GITHUB_WORKSPACE}/charts"
-          ./fleet/.github/scripts/release-against-charts.sh ${{github.event.inputs.prev_fleet}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.prev_chart}}  ${{github.event.inputs.new_chart}}  ${{github.event.inputs.should_replace}}
+          ./fleet/.github/scripts/release-against-charts.sh ${{github.event.inputs.prev_fleet}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.prev_chart}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_replace}}
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
-        with:
-          token: ${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}
-          push-to-fork: rancherbot/charts
-          title: '[${{github.event.inputs.charts_ref}}] fleet ${{github.event.inputs.new_chart}}+up${{github.event.inputs.new_fleet}} update'
-          body: |
-            Update Fleet to v${{github.event.inputs.new_fleet}}
-
-            Changelog: https://github.com/rancher/fleet/releases/tag/v${{github.event.inputs.new_fleet}}
-          branch-suffix: timestamp
-          base: ${{github.event.inputs.charts_ref}}
-          path: ./charts/
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUSH_TO_FORKS_SUBMIT_PRS }}
+        working-directory: ./charts/
+        run: |
+          ../fleet/.github/scripts/create-pr.sh ${{github.event.inputs.charts_ref}} ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} charts

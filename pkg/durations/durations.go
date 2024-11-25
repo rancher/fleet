@@ -28,8 +28,11 @@ const (
 	TokenClusterEnqueueDelay       = time.Second * 2
 	// TriggerSleep is the delay before the driftdetect mini controller
 	// starts watching deployed resources for changes
-	TriggerSleep          = time.Second * 5
-	DefaultCpuPprofPeriod = time.Minute
+	TriggerSleep = time.Second * 5
+	// GitRepoStatusDelay gives the gitjob controller some time to update
+	// the gitrepo status first, before the status controller looks at
+	// bundledeployments.
+	GitRepoStatusDelay = time.Second * 5
 )
 
 // Equal reports whether the duration t is equal to u.

@@ -30,7 +30,7 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 					Resources: []string{fleet.BundleDeploymentResourceNamePlural},
 				},
 				{
-					Verbs:     []string{"update"},
+					Verbs:     []string{"update", "patch"},
 					APIGroups: []string{fleet.SchemeGroupVersion.Group},
 					Resources: []string{fleet.BundleDeploymentResourceNamePlural + "/status"},
 				},

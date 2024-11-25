@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/golang/mock/gomock"
 	"github.com/opencontainers/go-digest"
+	"go.uber.org/mock/gomock"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"

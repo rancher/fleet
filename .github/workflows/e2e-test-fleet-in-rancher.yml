@@ -2,9 +2,6 @@
 name: Test Fleet in Rancher
 
 on:
-  schedule:
-    # Run everyday at 1:00 PM
-    - cron:  '0 13 * * *'
   workflow_dispatch:
     inputs:
       ref:
@@ -22,11 +19,6 @@ on:
       fleet_version:
         description: Fleet version to install in Rancher
         type: string
-      enable_tmate:
-        description: Enable debugging via tmate
-        required: false
-        default: false
-        type: boolean
   workflow_call:
     # Variables to set when calling this reusable workflow
     inputs:
@@ -154,14 +146,6 @@ jobs:
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
 
       -
-        name: Set Up Tmate Debug Session
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enable_tmate == 'true' }}
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-        with:
-          limit-access-to-actor: true
-
-      -
         name: Set up latest Rancher
         run: |
           set -x
@@ -235,6 +219,9 @@ jobs:
         run: |
           kubectl config use-context k3d-upstream
           ginkgo --github-output e2e/acceptance/single-cluster-examples
+
+          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{..name}')
+
           ginkgo --github-output e2e/multi-cluster
 
       -

@@ -72,3 +72,4 @@ global:
 
 debug: false
 debugLevel: 0
+disableSecurityContext: false

@@ -13,7 +13,8 @@ env:
 
 jobs:
   fleet-upgrade-test:
-    runs-on: ubuntu-latest
+    runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+
     strategy:
       matrix:
         k3s:

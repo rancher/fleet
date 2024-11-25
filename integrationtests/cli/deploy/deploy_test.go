@@ -157,9 +157,15 @@ var _ = Describe("Fleet CLI Deploy", func() {
 		It("prints a manifest and bundledeployment", func() {
 			buf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(buf).To(gbytes.Say("- apiVersion: v1"))
-			Expect(buf).To(gbytes.Say("  data:"))
-			Expect(buf).To(gbytes.Say("    name: example-value"))
+			Expect(buf.Contents()).To(And(
+				ContainSubstring("- apiVersion: v1"),
+				ContainSubstring("ConfigMap"),
+				ContainSubstring("  data:"),
+				ContainSubstring("    name: example-value"),
+				ContainSubstring("ServiceAccount"),
+				ContainSubstring("helm.sh/hook"),
+				ContainSubstring("some-operator"),
+			))
 
 			cm := &corev1.ConfigMap{}
 			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-simple-chart-config"}, cm)

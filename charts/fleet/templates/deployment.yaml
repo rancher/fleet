@@ -45,14 +45,6 @@ spec:
         - name: NO_PROXY
           value: {{ $.Values.noProxy }}
         {{- end }}
-        {{- if $.Values.cpuPprof }}
-        - name: FLEET_CPU_PPROF_DIR
-          value: /tmp/pprof/
-        {{- end }}
-        {{- if $.Values.cpuPprof }}
-        - name: FLEET_CPU_PPROF_PERIOD
-          value: {{ quote $.Values.cpuPprof.period }}
-        {{- end }}
         {{- if $.Values.leaderElection.leaseDuration }}
         - name: CATTLE_ELECTION_LEASE_DURATION
           value: {{$.Values.leaderElection.leaseDuration}}
@@ -101,7 +93,8 @@ spec:
         - --debug
         - --debug-level
         - {{ quote $.Values.debugLevel }}
-        {{- else }}
+        {{- end }}
+        {{- if not $.Values.disableSecurityContext }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -113,10 +106,6 @@ spec:
         volumeMounts:
           - mountPath: /tmp
             name: tmp
-        {{- if $.Values.cpuPprof }}
-          - mountPath: /tmp/pprof
-            name: pprof
-        {{- end }}
       {{- if not $shard.id }} # Only deploy cleanup and agent management through sharding-less deployment
       - env:
         - name: NAMESPACE
@@ -161,7 +150,8 @@ spec:
         - --debug
         - --debug-level
         - {{ quote $.Values.debugLevel }}
-        {{- else }}
+        {{- end }}
+        {{- if not $.Values.disableSecurityContext }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -177,6 +167,8 @@ spec:
               fieldPath: metadata.namespace
         - name: FLEET_PROPAGATE_DEBUG_SETTINGS_TO_AGENTS
           value: {{ quote $.Values.propagateDebugSettingsToAgents }}
+        - name: FLEET_DEBUG_DISABLE_SECURITY_CONTEXT
+          value: {{ quote $.Values.disableSecurityContext }}
         {{- if $.Values.debug }}
         - name: CATTLE_DEV_MODE
           value: "true"
@@ -206,7 +198,8 @@ spec:
         - --debug
         - --debug-level
         - {{ quote $.Values.debugLevel }}
-        {{- else }}
+        {{- end }}
+        {{- if not $.Values.disableSecurityContext }}
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
@@ -219,9 +212,6 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-      {{- if $.Values.cpuPprof }}
-        - name: pprof {{ toYaml $.Values.cpuPprof.volumeConfiguration | nindent 10 }}
-      {{- end }}
 
       serviceAccountName: fleet-controller
       nodeSelector: {{ include "linux-node-selector" $shard.id | nindent 8 }}
@@ -241,7 +231,7 @@ spec:
       priorityClassName: "{{$.Values.priorityClassName}}"
       {{- end }}
 
-{{- if not $.Values.debug }}
+{{- if not $.Values.disableSecurityContext }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

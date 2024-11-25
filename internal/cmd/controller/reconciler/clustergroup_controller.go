@@ -148,7 +148,7 @@ func (r *ClusterGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	err = r.updateStatus(ctx, req.NamespacedName, group.Status)
 	if err != nil {
-		logger.V(1).Error(err, "Reconcile failed final update to cluster group status", "status", group.Status)
+		logger.V(1).Info("Reconcile failed final update to cluster group status", "status", group.Status, "error", err)
 	} else {
 		metrics.ClusterGroupCollector.Collect(ctx, group)
 	}

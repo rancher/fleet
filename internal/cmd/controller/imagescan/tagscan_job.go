@@ -100,7 +100,7 @@ func (j *TagScanJob) updateImageTags(ctx context.Context) {
 	ref, err := name.ParseReference(image.Spec.Image)
 	if err != nil {
 		err = j.updateErrorStatus(ctx, image, err)
-		logger.V(1).Error(err, "Failed to parse image name", "image", image.Spec.Image)
+		logger.V(1).Info("Failed to parse image name", "image", image.Spec.Image, "error", err)
 		return
 	}
 
