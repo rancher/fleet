@@ -69,6 +69,18 @@ spec:
         - name: BUNDLEDEPLOYMENT_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.bundledeployment }}
         {{- end }}
+        {{- if $.Values.controller.reconciler.workers.cluster }}
+        - name: CLUSTER_RECONCILER_WORKERS
+          value: {{ quote $.Values.controller.reconciler.workers.cluster }}
+        {{- end }}
+        {{- if $.Values.controller.reconciler.workers.clustergroup }}
+        - name: CLUSTERGROUP_RECONCILER_WORKERS
+          value: {{ quote $.Values.controller.reconciler.workers.clustergroup }}
+        {{- end }}
+        {{- if $.Values.controller.reconciler.workers.imagescan }}
+        - name: IMAGESCAN_RECONCILER_WORKERS
+          value: {{ quote $.Values.controller.reconciler.workers.imagescan }}
+        {{- end }}
 {{- if $.Values.extraEnv }}
 {{ toYaml $.Values.extraEnv | indent 8}}
 {{- end }}
