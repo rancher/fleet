@@ -1,6 +1,7 @@
 [files]
 extend-exclude = [
   "go.mod",
+  "go.sum",
   "ssh_host_ecdsa_key",
   "cloner_test.go",
   "netutils_test.go",
