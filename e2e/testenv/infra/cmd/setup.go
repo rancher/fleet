@@ -166,7 +166,6 @@ var setupCmd = &cobra.Command{
 				return "", nil
 			})
 
-			// TODO enable this when the Helm library supports `--insecure-skip-tls-verify`
 			chartArchive, err := os.ReadFile("sleeper-chart-0.1.0.tgz")
 			if err != nil {
 				fail(fmt.Errorf("reading helm chart: %v", err))
