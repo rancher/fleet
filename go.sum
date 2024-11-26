@@ -734,8 +734,8 @@ github.com/prometheus/procfs v0.0.2/go.mod h1:TjEm7ze935MbeOT/UhFTIMYKhuLP4wbCsT
 github.com/prometheus/procfs v0.0.3/go.mod h1:4A/X28fw3Fc593LaREMrKMqOKvUAntwMDaekg4FpcdQ=
 github.com/prometheus/procfs v0.15.1 h1:YagwOFzUgYfKKHX6Dr+sHT7km/hxC76UB0learggepc=
 github.com/prometheus/procfs v0.15.1/go.mod h1:fB45yRUv8NstnjriLhBQLuOUt+WW4BsoGhij/e3PBqk=
-github.com/rancher/lasso v0.0.0-20241115003608-cbc3210bd004 h1:0OFMaizQlNEuCEakXB4+0D8BIrBNaea2R4EfuPn6ve4=
-github.com/rancher/lasso v0.0.0-20241115003608-cbc3210bd004/go.mod h1:IxgTBO55lziYhTEETyVKiT8/B5Rg92qYiRmcIIYoPgI=
+github.com/rancher/lasso v0.0.0-20241125180327-d19dc78eb0a8 h1:cLqKOL6X1q/WeaLIRQrL3+2+/cidqiY68+dnwBi+Z4Q=
+github.com/rancher/lasso v0.0.0-20241125180327-d19dc78eb0a8/go.mod h1:IxgTBO55lziYhTEETyVKiT8/B5Rg92qYiRmcIIYoPgI=
 github.com/rancher/wrangler/v3 v3.1.0 h1:8ETBnQOEcZaR6WBmUSysWW7WnERBOiNTMJr4Dj3UG/s=
 github.com/rancher/wrangler/v3 v3.1.0/go.mod h1:gUPHS1ANs2NyByfeERHwkGiQ1rlIa8BpTJZtNSgMlZw=
 github.com/reugn/go-quartz v0.13.0 h1:0eMxvj28Qu1npIDdN9Mzg9hwyksGH6XJt4Cz0QB8EUk=
