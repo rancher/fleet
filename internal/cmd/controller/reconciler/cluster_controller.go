@@ -13,9 +13,11 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
+	"github.com/rancher/fleet/internal/resourcestatus"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -179,6 +181,8 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return bundleDeployments.Items[i].Name < bundleDeployments.Items[j].Name
 	})
 
+	resourcestatus.SetClusterResources(bundleDeployments, cluster)
+
 	repos := map[types.NamespacedName]bool{}
 	for _, bd := range bundleDeployments.Items {
 		state := summary.GetDeploymentState(&bd)
@@ -198,7 +202,6 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	for repo, ready := range repos {
 		gitrepo := &fleet.GitRepo{}
 		if err := r.Get(ctx, repo, gitrepo); err == nil {
-			summary.IncrementResourceCounts(&cluster.Status.ResourceCounts, gitrepo.Status.ResourceCounts)
 			cluster.Status.DesiredReadyGitRepos++
 			if ready {
 				cluster.Status.ReadyGitRepos++

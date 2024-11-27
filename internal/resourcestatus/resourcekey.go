@@ -16,6 +16,15 @@ func SetGitRepoResources(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRep
 	gitrepo.Status.Resources = merge(r)
 }
 
+func SetClusterResources(list *fleet.BundleDeploymentList, cluster *fleet.Cluster) {
+	s := summaryState(cluster.Status.Summary)
+	r, _ := fromResources(list, s)
+	cluster.Status.ResourceCounts = countResources(r)
+}
+
+// merge takes a list of GitRepo resources and deduplicates resources deployed to multiple clusters,
+// ensuring that for such resources, the output contains a single resource entry with a field summarizing
+// its status on each cluster.
 func merge(resources []fleet.GitRepoResource) []fleet.GitRepoResource {
 	merged := map[string]fleet.GitRepoResource{}
 	for _, resource := range resources {
