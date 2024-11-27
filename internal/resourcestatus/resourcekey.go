@@ -1,4 +1,4 @@
-package reconciler
+package resourcestatus
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-func setResources(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) {
+func SetGitRepoResources(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) {
 	s := summaryState(gitrepo.Status.Summary)
 	r, errors := fromResources(list, s)
 	gitrepo.Status.ResourceErrors = errors
