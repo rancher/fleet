@@ -112,15 +112,23 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		gitrepo.Status.Display.State = "GitUpdating"
 	}
 
-	// We're explicitly setting the status from the bundle here. If the bundle has no deployments,
-	// the status would not have been copied in `setStatus`. If there are deployments, the same
-	// status would have been copied from those deployments. So we're basically just making sure the
-	// status from the bundle is being set on the gitrepo, even if there are no bundle deployments,
-	// which is the case for issues with rendering the manifests, for instance. In that case no
-	// bundle deployments are created, but an error is set in a ready status condition on the
-	// bundle.
-
-	err = r.setStatusFromBundle(ctx, gitrepo)
+	// We're explicitly setting the ready status from a bundle here, but only if it isn't ready.
+	//
+	// - If the bundle has no deployments, there is no status to be copied in `setStatus`, so that
+	// we won't overwrite anything. This is why we're doing it!
+	//
+	// - If the bundle has rendering issues and there are deployments in a failed state, the status
+	// of the bundle deployments would be overwritten by the bundle status.
+	//
+	// - If the bundle has no rendering issues and there are deployments in a failed state, the code
+	// will overwrite the gitreop status condition with the same status from the bundle. This is why
+	// we can unconditionally set the status from the bundle.
+	//
+	// So we're basically just making sure the status from the bundle is being set on the gitrepo,
+	// even if there are no bundle deployments, which is the case for issues with rendering the
+	// manifests, for instance. In that case no bundle deployments are created, but an error is set
+	// in a ready status condition on the bundle.
+	err = r.setReadyStatusFromBundle(ctx, gitrepo)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -180,11 +188,12 @@ func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
 	return nil
 }
 
-// setStatusFromBundle fetches a bundle from a given gitrepo, takes the ready status conditions from
-// the bundle and applies it on the gitrepo. The purpose is to make rendering issues visible in the
-// gitrepo status. Those issues need to be made explicitly visible since the other statuses are
-// calculated from bundle deployments, which do not exist when rendering manifests fail.
-func (r StatusReconciler) setStatusFromBundle(ctx context.Context, gitrepo *fleet.GitRepo) error {
+// setReadyStatusFromBundle fetches all bundles from a given gitrepo, checks the ready status conditions
+// from the bundles and applies one on the gitrepo if it isn't ready. The purpose is to make
+// rendering issues visible in the gitrepo status. Those issues need to be made explicitly visible
+// since the other statuses are calculated from bundle deployments, which do not exist when
+// rendering manifests fail. Should an issue be on the bundle, it will be copied to the gitrepo.
+func (r StatusReconciler) setReadyStatusFromBundle(ctx context.Context, gitrepo *fleet.GitRepo) error {
 	bList := &fleet.BundleList{}
 	err := r.List(ctx, bList, client.MatchingLabels{
 		fleet.RepoLabel: gitrepo.Name,
