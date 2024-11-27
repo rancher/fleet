@@ -14,6 +14,7 @@ import (
 	giturls "github.com/rancher/fleet/pkg/git-urls"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 const defaultBranch = "master"
@@ -162,23 +163,1055 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 		}, nil
 	}
 
-	return nil, nil
-}
-
-func createKnownHostsCallBack(knownHosts []byte) (ssh.HostKeyCallback, error) {
-	f, err := os.CreateTemp("", "known_hosts")
-	if err != nil {
-		return nil, err
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
 	}
-	defer os.RemoveAll(f.Name())
-	defer f.Close()
 
-	if _, err := f.Write(knownHosts); err != nil {
-		return nil, err
-	}
-	if err := f.Close(); err != nil {
-		return nil, fmt.Errorf("closing knownHosts file %s: %w", f.Name(), err)
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
 	}
 
-	return gossh.NewKnownHostsCallback(f.Name())
-}
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err != nil {
+				return nil, err
+			}
+			auth.HostKeyCallback = knownHostsCallBack
+		} else {
+			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
+			//this will run in an init-container, so there is no persistence
+			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.Username != "" && opts.PasswordFile != "" {
+		password, err := readFile(opts.PasswordFile)
+		if err != nil {
+			return nil, err
+		}
+
+		return &httpgit.BasicAuth{
+			Username: opts.Username,
+			Password: string(password),
+		}, nil
+	}
+
+	if opts.SSHPrivateKeyFile != "" {
+		privateKey, err := readFile(opts.SSHPrivateKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		gitURL, err := giturls.Parse(opts.Repo)
+		if err != nil {
+			return nil, err
+		}
+		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+		if err != nil {
+			return nil, err
+		}
+		if opts.KnownHostsFile != "" {
+			knownHosts, err := readFile(opts.KnownHostsFile)
+			if err != nil {
+				return nil, err
+			}
+			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
+			if err !=

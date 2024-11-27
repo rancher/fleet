@@ -250,6 +250,51 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			Expect(err.Error()).To(ContainSubstring("knownhosts: missing host pattern"))
 		})
 	})
+
+	Context("SSH auth with valid OpenSSH private key and no known_hosts", func() {
+		var privateKey = []byte(`-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABB++y/Wu6
+6fSbvEGpSYheS89cQ7m8YrQr6MuqstjpS1Yz/uWwN0DCrNupyf0GkesqKLlgElPuwcfeQo
+OmyLhY2xViK2ctLzricbKqDMqCFd1WdaYEut6lh3z/Gy/tPk/CJVkP1VGC+KTaervyRKnH
+9By1VsXUOzOT1NVFjOJfXIqtyTwnE+d24WR9mPcw7kPReiXyS6DoUfcmiq4irqaN1smp52
+iX7EbWsIhir74TrBP51q1M+QFQIDAQABAoIBACTmMNB6bvPFLAcf+RPh08SQx8APAZSbwW
+NMFTy3KkNZO62O5CTbvU4EM9UYde1SqFIH4lg08dOJvrACHS1W5oeFNItpGfmtHL1YDDUe
+kLX7qQS7E/M5coI1imqxL47KXrqO05pPeoTmr8cUKSzpZdFPs3WGHsatpN9jUadk2yuKkV
+EjWxMLOtnvbxuhPSuJmhJ5oajCHhGcGD1kRMBsPrvRy9J5nEEfYA+KKpWDhIiS6fP5n0Yv
+roIpcJVU5Fo/EZClNrEBkVl0bOmsd103PWADAputJrTYpv1b/YsT3STM698DhXsTtvK3Rv
+XouJA+P+JVIO5wnH3ySDhLL73FgcECgYEA3ee6oNybgMiL9dXAo4lD2BbKU/fbgXZXZLlx
+rex1x08u9EjOf2+hR7ZvJnmwbTtpwis0mCbkvS6SrMO4qmlTzF0KvWWu6dobBpDUIVBU0w
+4No9J4c7BSlYEGFzJH9VMugZMmstT0Yn9ugntShQjf+gQp6RSr4odssNFqqiOCB8kCgYEAs
+OgY5wHEvR+7v+6iaO+/ZGFgBcmt+B3aC+pwjsyVVpUuAAA3Dyb8T5CIMi44Ys/1C3TCb/cy
+puLFzgdccjqHdZ7z4Tmwo5skUmHTtEsb01mG2FxBBm4a81+FwoN+QRnZDpj6JQIfWWmbsP5
+6XPOaqlMYfIhLqBkNwtuvhY4fA+0CgYBwrKJh3cKD0NDoYcHwB9nQFjpkCn2Frg5QEa18T4
+26RyWjWnin0onE/QhRNAb2X+2ibwfEnjMVMFm/qZ3RwauQIEo8wy3ehiWk3tMnmz+G7yLT5
+SHONGCqkxoBm0FYewUpPAuxUFpKzUPSs0XCUTBRJd4WAK4KVxNEcQFFJMR4qQKBgEc8TrrG
+1YgqfRneZ/vFftZW96mc+rbMnn7p2oVGEGSbEbjiXUl2s2b+ljlOr1nqz4vbamhXrEfTTT+
+Xazx8IQvWA/KPnndjA49A4VTaycwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNE
+WdzGBpKb34yLfMarNm9UpJAoGAU4sGLwlAHGo+PXUi0PyLtQcxcbytkLAQsKMpuZDvNT/KA
+mu0kJ0p9InN5VKnu9SpmXPxjinS8Mg9QXLrfi5SArEllzfXrgW9OU7ht2xandDD+B8S1cmZ
+F+Yz1salKM9mBBkl0sWraqtzQSEDjPeAz8P4TpQKn6kIMiZkMnrurvI=
+-----END OPENSSH PRIVATE KEY-----`)
+		BeforeEach(func() {
+			secret = &corev1.Secret{
+				Type: corev1.SecretTypeSSHAuth,
+				Data: map[string][]byte{
+					corev1.SSHAuthPrivateKey: privateKey,
+				},
+			}
+		})
+		It("returns no error and the ssh auth", func() {
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret)
+			Expect(err).ToNot(HaveOccurred())
+			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
+			Expect(err).ToNot(HaveOccurred())
+			pk, ok := auth.(*gossh.PublicKeys)
+			Expect(ok).To(BeTrue())
+			Expect(pk.User).To(Equal("git"))
+			Expect(pk.Signer).To(Equal(expectedSigner))
+		})
+	})
 })
 
 var _ = Describe("git's GetHTTPClientFromSecret tests", func() {
