@@ -45,11 +45,6 @@ var LongRetry = wait.Backoff{
 	Jitter:   0.1,
 }
 
-type repoKey struct {
-	repo string
-	ns   string
-}
-
 // ClusterReconciler reconciles a Cluster object
 type ClusterReconciler struct {
 	client.Client
@@ -184,17 +179,17 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return bundleDeployments.Items[i].Name < bundleDeployments.Items[j].Name
 	})
 
-	repos := map[repoKey]bool{}
+	repos := map[types.NamespacedName]bool{}
 	for _, bd := range bundleDeployments.Items {
 		state := summary.GetDeploymentState(&bd)
 		summary.IncrementState(&cluster.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
 		cluster.Status.Summary.DesiredReady++
 
-		repo := bd.Labels[fleet.RepoLabel]
-		ns := bd.Labels[fleet.BundleNamespaceLabel]
-		if repo != "" && ns != "" {
+		repoNamespace, repoName := bd.Labels[fleet.BundleNamespaceLabel], bd.Labels[fleet.RepoLabel]
+		if repoNamespace != "" && repoName != "" {
 			// a gitrepo is ready if its bundledeployments are ready, take previous state into account
-			repos[repoKey{repo: repo, ns: ns}] = (state == fleet.Ready) || repos[repoKey{repo: repo, ns: ns}]
+			repoKey := types.NamespacedName{Namespace: repoNamespace, Name: repoName}
+			repos[repoKey] = (state == fleet.Ready) || repos[repoKey]
 		}
 	}
 
@@ -202,8 +197,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	allReady := true
 	for repo, ready := range repos {
 		gitrepo := &fleet.GitRepo{}
-		err := r.Get(ctx, types.NamespacedName{Namespace: repo.ns, Name: repo.repo}, gitrepo)
-		if err == nil {
+		if err := r.Get(ctx, repo, gitrepo); err == nil {
 			summary.IncrementResourceCounts(&cluster.Status.ResourceCounts, gitrepo.Status.ResourceCounts)
 			cluster.Status.DesiredReadyGitRepos++
 			if ready {
