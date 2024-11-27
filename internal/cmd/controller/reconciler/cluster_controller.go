@@ -6,7 +6,9 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -105,6 +107,14 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+func indexByNamespacedName[T metav1.Object](list []T) map[types.NamespacedName]T {
+	res := make(map[types.NamespacedName]T, len(list))
+	for _, obj := range list {
+		res[types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}] = obj
+	}
+	return res
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters/finalizers,verbs=update
@@ -144,20 +154,25 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, cluster.Status, err)
 	}
+	toDeleteBundles := indexByNamespacedName(cleanup)
 
-	deleted := map[types.UID]bool{}
-	for _, bundle := range cleanup {
-		for _, bd := range bundleDeployments.Items {
-			if bd.Labels[fleet.BundleLabel] == bundle.Name && bd.Labels[fleet.BundleNamespaceLabel] == bundle.Namespace {
-				logger.V(1).Info("cleaning up bundleDeployment not matching the cluster", "bundledeployment", bd)
-				err := r.Delete(ctx, &bd)
-				if err != nil {
-					logger.V(1).Info("deleting bundleDeployment returned an error", "error", err)
-				}
-				deleted[bd.GetUID()] = true
+	// Delete BundleDeployments for to Bundles being removed while getting a filtered items list
+	bundleDeployments.Items = slices.DeleteFunc(bundleDeployments.Items, func(bd fleet.BundleDeployment) bool {
+		bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
+		bundleName := bd.Labels[fleet.BundleLabel]
+		if _, ok := toDeleteBundles[types.NamespacedName{Namespace: bundleNamespace, Name: bundleName}]; ok {
+			logger.V(1).Info("cleaning up bundleDeployment not matching the cluster", "bundledeployment", bd)
+			if err := r.Delete(ctx, &bd); err != nil {
+				logger.V(1).Info("deleting bundleDeployment returned an error", "error", err)
 			}
+			return true
 		}
-	}
+		// Omit fleet-agent bundle deployments from resource counts
+		if strings.HasPrefix(bd.Name, "fleet-agent") {
+			return true
+		}
+		return false
+	})
 
 	// Count the number of gitrepo, bundledeployemt and deployed resources for this cluster
 	cluster.Status.DesiredReadyGitRepos = 0
@@ -171,12 +186,6 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	repos := map[repoKey]bool{}
 	for _, bd := range bundleDeployments.Items {
-		// do not count bundledeployments that were just deleted
-		if deleted[bd.GetUID()] {
-			continue
-		}
-
-		bd := bd
 		state := summary.GetDeploymentState(&bd)
 		summary.IncrementState(&cluster.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
 		cluster.Status.Summary.DesiredReady++
