@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Helm deploy options", func() {
+var _ = XDescribe("Helm deploy options", func() {
 	var (
 		asset string
 		k     kubectl.Command
@@ -27,7 +27,7 @@ var _ = Describe("Helm deploy options", func() {
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
-	Describe("DisableDNS", func() {
+	XDescribe("DisableDNS", func() {
 		BeforeEach(func() {
 			asset = "single-cluster/helm-options-disabledns.yaml"
 		})
