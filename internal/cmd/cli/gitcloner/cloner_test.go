@@ -34,6 +34,17 @@ silO6We5JggtPJICaCCpVawmIJIx3pWMjB+StXfJHoilknkb+ecQF+ofFsUqPb9r
 Rn4jGwVFnYAeVq4tj3ECQQCyeMeCprz5AQ8HSd16Asd3zhv7N7olpb4XMIP6YZXy
 udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 -----END RSA PRIVATE KEY-----`
+		opensshPrivateKeyFile   = "opensshFile"
+		//nolint:gosec // it's only test data
+		opensshPrivateKeyFileContent = `-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNlY2RzYS
+1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQTi1hnnqv3tZiv8x+O1HkHjLXYfjRM+
+o+8aeXACDXFdqT1oALLsoeXbpjL9UZAta69KZlnpAqDJ0dnOPj5ZUaq0AAAAsLX33E2199
+xNAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOLWGeeq/e1mK/zH
+47UeQeMtdh+NEz6j7xp5cAINcV2pPWgAsuyh5dumMv1RkC1rr0pmWekCoMnR2c4+PllRqr
+QAAAAhAOZAKlM42hgAOsRnvRk/wp1mYy+raMO2p05D9BaLcD7oAAAAEXJvb3RAOTQ0YmM1
+OTIyYTI4AQIDBAUG
+-----END OPENSSH PRIVATE KEY-----`
 	)
 	var (
 		pathCalled      string
@@ -42,6 +53,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 	)
 
 	sshAuth, _ := gossh.NewPublicKeys("git", []byte(sshPrivateKeyFileContent), "")
+	opensshAuth, _ := gossh.NewPublicKeys("git", []byte(opensshPrivateKeyFileContent), "")
 	sshKeyComparer := cmp.Comparer(func(x, y gossh.PublicKeys) bool {
 		return x.User == y.User &&
 			x.Signer.PublicKey().Type() == y.Signer.PublicKey().Type() &&
@@ -63,6 +75,9 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		}
 		if name == sshPrivateKeyFile {
 			return []byte(sshPrivateKeyFileContent), nil
+		}
+		if name == opensshPrivateKeyFile {
+			return []byte(opensshPrivateKeyFileContent), nil
 		}
 		return nil, errors.New("file not found")
 	}
@@ -120,6 +135,21 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				SingleBranch:      true,
 				ReferenceName:     "master",
 				Auth:              sshAuth,
+				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+			},
+		},
+		"branch openssh auth": {
+			opts: &GitCloner{
+				Repo:              "ssh://git@localhost/test/test-repo",
+				Path:              "path",
+				Branch:            "master",
+				SSHPrivateKeyFile: opensshPrivateKeyFile,
+			},
+			expectedCloneOpts: &git.CloneOptions{
+				URL:               "ssh://git@localhost/test/test-repo",
+				SingleBranch:      true,
+				ReferenceName:     "master",
+				Auth:              opensshAuth,
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 			},
 		},

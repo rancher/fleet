@@ -60,6 +60,11 @@ func TestAddAuthToOpts(t *testing.T) {
 			expectedOpts: &apply.Options{},
 			expectedErr:  errorNotFound,
 		},
+		"Auth contains values from OpenSSH private key when provided": {
+			apply:        Apply{SSHPrivateKeyFile: "openssh_private_key_file"},
+			expectedOpts: &apply.Options{Auth: bundlereader.Auth{SSHPrivateKey: []byte("openssh_private_key_content")}},
+			expectedErr:  nil,
+		},
 	}
 
 	for name, test := range tests {
@@ -92,6 +97,8 @@ func mockReadFile(name string) ([]byte, error) {
 		return []byte(caCerts_content), nil
 	case sshPrivateKey_file:
 		return []byte(sshPrivateKey_content), nil
+	case "openssh_private_key_file":
+		return []byte("openssh_private_key_content"), nil
 	}
 
 	return nil, errorNotFound
