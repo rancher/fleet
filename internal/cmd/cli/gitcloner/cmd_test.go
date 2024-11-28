@@ -83,6 +83,28 @@ func TestArgsAreSetWithOpenSSHKey(t *testing.T) {
 	}
 }
 
+func TestArgsAreSetWithOAuthToken(t *testing.T) {
+	mock := &clonerMock{}
+	cmd := NewCmd(mock)
+	cmd.SetArgs([]string{"test-repo", "test-path", "--branch", "main", "--oauth-token", "test-token"})
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mock.opts.Repo != "test-repo" {
+		t.Fatalf("expected repo test-repo, got %v", mock.opts.Repo)
+	}
+	if mock.opts.Path != "test-path" {
+		t.Fatalf("expected path test-path, got %v", mock.opts.Path)
+	}
+	if mock.opts.Branch != "main" {
+		t.Fatalf("expected branch main, got %v", mock.opts.Branch)
+	}
+	if mock.opts.OAuthToken != "test-token" {
+		t.Fatalf("expected OAuthToken test-token, got %v", mock.opts.OAuthToken)
+	}
+}
+
 type clonerMock struct {
 	opts *GitCloner
 }
