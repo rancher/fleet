@@ -20,11 +20,27 @@ import (
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/helmupdater"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/downloader"
 	helmgetter "helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/registry"
 )
+
+var (
+	registryClient *registry.Client
+
+	fleetOciProvider = helmgetter.Provider{
+		Schemes: []string{registry.OCIScheme},
+		New:     NewFleetOCIProvider,
+	}
+)
+
+func NewFleetOCIProvider(options ...helmgetter.Option) (helmgetter.Getter, error) {
+	if registryClient == nil {
+		return nil, fmt.Errorf("oci registry client is nil")
+	}
+
+	return helmgetter.NewOCIGetter(helmgetter.WithRegistryClient(registryClient))
+}
 
 // ignoreTree represents a tree of ignored paths (read from .fleetignore files), each node being a directory.
 // It provides a means for ignored paths to be propagated down the tree, but not between subdirectories of a same
@@ -322,7 +338,6 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 
 // downloadOCIChart uses Helm to download charts from OCI based registries
 func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
-	var registryClient *registry.Client
 	var requiresLogin bool = auth.Username != "" && auth.Password != ""
 
 	url, err := url.Parse(name)
@@ -330,7 +345,17 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 		return "", err
 	}
 
-	registryClient, err = registry.NewClient()
+	temp, err := os.MkdirTemp("", "creds")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(temp)
+
+	tmpGetter := newHttpGetter(auth)
+	registryClient, err = registry.NewClient(
+		registry.ClientOptCredentialsFile(filepath.Join(temp, "creds.json")),
+		registry.ClientOptHTTPClient(tmpGetter.Client),
+	)
 	if err != nil {
 		return "", err
 	}
@@ -346,7 +371,7 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 
 		err = registryClient.Login(
 			addr,
-			registry.LoginOptInsecure(false),
+			registry.LoginOptInsecure(auth.InsecureSkipVerify),
 			registry.LoginOptBasicAuth(auth.Username, auth.Password),
 		)
 		if err != nil {
@@ -354,10 +379,17 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 		}
 	}
 
+	getterOptions := []helmgetter.Option{}
+	if auth.Username != "" && auth.Password != "" {
+		getterOptions = append(getterOptions, helmgetter.WithBasicAuth(auth.Username, auth.Password))
+	}
+	getterOptions = append(getterOptions, helmgetter.WithInsecureSkipVerifyTLS(true))
+
 	c := downloader.ChartDownloader{
 		Verify:         downloader.VerifyNever,
-		Getters:        helmgetter.All(&cli.EnvSettings{}),
+		Getters:        helmgetter.Providers{fleetOciProvider},
 		RegistryClient: registryClient,
+		Options:        getterOptions,
 	}
 
 	saved, _, err := c.DownloadTo(name, version, path)

@@ -8,6 +8,7 @@ spec:
     releaseName: testhelm
     repo: {{.Repo}}
     chart: {{.Chart}}
+    version: {{.Version}}
   namespace: {{.Namespace}}
   helmSecretName: {{.HelmSecretName}}
-  insecureSkipTLSVerify: true
+  insecureSkipTLSVerify: {{.InsecureSkipTLSVerify}}
