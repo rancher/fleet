@@ -4,8 +4,8 @@ go 1.19
 
 require (
 	github.com/rancher/wrangler/v2 v2.1.3
-	k8s.io/api v0.28.8
-	k8s.io/apimachinery v0.28.8
+	k8s.io/api v0.28.12
+	k8s.io/apimachinery v0.28.12
 )
 
 require (
