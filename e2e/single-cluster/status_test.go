@@ -15,8 +15,6 @@ import (
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 )
 
 var _ = Describe("Checks status updates happen for a simple deployment", Ordered, func() {
@@ -210,6 +208,8 @@ var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos
 
 			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
 			Expect(err).ToNot(HaveOccurred())
+		})
+		It("should have an error in the bundle", func() {
 		})
 	})
 })
