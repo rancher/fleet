@@ -41,6 +41,13 @@ entries:
 generated: 2016-10-06T16:23:20.499029981-06:00`
 )
 
+func checksumPrefix(helm *fleet.HelmOptions) string {
+	if helm == nil {
+		return "none"
+	}
+	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
+}
+
 func newTLSServer(index string, withAuth bool) *httptest.Server {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if withAuth {
@@ -244,8 +251,11 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 		srv := newTLSServer(helmRepoIndex, c.requiresAuth)
 		defer srv.Close()
 
+		resourcePrefix := ""
 		if c.bd.Spec.Options.Helm != nil {
 			c.bd.Spec.Options.Helm.Repo = strings.Replace(c.bd.Spec.Options.Helm.Repo, "##URL##", srv.URL, -1)
+			// resource names have a prefix that depends on helm options
+			resourcePrefix = checksumPrefix(c.bd.Spec.Options.Helm)
 		}
 		// change the url in the error in case it is present
 		c.expectedError = strings.Replace(c.expectedError, "##URL##", srv.URL, -1)
@@ -263,7 +273,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 				// find the resource in the expected ones
 				found := false
 				for _, r := range manifest.Resources {
-					if expectedRes.Name == r.Name {
+					if fmt.Sprintf("%s/%s", resourcePrefix, expectedRes.Name) == r.Name {
 						found = true
 						assert.Equal(expectedRes.Content, r.Content)
 					}
@@ -278,7 +288,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 				// find the resource in the expected ones
 				found := false
 				for _, expectedRes := range c.expectedResources {
-					if expectedRes.Name == r.Name {
+					if fmt.Sprintf("%s/%s", resourcePrefix, expectedRes.Name) == r.Name {
 						found = true
 						assert.Equal(expectedRes.Content, r.Content)
 					}
