@@ -322,7 +322,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				TTL: &metav1.Duration{Duration: durations.ClusterImportTokenTTL},
 			},
 		})
-		logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeueing)", cluster.Namespace, cluster.Name, err)
+		logrus.Debugf("Failed to create ClusterRegistrationToken for cluster %s/%s: %v (requeuing)", cluster.Namespace, cluster.Name, err)
 		i.clusters.EnqueueAfter(cluster.Namespace, cluster.Name, durations.TokenClusterEnqueueDelay)
 		return status, nil
 	}
