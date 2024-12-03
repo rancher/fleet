@@ -1,6 +1,7 @@
 package singlecluster_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -8,13 +9,16 @@ import (
 	"path"
 	"strings"
 
-	"github.com/go-git/go-git/v5"
+	// "github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	corev1 "k8s.io/api/core/v1"
 )
 
 var _ = Describe("Checks status updates happen for a simple deployment", Ordered, func() {
@@ -115,13 +119,13 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 	})
 })
 
-var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos", Label("infra-setup"), func() {
+var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos", Ordered, Label("infra-setup"), func() {
 	var (
-		tmpDir           string
-		clonedir         string
-		k                kubectl.Command
-		gh               *githelper.Git
-		clone            *git.Repository
+		tmpDir   string
+		cloneDir string
+		k        kubectl.Command
+		gh       *githelper.Git
+		// clone            *git.Repository
 		repoName         string
 		inClusterRepoURL string
 		gitrepoName      string
@@ -131,6 +135,7 @@ var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
+		repoName = "repo"
 	})
 
 	JustBeforeEach(func() {
@@ -145,9 +150,25 @@ var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos
 		inClusterRepoURL = gh.GetInClusterURL(host, port, repoName)
 
 		tmpDir, _ = os.MkdirTemp("", "fleet-")
-		clonedir = path.Join(tmpDir, repoName)
+		cloneDir = path.Join(tmpDir, repoName)
 
 		gitrepoName = testenv.RandomFilename("status-test", r)
+
+		_, err = gh.Create(cloneDir, testenv.AssetPath("status/chart-with-template-vars"), "examples")
+		Expect(err).ToNot(HaveOccurred())
+
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("status/gitrepo.yaml"), struct {
+			Name            string
+			Repo            string
+			Branch          string
+			TargetNamespace string
+		}{
+			gitrepoName,
+			inClusterRepoURL,
+			gh.Branch,
+			targetNamespace, // to avoid conflicts with other tests
+		})
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -181,35 +202,90 @@ var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos
 			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
 		))
 
-		_, err = k.Delete("ns", targetNamespace, "--wait=false")
-		Expect(err).ToNot(HaveOccurred())
+		// Deleting the targetNamespace is not necessary when the GitRepo did not successfully
+		// render, as in a few test cases here. It even fails
+		k.Delete("ns", targetNamespace)
 	})
+
+	expectNoError := func(g Gomega, conditions []genericcondition.GenericCondition) {
+		for _, condition := range conditions {
+			if condition.Type == string(fleet.Ready) {
+				g.Expect(condition.Status).To(Equal(corev1.ConditionTrue))
+				g.Expect(condition.Message).To(BeEmpty())
+				break
+			}
+		}
+	}
+
+	expectTargetingError := func(g Gomega, conditions []genericcondition.GenericCondition) {
+		found := false
+		for _, condition := range conditions {
+			if condition.Type == string(fleet.Ready) {
+				g.Expect(condition.Status).To(Equal(corev1.ConditionFalse))
+				g.Expect(condition.Message).To(ContainSubstring("Targeting error"))
+				g.Expect(condition.Message).To(
+					ContainSubstring(
+						"<.ClusterLabels.foo>: map has no entry for key \"foo\""))
+				found = true
+				break
+			}
+		}
+		g.Expect(found).To(BeTrue())
+	}
+
+	ensureClusterHasLabel := func() (string, error) {
+		return k.Namespace("fleet-local").
+			Patch("cluster", "local", "--type", "json", "--patch",
+				`[{"op": "add", "path": "/metadata/labels/foo", "value": "bar"}]`)
+	}
+
+	ensureClusterHasntLabel := func() (string, error) {
+		return k.Namespace("fleet-local").
+			Patch("cluster", "local", "--type", "json", "--patch",
+				`[{"op": "remove", "path": "/metadata/labels/foo"}]`)
+	}
 
 	When("a git repository is created that contains a template error", func() {
 		BeforeEach(func() {
-			repoName = "repo"
 			targetNamespace = testenv.NewNamespaceName("target", r)
 		})
-		JustBeforeEach(func() {
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("single-cluster/gitrepo-with-template-vars.yaml"), struct {
-				Name            string
-				Repo            string
-				Branch          string
-				PollingInterval string
-				TargetNamespace string
-			}{
-				gitrepoName,
-				inClusterRepoURL,
-				gh.Branch,
-				"15s",           // default
-				targetNamespace, // to avoid conflicts with other tests
-			})
-			Expect(err).ToNot(HaveOccurred())
 
-			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-			Expect(err).ToNot(HaveOccurred())
-		})
 		It("should have an error in the bundle", func() {
+			ensureClusterHasntLabel()
+			Eventually(func(g Gomega) {
+				status := getBundleStatus(g, k, gitrepoName+"-examples")
+				expectTargetingError(g, status.Conditions)
+			}).Should(Succeed())
+		})
+
+		It("should have an error in the gitrepo", func() {
+			ensureClusterHasntLabel()
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(g, k, gitrepoName)
+				expectTargetingError(g, status.Conditions)
+			}).Should(Succeed())
+		})
+	})
+
+	When("a git repository is created that contains no template error", func() {
+		It("should have no error in the bundle", func() {
+			ensureClusterHasLabel()
+			Eventually(func(g Gomega) {
+				status := getBundleStatus(g, k, gitrepoName+"-examples")
+				expectNoError(g, status.Conditions)
+			}).Should(Succeed())
 		})
 	})
 })
+
+// getGitRepoStatus retrieves the status of the gitrepo with the provided name.
+func getBundleStatus(g Gomega, k kubectl.Command, name string) fleet.BundleStatus {
+	gr, err := k.Get("bundle", name, "-o=json")
+
+	g.Expect(err).ToNot(HaveOccurred())
+
+	var bundle fleet.Bundle
+	_ = json.Unmarshal([]byte(gr), &bundle)
+
+	return bundle.Status
+}

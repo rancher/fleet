@@ -1,13 +1,11 @@
 kind: GitRepo
 apiVersion: fleet.cattle.io/v1alpha1
 metadata:
-  name: my-repo
+  name: {{.Name}}
   namespace: fleet-local
 spec:
   repo: {{.Repo}}
   branch: {{.Branch}}
-  clientSecretName: {{.ClientSecretName}}
-  # insecureSkipTLSVerify: true
   targetNamespace: {{.TargetNamespace}}
   paths:
-  - simple
+  - examples
