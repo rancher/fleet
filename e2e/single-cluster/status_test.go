@@ -9,7 +9,6 @@ import (
 	"path"
 	"strings"
 
-	// "github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -125,7 +124,6 @@ var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos
 		cloneDir string
 		k        kubectl.Command
 		gh       *githelper.Git
-		// clone            *git.Repository
 		repoName         string
 		inClusterRepoURL string
 		gitrepoName      string
@@ -233,13 +231,13 @@ var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos
 		g.Expect(found).To(BeTrue())
 	}
 
-	ensureClusterHasLabel := func() (string, error) {
+	ensureClusterHasLabelFoo := func() (string, error) {
 		return k.Namespace("fleet-local").
 			Patch("cluster", "local", "--type", "json", "--patch",
 				`[{"op": "add", "path": "/metadata/labels/foo", "value": "bar"}]`)
 	}
 
-	ensureClusterHasntLabel := func() (string, error) {
+	ensureClusterHasNoLabelFoo := func() (string, error) {
 		return k.Namespace("fleet-local").
 			Patch("cluster", "local", "--type", "json", "--patch",
 				`[{"op": "remove", "path": "/metadata/labels/foo"}]`)
@@ -251,7 +249,7 @@ var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos
 		})
 
 		It("should have an error in the bundle", func() {
-			ensureClusterHasntLabel()
+			ensureClusterHasNoLabelFoo()
 			Eventually(func(g Gomega) {
 				status := getBundleStatus(g, k, gitrepoName+"-examples")
 				expectTargetingError(g, status.Conditions)
@@ -259,7 +257,7 @@ var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos
 		})
 
 		It("should have an error in the gitrepo", func() {
-			ensureClusterHasntLabel()
+			ensureClusterHasNoLabelFoo()
 			Eventually(func(g Gomega) {
 				status := getGitRepoStatus(g, k, gitrepoName)
 				expectTargetingError(g, status.Conditions)
@@ -269,7 +267,7 @@ var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos
 
 	When("a git repository is created that contains no template error", func() {
 		It("should have no error in the bundle", func() {
-			ensureClusterHasLabel()
+			ensureClusterHasLabelFoo()
 			Eventually(func(g Gomega) {
 				status := getBundleStatus(g, k, gitrepoName+"-examples")
 				expectNoError(g, status.Conditions)
