@@ -65,7 +65,7 @@ require (
 	k8s.io/utils v0.0.0-20240902221715-702e33fdd3c3
 	oras.land/oras-go/v2 v2.5.0
 	sigs.k8s.io/cli-utils v0.37.2
-	sigs.k8s.io/controller-runtime v0.19.2
+	sigs.k8s.io/controller-runtime v0.19.3
 	sigs.k8s.io/controller-tools v0.16.5
 	sigs.k8s.io/kustomize/api v0.17.2
 	sigs.k8s.io/kustomize/kyaml v0.17.1
@@ -116,7 +116,6 @@ require (
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
