@@ -38,7 +38,7 @@ require (
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.60.1
 	github.com/rancher/fleet/pkg/apis v0.11.0
-	github.com/rancher/lasso v0.0.0-20241115003608-cbc3210bd004
+	github.com/rancher/lasso v0.0.0-20241202185148-04649f379358
 	github.com/rancher/wrangler/v3 v3.1.0
 	github.com/reugn/go-quartz v0.13.0
 	github.com/sirupsen/logrus v1.9.3
