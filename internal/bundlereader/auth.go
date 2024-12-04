@@ -8,6 +8,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type Auth struct {
+	Username           string `json:"username,omitempty"`
+	Password           string `json:"password,omitempty"`
+	CABundle           []byte `json:"caBundle,omitempty"`
+	SSHPrivateKey      []byte `json:"sshPrivateKey,omitempty"`
+	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"`
+}
+
 func ReadHelmAuthFromSecret(ctx context.Context, c client.Client, req types.NamespacedName) (Auth, error) {
 	if req.Name == "" {
 		return Auth{}, nil

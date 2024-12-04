@@ -15,7 +15,7 @@ import (
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-var _ = Describe("GitRepo Status Fields", func() {
+var _ = Describe("HelmApp Status Fields", func() {
 	var (
 		helmapp *fleet.HelmApp
 		bd      *fleet.BundleDeployment
@@ -72,10 +72,10 @@ var _ = Describe("GitRepo Status Fields", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			bd = &v1alpha1.BundleDeployment{}
-			Eventually(func() bool {
-				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
-				return err == nil
-			}).Should(BeTrue())
+			Eventually(func(g Gomega) {
+				nsName := types.NamespacedName{Namespace: namespace, Name: "name"}
+				g.Expect(k8sClient.Get(ctx, nsName, bd)).ToNot(HaveOccurred())
+			}).Should(Succeed())
 		})
 
 		It("updates the status fields", func() {

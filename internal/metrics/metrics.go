@@ -48,7 +48,7 @@ func RegisterGitOptsMetrics() {
 func RegisterHelmOpsMetrics() {
 	enabled = true
 
-	GitRepoCollector.Register()
+	HelmCollector.Register()
 }
 
 // CollectorCollection implements the generic methods `Delete` and `Register`
