@@ -12,6 +12,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -206,12 +207,24 @@ func (r StatusReconciler) setReadyStatusFromBundle(ctx context.Context, gitrepo 
 		if bundle.Status.Conditions == nil {
 			continue
 		}
+
+		newConditions := make([]genericcondition.GenericCondition, 0, len(gitrepo.Status.Conditions))
 		for _, condition := range bundle.Status.Conditions {
 			if condition.Type == string(fleet.Ready) && condition.Status == v1.ConditionFalse {
-				gitrepo.Status.Conditions = bundle.Status.Conditions
-				break
+				// Only replace the ready condition
+				for _, c := range newConditions {
+					if c.Type == string(fleet.Ready) {
+						c.Status = v1.ConditionFalse
+						c.Message = condition.Message
+
+						newConditions = append(newConditions, c)
+						break
+					}
+					newConditions = append(newConditions, c)
+				}
 			}
 		}
+		gitrepo.Status.Conditions = newConditions
 	}
 	return nil
 }
