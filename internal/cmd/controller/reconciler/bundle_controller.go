@@ -259,7 +259,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	updateDisplay(&bundle.Status)
-	r.updateStatus(ctx, bundleOrig, bundle)
+	err = r.updateStatus(ctx, bundleOrig, bundle)
 
 	return ctrl.Result{}, err
 }
