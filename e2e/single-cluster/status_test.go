@@ -202,7 +202,7 @@ var _ = Describe("Checks that template errors are shown in bundles and gitrepos"
 
 		// Deleting the targetNamespace is not necessary when the GitRepo did not successfully
 		// render, as in a few test cases here. It even fails
-		k.Delete("ns", targetNamespace)
+		_, _ = k.Delete("ns", targetNamespace)
 	})
 
 	expectNoError := func(g Gomega, conditions []genericcondition.GenericCondition) {
@@ -249,7 +249,7 @@ var _ = Describe("Checks that template errors are shown in bundles and gitrepos"
 		})
 
 		It("should have an error in the bundle", func() {
-			ensureClusterHasNoLabelFoo()
+			_, _ = ensureClusterHasNoLabelFoo()
 			Eventually(func(g Gomega) {
 				status := getBundleStatus(g, k, gitrepoName+"-examples")
 				expectTargetingError(g, status.Conditions)
@@ -257,7 +257,7 @@ var _ = Describe("Checks that template errors are shown in bundles and gitrepos"
 		})
 
 		It("should have an error in the gitrepo", func() {
-			ensureClusterHasNoLabelFoo()
+			_, _ = ensureClusterHasNoLabelFoo()
 			Eventually(func(g Gomega) {
 				status := getGitRepoStatus(g, k, gitrepoName)
 				expectTargetingError(g, status.Conditions)
@@ -267,7 +267,7 @@ var _ = Describe("Checks that template errors are shown in bundles and gitrepos"
 
 	When("a git repository is created that contains no template error", func() {
 		It("should have no error in the bundle", func() {
-			ensureClusterHasLabelFoo()
+			_, _ = ensureClusterHasLabelFoo()
 			Eventually(func(g Gomega) {
 				status := getBundleStatus(g, k, gitrepoName+"-examples")
 				expectNoError(g, status.Conditions)
