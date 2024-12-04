@@ -118,12 +118,12 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 	})
 })
 
-var _ = FDescribe("Checks that template errors are shown in bundles and gitrepos", Ordered, Label("infra-setup"), func() {
+var _ = Describe("Checks that template errors are shown in bundles and gitrepos", Ordered, Label("infra-setup"), func() {
 	var (
-		tmpDir   string
-		cloneDir string
-		k        kubectl.Command
-		gh       *githelper.Git
+		tmpDir           string
+		cloneDir         string
+		k                kubectl.Command
+		gh               *githelper.Git
 		repoName         string
 		inClusterRepoURL string
 		gitrepoName      string
