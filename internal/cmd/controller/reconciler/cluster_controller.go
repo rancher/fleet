@@ -152,7 +152,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	toDeleteBundles := indexByNamespacedName(cleanup)
 
-	// Delete BundleDeployments for to Bundles being removed while getting a filtered items list
+	// Delete BundleDeployments for Bundles being removed while getting a filtered items list
 	bundleDeployments.Items = slices.DeleteFunc(bundleDeployments.Items, func(bd fleet.BundleDeployment) bool {
 		bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
 		bundleName := bd.Labels[fleet.BundleLabel]
