@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -162,10 +161,6 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			if err := r.Delete(ctx, &bd); err != nil {
 				logger.V(1).Info("deleting bundleDeployment returned an error", "error", err)
 			}
-			return true
-		}
-		// Omit fleet-agent bundle deployments from resource counts
-		if strings.HasPrefix(bd.Name, "fleet-agent") {
 			return true
 		}
 		return false
