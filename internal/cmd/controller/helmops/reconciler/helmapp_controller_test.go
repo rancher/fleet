@@ -60,6 +60,7 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 			return nil
 		},
 	)
+	// expected from addFinalizer
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Update(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
@@ -177,7 +178,7 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 		},
 	)
 
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(2).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
 			return errors.NewNotFound(schema.GroupResource{}, "Not found")
 		},

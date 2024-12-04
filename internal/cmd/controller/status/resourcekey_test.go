@@ -127,7 +127,7 @@ var _ = Describe("Resourcekey", func() {
 >>>>>>>> 5719293c (Initial proposal of the new Helmops controller.):internal/cmd/controller/status/resourcekey_test.go
 
 		Expect(gitrepo.Status.Resources).To(HaveLen(2))
-		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.GitRepoResource{
+		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.Resource{
 			APIVersion: "v1",
 			Kind:       "Deployment",
 			Type:       "deployment",
@@ -152,7 +152,7 @@ var _ = Describe("Resourcekey", func() {
 				},
 			},
 		}))
-		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.GitRepoResource{
+		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.Resource{
 			APIVersion: "v1",
 			Kind:       "Service",
 			Type:       "service",

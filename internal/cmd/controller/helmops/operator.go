@@ -56,8 +56,6 @@ func App(zo *zap.Options) *cobra.Command {
 
 // HelpFunc hides the global flag from the help output
 func (c *HelmOperator) HelpFunc(cmd *cobra.Command, strings []string) {
-	_ = cmd.Flags().MarkHidden("disable-metrics")
-	_ = cmd.Flags().MarkHidden("shard-id")
 	cmd.Parent().HelpFunc()(cmd, strings)
 }
 
@@ -72,7 +70,7 @@ func (g *HelmOperator) PersistentPre(_ *cobra.Command, _ []string) error {
 
 func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
-	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("gitjob-reconciler"))
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("helmapp-reconciler"))
 
 	namespace := g.Namespace
 
@@ -128,6 +126,13 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 		Workers: workers,
 	}
 
+	configReconciler := &fcreconciler.ConfigReconciler{
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		SystemNamespace: namespace,
+		ShardID:         g.ShardID,
+	}
+
 	if err := fcreconciler.Load(ctx, mgr.GetAPIReader(), namespace); err != nil {
 		setupLog.Error(err, "failed to load config")
 		return err
@@ -135,7 +140,12 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		setupLog.Info("starting helmapp manager")
+		setupLog.Info("starting config controller")
+		if err = configReconciler.SetupWithManager(mgr); err != nil {
+			return err
+		}
+
+		setupLog.Info("starting gitops controller")
 		if err = helmAppReconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}

@@ -121,8 +121,8 @@ type BundleSpec struct {
 	ContentsID string `json:"contentsId,omitempty"`
 
 	// HelmAppOptions stores the options relative to HelmApp resources
-	// When this is not nil it means the bundle should be deployed taking a helm
-	// chart as the source for resources
+	// Non-nil HelmAppOptions indicate that the source of resources is a Helm chart,
+	// not a git repository.
 	// +nullable
 	HelmAppOptions *BundleHelmOptions `json:"helmAppOptions,omitempty"`
 }

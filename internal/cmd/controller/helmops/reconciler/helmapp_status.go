@@ -34,15 +34,15 @@ func (r *HelmAppStatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.HelmApp{}).
 		Watches(
-			// Fan out from bundle to gitrepo
+			// Fan out from bundle to HelmApp
 			&fleet.Bundle{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
-				repo := a.GetLabels()[fleet.HelmAppLabel]
-				if repo != "" {
+				app := a.GetLabels()[fleet.HelmAppLabel]
+				if app != "" {
 					return []ctrl.Request{{
 						NamespacedName: types.NamespacedName{
 							Namespace: a.GetNamespace(),
-							Name:      repo,
+							Name:      app,
 						},
 					}}
 				}
@@ -70,12 +70,11 @@ func (r *HelmAppStatusReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err := r.Get(ctx, req.NamespacedName, helmapp); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if errors.IsNotFound(err) {
-		logger.V(1).Info("HelmApp deleted, cleaning up poll jobs")
 		return ctrl.Result{}, nil
 	}
 
 	if !helmapp.DeletionTimestamp.IsZero() {
-		// the gitjob_controller will handle deletion
+		// the HelmApp controller will handle deletion
 		return ctrl.Result{}, nil
 	}
 

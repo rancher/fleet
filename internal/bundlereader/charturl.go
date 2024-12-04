@@ -14,15 +14,15 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// ChartURL returns the URL and the version to the helm chart from a helm repo server, by
+// ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func ChartURLVersion(location fleet.HelmOptions, auth Auth) (string, string, error) {
+func ChartVersion(location fleet.HelmOptions, auth Auth) (string, error) {
 	if hasOCIURL.MatchString(location.Chart) {
-		return location.Chart, location.Version, nil
+		return location.Version, nil
 	}
 
 	if location.Repo == "" {
-		return location.Chart, location.Version, nil
+		return location.Version, nil
 	}
 
 	if !strings.HasSuffix(location.Repo, "/") {
@@ -31,35 +31,55 @@ func ChartURLVersion(location fleet.HelmOptions, auth Auth) (string, string, err
 
 	chart, err := getHelmChartVersion(location, auth)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	if len(chart.URLs) == 0 {
-		return "", "", fmt.Errorf("no URLs found for chart %s %s at %s", chart.Name, chart.Version, location.Repo)
+		return "", fmt.Errorf("no URLs found for chart %s %s at %s", chart.Name, chart.Version, location.Repo)
 	}
 
-	chartURL, err := url.Parse(chart.URLs[0])
-	if err != nil {
-		return "", "", err
-	}
-
-	if chartURL.IsAbs() {
-		return chart.URLs[0], chart.Version, nil
-	}
-
-	repoURL, err := url.Parse(location.Repo)
-	if err != nil {
-		return "", "", err
-	}
-
-	return repoURL.ResolveReference(chartURL).String(), chart.Version, nil
+	return chart.Version, nil
 }
 
 // ChartURL returns the URL to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
 func ChartURL(location fleet.HelmOptions, auth Auth) (string, error) {
-	url, _, err := ChartURLVersion(location, auth)
-	return url, err
+	if hasOCIURL.MatchString(location.Chart) {
+		return location.Chart, nil
+	}
+
+	if location.Repo == "" {
+		return location.Chart, nil
+	}
+
+	if !strings.HasSuffix(location.Repo, "/") {
+		location.Repo = location.Repo + "/"
+	}
+
+	chart, err := getHelmChartVersion(location, auth)
+	if err != nil {
+		return "", err
+	}
+
+	if len(chart.URLs) == 0 {
+		return "", fmt.Errorf("no URLs found for chart %s %s at %s", chart.Name, chart.Version, location.Repo)
+	}
+
+	chartURL, err := url.Parse(chart.URLs[0])
+	if err != nil {
+		return "", err
+	}
+
+	if chartURL.IsAbs() {
+		return chart.URLs[0], nil
+	}
+
+	repoURL, err := url.Parse(location.Repo)
+	if err != nil {
+		return "", err
+	}
+
+	return repoURL.ResolveReference(chartURL).String(), nil
 }
 
 // getHelmChartVersion returns the ChartVersion struct with the information to the given location

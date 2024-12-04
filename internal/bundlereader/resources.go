@@ -22,14 +22,6 @@ import (
 
 var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
 
-type Auth struct {
-	Username           string `json:"username,omitempty"`
-	Password           string `json:"password,omitempty"`
-	CABundle           []byte `json:"caBundle,omitempty"`
-	SSHPrivateKey      []byte `json:"sshPrivateKey,omitempty"`
-	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"`
-}
-
 // readResources reads and downloads all resources from the bundle
 func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth, helmRepoURLRegex string) ([]fleet.BundleResource, error) {
 	directories, err := addDirectory(base, ".", ".")
@@ -222,7 +214,7 @@ func loadDirectories(ctx context.Context, compress bool, disableDepsUpdate bool,
 		dir := dir
 		eg.Go(func() error {
 			defer sem.Release(1)
-			resources, err := LoadDirectory(ctx, compress, disableDepsUpdate, dir.prefix, dir.base, dir.source, dir.version, dir.auth)
+			resources, err := loadDirectory(ctx, compress, disableDepsUpdate, dir.prefix, dir.base, dir.source, dir.version, dir.auth)
 			if err != nil {
 				return err
 			}

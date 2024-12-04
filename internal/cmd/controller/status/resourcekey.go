@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:internal/resourcestatus/resourcekey.go
 package resourcestatus
-========
-package status
->>>>>>>> 5719293c (Initial proposal of the new Helmops controller.):internal/cmd/controller/status/resourcekey.go
 
 import (
 	"encoding/json"
@@ -12,30 +8,16 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-<<<<<<<< HEAD:internal/resourcestatus/resourcekey.go
-func SetGitRepoResources(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) {
-	s := summaryState(gitrepo.Status.Summary)
-========
 func SetResources(list *fleet.BundleDeploymentList, status *fleet.StatusBase) {
 	s := summaryState(status.Summary)
->>>>>>>> 5719293c (Initial proposal of the new Helmops controller.):internal/cmd/controller/status/resourcekey.go
 	r, errors := fromResources(list, s)
 	status.ResourceErrors = errors
 	status.ResourceCounts = countResources(r)
 	status.Resources = merge(r)
 }
 
-func SetClusterResources(list *fleet.BundleDeploymentList, cluster *fleet.Cluster) {
-	s := summaryState(cluster.Status.Summary)
-	r, _ := fromResources(list, s)
-	cluster.Status.ResourceCounts = countResources(r)
-}
-
-// merge takes a list of GitRepo resources and deduplicates resources deployed to multiple clusters,
-// ensuring that for such resources, the output contains a single resource entry with a field summarizing
-// its status on each cluster.
-func merge(resources []fleet.GitRepoResource) []fleet.GitRepoResource {
-	merged := map[string]fleet.GitRepoResource{}
+func merge(resources []fleet.Resource) []fleet.Resource {
+	merged := map[string]fleet.Resource{}
 	for _, resource := range resources {
 		key := key(resource)
 		if existing, ok := merged[key]; ok {
@@ -46,7 +28,7 @@ func merge(resources []fleet.GitRepoResource) []fleet.GitRepoResource {
 		}
 	}
 
-	var result []fleet.GitRepoResource
+	var result []fleet.Resource
 	for _, resource := range merged {
 		result = append(result, resource)
 	}
@@ -57,7 +39,7 @@ func merge(resources []fleet.GitRepoResource) []fleet.GitRepoResource {
 	return result
 }
 
-func key(resource fleet.GitRepoResource) string {
+func key(resource fleet.Resource) string {
 	return resource.Type + "/" + resource.ID
 }
 
@@ -72,12 +54,12 @@ func summaryState(summary fleet.BundleSummary) string {
 }
 
 // fromResources inspects all bundledeployments for this GitRepo and returns a list of
-// GitRepoResources and error messages.
+// Resources and error messages.
 //
 // It populates gitrepo status resources from bundleDeployments. BundleDeployment.Status.Resources is the list of deployed resources.
-func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fleet.GitRepoResource, []string) {
+func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fleet.Resource, []string) {
 	var (
-		resources []fleet.GitRepoResource
+		resources []fleet.Resource
 		errors    []string
 	)
 
@@ -103,8 +85,8 @@ func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fle
 	return resources, errors
 }
 
-func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterState, incomplete bool, summaryState string) fleet.GitRepoResource {
-	resource := fleet.GitRepoResource{
+func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterState, incomplete bool, summaryState string) fleet.Resource {
+	resource := fleet.Resource{
 		APIVersion:      k.APIVersion,
 		Kind:            k.Kind,
 		Namespace:       k.Namespace,
@@ -143,7 +125,7 @@ func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterS
 	return resource
 }
 
-func toType(resource fleet.GitRepoResource) (string, string) {
+func toType(resource fleet.Resource) (string, string) {
 	group := strings.Split(resource.APIVersion, "/")[0]
 	if group == "v1" {
 		group = ""
@@ -246,8 +228,8 @@ func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey]
 	return bdResources
 }
 
-func countResources(resources []fleet.GitRepoResource) fleet.GitRepoResourceCounts {
-	counts := fleet.GitRepoResourceCounts{}
+func countResources(resources []fleet.Resource) fleet.ResourceCounts {
+	counts := fleet.ResourceCounts{}
 
 	for _, resource := range resources {
 		counts.DesiredReady++

@@ -181,7 +181,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 							Status: "False",
 						},
 					},
-					ResourceCounts: fleet.GitRepoResourceCounts{
+					ResourceCounts: fleet.ResourceCounts{
 						Ready:        1,
 						DesiredReady: 1,
 						WaitApplied:  0,
@@ -342,7 +342,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 							Status: "False",
 						},
 					},
-					ResourceCounts: fleet.GitRepoResourceCounts{
+					ResourceCounts: fleet.ResourceCounts{
 						Ready:        1,
 						DesiredReady: 1,
 						WaitApplied:  0,

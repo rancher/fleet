@@ -118,7 +118,6 @@ func randStringMap() map[string]string {
 }
 
 func randHelmOptions() *fleet.HelmOptions {
-	// release name "mqMitPLkEI"
 	// we always have helm options in HelmApp resources
 	h := &fleet.HelmOptions{
 		Chart:                   randString(),
@@ -325,6 +324,7 @@ var _ = Describe("HelmOps controller", func() {
 
 			DeferCleanup(func() {
 				Expect(k8sClient.Delete(ctx, nsSpec)).ToNot(HaveOccurred())
+				_ = k8sClient.Delete(ctx, &helmapp)
 			})
 		})
 		When("targets is empty", func() {
@@ -433,70 +433,6 @@ var _ = Describe("HelmOps controller", func() {
 			})
 		})
 
-		When("targets is empty and TargetCustomizations is not", func() {
-			BeforeEach(func() {
-				targets = []fleet.BundleTarget{
-					{
-						Name:         "customOne",
-						ClusterGroup: "customOneGroup",
-					},
-					{
-						Name:         "customTwo",
-						ClusterGroup: "customTwoGroup",
-					},
-				}
-				helmapp = getRandomHelmAppWithTargets("test-customizations", []fleet.BundleTarget{})
-				helmapp.Spec.TargetCustomizations = targets
-			})
-
-			It("creates a bundle with the expected spec and the customization targets", func() {
-				Eventually(func(g Gomega) {
-					bundle := &fleet.Bundle{}
-					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
-					err := k8sClient.Get(ctx, ns, bundle)
-					g.Expect(err).ToNot(HaveOccurred())
-					checkBundleIsAsExpected(g, *bundle, helmapp, targets)
-				}).Should(Succeed())
-			})
-		})
-
-		When("targets and TargetCustomizations are not empty", func() {
-			BeforeEach(func() {
-				targets = []fleet.BundleTarget{
-					{
-						Name:         "one",
-						ClusterGroup: "oneGroup",
-					},
-					{
-						Name:         "two",
-						ClusterGroup: "twoGroup",
-					},
-				}
-				helmapp = getRandomHelmAppWithTargets("test-custom2", targets)
-				helmapp.Spec.TargetCustomizations = []fleet.BundleTarget{
-					{
-						Name:         "customOne",
-						ClusterGroup: "customOneGroup",
-					},
-					{
-						Name:         "customTwo",
-						ClusterGroup: "customTwoGroup",
-					},
-				}
-			})
-
-			It("creates a bundle with the expected spec and the targets and customization merged", func() {
-				Eventually(func(g Gomega) {
-					bundle := &fleet.Bundle{}
-					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
-					err := k8sClient.Get(ctx, ns, bundle)
-					g.Expect(err).ToNot(HaveOccurred())
-					mergedTargets := append(helmapp.Spec.Targets, helmapp.Spec.TargetCustomizations...)
-					checkBundleIsAsExpected(g, *bundle, helmapp, mergedTargets)
-				}).Should(Succeed())
-			})
-		})
-
 		When("helm chart is empty", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
@@ -562,13 +498,14 @@ var _ = Describe("HelmOps controller", func() {
 			})
 		})
 
-		When("version is not specified", func() {
+		Context("version is not specified", func() {
+			var version string
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmapp = getRandomHelmAppWithTargets("test-no-version", targets)
 
 				// version is empty
-				helmapp.Spec.Helm.Version = ""
+				helmapp.Spec.Helm.Version = version
 				// reset secret, no auth is required
 				helmapp.Spec.HelmSecretName = ""
 
@@ -585,7 +522,7 @@ var _ = Describe("HelmOps controller", func() {
 				helmapp.Spec.Helm.Chart = "alpine"
 			})
 
-			It("creates a bundle with the latest version it got from the index", func() {
+			bundleCreatedWithLatestVersion := func() {
 				Eventually(func(g Gomega) {
 					bundle := &fleet.Bundle{}
 					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
@@ -605,9 +542,9 @@ var _ = Describe("HelmOps controller", func() {
 					helmapp.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmapp, t)
 				}).Should(Succeed())
-			})
+			}
 
-			It("uses the version specified if later the user sets it", func() {
+			usesVersionSpecified := func() {
 				Eventually(func(g Gomega) {
 					bundle := &fleet.Bundle{}
 					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
@@ -651,6 +588,22 @@ var _ = Describe("HelmOps controller", func() {
 					helmapp.Spec.Helm.Version = "0.1.0"
 					checkBundleIsAsExpected(g, *bundle, helmapp, t)
 				}).Should(Succeed())
+			}
+
+			When("version is empty", func() {
+				BeforeEach(func() {
+					version = ""
+				})
+				It("creates a bundle with the latest version it got from the index", bundleCreatedWithLatestVersion)
+				It("uses the version specified if later the user sets it", usesVersionSpecified)
+			})
+
+			When("version is *", func() {
+				BeforeEach(func() {
+					version = "*"
+				})
+				It("creates a bundle with the latest version it got from the index", bundleCreatedWithLatestVersion)
+				It("uses the version specified if later the user sets it", usesVersionSpecified)
 			})
 		})
 

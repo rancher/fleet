@@ -1,3 +1,4 @@
+{{- if has (dict "name" "EXPERIMENTAL_HELM_OPS" "value" "true") .Values.extraEnv }}
 {{- $shards := list (dict "id" "" "nodeSelector" dict) -}}
 {{- $uniqueShards := list -}}
 {{- if .Values.shards -}}
@@ -10,7 +11,6 @@
 {{- end -}}
 
 {{ range $shard := $shards }}
-{{- if has (dict "name" "EXPERIMENTAL_HELM_OPS" "value" "true") $.Values.extraEnv }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -126,6 +126,6 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-{{- end }}
 ---
+{{- end }}
 {{- end }}

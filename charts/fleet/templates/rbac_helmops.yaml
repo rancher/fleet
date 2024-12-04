@@ -41,7 +41,7 @@ rules:
     resources:
       - 'events'
     verbs:
-      - '*'
+      - "create"
   - apiGroups:
       - ""
     resources:

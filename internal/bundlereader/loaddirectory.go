@@ -182,7 +182,7 @@ func readFleetIgnore(path string) ([]string, error) {
 	return ignored, nil
 }
 
-func LoadDirectory(ctx context.Context, compress bool, disableDepsUpdate bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
+func loadDirectory(ctx context.Context, compress bool, disableDepsUpdate bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
 	files, err := GetContent(ctx, base, source, version, auth, disableDepsUpdate)
@@ -431,15 +431,14 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
 		}
 		httpGetter.Client.Transport = transport
-	} else {
-		if auth.InsecureSkipVerify {
-			transport := http.DefaultTransport.(*http.Transport).Clone()
-			transport.TLSClientConfig = &tls.Config{
-				InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
-			}
-			httpGetter.Client.Transport = transport
+	} else if auth.InsecureSkipVerify {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
 		}
+		httpGetter.Client.Transport = transport
 	}
+
 	return httpGetter
 }
 

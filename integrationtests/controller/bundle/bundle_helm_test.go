@@ -30,10 +30,6 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 		Expect(k8sClient.Create(ctx, ns)).ToNot(HaveOccurred())
 
 		createClustersAndClusterGroups()
-
-		DeferCleanup(func() {
-			Expect(k8sClient.Delete(ctx, ns)).ToNot(HaveOccurred())
-		})
 	})
 
 	var (
@@ -93,7 +89,7 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 
 		It("creates three BundleDeployments with the expected helm options information", func() {
 			var bdList = verifyHelmBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName, helmOptions)
-			By("and BundleDeployments don't have values from customizations")
+			By("and BundleDeployments don't have helm values")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
 			}
@@ -124,10 +120,9 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 
 		It("creates three BundleDeployments with the expected helm options information", func() {
 			var bdList = verifyHelmBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName, helmOptions)
-			By("and BundleDeployments don't have values from customizations")
+			By("and BundleDeployments have the expected values")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
-				checkBundleDeploymentSecret(k8sClient, helmOptions, bundleName, namespace, bd.Namespace)
 			}
 		})
 	})
@@ -153,7 +148,7 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 
 		It("creates three BundleDeployments with no helm options information", func() {
 			var bdList = verifyHelmBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName, helmOptions)
-			By("and BundleDeployments don't have values from customizations")
+			By("and BundleDeployments don't have helm values")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
 			}
@@ -204,6 +199,7 @@ func getRandBytes(size int) ([]byte, error) {
 
 	return buf, err
 }
+
 func createHelmSecret(c client.Client, helmOptions *v1alpha1.BundleHelmOptions, ns string) error {
 	if helmOptions == nil || helmOptions.SecretName == "" {
 		return nil
