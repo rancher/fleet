@@ -8,8 +8,8 @@ type FleetYAML struct {
 	Name string `json:"name,omitempty"`
 	// Labels are copied to the bundle and can be used in a
 	// dependsOn.selector.
-	Labels     map[string]string `json:"labels,omitempty"`
-	BundleSpec `json:",inline"`
+	Labels map[string]string `json:"labels,omitempty"`
+	BundleSpec
 	// TargetCustomizations are used to determine how resources should be
 	// modified per target. Targets are evaluated in order and the first
 	// one to match a cluster is used for that cluster.

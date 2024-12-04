@@ -51,10 +51,6 @@ type HelmAppSpec struct {
 	// Labels are copied to the bundle and can be used in a
 	// dependsOn.selector.
 	Labels map[string]string `json:"labels,omitempty"`
-	// TargetCustomizations are used to determine how resources should be
-	// modified per target. Targets are evaluated in order and the first
-	// one to match a cluster is used for that cluster.
-	TargetCustomizations []BundleTarget `json:"targetCustomizations,omitempty"`
 	// HelmSecretName contains the auth secret with the credentials to access
 	// a private Helm repository.
 	// +nullable
@@ -69,17 +65,4 @@ type HelmAppStatus struct {
 	// When using * or empty version in the spec we get the latest version from
 	// the helm repository when possible
 	Version string `json:"version,omitempty"`
-}
-
-type HelmAppDisplay struct {
-	// ReadyBundleDeployments is a string in the form "%d/%d", that describes the
-	// number of ready bundledeployments over the total number of bundledeployments.
-	ReadyBundleDeployments string `json:"readyBundleDeployments,omitempty"`
-	// State is the state of the GitRepo, e.g. "GitUpdating" or the maximal
-	// BundleState according to StateRank.
-	State string `json:"state,omitempty"`
-	// Message contains the relevant message from the deployment conditions.
-	Message string `json:"message,omitempty"`
-	// Error is true if a message is present.
-	Error bool `json:"error,omitempty"`
 }

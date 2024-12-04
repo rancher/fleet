@@ -157,10 +157,10 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// This is to avoid intentional or accidental deployment of bundles with no
 	// resources or not well defined.
 	if bundle.Spec.HelmAppOptions != nil && !experimentalHelmOpsEnabled() {
-		return ctrl.Result{}, fmt.Errorf("Bundle contains data used by helm ops but env variable EXPERIMENTAL_HELM_OPS is not set to true")
+		return ctrl.Result{}, fmt.Errorf("bundle contains data used by helm ops but env variable EXPERIMENTAL_HELM_OPS is not set to true")
 	}
 	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
-	contentsInHelmChart := bundle.Spec.HelmAppOptions != nil && experimentalHelmOpsEnabled()
+	contentsInHelmChart := bundle.Spec.HelmAppOptions != nil
 	manifestID := bundle.Spec.ContentsID
 	var resourcesManifest *manifest.Manifest
 	if !contentsInOCI && !contentsInHelmChart {
@@ -235,14 +235,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			logger,
 			target,
 			contentsInOCI,
-			contentsInHelmChart,
 			bundle.Spec.HelmAppOptions,
 			manifestID)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		if err := r.deploymentSecretHandling(ctx, bundle, bd); err != nil {
+		if err := r.handleDeploymentSecret(ctx, bundle, bd); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -340,7 +339,6 @@ func (r *BundleReconciler) createBundleDeployment(
 	logger logr.Logger,
 	target *target.Target,
 	contentsInOCI bool,
-	contentsInHelmChart bool,
 	helmAppOptions *fleet.BundleHelmOptions,
 	manifestID string,
 ) (*fleet.BundleDeployment, error) {
@@ -388,6 +386,7 @@ func (r *BundleReconciler) createBundleDeployment(
 		logger.Error(err, "Reconcile failed to add content finalizer", "content ID", manifestID)
 	}
 
+	contentsInHelmChart := helmAppOptions != nil
 	updated := bd.DeepCopy()
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
 		// When this mutation function is called by CreateOrUpdate, bd contains the
@@ -482,7 +481,7 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 	return fmt.Sprintf("oci://%s/%s:latest", string(ref), bundle.Spec.ContentsID), nil
 }
 
-func (r *BundleReconciler) deploymentSecretHandling(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
+func (r *BundleReconciler) handleDeploymentSecret(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
 	if bd == nil {
 		return nil
 	}

@@ -62,7 +62,7 @@ func Increment(left *fleet.BundleSummary, right fleet.BundleSummary) {
 	}
 }
 
-func IncrementResourceCounts(left *fleet.GitRepoResourceCounts, right fleet.GitRepoResourceCounts) {
+func IncrementResourceCounts(left *fleet.ResourceCounts, right fleet.ResourceCounts) {
 	left.Ready += right.Ready
 	left.DesiredReady += right.DesiredReady
 	left.WaitApplied += right.WaitApplied

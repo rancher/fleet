@@ -143,8 +143,8 @@ type ClusterStatus struct {
 
 	// Summary is a summary of the bundledeployments.
 	Summary BundleSummary `json:"summary,omitempty"`
-	// ResourceCounts is an aggregate over the GitRepoResourceCounts.
-	ResourceCounts GitRepoResourceCounts `json:"resourceCounts,omitempty"`
+	// ResourceCounts is an aggregate over the ResourceCounts.
+	ResourceCounts ResourceCounts `json:"resourceCounts,omitempty"`
 	// ReadyGitRepos is the number of gitrepos for this cluster that are ready.
 	// +optional
 	ReadyGitRepos int `json:"readyGitRepos"`

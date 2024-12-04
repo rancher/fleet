@@ -1,6 +1,9 @@
 package bundlereader_test
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -9,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -25,6 +29,7 @@ import (
 const (
 	authUsername  = "holadonpepito"
 	authPassword  = "holadonjose"
+	chartName     = "sleeper-chart"
 	helmRepoIndex = `apiVersion: v1
 entries:
   sleeper:
@@ -39,6 +44,41 @@ entries:
       - https://##URL##/sleeper-chart-0.1.0.tgz
       version: 0.1.0
 generated: 2016-10-06T16:23:20.499029981-06:00`
+
+	chartYAML = `apiVersion: v2
+appVersion: 1.16.0
+description: A test chart
+name: sleeper-chart
+type: application
+version: 0.1.0`
+
+	values = `replicaCount: 1`
+
+	deployment = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sleeper
+  labels:
+    fleet: testing
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: sleeper
+  template:
+    metadata:
+      labels:
+        app: sleeper
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          command:
+            - sleep
+            - 7d
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "rancher/mirrored-library-busybox:1.34.1"
+          imagePullPolicy: IfNotPresent`
 )
 
 func checksumPrefix(helm *fleet.HelmOptions) string {
@@ -46,6 +86,107 @@ func checksumPrefix(helm *fleet.HelmOptions) string {
 		return "none"
 	}
 	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
+}
+
+func createChartDir(dir string) error {
+	// create the chart directories and copy the files
+	chartDir := filepath.Join(dir, chartName)
+	if err := os.Mkdir(chartDir, 0755); err != nil {
+		return err
+	}
+
+	templatesDir := filepath.Join(chartDir, "templates")
+	if err := os.Mkdir(templatesDir, 0755); err != nil {
+		return err
+	}
+	if err := createFileFromString(chartDir, "Chart.yaml", chartYAML); err != nil {
+		return err
+	}
+	if err := createFileFromString(chartDir, "values.yaml", values); err != nil {
+		return err
+	}
+	if err := createFileFromString(templatesDir, "deployment.yaml", deployment); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func compressFolder(src string, buf io.Writer) error {
+	zr := gzip.NewWriter(buf)
+	defer zr.Close()
+	tw := tar.NewWriter(zr)
+	defer tw.Close()
+
+	return filepath.Walk(src, func(file string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		header, err := tar.FileInfoHeader(fi, file)
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(src, file)
+		if err != nil {
+			return err
+		}
+		header.Name = filepath.ToSlash(relPath)
+
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		if !fi.IsDir() {
+			data, err := os.Open(file)
+			if err != nil {
+				return err
+			}
+			defer data.Close()
+
+			_, err = io.Copy(tw, data)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func createFileFromString(dir, fileName, data string) error {
+	path := filepath.Join(dir, fileName)
+	return os.WriteFile(path, []byte(data), 0644)
+}
+
+func createHelmChartGZIP() (string, string, error) {
+	temp, err := os.MkdirTemp("", "charts_tmp")
+	if err != nil {
+		return "", "", err
+	}
+	defer os.RemoveAll(temp)
+
+	if err := createChartDir(temp); err != nil {
+		return "", "", err
+	}
+
+	var buf bytes.Buffer
+	if err := compressFolder(temp, &buf); err != nil {
+		return "", "", err
+	}
+
+	finalDir, err := os.MkdirTemp("", "chart")
+	if err != nil {
+		return "", "", err
+	}
+
+	gzipPath := filepath.Join(finalDir, "sleeper-chart-0.1.0.tgz")
+	err = os.WriteFile(gzipPath, buf.Bytes(), os.ModePerm)
+	if err != nil {
+		return finalDir, "", err
+	}
+
+	return finalDir, gzipPath, nil
 }
 
 func newTLSServer(index string, withAuth bool) *httptest.Server {
@@ -74,13 +215,18 @@ func newTLSServer(index string, withAuth bool) *httptest.Server {
 			index = strings.Replace(index, "##URL##", r.Host, -1)
 			fmt.Fprint(w, index)
 		} else if r.URL.Path == "/sleeper-chart-0.1.0.tgz" {
-			// chartContents, err := os.ReadFile("assets/sleeper-chart-0.1.0.tgz")
-			// if err != nil {
-			// 	fmt.Fprint(w, err.Error())
-			// } else {
-			// 	fmt.Fprint(w, chartContents)
-			// }
-			f, err := os.Open("assets/sleeper-chart-0.1.0.tgz")
+			dir, chartPath, err := createHelmChartGZIP()
+			if dir != "" {
+				defer os.RemoveAll(dir)
+			}
+
+			if err != nil {
+				fmt.Printf("%v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprint(w, err.Error())
+				return
+			}
+			f, err := os.Open(chartPath)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				fmt.Fprint(w, err.Error())
@@ -133,7 +279,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 						Helm: &fleet.HelmOptions{},
 					},
 					HelmChartOptions: &fleet.BundleHelmOptions{
-						SecretName: "secretdoesnotexist",
+						SecretName: "invalid-secret",
 					},
 				},
 			},
@@ -222,15 +368,15 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 			expectedResources: []fleet.BundleResource{
 				{
 					Name:    "sleeper-chart/templates/deployment.yaml",
-					Content: "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: sleeper\n  labels:\n    fleet: testing\nspec:\n  replicas: {{ .Values.replicaCount }}\n  selector:\n    matchLabels:\n      app: sleeper\n  template:\n    metadata:\n      {{- with .Values.podAnnotations }}\n      annotations:\n        {{- toYaml . | nindent 8 }}\n      {{- end }}\n      labels:\n        app: sleeper\n    spec:\n      {{- with .Values.imagePullSecrets }}\n      imagePullSecrets:\n        {{- toYaml . | nindent 8 }}\n      {{- end }}\n      securityContext:\n        {{- toYaml .Values.podSecurityContext | nindent 8 }}\n      containers:\n        - name: {{ .Chart.Name }}\n          command:\n            - sleep\n            - 7d\n          securityContext:\n            {{- toYaml .Values.securityContext | nindent 12 }}\n          image: \"{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}\"\n          imagePullPolicy: {{ .Values.image.pullPolicy }}\n      {{- with .Values.nodeSelector }}\n      nodeSelector:\n        {{- toYaml . | nindent 8 }}\n      {{- end }}\n      {{- with .Values.affinity }}\n      affinity:\n        {{- toYaml . | nindent 8 }}\n      {{- end }}\n      {{- with .Values.tolerations }}\n      tolerations:\n        {{- toYaml . | nindent 8 }}\n      {{- end }}\n",
+					Content: deployment,
 				},
 				{
 					Name:    "sleeper-chart/values.yaml",
-					Content: "replicaCount: 1\n\nimage:\n  repository: rancher/mirrored-library-busybox\n  pullPolicy: IfNotPresent\n  tag: \"1.34.1\"\n\nimagePullSecrets: []\n\npodAnnotations: {}\n\npodSecurityContext: {}\nsecurityContext: {}\n\nnodeSelector: {}\ntolerations: []\naffinity: {}\n",
+					Content: values,
 				},
 				{
 					Name:    "sleeper-chart/Chart.yaml",
-					Content: "apiVersion: v2\nappVersion: 1.16.0\ndescription: A test chart\nname: sleeper-chart\ntype: application\nversion: 0.1.0\n",
+					Content: chartYAML,
 				},
 			},
 			expectedErrNotNil: false,
