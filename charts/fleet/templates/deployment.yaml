@@ -69,6 +69,18 @@ spec:
         - name: BUNDLEDEPLOYMENT_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.bundledeployment }}
         {{- end }}
+        {{- if $.Values.controller.reconciler.workers.cluster }}
+        - name: CLUSTER_RECONCILER_WORKERS
+          value: {{ quote $.Values.controller.reconciler.workers.cluster }}
+        {{- end }}
+        {{- if $.Values.controller.reconciler.workers.clustergroup }}
+        - name: CLUSTERGROUP_RECONCILER_WORKERS
+          value: {{ quote $.Values.controller.reconciler.workers.clustergroup }}
+        {{- end }}
+        {{- if $.Values.controller.reconciler.workers.imagescan }}
+        - name: IMAGESCAN_RECONCILER_WORKERS
+          value: {{ quote $.Values.controller.reconciler.workers.imagescan }}
+        {{- end }}
 {{- if $.Values.extraEnv }}
 {{ toYaml $.Values.extraEnv | indent 8}}
 {{- end }}
@@ -127,18 +139,6 @@ spec:
         {{- if $.Values.leaderElection.renewDeadline }}
         - name: CATTLE_ELECTION_RENEW_DEADLINE
           value: {{$.Values.leaderElection.renewDeadline}}
-        {{- end }}
-        {{- if $.Values.controller.reconciler.workers.gitrepo }}
-        - name: GITREPO_RECONCILER_WORKERS
-          value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
-        {{- end }}
-        {{- if $.Values.controller.reconciler.workers.bundle }}
-        - name: BUNDLE_RECONCILER_WORKERS
-          value: {{ quote $.Values.controller.reconciler.workers.bundle }}
-        {{- end }}
-        {{- if $.Values.controller.reconciler.workers.bundledeployment }}
-        - name: BUNDLEDEPLOYMENT_RECONCILER_WORKERS
-          value: {{ quote $.Values.controller.reconciler.workers.bundledeployment }}
         {{- end }}
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-cleanup

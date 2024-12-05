@@ -5,6 +5,8 @@ import (
 	"fmt"
 	glog "log"
 	"net/http"
+	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -27,6 +29,11 @@ type FleetAgent struct {
 	AgentScope string `usage:"An identifier used to scope the agent bundleID names, typically the same as namespace" env:"AGENT_SCOPE"`
 }
 
+type AgentReconcilerWorkers struct {
+	BundleDeployment int
+	Drift            int
+}
+
 var (
 	setupLog = ctrl.Log.WithName("setup")
 	zopts    = &zap.Options{
@@ -47,6 +54,23 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	localConfig := ctrl.GetConfigOrDie()
+	workersOpts := AgentReconcilerWorkers{}
+
+	if d := os.Getenv("BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse BUNDLEDEPLOYMENT_RECONCILER_WORKERS", "value", d)
+		}
+		workersOpts.BundleDeployment = w
+	}
+
+	if d := os.Getenv("DRIFT_RECONCILER_WORKERS"); d != "" {
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse DRIFT_RECONCILER_WORKERS", "value", d)
+		}
+		workersOpts.Drift = w
+	}
 
 	go func() {
 		glog.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
@@ -55,7 +79,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	if a.Namespace == "" {
 		return fmt.Errorf("--namespace or env NAMESPACE is required to be set")
 	}
-	if err := start(ctx, localConfig, a.Namespace, a.AgentScope); err != nil {
+	if err := start(ctx, localConfig, a.Namespace, a.AgentScope, workersOpts); err != nil {
 		return err
 	}
 

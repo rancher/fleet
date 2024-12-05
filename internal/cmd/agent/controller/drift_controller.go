@@ -16,6 +16,7 @@ import (
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -31,6 +32,8 @@ type DriftReconciler struct {
 	DriftDetect *driftdetect.DriftDetect
 
 	DriftChan chan event.GenericEvent
+
+	Workers int
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -39,6 +42,7 @@ func (r *DriftReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("drift-reconciler").
 		WatchesRawSource(src).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 
 }

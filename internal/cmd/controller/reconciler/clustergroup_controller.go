@@ -39,6 +39,8 @@ type ClusterGroupReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	ShardID string
+
+	Workers int
 }
 
 const MaxReportedNonReadyClusters = 10
@@ -68,7 +70,7 @@ func (r *ClusterGroupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.mapClusterToClusterGroup),
 		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 50}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
 
