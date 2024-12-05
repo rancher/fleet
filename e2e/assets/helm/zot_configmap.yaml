@@ -15,12 +15,14 @@ data:
               "key": "/etc/zot/certs/tls.key"
             },
             "accessControl": {
-                "**": {
-                    "policies": [{
-                        "users": ["admin"],
-                        "actions": ["read", "create", "update", "delete"]
-                    }],
-                    "defaultPolicy": ["read", "create"]
+                "repositories": {
+                  "**": {
+                      "policies": [{
+                          "users": ["admin"],
+                          "actions": ["read", "create", "update", "delete"]
+                      }],
+                      "defaultPolicy": ["read", "create"]
+                  }
                 }
             },
             "address": "0.0.0.0",
@@ -29,5 +31,13 @@ data:
         "log": { "level": "debug" },
         "storage": {
           "rootDirectory": "/tmp/zot"
+        },
+        "extensions": {
+          "ui": {
+            "enable": true
+          },
+           "search": {
+            "enable": true
+          }
         }
     }

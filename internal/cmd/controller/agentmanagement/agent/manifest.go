@@ -220,6 +220,10 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 									Name:      "kube",
 									MountPath: "/.kube",
 								},
+								{
+									Name:      "tmp",
+									MountPath: "/tmp",
+								},
 							},
 						},
 						{
@@ -246,6 +250,12 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 					Volumes: []corev1.Volume{
 						{
 							Name: "kube",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							},
+						},
+						{
+							Name: "tmp",
 							VolumeSource: corev1.VolumeSource{
 								EmptyDir: &corev1.EmptyDirVolumeSource{},
 							},

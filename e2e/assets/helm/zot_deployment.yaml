@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: zot
-          image: ghcr.io/project-zot/zot-linux-amd64:v1.4.3
+          image: ghcr.io/project-zot/zot-linux-amd64:v2.1.1
           imagePullPolicy: IfNotPresent
           ports:
           - containerPort: 8082

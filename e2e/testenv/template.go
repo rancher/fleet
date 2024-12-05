@@ -15,6 +15,7 @@ import (
 )
 
 const gitrepoTemplate = "gitrepo-template.yaml"
+const helmappTemplate = "helmapp-template.yaml"
 const clusterTemplate = "cluster-template.yaml"
 const clustergroupTemplate = "clustergroup-template.yaml"
 
@@ -28,6 +29,16 @@ type GitRepoData struct {
 	Paths           []string
 	TargetNamespace string
 	Shard           string
+}
+
+// HelmAppData can be used with the helmapp-template.yaml asset when no custom
+// HelmApp properties are required. All fields except Shard are required.
+type HelmAppData struct {
+	Name      string
+	Chart     string
+	Version   string
+	Namespace string
+	Shard     string
 }
 
 // CreateGitRepo uses the template to create a gitrepo resource. The namespace
@@ -46,6 +57,25 @@ func CreateGitRepo(
 		Branch:          branch,
 		Paths:           paths,
 		Shard:           shard,
+	})
+}
+
+// CreateHelmApp uses the template to create a HelmApp resource. The namespace
+// is the namespace for the workloads.
+func CreateHelmApp(
+	k kubectl.Command,
+	namespace string,
+	name string,
+	chart string,
+	version string,
+	shard string,
+) error {
+	return ApplyTemplate(k, AssetPath(helmappTemplate), HelmAppData{
+		Namespace: namespace,
+		Name:      name,
+		Chart:     chart,
+		Version:   version,
+		Shard:     shard,
 	})
 }
 
