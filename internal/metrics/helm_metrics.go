@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	helmSubsystem = "helm"
+	helmSubsystem = "helmapp"
 	helmLabels    = []string{"name", "namespace", "repo", "chart", "version"}
 	HelmCollector = CollectorCollection{
 		helmSubsystem,
@@ -27,7 +27,7 @@ var (
 			"name":      helm.Name,
 			"namespace": helm.Namespace,
 			"repo":      helm.Spec.Helm.Repo,
-			"branch":    helm.Spec.Helm.Chart,
+			"chart":     helm.Spec.Helm.Chart,
 			"version":   helm.Status.Version,
 		}
 

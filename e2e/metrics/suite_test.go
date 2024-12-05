@@ -23,10 +23,11 @@ func TestE2E(t *testing.T) {
 var (
 	env *testenv.Env
 	// k is the kubectl command for the cluster registration namespace
-	k        kubectl.Command
-	et       metrics.ExporterTest
-	etGitjob metrics.ExporterTest
-	shard    string
+	k         kubectl.Command
+	et        metrics.ExporterTest
+	etGitjob  metrics.ExporterTest
+	etHelmApp metrics.ExporterTest
+	shard     string
 )
 
 type ServiceData struct {
@@ -42,7 +43,7 @@ type ServiceData struct {
 // controller.
 // Valid app values are: fleet-controller, gitjob
 func setupLoadBalancer(shard string, app string) (metricsURL string) {
-	Expect(app).To(Or(Equal("fleet-controller"), Equal("gitjob")))
+	Expect(app).To(Or(Equal("fleet-controller"), Equal("gitjob"), Equal("helmops")))
 	rs := rand.NewSource(time.Now().UnixNano())
 	port := rs.Int63()%1000 + 30000
 	loadBalancerName := testenv.AddRandomSuffix(app, rs)
@@ -100,6 +101,9 @@ var _ = BeforeSuite(func() {
 
 	gitjobMetricsURL := setupLoadBalancer(shard, "gitjob")
 	etGitjob = metrics.NewExporterTest(gitjobMetricsURL)
+
+	helmopsMetricsURL := setupLoadBalancer(shard, "helmops")
+	etHelmApp = metrics.NewExporterTest(helmopsMetricsURL)
 
 	env = testenv.New()
 })

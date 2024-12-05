@@ -1,0 +1,14 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: HelmApp
+metadata:
+  name: {{ .Name }}
+  {{- if ne .Shard "" }}
+  labels:
+    fleet.cattle.io/shard-ref: {{ .Shard }}
+  {{- end }}
+  namespace: {{.Namespace}}
+spec:
+  helm:
+    chart: {{.Chart}}
+    version: {{.Version}}
+  namespace: {{.Namespace}}

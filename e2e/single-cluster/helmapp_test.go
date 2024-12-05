@@ -3,13 +3,13 @@ package singlecluster_test
 import (
 	"fmt"
 	"math/rand"
-	"net"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	"github.com/rancher/fleet/e2e/testenv/zothelper"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -115,6 +115,9 @@ var _ = Describe("HelmApp resource tests with oci registry", Label("infra-setup"
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
+		ociRef, err := zothelper.GetOCIReference(k)
+		Expect(err).ToNot(HaveOccurred(), ociRef)
+
 		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmapp/helmapp.yaml"), struct {
 			Name                  string
 			Namespace             string
@@ -127,7 +130,7 @@ var _ = Describe("HelmApp resource tests with oci registry", Label("infra-setup"
 			name,
 			namespace,
 			"",
-			fmt.Sprintf("%s/sleeper-chart", getOCIReference(k)),
+			fmt.Sprintf("%s/sleeper-chart", ociRef),
 			helmOpsSecretName,
 			insecure,
 			"0.1.0",
@@ -175,10 +178,3 @@ var _ = Describe("HelmApp resource tests with oci registry", Label("infra-setup"
 		})
 	})
 })
-
-func getOCIReference(k kubectl.Command) string {
-	externalIP, err := k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-	Expect(err).ToNot(HaveOccurred(), externalIP)
-	Expect(net.ParseIP(externalIP)).ShouldNot(BeNil())
-	return fmt.Sprintf("oci://%s:8082", externalIP)
-}
