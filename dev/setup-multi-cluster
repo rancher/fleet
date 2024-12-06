@@ -12,6 +12,8 @@ source dev/setup-cluster-config
 ./dev/setup-k3ds
 ./dev/build-fleet
 ./dev/import-images-k3d
+FLEET_E2E_CLUSTER=k3d-downstream ./dev/import-images-k3d
+FLEET_E2E_CLUSTER=k3d-downstream2 ./dev/import-images-k3d
 ./dev/setup-fleet-multi-cluster
 
 # needed for gitrepo tests
