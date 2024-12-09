@@ -98,8 +98,8 @@ jobs:
           FLEET_E2E_NS: fleet-local
         run: |
           ginkgo --github-output --label-filter='sharding' e2e/single-cluster
-          ginkgo --github-output e2e/metrics
-          SHARD=shard1 ginkgo --github-output e2e/metrics
+          ginkgo --github-output --label-filter='!oci-registry' e2e/metrics
+          SHARD=shard1 ginkgo --github-output --label-filter='!oci-registry' e2e/metrics
       -
         name: Create Zot certificates for OCI tests
         if: ${{ matrix.test_type.name == 'infra-setup' }}
@@ -134,6 +134,7 @@ jobs:
           # Run tests requiring an OCI registry
           e2e/testenv/infra/infra setup --oci-registry=true
           ginkgo --github-output --label-filter='oci-registry' e2e/single-cluster
+          ginkgo --github-output --label-filter='oci-registry' e2e/metrics
 
           e2e/testenv/infra/infra teardown
       -

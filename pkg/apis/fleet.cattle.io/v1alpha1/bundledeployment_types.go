@@ -318,6 +318,9 @@ type BundleDeploymentSpec struct {
 	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
 	// OCIContents is true when this deployment's contents is stored in an oci registry
 	OCIContents bool `json:"ociContents,omitempty"`
+	// HelmChartOptions is not nil and has the helm chart config details when contents
+	// should be downloaded from a helm chart
+	HelmChartOptions *BundleHelmOptions `json:"helmChartOptions,omitempty"`
 }
 
 // BundleDeploymentResource contains the metadata of a deployed resource.
