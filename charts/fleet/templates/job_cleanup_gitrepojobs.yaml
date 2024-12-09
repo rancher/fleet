@@ -1,4 +1,4 @@
-{{- if .Values.migrations.gitrepoJobsCleanup }}
+{{- if and .Values.migrations.gitrepoJobsCleanup .Values.gitops.enabled }}
 ---
 apiVersion: batch/v1
 kind: CronJob
