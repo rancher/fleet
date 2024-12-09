@@ -145,7 +145,7 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		setupLog.Info("starting gitops controller")
+		setupLog.Info("starting helmops controller")
 		if err = helmAppReconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}
