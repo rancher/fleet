@@ -293,29 +293,29 @@ func deleteFinalizer[T client.Object](ctx context.Context, c client.Client, obj 
 // This is calculated in the upstream cluster so all downstream bundle deployments have the same
 // version. (Potentially we could be gathering the version at very moment it is being updated, for example)
 func (r *HelmAppReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmapp *fleet.HelmApp) error {
-	if helmapp.Spec.Helm.Version == "" || helmapp.Spec.Helm.Version == "*" {
-		if helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmapp.Status.Version) {
-			auth := bundlereader.Auth{}
-			if helmapp.Spec.HelmSecretName != "" {
-				req := types.NamespacedName{Namespace: helmapp.Namespace, Name: helmapp.Spec.HelmSecretName}
-				var err error
-				auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, r.Client, req)
-				if err != nil {
-					return err
-				}
-			}
-			auth.InsecureSkipVerify = helmapp.Spec.InsecureSkipTLSverify
-
-			version, err := bundlereader.ChartVersion(*bundle.Spec.Helm, auth)
+	if helmapp.Spec.Helm.Version != "" && helmapp.Spec.Helm.Version != "*" {
+		bundle.Spec.Helm.Version = helmapp.Spec.Helm.Version
+		return nil
+	}
+	if helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmapp.Status.Version) {
+		auth := bundlereader.Auth{}
+		if helmapp.Spec.HelmSecretName != "" {
+			req := types.NamespacedName{Namespace: helmapp.Namespace, Name: helmapp.Spec.HelmSecretName}
+			var err error
+			auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, r.Client, req)
 			if err != nil {
 				return err
 			}
-			bundle.Spec.Helm.Version = version
-		} else {
-			bundle.Spec.Helm.Version = helmapp.Status.Version
 		}
+		auth.InsecureSkipVerify = helmapp.Spec.InsecureSkipTLSverify
+
+		version, err := bundlereader.ChartVersion(*bundle.Spec.Helm, auth)
+		if err != nil {
+			return err
+		}
+		bundle.Spec.Helm.Version = version
 	} else {
-		bundle.Spec.Helm.Version = helmapp.Spec.Helm.Version
+		bundle.Spec.Helm.Version = helmapp.Status.Version
 	}
 
 	return nil
