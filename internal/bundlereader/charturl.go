@@ -41,9 +41,9 @@ func ChartVersion(location fleet.HelmOptions, auth Auth) (string, error) {
 	return chart.Version, nil
 }
 
-// ChartURL returns the URL to the helm chart from a helm repo server, by
+// chartURL returns the URL to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func ChartURL(location fleet.HelmOptions, auth Auth) (string, error) {
+func chartURL(location fleet.HelmOptions, auth Auth) (string, error) {
 	if hasOCIURL.MatchString(location.Chart) {
 		return location.Chart, nil
 	}

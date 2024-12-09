@@ -2,6 +2,7 @@ package bundlereader
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -27,14 +28,21 @@ func ReadHelmAuthFromSecret(ctx context.Context, c client.Client, req types.Name
 	}
 
 	auth := Auth{}
-	username, ok := secret.Data[corev1.BasicAuthUsernameKey]
-	if ok {
+	username, okUsername := secret.Data[corev1.BasicAuthUsernameKey]
+	if okUsername {
 		auth.Username = string(username)
 	}
 
-	password, ok := secret.Data[corev1.BasicAuthPasswordKey]
-	if ok {
+	password, okPasswd := secret.Data[corev1.BasicAuthPasswordKey]
+	if okPasswd {
 		auth.Password = string(password)
+	}
+
+	// check that username and password are both set or none is set
+	if okUsername && !okPasswd {
+		return Auth{}, fmt.Errorf("%s is set in the secret, but %s isn't", corev1.BasicAuthUsernameKey, corev1.BasicAuthPasswordKey)
+	} else if !okUsername && okPasswd {
+		return Auth{}, fmt.Errorf("%s is set in the secret, but %s isn't", corev1.BasicAuthPasswordKey, corev1.BasicAuthUsernameKey)
 	}
 
 	caBundle, ok := secret.Data["cacerts"]

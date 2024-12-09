@@ -160,7 +160,7 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 				auth = Auth{}
 			}
 
-			chartURL, err := ChartURL(*chart, auth)
+			chartURL, err := chartURL(*chart, auth)
 			if err != nil {
 				return nil, err
 			}
