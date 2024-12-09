@@ -104,6 +104,9 @@ controller:
       gitrepo: "50"
       bundle: "50"
       bundledeployment: "50"
+      cluster: "50"
+      clustergroup: "50"
+      imagescan: "50"
 
 # Extra environment variables passed to the fleet pods.
 # extraEnv:
