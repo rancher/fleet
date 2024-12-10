@@ -79,6 +79,7 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 		CABundle:          caBundle,
 		SingleBranch:      true,
 		ReferenceName:     plumbing.ReferenceName(opts.Branch),
+		Depth:             1,
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 	})
 
