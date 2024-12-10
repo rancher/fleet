@@ -365,7 +365,7 @@ func commitAllAndPush(ctx context.Context, repo *gogit.Repository, auth transpor
 		Author: &object.Signature{
 			Name:  commit.AuthorName,
 			Email: commit.AuthorEmail,
-			When:  time.Now(),
+			When:  time.Now().UTC(),
 		},
 	}); err != nil {
 		return "", err
