@@ -176,17 +176,13 @@ func (r *HelmAppReconciler) createUpdateBundle(ctx context.Context, helmapp *fle
 
 // Calculates the bundle representation of the given HelmApp resource
 func (r *HelmAppReconciler) calculateBundle(helmapp *fleet.HelmApp) *fleet.Bundle {
-	spec := helmapp.Spec.BundleSpecBase
+	spec := helmapp.Spec.BundleSpec
 
 	// set target names
 	for i, target := range spec.Targets {
 		if target.Name == "" {
 			spec.Targets[i].Name = fmt.Sprintf("target%03d", i)
 		}
-	}
-
-	bundleSpec := fleet.BundleSpec{
-		BundleSpecBase: spec,
 	}
 
 	propagateHelmAppProperties(&spec)
@@ -196,7 +192,7 @@ func (r *HelmAppReconciler) calculateBundle(helmapp *fleet.HelmApp) *fleet.Bundl
 			Namespace: helmapp.Namespace,
 			Name:      helmapp.Name,
 		},
-		Spec: bundleSpec,
+		Spec: spec,
 	}
 	if len(bundle.Spec.Targets) == 0 {
 		bundle.Spec.Targets = []fleet.BundleTarget{
@@ -231,7 +227,7 @@ func (r *HelmAppReconciler) calculateBundle(helmapp *fleet.HelmApp) *fleet.Bundl
 
 // propagateHelmAppProperties propagates root Helm chart properties to the child targets.
 // This is necessary, so we can download the correct chart version for each target.
-func propagateHelmAppProperties(spec *fleet.BundleSpecBase) {
+func propagateHelmAppProperties(spec *fleet.BundleSpec) {
 	// Check if there is anything to propagate
 	if spec.Helm == nil {
 		return

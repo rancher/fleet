@@ -26,10 +26,8 @@ func CreateBundle(ctx context.Context, k8sClient client.Client, name, namespace 
 			Labels:    map[string]string{"foo": "bar"},
 		},
 		Spec: v1alpha1.BundleSpec{
-			BundleSpecBase: v1alpha1.BundleSpecBase{
-				Targets:            targets,
-				TargetRestrictions: restrictions,
-			},
+			Targets:            targets,
+			TargetRestrictions: restrictions,
 		},
 	}
 
@@ -54,11 +52,9 @@ func CreateHelmBundle(ctx context.Context, k8sClient client.Client, name, namesp
 			Labels:    map[string]string{"foo": "bar"},
 		},
 		Spec: v1alpha1.BundleSpec{
-			BundleSpecBase: v1alpha1.BundleSpecBase{
-				Targets:            targets,
-				TargetRestrictions: restrictions,
-			},
-			HelmAppOptions: helmOptions,
+			Targets:            targets,
+			TargetRestrictions: restrictions,
+			HelmAppOptions:     helmOptions,
 		},
 	}
 

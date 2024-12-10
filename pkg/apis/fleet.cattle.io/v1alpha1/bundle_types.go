@@ -85,7 +85,7 @@ type BundleList struct {
 	Items           []Bundle `json:"items"`
 }
 
-type BundleSpecBase struct {
+type BundleSpec struct {
 	BundleDeploymentOptions `json:",inline"`
 
 	// Paused if set to true, will stop any BundleDeployments from being updated. It will be marked as out of sync.
@@ -111,10 +111,6 @@ type BundleSpecBase struct {
 	// DependsOn refers to the bundles which must be ready before this bundle can be deployed.
 	// +nullable
 	DependsOn []BundleRef `json:"dependsOn,omitempty"`
-}
-
-type BundleSpec struct {
-	BundleSpecBase `json:",inline"`
 
 	// ContentsID stores the contents id when deploying contents using an OCI registry.
 	// +nullable

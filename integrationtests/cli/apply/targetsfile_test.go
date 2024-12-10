@@ -106,10 +106,8 @@ func createTargetsFile(targets []fleet.BundleTarget, targetRestrictions []fleet.
 	file, err := os.CreateTemp(tmpDir, "targets")
 	Expect(err).NotTo(HaveOccurred())
 	spec := &fleet.BundleSpec{
-		BundleSpecBase: fleet.BundleSpecBase{
-			Targets:            targets,
-			TargetRestrictions: targetRestrictions,
-		},
+		Targets:            targets,
+		TargetRestrictions: targetRestrictions,
 	}
 
 	data, err := json.Marshal(spec)

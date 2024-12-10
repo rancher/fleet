@@ -188,7 +188,7 @@ func getRandomHelmAppWithTargets(name string, t []fleet.BundleTarget) fleet.Helm
 		// add a few random values
 		Spec: fleet.HelmAppSpec{
 			Labels: randStringMap(),
-			BundleSpecBase: fleet.BundleSpecBase{
+			BundleSpec: fleet.BundleSpec{
 				BundleDeploymentOptions: randBundleDeploymentOptions(),
 			},
 			HelmSecretName:        randString(),
@@ -199,6 +199,19 @@ func getRandomHelmAppWithTargets(name string, t []fleet.BundleTarget) fleet.Helm
 	h.Spec.Targets = t
 
 	return h
+}
+
+// compareBundleAndHelmAppSpecs compares the part that it is expected to be equal
+// between a Bundle's spec and a HelmApp's spec.
+func compareBundleAndHelmAppSpecs(g Gomega, bundle fleet.BundleSpec, helmapp fleet.BundleSpec) {
+	g.Expect(bundle.BundleDeploymentOptions).To(Equal(helmapp.BundleDeploymentOptions))
+	g.Expect(bundle.Paused).To(Equal(helmapp.Paused))
+	g.Expect(bundle.RolloutStrategy).To(Equal(helmapp.RolloutStrategy))
+	g.Expect(bundle.Resources).To(Equal(helmapp.Resources))
+	g.Expect(bundle.Targets).To(Equal(helmapp.Targets))
+	g.Expect(bundle.Targets).To(Equal(helmapp.Targets))
+	g.Expect(bundle.TargetRestrictions).To(Equal(helmapp.TargetRestrictions))
+	g.Expect(bundle.DependsOn).To(Equal(helmapp.DependsOn))
 }
 
 // checkBundleIsAsExpected verifies that the bundle is a valid bundle created after
@@ -229,7 +242,7 @@ func checkBundleIsAsExpected(g Gomega, bundle fleet.Bundle, helmapp fleet.HelmAp
 	// targets)
 	bundle.Spec.Targets = helmapp.Spec.Targets
 
-	g.Expect(bundle.Spec.BundleSpecBase).To(Equal(helmapp.Spec.BundleSpecBase))
+	compareBundleAndHelmAppSpecs(g, bundle.Spec, helmapp.Spec.BundleSpec)
 
 	// the bundle controller should add the finalizer
 	g.Expect(controllerutil.ContainsFinalizer(&bundle, finalize.BundleFinalizer)).To(BeTrue())
