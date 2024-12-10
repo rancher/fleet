@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -37,6 +38,25 @@ type ServiceData struct {
 	App            string
 }
 
+func getMetricsPort(app string) int64 {
+	switch app {
+	case "fleet-controller":
+		if port := os.Getenv("METRICS_CONTROLLER_PORT"); port != "" {
+			i, err := strconv.ParseInt(port, 10, 64)
+			Expect(err).ToNot(HaveOccurred())
+			return i
+		}
+	case "gitjob":
+		if port := os.Getenv("METRICS_GITJOB_PORT"); port != "" {
+			i, err := strconv.ParseInt(port, 10, 64)
+			Expect(err).ToNot(HaveOccurred())
+			return i
+		}
+	}
+	rs := rand.NewSource(time.Now().UnixNano())
+	return rs.Int63()%1000 + 30000
+}
+
 // setupLoadBalancer creates a load balancer service for the given app controller.
 // If shard is empty, it creates a service for the default (unsharded)
 // controller.
@@ -44,7 +64,7 @@ type ServiceData struct {
 func setupLoadBalancer(shard string, app string) (metricsURL string) {
 	Expect(app).To(Or(Equal("fleet-controller"), Equal("gitjob")))
 	rs := rand.NewSource(time.Now().UnixNano())
-	port := rs.Int63()%1000 + 30000
+	port := getMetricsPort(app)
 	loadBalancerName := testenv.AddRandomSuffix(app, rs)
 
 	ks := k.Namespace("cattle-fleet-system")
@@ -61,14 +81,18 @@ func setupLoadBalancer(shard string, app string) (metricsURL string) {
 	)
 	Expect(err).ToNot(HaveOccurred())
 
-	Eventually(func() (string, error) {
-		ip, err := ks.Get(
-			"service", loadBalancerName,
-			"-o", "jsonpath={.status.loadBalancer.ingress[0].ip}",
-		)
+	if ip := os.Getenv("external_ip"); ip != "" {
 		metricsURL = fmt.Sprintf("http://%s:%d/metrics", ip, port)
-		return ip, err
-	}).ShouldNot(BeEmpty())
+	} else {
+		Eventually(func() (string, error) {
+			ip, err := ks.Get(
+				"service", loadBalancerName,
+				"-o", "jsonpath={.status.loadBalancer.ingress[0].ip}",
+			)
+			metricsURL = fmt.Sprintf("http://%s:%d/metrics", ip, port)
+			return ip, err
+		}).ShouldNot(BeEmpty())
+	}
 
 	DeferCleanup(func() {
 		ks := k.Namespace("cattle-fleet-system")
