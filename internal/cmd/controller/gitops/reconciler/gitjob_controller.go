@@ -81,7 +81,7 @@ type TimeGetter interface {
 
 type RealClock struct{}
 
-func (RealClock) Now() time.Time                  { return time.Now() }
+func (RealClock) Now() time.Time                  { return time.Now().UTC() }
 func (RealClock) Since(t time.Time) time.Duration { return time.Since(t) }
 
 // CronJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
