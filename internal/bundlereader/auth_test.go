@@ -118,6 +118,16 @@ func TestReadHelmAuthFromSecret(t *testing.T) {
 			expectedErrNotNil: true,
 			expectedError:     "password is set in the secret, but username isn't",
 		},
+		{
+			name: "username, password and caBundle are set, but we get an error getting the secret",
+			secretData: map[string][]byte{
+				corev1.BasicAuthPasswordKey: []byte("passwd"),
+			},
+			getError:          "error getting secret",
+			expectedAuth:      bundlereader.Auth{},
+			expectedErrNotNil: true,
+			expectedError:     "error getting secret",
+		},
 	}
 
 	mockCtrl := gomock.NewController(t)
@@ -127,7 +137,11 @@ func TestReadHelmAuthFromSecret(t *testing.T) {
 	assert := assert.New(t)
 	for _, c := range cases {
 		if c.getError != "" {
-			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Do(fmt.Errorf(c.getError)) // nolint:govet
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+					return fmt.Errorf(c.getError) // nolint:govet
+				},
+			)
 		} else {
 			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 				func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
