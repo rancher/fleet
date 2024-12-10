@@ -6991,6 +6991,11 @@ spec:
               type: object
             spec:
               properties:
+                contentsId:
+                  description: ContentsID stores the contents id when deploying contents
+                    using an OCI registry.
+                  nullable: true
+                  type: string
                 correctDrift:
                   description: CorrectDrift specifies how drift correction should
                     work.
@@ -7294,6 +7299,27 @@ spec:
 
                         will wait for as long as timeoutSeconds'
                       type: boolean
+                  type: object
+                helmAppOptions:
+                  description: 'HelmAppOptions stores the options relative to HelmApp
+                    resources
+
+                    Non-nil HelmAppOptions indicate that the source of resources is
+                    a Helm chart,
+
+                    not a git repository.'
+                  nullable: true
+                  properties:
+                    helmAppInsecureSkipTLSVerify:
+                      description: InsecureSkipTLSverify will use insecure HTTPS to
+                        clone the helm app resource.
+                      type: boolean
+                    helmAppSecretName:
+                      description: 'SecretName stores the secret name for storing
+                        credentials when accessing
+
+                        a remote helm repository defined in a HelmApp resource'
+                      type: string
                   type: object
                 helmSecretName:
                   description: 'HelmSecretName contains the auth secret with the credentials

@@ -47,7 +47,7 @@ type HelmAppList struct {
 }
 
 type HelmAppSpec struct {
-	BundleSpecBase `json:",inline"`
+	BundleSpec `json:",inline"`
 	// Labels are copied to the bundle and can be used in a
 	// dependsOn.selector.
 	Labels map[string]string `json:"labels,omitempty"`

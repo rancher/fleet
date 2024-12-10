@@ -59,7 +59,7 @@ var _ = Describe("HelmApp Status Fields", func() {
 					Namespace: namespace,
 				},
 				Spec: fleet.HelmAppSpec{
-					BundleSpecBase: fleet.BundleSpecBase{
+					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
 								Chart: "test",
