@@ -89,7 +89,7 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 
 		It("creates three BundleDeployments with the expected helm options information", func() {
 			var bdList = verifyHelmBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName, helmOptions)
-			By("and BundleDeployments don't have helm values")
+			By("not propagating helm values to BundleDeployments")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
 			}
@@ -148,7 +148,7 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 
 		It("creates three BundleDeployments with no helm options information", func() {
 			var bdList = verifyHelmBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName, helmOptions)
-			By("and BundleDeployments don't have helm values")
+			By("not propagating helm values to BundleDeployments")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
 			}
