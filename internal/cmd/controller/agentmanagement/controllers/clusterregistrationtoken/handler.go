@@ -271,7 +271,7 @@ func (h *handler) deleteExpired(token *fleet.ClusterRegistrationToken) (bool, er
 		return false, nil
 	}
 	expire := token.CreationTimestamp.Add(ttl.Duration)
-	if time.Now().After(expire) {
+	if time.Now().UTC().After(expire) {
 		return true, h.clusterRegistrationTokens.Delete(token.Namespace, token.Name, nil)
 	}
 

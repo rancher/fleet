@@ -353,7 +353,7 @@ func checkInitializing(obj data.Object, conditions []Condition, summary fleetv1.
 	if summary.State == "" && hasConditions && len(conditions) == 0 && strings.Contains(apiVersion, "cattle.io") {
 		val := obj.String("metadata", "created")
 		if i, err := convert.ToTimestamp(val); err == nil {
-			if time.Unix(i/1000, 0).Add(5 * time.Second).After(time.Now()) {
+			if time.Unix(i/1000, 0).Add(5 * time.Second).After(time.Now().UTC()) {
 				summary.State = "initializing"
 				summary.Transitioning = true
 			}
@@ -393,7 +393,7 @@ func checkRemoving(obj data.Object, conditions []Condition, summary fleetv1.Summ
 
 	summary.Message = append(summary.Message, "waiting on "+f)
 	if i, err := convert.ToTimestamp(removed); err == nil {
-		if time.Unix(i/1000, 0).Add(5 * time.Minute).Before(time.Now()) {
+		if time.Unix(i/1000, 0).Add(5 * time.Minute).Before(time.Now().UTC()) {
 			summary.Error = true
 		}
 	}
