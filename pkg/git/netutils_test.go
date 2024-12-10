@@ -250,6 +250,36 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			Expect(err.Error()).To(ContainSubstring("knownhosts: missing host pattern"))
 		})
 	})
+
+	Context("SSH auth with valid OpenSSH private key and no known_hosts", func() {
+		var privateKey = []byte(`-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNlY2RzYS
+1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQTi1hnnqv3tZiv8x+O1HkHjLXYfjRM+
+o+8aeXACDXFdqT1oALLsoeXbpjL9UZAta69KZlnpAqDJ0dnOPj5ZUaq0AAAAsLX33E2199
+xNAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOLWGeeq/e1mK/zH
+47UeQeMtdh+NEz6j7xp5cAINcV2pPWgAsuyh5dumMv1RkC1rr0pmWekCoMnR2c4+PllRqr
+QAAAAhAOZAKlM42hgAOsRnvRk/wp1mYy+raMO2p05D9BaLcD7oAAAAEXJvb3RAOTQ0YmM1
+OTIyYTI4AQIDBAUG
+-----END OPENSSH PRIVATE KEY-----`)
+		BeforeEach(func() {
+			secret = &corev1.Secret{
+				Type: corev1.SecretTypeSSHAuth,
+				Data: map[string][]byte{
+					corev1.SSHAuthPrivateKey: privateKey,
+				},
+			}
+		})
+		It("returns no error and the ssh auth", func() {
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret)
+			Expect(err).ToNot(HaveOccurred())
+			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
+			Expect(err).ToNot(HaveOccurred())
+			pk, ok := auth.(*gossh.PublicKeys)
+			Expect(ok).To(BeTrue())
+			Expect(pk.User).To(Equal("git"))
+			Expect(pk.Signer).To(Equal(expectedSigner))
+		})
+	})
 })
 
 var _ = Describe("git's GetHTTPClientFromSecret tests", func() {

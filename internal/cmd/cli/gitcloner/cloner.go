@@ -14,6 +14,7 @@ import (
 	giturls "github.com/rancher/fleet/pkg/git-urls"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 const defaultBranch = "master"
@@ -130,7 +131,11 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 		}
 		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
 		if err != nil {
-			return nil, err
+			// Try to parse as OpenSSH private key
+			auth, err = gossh.NewPublicKeys(gitURL.User.Username(), privateKey, "")
+			if err != nil {
+				return nil, err
+			}
 		}
 		if opts.KnownHostsFile != "" {
 			knownHosts, err := readFile(opts.KnownHostsFile)

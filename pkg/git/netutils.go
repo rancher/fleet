@@ -39,7 +39,11 @@ func GetAuthFromSecret(url string, creds *corev1.Secret) (transport.AuthMethod, 
 		}
 		auth, err := gossh.NewPublicKeys(gitURL.User.Username(), creds.Data[corev1.SSHAuthPrivateKey], "")
 		if err != nil {
-			return nil, err
+			// Try to parse as OpenSSH private key
+			auth, err = gossh.NewPublicKeys(gitURL.User.Username(), creds.Data[corev1.SSHAuthPrivateKey], "")
+			if err != nil {
+				return nil, err
+			}
 		}
 		if creds.Data["known_hosts"] != nil {
 			auth.HostKeyCallback, err = newCreateKnownHosts(creds.Data["known_hosts"])
