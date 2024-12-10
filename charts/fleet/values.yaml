@@ -72,6 +72,16 @@ nodeSelector: {}
 ## List of node taints to tolerate (requires Kubernetes >= 1.6)
 tolerations: []
 
+# Set pod resource requests/limits for Fleet.
+resources: {}
+# limits:
+#  cpu: 100m
+#  memory: 128Mi
+# requests:
+#  cpu: 100m
+#  memory: 128Mi
+
+
 ## PriorityClassName assigned to deployment.
 priorityClassName: ""
 
