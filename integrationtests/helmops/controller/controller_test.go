@@ -209,7 +209,6 @@ func compareBundleAndHelmAppSpecs(g Gomega, bundle fleet.BundleSpec, helmapp fle
 	g.Expect(bundle.RolloutStrategy).To(Equal(helmapp.RolloutStrategy))
 	g.Expect(bundle.Resources).To(Equal(helmapp.Resources))
 	g.Expect(bundle.Targets).To(Equal(helmapp.Targets))
-	g.Expect(bundle.Targets).To(Equal(helmapp.Targets))
 	g.Expect(bundle.TargetRestrictions).To(Equal(helmapp.TargetRestrictions))
 	g.Expect(bundle.DependsOn).To(Equal(helmapp.DependsOn))
 }
