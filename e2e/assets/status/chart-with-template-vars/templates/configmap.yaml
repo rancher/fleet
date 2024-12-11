@@ -1,0 +1,7 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: chart-with-template-vars-configmap
+  namespace: fleet-local
+data:
+  foo: bar
