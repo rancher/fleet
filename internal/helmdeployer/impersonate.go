@@ -18,8 +18,8 @@ import (
 // getServiceAccount is called with an empty name, unless the user specified a
 // service account in their git repo.
 //
-// If the service acocunt passed to this func is empty, it will default to
-// "fleet-default". It will then check for existance and return the default
+// If the service account passed to this func is empty, it will default to
+// "fleet-default". It will then check for existence and return the default
 // account or an empty namespace and name.
 // Returning an empty name, will make the agent use its own service account,
 // which is cluster admin.
