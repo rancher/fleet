@@ -84,7 +84,7 @@ type RealClock struct{}
 func (RealClock) Now() time.Time                  { return time.Now() }
 func (RealClock) Since(t time.Time) time.Duration { return time.Since(t) }
 
-// CronJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
+// GitJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
 type GitJobReconciler struct {
 	client.Client
 	Scheme          *runtime.Scheme
