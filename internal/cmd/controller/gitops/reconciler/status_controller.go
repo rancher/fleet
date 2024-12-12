@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
+	"github.com/rancher/fleet/internal/resourcestatus"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
@@ -154,7 +155,7 @@ func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) e
 		return err
 	}
 
-	setResources(list, gitrepo)
+	resourcestatus.SetGitRepoResources(list, gitrepo)
 
 	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
 
