@@ -14,38 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func init() {
-	resources["capabilitiesv1"] = []v1alpha1.BundleResource{
-		{
-			Content: "apiVersion: v2\nname: config-chart\ndescription: A test chart that verifies its config\ntype: application\nversion: 0.1.0\nappVersion: \"1.16.0\"\nkubeVersion: '>= 1.20.0-0'\n",
-			Name:    "config-chart/Chart.yaml",
-		},
-		{
-			Content: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-simple-chart-config\ndata:\n  test: \"value123\"\n  name: {{ .Values.name }}\n  kubeVersion: {{ .Capabilities.KubeVersion.Version }}\n  apiVersions: {{ join \", \" .Capabilities.APIVersions |  }}\n  helmVersion: {{ .Capabilities.HelmVersion.Version }}\n",
-			Name:    "config-chart/templates/configmap.yaml",
-		},
-		{
-			Content: "helm:\n  chart: config-chart\n  values:\n    name: example-value\n",
-			Name:    "fleet.yaml",
-		},
-	}
-
-	resources["capabilitiesv2"] = []v1alpha1.BundleResource{
-		{
-			Content: "apiVersion: v2\nname: config-chart\ndescription: A test chart that verifies its config\ntype: application\nversion: 0.1.0\nappVersion: \"1.16.0\"\nkubeVersion: '>= 920.920.0-0'\n",
-			Name:    "config-chart/Chart.yaml",
-		},
-		{
-			Content: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-simple-chart-config\ndata:\n  test: \"value123\"\n  name: {{ .Values.name }}\n",
-			Name:    "config-chart/templates/configmap.yaml",
-		},
-		{
-			Content: "helm:\n  chart: config-chart\n  values:\n    name: example-value\n",
-			Name:    "fleet.yaml",
-		},
-	}
-}
-
 var _ = Describe("Helm Chart uses Capabilities", Ordered, func() {
 
 	var (

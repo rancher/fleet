@@ -3,7 +3,6 @@ package agent_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -20,27 +19,6 @@ import (
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
-
-func init() {
-	withStatus, _ := os.ReadFile(assetsPath + "/deployment-with-status.yaml")
-	withDeployment, _ := os.ReadFile(assetsPath + "/deployment-with-deployment.yaml")
-
-	resources["with-status"] = []v1alpha1.BundleResource{
-		{
-			Name:     "deployment-with-status.yaml",
-			Content:  string(withStatus),
-			Encoding: "",
-		},
-	}
-
-	resources["with-deployment"] = []v1alpha1.BundleResource{
-		{
-			Name:     "deployment-with-deployment.yaml",
-			Content:  string(withDeployment),
-			Encoding: "",
-		},
-	}
-}
 
 var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 
@@ -280,8 +258,12 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 
 			It("Updates the BundleDeployment status as not Ready, including the error message", func() {
 				By("Receiving a modification on a service")
-				svc, err := env.getService(svcName)
-				Expect(err).NotTo(HaveOccurred())
+				svc := corev1.Service{}
+				Eventually(func(g Gomega) {
+					var err error
+					svc, err = env.getService(svcName)
+					g.Expect(err).NotTo(HaveOccurred())
+				}).Should(Succeed())
 				patchedSvc := svc.DeepCopy()
 				patchedSvc.Spec.Ports[0].TargetPort = intstr.FromInt(4242)
 				patchedSvc.Spec.Ports[0].Port = 4242
@@ -311,7 +293,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				nsn := types.NamespacedName{Namespace: clusterNS, Name: name}
 				bd := v1alpha1.BundleDeployment{}
 
-				err = k8sClient.Get(ctx, nsn, &bd, &client.GetOptions{})
+				err := k8sClient.Get(ctx, nsn, &bd, &client.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
 				patchedBD := bd.DeepCopy()
