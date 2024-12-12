@@ -256,6 +256,10 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 		agentNamespace = cluster.Spec.AgentNamespace
 	}
 
+	if cfg.AgentCheckinInterval.Seconds() == 0 {
+		return nil, fmt.Errorf("agent check-in interval cannot be 0")
+	}
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
 	objs := agent.Manifest(

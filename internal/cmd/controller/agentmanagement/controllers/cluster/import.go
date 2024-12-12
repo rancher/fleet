@@ -236,6 +236,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		apiServerCA  = secret.Data[config.APIServerCAKey]
 	)
 
+	if cfg.AgentCheckinInterval.Seconds() == 0 {
+		return status, fmt.Errorf("agent check-in interval cannot be 0")
+	}
+
 	if apiServerURL == "" {
 		if len(cfg.APIServerURL) == 0 {
 			return status, fmt.Errorf("missing apiServerURL in fleet config for cluster auto registration")
