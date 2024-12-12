@@ -171,6 +171,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		if err = statusReconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}
+
 		return mgr.Start(ctx)
 	})
 

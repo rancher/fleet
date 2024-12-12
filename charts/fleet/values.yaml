@@ -112,6 +112,8 @@ controller:
 # extraEnv:
 # - name: EXPERIMENTAL_OCI_STORAGE
 #   value: "true"
+# - name: EXPERIMENTAL_HELM_OPS
+#   value: "true"
 
 # shards:
 #   - id: shard0

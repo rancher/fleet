@@ -107,7 +107,7 @@ func (r *ClusterGroupReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// update summary
 	group.Status.Summary = fleet.BundleSummary{}
-	group.Status.ResourceCounts = fleet.GitRepoResourceCounts{}
+	group.Status.ResourceCounts = fleet.ResourceCounts{}
 	group.Status.ClusterCount = 0
 	group.Status.NonReadyClusterCount = 0
 	group.Status.NonReadyClusters = nil

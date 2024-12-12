@@ -22,13 +22,6 @@ import (
 
 var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
 
-type Auth struct {
-	Username      string `json:"username,omitempty"`
-	Password      string `json:"password,omitempty"`
-	CABundle      []byte `json:"caBundle,omitempty"`
-	SSHPrivateKey []byte `json:"sshPrivateKey,omitempty"`
-}
-
 // readResources reads and downloads all resources from the bundle
 func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth, helmRepoURLRegex string) ([]fleet.BundleResource, error) {
 	directories, err := addDirectory(base, ".", ".")
@@ -167,7 +160,7 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 				auth = Auth{}
 			}
 
-			chartURL, err := chartURL(chart, auth)
+			chartURL, err := chartURL(*chart, auth)
 			if err != nil {
 				return nil, err
 			}

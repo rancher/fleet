@@ -115,6 +115,12 @@ type BundleSpec struct {
 	// ContentsID stores the contents id when deploying contents using an OCI registry.
 	// +nullable
 	ContentsID string `json:"contentsId,omitempty"`
+
+	// HelmAppOptions stores the options relative to HelmApp resources
+	// Non-nil HelmAppOptions indicate that the source of resources is a Helm chart,
+	// not a git repository.
+	// +nullable
+	HelmAppOptions *BundleHelmOptions `json:"helmAppOptions,omitempty"`
 }
 
 type BundleRef struct {
@@ -407,4 +413,13 @@ type PartitionStatus struct {
 	Unavailable int `json:"unavailable,omitempty"`
 	// Summary is a summary state for the partition, calculated over its non-ready resources.
 	Summary BundleSummary `json:"summary,omitempty"`
+}
+
+type BundleHelmOptions struct {
+	// SecretName stores the secret name for storing credentials when accessing
+	// a remote helm repository defined in a HelmApp resource
+	SecretName string `json:"helmAppSecretName,omitempty"`
+
+	// InsecureSkipTLSverify will use insecure HTTPS to clone the helm app resource.
+	InsecureSkipTLSverify bool `json:"helmAppInsecureSkipTLSVerify,omitempty"`
 }
