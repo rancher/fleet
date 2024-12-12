@@ -7,6 +7,14 @@ docker_mirror=${docker_mirror-}
 name=${1-upstream}
 i=${2-0}
 
+if [ ! -z METRICS_CONTROLLER_PORT ]; then
+    args="$args -p "${METRICS_CONTROLLER_PORT}:${METRICS_CONTROLLER_PORT}@server:0""
+fi
+
+if [ ! -z METRICS_GITJOB_PORT ]; then
+    args="$args -p "${METRICS_GITJOB_PORT}:${METRICS_GITJOB_PORT}@server:0""
+fi
+
 if [ -n "$docker_mirror" ]; then
   TMP_CONFIG="$(mktemp)"
   trap "rm -f $TMP_CONFIG" EXIT
