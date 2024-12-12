@@ -75,6 +75,7 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 				out, err := k.Get("cluster", "local", "-n", "fleet-local", "-o", "jsonpath='{.status.display.readyBundles}'")
 				g.Expect(err).ToNot(HaveOccurred(), out)
 
+				// Expected 2 bundles instead of just 1 because fleet-agent is also included here
 				g.Expect(out).Should(Equal("'2/2'"))
 			}).Should(Succeed())
 		})

@@ -6,14 +6,17 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
+	"github.com/rancher/fleet/internal/resourcestatus"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -41,11 +44,6 @@ var LongRetry = wait.Backoff{
 	Duration: 5 * time.Second,
 	Factor:   1.0,
 	Jitter:   0.1,
-}
-
-type repoKey struct {
-	repo string
-	ns   string
 }
 
 // ClusterReconciler reconciles a Cluster object
@@ -105,6 +103,14 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+func indexByNamespacedName[T metav1.Object](list []T) map[types.NamespacedName]T {
+	res := make(map[types.NamespacedName]T, len(list))
+	for _, obj := range list {
+		res[types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}] = obj
+	}
+	return res
+}
+
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=clusters/finalizers,verbs=update
@@ -144,20 +150,21 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, cluster.Status, err)
 	}
+	toDeleteBundles := indexByNamespacedName(cleanup)
 
-	deleted := map[types.UID]bool{}
-	for _, bundle := range cleanup {
-		for _, bd := range bundleDeployments.Items {
-			if bd.Labels[fleet.BundleLabel] == bundle.Name && bd.Labels[fleet.BundleNamespaceLabel] == bundle.Namespace {
-				logger.V(1).Info("cleaning up bundleDeployment not matching the cluster", "bundledeployment", bd)
-				err := r.Delete(ctx, &bd)
-				if err != nil {
-					logger.V(1).Error(err, "deleting bundleDeployment returned an error")
-				}
-				deleted[bd.GetUID()] = true
+	// Delete BundleDeployments for Bundles being removed while getting a filtered items list
+	bundleDeployments.Items = slices.DeleteFunc(bundleDeployments.Items, func(bd fleet.BundleDeployment) bool {
+		bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
+		bundleName := bd.Labels[fleet.BundleLabel]
+		if _, ok := toDeleteBundles[types.NamespacedName{Namespace: bundleNamespace, Name: bundleName}]; ok {
+			logger.V(1).Info("cleaning up bundleDeployment not matching the cluster", "bundledeployment", bd)
+			if err := r.Delete(ctx, &bd); err != nil {
+				logger.V(1).Error(err, "deleting bundleDeployment returned an error")
 			}
+			return true
 		}
-	}
+		return false
+	})
 
 	// Count the number of gitrepo, bundledeployemt and deployed resources for this cluster
 	cluster.Status.DesiredReadyGitRepos = 0
@@ -169,23 +176,19 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return bundleDeployments.Items[i].Name < bundleDeployments.Items[j].Name
 	})
 
-	repos := map[repoKey]bool{}
-	for _, bd := range bundleDeployments.Items {
-		// do not count bundledeployments that were just deleted
-		if deleted[bd.GetUID()] {
-			continue
-		}
+	resourcestatus.SetClusterResources(bundleDeployments, cluster)
 
-		bd := bd
+	repos := map[types.NamespacedName]bool{}
+	for _, bd := range bundleDeployments.Items {
 		state := summary.GetDeploymentState(&bd)
 		summary.IncrementState(&cluster.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
 		cluster.Status.Summary.DesiredReady++
 
-		repo := bd.Labels[fleet.RepoLabel]
-		ns := bd.Labels[fleet.BundleNamespaceLabel]
-		if repo != "" && ns != "" {
+		repoNamespace, repoName := bd.Labels[fleet.BundleNamespaceLabel], bd.Labels[fleet.RepoLabel]
+		if repoNamespace != "" && repoName != "" {
 			// a gitrepo is ready if its bundledeployments are ready, take previous state into account
-			repos[repoKey{repo: repo, ns: ns}] = (state == fleet.Ready) || repos[repoKey{repo: repo, ns: ns}]
+			repoKey := types.NamespacedName{Namespace: repoNamespace, Name: repoName}
+			repos[repoKey] = (state == fleet.Ready) || repos[repoKey]
 		}
 	}
 
@@ -193,9 +196,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	allReady := true
 	for repo, ready := range repos {
 		gitrepo := &fleet.GitRepo{}
-		err := r.Get(ctx, types.NamespacedName{Namespace: repo.ns, Name: repo.repo}, gitrepo)
-		if err == nil {
-			summary.IncrementResourceCounts(&cluster.Status.ResourceCounts, gitrepo.Status.ResourceCounts)
+		if err := r.Get(ctx, repo, gitrepo); err == nil {
 			cluster.Status.DesiredReadyGitRepos++
 			if ready {
 				cluster.Status.ReadyGitRepos++

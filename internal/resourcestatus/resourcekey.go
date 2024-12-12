@@ -1,4 +1,4 @@
-package reconciler
+package resourcestatus
 
 import (
 	"encoding/json"
@@ -8,12 +8,18 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-func setResources(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) {
+func SetGitRepoResources(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) {
 	s := summaryState(gitrepo.Status.Summary)
 	r, errors := fromResources(list, s)
 	gitrepo.Status.ResourceErrors = errors
 	gitrepo.Status.ResourceCounts = countResources(r)
 	gitrepo.Status.Resources = merge(r)
+}
+
+func SetClusterResources(list *fleet.BundleDeploymentList, cluster *fleet.Cluster) {
+	s := summaryState(cluster.Status.Summary)
+	r, _ := fromResources(list, s)
+	cluster.Status.ResourceCounts = countResources(r)
 }
 
 // merge takes a list of GitRepo resources and deduplicates resources deployed to multiple clusters,
