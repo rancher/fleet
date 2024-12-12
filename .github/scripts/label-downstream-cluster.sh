@@ -4,6 +4,12 @@ set -euxo pipefail
 
 ns=${FLEET_E2E_NS_DOWNSTREAM-fleet-default}
 
-{ grep -q -m 1 -e "1/1"; kill $!; } < <(kubectl get clusters.fleet.cattle.io -n "$ns" -w)
-name=$(kubectl get clusters.fleet.cattle.io -o=jsonpath='{.items[0].metadata.name}' -n "$ns")
-kubectl patch clusters.fleet.cattle.io -n "$ns" "$name" --type=json -p '[{"op": "add", "path": "/metadata/labels/env", "value": "test" }]'
+# Wait for clusters to become "ready" by waiting for bundles to become ready.
+num_clusters=$(k3d cluster list -o json | jq -r '.[].name | select( . | contains("downstream") )' | wc -l)
+while [[ $(kubectl get clusters.fleet.cattle.io -n "$ns" | grep '1/1' -c) -ne $num_clusters ]]; do
+    sleep 1
+done
+
+for cluster in $(kubectl get clusters.fleet.cattle.io -n "$ns" -o=jsonpath='{.items[*].metadata.name}'); do
+  kubectl patch clusters.fleet.cattle.io -n "$ns" "$cluster" --type=json -p '[{"op": "add", "path": "/metadata/labels/env", "value": "test" }]'
+done

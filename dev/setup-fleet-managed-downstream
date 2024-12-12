@@ -8,14 +8,15 @@ if [ ! -d ./charts/fleet ]; then
   exit 1
 fi
 
-# fetching from local kubeconfig
-host=$( docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' k3d-downstream-server-0 )
-ca=$( kubectl config view --flatten -o jsonpath='{.clusters[?(@.name == "k3d-downstream")].cluster.certificate-authority-data}' )
-client_cert=$( kubectl config view --flatten -o jsonpath='{.users[?(@.name == "admin@k3d-downstream")].user.client-certificate-data}' )
-token=$( kubectl config view --flatten -o jsonpath='{.users[?(@.name == "admin@k3d-downstream")].user.client-key-data}' )
-server="https://$host:6443"
+for cluster in $(k3d cluster list -o json | jq -r '.[].name | select(. | contains("downstream"))'); do
+    # fetching from local kubeconfig
+    host=$( docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' k3d-$cluster-server-0 )
+    ca=$( kubectl config view --flatten -o jsonpath="{.clusters[?(@.name == \"k3d-$cluster\")].cluster.certificate-authority-data}" )
+    client_cert=$( kubectl config view --flatten -o jsonpath="{.users[?(@.name == \"admin@k3d-$cluster\")].user.client-certificate-data}" )
+    token=$( kubectl config view --flatten -o jsonpath="{.users[?(@.name == \"admin@k3d-$cluster\")].user.client-key-data}" )
+    server="https://$host:6443"
 
-value=$(cat <<EOF
+    value=$(cat <<EOF
 apiVersion: v1
 kind: Config
 current-context: default
@@ -36,20 +37,21 @@ users:
     client-certificate-data: $client_cert
     client-key-data: $token
 EOF
-)
+    )
+    kubectl create ns fleet-default || true
+    kubectl delete secret -n fleet-default kbcfg-$cluster || true
+    kubectl create secret generic -n fleet-default kbcfg-$cluster --from-literal=value="$value"
 
-kubectl create ns fleet-default || true
-kubectl delete secret -n fleet-default kbcfg-second || true
-kubectl create secret generic -n fleet-default kbcfg-second --from-literal=value="$value"
-
-kubectl apply -n fleet-default -f - <<EOF
+    kubectl apply -n fleet-default -f - <<EOF
 apiVersion: "fleet.cattle.io/v1alpha1"
 kind: Cluster
 metadata:
-  name: second
+  name: $cluster
   namespace: fleet-default
   labels:
-    name: second
+    name: $cluster
 spec:
-  kubeConfigSecret: kbcfg-second
+  kubeConfigSecret: kbcfg-$cluster
 EOF
+
+done
