@@ -98,6 +98,8 @@ func start(
 
 		Query:   builder,
 		ShardID: shardID,
+
+		Workers: workersOpts.Cluster,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cluster")
 		return err
@@ -125,6 +127,8 @@ func start(
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
 		ShardID: shardID,
+
+		Workers: workersOpts.ClusterGroup,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterGroup")
 		return err
@@ -148,6 +152,8 @@ func start(
 
 		Scheduler: sched,
 		ShardID:   shardID,
+
+		Workers: workersOpts.ImageScan,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ImageScan")
 		return err

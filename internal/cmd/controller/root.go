@@ -32,9 +32,11 @@ type FleetController struct {
 }
 
 type ControllerReconcilerWorkers struct {
-	GitRepo          int
 	Bundle           int
 	BundleDeployment int
+	Cluster          int
+	ClusterGroup     int
+	ImageScan        int
 }
 
 type BindAddresses struct {
@@ -88,12 +90,37 @@ func (f *FleetController) Run(cmd *cobra.Command, args []string) error {
 		}
 		workersOpts.Bundle = w
 	}
+
 	if d := os.Getenv("BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
 		w, err := strconv.Atoi(d)
 		if err != nil {
 			setupLog.Error(err, "failed to parse BUNDLEDEPLOYMENT_RECONCILER_WORKERS", "value", d)
 		}
 		workersOpts.BundleDeployment = w
+	}
+
+	if d := os.Getenv("CLUSTER_RECONCILER_WORKERS"); d != "" {
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CLUSTER_RECONCILER_WORKERS", "value", d)
+		}
+		workersOpts.Cluster = w
+	}
+
+	if d := os.Getenv("CLUSTERGROUP_RECONCILER_WORKERS"); d != "" {
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse CLUSTERGROUP_RECONCILER_WORKERS", "value", d)
+		}
+		workersOpts.ClusterGroup = w
+	}
+
+	if d := os.Getenv("IMAGESCAN_RECONCILER_WORKERS"); d != "" {
+		w, err := strconv.Atoi(d)
+		if err != nil {
+			setupLog.Error(err, "failed to parse IMAGESCAN_RECONCILER_WORKERS", "value", d)
+		}
+		workersOpts.ImageScan = w
 	}
 
 	go func() {

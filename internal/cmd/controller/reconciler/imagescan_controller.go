@@ -27,6 +27,8 @@ type ImageScanReconciler struct {
 
 	Scheduler quartz.Scheduler
 	ShardID   string
+
+	Workers int
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -43,7 +45,7 @@ func (r *ImageScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.LabelChangedPredicate{},
 				),
 			)).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 50}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
 
