@@ -1,4 +1,4 @@
-package reconciler
+package resourcestatus
 
 import (
 	. "github.com/onsi/ginkgo/v2"
@@ -114,7 +114,7 @@ var _ = Describe("Resourcekey", func() {
 	})
 
 	It("returns a list", func() {
-		setResources(list, gitrepo)
+		SetGitRepoResources(list, gitrepo)
 
 		Expect(gitrepo.Status.Resources).To(HaveLen(2))
 		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.GitRepoResource{
