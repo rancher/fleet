@@ -139,7 +139,7 @@ func (j *TagScanJob) updateImageTags(ctx context.Context) {
 		return
 	}
 
-	image.Status.LastScanTime = metav1.NewTime(time.Now())
+	image.Status.LastScanTime = metav1.NewTime(time.Now().UTC())
 
 	latestTag, err := latestTag(image.Spec.Policy, tags)
 	if err != nil {

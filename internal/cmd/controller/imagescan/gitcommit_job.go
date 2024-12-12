@@ -219,7 +219,7 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 	if interval == nil || interval.Seconds() == 0.0 {
 		interval = &DefaultInterval
 	}
-	gitrepo.Status.LastSyncedImageScanTime = metav1.NewTime(time.Now())
+	gitrepo.Status.LastSyncedImageScanTime = metav1.NewTime(time.Now().UTC())
 
 	// update gitrepo status
 	condition.Cond(fleet.ImageScanSyncCondition).SetError(&gitrepo.Status, "", nil)
@@ -365,7 +365,7 @@ func commitAllAndPush(ctx context.Context, repo *gogit.Repository, auth transpor
 		Author: &object.Signature{
 			Name:  commit.AuthorName,
 			Email: commit.AuthorEmail,
-			When:  time.Now(),
+			When:  time.Now().UTC(),
 		},
 	}); err != nil {
 		return "", err

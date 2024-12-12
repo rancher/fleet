@@ -276,7 +276,7 @@ func author() *object.Signature {
 	return &object.Signature{
 		Name:  "CI",
 		Email: "fleet@example.org",
-		When:  time.Now(),
+		When:  time.Now().UTC(),
 	}
 }
 
