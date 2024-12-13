@@ -211,7 +211,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 // addJitter to the requeue time to avoid thundering herd
 // generate a random number between -10% and +10% of the duration
 func addJitter(d time.Duration) time.Duration {
-	return d + time.Duration(rand.Int64N(int64(d)/5)-int64(d)/10)
+	return d + time.Duration(rand.Int64N(int64(d)/5)-int64(d)/10) // nolint:gosec // gosec G404 false positive, not used for crypto
 }
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
