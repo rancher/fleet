@@ -321,13 +321,15 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				GarbageCollectionInterval: cfg.GarbageCollectionInterval,
 			},
 			ManifestOptions: agent.ManifestOptions{
-				AgentEnvVars:     cluster.Spec.AgentEnvVars,
-				AgentTolerations: cluster.Spec.AgentTolerations,
-				CheckinInterval:  cfg.AgentCheckinInterval.Duration.String(),
-				PrivateRepoURL:   cluster.Spec.PrivateRepoURL,
-				AgentAffinity:    cluster.Spec.AgentAffinity,
-				AgentResources:   cluster.Spec.AgentResources,
-				HostNetwork:      *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
+				AgentEnvVars:            cluster.Spec.AgentEnvVars,
+				AgentTolerations:        cluster.Spec.AgentTolerations,
+				CheckinInterval:         cfg.AgentCheckinInterval.Duration.String(),
+				PrivateRepoURL:          cluster.Spec.PrivateRepoURL,
+				AgentAffinity:           cluster.Spec.AgentAffinity,
+				AgentResources:          cluster.Spec.AgentResources,
+				HostNetwork:             *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
+				BundleDeploymentWorkers: cfg.AgentWorkers.BundleDeployment,
+				DriftWorkers:            cfg.AgentWorkers.Drift,
 			},
 		})
 	if err != nil {

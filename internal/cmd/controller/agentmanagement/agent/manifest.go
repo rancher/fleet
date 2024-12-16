@@ -29,16 +29,18 @@ const (
 )
 
 type ManifestOptions struct {
-	AgentEnvVars          []corev1.EnvVar
-	AgentImage            string // DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
-	AgentImagePullPolicy  string
-	AgentTolerations      []corev1.Toleration
-	CheckinInterval       string
-	PrivateRepoURL        string // PrivateRepoURL = registry.yourdomain.com:5000
-	SystemDefaultRegistry string
-	AgentAffinity         *corev1.Affinity
-	AgentResources        *corev1.ResourceRequirements
-	HostNetwork           bool
+	AgentEnvVars            []corev1.EnvVar
+	AgentImage              string // DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
+	AgentImagePullPolicy    string
+	AgentTolerations        []corev1.Toleration
+	CheckinInterval         string
+	PrivateRepoURL          string // PrivateRepoURL = registry.yourdomain.com:5000
+	SystemDefaultRegistry   string
+	AgentAffinity           *corev1.Affinity
+	AgentResources          *corev1.ResourceRequirements
+	HostNetwork             bool
+	BundleDeploymentWorkers string
+	DriftWorkers            string
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
@@ -202,6 +204,14 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 							Image:           image,
 							ImagePullPolicy: corev1.PullPolicy(opts.AgentImagePullPolicy),
 							Env: []corev1.EnvVar{
+								{
+									Name:  "BUNDLEDEPLOYMENT_RECONCILER_WORKERS",
+									Value: opts.BundleDeploymentWorkers,
+								},
+								{
+									Name:  "DRIFT_RECONCILER_WORKERS",
+									Value: opts.DriftWorkers,
+								},
 								{
 									Name: "NAMESPACE",
 									ValueFrom: &corev1.EnvVarSource{
