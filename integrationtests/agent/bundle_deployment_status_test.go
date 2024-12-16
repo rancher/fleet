@@ -2,7 +2,6 @@ package agent_test
 
 import (
 	"context"
-	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -16,26 +15,6 @@ import (
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
-
-func init() {
-	v1, _ := os.ReadFile(assetsPath + "/deployment-v1.yaml")
-	v2, _ := os.ReadFile(assetsPath + "/deployment-v2.yaml")
-
-	resources["v1"] = []v1alpha1.BundleResource{
-		{
-			Name:     "deployment-v1.yaml",
-			Content:  string(v1),
-			Encoding: "",
-		},
-	}
-	resources["v2"] = []v1alpha1.BundleResource{
-		{
-			Name:     "deployment-v2.yaml",
-			Content:  string(v2),
-			Encoding: "",
-		},
-	}
-}
 
 var _ = Describe("BundleDeployment status", Ordered, func() {
 
