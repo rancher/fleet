@@ -3,9 +3,9 @@ package reconciler
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"sort"
 
+	"github.com/rancher/fleet/internal/cmd/controller/status"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/resourcestatus"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -19,10 +19,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 type StatusReconciler struct {
@@ -51,7 +49,7 @@ func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return []ctrl.Request{}
 			}),
-			builder.WithPredicates(bundleStatusChangedPredicate()),
+			builder.WithPredicates(status.BundleStatusChangedPredicate()),
 		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
@@ -120,114 +118,24 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
-// bundleStatusChangedPredicate returns true if the bundle
-// status has changed, or the bundle was created
-func bundleStatusChangedPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return true
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			n, isBundle := e.ObjectNew.(*v1alpha1.Bundle)
-			if !isBundle {
-				return false
-			}
-			o := e.ObjectOld.(*v1alpha1.Bundle)
-			if n == nil || o == nil {
-				return false
-			}
-			return !reflect.DeepEqual(n.Status, o.Status)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return true
-		},
-	}
-}
-
 func setStatus(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
 	// sort for resourceKey?
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
 	})
 
-	err := setFields(list, gitrepo)
+	err := status.SetFields(list, &gitrepo.Status.StatusBase)
 	if err != nil {
 		return err
 	}
 
-	resourcestatus.SetGitRepoResources(list, gitrepo)
+	resourcestatus.SetResources(list, &gitrepo.Status.StatusBase)
 
 	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
 
 	gitrepo.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
 		gitrepo.Status.Summary.Ready,
 		gitrepo.Status.Summary.DesiredReady)
-
-	return nil
-}
-
-// setFields sets bundledeployment related status fields:
-// Summary, ReadyClusters, DesiredReadyClusters, Display.State, Display.Message, Display.Error
-func setFields(list *v1alpha1.BundleDeploymentList, gitrepo *v1alpha1.GitRepo) error {
-	var (
-		maxState   v1alpha1.BundleState
-		message    string
-		count      = map[client.ObjectKey]int{}
-		readyCount = map[client.ObjectKey]int{}
-	)
-
-	gitrepo.Status.Summary = v1alpha1.BundleSummary{}
-
-	for _, bd := range list.Items {
-		state := summary.GetDeploymentState(&bd)
-		summary.IncrementState(&gitrepo.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
-		gitrepo.Status.Summary.DesiredReady++
-		if v1alpha1.StateRank[state] > v1alpha1.StateRank[maxState] {
-			maxState = state
-			message = summary.MessageFromDeployment(&bd)
-		}
-
-		// gather status per cluster
-		// try to avoid old bundle deployments, which might be missing the labels
-		if bd.Labels == nil {
-			// this should not happen
-			continue
-		}
-
-		name := bd.Labels[v1alpha1.ClusterLabel]
-		namespace := bd.Labels[v1alpha1.ClusterNamespaceLabel]
-		if name == "" || namespace == "" {
-			// this should not happen
-			continue
-		}
-
-		key := client.ObjectKey{Name: name, Namespace: namespace}
-		count[key]++
-		if state == v1alpha1.Ready {
-			readyCount[key]++
-		}
-	}
-
-	// unique number of clusters from bundledeployments
-	gitrepo.Status.DesiredReadyClusters = len(count)
-
-	// number of clusters where all deployments are ready
-	readyClusters := 0
-	for key, n := range readyCount {
-		if count[key] == n {
-			readyClusters++
-		}
-	}
-	gitrepo.Status.ReadyClusters = readyClusters
-
-	if maxState == v1alpha1.Ready {
-		maxState = ""
-		message = ""
-	}
-
-	gitrepo.Status.Display.State = string(maxState)
-	gitrepo.Status.Display.Message = message
-	gitrepo.Status.Display.Error = len(message) > 0
 
 	return nil
 }

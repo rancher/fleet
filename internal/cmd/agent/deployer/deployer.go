@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/ociwrapper"
@@ -64,6 +65,7 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 	}
 
 	releaseID, err := d.helmdeploy(ctx, logger, bd)
+
 	if err != nil {
 		// When an error from DeployBundle is returned it causes DeployBundle
 		// to requeue and keep trying to deploy on a loop. If there is something
@@ -108,8 +110,8 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 	}
 	manifestID, _ := kv.Split(bd.Spec.DeploymentID, ":")
 	var (
-		manifest *manifest.Manifest
-		err      error
+		m   *manifest.Manifest
+		err error
 	)
 	if bd.Spec.OCIContents {
 		// First we need to access the secret where the OCI registry reference and credentials are located
@@ -140,19 +142,24 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 			InsecureSkipTLS: insecure,
 		}
 		oci := ociwrapper.NewOCIWrapper()
-		manifest, err = oci.PullManifest(ctx, ociOpts, manifestID)
+		m, err = oci.PullManifest(ctx, ociOpts, manifestID)
+		if err != nil {
+			return "", err
+		}
+	} else if bd.Spec.HelmChartOptions != nil {
+		m, err = bundlereader.GetManifestFromHelmChart(ctx, d.client, bd)
 		if err != nil {
 			return "", err
 		}
 	} else {
-		manifest, err = d.lookup.Get(ctx, d.upstreamClient, manifestID)
+		m, err = d.lookup.Get(ctx, d.upstreamClient, manifestID)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	manifest.Commit = bd.Labels[fleet.CommitLabel]
-	release, err := d.helm.Deploy(ctx, bd.Name, manifest, bd.Spec.Options)
+	m.Commit = bd.Labels[fleet.CommitLabel]
+	release, err := d.helm.Deploy(ctx, bd.Name, m, bd.Spec.Options)
 	if err != nil {
 		return "", err
 	}

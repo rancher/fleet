@@ -162,6 +162,23 @@ spec:
                   description: DeploymentID is the ID of the currently applied deployment.
                   nullable: true
                   type: string
+                helmChartOptions:
+                  description: 'HelmChartOptions is not nil and has the helm chart
+                    config details when contents
+
+                    should be downloaded from a helm chart'
+                  properties:
+                    helmAppInsecureSkipTLSVerify:
+                      description: InsecureSkipTLSverify will use insecure HTTPS to
+                        clone the helm app resource.
+                      type: boolean
+                    helmAppSecretName:
+                      description: 'SecretName stores the secret name for storing
+                        credentials when accessing
+
+                        a remote helm repository defined in a HelmApp resource'
+                      type: string
+                  type: object
                 ociContents:
                   description: OCIContents is true when this deployment's contents
                     is stored in an oci registry
@@ -1583,6 +1600,27 @@ spec:
 
                         will wait for as long as timeoutSeconds'
                       type: boolean
+                  type: object
+                helmAppOptions:
+                  description: 'HelmAppOptions stores the options relative to HelmApp
+                    resources
+
+                    Non-nil HelmAppOptions indicate that the source of resources is
+                    a Helm chart,
+
+                    not a git repository.'
+                  nullable: true
+                  properties:
+                    helmAppInsecureSkipTLSVerify:
+                      description: InsecureSkipTLSverify will use insecure HTTPS to
+                        clone the helm app resource.
+                      type: boolean
+                    helmAppSecretName:
+                      description: 'SecretName stores the secret name for storing
+                        credentials when accessing
+
+                        a remote helm repository defined in a HelmApp resource'
+                      type: string
                   type: object
                 ignore:
                   description: IgnoreOptions can be used to ignore fields when monitoring
@@ -5692,7 +5730,7 @@ spec:
                     that are ready.
                   type: integer
                 resourceCounts:
-                  description: ResourceCounts is an aggregate over the GitRepoResourceCounts.
+                  description: ResourceCounts is an aggregate over the ResourceCounts.
                   properties:
                     desiredReady:
                       description: DesiredReady is the number of resources that should
@@ -6464,7 +6502,7 @@ spec:
                   description: 'Conditions is a list of Wrangler conditions that describe
                     the state
 
-                    of the GitRepo.'
+                    of the resource.'
                   items:
                     properties:
                       lastTransitionTime:
@@ -6495,7 +6533,7 @@ spec:
                   type: array
                 desiredReadyClusters:
                   description: "DesiredReadyClusters\tis the number of clusters that\
-                    \ should be ready for bundles of this GitRepo."
+                    \ should be ready for bundles of this resource."
                   type: integer
                 display:
                   description: Display contains a human readable summary of the status.
@@ -6515,7 +6553,7 @@ spec:
                         bundledeployments.'
                       type: string
                     state:
-                      description: 'State is the state of the GitRepo, e.g. "GitUpdating"
+                      description: 'State is the state of the resource, e.g. "GitUpdating"
                         or the maximal
 
                         BundleState according to StateRank.'
@@ -6547,7 +6585,7 @@ spec:
                   description: 'ReadyClusters is the lowest number of clusters that
                     are ready over
 
-                    all the bundles of this GitRepo.'
+                    all the bundles of this resource.'
                   type: integer
                 resourceCounts:
                   description: ResourceCounts contains the number of resources in
@@ -6595,8 +6633,8 @@ spec:
                   description: Resources contains metadata about the resources of
                     each bundle.
                   items:
-                    description: GitRepoResource contains metadata about the resources
-                      of a bundle.
+                    description: Resource contains metadata about the resources of
+                      a bundle.
                     properties:
                       apiVersion:
                         description: APIVersion is the API version of the resource.
@@ -6876,6 +6914,1800 @@ spec:
                 webhookCommit:
                   description: WebhookCommit is the latest Git commit hash received
                     from a webhook
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: helmapps.fleet.cattle.io
+spec:
+  group: fleet.cattle.io
+  names:
+    categories:
+      - fleet
+    kind: HelmApp
+    listKind: HelmAppList
+    plural: helmapps
+    singular: helmapp
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.helm.repo
+          name: Repo
+          type: string
+        - jsonPath: .spec.helm.chart
+          name: Chart
+          type: string
+        - jsonPath: .status.version
+          name: Version
+          type: string
+        - jsonPath: .status.display.readyBundleDeployments
+          name: BundleDeployments-Ready
+          type: string
+        - jsonPath: .status.conditions[?(@.type=="Ready")].message
+          name: Status
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: 'HelmApp describes a helm chart information.
+
+            The resource contains the necessary information to deploy the chart to
+            target clusters.'
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+                of an object.
+
+                Servers should convert recognized schemas to the latest internal value,
+                and
+
+                may reject unrecognized values.
+
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource
+                this object represents.
+
+                Servers may infer this from the endpoint the client submits requests
+                to.
+
+                Cannot be updated.
+
+                In CamelCase.
+
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                contentsId:
+                  description: ContentsID stores the contents id when deploying contents
+                    using an OCI registry.
+                  nullable: true
+                  type: string
+                correctDrift:
+                  description: CorrectDrift specifies how drift correction should
+                    work.
+                  properties:
+                    enabled:
+                      description: Enabled correct drift if true.
+                      type: boolean
+                    force:
+                      description: Force helm rollback with --force option will be
+                        used if true. This will try to recreate all resources in the
+                        release.
+                      type: boolean
+                    keepFailHistory:
+                      description: KeepFailHistory keeps track of failed rollbacks
+                        in the helm history.
+                      type: boolean
+                  type: object
+                defaultNamespace:
+                  description: 'DefaultNamespace is the namespace to use for resources
+                    that do not
+
+                    specify a namespace. This field is not used to enforce or lock
+                    down
+
+                    the deployment to a specific namespace.'
+                  nullable: true
+                  type: string
+                deleteCRDResources:
+                  description: DeleteCRDResources deletes CRDs. Warning! this will
+                    also delete all your Custom Resources.
+                  type: boolean
+                deleteNamespace:
+                  description: DeleteNamespace can be used to delete the deployed
+                    namespace when removing the bundle
+                  type: boolean
+                dependsOn:
+                  description: DependsOn refers to the bundles which must be ready
+                    before this bundle can be deployed.
+                  items:
+                    properties:
+                      name:
+                        description: Name of the bundle.
+                        nullable: true
+                        type: string
+                      selector:
+                        description: Selector matching bundle's labels.
+                        nullable: true
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: 'A label selector requirement is a selector
+                                that contains values, a key, and an operator that
+
+                                relates the key and values.'
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: 'operator represents a key''s relationship
+                                    to a set of values.
+
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                  type: string
+                                values:
+                                  description: 'values is an array of string values.
+                                    If the operator is In or NotIn,
+
+                                    the values array must be non-empty. If the operator
+                                    is Exists or DoesNotExist,
+
+                                    the values array must be empty. This array is
+                                    replaced during a strategic
+
+                                    merge patch.'
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                                - key
+                                - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: 'matchLabels is a map of {key,value} pairs.
+                              A single {key,value} in the matchLabels
+
+                              map is equivalent to an element of matchExpressions,
+                              whose key field is "key", the
+
+                              operator is "In", and the values array contains only
+                              "value". The requirements are ANDed.'
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
+                  nullable: true
+                  type: array
+                diff:
+                  description: Diff can be used to ignore the modified state of objects
+                    which are amended at runtime.
+                  nullable: true
+                  properties:
+                    comparePatches:
+                      description: ComparePatches match a resource and remove fields
+                        from the check for modifications.
+                      items:
+                        description: ComparePatch matches a resource and removes fields
+                          from the check for modifications.
+                        properties:
+                          apiVersion:
+                            description: APIVersion is the apiVersion of the resource
+                              to match.
+                            nullable: true
+                            type: string
+                          jsonPointers:
+                            description: JSONPointers ignore diffs at a certain JSON
+                              path.
+                            items:
+                              type: string
+                            nullable: true
+                            type: array
+                          kind:
+                            description: Kind is the kind of the resource to match.
+                            nullable: true
+                            type: string
+                          name:
+                            description: Name is the name of the resource to match.
+                            nullable: true
+                            type: string
+                          namespace:
+                            description: Namespace is the namespace of the resource
+                              to match.
+                            nullable: true
+                            type: string
+                          operations:
+                            description: Operations remove a JSON path from the resource.
+                            items:
+                              description: Operation of a ComparePatch, usually "remove".
+                              properties:
+                                op:
+                                  description: Op is usually "remove"
+                                  nullable: true
+                                  type: string
+                                path:
+                                  description: Path is the JSON path to remove.
+                                  nullable: true
+                                  type: string
+                                value:
+                                  description: Value is usually empty.
+                                  nullable: true
+                                  type: string
+                              type: object
+                            nullable: true
+                            type: array
+                        type: object
+                      nullable: true
+                      type: array
+                  type: object
+                forceSyncGeneration:
+                  description: ForceSyncGeneration is used to force a redeployment
+                  format: int64
+                  type: integer
+                helm:
+                  description: Helm options for the deployment, like the chart name,
+                    repo and values.
+                  properties:
+                    atomic:
+                      description: Atomic sets the --atomic flag when Helm is performing
+                        an upgrade
+                      type: boolean
+                    chart:
+                      description: 'Chart can refer to any go-getter URL or OCI registry
+                        based helm
+
+                        chart URL. The chart will be downloaded.'
+                      nullable: true
+                      type: string
+                    disableDNS:
+                      description: DisableDNS can be used to customize Helm's EnableDNS
+                        option, which Fleet sets to `true` by default.
+                      type: boolean
+                    disableDependencyUpdate:
+                      description: DisableDependencyUpdate allows skipping chart dependencies
+                        update
+                      type: boolean
+                    disablePreProcess:
+                      description: DisablePreProcess disables template processing
+                        in values
+                      type: boolean
+                    force:
+                      description: Force allows to override immutable resources. This
+                        could be dangerous.
+                      type: boolean
+                    maxHistory:
+                      description: MaxHistory limits the maximum number of revisions
+                        saved per release by Helm.
+                      type: integer
+                    releaseName:
+                      description: 'ReleaseName sets a custom release name to deploy
+                        the chart as. If
+
+                        not specified a release name will be generated by combining
+                        the
+
+                        invoking GitRepo.name + GitRepo.path.'
+                      maxLength: 53
+                      nullable: true
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                      type: string
+                    repo:
+                      description: Repo is the name of the HTTPS helm repo to download
+                        the chart from.
+                      nullable: true
+                      type: string
+                    skipSchemaValidation:
+                      description: SkipSchemaValidation allows skipping schema validation
+                        against the chart values
+                      type: boolean
+                    takeOwnership:
+                      description: TakeOwnership makes helm skip the check for its
+                        own annotations
+                      type: boolean
+                    timeoutSeconds:
+                      description: TimeoutSeconds is the time to wait for Helm operations.
+                      type: integer
+                    values:
+                      description: 'Values passed to Helm. It is possible to specify
+                        the keys and values
+
+                        as go template strings.'
+                      nullable: true
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    valuesFiles:
+                      description: ValuesFiles is a list of files to load values from.
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                    valuesFrom:
+                      description: ValuesFrom loads the values from configmaps and
+                        secrets.
+                      items:
+                        description: 'Define helm values that can come from configmap,
+                          secret or external. Credit: https://github.com/fluxcd/helm-operator/blob/0cfea875b5d44bea995abe7324819432070dfbdc/pkg/apis/helm.fluxcd.io/v1/types_helmrelease.go#L439'
+                        properties:
+                          configMapKeyRef:
+                            description: The reference to a config map with release
+                              values.
+                            nullable: true
+                            properties:
+                              key:
+                                nullable: true
+                                type: string
+                              name:
+                                description: Name of a resource in the same namespace
+                                  as the referent.
+                                nullable: true
+                                type: string
+                              namespace:
+                                nullable: true
+                                type: string
+                            type: object
+                          secretKeyRef:
+                            description: The reference to a secret with release values.
+                            nullable: true
+                            properties:
+                              key:
+                                nullable: true
+                                type: string
+                              name:
+                                description: Name of a resource in the same namespace
+                                  as the referent.
+                                nullable: true
+                                type: string
+                              namespace:
+                                nullable: true
+                                type: string
+                            type: object
+                        type: object
+                      nullable: true
+                      type: array
+                    version:
+                      description: Version of the chart to download
+                      nullable: true
+                      type: string
+                    waitForJobs:
+                      description: 'WaitForJobs if set and timeoutSeconds provided,
+                        will wait until all
+
+                        Jobs have been completed before marking the GitRepo as ready.
+                        It
+
+                        will wait for as long as timeoutSeconds'
+                      type: boolean
+                  type: object
+                helmAppOptions:
+                  description: 'HelmAppOptions stores the options relative to HelmApp
+                    resources
+
+                    Non-nil HelmAppOptions indicate that the source of resources is
+                    a Helm chart,
+
+                    not a git repository.'
+                  nullable: true
+                  properties:
+                    helmAppInsecureSkipTLSVerify:
+                      description: InsecureSkipTLSverify will use insecure HTTPS to
+                        clone the helm app resource.
+                      type: boolean
+                    helmAppSecretName:
+                      description: 'SecretName stores the secret name for storing
+                        credentials when accessing
+
+                        a remote helm repository defined in a HelmApp resource'
+                      type: string
+                  type: object
+                helmSecretName:
+                  description: 'HelmSecretName contains the auth secret with the credentials
+                    to access
+
+                    a private Helm repository.'
+                  nullable: true
+                  type: string
+                ignore:
+                  description: IgnoreOptions can be used to ignore fields when monitoring
+                    the bundle.
+                  properties:
+                    conditions:
+                      description: Conditions is a list of conditions to be ignored
+                        when monitoring the Bundle.
+                      items:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      nullable: true
+                      type: array
+                  type: object
+                insecureSkipTLSVerify:
+                  description: InsecureSkipTLSverify will use insecure HTTPS to clone
+                    the helm app resource.
+                  type: boolean
+                keepResources:
+                  description: KeepResources can be used to keep the deployed resources
+                    when removing the bundle
+                  type: boolean
+                kustomize:
+                  description: 'Kustomize options for the deployment, like the dir
+                    containing the
+
+                    kustomization.yaml file.'
+                  nullable: true
+                  properties:
+                    dir:
+                      description: 'Dir points to a custom folder for kustomize resources.
+                        This folder must contain
+
+                        a kustomization.yaml file.'
+                      nullable: true
+                      type: string
+                  type: object
+                labels:
+                  additionalProperties:
+                    type: string
+                  description: 'Labels are copied to the bundle and can be used in
+                    a
+
+                    dependsOn.selector.'
+                  type: object
+                namespace:
+                  description: 'TargetNamespace if present will assign all resource
+                    to this
+
+                    namespace and if any cluster scoped resource exists the deployment
+
+                    will fail.'
+                  nullable: true
+                  type: string
+                namespaceAnnotations:
+                  additionalProperties:
+                    type: string
+                  description: NamespaceAnnotations are annotations that will be appended
+                    to the namespace created by Fleet.
+                  nullable: true
+                  type: object
+                namespaceLabels:
+                  additionalProperties:
+                    type: string
+                  description: NamespaceLabels are labels that will be appended to
+                    the namespace created by Fleet.
+                  nullable: true
+                  type: object
+                paused:
+                  description: Paused if set to true, will stop any BundleDeployments
+                    from being updated. It will be marked as out of sync.
+                  type: boolean
+                resources:
+                  description: 'Resources contains the resources that were read from
+                    the bundle''s
+
+                    path. This includes the content of downloaded helm charts.'
+                  items:
+                    description: BundleResource represents the content of a single
+                      resource from the bundle, like a YAML manifest.
+                    properties:
+                      content:
+                        description: The content of the resource, can be compressed.
+                        nullable: true
+                        type: string
+                      encoding:
+                        description: Encoding is either empty or "base64+gz".
+                        nullable: true
+                        type: string
+                      name:
+                        description: Name of the resource, can include the bundle's
+                          internal path.
+                        nullable: true
+                        type: string
+                    type: object
+                  nullable: true
+                  type: array
+                rolloutStrategy:
+                  description: 'RolloutStrategy controls the rollout of bundles, by
+                    defining
+
+                    partitions, canaries and percentages for cluster availability.'
+                  nullable: true
+                  properties:
+                    autoPartitionSize:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: 'A number or percentage of how to automatically
+                        partition clusters if no
+
+                        specific partitioning strategy is configured.
+
+                        default: 25%'
+                      nullable: true
+                      x-kubernetes-int-or-string: true
+                    maxUnavailable:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: 'A number or percentage of clusters that can be
+                        unavailable during an update
+
+                        of a bundle. This follows the same basic approach as a deployment
+                        rollout
+
+                        strategy. Once the number of clusters meets unavailable state
+                        update will be
+
+                        paused. Default value is 100% which doesn''t take effect on
+                        update.
+
+                        default: 100%'
+                      nullable: true
+                      x-kubernetes-int-or-string: true
+                    maxUnavailablePartitions:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: 'A number or percentage of cluster partitions that
+                        can be unavailable during
+
+                        an update of a bundle.
+
+                        default: 0'
+                      nullable: true
+                      x-kubernetes-int-or-string: true
+                    partitions:
+                      description: 'A list of definitions of partitions.  If any target
+                        clusters do not match
+
+                        the configuration they are added to partitions at the end
+                        following the
+
+                        autoPartitionSize.'
+                      items:
+                        description: Partition defines a separate rollout strategy
+                          for a set of clusters.
+                        properties:
+                          clusterGroup:
+                            description: A cluster group name to include in this partition
+                            type: string
+                          clusterGroupSelector:
+                            description: Selector matching cluster group labels to
+                              include in this partition
+                            nullable: true
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: 'A label selector requirement is a
+                                    selector that contains values, a key, and an operator
+                                    that
+
+                                    relates the key and values.'
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: 'operator represents a key''s relationship
+                                        to a set of values.
+
+                                        Valid operators are In, NotIn, Exists and
+                                        DoesNotExist.'
+                                      type: string
+                                    values:
+                                      description: 'values is an array of string values.
+                                        If the operator is In or NotIn,
+
+                                        the values array must be non-empty. If the
+                                        operator is Exists or DoesNotExist,
+
+                                        the values array must be empty. This array
+                                        is replaced during a strategic
+
+                                        merge patch.'
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                  required:
+                                    - key
+                                    - operator
+                                  type: object
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: 'matchLabels is a map of {key,value}
+                                  pairs. A single {key,value} in the matchLabels
+
+                                  map is equivalent to an element of matchExpressions,
+                                  whose key field is "key", the
+
+                                  operator is "In", and the values array contains
+                                  only "value". The requirements are ANDed.'
+                                type: object
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          clusterName:
+                            description: ClusterName is the name of a cluster to include
+                              in this partition
+                            type: string
+                          clusterSelector:
+                            description: Selector matching cluster labels to include
+                              in this partition
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: 'A label selector requirement is a
+                                    selector that contains values, a key, and an operator
+                                    that
+
+                                    relates the key and values.'
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: 'operator represents a key''s relationship
+                                        to a set of values.
+
+                                        Valid operators are In, NotIn, Exists and
+                                        DoesNotExist.'
+                                      type: string
+                                    values:
+                                      description: 'values is an array of string values.
+                                        If the operator is In or NotIn,
+
+                                        the values array must be non-empty. If the
+                                        operator is Exists or DoesNotExist,
+
+                                        the values array must be empty. This array
+                                        is replaced during a strategic
+
+                                        merge patch.'
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                  required:
+                                    - key
+                                    - operator
+                                  type: object
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: 'matchLabels is a map of {key,value}
+                                  pairs. A single {key,value} in the matchLabels
+
+                                  map is equivalent to an element of matchExpressions,
+                                  whose key field is "key", the
+
+                                  operator is "In", and the values array contains
+                                  only "value". The requirements are ANDed.'
+                                type: object
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          maxUnavailable:
+                            anyOf:
+                              - type: integer
+                              - type: string
+                            description: 'A number or percentage of clusters that
+                              can be unavailable in this
+
+                              partition before this partition is treated as done.
+
+                              default: 10%'
+                            x-kubernetes-int-or-string: true
+                          name:
+                            description: A user-friendly name given to the partition
+                              used for Display (optional).
+                            nullable: true
+                            type: string
+                        type: object
+                      nullable: true
+                      type: array
+                  type: object
+                serviceAccount:
+                  description: ServiceAccount which will be used to perform this deployment.
+                  nullable: true
+                  type: string
+                targetRestrictions:
+                  description: TargetRestrictions is an allow list, which controls
+                    if a bundledeployment is created for a target.
+                  items:
+                    description: 'BundleTargetRestriction is used internally by Fleet
+                      and should not be modified.
+
+                      It acts as an allow list, to prevent the creation of BundleDeployments
+                      from
+
+                      Targets created by TargetCustomizations in fleet.yaml.'
+                    properties:
+                      clusterGroup:
+                        nullable: true
+                        type: string
+                      clusterGroupSelector:
+                        description: 'A label selector is a label query over a set
+                          of resources. The result of matchLabels and
+
+                          matchExpressions are ANDed. An empty label selector matches
+                          all objects. A null
+
+                          label selector matches no objects.'
+                        nullable: true
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: 'A label selector requirement is a selector
+                                that contains values, a key, and an operator that
+
+                                relates the key and values.'
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: 'operator represents a key''s relationship
+                                    to a set of values.
+
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                  type: string
+                                values:
+                                  description: 'values is an array of string values.
+                                    If the operator is In or NotIn,
+
+                                    the values array must be non-empty. If the operator
+                                    is Exists or DoesNotExist,
+
+                                    the values array must be empty. This array is
+                                    replaced during a strategic
+
+                                    merge patch.'
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                                - key
+                                - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: 'matchLabels is a map of {key,value} pairs.
+                              A single {key,value} in the matchLabels
+
+                              map is equivalent to an element of matchExpressions,
+                              whose key field is "key", the
+
+                              operator is "In", and the values array contains only
+                              "value". The requirements are ANDed.'
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      clusterName:
+                        nullable: true
+                        type: string
+                      clusterSelector:
+                        description: 'A label selector is a label query over a set
+                          of resources. The result of matchLabels and
+
+                          matchExpressions are ANDed. An empty label selector matches
+                          all objects. A null
+
+                          label selector matches no objects.'
+                        nullable: true
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: 'A label selector requirement is a selector
+                                that contains values, a key, and an operator that
+
+                                relates the key and values.'
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: 'operator represents a key''s relationship
+                                    to a set of values.
+
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                  type: string
+                                values:
+                                  description: 'values is an array of string values.
+                                    If the operator is In or NotIn,
+
+                                    the values array must be non-empty. If the operator
+                                    is Exists or DoesNotExist,
+
+                                    the values array must be empty. This array is
+                                    replaced during a strategic
+
+                                    merge patch.'
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                                - key
+                                - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: 'matchLabels is a map of {key,value} pairs.
+                              A single {key,value} in the matchLabels
+
+                              map is equivalent to an element of matchExpressions,
+                              whose key field is "key", the
+
+                              operator is "In", and the values array contains only
+                              "value". The requirements are ANDed.'
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      name:
+                        nullable: true
+                        type: string
+                    type: object
+                  type: array
+                targets:
+                  description: 'Targets refer to the clusters which will be deployed
+                    to.
+
+                    Targets are evaluated in order and the first one to match is used.'
+                  items:
+                    description: 'BundleTarget declares clusters to deploy to. Fleet
+                      will merge the
+
+                      BundleDeploymentOptions from customizations into this struct.'
+                    properties:
+                      clusterGroup:
+                        description: ClusterGroup to match a specific cluster group
+                          by name.
+                        nullable: true
+                        type: string
+                      clusterGroupSelector:
+                        description: ClusterGroupSelector is a selector to match cluster
+                          groups.
+                        nullable: true
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: 'A label selector requirement is a selector
+                                that contains values, a key, and an operator that
+
+                                relates the key and values.'
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: 'operator represents a key''s relationship
+                                    to a set of values.
+
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                  type: string
+                                values:
+                                  description: 'values is an array of string values.
+                                    If the operator is In or NotIn,
+
+                                    the values array must be non-empty. If the operator
+                                    is Exists or DoesNotExist,
+
+                                    the values array must be empty. This array is
+                                    replaced during a strategic
+
+                                    merge patch.'
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                                - key
+                                - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: 'matchLabels is a map of {key,value} pairs.
+                              A single {key,value} in the matchLabels
+
+                              map is equivalent to an element of matchExpressions,
+                              whose key field is "key", the
+
+                              operator is "In", and the values array contains only
+                              "value". The requirements are ANDed.'
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      clusterName:
+                        description: 'ClusterName to match a specific cluster by name
+                          that will be
+
+                          selected'
+                        nullable: true
+                        type: string
+                      clusterSelector:
+                        description: 'ClusterSelector is a selector to match clusters.
+                          The structure is
+
+                          the standard metav1.LabelSelector format. If clusterGroupSelector
+                          or
+
+                          clusterGroup is specified, clusterSelector will be used
+                          only to
+
+                          further refine the selection after clusterGroupSelector
+                          and
+
+                          clusterGroup is evaluated.'
+                        nullable: true
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: 'A label selector requirement is a selector
+                                that contains values, a key, and an operator that
+
+                                relates the key and values.'
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: 'operator represents a key''s relationship
+                                    to a set of values.
+
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.'
+                                  type: string
+                                values:
+                                  description: 'values is an array of string values.
+                                    If the operator is In or NotIn,
+
+                                    the values array must be non-empty. If the operator
+                                    is Exists or DoesNotExist,
+
+                                    the values array must be empty. This array is
+                                    replaced during a strategic
+
+                                    merge patch.'
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                                - key
+                                - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: 'matchLabels is a map of {key,value} pairs.
+                              A single {key,value} in the matchLabels
+
+                              map is equivalent to an element of matchExpressions,
+                              whose key field is "key", the
+
+                              operator is "In", and the values array contains only
+                              "value". The requirements are ANDed.'
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      correctDrift:
+                        description: CorrectDrift specifies how drift correction should
+                          work.
+                        properties:
+                          enabled:
+                            description: Enabled correct drift if true.
+                            type: boolean
+                          force:
+                            description: Force helm rollback with --force option will
+                              be used if true. This will try to recreate all resources
+                              in the release.
+                            type: boolean
+                          keepFailHistory:
+                            description: KeepFailHistory keeps track of failed rollbacks
+                              in the helm history.
+                            type: boolean
+                        type: object
+                      defaultNamespace:
+                        description: 'DefaultNamespace is the namespace to use for
+                          resources that do not
+
+                          specify a namespace. This field is not used to enforce or
+                          lock down
+
+                          the deployment to a specific namespace.'
+                        nullable: true
+                        type: string
+                      deleteCRDResources:
+                        description: DeleteCRDResources deletes CRDs. Warning! this
+                          will also delete all your Custom Resources.
+                        type: boolean
+                      deleteNamespace:
+                        description: DeleteNamespace can be used to delete the deployed
+                          namespace when removing the bundle
+                        type: boolean
+                      diff:
+                        description: Diff can be used to ignore the modified state
+                          of objects which are amended at runtime.
+                        nullable: true
+                        properties:
+                          comparePatches:
+                            description: ComparePatches match a resource and remove
+                              fields from the check for modifications.
+                            items:
+                              description: ComparePatch matches a resource and removes
+                                fields from the check for modifications.
+                              properties:
+                                apiVersion:
+                                  description: APIVersion is the apiVersion of the
+                                    resource to match.
+                                  nullable: true
+                                  type: string
+                                jsonPointers:
+                                  description: JSONPointers ignore diffs at a certain
+                                    JSON path.
+                                  items:
+                                    type: string
+                                  nullable: true
+                                  type: array
+                                kind:
+                                  description: Kind is the kind of the resource to
+                                    match.
+                                  nullable: true
+                                  type: string
+                                name:
+                                  description: Name is the name of the resource to
+                                    match.
+                                  nullable: true
+                                  type: string
+                                namespace:
+                                  description: Namespace is the namespace of the resource
+                                    to match.
+                                  nullable: true
+                                  type: string
+                                operations:
+                                  description: Operations remove a JSON path from
+                                    the resource.
+                                  items:
+                                    description: Operation of a ComparePatch, usually
+                                      "remove".
+                                    properties:
+                                      op:
+                                        description: Op is usually "remove"
+                                        nullable: true
+                                        type: string
+                                      path:
+                                        description: Path is the JSON path to remove.
+                                        nullable: true
+                                        type: string
+                                      value:
+                                        description: Value is usually empty.
+                                        nullable: true
+                                        type: string
+                                    type: object
+                                  nullable: true
+                                  type: array
+                              type: object
+                            nullable: true
+                            type: array
+                        type: object
+                      doNotDeploy:
+                        description: DoNotDeploy if set to true, will not deploy to
+                          this target.
+                        type: boolean
+                      forceSyncGeneration:
+                        description: ForceSyncGeneration is used to force a redeployment
+                        format: int64
+                        type: integer
+                      helm:
+                        description: Helm options for the deployment, like the chart
+                          name, repo and values.
+                        properties:
+                          atomic:
+                            description: Atomic sets the --atomic flag when Helm is
+                              performing an upgrade
+                            type: boolean
+                          chart:
+                            description: 'Chart can refer to any go-getter URL or
+                              OCI registry based helm
+
+                              chart URL. The chart will be downloaded.'
+                            nullable: true
+                            type: string
+                          disableDNS:
+                            description: DisableDNS can be used to customize Helm's
+                              EnableDNS option, which Fleet sets to `true` by default.
+                            type: boolean
+                          disableDependencyUpdate:
+                            description: DisableDependencyUpdate allows skipping chart
+                              dependencies update
+                            type: boolean
+                          disablePreProcess:
+                            description: DisablePreProcess disables template processing
+                              in values
+                            type: boolean
+                          force:
+                            description: Force allows to override immutable resources.
+                              This could be dangerous.
+                            type: boolean
+                          maxHistory:
+                            description: MaxHistory limits the maximum number of revisions
+                              saved per release by Helm.
+                            type: integer
+                          releaseName:
+                            description: 'ReleaseName sets a custom release name to
+                              deploy the chart as. If
+
+                              not specified a release name will be generated by combining
+                              the
+
+                              invoking GitRepo.name + GitRepo.path.'
+                            maxLength: 53
+                            nullable: true
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                            type: string
+                          repo:
+                            description: Repo is the name of the HTTPS helm repo to
+                              download the chart from.
+                            nullable: true
+                            type: string
+                          skipSchemaValidation:
+                            description: SkipSchemaValidation allows skipping schema
+                              validation against the chart values
+                            type: boolean
+                          takeOwnership:
+                            description: TakeOwnership makes helm skip the check for
+                              its own annotations
+                            type: boolean
+                          timeoutSeconds:
+                            description: TimeoutSeconds is the time to wait for Helm
+                              operations.
+                            type: integer
+                          values:
+                            description: 'Values passed to Helm. It is possible to
+                              specify the keys and values
+
+                              as go template strings.'
+                            nullable: true
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
+                          valuesFiles:
+                            description: ValuesFiles is a list of files to load values
+                              from.
+                            items:
+                              type: string
+                            nullable: true
+                            type: array
+                          valuesFrom:
+                            description: ValuesFrom loads the values from configmaps
+                              and secrets.
+                            items:
+                              description: 'Define helm values that can come from
+                                configmap, secret or external. Credit: https://github.com/fluxcd/helm-operator/blob/0cfea875b5d44bea995abe7324819432070dfbdc/pkg/apis/helm.fluxcd.io/v1/types_helmrelease.go#L439'
+                              properties:
+                                configMapKeyRef:
+                                  description: The reference to a config map with
+                                    release values.
+                                  nullable: true
+                                  properties:
+                                    key:
+                                      nullable: true
+                                      type: string
+                                    name:
+                                      description: Name of a resource in the same
+                                        namespace as the referent.
+                                      nullable: true
+                                      type: string
+                                    namespace:
+                                      nullable: true
+                                      type: string
+                                  type: object
+                                secretKeyRef:
+                                  description: The reference to a secret with release
+                                    values.
+                                  nullable: true
+                                  properties:
+                                    key:
+                                      nullable: true
+                                      type: string
+                                    name:
+                                      description: Name of a resource in the same
+                                        namespace as the referent.
+                                      nullable: true
+                                      type: string
+                                    namespace:
+                                      nullable: true
+                                      type: string
+                                  type: object
+                              type: object
+                            nullable: true
+                            type: array
+                          version:
+                            description: Version of the chart to download
+                            nullable: true
+                            type: string
+                          waitForJobs:
+                            description: 'WaitForJobs if set and timeoutSeconds provided,
+                              will wait until all
+
+                              Jobs have been completed before marking the GitRepo
+                              as ready. It
+
+                              will wait for as long as timeoutSeconds'
+                            type: boolean
+                        type: object
+                      ignore:
+                        description: IgnoreOptions can be used to ignore fields when
+                          monitoring the bundle.
+                        properties:
+                          conditions:
+                            description: Conditions is a list of conditions to be
+                              ignored when monitoring the Bundle.
+                            items:
+                              additionalProperties:
+                                type: string
+                              type: object
+                            nullable: true
+                            type: array
+                        type: object
+                      keepResources:
+                        description: KeepResources can be used to keep the deployed
+                          resources when removing the bundle
+                        type: boolean
+                      kustomize:
+                        description: 'Kustomize options for the deployment, like the
+                          dir containing the
+
+                          kustomization.yaml file.'
+                        nullable: true
+                        properties:
+                          dir:
+                            description: 'Dir points to a custom folder for kustomize
+                              resources. This folder must contain
+
+                              a kustomization.yaml file.'
+                            nullable: true
+                            type: string
+                        type: object
+                      name:
+                        description: 'Name of target. This value is largely for display
+                          and logging. If
+
+                          not specified a default name of the format "target000" will
+                          be used'
+                        type: string
+                      namespace:
+                        description: 'TargetNamespace if present will assign all resource
+                          to this
+
+                          namespace and if any cluster scoped resource exists the
+                          deployment
+
+                          will fail.'
+                        nullable: true
+                        type: string
+                      namespaceAnnotations:
+                        additionalProperties:
+                          type: string
+                        description: NamespaceAnnotations are annotations that will
+                          be appended to the namespace created by Fleet.
+                        nullable: true
+                        type: object
+                      namespaceLabels:
+                        additionalProperties:
+                          type: string
+                        description: NamespaceLabels are labels that will be appended
+                          to the namespace created by Fleet.
+                        nullable: true
+                        type: object
+                      serviceAccount:
+                        description: ServiceAccount which will be used to perform
+                          this deployment.
+                        nullable: true
+                        type: string
+                      yaml:
+                        description: 'YAML options, if using raw YAML these are names
+                          that map to
+
+                          overlays/{name} files that will be used to replace or patch
+                          a resource.'
+                        nullable: true
+                        properties:
+                          overlays:
+                            description: 'Overlays is a list of names that maps to
+                              folders in "overlays/".
+
+                              If you wish to customize the file ./subdir/resource.yaml
+                              then a file
+
+                              ./overlays/myoverlay/subdir/resource.yaml will replace
+                              the base
+
+                              file.
+
+                              A file named ./overlays/myoverlay/subdir/resource_patch.yaml
+                              will patch the base file.'
+                            items:
+                              type: string
+                            nullable: true
+                            type: array
+                        type: object
+                    type: object
+                  type: array
+                yaml:
+                  description: 'YAML options, if using raw YAML these are names that
+                    map to
+
+                    overlays/{name} files that will be used to replace or patch a
+                    resource.'
+                  nullable: true
+                  properties:
+                    overlays:
+                      description: 'Overlays is a list of names that maps to folders
+                        in "overlays/".
+
+                        If you wish to customize the file ./subdir/resource.yaml then
+                        a file
+
+                        ./overlays/myoverlay/subdir/resource.yaml will replace the
+                        base
+
+                        file.
+
+                        A file named ./overlays/myoverlay/subdir/resource_patch.yaml
+                        will patch the base file.'
+                      items:
+                        type: string
+                      nullable: true
+                      type: array
+                  type: object
+              type: object
+            status:
+              properties:
+                conditions:
+                  description: 'Conditions is a list of Wrangler conditions that describe
+                    the state
+
+                    of the resource.'
+                  items:
+                    properties:
+                      lastTransitionTime:
+                        description: Last time the condition transitioned from one
+                          status to another.
+                        type: string
+                      lastUpdateTime:
+                        description: The last time this condition was updated.
+                        type: string
+                      message:
+                        description: Human-readable message indicating details about
+                          last transition
+                        type: string
+                      reason:
+                        description: The reason for the condition's last transition.
+                        type: string
+                      status:
+                        description: Status of the condition, one of True, False,
+                          Unknown.
+                        type: string
+                      type:
+                        description: Type of cluster condition.
+                        type: string
+                    required:
+                      - status
+                      - type
+                    type: object
+                  type: array
+                desiredReadyClusters:
+                  description: "DesiredReadyClusters\tis the number of clusters that\
+                    \ should be ready for bundles of this resource."
+                  type: integer
+                display:
+                  description: Display contains a human readable summary of the status.
+                  properties:
+                    error:
+                      description: Error is true if a message is present.
+                      type: boolean
+                    message:
+                      description: Message contains the relevant message from the
+                        deployment conditions.
+                      type: string
+                    readyBundleDeployments:
+                      description: 'ReadyBundleDeployments is a string in the form
+                        "%d/%d", that describes the
+
+                        number of ready bundledeployments over the total number of
+                        bundledeployments.'
+                      type: string
+                    state:
+                      description: 'State is the state of the resource, e.g. "GitUpdating"
+                        or the maximal
+
+                        BundleState according to StateRank.'
+                      type: string
+                  type: object
+                readyClusters:
+                  description: 'ReadyClusters is the lowest number of clusters that
+                    are ready over
+
+                    all the bundles of this resource.'
+                  type: integer
+                resourceCounts:
+                  description: ResourceCounts contains the number of resources in
+                    each state over all bundles.
+                  properties:
+                    desiredReady:
+                      description: DesiredReady is the number of resources that should
+                        be ready.
+                      type: integer
+                    missing:
+                      description: Missing is the number of missing resources.
+                      type: integer
+                    modified:
+                      description: Modified is the number of resources that have been
+                        modified.
+                      type: integer
+                    notReady:
+                      description: 'NotReady is the number of not ready resources.
+                        Resources are not
+
+                        ready if they do not match any other state.'
+                      type: integer
+                    orphaned:
+                      description: Orphaned is the number of orphaned resources.
+                      type: integer
+                    ready:
+                      description: Ready is the number of ready resources.
+                      type: integer
+                    unknown:
+                      description: Unknown is the number of resources in an unknown
+                        state.
+                      type: integer
+                    waitApplied:
+                      description: WaitApplied is the number of resources that are
+                        waiting to be applied.
+                      type: integer
+                  type: object
+                resourceErrors:
+                  description: ResourceErrors is a sorted list of errors from the
+                    resources.
+                  items:
+                    type: string
+                  type: array
+                resources:
+                  description: Resources contains metadata about the resources of
+                    each bundle.
+                  items:
+                    description: Resource contains metadata about the resources of
+                      a bundle.
+                    properties:
+                      apiVersion:
+                        description: APIVersion is the API version of the resource.
+                        nullable: true
+                        type: string
+                      error:
+                        description: Error is true if any Error in the PerClusterState
+                          is true.
+                        type: boolean
+                      id:
+                        description: ID is the name of the resource, e.g. "namespace1/my-config"
+                          or "backingimagemanagers.storage.io".
+                        nullable: true
+                        type: string
+                      incompleteState:
+                        description: 'IncompleteState is true if a bundle summary
+                          has 10 or more non-ready
+
+                          resources or a non-ready resource has more 10 or more non-ready
+                          or
+
+                          modified states.'
+                        type: boolean
+                      kind:
+                        description: Kind is the k8s kind of the resource.
+                        nullable: true
+                        type: string
+                      message:
+                        description: Message is the first message from the PerClusterStates.
+                        nullable: true
+                        type: string
+                      name:
+                        description: Name of the resource.
+                        nullable: true
+                        type: string
+                      namespace:
+                        description: Namespace of the resource.
+                        nullable: true
+                        type: string
+                      perClusterState:
+                        description: PerClusterState is a list of states for each
+                          cluster. Derived from the summaries non-ready resources.
+                        items:
+                          description: ResourcePerClusterState is generated for each
+                            non-ready resource of the bundles.
+                          properties:
+                            clusterId:
+                              description: ClusterID is the id of the cluster.
+                              nullable: true
+                              type: string
+                            error:
+                              description: Error is true if the resource is in an
+                                error state, copied from the bundle's summary for
+                                non-ready resources.
+                              type: boolean
+                            message:
+                              description: Message combines the messages from the
+                                bundle's summary. Messages are joined with the delimiter
+                                ';'.
+                              nullable: true
+                              type: string
+                            patch:
+                              description: Patch for modified resources.
+                              nullable: true
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                            state:
+                              description: State is the state of the resource.
+                              nullable: true
+                              type: string
+                            transitioning:
+                              description: 'Transitioning is true if the resource
+                                is in a transitioning state,
+
+                                copied from the bundle''s summary for non-ready resources.'
+                              type: boolean
+                          type: object
+                        nullable: true
+                        type: array
+                      state:
+                        description: State is the state of the resource, e.g. "Unknown",
+                          "WaitApplied", "ErrApplied" or "Ready".
+                        type: string
+                      transitioning:
+                        description: Transitioning is true if any Transitioning in
+                          the PerClusterState is true.
+                        type: boolean
+                      type:
+                        description: Type is the type of the resource, e.g. "apiextensions.k8s.io.customresourcedefinition"
+                          or "configmap".
+                        type: string
+                    type: object
+                  type: array
+                summary:
+                  description: Summary contains the number of bundle deployments in
+                    each state and a list of non-ready resources.
+                  properties:
+                    desiredReady:
+                      description: 'DesiredReady is the number of bundle deployments
+                        that should be
+
+                        ready.'
+                      type: integer
+                    errApplied:
+                      description: 'ErrApplied is the number of bundle deployments
+                        that have been synced
+
+                        from the Fleet controller and the downstream cluster, but
+                        with some
+
+                        errors when deploying the bundle.'
+                      type: integer
+                    modified:
+                      description: 'Modified is the number of bundle deployments that
+                        have been deployed
+
+                        and for which all resources are ready, but where some changes
+                        from the
+
+                        Git repository have not yet been synced.'
+                      type: integer
+                    nonReadyResources:
+                      description: 'NonReadyClusters is a list of states, which is
+                        filled for a bundle
+
+                        that is not ready.'
+                      items:
+                        description: 'NonReadyResource contains information about
+                          a bundle that is not ready for a
+
+                          given state like "ErrApplied". It contains a list of non-ready
+                          or modified
+
+                          resources and their states.'
+                        properties:
+                          bundleState:
+                            description: State is the state of the resource, like
+                              e.g. "NotReady" or "ErrApplied".
+                            nullable: true
+                            type: string
+                          message:
+                            description: Message contains information why the bundle
+                              is not ready.
+                            nullable: true
+                            type: string
+                          modifiedStatus:
+                            description: ModifiedStatus lists the state for each modified
+                              resource.
+                            items:
+                              description: 'ModifiedStatus is used to report the status
+                                of a resource that is modified.
+
+                                It indicates if the modification was a create, a delete
+                                or a patch.'
+                              properties:
+                                apiVersion:
+                                  nullable: true
+                                  type: string
+                                delete:
+                                  type: boolean
+                                exist:
+                                  description: Exist is true if the resource exists
+                                    but is not owned by us. This can happen if a resource
+                                    was adopted by another bundle whereas the first
+                                    bundle still exists and due to that reports that
+                                    it does not own it.
+                                  type: boolean
+                                kind:
+                                  nullable: true
+                                  type: string
+                                missing:
+                                  type: boolean
+                                name:
+                                  nullable: true
+                                  type: string
+                                namespace:
+                                  nullable: true
+                                  type: string
+                                patch:
+                                  nullable: true
+                                  type: string
+                              type: object
+                            nullable: true
+                            type: array
+                          name:
+                            description: Name is the name of the resource.
+                            nullable: true
+                            type: string
+                          nonReadyStatus:
+                            description: NonReadyStatus lists the state for each non-ready
+                              resource.
+                            items:
+                              description: NonReadyStatus is used to report the status
+                                of a resource that is not ready. It includes a summary.
+                              properties:
+                                apiVersion:
+                                  nullable: true
+                                  type: string
+                                kind:
+                                  nullable: true
+                                  type: string
+                                name:
+                                  nullable: true
+                                  type: string
+                                namespace:
+                                  nullable: true
+                                  type: string
+                                summary:
+                                  properties:
+                                    error:
+                                      type: boolean
+                                    message:
+                                      items:
+                                        type: string
+                                      type: array
+                                    state:
+                                      type: string
+                                    transitioning:
+                                      type: boolean
+                                  type: object
+                                uid:
+                                  description: 'UID is a type that holds unique ID
+                                    values, including UUIDs.  Because we
+
+                                    don''t ONLY use UUIDs, this is an alias to string.  Being
+                                    a type captures
+
+                                    intent and helps make sure that UIDs and names
+                                    do not get conflated.'
+                                  nullable: true
+                                  type: string
+                              type: object
+                            nullable: true
+                            type: array
+                        type: object
+                      nullable: true
+                      type: array
+                    notReady:
+                      description: 'NotReady is the number of bundle deployments that
+                        have been deployed
+
+                        where some resources are not ready.'
+                      type: integer
+                    outOfSync:
+                      description: 'OutOfSync is the number of bundle deployments
+                        that have been synced
+
+                        from Fleet controller, but not yet by the downstream agent.'
+                      type: integer
+                    pending:
+                      description: 'Pending is the number of bundle deployments that
+                        are being processed
+
+                        by Fleet controller.'
+                      type: integer
+                    ready:
+                      description: 'Ready is the number of bundle deployments that
+                        have been deployed
+
+                        where all resources are ready.'
+                      type: integer
+                    waitApplied:
+                      description: 'WaitApplied is the number of bundle deployments
+                        that have been
+
+                        synced from Fleet controller and downstream cluster, but are
+                        waiting
+
+                        to be deployed.'
+                      type: integer
+                  type: object
+                version:
+                  description: 'Version installed for the helm chart.
+
+                    When using * or empty version in the spec we get the latest version
+                    from
+
+                    the helm repository when possible'
                   type: string
               type: object
           type: object

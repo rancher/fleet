@@ -33,6 +33,10 @@ const (
 	// the gitrepo status first, before the status controller looks at
 	// bundledeployments.
 	GitRepoStatusDelay = time.Second * 5
+	// HelmAppStatusDelay gives the helmapp controller some time to update
+	// the helmapp status first, before the status controller looks at
+	// bundledeployments.
+	HelmAppStatusDelay = time.Second * 5
 )
 
 // Equal reports whether the duration t is equal to u.

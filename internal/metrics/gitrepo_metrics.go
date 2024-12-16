@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -16,98 +15,7 @@ var (
 		gitRepoMetrics,
 		collectGitRepoMetrics,
 	}
-	gitRepoMetrics = map[string]prometheus.Collector{
-		"resources_desired_ready": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "resources_desired_ready",
-				Help:      "The count of resources that are desired to be in a Ready state.",
-			},
-			gitRepoLabels,
-		),
-		"resources_missing": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "resources_missing",
-				Help:      "The count of resources that are in a Missing state.",
-			},
-			gitRepoLabels,
-		),
-		"resources_modified": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "resources_modified",
-				Help:      "The count of resources that are in a Modified state.",
-			},
-			gitRepoLabels,
-		),
-		"resources_not_ready": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "resources_not_ready",
-				Help:      "The count of resources that are in a NotReady state.",
-			},
-			gitRepoLabels,
-		),
-		"resources_orphaned": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "resources_orphaned",
-				Help:      "The count of resources that are in an Orphaned state.",
-			},
-			gitRepoLabels,
-		),
-		"resources_ready": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "resources_ready",
-				Help:      "The count of resources that are in a Ready state.",
-			},
-			gitRepoLabels,
-		),
-		"resources_unknown": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "resources_unknown",
-				Help:      "The count of resources that are in an Unknown state.",
-			},
-			gitRepoLabels,
-		),
-		"resources_wait_applied": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "resources_wait_applied",
-				Help:      "The count of resources that are in a WaitApplied state.",
-			},
-			gitRepoLabels,
-		),
-		"desired_ready_clusters": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "desired_ready_clusters",
-				Help:      "The amount of clusters desired to be in a ready state.",
-			},
-			gitRepoLabels,
-		),
-		"ready_clusters": promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: metricPrefix,
-				Subsystem: gitRepoSubsystem,
-				Name:      "ready_clusters",
-				Help:      "The count of clusters in a Ready state.",
-			},
-			gitRepoLabels,
-		),
-	}
+	gitRepoMetrics        = getStatusMetrics(gitRepoSubsystem, gitRepoLabels)
 	collectGitRepoMetrics = func(
 		obj any,
 		metrics map[string]prometheus.Collector,

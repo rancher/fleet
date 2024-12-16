@@ -73,7 +73,7 @@ func Test_contentStore_Store(t *testing.T) {
 				client.EXPECT().Get(ctx, nsn, gomock.Any()).Return(nil)
 				client.EXPECT().Create(ctx, gomock.Any()).Times(0)
 			} else {
-				client.EXPECT().Get(ctx, nsn, gomock.Any()).Return(apierrors.NewNotFound(fleet.Resource("Content"), tt.want))
+				client.EXPECT().Get(ctx, nsn, gomock.Any()).Return(apierrors.NewNotFound(fleet.GroupResource("Content"), tt.want))
 				client.EXPECT().Create(ctx, &contentMatcher{
 					name:      tt.want,
 					sha256sum: checksum,

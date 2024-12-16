@@ -1,0 +1,14 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: HelmApp
+metadata:
+  name: {{.Name}}
+  namespace: "fleet-local"
+spec:
+  helm:
+    releaseName: testhelm
+    repo: {{.Repo}}
+    chart: {{.Chart}}
+    version: {{.Version}}
+  namespace: {{.Namespace}}
+  helmSecretName: {{.HelmSecretName}}
+  insecureSkipTLSVerify: {{.InsecureSkipTLSVerify}}

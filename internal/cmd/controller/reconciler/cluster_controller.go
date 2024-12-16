@@ -171,7 +171,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Count the number of gitrepo, bundledeployemt and deployed resources for this cluster
 	cluster.Status.DesiredReadyGitRepos = 0
 	cluster.Status.ReadyGitRepos = 0
-	cluster.Status.ResourceCounts = fleet.GitRepoResourceCounts{}
+	cluster.Status.ResourceCounts = fleet.ResourceCounts{}
 	cluster.Status.Summary = fleet.BundleSummary{}
 
 	sort.Slice(bundleDeployments.Items, func(i, j int) bool {

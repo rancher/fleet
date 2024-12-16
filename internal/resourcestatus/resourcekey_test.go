@@ -19,9 +19,11 @@ var _ = Describe("Resourcekey", func() {
 	BeforeEach(func() {
 		gitrepo = &fleet.GitRepo{
 			Status: fleet.GitRepoStatus{
-				Summary: fleet.BundleSummary{
-					Ready:       2,
-					WaitApplied: 1,
+				StatusBase: fleet.StatusBase{
+					Summary: fleet.BundleSummary{
+						Ready:       2,
+						WaitApplied: 1,
+					},
 				},
 			},
 		}
@@ -114,10 +116,10 @@ var _ = Describe("Resourcekey", func() {
 	})
 
 	It("returns a list", func() {
-		SetGitRepoResources(list, gitrepo)
+		SetResources(list, &gitrepo.Status.StatusBase)
 
 		Expect(gitrepo.Status.Resources).To(HaveLen(2))
-		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.GitRepoResource{
+		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.Resource{
 			APIVersion: "v1",
 			Kind:       "Deployment",
 			Type:       "deployment",
@@ -142,7 +144,7 @@ var _ = Describe("Resourcekey", func() {
 				},
 			},
 		}))
-		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.GitRepoResource{
+		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.Resource{
 			APIVersion: "v1",
 			Kind:       "Service",
 			Type:       "service",
