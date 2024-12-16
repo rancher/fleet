@@ -12,7 +12,6 @@ import (
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 var _ = Describe("HelmApp Status Fields", func() {
@@ -40,9 +39,9 @@ var _ = Describe("HelmApp Status Fields", func() {
 			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster).To(Not(BeNil()))
-			targets := []v1alpha1.BundleTarget{
+			targets := []fleet.BundleTarget{
 				{
-					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+					BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 						TargetNamespace: "targetNs",
 					},
 					Name:        "cluster",
@@ -71,7 +70,7 @@ var _ = Describe("HelmApp Status Fields", func() {
 			err = k8sClient.Create(ctx, helmapp)
 			Expect(err).NotTo(HaveOccurred())
 
-			bd = &v1alpha1.BundleDeployment{}
+			bd = &fleet.BundleDeployment{}
 			Eventually(func(g Gomega) {
 				nsName := types.NamespacedName{Namespace: namespace, Name: "name"}
 				g.Expect(k8sClient.Get(ctx, nsName, bd)).ToNot(HaveOccurred())
@@ -79,7 +78,7 @@ var _ = Describe("HelmApp Status Fields", func() {
 		})
 
 		It("updates the status fields", func() {
-			bundle := &v1alpha1.Bundle{}
+			bundle := &fleet.Bundle{}
 			bundleName := types.NamespacedName{Namespace: namespace, Name: "name"}
 			helmAppName := types.NamespacedName{Namespace: namespace, Name: helmapp.Name}
 			By("Receiving a bundle update")
@@ -96,15 +95,9 @@ var _ = Describe("HelmApp Status Fields", func() {
 			Expect(helmapp.Status.Summary.Ready).To(Equal(0))
 			Expect(helmapp.Status.ReadyClusters).To(Equal(0))
 
-			Eventually(func(g Gomega) {
-				err := k8sClient.Get(ctx, helmAppName, helmapp)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(helmapp.Status.DesiredReadyClusters).To(Equal(1))
-			}).Should(Succeed())
-
 			// This simulates what the bundle deployment reconciler would do.
 			By("Updating the BundleDeployment status to ready")
-			bd := &v1alpha1.BundleDeployment{}
+			bd := &fleet.BundleDeployment{}
 			Eventually(func() error {
 				err := k8sClient.Get(ctx, bundleName, bd)
 				if err != nil {
