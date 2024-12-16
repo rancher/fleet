@@ -6,6 +6,8 @@ export CUSTOM_CONFIG_FILE="env.multi-cluster"
 # shellcheck source=dev/setup-cluster-config
 source dev/setup-cluster-config
 
+FLEET_E2E_DS_CLUSTER_COUNT=${FLEET_E2E_DS_CLUSTER_COUNT:-1}
+
 # Cleans with settings sourced, so it should be rather selective.
 ./dev/k3d-act-clean
 
