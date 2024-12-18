@@ -194,7 +194,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				},
 			}
 			Eventually(func(g Gomega) {
-				status := getGitRepoStatus(k, gitrepoName)
+				status := getGitRepoStatus(g, k, gitrepoName)
 				g.Expect(status).To(matchGitRepoStatus(expectedStatus))
 			}).Should(Succeed())
 
@@ -355,7 +355,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				},
 			}
 			Eventually(func(g Gomega) {
-				status := getGitRepoStatus(k, gitrepoName)
+				status := getGitRepoStatus(g, k, gitrepoName)
 				g.Expect(status).To(matchGitRepoStatus(expectedStatus))
 
 			}).Should(Succeed())
@@ -381,10 +381,10 @@ func replace(path string, s string, r string) {
 }
 
 // getGitRepoStatus retrieves the status of the gitrepo with the provided name.
-func getGitRepoStatus(k kubectl.Command, name string) fleet.GitRepoStatus {
+func getGitRepoStatus(g Gomega, k kubectl.Command, name string) fleet.GitRepoStatus {
 	gr, err := k.Get("gitrepo", name, "-o=json")
 
-	Expect(err).ToNot(HaveOccurred())
+	g.Expect(err).ToNot(HaveOccurred())
 
 	var gitrepo fleet.GitRepo
 	_ = json.Unmarshal([]byte(gr), &gitrepo)
