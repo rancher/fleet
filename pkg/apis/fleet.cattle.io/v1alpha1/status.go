@@ -23,6 +23,8 @@ type StatusBase struct {
 	ResourceCounts ResourceCounts `json:"resourceCounts,omitempty"`
 	// ResourceErrors is a sorted list of errors from the resources.
 	ResourceErrors []string `json:"resourceErrors,omitempty"`
+	// PerClusterResourceCounts contains the number of resources in each state over all bundles, per cluster.
+	PerClusterResourceCounts map[string]*ResourceCounts `json:"perClusterResourceCounts,omitempty"`
 }
 
 type StatusDisplay struct {

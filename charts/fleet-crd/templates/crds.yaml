@@ -6622,6 +6622,46 @@ spec:
                     except for changes to .metadata or .status.'
                   format: int64
                   type: integer
+                perClusterResourceCounts:
+                  additionalProperties:
+                    description: ResourceCounts contains the number of resources in
+                      each state.
+                    properties:
+                      desiredReady:
+                        description: DesiredReady is the number of resources that
+                          should be ready.
+                        type: integer
+                      missing:
+                        description: Missing is the number of missing resources.
+                        type: integer
+                      modified:
+                        description: Modified is the number of resources that have
+                          been modified.
+                        type: integer
+                      notReady:
+                        description: 'NotReady is the number of not ready resources.
+                          Resources are not
+
+                          ready if they do not match any other state.'
+                        type: integer
+                      orphaned:
+                        description: Orphaned is the number of orphaned resources.
+                        type: integer
+                      ready:
+                        description: Ready is the number of ready resources.
+                        type: integer
+                      unknown:
+                        description: Unknown is the number of resources in an unknown
+                          state.
+                        type: integer
+                      waitApplied:
+                        description: WaitApplied is the number of resources that are
+                          waiting to be applied.
+                        type: integer
+                    type: object
+                  description: PerClusterResourceCounts contains the number of resources
+                    in each state over all bundles, per cluster.
+                  type: object
                 readyClusters:
                   description: 'ReadyClusters is the lowest number of clusters that
                     are ready over
@@ -8416,6 +8456,46 @@ spec:
 
                         BundleState according to StateRank.'
                       type: string
+                  type: object
+                perClusterResourceCounts:
+                  additionalProperties:
+                    description: ResourceCounts contains the number of resources in
+                      each state.
+                    properties:
+                      desiredReady:
+                        description: DesiredReady is the number of resources that
+                          should be ready.
+                        type: integer
+                      missing:
+                        description: Missing is the number of missing resources.
+                        type: integer
+                      modified:
+                        description: Modified is the number of resources that have
+                          been modified.
+                        type: integer
+                      notReady:
+                        description: 'NotReady is the number of not ready resources.
+                          Resources are not
+
+                          ready if they do not match any other state.'
+                        type: integer
+                      orphaned:
+                        description: Orphaned is the number of orphaned resources.
+                        type: integer
+                      ready:
+                        description: Ready is the number of ready resources.
+                        type: integer
+                      unknown:
+                        description: Unknown is the number of resources in an unknown
+                          state.
+                        type: integer
+                      waitApplied:
+                        description: WaitApplied is the number of resources that are
+                          waiting to be applied.
+                        type: integer
+                    type: object
+                  description: PerClusterResourceCounts contains the number of resources
+                    in each state over all bundles, per cluster.
                   type: object
                 readyClusters:
                   description: 'ReadyClusters is the lowest number of clusters that
