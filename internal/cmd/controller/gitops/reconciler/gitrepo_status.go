@@ -9,6 +9,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
+	"github.com/rancher/fleet/internal/resourcestatus"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
@@ -104,7 +105,7 @@ func SetStatusFromBundleDeployments(ctx context.Context, c client.Client, gitrep
 	gitrepo.Status.Display.Message = message
 	gitrepo.Status.Display.Error = len(message) > 0
 
-	setResources(list, gitrepo)
+	resourcestatus.SetGitRepoResources(list, gitrepo)
 
 	return nil
 }
