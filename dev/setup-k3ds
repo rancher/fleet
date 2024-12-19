@@ -32,12 +32,16 @@ k3d cluster create upstream \
   $args
 
 for i in $(seq 1 "$FLEET_E2E_DS_CLUSTER_COUNT"); do
-  k3d cluster create "downstream$i" \
+  cluster="downstream"
+  if [[ $i -ne 1 ]]; then
+    cluster="${cluster}${i}"
+  fi
+  k3d cluster create "${cluster}" \
     --servers 1 \
     --api-port $((36443 + i)) \
     -p "$((4080 + (1000 * i))):80@server:0" \
     -p "$((3443 + i)):443@server:0" \
-    --k3s-arg "--tls-san=k3d-downstream$i-server-0@server:0" \
+    --k3s-arg "--tls-san=k3d-${cluster}-server-0@server:0" \
     $args
 done
 
