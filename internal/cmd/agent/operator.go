@@ -52,7 +52,13 @@ func init() {
 
 // start the fleet agent
 // systemNamespace is the namespace the agent is running in, e.g. cattle-fleet-system
-func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agentScope string) error {
+func start(
+	ctx context.Context,
+	localConfig *rest.Config,
+	systemNamespace,
+	agentScope string,
+	workersOpts AgentReconcilerWorkers,
+) error {
 	// Registration is done in an init container. If we are here, we are already registered.
 	// Retrieve the existing config from the registration.
 	// Cannot start without kubeconfig for upstream cluster:
@@ -98,6 +104,7 @@ func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agent
 		agentScope,
 		agentConfig,
 		driftChan,
+		workersOpts.BundleDeployment,
 	)
 	if err != nil {
 		setupLog.Error(err, "unable to set up bundledeployment reconciler")
@@ -121,6 +128,8 @@ func start(ctx context.Context, localConfig *rest.Config, systemNamespace, agent
 		DriftDetect: reconciler.DriftDetect,
 
 		DriftChan: driftChan,
+
+		Workers: workersOpts.Drift,
 	}
 	if err = driftReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BundleDeployment")
@@ -188,6 +197,7 @@ func newReconciler(
 	agentScope string,
 	agentConfig config.Config,
 	driftChan chan event.GenericEvent,
+	workers int,
 ) (*controller.BundleDeploymentReconciler, error) {
 	upstreamClient := mgr.GetClient()
 
@@ -281,6 +291,8 @@ func newReconciler(
 		DefaultNamespace: defaultNamespace,
 
 		AgentScope: agentScope,
+
+		Workers: workers,
 	}, nil
 }
 

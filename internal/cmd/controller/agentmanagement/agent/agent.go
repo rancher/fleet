@@ -73,6 +73,8 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 	mo.SystemDefaultRegistry = cfg.SystemDefaultRegistry
 	mo.AgentImagePullPolicy = cfg.AgentImagePullPolicy
 	mo.CheckinInterval = cfg.AgentCheckinInterval.Duration.String()
+	mo.BundleDeploymentWorkers = cfg.AgentWorkers.BundleDeployment
+	mo.DriftWorkers = cfg.AgentWorkers.Drift
 
 	objs = append(objs, Manifest(agentNamespace, agentScope, mo)...)
 

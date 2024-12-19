@@ -41,6 +41,8 @@ type BundleDeploymentReconciler struct {
 
 	// AgentInfo is the labelSuffix used by the helm deployer
 	AgentScope string
+
+	Workers int
 }
 
 var DefaultRetry = wait.Backoff{
@@ -75,7 +77,7 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					},
 				},
 			)).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 50}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
 
