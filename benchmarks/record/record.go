@@ -168,6 +168,7 @@ func Nodes(ctx context.Context, experiment *gm.Experiment) {
 		pods.Add(*node.Status.Capacity.Pods())
 		for _, image := range node.Status.Images {
 			name := ""
+			// in k3d, the first image name contains the hash, not the tag
 			if len(image.Names) == 0 {
 				continue
 			} else if len(image.Names) > 1 {
