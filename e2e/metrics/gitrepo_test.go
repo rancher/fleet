@@ -67,7 +67,9 @@ var _ = Describe("GitRepo Metrics", Label("gitrepo"), func() {
 		It("should have exactly one metric of each type for the gitrepo", func() {
 			Eventually(func() error {
 				metrics, err := etGitjob.Get()
-				Expect(err).ToNot(HaveOccurred())
+				if err != nil {
+					return err
+				}
 				for _, metricName := range gitrepoMetricNames {
 					metric, err := etGitjob.FindOneMetric(
 						metrics,
@@ -105,7 +107,9 @@ var _ = Describe("GitRepo Metrics", Label("gitrepo"), func() {
 				// Expect still no metrics to be duplicated.
 				Eventually(func() error {
 					metrics, err := etGitjob.Get()
-					Expect(err).ToNot(HaveOccurred())
+					if err != nil {
+						return err
+					}
 					for _, metricName := range gitrepoMetricNames {
 						metric, err = etGitjob.FindOneMetric(
 							metrics,
@@ -132,7 +136,9 @@ var _ = Describe("GitRepo Metrics", Label("gitrepo"), func() {
 
 				Eventually(func() error {
 					metrics, err := etGitjob.Get()
-					Expect(err).ToNot(HaveOccurred())
+					if err != nil {
+						return err
+					}
 					for _, metricName := range gitrepoMetricNames {
 						_, err := etGitjob.FindOneMetric(
 							metrics,
