@@ -9,13 +9,13 @@ source ./dev/setup-cluster-config
 # Cleans with settings sourced, so it should be rather selective.
 ./dev/k3d-clean
 
-RANDOM_PORT=0
-if [ -z ${external_ip} ];
+PORT_OFFSET=0
+if [ -z "$external_ip" ];
 then
- RANDOM_PORT=$(( RANDOM % 10001 ))
+ PORT_OFFSET=$(( RANDOM % 10001 ))
 fi
 
-./dev/setup-k3d "${FLEET_E2E_CLUSTER#k3d-}" "${RANDOM_PORT}"
+./dev/setup-k3d "${FLEET_E2E_CLUSTER#k3d-}" "$PORT_OFFSET"
 ./dev/build-fleet
 ./dev/import-images-k3d
 ./dev/setup-fleet "${FLEET_E2E_CLUSTER#k3d-}" '[
