@@ -43,6 +43,14 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        {{- if $.Values.agent.reconciler.workers.bundledeployment }}
+        - name: BUNDLEDEPLOYMENT_RECONCILER_WORKERS
+          value: {{ quote $.Values.agent.reconciler.workers.bundledeployment }}
+        {{- end }}
+        {{- if $.Values.agent.reconciler.workers.drift }}
+        - name: DRIFT_RECONCILER_WORKERS
+          value: {{ quote $.Values.agent.reconciler.workers.drift }}
+        {{- end }}
         image: '{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}'
         name: fleet-agent
         command:

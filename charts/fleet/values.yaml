@@ -104,6 +104,17 @@ controller:
       gitrepo: "50"
       bundle: "50"
       bundledeployment: "50"
+      cluster: "50"
+      clustergroup: "50"
+      imagescan: "50"
+
+## Fleet agent configuration
+agent:
+  reconciler:
+    # The number of workers that are allowed for each type of reconciler
+    workers:
+      bundledeployment: "50"
+      drift: "50"
 
 # Extra environment variables passed to the fleet pods.
 # extraEnv:

@@ -118,6 +118,14 @@ type Config struct {
 
 	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
 	GarbageCollectionInterval metav1.Duration `json:"garbageCollectionInterval,omitempty"`
+
+	// AgentWorkers specifies the maximum number of workers for each agent reconciler.
+	AgentWorkers AgentWorkers `json:"agentWorkers,omitempty"`
+}
+
+type AgentWorkers struct {
+	BundleDeployment string `json:"bundledeployment,omitempty"`
+	Drift            string `json:"drift,omitempty"`
 }
 
 type Bootstrap struct {

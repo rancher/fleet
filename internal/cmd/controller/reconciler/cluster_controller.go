@@ -53,6 +53,8 @@ type ClusterReconciler struct {
 
 	Query   BundleQuery
 	ShardID string
+
+	Workers int
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -99,7 +101,7 @@ func (r *ClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}),
 		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 50}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
 }
 

@@ -261,16 +261,18 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 	objs := agent.Manifest(
 		agentNamespace, cluster.Spec.AgentNamespace,
 		agent.ManifestOptions{
-			AgentEnvVars:          cluster.Spec.AgentEnvVars,
-			AgentImage:            cfg.AgentImage,
-			AgentImagePullPolicy:  cfg.AgentImagePullPolicy,
-			AgentTolerations:      cluster.Spec.AgentTolerations,
-			CheckinInterval:       cfg.AgentCheckinInterval.Duration.String(),
-			PrivateRepoURL:        cluster.Spec.PrivateRepoURL,
-			SystemDefaultRegistry: cfg.SystemDefaultRegistry,
-			AgentAffinity:         cluster.Spec.AgentAffinity,
-			AgentResources:        cluster.Spec.AgentResources,
-			HostNetwork:           *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
+			AgentEnvVars:            cluster.Spec.AgentEnvVars,
+			AgentImage:              cfg.AgentImage,
+			AgentImagePullPolicy:    cfg.AgentImagePullPolicy,
+			AgentTolerations:        cluster.Spec.AgentTolerations,
+			CheckinInterval:         cfg.AgentCheckinInterval.Duration.String(),
+			PrivateRepoURL:          cluster.Spec.PrivateRepoURL,
+			SystemDefaultRegistry:   cfg.SystemDefaultRegistry,
+			AgentAffinity:           cluster.Spec.AgentAffinity,
+			AgentResources:          cluster.Spec.AgentResources,
+			HostNetwork:             *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
+			BundleDeploymentWorkers: cfg.AgentWorkers.BundleDeployment,
+			DriftWorkers:            cfg.AgentWorkers.Drift,
 		},
 	)
 	agentYAML, err := yaml.Export(objs...)
