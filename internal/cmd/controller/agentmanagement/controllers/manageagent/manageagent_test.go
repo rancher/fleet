@@ -1,16 +1,36 @@
 package manageagent
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
 	"go.uber.org/mock/gomock"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
+	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
+
+func TestNewAgentBundle(t *testing.T) {
+	config.Set(&config.Config{AgentCheckinInterval: metav1.Duration{Duration: 0 * time.Second}})
+
+	h := handler{systemNamespace: "blah"}
+	obj, err := h.newAgentBundle("foo", &fleet.Cluster{Spec: fleet.ClusterSpec{AgentNamespace: "bar"}})
+
+	if obj != nil {
+		t.Fatalf("expected obj returned by newAgentBundle to be nil")
+	}
+
+	expectedStr := "interval cannot be 0"
+	if !strings.Contains(err.Error(), expectedStr) {
+		t.Fatalf("expected error returned by newAgentBundle to contain %q", expectedStr)
+	}
+}
 
 func TestOnClusterChangeAffinity(t *testing.T) {
 	ctrl := gomock.NewController(t)
