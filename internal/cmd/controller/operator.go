@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/reugn/go-quartz/quartz"
 
@@ -18,6 +19,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
@@ -59,6 +61,8 @@ func start(
 		leaderElectionSuffix = fmt.Sprintf("-%s", shardID)
 	}
 
+	hour := 60 * time.Minute
+
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricServerOptions,
@@ -70,6 +74,11 @@ func start(
 		LeaseDuration:           leaderOpts.LeaseDuration,
 		RenewDeadline:           leaderOpts.RenewDeadline,
 		RetryPeriod:             leaderOpts.RetryPeriod,
+
+		// resync to pick up lost gitrepos
+		Cache: cache.Options{
+			SyncPeriod: &hour,
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
