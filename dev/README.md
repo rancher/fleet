@@ -171,9 +171,6 @@ export GIT_HTTP_PASSWORD="foo"
 export CI_OCI_USERNAME="fleet-ci"
 export CI_OCI_PASSWORD="foo"
 export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
-
-# optional, for selecting Helm versions (see [Troubleshooting](#troubleshooting))
-export HELM_PATH="/usr/bin/helm"
 ```
 
 ### `public_hostname`
@@ -192,14 +189,6 @@ Any magic wildcard DNS resolver will do, or you can create an A record in your o
 The k3d cluster is set up with multiple port forwardings by the scripts: `-p '80:80@server:0' -p '443:443@server:0'`.
 More arguments can be provided via the `k3d_args` variable.
 
-### Troubleshooting
-
-If running the `infra setup` script returns an error about flag
-`--insecure-skip-tls-verify` not being found, check which version of Helm you
-are using via `helm version`. In case you have Rancher Desktop installed, you
-may be using its own Helm fork from `~/.rd/bin` by default, based on a different
-version of upstream Helm. Feel free to set environment variable `HELM_PATH` to
-remedy this. By default, the setup script will use `/usr/bin/helm`.
 
 ## Different Script Folders
 
