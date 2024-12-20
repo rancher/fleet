@@ -154,7 +154,7 @@ export FLEET_E2E_CLUSTER_DOWNSTREAM=rancher-desktop
 export FLEET_E2E_CLUSTER=k3d-upstream
 export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-upstream
 
-# running multi-cluster tests in k3d (setup-k3d;setup-k3ds)
+# running multi-cluster tests in k3d (setup-k3d;setup-k3ds-downstream)
 export FLEET_E2E_CLUSTER=k3d-upstream
 export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-downstream
 
