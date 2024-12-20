@@ -74,7 +74,12 @@ export CHARTS_BRANCH=<branch_created_in_previous_step>
 ```
 3. Ensuring you have access to a running cluster in which to install Rancher.
 For instance, a set of k3d clusters (1 upstream + 1 downstream) can be created
-on your local machine through `dev/setup-k3ds`.
+on your local machine through:
+
+```
+dev/setup-k3d
+dev/setup-k3ds-downstream
+```
 
 4. Commenting out the pairs of lines (name + value) setting the following
 values for installing Rancher through Helm in script
@@ -149,7 +154,7 @@ export FLEET_E2E_CLUSTER_DOWNSTREAM=rancher-desktop
 export FLEET_E2E_CLUSTER=k3d-upstream
 export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-upstream
 
-# running multi-cluster tests in k3d (setup-k3ds)
+# running multi-cluster tests in k3d (setup-k3d;setup-k3ds-downstream)
 export FLEET_E2E_CLUSTER=k3d-upstream
 export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-downstream
 

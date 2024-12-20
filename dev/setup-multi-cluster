@@ -11,7 +11,14 @@ FLEET_E2E_DS_CLUSTER_COUNT=${FLEET_E2E_DS_CLUSTER_COUNT:-1}
 # Cleans with settings sourced, so it should be rather selective.
 ./dev/k3d-clean
 
-./dev/setup-k3ds
+PORT_OFFSET=0
+if [ -z "$external_ip" ];
+then
+ PORT_OFFSET=$(( RANDOM % 10001 ))
+fi
+
+./dev/setup-k3d "${FLEET_E2E_CLUSTER#k3d-}" "$PORT_OFFSET"
+./dev/setup-k3ds-downstream
 ./dev/build-fleet
 ./dev/import-images-k3d
 ./dev/setup-fleet-multi-cluster
