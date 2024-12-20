@@ -144,6 +144,8 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 
 	JustBeforeEach(func() {
 		updateExperimentalFlagValue(k, experimentalValue)
+		Expect(os.Getenv("CI_OCI_USERNAME")).NotTo(BeEmpty())
+		Expect(os.Getenv("CI_OCI_PASSWORD")).NotTo(BeEmpty())
 		out, err := k.Create(
 			"secret", "generic", "oci-secret",
 			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),

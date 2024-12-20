@@ -304,8 +304,8 @@ func BuildGitHostname(ns string) (string, error) {
 // GetExternalRepoAddr retrieves the external URL where our local git server can be reached, based on the provided port
 // and repo name.
 func GetExternalRepoAddr(env *testenv.Env, port int, repoName string) (string, error) {
-	if v := os.Getenv("CI_GIT_REPO_URL"); v != "" {
-		return fmt.Sprintf("%s/%s", v, repoName), nil
+	if v := os.Getenv("external_ip"); v != "" {
+		return fmt.Sprintf("http://%s:8080/%s", v, repoName), nil
 	}
 
 	systemk := env.Kubectl.Namespace(env.Namespace)
