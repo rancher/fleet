@@ -9,7 +9,7 @@ source dev/setup-cluster-config
 FLEET_E2E_DS_CLUSTER_COUNT=${FLEET_E2E_DS_CLUSTER_COUNT:-1}
 
 # Cleans with settings sourced, so it should be rather selective.
-./dev/k3d-act-clean
+./dev/k3d-clean
 
 ./dev/setup-k3ds
 ./dev/build-fleet

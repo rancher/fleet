@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+#
+# Selectively clean up k3d clusters.
+#
+# Clusters to be cleaned up are determined by the following environment variables:
+# - FLEET_E2E_CLUSTER: The main cluster to be cleaned up.
+# - FLEET_E2E_CLUSTER_DOWNSTREAM: The downstream cluster to be cleaned up.
+# - FLEET_E2E_DS_CLUSTER_COUNT: The number of downstream clusters to be cleaned up.
+
+set -eox pipefail
+
+function k3d-cluster-delete {
+    if [ -z "$1" ]; then
+        return
+    fi
+
+    k3d cluster delete "${1#k3d-}"
+}
+
+if [[ -n "$FLEET_E2E_CLUSTER" ]]; then
+    k3d-cluster-delete "$FLEET_E2E_CLUSTER"
+fi
+
+if [[ -n "$FLEET_E2E_CLUSTER_DOWNSTREAM" ]]; then
+    # If downstream cluster is the same as the main cluster, do nothing.
+    if [[ "$FLEET_E2E_CLUSTER_DOWNSTREAM" == "$FLEET_E2E_CLUSTER" ]]; then
+        exit 0
+    fi
+
+    # Delete downstream cluster.
+    if [[ -z "$FLEET_E2E_DS_CLUSTER_COUNT" ]]; then
+        k3d-cluster-delete "$FLEET_E2E_CLUSTER_DOWNSTREAM"
+        exit 0
+    fi
+
+    # Delete all downstream clusters.
+    for ((i=1; i<FLEET_E2E_DS_CLUSTER_COUNT+1; i++)); do
+        if [[ $i -eq 1 ]]; then
+            k3d-cluster-delete "${FLEET_E2E_CLUSTER_DOWNSTREAM}"
+        else
+            k3d-cluster-delete "${FLEET_E2E_CLUSTER_DOWNSTREAM}${i}"
+        fi
+    done
+fi
