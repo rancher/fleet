@@ -92,7 +92,6 @@ jobs:
           GIT_HTTP_PASSWORD: "foo"
           CI_OCI_USERNAME: "fleet-ci"
           CI_OCI_PASSWORD: "foo"
-          HELM_PATH: /usr/local/bin/helm
         run: |
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
 
