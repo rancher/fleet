@@ -176,6 +176,7 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 
 	nonReadyResources := nonReady(logger, plan, bd.Spec.Options.IgnoreOptions)
 	if len(nonReadyResources) > resourcesDetailsMaxLength {
+		bd.Status.IncompleteState = true
 		bd.Status.NonReadyStatus = nonReadyResources[:resourcesDetailsMaxLength]
 	} else {
 		bd.Status.NonReadyStatus = nonReadyResources
@@ -184,11 +185,14 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 
 	modifiedResources := modified(ctx, m.client, logger, plan, resourcesPreviousRelease)
 	if len(nonReadyResources) > resourcesDetailsMaxLength {
+		bd.Status.IncompleteState = true
 		bd.Status.ModifiedStatus = modifiedResources[:resourcesDetailsMaxLength]
 	} else {
 		bd.Status.ModifiedStatus = modifiedResources
 	}
 	bd.Status.NonModified = len(modifiedResources) == 0
+
+	bd.Status.ResourceCounts = calculateResourceCounts(plan.Objects, nonReadyResources, modifiedResources)
 
 	bd.Status.Resources = []fleet.BundleDeploymentResource{}
 	for _, obj := range plan.Objects {
@@ -214,6 +218,62 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 	}
 
 	return nil
+}
+
+func calculateResourceCounts(all []runtime.Object, nonReady []fleet.NonReadyStatus, modified []fleet.ModifiedStatus) fleet.ResourceCounts {
+	resourceKeys := make(map[fleet.ResourceKey]struct{}, len(all))
+	for _, obj := range all {
+		typeMeta, err := meta.TypeAccessor(obj)
+		if err != nil {
+			continue
+		}
+		objMeta, err := meta.Accessor(obj)
+		if err != nil {
+			continue
+		}
+		resourceKeys[fleet.ResourceKey{
+			Kind:       typeMeta.GetKind(),
+			APIVersion: typeMeta.GetAPIVersion(),
+			Namespace:  objMeta.GetNamespace(),
+			Name:       objMeta.GetName(),
+		}] = struct{}{}
+	}
+
+	// The agent must have enough visibility to determine exact state of every resource.
+	// e.g. "WaitApplied" or "Unknown" states do not make sense in this context
+	counts := fleet.ResourceCounts{
+		DesiredReady: len(all),
+	}
+	for _, r := range modified {
+		if r.Create {
+			counts.Missing++
+		} else if r.Delete {
+			counts.Orphaned++
+		} else {
+			counts.Modified++
+		}
+		delete(resourceKeys, fleet.ResourceKey{
+			Kind:       r.Kind,
+			APIVersion: r.APIVersion,
+			Namespace:  r.Namespace,
+			Name:       r.Name,
+		})
+	}
+	for _, r := range nonReady {
+		key := fleet.ResourceKey{
+			Kind:       r.Kind,
+			APIVersion: r.APIVersion,
+			Namespace:  r.Namespace,
+			Name:       r.Name,
+		}
+		if _, ok := resourceKeys[key]; ok {
+			counts.NotReady++
+			delete(resourceKeys, key)
+		}
+	}
+	counts.Ready = len(resourceKeys)
+
+	return counts
 }
 
 func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
