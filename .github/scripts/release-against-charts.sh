@@ -35,6 +35,8 @@ for i in fleet fleet-crd fleet-agent; do
     yq --inplace "del( .${i}.[] | select(. == \"${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}\") )" release.yaml
     yq --inplace ".${i} += [\"${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}\"]" release.yaml
 done
+# Sort keys in release.yaml
+yq -i -P 'sort_keys(..)' release.yaml
 
 # Adapt Gitjob version in generated patch
 if grep -q '^-  version: ' ./packages/fleet/fleet/generated-changes/patch/Chart.yaml.patch; then
