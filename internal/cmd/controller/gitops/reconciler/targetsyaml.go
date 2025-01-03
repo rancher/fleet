@@ -11,7 +11,7 @@ import (
 )
 
 // newTargetsConfigMap builds a config map, containing the GitTarget cluster matchers, converted to BundleTargets.
-// The BundleTargets are duplicated into TargetRestrictions. TargetRestrictions is a whilelist. A BundleDeployment
+// The BundleTargets are duplicated into TargetRestrictions. TargetRestrictions is a whitelist. A BundleDeployment
 // will be created for a Target just if it is inside a TargetRestrictions. If it is not inside TargetRestrictions a Target
 // is a TargetCustomization.
 func newTargetsConfigMap(repo *fleet.GitRepo) (*corev1.ConfigMap, error) {
