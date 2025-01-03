@@ -17,7 +17,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v27.4.0+incompatible
 	github.com/evanphx/json-patch v5.9.0+incompatible
-	github.com/go-git/go-billy/v5 v5.6.0
+	github.com/go-git/go-billy/v5 v5.6.1
 	github.com/go-git/go-git/v5 v5.12.1-0.20240629213349-b00c68ab7140
 	github.com/go-logr/logr v1.4.2
 	github.com/go-playground/webhooks/v6 v6.4.0
@@ -102,7 +102,7 @@ require (
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
-	github.com/cyphar/filepath-securejoin v0.3.4 // indirect
+	github.com/cyphar/filepath-securejoin v0.3.6 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v27.1.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
@@ -224,7 +224,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
 	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/term v0.27.0 // indirect
