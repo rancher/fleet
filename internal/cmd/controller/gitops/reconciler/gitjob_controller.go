@@ -188,8 +188,10 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	repoPolled, err := r.repoPolled(ctx, gitrepo)
 	if err != nil {
 		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToCheckCommit", err.Error())
+		logger.Info("Failed to check for latest commit", "error", err)
 	} else if repoPolled && oldCommit != gitrepo.Status.Commit {
 		r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
+		logger.Info("New commit from repository", "newCommit", gitrepo.Status.Commit)
 	}
 
 	// check for webhook commit
