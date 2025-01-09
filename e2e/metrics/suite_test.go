@@ -53,6 +53,12 @@ func getMetricsPort(app string) int64 {
 			Expect(err).ToNot(HaveOccurred())
 			return i
 		}
+	case "helmops":
+		if port := os.Getenv("METRICS_HELMOPS_PORT"); port != "" {
+			i, err := strconv.ParseInt(port, 10, 64)
+			Expect(err).ToNot(HaveOccurred())
+			return i
+		}
 	}
 	rs := rand.NewSource(time.Now().UnixNano())
 	return rs.Int63()%1000 + 30000
