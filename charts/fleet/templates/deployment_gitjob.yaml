@@ -83,6 +83,10 @@ spec:
             - name: NO_PROXY
               value: {{ $.Values.noProxy }}
           {{- end }}
+          {{- if $.Values.gitops.syncPeriod }}
+            - name: GITREPO_SYNC_PERIOD
+              value: {{ quote $.Values.gitops.syncPeriod }}
+          {{- end }}
           {{- if $.Values.controller.reconciler.workers.gitrepo }}
             - name: GITREPO_RECONCILER_WORKERS
               value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
