@@ -1,0 +1,4 @@
+helm:
+  values:
+    templatedLabel: "${ .ClusterLabels.foo }-foo"
+  releaseName: reproducer
