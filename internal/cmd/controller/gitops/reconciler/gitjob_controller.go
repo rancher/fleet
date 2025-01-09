@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"reflect"
 	"sort"
@@ -189,6 +190,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	result := reconcile.Result{}
 	if repoPolled {
 		result = reconcile.Result{RequeueAfter: getPollingIntervalDuration(gitrepo)}
+		result.RequeueAfter = addJitter(result.RequeueAfter)
 	}
 
 	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled, result)
@@ -206,6 +208,16 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return result, nil
+}
+
+// addJitter to the requeue time to avoid thundering herd
+// generate a random number between -10% and +10% of the duration
+func addJitter(d time.Duration) time.Duration {
+	if d <= 0 {
+		return d
+	}
+
+	return d + time.Duration(rand.Int64N(int64(d)/10)) // nolint:gosec // gosec G404 false positive, not used for crypto
 }
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
