@@ -58,6 +58,9 @@ func (r *ConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						object.GetName() == config.ManagerConfigName
 				}),
 				predicate.Or(
+					// Note: These predicates prevent cache
+					// syncPeriod from triggering reconcile, since
+					// cache sync is an Update event.
 					predicate.ResourceVersionChangedPredicate{},
 					predicate.GenerationChangedPredicate{},
 					predicate.AnnotationChangedPredicate{},
