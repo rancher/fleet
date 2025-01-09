@@ -51,6 +51,9 @@ func (r *HelmAppReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&fleet.HelmApp{},
 			builder.WithPredicates(
 				predicate.Or(
+					// Note: These predicates prevent cache
+					// syncPeriod from triggering reconcile, since
+					// cache sync is an Update event.
 					predicate.GenerationChangedPredicate{},
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},

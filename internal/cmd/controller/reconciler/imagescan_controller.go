@@ -40,6 +40,9 @@ func (r *ImageScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			predicate.And(
 				sharding.FilterByShardID(r.ShardID),
 				predicate.Or(
+					// Note: These predicates prevent cache
+					// syncPeriod from triggering reconcile, since
+					// cache sync is an Update event.
 					predicate.GenerationChangedPredicate{},
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
