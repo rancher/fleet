@@ -103,8 +103,9 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.GitRepo{},
 			builder.WithPredicates(
-				// do not trigger for GitRepo status changes (except for commit changes)
+				// do not trigger for GitRepo status changes (except for commit changes and cache sync)
 				predicate.Or(
+					TypedResourceVersionUnchangedPredicate[client.Object]{},
 					predicate.GenerationChangedPredicate{},
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
