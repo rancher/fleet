@@ -59,6 +59,9 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(
 			// we do not trigger for status changes
 			predicate.Or(
+				// Note: These predicates prevent cache
+				// syncPeriod from triggering reconcile, since
+				// cache sync is an Update event.
 				predicate.GenerationChangedPredicate{},
 				predicate.AnnotationChangedPredicate{},
 				predicate.LabelChangedPredicate{},

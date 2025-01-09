@@ -33,9 +33,10 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-	zopts    *zap.Options
+	scheme            = runtime.NewScheme()
+	setupLog          = ctrl.Log.WithName("setup")
+	zopts             *zap.Options
+	defaultSyncPeriod = 10 * time.Hour
 )
 
 func init() {
@@ -96,6 +97,14 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		shardIDSuffix = fmt.Sprintf("-%s", g.ShardID)
 	}
 
+	syncPeriod := defaultSyncPeriod
+	if d := os.Getenv("GITREPO_SYNC_PERIOD"); d != "" {
+		syncPeriod, err = time.ParseDuration(d)
+		if err != nil {
+			return err
+		}
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		Metrics:                 g.setupMetrics(),
@@ -105,6 +114,10 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		LeaseDuration:           leaderOpts.LeaseDuration,
 		RenewDeadline:           leaderOpts.RenewDeadline,
 		RetryPeriod:             leaderOpts.RetryPeriod,
+		// resync to pick up lost gitrepos
+		Cache: cache.Options{
+			SyncPeriod: &syncPeriod,
+		},
 	})
 
 	if err != nil {
