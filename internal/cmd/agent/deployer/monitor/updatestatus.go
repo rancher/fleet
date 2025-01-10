@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,6 +25,9 @@ import (
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
+
+// limit the length of nonReady and modified resources
+const resourcesDetailsMaxLength = 10
 
 type Monitor struct {
 	client     client.Client
@@ -172,17 +174,21 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 		return err
 	}
 
-	bd.Status.NonReadyStatus = nonReady(logger, plan, bd.Spec.Options.IgnoreOptions)
-	bd.Status.ModifiedStatus = modified(ctx, m.client, logger, plan, resourcesPreviousRelease)
-	bd.Status.Ready = false
-	bd.Status.NonModified = false
+	nonReadyResources := nonReady(logger, plan, bd.Spec.Options.IgnoreOptions)
+	if len(nonReadyResources) > resourcesDetailsMaxLength {
+		bd.Status.NonReadyStatus = nonReadyResources[:resourcesDetailsMaxLength]
+	} else {
+		bd.Status.NonReadyStatus = nonReadyResources
+	}
+	bd.Status.Ready = len(nonReadyResources) == 0
 
-	if len(bd.Status.NonReadyStatus) == 0 {
-		bd.Status.Ready = true
+	modifiedResources := modified(ctx, m.client, logger, plan, resourcesPreviousRelease)
+	if len(nonReadyResources) > resourcesDetailsMaxLength {
+		bd.Status.ModifiedStatus = modifiedResources[:resourcesDetailsMaxLength]
+	} else {
+		bd.Status.ModifiedStatus = modifiedResources
 	}
-	if len(bd.Status.ModifiedStatus) == 0 {
-		bd.Status.NonModified = true
-	}
+	bd.Status.NonModified = len(modifiedResources) == 0
 
 	bd.Status.Resources = []fleet.BundleDeploymentResource{}
 	for _, obj := range plan.Objects {
@@ -218,9 +224,6 @@ func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.Igno
 	}()
 
 	for _, obj := range plan.Objects {
-		if len(result) >= 10 {
-			return result
-		}
 		if u, ok := obj.(*unstructured.Unstructured); ok {
 			if ignoreOptions.Conditions != nil {
 				if err := excludeIgnoredConditions(u, ignoreOptions); err != nil {
@@ -228,15 +231,15 @@ func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.Igno
 				}
 			}
 
-			summary := summary.Summarize(u)
-			if !summary.IsReady() {
+			sum := summary.Summarize(u)
+			if !sum.IsReady() {
 				result = append(result, fleet.NonReadyStatus{
 					UID:        u.GetUID(),
 					Kind:       u.GetKind(),
 					APIVersion: u.GetAPIVersion(),
 					Namespace:  u.GetNamespace(),
 					Name:       u.GetName(),
-					Summary:    summary,
+					Summary:    sum,
 				})
 			}
 		}
@@ -256,13 +259,8 @@ func modified(ctx context.Context, c client.Client, logger logr.Logger, plan des
 		})
 	}()
 	for gvk, keys := range plan.Create {
+		apiVersion, kind := gvk.ToAPIVersionAndKind()
 		for _, key := range keys {
-			if len(result) >= 10 {
-				return result
-			}
-
-			apiVersion, kind := gvk.ToAPIVersionAndKind()
-
 			obj := &unstructured.Unstructured{}
 			obj.SetGroupVersionKind(gvk)
 			key := client.ObjectKey{
@@ -296,12 +294,8 @@ func modified(ctx context.Context, c client.Client, logger logr.Logger, plan des
 	}
 
 	for gvk, keys := range plan.Delete {
+		apiVersion, kind := gvk.ToAPIVersionAndKind()
 		for _, key := range keys {
-			if len(result) >= 10 {
-				return result
-			}
-
-			apiVersion, kind := gvk.ToAPIVersionAndKind()
 			// Check if resource was in a previous release. It is possible that some operators copy the
 			// objectset.rio.cattle.io/hash label into a dynamically created objects. We need to skip these resources
 			// because they are not part of the release, and they would appear as orphaned.
@@ -319,12 +313,8 @@ func modified(ctx context.Context, c client.Client, logger logr.Logger, plan des
 	}
 
 	for gvk, patches := range plan.Update {
+		apiVersion, kind := gvk.ToAPIVersionAndKind()
 		for key, patch := range patches {
-			if len(result) >= 10 {
-				break
-			}
-
-			apiVersion, kind := gvk.ToAPIVersionAndKind()
 			result = append(result, fleet.ModifiedStatus{
 				Kind:       kind,
 				APIVersion: apiVersion,
