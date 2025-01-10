@@ -1,0 +1,850 @@
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-1
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-1
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-2
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-2
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-3
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-3
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-4
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-4
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-5
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-5
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-6
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-6
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-7
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-7
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-8
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-8
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-9
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-9
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-10
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-10
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-11
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-11
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-12
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-12
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-13
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-13
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-14
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-14
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-15
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-15
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-16
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-16
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-17
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-17
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-18
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-18
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-19
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-19
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-20
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-20
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-21
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-21
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-22
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-22
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-23
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-23
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-24
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-24
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-25
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-25
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-26
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-26
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-27
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-27
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-28
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-28
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-29
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-29
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-30
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-30
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-31
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-31
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-32
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-32
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-33
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-33
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-34
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-34
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-35
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-35
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-36
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-36
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-37
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-37
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-38
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-38
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-39
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-39
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-40
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-40
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-41
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-41
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-42
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-42
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-43
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-43
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-44
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-44
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-45
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-45
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-46
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-46
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-47
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-47
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-48
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-48
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-49
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-49
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
+---
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bm-50-gitrepo-50-bundle-part-50
+  labels:
+    fleet.cattle.io/group: bm-50-gitrepo-50-bundle
+spec:
+  repo: https://github.com/rancher/fleet-test-data
+  branch: master
+  paths:
+  - benchmarks/create-50-gitrepo-50-bundle
+  targetNamespace: bm-50-gitrepo-50-bundle-part-50
+  targets:
+    - clusterSelector:
+        matchLabels:
+          fleet.cattle.io/benchmark: "true"
