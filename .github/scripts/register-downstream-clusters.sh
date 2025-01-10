@@ -10,7 +10,7 @@ ctx=$(kubectl config current-context)
 # hardcoded token, cluster is ephemeral and private
 token="token-ci:zfllcbdr4677rkj4hmlr8rsmljg87l7874882928khlfs2pmmcq7l5"
 
-user=$(kubectl get users -o go-template='{{range .items }}{{.metadata.name}}{{"\n"}}{{end}}' | tail -1)
+user=$(kubectl get users -l authz.management.cattle.io/bootstrapping=admin-user -o go-template='{{range .items }}{{.metadata.name}}{{"\n"}}{{end}}' | tail -1)
 sed "s/user-zvnsr/$user/" <<'EOF' | kubectl apply -f -
 apiVersion: management.cattle.io/v3
 kind: Token
@@ -42,10 +42,8 @@ rancher clusters create second --import
 until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' | grep -Eq "c-[a-z0-9]" ; do sleep 1; done
 id=$( rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' )
 
+until rancher cluster import "$id" | grep -q curl; do sleep 1; done
 kubectl config use-context "$cluster_downstream"
-kubectl create clusterrolebinding cluster-admin-binding --clusterrole cluster-admin --user $user
-
-until [ -n "$(rancher cluster import "$id" | grep curl)" ]; do sleep 1; done
 rancher cluster import "$id" | grep curl | sh
 
 until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .Cluster.state' | grep -q active; do

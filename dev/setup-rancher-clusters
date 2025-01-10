@@ -9,7 +9,7 @@ fi
 
 public_hostname="${public_hostname-172.18.0.1.sslip.io}"
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
-downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream1}"
 rancherpassword="${RANCHER_PASSWORD-rancherpassword}"
 
 version="${1-}"
