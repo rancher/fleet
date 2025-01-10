@@ -5,8 +5,10 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
+
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
@@ -15,8 +17,10 @@ import (
 	"github.com/rancher/fleet/internal/ociwrapper"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -130,6 +134,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	bundleOrig := bundle.DeepCopy()
 
 	if bundle.Labels[fleet.RepoLabel] != "" {
 		logger = logger.WithValues(
@@ -215,6 +220,18 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	matchedTargets, err := r.Builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
+		// When targeting fails, we don't want to continue and we make the error message visible in
+		// the UI. For that we use a status condition of type Ready.
+		bundle.Status.Conditions = []genericcondition.GenericCondition{
+			{
+				Type:           string(fleet.Ready),
+				Status:         v1.ConditionFalse,
+				Message:        "Targeting error: " + err.Error(),
+				LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
+			},
+		}
+
+		err := r.updateStatus(ctx, bundleOrig, bundle)
 		return ctrl.Result{}, err
 	}
 
@@ -257,9 +274,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	summary.SetReadyConditions(&bundle.Status, "Cluster", bundle.Status.Summary)
 	bundle.Status.ObservedGeneration = bundle.Generation
 
-	// build BundleDeployments out of targets discarding Status, replacing
-	// DependsOn with the bundle's DependsOn (pure function) and replacing
-	// the labels with the bundle's labels
+	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
+	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
 	for _, target := range matchedTargets {
 		bd, err := r.createBundleDeployment(ctx, logger, target, contentsInOCI, manifestID)
 		if err != nil {
@@ -275,20 +291,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	updateDisplay(&bundle.Status)
-
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		t := &fleet.Bundle{}
-		if err := r.Get(ctx, req.NamespacedName, t); err != nil {
-			return err
-		}
-		t.Status = bundle.Status
-		return r.Status().Update(ctx, t)
-	})
-	if err != nil {
-		logger.V(1).Error(err, "Reconcile failed final update to bundle status", "status", bundle.Status)
-	} else {
-		metrics.BundleCollector.Collect(ctx, bundle)
-	}
+	err = r.updateStatus(ctx, bundleOrig, bundle)
 
 	return ctrl.Result{}, err
 }
@@ -340,22 +343,20 @@ func (r *BundleReconciler) createBundleDeployment(
 
 	bd.Spec.OCIContents = contentsInOCI
 
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if contentsInOCI {
-			return nil // no contents resources stored in etcd, no finalizers to add here.
-		}
-
+	// contents resources stored in etcd, finalizers to add here.
+	if !contentsInOCI {
 		content := &fleet.Content{}
-		if err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content); err != nil {
-			return client.IgnoreNotFound(err)
+		err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content)
+		if client.IgnoreNotFound(err) != nil {
+			logger.Error(err, "Reconcile failed to get content", "content ID", manifestID)
+			return nil, err
 		}
 
-		controllerutil.AddFinalizer(content, bd.Name)
-
-		return r.Update(ctx, content)
-	})
-	if err != nil {
-		logger.Error(err, "Reconcile failed to add content finalizer", "content ID", manifestID)
+		if added := controllerutil.AddFinalizer(content, bd.Name); added {
+			if err := r.Update(ctx, content); err != nil {
+				logger.Error(err, "Reconcile failed to add content finalizer", "content ID", manifestID)
+			}
+		}
 	}
 
 	updated := bd.DeepCopy()
@@ -449,4 +450,19 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 	}
 	// this is not a valid reference, it is only for display
 	return fmt.Sprintf("oci://%s/%s:latest", string(ref), bundle.Spec.ContentsID), nil
+}
+
+// updateStatus patches the status of the bundle and collects metrics upon a successful update of
+// the bundle status. It returns nil if the status update is successful, otherwise it returns an
+// error.
+func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle, bundle *fleet.Bundle) error {
+	logger := log.FromContext(ctx).WithName("bundle - updateStatus")
+	statusPatch := client.MergeFrom(orig)
+	err := r.Status().Patch(ctx, bundle, statusPatch)
+	if err != nil {
+		logger.V(1).Info("Reconcile failed update to bundle status", "status", bundle.Status, "error", err)
+		return err
+	}
+	metrics.BundleCollector.Collect(ctx, bundle)
+	return nil
 }

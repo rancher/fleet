@@ -1,13 +1,23 @@
 package singlecluster_test
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"math/rand"
+	"os"
+	"path"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	corev1 "k8s.io/api/core/v1"
 )
 
 var _ = Describe("Checks status updates happen for a simple deployment", Ordered, func() {
@@ -108,3 +118,161 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 		})
 	})
 })
+
+var _ = Describe("Checks that template errors are shown in bundles and gitrepos", Ordered, Label("infra-setup"), func() {
+	var (
+		tmpDir           string
+		cloneDir         string
+		k                kubectl.Command
+		gh               *githelper.Git
+		repoName         string
+		inClusterRepoURL string
+		gitrepoName      string
+		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
+		targetNamespace  string
+	)
+
+	BeforeEach(func() {
+		k = env.Kubectl.Namespace(env.Namespace)
+		repoName = "repo"
+	})
+
+	JustBeforeEach(func() {
+		// Build git repo URL reachable _within_ the cluster, for the GitRepo
+		host, err := githelper.BuildGitHostname(env.Namespace)
+		Expect(err).ToNot(HaveOccurred())
+
+		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
+		Expect(err).ToNot(HaveOccurred())
+		gh = githelper.NewHTTP(addr)
+
+		inClusterRepoURL = gh.GetInClusterURL(host, port, repoName)
+
+		tmpDir, _ = os.MkdirTemp("", "fleet-")
+		cloneDir = path.Join(tmpDir, repoName)
+
+		gitrepoName = testenv.RandomFilename("status-test", r)
+
+		_, err = gh.Create(cloneDir, testenv.AssetPath("status/chart-with-template-vars"), "examples")
+		Expect(err).ToNot(HaveOccurred())
+
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("status/gitrepo.yaml"), struct {
+			Name            string
+			Repo            string
+			Branch          string
+			TargetNamespace string
+		}{
+			gitrepoName,
+			inClusterRepoURL,
+			gh.Branch,
+			targetNamespace, // to avoid conflicts with other tests
+		})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		_ = os.RemoveAll(tmpDir)
+
+		_, err := k.Delete("gitrepo", gitrepoName)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Check that the bundle deployment resource has been deleted
+		Eventually(func(g Gomega) {
+			out, _ := k.Get(
+				"bundledeployments",
+				"-A",
+				"-l",
+				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+			)
+			g.Expect(out).To(ContainSubstring("No resources found"))
+		}).Should(Succeed())
+
+		// Deleting the targetNamespace is not necessary when the GitRepo did not successfully
+		// render, as in a few test cases here. If no targetNamespace was created, trying to delete
+		// the namespace will result in an error, which is why we are not checking for errors when
+		// deleting namespaces here.
+		_, _ = k.Delete("ns", targetNamespace)
+	})
+
+	expectNoError := func(g Gomega, conditions []genericcondition.GenericCondition) {
+		for _, condition := range conditions {
+			if condition.Type == string(fleet.Ready) {
+				g.Expect(condition.Status).To(Equal(corev1.ConditionTrue))
+				g.Expect(condition.Message).To(BeEmpty())
+				break
+			}
+		}
+	}
+
+	expectTargetingError := func(g Gomega, conditions []genericcondition.GenericCondition) {
+		found := false
+		for _, condition := range conditions {
+			if condition.Type == string(fleet.Ready) {
+				g.Expect(condition.Status).To(Equal(corev1.ConditionFalse))
+				g.Expect(condition.Message).To(ContainSubstring("Targeting error"))
+				g.Expect(condition.Message).To(
+					ContainSubstring(
+						"<.ClusterLabels.foo>: map has no entry for key \"foo\""))
+				found = true
+				break
+			}
+		}
+		g.Expect(found).To(BeTrue())
+	}
+
+	ensureClusterHasLabelFoo := func() (string, error) {
+		return k.Namespace("fleet-local").
+			Patch("cluster", "local", "--type", "json", "--patch",
+				`[{"op": "add", "path": "/metadata/labels/foo", "value": "bar"}]`)
+	}
+
+	ensureClusterHasNoLabelFoo := func() (string, error) {
+		return k.Namespace("fleet-local").
+			Patch("cluster", "local", "--type", "json", "--patch",
+				`[{"op": "remove", "path": "/metadata/labels/foo"}]`)
+	}
+
+	When("a git repository is created that contains a template error", func() {
+		BeforeEach(func() {
+			targetNamespace = testenv.NewNamespaceName("target", r)
+		})
+
+		It("should have an error in the bundle", func() {
+			_, _ = ensureClusterHasNoLabelFoo()
+			Eventually(func(g Gomega) {
+				status := getBundleStatus(g, k, gitrepoName+"-examples")
+				expectTargetingError(g, status.Conditions)
+			}).Should(Succeed())
+		})
+
+		It("should have an error in the gitrepo", func() {
+			_, _ = ensureClusterHasNoLabelFoo()
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(g, k, gitrepoName)
+				expectTargetingError(g, status.Conditions)
+			}).Should(Succeed())
+		})
+	})
+
+	When("a git repository is created that contains no template error", func() {
+		It("should have no error in the bundle", func() {
+			_, _ = ensureClusterHasLabelFoo()
+			Eventually(func(g Gomega) {
+				status := getBundleStatus(g, k, gitrepoName+"-examples")
+				expectNoError(g, status.Conditions)
+			}).Should(Succeed())
+		})
+	})
+})
+
+// getBundleStatus retrieves the status of the bundle with the provided name.
+func getBundleStatus(g Gomega, k kubectl.Command, name string) fleet.BundleStatus {
+	gr, err := k.Get("bundle", name, "-o=json")
+
+	g.Expect(err).ToNot(HaveOccurred())
+
+	var bundle fleet.Bundle
+	_ = json.Unmarshal([]byte(gr), &bundle)
+
+	return bundle.Status
+}
