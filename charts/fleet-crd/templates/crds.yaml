@@ -910,6 +910,11 @@ spec:
                       nullable: true
                       type: string
                   type: object
+                incompleteState:
+                  description: IncompleteState is true if there are more than 10 non-ready
+                    or modified resources, meaning that the list in those fields were
+                    truncated.
+                  type: boolean
                 modifiedStatus:
                   items:
                     description: 'ModifiedStatus is used to report the status of a
@@ -998,6 +1003,42 @@ spec:
                   description: Release is the Helm release ID
                   nullable: true
                   type: string
+                resourceCounts:
+                  description: ResourceCounts contains the number of resources in
+                    each state.
+                  properties:
+                    desiredReady:
+                      description: DesiredReady is the number of resources that should
+                        be ready.
+                      type: integer
+                    missing:
+                      description: Missing is the number of missing resources.
+                      type: integer
+                    modified:
+                      description: Modified is the number of resources that have been
+                        modified.
+                      type: integer
+                    notReady:
+                      description: 'NotReady is the number of not ready resources.
+                        Resources are not
+
+                        ready if they do not match any other state.'
+                      type: integer
+                    orphaned:
+                      description: Orphaned is the number of orphaned resources.
+                      type: integer
+                    ready:
+                      description: Ready is the number of ready resources.
+                      type: integer
+                    unknown:
+                      description: Unknown is the number of resources in an unknown
+                        state.
+                      type: integer
+                    waitApplied:
+                      description: WaitApplied is the number of resources that are
+                        waiting to be applied.
+                      type: integer
+                  type: object
                 resources:
                   description: 'Resources lists the metadata of resources that were
                     deployed
