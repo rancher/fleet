@@ -15,6 +15,7 @@ func SetResources(list *fleet.BundleDeploymentList, status *fleet.StatusBase) {
 	status.ResourceErrors = errors
 	status.Resources = merge(r)
 	status.ResourceCounts = sumResourceCounts(list)
+	status.PerClusterResourceCounts = resourceCountsPerCluster(list)
 }
 
 func SetClusterResources(list *fleet.BundleDeploymentList, cluster *fleet.Cluster) {
@@ -59,6 +60,18 @@ func summaryState(summary fleet.BundleSummary) string {
 		return "ErrApplied"
 	}
 	return ""
+}
+
+func resourceCountsPerCluster(list *fleet.BundleDeploymentList) map[string]*fleet.ResourceCounts {
+	res := make(map[string]*fleet.ResourceCounts)
+	for _, bd := range list.Items {
+		clusterID := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
+		if _, ok := res[clusterID]; !ok {
+			res[clusterID] = &fleet.ResourceCounts{}
+		}
+		summary.IncrementResourceCounts(res[clusterID], bd.Status.ResourceCounts)
+	}
+	return res
 }
 
 // fromResources inspects all bundledeployments for this GitRepo and returns a list of
