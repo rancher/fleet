@@ -6,7 +6,7 @@ set -euxo pipefail
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 
 # The single downstream cluster to import the agent image to.
-downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream1}"
 
 # If multi-cluster is enabled, import the agent image to all downstream clusters.
 FLEET_E2E_DS_CLUSTER_COUNT="${FLEET_E2E_DS_CLUSTER_COUNT:-1}"

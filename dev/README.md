@@ -156,7 +156,7 @@ export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-upstream
 
 # running multi-cluster tests in k3d (setup-k3d;setup-k3ds-downstream)
 export FLEET_E2E_CLUSTER=k3d-upstream
-export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-downstream
+export FLEET_E2E_CLUSTER_DOWNSTREAM=k3d-downstream1
 
 # for running tests on darwin/arm64
 export GOARCH=arm64
@@ -222,11 +222,12 @@ The local infra setup creates pods for:
 To build and run the infra setup command do:
 
 ```
+dev/import-images-tests-k3d
+# ./dev/create-zot-certs 'FleetCI-RootCA'
 pushd e2e/testenv/infra
   go build
 popd
 ./e2e/testenv/infra/infra setup
-
 ```
 
 The resulting deployments use a loadbalancer service, which means the host must be able to reach the loadbalancer IP.

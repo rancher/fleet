@@ -7,7 +7,7 @@ set -euxo pipefail
 # https://hub.docker.com/r/rancher/k3s/tags
 # k3d_args="-i docker.io/rancher/k3s:v1.22.15-k3s1"
 
-args=${k3d_args-}
+args=${k3d_args---network fleet}
 docker_mirror=${docker_mirror-}
 unique_api_port=${unique_api_port-36443}
 unique_tls_port=${unique_tls_port-443}

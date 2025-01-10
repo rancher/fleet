@@ -9,7 +9,7 @@ if [ ! -d ./charts/fleet ]; then
 fi
 
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
-downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream1}"
 ns="${FLEET_E2E_NS_DOWNSTREAM-fleet-local}"
 
 kubectl create ns "$ns"|| true

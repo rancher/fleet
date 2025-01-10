@@ -22,7 +22,7 @@ ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalanc
 #fi
 
 helm repo update
-helm install cert-manager jetstack/cert-manager \
+helm upgrade --install cert-manager jetstack/cert-manager \
     --namespace cert-manager \
     --create-namespace \
     --set crds.enabled=true \
@@ -63,6 +63,7 @@ until kubectl get bundles -n fleet-local | grep -q "fleet-agent-local.*1/1"; do 
 helm list -A
 
 export public_hostname=$ip.sslip.io
+export cluster_downstream="k3d-downstream1"
 
 ./.github/scripts/wait-for-loadbalancer.sh
 ./.github/scripts/register-downstream-clusters.sh
