@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
@@ -12,14 +13,12 @@ func SetResources(list *fleet.BundleDeploymentList, status *fleet.StatusBase) {
 	s := summaryState(status.Summary)
 	r, errors := fromResources(list, s)
 	status.ResourceErrors = errors
-	status.ResourceCounts = countResources(r)
 	status.Resources = merge(r)
+	status.ResourceCounts = sumResourceCounts(list)
 }
 
 func SetClusterResources(list *fleet.BundleDeploymentList, cluster *fleet.Cluster) {
-	s := summaryState(cluster.Status.Summary)
-	r, _ := fromResources(list, s)
-	cluster.Status.ResourceCounts = countResources(r)
+	cluster.Status.ResourceCounts = sumResourceCounts(list)
 }
 
 // merge takes a list of GitRepo resources and deduplicates resources deployed to multiple clusters,
@@ -237,28 +236,10 @@ func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey]
 	return bdResources
 }
 
-func countResources(resources []fleet.Resource) fleet.ResourceCounts {
-	counts := fleet.ResourceCounts{}
-
-	for _, resource := range resources {
-		counts.DesiredReady++
-		switch resource.State {
-		case "Ready":
-			counts.Ready++
-		case "WaitApplied":
-			counts.WaitApplied++
-		case "Modified":
-			counts.Modified++
-		case "Orphan":
-			counts.Orphaned++
-		case "Missing":
-			counts.Missing++
-		case "Unknown":
-			counts.Unknown++
-		default:
-			counts.NotReady++
-		}
+func sumResourceCounts(list *fleet.BundleDeploymentList) fleet.ResourceCounts {
+	var res fleet.ResourceCounts
+	for _, bd := range list.Items {
+		summary.IncrementResourceCounts(&res, bd.Status.ResourceCounts)
 	}
-
-	return counts
+	return res
 }
