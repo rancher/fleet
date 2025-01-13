@@ -3,64 +3,59 @@ package monitor
 import (
 	"testing"
 
+	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
+	"github.com/stretchr/testify/assert"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func Test_calculateResourceCounts(t *testing.T) {
+func Test_updateFromResources(t *testing.T) {
 	type args struct {
-		all      []runtime.Object
-		nonReady []fleet.NonReadyStatus
-		modified []fleet.ModifiedStatus
+		resources []fleet.BundleDeploymentResource
+		nonReady  []fleet.NonReadyStatus
+		modified  []fleet.ModifiedStatus
 	}
 	tests := []struct {
-		name string
-		args args
-		want fleet.ResourceCounts
+		name   string
+		args   args
+		assert func(*testing.T, fleet.BundleDeploymentStatus)
 	}{
 		{
 			name: "all ready",
 			args: args{
-				all: []runtime.Object{
-					&corev1.ConfigMap{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "ConfigMap",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "testns",
-							Name:      "testcm",
-						},
+				resources: []fleet.BundleDeploymentResource{
+					{
+						Kind:       "ConfigMap",
+						APIVersion: "v1",
+						Namespace:  "testns",
+						Name:       "testcm",
 					},
-					&corev1.Secret{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "Secret",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "testns",
-							Name:      "testsecret",
-						},
+					{
+						Kind:       "Secret",
+						APIVersion: "v1",
+						Namespace:  "testns",
+						Name:       "testsecret",
 					},
 				},
 			},
-			want: fleet.ResourceCounts{DesiredReady: 2, Ready: 2},
+			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 2, Ready: 2})
+				assert.Truef(t, status.Ready, "unexpected ready status")
+				assert.Truef(t, status.NonModified, "unexpected non-modified status")
+				assert.Lenf(t, status.Resources, 2, "unexpected resources length")
+				assert.Emptyf(t, status.NonReadyStatus, "expected non-ready status to be empty")
+				assert.Emptyf(t, status.ModifiedStatus, "expected modified status to be empty")
+			},
 		},
 		{
 			name: "orphaned",
 			args: args{
-				all: []runtime.Object{
-					&corev1.ConfigMap{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "ConfigMap",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "testns",
-							Name:      "testcm",
-						},
+				resources: []fleet.BundleDeploymentResource{
+					{
+						Kind:       "ConfigMap",
+						APIVersion: "v1",
+						Namespace:  "testns",
+						Name:       "testcm",
 					},
 				},
 				modified: []fleet.ModifiedStatus{
@@ -73,21 +68,25 @@ func Test_calculateResourceCounts(t *testing.T) {
 					},
 				},
 			},
-			want: fleet.ResourceCounts{DesiredReady: 1, Ready: 1, Orphaned: 1},
+			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Ready: 1, Orphaned: 1})
+				assert.Truef(t, status.Ready, "unexpected ready status")
+				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
+				assert.Lenf(t, status.Resources, 1, "unexpected resources length")
+				assert.Len(t, status.ModifiedStatus, 1, "incorrect modified status length")
+				assert.True(t, status.ModifiedStatus[0].Delete)
+				assert.Emptyf(t, status.NonReadyStatus, "expected non-ready status to be empty")
+			},
 		},
 		{
 			name: "missing",
 			args: args{
-				all: []runtime.Object{
-					&corev1.ConfigMap{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "ConfigMap",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "testns",
-							Name:      "testcm",
-						},
+				resources: []fleet.BundleDeploymentResource{
+					{
+						Kind:       "ConfigMap",
+						APIVersion: "v1",
+						Namespace:  "testns",
+						Name:       "testcm",
 					},
 				},
 				modified: []fleet.ModifiedStatus{
@@ -100,21 +99,25 @@ func Test_calculateResourceCounts(t *testing.T) {
 					},
 				},
 			},
-			want: fleet.ResourceCounts{DesiredReady: 1, Missing: 1},
+			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Missing: 1})
+				assert.Truef(t, status.Ready, "unexpected ready status")
+				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
+				assert.Lenf(t, status.Resources, 1, "unexpected resources length")
+				assert.Len(t, status.ModifiedStatus, 1, "incorrect modified status length")
+				assert.True(t, status.ModifiedStatus[0].Create)
+				assert.Emptyf(t, status.NonReadyStatus, "expected non-ready status to be empty")
+			},
 		},
 		{
 			name: "modified",
 			args: args{
-				all: []runtime.Object{
-					&corev1.ConfigMap{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "ConfigMap",
-							APIVersion: "v1",
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Namespace: "testns",
-							Name:      "testcm",
-						},
+				resources: []fleet.BundleDeploymentResource{
+					{
+						Kind:       "ConfigMap",
+						APIVersion: "v1",
+						Namespace:  "testns",
+						Name:       "testcm",
 					},
 				},
 				modified: []fleet.ModifiedStatus{
@@ -127,14 +130,78 @@ func Test_calculateResourceCounts(t *testing.T) {
 					},
 				},
 			},
-			want: fleet.ResourceCounts{DesiredReady: 1, Modified: 1},
+			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Modified: 1})
+				assert.Truef(t, status.Ready, "unexpected ready status")
+				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
+				assert.Lenf(t, status.Resources, 1, "unexpected resources length")
+				assert.Len(t, status.ModifiedStatus, 1, "incorrect modified status length")
+				assert.NotEmpty(t, status.ModifiedStatus[0].Patch)
+				assert.Emptyf(t, status.NonReadyStatus, "expected non-ready status to be empty")
+			},
+		},
+		{
+			name: "missing and non-ready",
+			args: args{
+				resources: []fleet.BundleDeploymentResource{
+					{
+						Kind:       "ConfigMap",
+						APIVersion: "v1",
+						Namespace:  "testns",
+						Name:       "testcm",
+					},
+					{
+						Kind:       "Pod",
+						APIVersion: "v1",
+						Namespace:  "testns",
+						Name:       "testpod",
+					},
+				},
+				modified: []fleet.ModifiedStatus{
+					{
+						Kind:       "ConfigMap",
+						APIVersion: "v1",
+						Namespace:  "testns",
+						Name:       "testcm",
+						Patch:      `{"data": {"foo": "bar"}`,
+					},
+				},
+				nonReady: []fleet.NonReadyStatus{
+					{
+						Kind:       "Pod",
+						APIVersion: "v1",
+						Namespace:  "testns",
+						Name:       "testpod",
+						Summary: fleetv1.Summary{
+							State:   "Evicted",
+							Error:   true,
+							Message: []string{"no space left on device"},
+						},
+					},
+				},
+			},
+			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 2, Modified: 1, NotReady: 1})
+				assert.Falsef(t, status.Ready, "unexpected ready status")
+				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
+				assert.Lenf(t, status.Resources, 2, "unexpected resources length")
+				assert.Len(t, status.NonReadyStatus, 1, "incorrect non-ready status length")
+				assert.Equal(t, status.NonReadyStatus[0].Summary, fleetv1.Summary{
+					State:   "Evicted",
+					Error:   true,
+					Message: []string{"no space left on device"},
+				})
+				assert.Len(t, status.ModifiedStatus, 1, "incorrect modified status length")
+				assert.NotEmpty(t, status.ModifiedStatus[0].Patch)
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := calculateResourceCounts(tt.args.all, tt.args.nonReady, tt.args.modified); got != tt.want {
-				t.Errorf("calculateResourceCounts() = %+v, want %+v", got, tt.want)
-			}
+			var status fleet.BundleDeploymentStatus
+			updateFromResources(&status, tt.args.resources, tt.args.nonReady, tt.args.modified)
+
+			tt.assert(t, status)
 		})
 	}
 }
