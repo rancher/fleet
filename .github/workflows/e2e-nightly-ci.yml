@@ -99,8 +99,8 @@ jobs:
           ginkgo --github-output --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources
 
           # 2. Run tests for metrics
-          ginkgo --github-output e2e/metrics
-          SHARD=shard1 ginkgo --github-output e2e/metrics
+          ginkgo --github-output --label-filter='!oci-registry' e2e/metrics
+          SHARD=shard1 ginkgo --github-output --label-filter='!oci-registry' e2e/metrics
 
           # 3. Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
@@ -115,6 +115,7 @@ jobs:
           # 5. Run tests requiring an OCI registry
           e2e/testenv/infra/infra setup --oci-registry=true
           ginkgo --github-output --label-filter='oci-registry' e2e/single-cluster
+          ginkgo --github-output --label-filter='oci-registry' e2e/metrics
 
           # 6. Tear down all infra
           e2e/testenv/infra/infra teardown
