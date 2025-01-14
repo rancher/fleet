@@ -22,6 +22,7 @@ import (
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ociwrapper"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/cert"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 
@@ -397,8 +398,19 @@ func (r *GitJobReconciler) createTargetsConfigMap(ctx context.Context, gitrepo *
 }
 
 func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
-	if len(gitrepo.Spec.CABundle) == 0 {
-		return nil
+	caBundle := gitrepo.Spec.CABundle
+
+	if len(caBundle) == 0 {
+		cab, err := cert.GetRancherCABundle(ctx, r.Client)
+		if err != nil {
+			return err
+		}
+
+		if len(cab) == 0 {
+			return nil
+		}
+
+		caBundle = cab
 	}
 
 	secret := &corev1.Secret{
@@ -407,7 +419,7 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 			Name:      caBundleName(gitrepo),
 		},
 		Data: map[string][]byte{
-			bundleCAFile: gitrepo.Spec.CABundle,
+			bundleCAFile: caBundle,
 		},
 	}
 	if err := controllerutil.SetControllerReference(gitrepo, secret, r.Scheme); err != nil {
