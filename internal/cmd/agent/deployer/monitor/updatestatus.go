@@ -212,21 +212,19 @@ func toBundleDeploymentResources(client client.Client, objs []runtime.Object, de
 }
 
 func updateFromResources(bdStatus *fleet.BundleDeploymentStatus, resources []fleet.BundleDeploymentResource, nonReadyResources []fleet.NonReadyStatus, modifiedResources []fleet.ModifiedStatus) {
-	if len(nonReadyResources) > resourcesDetailsMaxLength {
+	bdStatus.Ready = len(nonReadyResources) == 0
+	bdStatus.NonReadyStatus = nonReadyResources
+	if len(bdStatus.NonReadyStatus) > resourcesDetailsMaxLength {
 		bdStatus.IncompleteState = true
 		bdStatus.NonReadyStatus = nonReadyResources[:resourcesDetailsMaxLength]
-	} else {
-		bdStatus.NonReadyStatus = nonReadyResources
 	}
-	bdStatus.Ready = len(nonReadyResources) == 0
 
-	if len(nonReadyResources) > resourcesDetailsMaxLength {
+	bdStatus.NonModified = len(modifiedResources) == 0
+	bdStatus.ModifiedStatus = modifiedResources
+	if len(bdStatus.ModifiedStatus) > resourcesDetailsMaxLength {
 		bdStatus.IncompleteState = true
 		bdStatus.ModifiedStatus = modifiedResources[:resourcesDetailsMaxLength]
-	} else {
-		bdStatus.ModifiedStatus = modifiedResources
 	}
-	bdStatus.NonModified = len(modifiedResources) == 0
 
 	bdStatus.Resources = resources
 	bdStatus.ResourceCounts = calculateResourceCounts(resources, nonReadyResources, modifiedResources)
