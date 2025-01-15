@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"fmt"
 	"testing"
 
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
@@ -189,6 +190,69 @@ func Test_updateFromResources(t *testing.T) {
 				assert.NotEmptyf(t, status.NonReadyStatus[0].Summary, "unexpected empty summary for non-ready resource")
 				assert.Len(t, status.ModifiedStatus, 1, "incorrect modified status length")
 				assert.NotEmpty(t, status.ModifiedStatus[0].Patch)
+			},
+		},
+		{
+			name: "non-ready and modified status lists have a max length",
+			args: args{
+				resources: func(n int) []fleet.BundleDeploymentResource {
+					cms := make([]fleet.BundleDeploymentResource, n)
+					for x := range n {
+						cms[x] = fleet.BundleDeploymentResource{
+							Kind:       "ConfigMap",
+							APIVersion: "v1",
+							Namespace:  "testns",
+							Name:       fmt.Sprintf("testcm-%d", x),
+						}
+					}
+					pods := make([]fleet.BundleDeploymentResource, n)
+					for x := range n {
+						pods[x] = fleet.BundleDeploymentResource{
+							Kind:       "Pod",
+							APIVersion: "v1",
+							Namespace:  "testns",
+							Name:       fmt.Sprintf("pod-%d", x),
+						}
+					}
+					return append(cms, pods...)
+				}(12),
+				nonReady: func(n int) []fleet.NonReadyStatus {
+					pods := make([]fleet.NonReadyStatus, n)
+					for x := range n {
+						pods[x] = fleet.NonReadyStatus{
+							Kind:       "Pod",
+							APIVersion: "v1",
+							Namespace:  "testns",
+							Name:       fmt.Sprintf("pod-%d", x),
+							Summary: fleetv1.Summary{
+								State: "Evicted",
+							},
+						}
+					}
+					return pods
+				}(12),
+				modified: func(n int) []fleet.ModifiedStatus {
+					cms := make([]fleet.ModifiedStatus, n)
+					for x := range n {
+						cms[x] = fleet.ModifiedStatus{
+							Kind:       "ConfigMap",
+							APIVersion: "v1",
+							Namespace:  "testns",
+							Name:       fmt.Sprintf("testcm-%d", x),
+							Create:     true,
+						}
+					}
+					return cms
+				}(12),
+			},
+			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
+				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 24, Missing: 12, NotReady: 12})
+				assert.Falsef(t, status.Ready, "unexpected ready status")
+				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
+				assert.Lenf(t, status.Resources, 24, "unexpected resources length")
+
+				assert.Len(t, status.NonReadyStatus, 10, "non-ready status length exceeds maximum")
+				assert.Len(t, status.ModifiedStatus, 10, "incorrect modified exceeds maximum")
 			},
 		},
 	}
