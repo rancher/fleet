@@ -397,17 +397,28 @@ func (r *GitJobReconciler) createTargetsConfigMap(ctx context.Context, gitrepo *
 	return err
 }
 
-func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
-	caBundle := gitrepo.Spec.CABundle
+// createCABundleSecret creates a CA bundle secret, if the provided source contains data.
+// That provided source may be the CABundle field of the provided gitrepo (if the provided name matches the CA bundle
+// name expected for the gitrepo, and that CABundle field is non-empty), or Rancher-configured secrets in all other cases.
+// This returns a boolean indicating whether the secret has been successfully created (or updated, in case it already
+// existed), and an error.
+func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1alpha1.GitRepo, name string) (bool, error) {
+	var caBundle []byte
+	fieldName := "cacerts"
+
+	if name == caBundleName(gitrepo) {
+		caBundle = gitrepo.Spec.CABundle
+		fieldName = bundleCAFile
+	}
 
 	if len(caBundle) == 0 {
 		cab, err := cert.GetRancherCABundle(ctx, r.Client)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		if len(cab) == 0 {
-			return nil
+			return false, nil
 		}
 
 		caBundle = cab
@@ -416,22 +427,22 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: gitrepo.ObjectMeta.Namespace,
-			Name:      caBundleName(gitrepo),
+			Name:      name,
 		},
 		Data: map[string][]byte{
-			bundleCAFile: caBundle,
+			fieldName: caBundle,
 		},
 	}
 	if err := controllerutil.SetControllerReference(gitrepo, secret, r.Scheme); err != nil {
-		return err
+		return false, err
 	}
 	data := secret.StringData
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
-		secret.StringData = data
+	res, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.StringData = data // Supports update case, if the secret already exists.
 		return nil
 	})
 
-	return err
+	return res == controllerutil.OperationResultCreated || res == controllerutil.OperationResultUpdated, err
 }
 
 func (r *GitJobReconciler) validateExternalSecretExist(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
@@ -466,7 +477,7 @@ func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v
 	if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
 		return fmt.Errorf("failed to create targets config map for git job: %w", err)
 	}
-	if err := r.createCABundleSecret(ctx, gitrepo); err != nil {
+	if _, err := r.createCABundleSecret(ctx, gitrepo, caBundleName(gitrepo)); err != nil {
 		return fmt.Errorf("failed to create cabundle secret for git job: %w", err)
 	}
 	if err := r.createJob(ctx, gitrepo); err != nil {
@@ -540,6 +551,10 @@ func jobName(obj *v1alpha1.GitRepo) string {
 
 func caBundleName(obj *v1alpha1.GitRepo) string {
 	return fmt.Sprintf("%s-cabundle", obj.Name)
+}
+
+func rancherCABundleName(obj *v1alpha1.GitRepo) string {
+	return fmt.Sprintf("%s-rancher-cabundle", obj.Name)
 }
 
 func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo) (*batchv1.Job, error) {
@@ -634,6 +649,8 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 }
 
 func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.GitRepo) (*batchv1.JobSpec, error) {
+	var isCACertsFileSet bool
+
 	paths := gitrepo.Spec.Paths
 	if len(paths) == 0 {
 		paths = []string{"."}
@@ -666,6 +683,28 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 		volumes = append(volumes, vols...)
 		volumeMounts = append(volumeMounts, volMnts...)
+	} else {
+		// Fall back to Rancher-configured secrets
+		// We need to copy secret data from Rancher, because Rancher secrets live in a different namespace and
+		// can therefore not be used as sources for a volume.
+		secretName := rancherCABundleName(gitrepo)
+		res, err := r.createCABundleSecret(ctx, gitrepo, secretName)
+		if err != nil {
+			return nil, err
+		}
+
+		if res {
+			vols, volMnts := volumesFromSecret(ctx, r.Client,
+				gitrepo.Namespace,
+				secretName,
+				"helm-secret",
+			)
+
+			volumes = append(volumes, vols...)
+			volumeMounts = append(volumeMounts, volMnts...)
+		}
+
+		isCACertsFileSet = true
 	}
 
 	if ociwrapper.ExperimentalOCIIsEnabled() && gitrepo.Spec.OCIRegistry != nil && gitrepo.Spec.OCIRegistry.AuthSecretName != "" {
@@ -698,7 +737,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
-	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled())
+	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled(), isCACertsFileSet)
 
 	return &batchv1.JobSpec{
 		BackoffLimit: &zero,
@@ -754,7 +793,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	}, nil
 }
 
-func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool) ([]string, []corev1.EnvVar) {
+func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool, withCACertsFile bool) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
 		"apply",
@@ -846,6 +885,21 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool) ([]string, []corev1.EnvV
 						},
 					},
 				},
+			})
+	} else if withCACertsFile {
+		helmArgs := []string{
+			"--cacerts-file",
+			"/etc/ssl/certs/cacerts",
+		}
+		if gitrepo.Spec.HelmRepoURLRegex != "" {
+			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
+		}
+		args = append(args, helmArgs...)
+		env = append(env,
+			// for ssh go-getter, make sure we always accept new host key
+			corev1.EnvVar{
+				Name:  "GIT_SSH_COMMAND",
+				Value: "ssh -o stricthostkeychecking=accept-new",
 			})
 	}
 

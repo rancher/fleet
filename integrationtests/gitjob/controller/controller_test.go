@@ -190,7 +190,8 @@ var _ = Describe("GitJob controller", func() {
 				caBundle = nil
 			})
 
-			It("does not create a secret for the CA bundle", func() {
+			It("does not create secrets", func() {
+				By("not creating a secret for the CA bundle")
 				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 				var secret corev1.Secret
@@ -201,22 +202,26 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}, time.Second*5, time.Second*1).Should(Succeed())
+
+				By("not creating a secret for the Helm client")
+				secretName = fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
+				ns = types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
+
+				Consistently(func(g Gomega) {
+					err := k8sClient.Get(ctx, ns, &secret)
+
+					g.Expect(err).ToNot(BeNil())
+					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
+				}, time.Second*5, time.Second*1).Should(Succeed())
 			})
 		})
 
-		When("a job is created without a specified CA bundle, but Rancher has secrets containing CA bundles", func() {
+		When("a job is created without a specified CA bundle, but Rancher has secrets containing a CA bundle", func() {
 			BeforeEach(func() {
 				gitRepoName = "rancher-ca-bundle"
 				caBundle = nil
 
-				err := k8sClient.Create(ctx, &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "cattle-system",
-					},
-				})
-				Expect(err).ToNot(HaveOccurred())
-
-				err = k8sClient.Create(ctx, &corev1.Secret{
+				rancherSecret := corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "tls-ca-additional",
 						Namespace: "cattle-system",
@@ -224,11 +229,17 @@ var _ = Describe("GitJob controller", func() {
 					Data: map[string][]byte{
 						"ca-additional.pem": []byte("foo"),
 					},
-				})
+				}
+				err := k8sClient.Create(ctx, &rancherSecret)
 				Expect(err).ToNot(HaveOccurred())
+
+				DeferCleanup(func() {
+					k8sClient.Delete(ctx, &rancherSecret)
+				})
 			})
 
-			It("creates a secret for the CA bundle", func() {
+			It("creates secrets for the CA bundle", func() {
+				By("creating a CA bundle secret for the git cloner")
 				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
 				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
 				var secret corev1.Secret
@@ -247,6 +258,116 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(ok).To(BeTrue())
 					g.Expect(data).To(Equal([]byte("foo")))
 					Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+				}, time.Second*5, time.Second*1).Should(Succeed())
+
+				By("creating a CA bundle secret for the Helm client")
+				secretName = fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
+				ns = types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
+
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, ns, &secret)
+
+					g.Expect(err).ToNot(HaveOccurred())
+					data, ok := secret.Data["cacerts"]
+					g.Expect(ok).To(BeTrue())
+					g.Expect(data).To(Equal([]byte("foo")))
+					Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+				}, time.Second*5, time.Second*1).Should(Succeed())
+
+				By("feeding the mounted CA bundle to the fleet apply command")
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+					// Ignore not-found errors in case the job has not yet been created
+					g.Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+				})
+
+				volumes := job.Spec.Template.Spec.Volumes
+				Expect(volumes).ToNot(BeEmpty())
+
+				found := false
+				for _, v := range volumes {
+					if v.Name == "helm-secret-cert" {
+						found = true
+						break
+					}
+				}
+				Expect(found).To(BeTrue())
+
+				containers := job.Spec.Template.Spec.Containers
+				Expect(containers).ToNot(BeEmpty())
+				Expect(strings.Join(containers[0].Args, " ")).To(ContainSubstring("--cacerts-file /etc/ssl/certs/cacerts"))
+
+				volumeMounts := containers[0].VolumeMounts
+				Expect(volumeMounts).ToNot(BeEmpty())
+
+				found = false
+				for _, vm := range volumeMounts {
+					if vm.Name == "helm-secret-cert" {
+						found = true
+						Expect(vm.MountPath).To(Equal("/etc/ssl/certs"))
+						break
+					}
+				}
+				Expect(found).To(BeTrue())
+			})
+		})
+
+		When("a job is created with a CA bundle, without Helm secrets, and Rancher has secrets containing a CA bundle", func() {
+			BeforeEach(func() {
+				gitRepoName = "with-ca-bundle-and-rancher-secrets"
+				caBundle = []byte("LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tZm9vLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=")
+
+				rancherSecret := corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "tls-ca-additional",
+						Namespace: "cattle-system",
+					},
+					Data: map[string][]byte{
+						"ca-additional.pem": []byte("foo"),
+					},
+				}
+				err := k8sClient.Create(ctx, &rancherSecret)
+				Expect(err).ToNot(HaveOccurred())
+
+				DeferCleanup(func() {
+					k8sClient.Delete(ctx, &rancherSecret)
+				})
+			})
+
+			It("creates secrets for the CA bundle", func() {
+				By("creating a secret for the gitrepo CA bundle")
+				gitRepoOwnerRef := metav1.OwnerReference{
+					Kind:       "GitRepo",
+					APIVersion: "fleet.cattle.io/v1alpha1",
+					Name:       gitRepoName,
+				}
+
+				secretName := fmt.Sprintf("%s-cabundle", gitRepoName)
+				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
+				var secret corev1.Secret
+
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, ns, &secret)
+					g.Expect(err).ToNot(HaveOccurred())
+					Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+
+					data, ok := secret.Data["additional-ca.crt"]
+					g.Expect(ok).To(BeTrue())
+					g.Expect(data).To(Equal(gitRepo.Spec.CABundle))
+				}, time.Second*5, time.Second*1).Should(Succeed())
+
+				By("creating a secret for the Helm client CA bundle")
+				secretName = fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
+				ns = types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
+
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, ns, &secret)
+
+					g.Expect(err).ToNot(HaveOccurred())
+					data, ok := secret.Data["cacerts"]
+					g.Expect(ok).To(BeTrue())
+					g.Expect(data).To(Equal([]byte("foo")))
+					g.Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 				}, time.Second*5, time.Second*1).Should(Succeed())
 			})
 		})
@@ -801,6 +922,120 @@ var _ = Describe("GitJob controller", func() {
 		})
 	})
 
+	When("creating a gitRepo that references a helm secret", func() {
+		var (
+			gitRepo        v1alpha1.GitRepo
+			gitRepoName    string
+			helmSecretName string
+		)
+
+		JustBeforeEach(func() {
+			expectedCommit = commit
+			gitRepoName = "test-helm-secret-with-rancher-secret"
+			gitRepo = createGitRepo(gitRepoName)
+			gitRepo.Spec.HelmSecretName = helmSecretName
+			// Create should not return an error
+			err := k8sClient.Create(ctx, &gitRepo)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			// delete the gitrepo and wait until it is deleted
+			waitDeleteGitrepo(gitRepo)
+			// reset the logs buffer so we don't read logs from previous tests
+			logsBuffer.Reset()
+		})
+
+		Context("helmSecretName secret exists and so does a Rancher CA bundle secret", func() {
+			BeforeEach(func() {
+				helmSecretName = "my-helm-secret"
+			})
+
+			JustBeforeEach(func() {
+				helmSecret := corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      helmSecretName,
+						Namespace: gitRepo.Namespace,
+					},
+					Data: map[string][]byte{
+						"cacerts": []byte("foo"),
+					},
+				}
+				err := k8sClient.Create(ctx, &helmSecret)
+				Expect(err).ToNot(HaveOccurred())
+
+				rancherSecret := corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "tls-ca-additional",
+						Namespace: "cattle-system",
+					},
+					Data: map[string][]byte{
+						"ca-additional.pem": []byte("foo"),
+					},
+				}
+				err = k8sClient.Create(ctx, &rancherSecret)
+				Expect(err).ToNot(HaveOccurred())
+
+				DeferCleanup(func() {
+					k8sClient.Delete(ctx, &rancherSecret)
+					k8sClient.Delete(ctx, &helmSecret)
+				})
+			})
+
+			It("creates RBAC resources", func() {
+				gitRepoOwnerRef := metav1.OwnerReference{
+					Kind:       "GitRepo",
+					APIVersion: "fleet.cattle.io/v1alpha1",
+					Name:       gitRepoName,
+				}
+
+				Eventually(func(g Gomega) {
+					saName := names.SafeConcatName("git", gitRepo.Name)
+					ns := types.NamespacedName{Name: saName, Namespace: gitRepo.Namespace}
+
+					var sa corev1.ServiceAccount
+					g.Expect(k8sClient.Get(ctx, ns, &sa)).ToNot(HaveOccurred())
+					g.Expect(sa.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+
+					var ro rbacv1.Role
+					g.Expect(k8sClient.Get(ctx, ns, &ro)).ToNot(HaveOccurred())
+					g.Expect(ro.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+
+					var rb rbacv1.RoleBinding
+					g.Expect(k8sClient.Get(ctx, ns, &rb)).ToNot(HaveOccurred())
+					g.Expect(rb.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+				}).Should(Succeed())
+			})
+
+			It("creates the job", func() {
+				var job batchv1.Job
+				Eventually(func() error {
+					var gitRepoFromCluster v1alpha1.GitRepo
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
+					if err != nil {
+						return err
+					}
+					jobName := names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
+					return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+				}).Should(Not(HaveOccurred()))
+			})
+
+			It("does not create a CA bundle secret for the Helm client", func() {
+				secretName := fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
+				ns := types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
+
+				var secret corev1.Secret
+
+				Consistently(func(g Gomega) {
+					err := k8sClient.Get(ctx, ns, &secret)
+
+					g.Expect(err).ToNot(BeNil())
+					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
+				}, time.Second*5, time.Second*1).Should(Succeed())
+			})
+		})
+	})
+
 	When("creating a gitRepo that references a nonexistent helm secret", func() {
 		var (
 			gitRepo                v1alpha1.GitRepo
@@ -815,7 +1050,7 @@ var _ = Describe("GitJob controller", func() {
 			gitRepo = createGitRepo(gitRepoName)
 			gitRepo.Spec.HelmSecretNameForPaths = helmSecretNameForPaths
 			gitRepo.Spec.HelmSecretName = helmSecretName
-			// Create should return an error
+			// Create should not return an error
 			err := k8sClient.Create(ctx, &gitRepo)
 			Expect(err).ToNot(HaveOccurred())
 		})
