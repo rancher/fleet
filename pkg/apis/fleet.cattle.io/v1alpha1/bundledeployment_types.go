@@ -351,7 +351,7 @@ type BundleDeploymentStatus struct {
 	NonReadyStatus []NonReadyStatus `json:"nonReadyStatus,omitempty"`
 	// +nullable
 	ModifiedStatus []ModifiedStatus `json:"modifiedStatus,omitempty"`
-	// IncompleteState is true if there are more than 10 non-ready or modified resources, meaning that the list in those fields were truncated.
+	// IncompleteState is true if there are more than 10 non-ready or modified resources, meaning that the lists in those fields have been truncated.
 	IncompleteState bool `json:"incompleteState,omitempty"`
 	// +nullable
 	Display BundleDeploymentDisplay `json:"display,omitempty"`

@@ -912,8 +912,8 @@ spec:
                   type: object
                 incompleteState:
                   description: IncompleteState is true if there are more than 10 non-ready
-                    or modified resources, meaning that the list in those fields were
-                    truncated.
+                    or modified resources, meaning that the lists in those fields
+                    have been truncated.
                   type: boolean
                 modifiedStatus:
                   items:

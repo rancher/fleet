@@ -244,7 +244,7 @@ func calculateResourceCounts(all []fleet.BundleDeploymentResource, nonReady []fl
 		}] = struct{}{}
 	}
 
-	// The agent must have enough visibility to determine exact state of every resource.
+	// The agent must have enough visibility to determine the exact state of every resource.
 	// e.g. "WaitApplied" or "Unknown" states do not make sense in this context
 	counts := fleet.ResourceCounts{
 		DesiredReady: len(all),
