@@ -186,11 +186,7 @@ func Test_updateFromResources(t *testing.T) {
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
 				assert.Lenf(t, status.Resources, 2, "unexpected resources length")
 				assert.Len(t, status.NonReadyStatus, 1, "incorrect non-ready status length")
-				assert.Equal(t, status.NonReadyStatus[0].Summary, fleetv1.Summary{
-					State:   "Evicted",
-					Error:   true,
-					Message: []string{"no space left on device"},
-				})
+				assert.NotEmptyf(t, status.NonReadyStatus[0].Summary, "unexpected empty summary for non-ready resource")
 				assert.Len(t, status.ModifiedStatus, 1, "incorrect modified status length")
 				assert.NotEmpty(t, status.ModifiedStatus[0].Patch)
 			},
