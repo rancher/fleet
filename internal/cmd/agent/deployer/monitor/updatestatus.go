@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-logr/logr"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,6 +24,9 @@ import (
 	"github.com/rancher/fleet/internal/helmdeployer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
+
+// limit the length of nonReady and modified resources
+const resourcesDetailsMaxLength = 10
 
 type Monitor struct {
 	client     client.Client
@@ -82,11 +83,12 @@ func ShouldUpdateStatus(bd *fleet.BundleDeployment) bool {
 
 func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) (fleet.BundleDeploymentStatus, error) {
 	logger := log.FromContext(ctx).WithName("update-status")
+	ctx = log.IntoContext(ctx, logger)
 
-	// updateFromResources mutates bd.Status, so copy it first
+	// updateFromPreviousDeployment mutates bd.Status, so copy it first
 	origStatus := *bd.Status.DeepCopy()
 	bd = bd.DeepCopy()
-	err := m.updateFromResources(ctx, logger, bd, resources)
+	err := m.updateFromPreviousDeployment(ctx, bd, resources)
 	if err != nil {
 
 		// Returning an error will cause UpdateStatus to requeue in a loop.
@@ -145,9 +147,9 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 	return errors.New(msg)
 }
 
-// updateFromResources updates the status with information from the
+// updateFromPreviousDeployment updates the status with information from the
 // helm release history and an apply dry run.
-func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) error {
+func (m *Monitor) updateFromPreviousDeployment(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) error {
 	resourcesPreviousRelease, err := m.deployer.ResourcesFromPreviousReleaseVersion(bd.Name, bd.Status.Release)
 	if err != nil {
 		return err
@@ -172,33 +174,33 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 		return err
 	}
 
-	bd.Status.NonReadyStatus = nonReady(logger, plan, bd.Spec.Options.IgnoreOptions)
-	bd.Status.ModifiedStatus = modified(ctx, m.client, logger, plan, resourcesPreviousRelease)
-	bd.Status.Ready = false
-	bd.Status.NonModified = false
-
-	if len(bd.Status.NonReadyStatus) == 0 {
-		bd.Status.Ready = true
-	}
-	if len(bd.Status.ModifiedStatus) == 0 {
-		bd.Status.NonModified = true
+	nonReadyResources := nonReady(ctx, plan, bd.Spec.Options.IgnoreOptions)
+	modifiedResources := modified(ctx, m.client, plan, resourcesPreviousRelease)
+	allResources, err := toBundleDeploymentResources(m.client, plan.Objects, resources.DefaultNamespace)
+	if err != nil {
+		return err
 	}
 
-	bd.Status.Resources = []fleet.BundleDeploymentResource{}
-	for _, obj := range plan.Objects {
+	updateFromResources(&bd.Status, allResources, nonReadyResources, modifiedResources)
+	return nil
+}
+
+func toBundleDeploymentResources(client client.Client, objs []runtime.Object, defaultNamespace string) ([]fleet.BundleDeploymentResource, error) {
+	res := make([]fleet.BundleDeploymentResource, 0, len(objs))
+	for _, obj := range objs {
 		ma, err := meta.Accessor(obj)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		ns := ma.GetNamespace()
 		gvk := obj.GetObjectKind().GroupVersionKind()
-		if ns == "" && isNamespaced(m.client.RESTMapper(), gvk) {
-			ns = resources.DefaultNamespace
+		if ns == "" && isNamespaced(client.RESTMapper(), gvk) {
+			ns = defaultNamespace
 		}
 
 		version, kind := gvk.ToAPIVersionAndKind()
-		bd.Status.Resources = append(bd.Status.Resources, fleet.BundleDeploymentResource{
+		res = append(res, fleet.BundleDeploymentResource{
 			Kind:       kind,
 			APIVersion: version,
 			Namespace:  ns,
@@ -206,11 +208,82 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 			CreatedAt:  ma.GetCreationTimestamp(),
 		})
 	}
-
-	return nil
+	return res, nil
 }
 
-func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
+func updateFromResources(bdStatus *fleet.BundleDeploymentStatus, resources []fleet.BundleDeploymentResource, nonReadyResources []fleet.NonReadyStatus, modifiedResources []fleet.ModifiedStatus) {
+	bdStatus.Ready = len(nonReadyResources) == 0
+	bdStatus.NonReadyStatus = nonReadyResources
+	if len(bdStatus.NonReadyStatus) > resourcesDetailsMaxLength {
+		bdStatus.IncompleteState = true
+		bdStatus.NonReadyStatus = nonReadyResources[:resourcesDetailsMaxLength]
+	}
+
+	bdStatus.NonModified = len(modifiedResources) == 0
+	bdStatus.ModifiedStatus = modifiedResources
+	if len(bdStatus.ModifiedStatus) > resourcesDetailsMaxLength {
+		bdStatus.IncompleteState = true
+		bdStatus.ModifiedStatus = modifiedResources[:resourcesDetailsMaxLength]
+	}
+
+	bdStatus.Resources = resources
+	bdStatus.ResourceCounts = calculateResourceCounts(resources, nonReadyResources, modifiedResources)
+}
+
+func calculateResourceCounts(all []fleet.BundleDeploymentResource, nonReady []fleet.NonReadyStatus, modified []fleet.ModifiedStatus) fleet.ResourceCounts {
+	// Create a map with all different resource keys, then remove modified or non-ready keys
+	resourceKeys := make(map[fleet.ResourceKey]struct{}, len(all))
+	for _, r := range all {
+		resourceKeys[fleet.ResourceKey{
+			Kind:       r.Kind,
+			APIVersion: r.APIVersion,
+			Namespace:  r.Namespace,
+			Name:       r.Name,
+		}] = struct{}{}
+	}
+
+	// The agent must have enough visibility to determine the exact state of every resource.
+	// e.g. "WaitApplied" or "Unknown" states do not make sense in this context
+	counts := fleet.ResourceCounts{
+		DesiredReady: len(all),
+	}
+	for _, r := range modified {
+		if r.Create {
+			counts.Missing++
+		} else if r.Delete {
+			counts.Orphaned++
+		} else {
+			counts.Modified++
+		}
+		delete(resourceKeys, fleet.ResourceKey{
+			Kind:       r.Kind,
+			APIVersion: r.APIVersion,
+			Namespace:  r.Namespace,
+			Name:       r.Name,
+		})
+	}
+	for _, r := range nonReady {
+		key := fleet.ResourceKey{
+			Kind:       r.Kind,
+			APIVersion: r.APIVersion,
+			Namespace:  r.Namespace,
+			Name:       r.Name,
+		}
+		// If not present, it was already accounted for as "modified"
+		if _, ok := resourceKeys[key]; ok {
+			counts.NotReady++
+			delete(resourceKeys, key)
+		}
+	}
+
+	// Remaining keys are considered ready
+	counts.Ready = len(resourceKeys)
+
+	return counts
+}
+
+func nonReady(ctx context.Context, plan desiredset.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
+	logger := log.FromContext(ctx)
 	defer func() {
 		sort.Slice(result, func(i, j int) bool {
 			return result[i].UID < result[j].UID
@@ -218,9 +291,6 @@ func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.Igno
 	}()
 
 	for _, obj := range plan.Objects {
-		if len(result) >= 10 {
-			return result
-		}
 		if u, ok := obj.(*unstructured.Unstructured); ok {
 			if ignoreOptions.Conditions != nil {
 				if err := excludeIgnoredConditions(u, ignoreOptions); err != nil {
@@ -228,15 +298,15 @@ func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.Igno
 				}
 			}
 
-			summary := summary.Summarize(u)
-			if !summary.IsReady() {
+			sum := summary.Summarize(u)
+			if !sum.IsReady() {
 				result = append(result, fleet.NonReadyStatus{
 					UID:        u.GetUID(),
 					Kind:       u.GetKind(),
 					APIVersion: u.GetAPIVersion(),
 					Namespace:  u.GetNamespace(),
 					Name:       u.GetName(),
-					Summary:    summary,
+					Summary:    sum,
 				})
 			}
 		}
@@ -249,20 +319,16 @@ func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.Igno
 // The function iterates through the plan's create, delete, and update actions and constructs a modified status
 // for each resource.
 // If the number of modified statuses exceeds 10, the function stops and returns the current result.
-func modified(ctx context.Context, c client.Client, logger logr.Logger, plan desiredset.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
+func modified(ctx context.Context, c client.Client, plan desiredset.Plan, resourcesPreviousRelease *helmdeployer.Resources) (result []fleet.ModifiedStatus) {
+	logger := log.FromContext(ctx)
 	defer func() {
 		sort.Slice(result, func(i, j int) bool {
 			return sortKey(result[i]) < sortKey(result[j])
 		})
 	}()
 	for gvk, keys := range plan.Create {
+		apiVersion, kind := gvk.ToAPIVersionAndKind()
 		for _, key := range keys {
-			if len(result) >= 10 {
-				return result
-			}
-
-			apiVersion, kind := gvk.ToAPIVersionAndKind()
-
 			obj := &unstructured.Unstructured{}
 			obj.SetGroupVersionKind(gvk)
 			key := client.ObjectKey{
@@ -296,12 +362,8 @@ func modified(ctx context.Context, c client.Client, logger logr.Logger, plan des
 	}
 
 	for gvk, keys := range plan.Delete {
+		apiVersion, kind := gvk.ToAPIVersionAndKind()
 		for _, key := range keys {
-			if len(result) >= 10 {
-				return result
-			}
-
-			apiVersion, kind := gvk.ToAPIVersionAndKind()
 			// Check if resource was in a previous release. It is possible that some operators copy the
 			// objectset.rio.cattle.io/hash label into a dynamically created objects. We need to skip these resources
 			// because they are not part of the release, and they would appear as orphaned.
@@ -319,12 +381,8 @@ func modified(ctx context.Context, c client.Client, logger logr.Logger, plan des
 	}
 
 	for gvk, patches := range plan.Update {
+		apiVersion, kind := gvk.ToAPIVersionAndKind()
 		for key, patch := range patches {
-			if len(result) >= 10 {
-				break
-			}
-
-			apiVersion, kind := gvk.ToAPIVersionAndKind()
 			result = append(result, fleet.ModifiedStatus{
 				Kind:       kind,
 				APIVersion: apiVersion,
