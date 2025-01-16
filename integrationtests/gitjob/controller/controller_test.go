@@ -102,15 +102,15 @@ var _ = Describe("GitJob controller", func() {
 
 				var sa corev1.ServiceAccount
 				g.Expect(k8sClient.Get(ctx, ns, &sa)).ToNot(HaveOccurred())
-				Expect(sa.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+				g.Expect(sa.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 
 				var ro rbacv1.Role
 				g.Expect(k8sClient.Get(ctx, ns, &ro)).ToNot(HaveOccurred())
-				Expect(ro.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+				g.Expect(ro.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 
 				var rb rbacv1.RoleBinding
 				g.Expect(k8sClient.Get(ctx, ns, &rb)).ToNot(HaveOccurred())
-				Expect(rb.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+				g.Expect(rb.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 			}).Should(Succeed())
 		})
 
@@ -257,7 +257,7 @@ var _ = Describe("GitJob controller", func() {
 					data, ok := secret.Data["additional-ca.crt"]
 					g.Expect(ok).To(BeTrue())
 					g.Expect(data).To(Equal([]byte("foo")))
-					Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+					g.Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 				}, time.Second*5, time.Second*1).Should(Succeed())
 
 				By("creating a CA bundle secret for the Helm client")
@@ -271,7 +271,7 @@ var _ = Describe("GitJob controller", func() {
 					data, ok := secret.Data["cacerts"]
 					g.Expect(ok).To(BeTrue())
 					g.Expect(data).To(Equal([]byte("foo")))
-					Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+					g.Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 				}, time.Second*5, time.Second*1).Should(Succeed())
 
 				By("feeding the mounted CA bundle to the fleet apply command")
@@ -349,7 +349,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, ns, &secret)
 					g.Expect(err).ToNot(HaveOccurred())
-					Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+					g.Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 
 					data, ok := secret.Data["additional-ca.crt"]
 					g.Expect(ok).To(BeTrue())
@@ -392,7 +392,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func(g Gomega) {
 					err := k8sClient.Get(ctx, ns, &secret)
 					g.Expect(err).ToNot(HaveOccurred())
-					Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
+					g.Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 
 					data, ok := secret.Data["additional-ca.crt"]
 					g.Expect(ok).To(BeTrue())
