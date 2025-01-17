@@ -17,10 +17,10 @@ import (
 type Summary struct {
 	Description string
 	Experiments map[string]Experiment
-	Setup       map[string]Measurement
+	Setup       map[string]Row
 }
 
-type Measurement struct {
+type Row struct {
 	Value           float64
 	Type            gm.MeasurementType
 	PrecisionBundle gm.PrecisionBundle
@@ -30,9 +30,9 @@ type Measurement struct {
 
 // Experiment is a set of measurements, like from 50-gitrepo-1-bundle
 // Measurements from the report are one dimensional, as most experiments don't
-// use sampling
+// use sampling. Each measurement will result in one row.
 type Experiment struct {
-	Measurements map[string]Measurement
+	Rows map[string]Row
 }
 
 // ColorableString for ReportEntry to use
@@ -42,7 +42,7 @@ func (s Summary) ColorableString() string {
 	for _, k := range keys {
 		v := s.Experiments[k]
 		sb += fmt.Sprintf("{{green}}%s{{/}}\n", k)
-		t2 := newTable(v.Measurements)
+		t2 := newTable(v.Rows)
 		sb += t2.Render()
 		sb += "\n"
 	}
@@ -60,7 +60,7 @@ func (s Summary) String() string {
 	return fmt.Sprintf("%s\n%s\n%s\n", s.Description, prettyPrint(s.Setup), prettyPrint(s.Experiments))
 }
 
-func newTable(measurements map[string]Measurement) *table.Table {
+func newTable(rows map[string]Row) *table.Table {
 	t := table.NewTable()
 	t.AppendRow(table.R(
 		table.C("Measurement"), table.C("Value"), table.C("Unit"),
@@ -68,9 +68,9 @@ func newTable(measurements map[string]Measurement) *table.Table {
 		"{{bold}}",
 	))
 
-	keys := slices.Sorted(maps.Keys(measurements))
+	keys := slices.Sorted(maps.Keys(rows))
 	for _, k := range keys {
-		m := measurements[k]
+		m := rows[k]
 
 		r := table.R(m.Style)
 		t.AppendRow(r)
@@ -83,10 +83,17 @@ func newTable(measurements map[string]Measurement) *table.Table {
 	return t
 }
 
+// New builds a printable table from the ginkgo.Report.
 func New(r ginkgo.Report) (*Summary, bool) {
 	s := &Summary{
 		Experiments: map[string]Experiment{},
-		Setup:       map[string]Measurement{},
+		Setup:       map[string]Row{},
+	}
+
+	total := Row{
+		Type:            gm.MeasurementTypeDuration,
+		Style:           "{{bold}}",
+		PrecisionBundle: gm.DefaultPrecisionBundle,
 	}
 
 	for _, specReport := range r.SpecReports {
@@ -102,7 +109,7 @@ func New(r ginkgo.Report) (*Summary, bool) {
 		for _, entry := range specReport.ReportEntries {
 
 			e := Experiment{
-				Measurements: map[string]Measurement{},
+				Rows: map[string]Row{},
 			}
 
 			raw := entry.GetRawValue()
@@ -118,11 +125,15 @@ func New(r ginkgo.Report) (*Summary, bool) {
 					continue
 				}
 
-				tmp, ok := e.Measurements[name]
+				if name == "TotalDuration" {
+					total.Value += v
+				}
+
+				tmp, ok := e.Rows[name]
 				if ok {
 					tmp.Value += v
 				} else {
-					tmp = Measurement{
+					tmp = Row{
 						Value:           v,
 						Type:            m.Type,
 						PrecisionBundle: m.PrecisionBundle,
@@ -130,7 +141,7 @@ func New(r ginkgo.Report) (*Summary, bool) {
 						Units:           m.Units,
 					}
 				}
-				e.Measurements[name] = tmp
+				e.Rows[name] = tmp
 			}
 			s.Experiments[entry.Name] = e
 		}
@@ -164,7 +175,7 @@ func New(r ginkgo.Report) (*Summary, bool) {
 					if ok {
 						tmp.Value += v
 					} else {
-						tmp = Measurement{
+						tmp = Row{
 							Value:           v,
 							Type:            m.Type,
 							PrecisionBundle: m.PrecisionBundle,
@@ -185,6 +196,8 @@ func New(r ginkgo.Report) (*Summary, bool) {
 		}
 		break
 	}
+
+	s.Setup["TotalDuration"] = total
 
 	return s, true
 }
