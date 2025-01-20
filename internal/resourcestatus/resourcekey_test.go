@@ -1,8 +1,9 @@
 package resourcestatus
 
 import (
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -10,166 +11,156 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1/summary"
 )
 
-var _ = Describe("Resourcekey", func() {
-	var (
-		gitrepo *fleet.GitRepo
-		list    *fleet.BundleDeploymentList
-	)
-
-	BeforeEach(func() {
-		gitrepo = &fleet.GitRepo{
-			Status: fleet.GitRepoStatus{
-				StatusBase: fleet.StatusBase{
-					Summary: fleet.BundleSummary{
-						Ready:       2,
-						WaitApplied: 1,
-					},
+func TestSetResources(t *testing.T) {
+	gitrepo := &fleet.GitRepo{
+		Status: fleet.GitRepoStatus{
+			StatusBase: fleet.StatusBase{
+				Summary: fleet.BundleSummary{
+					Ready:       2,
+					WaitApplied: 1,
 				},
 			},
-		}
-		list = &fleet.BundleDeploymentList{
-			Items: []fleet.BundleDeployment{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "bd1",
-						Labels: map[string]string{
-							fleet.RepoLabel:             "gitrepo1",
-							fleet.ClusterLabel:          "cluster1",
-							fleet.ClusterNamespaceLabel: "c-ns1",
-						},
-					},
-					Status: fleet.BundleDeploymentStatus{
-						Resources: []fleet.BundleDeploymentResource{
-							{
-								Kind:       "Deployment",
-								APIVersion: "v1",
-								Name:       "web",
-								Namespace:  "default",
-							},
-							{
-								// extra service for one cluster
-								Kind:       "Service",
-								APIVersion: "v1",
-								Name:       "web-svc",
-								Namespace:  "default",
-							},
-						},
+		},
+	}
+	list := &fleet.BundleDeploymentList{
+		Items: []fleet.BundleDeployment{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bd1",
+					Labels: map[string]string{
+						fleet.RepoLabel:             "gitrepo1",
+						fleet.ClusterLabel:          "cluster1",
+						fleet.ClusterNamespaceLabel: "c-ns1",
 					},
 				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "bd1",
-						Labels: map[string]string{
-							fleet.RepoLabel:             "gitrepo1",
-							fleet.ClusterLabel:          "cluster2",
-							fleet.ClusterNamespaceLabel: "c-ns1",
+				Status: fleet.BundleDeploymentStatus{
+					Resources: []fleet.BundleDeploymentResource{
+						{
+							Kind:       "Deployment",
+							APIVersion: "v1",
+							Name:       "web",
+							Namespace:  "default",
 						},
-					},
-					Status: fleet.BundleDeploymentStatus{
-						Resources: []fleet.BundleDeploymentResource{
-							{
-								Kind:       "Deployment",
-								APIVersion: "v1",
-								Name:       "web",
-								Namespace:  "default",
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "bd1",
-						Labels: map[string]string{
-							fleet.RepoLabel:             "gitrepo1",
-							fleet.ClusterLabel:          "cluster1",
-							fleet.ClusterNamespaceLabel: "c-ns2",
-						},
-					},
-					Status: fleet.BundleDeploymentStatus{
-						NonReadyStatus: []fleet.NonReadyStatus{
-							{
-								Kind:       "Deployment",
-								APIVersion: "v1",
-								Name:       "web",
-								Namespace:  "default",
-								Summary: summary.Summary{
-									State:         "Pending",
-									Error:         true,
-									Transitioning: true,
-									Message:       []string{"message1", "message2"},
-								},
-							},
-						},
-						Resources: []fleet.BundleDeploymentResource{
-							{
-								Kind:       "Deployment",
-								APIVersion: "v1",
-								Name:       "web",
-								Namespace:  "default",
-							},
+						{
+							// extra service for one cluster
+							Kind:       "Service",
+							APIVersion: "v1",
+							Name:       "web-svc",
+							Namespace:  "default",
 						},
 					},
 				},
 			},
-		}
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bd1",
+					Labels: map[string]string{
+						fleet.RepoLabel:             "gitrepo1",
+						fleet.ClusterLabel:          "cluster2",
+						fleet.ClusterNamespaceLabel: "c-ns1",
+					},
+				},
+				Status: fleet.BundleDeploymentStatus{
+					Resources: []fleet.BundleDeploymentResource{
+						{
+							Kind:       "Deployment",
+							APIVersion: "v1",
+							Name:       "web",
+							Namespace:  "default",
+						},
+					},
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bd1",
+					Labels: map[string]string{
+						fleet.RepoLabel:             "gitrepo1",
+						fleet.ClusterLabel:          "cluster1",
+						fleet.ClusterNamespaceLabel: "c-ns2",
+					},
+				},
+				Status: fleet.BundleDeploymentStatus{
+					NonReadyStatus: []fleet.NonReadyStatus{
+						{
+							Kind:       "Deployment",
+							APIVersion: "v1",
+							Name:       "web",
+							Namespace:  "default",
+							Summary: summary.Summary{
+								State:         "Pending",
+								Error:         true,
+								Transitioning: true,
+								Message:       []string{"message1", "message2"},
+							},
+						},
+					},
+					Resources: []fleet.BundleDeploymentResource{
+						{
+							Kind:       "Deployment",
+							APIVersion: "v1",
+							Name:       "web",
+							Namespace:  "default",
+						},
+					},
+				},
+			},
+		},
+	}
 
+	SetResources(list, &gitrepo.Status.StatusBase)
+
+	assert.Len(t, gitrepo.Status.Resources, 2)
+	assert.Contains(t, gitrepo.Status.Resources, fleet.Resource{
+		APIVersion: "v1",
+		Kind:       "Deployment",
+		Type:       "deployment",
+		ID:         "default/web",
+
+		Namespace: "default",
+		Name:      "web",
+
+		IncompleteState: false,
+		State:           "WaitApplied",
+		Error:           false,
+		Transitioning:   false,
+		Message:         "",
+		PerClusterState: []fleet.ResourcePerClusterState{
+			{
+				State:         "Pending",
+				ClusterID:     "c-ns2/cluster1",
+				Error:         true,
+				Transitioning: true,
+				Message:       "message1; message2",
+				Patch:         nil,
+			},
+		},
+	})
+	assert.Contains(t, gitrepo.Status.Resources, fleet.Resource{
+		APIVersion: "v1",
+		Kind:       "Service",
+		Type:       "service",
+		ID:         "default/web-svc",
+
+		Namespace: "default",
+		Name:      "web-svc",
+
+		IncompleteState: false,
+		State:           "WaitApplied",
+		Error:           false,
+		Transitioning:   false,
+		Message:         "",
+		PerClusterState: []fleet.ResourcePerClusterState{},
 	})
 
-	It("returns a list", func() {
-		SetResources(list, &gitrepo.Status.StatusBase)
+	assert.Empty(t, gitrepo.Status.ResourceErrors)
 
-		Expect(gitrepo.Status.Resources).To(HaveLen(2))
-		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.Resource{
-			APIVersion: "v1",
-			Kind:       "Deployment",
-			Type:       "deployment",
-			ID:         "default/web",
-
-			Namespace: "default",
-			Name:      "web",
-
-			IncompleteState: false,
-			State:           "WaitApplied",
-			Error:           false,
-			Transitioning:   false,
-			Message:         "",
-			PerClusterState: []fleet.ResourcePerClusterState{
-				{
-					State:         "Pending",
-					ClusterID:     "c-ns2/cluster1",
-					Error:         true,
-					Transitioning: true,
-					Message:       "message1; message2",
-					Patch:         nil,
-				},
-			},
-		}))
-		Expect(gitrepo.Status.Resources).To(ContainElement(fleet.Resource{
-			APIVersion: "v1",
-			Kind:       "Service",
-			Type:       "service",
-			ID:         "default/web-svc",
-
-			Namespace: "default",
-			Name:      "web-svc",
-
-			IncompleteState: false,
-			State:           "WaitApplied",
-			Error:           false,
-			Transitioning:   false,
-			Message:         "",
-			PerClusterState: []fleet.ResourcePerClusterState{},
-		}))
-
-		Expect(gitrepo.Status.ResourceErrors).To(BeEmpty())
-
-		Expect(gitrepo.Status.ResourceCounts.Ready).To(Equal(0))
-		Expect(gitrepo.Status.ResourceCounts.DesiredReady).To(Equal(4))
-		Expect(gitrepo.Status.ResourceCounts.WaitApplied).To(Equal(3))
-		Expect(gitrepo.Status.ResourceCounts.Modified).To(Equal(0))
-		Expect(gitrepo.Status.ResourceCounts.Orphaned).To(Equal(0))
-		Expect(gitrepo.Status.ResourceCounts.Missing).To(Equal(0))
-		Expect(gitrepo.Status.ResourceCounts.Unknown).To(Equal(0))
-		Expect(gitrepo.Status.ResourceCounts.NotReady).To(Equal(1))
-	})
-})
+	assert.Equal(t, gitrepo.Status.ResourceCounts.Ready, 0)
+	assert.Equal(t, gitrepo.Status.ResourceCounts.DesiredReady, 4)
+	assert.Equal(t, gitrepo.Status.ResourceCounts.WaitApplied, 3)
+	assert.Equal(t, gitrepo.Status.ResourceCounts.Modified, 0)
+	assert.Equal(t, gitrepo.Status.ResourceCounts.Orphaned, 0)
+	assert.Equal(t, gitrepo.Status.ResourceCounts.Missing, 0)
+	assert.Equal(t, gitrepo.Status.ResourceCounts.Unknown, 0)
+	assert.Equal(t, gitrepo.Status.ResourceCounts.NotReady, 1)
+}
