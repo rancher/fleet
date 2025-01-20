@@ -59,6 +59,7 @@ var _ = Describe("GitRepo", func() {
 		})
 
 		It("updates the gitrepo status", func() {
+			// simulate job was successful
 			org := gitrepo.ResourceVersion
 			Eventually(func(g Gomega) {
 				_ = k8sClient.Get(ctx, types.NamespacedName{Name: gitrepoName, Namespace: namespace}, gitrepo)
@@ -67,7 +68,10 @@ var _ = Describe("GitRepo", func() {
 				g.Expect(gitrepo.Status.Display.Error).To(BeFalse())
 				g.Expect(len(gitrepo.Status.Conditions)).To(Equal(5))
 				g.Expect(checkCondition(gitrepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())
-				g.Expect(checkCondition(gitrepo, "Reconciling", corev1.ConditionTrue, "")).To(BeTrue())
+				// check only if it's set for Reconciling.
+				// After the polling mechanism has been moved away from the main controller
+				// we could have Reconciling set to true or false depending on how fast the job is started
+				g.Expect(checkConditionIsSet(gitrepo, "Reconciling")).To(BeTrue())
 				g.Expect(checkCondition(gitrepo, "Stalled", corev1.ConditionFalse, "")).To(BeTrue())
 				g.Expect(checkCondition(gitrepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
 				g.Expect(checkCondition(gitrepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())

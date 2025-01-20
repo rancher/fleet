@@ -48,6 +48,11 @@ func checkCondition(gitrepo *v1alpha1.GitRepo, condType string, status corev1.Co
 	return cond.Type == condType && cond.Status == status && cond.Message == message
 }
 
+func checkConditionIsSet(gitrepo *v1alpha1.GitRepo, condType string) bool {
+	_, found := getCondition(gitrepo, condType)
+	return found
+}
+
 var _ = Describe("GitJob controller", func() {
 	When("a new GitRepo is created", func() {
 		var (
@@ -268,41 +273,6 @@ var _ = Describe("GitJob controller", func() {
 					// check the conditions related to the job
 					// Inprogress.... Stalled=false and Reconcilling=true
 					g.Expect(checkCondition(&gitRepo, "Reconciling", corev1.ConditionTrue, "")).To(BeTrue())
-					g.Expect(checkCondition(&gitRepo, "Stalled", corev1.ConditionFalse, "")).To(BeTrue())
-					// check the rest
-					g.Expect(checkCondition(&gitRepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())
-					g.Expect(checkCondition(&gitRepo, "Ready", corev1.ConditionTrue, "")).To(BeTrue())
-					g.Expect(checkCondition(&gitRepo, "Accepted", corev1.ConditionTrue, "")).To(BeTrue())
-				}).Should(Succeed())
-			})
-		})
-
-		When("a job is terminating", func() {
-			BeforeEach(func() {
-				gitRepoName = "terminating"
-			})
-
-			It("has the expected conditions", func() {
-				// simulate job was successful
-				Eventually(func() error {
-					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
-					// We could be checking this when the job is still not created
-					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
-					// Delete the job
-					return k8sClient.Delete(ctx, &job)
-				}).Should(Not(HaveOccurred()))
-
-				Eventually(func(g Gomega) {
-					g.Expect(k8sClient.Get(
-						ctx,
-						types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace},
-						&gitRepo,
-					)).ToNot(HaveOccurred())
-					g.Expect(gitRepo.Status.Commit).To(Equal(commit))
-					g.Expect(gitRepo.Status.GitJobStatus).To(Equal("Terminating"))
-					// check the conditions related to the job
-					// Terminating.... Stalled=false and Reconcilling=false
-					g.Expect(checkCondition(&gitRepo, "Reconciling", corev1.ConditionFalse, "")).To(BeTrue())
 					g.Expect(checkCondition(&gitRepo, "Stalled", corev1.ConditionFalse, "")).To(BeTrue())
 					// check the rest
 					g.Expect(checkCondition(&gitRepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())

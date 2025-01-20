@@ -142,8 +142,17 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		ShardID:         g.ShardID,
 		JobNodeSelector: g.ShardNodeSelector,
 		GitFetcher:      &git.Fetch{},
-		Clock:           reconciler.RealClock{},
 		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
+	}
+
+	PollerReconciler := &reconciler.PollerReconciler{
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		Workers:    workers,
+		ShardID:    g.ShardID,
+		GitFetcher: &git.Fetch{},
+		Clock:      reconciler.RealClock{},
+		Recorder:   mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops-poller%s", shardIDSuffix)),
 	}
 
 	statusReconciler := &reconciler.StatusReconciler{
@@ -177,6 +186,11 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 
 		setupLog.Info("starting gitops controller")
 		if err = gitJobReconciler.SetupWithManager(mgr); err != nil {
+			return err
+		}
+
+		setupLog.Info("starting gitops poller controller")
+		if err = PollerReconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}
 

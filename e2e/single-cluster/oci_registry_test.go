@@ -109,9 +109,13 @@ func updateExperimentalFlagValue(k kubectl.Command, value bool) {
 			strings.Contains(gitjobPodNow, "pod/gitjob-") &&
 			!strings.Contains(gitjobPodNow, gitjobPod)
 	}).WithTimeout(time.Second * 30).Should(BeTrue())
+
+	Eventually(func() bool {
+		return getActualEnvVariable(k, experimentalEnvVar)
+	}).Should(Equal(value))
 }
 
-var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-registry", "infra-setup"), func() {
+var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-registry", "infra-setup"), Ordered, func() {
 	var (
 		asset                  string
 		insecureSkipTLS        bool
@@ -126,6 +130,20 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		contentIDToPurge       string
 	)
 
+	BeforeAll(func() {
+		// store the actual value of the experimental env value
+		// we'll restore in the AfterEach statement if needed
+		experimentalFlagBefore = getActualEnvVariable(k, experimentalEnvVar)
+	})
+
+	AfterAll(func() {
+		// reset back experimental flag value if needed
+		if experimentalValue != experimentalFlagBefore {
+			GinkgoWriter.Printf("Restoring experimental env variable back to %t n", experimentalFlagBefore)
+			updateExperimentalFlagValue(k, experimentalFlagBefore)
+		}
+	})
+
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		tempDir = GinkgoT().TempDir()
@@ -133,10 +151,6 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		Expect(err).ToNot(HaveOccurred(), externalIP)
 		Expect(net.ParseIP(externalIP)).ShouldNot(BeNil())
 		ociRegistry = fmt.Sprintf("%s:8082", externalIP)
-
-		// store the actual value of the experimental env value
-		// we'll restore in the AfterEach statement if needed
-		experimentalFlagBefore = getActualEnvVariable(k, experimentalEnvVar)
 
 		// reset the value of the contents resource to purge
 		contentIDToPurge = ""
@@ -194,18 +208,63 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			return out
 		}).ShouldNot(ContainSubstring("secret/s-"))
 
-		// reset back experimental flag value if needed
-		if experimentalValue != experimentalFlagBefore {
-			GinkgoWriter.Printf("Restoring experimental env variable back to %t n", experimentalFlagBefore)
-			updateExperimentalFlagValue(k, experimentalFlagBefore)
-		}
-
 		// check that contents have been purged when deleting the gitrepo
 		if contentIDToPurge != "" {
 			out, err := k.Delete("contents", contentIDToPurge)
 			Expect(out).To(ContainSubstring("not found"))
 			Expect(err).To(HaveOccurred())
 		}
+	})
+
+	When("creating a gitrepo resource with invalid ociRegistry info and experimental flag is false", func() {
+		Context("containing a public oci based helm chart", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/test-oci.yaml"
+				insecureSkipTLS = true
+				forceGitRepoURL = "not-valid-oci-registry.com"
+				experimentalValue = false
+			})
+
+			It("creates the bundle with no OCI storage", func() {
+				Eventually(func(g Gomega) {
+					// check for the bundle
+					out, _ := k.Namespace("fleet-local").Get("bundles")
+					g.Expect(out).To(ContainSubstring("sample-simple-chart-oci"))
+
+					// check for contentsID
+					contentsID, err := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.spec.contentsId}`)
+					Expect(err).ToNot(HaveOccurred())
+					g.Expect(contentsID).To(BeEmpty())
+
+					GinkgoWriter.Printf("ContentsID: %s\n", contentsID)
+
+					// bundle secret should not be created
+					secrets, _ := k.Namespace("fleet-local").Get("secrets", "-o", "custom-columns=NAME:metadata.name", "--no-headers")
+					g.Expect(secrets).ToNot(ContainSubstring("s-"))
+
+					// gets the bundles sha256 for the resources
+					// We'll use that to identify the contents resource for this bundle
+					resourcesSha256, _ := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.status.resourcesSha256Sum}`)
+					g.Expect(resourcesSha256).ToNot(BeEmpty())
+
+					// delete the last 3 chars from the sha256 so it matches the contents ID
+					resourcesSha256 = resourcesSha256[:len(resourcesSha256)-3]
+
+					// check that it created a content resource with the above sha256
+					contents, _ := k.Get("contents")
+					g.Expect(contents).To(ContainSubstring(resourcesSha256))
+
+					// save the contents id to purge after the test
+					// this will prevent interference with the previous test
+					// as the resources sha256 is the same
+					contentIDToPurge = "s-" + resourcesSha256
+
+					// finally check that the helm chart was deployed
+					configmaps, _ := k.Namespace("fleet-local").Get("configmaps")
+					g.Expect(configmaps).To(ContainSubstring("sample-config"))
+				}).Should(Succeed())
+			})
+		})
 	})
 
 	When("creating a gitrepo resource with ociRegistry info", func() {
@@ -270,57 +329,6 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 						return out
 					}).Should(ContainSubstring("sample-config"))
 				})
-			})
-		})
-	})
-
-	When("creating a gitrepo resource with invalid ociRegistry info and experimental flag is false", func() {
-		Context("containing a public oci based helm chart", func() {
-			BeforeEach(func() {
-				asset = "single-cluster/test-oci.yaml"
-				insecureSkipTLS = true
-				forceGitRepoURL = "not-valid-oci-registry.com"
-				experimentalValue = false
-			})
-
-			It("creates the bundle with no OCI storage", func() {
-				Eventually(func(g Gomega) {
-					// check for the bundle
-					out, _ := k.Namespace("fleet-local").Get("bundles")
-					g.Expect(out).To(ContainSubstring("sample-simple-chart-oci"))
-
-					// check for contentsID
-					contentsID, err := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.spec.contentsId}`)
-					Expect(err).ToNot(HaveOccurred())
-					g.Expect(contentsID).To(BeEmpty())
-
-					GinkgoWriter.Printf("ContentsID: %s\n", contentsID)
-
-					// bundle secret should not be created
-					secrets, _ := k.Namespace("fleet-local").Get("secrets", "-o", "custom-columns=NAME:metadata.name", "--no-headers")
-					g.Expect(secrets).ToNot(ContainSubstring("s-"))
-
-					// gets the bundles sha256 for the resources
-					// We'll use that to identify the contents resource for this bundle
-					resourcesSha256, _ := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.status.resourcesSha256Sum}`)
-					g.Expect(resourcesSha256).ToNot(BeEmpty())
-
-					// delete the last 3 chars from the sha256 so it matches the contents ID
-					resourcesSha256 = resourcesSha256[:len(resourcesSha256)-3]
-
-					// check that it created a content resource with the above sha256
-					contents, _ := k.Get("contents")
-					g.Expect(contents).To(ContainSubstring(resourcesSha256))
-
-					// save the contents id to purge after the test
-					// this will prevent interference with the previous test
-					// as the resources sha256 is the same
-					contentIDToPurge = "s-" + resourcesSha256
-
-					// finally check that the helm chart was deployed
-					configmaps, _ := k.Namespace("fleet-local").Get("configmaps")
-					g.Expect(configmaps).To(ContainSubstring("sample-config"))
-				}).Should(Succeed())
 			})
 		})
 	})

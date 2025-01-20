@@ -110,7 +110,6 @@ var _ = BeforeSuite(func() {
 		Image:      "image",
 		Scheduler:  sched,
 		GitFetcher: fetcherMock,
-		Clock:      reconciler.RealClock{},
 		Recorder:   mgr.GetEventRecorderFor("gitjob-controller"),
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
@@ -118,6 +117,15 @@ var _ = BeforeSuite(func() {
 	err = (&reconciler.StatusReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = (&reconciler.PollerReconciler{
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		GitFetcher: fetcherMock,
+		Clock:      reconciler.RealClock{},
+		Recorder:   mgr.GetEventRecorderFor("gitjob-controller"),
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

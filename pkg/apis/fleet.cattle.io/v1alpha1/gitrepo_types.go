@@ -178,6 +178,10 @@ type GitRepoStatus struct {
 	LastSyncedImageScanTime metav1.Time `json:"lastSyncedImageScanTime,omitempty"`
 	// LastPollingTime is the last time the polling check was triggered
 	LastPollingTime metav1.Time `json:"lastPollingTriggered,omitempty"`
+	// PollerCommit is the latest Git commit gathered by the GitRepo poller
+	PollerCommit string `json:"pollerCommit,omitempty"`
+	// PollerGeneration is the latest generation value processed by the GitRepo poller
+	PollerGeneration int64 `json:"pollerGeneration,omitempty"`
 }
 
 type GitRepoDisplay struct {

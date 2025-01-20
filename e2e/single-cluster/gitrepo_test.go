@@ -144,6 +144,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			By("updating the gitrepo's status")
 			expectedStatus := fleet.GitRepoStatus{
 				Commit:       commit,
+				PollerCommit: commit,
 				GitJobStatus: "Current",
 				StatusBase: fleet.StatusBase{
 					ReadyClusters:        1,
@@ -298,6 +299,10 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			replace(path.Join(clonedir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
 			replace(path.Join(clonedir, "examples", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")
 
+			refBeforeUpdate, err := clone.Head()
+			Expect(err).ToNot(HaveOccurred())
+
+			commitBeforeUpdate := refBeforeUpdate.Hash().String()
 			commit, err := gh.Update(clone)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -305,6 +310,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			expectedStatus := fleet.GitRepoStatus{
 				Commit:        commit,
 				WebhookCommit: commit,
+				PollerCommit:  commitBeforeUpdate, // poller triggers when the GitRepo is deployed
 				GitJobStatus:  "Current",
 				StatusBase: fleet.StatusBase{
 					ReadyClusters:        1,
@@ -432,6 +438,7 @@ func (matcher *gitRepoStatusMatcher) Match(actual interface{}) (success bool, er
 	return got.Commit == want.Commit &&
 			got.WebhookCommit == want.WebhookCommit &&
 			got.ReadyClusters == want.ReadyClusters &&
+			got.PollerCommit == want.PollerCommit &&
 			got.DesiredReadyClusters == want.DesiredReadyClusters &&
 			got.GitJobStatus == want.GitJobStatus &&
 			reflect.DeepEqual(got.Summary, want.Summary) &&

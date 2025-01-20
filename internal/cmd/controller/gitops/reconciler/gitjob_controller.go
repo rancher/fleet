@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand/v2"
 	"os"
 	"reflect"
 	"sort"
@@ -80,11 +79,6 @@ type TimeGetter interface {
 	Since(t time.Time) time.Duration
 }
 
-type RealClock struct{}
-
-func (RealClock) Now() time.Time                  { return time.Now() }
-func (RealClock) Since(t time.Time) time.Duration { return time.Since(t) }
-
 // GitJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
 type GitJobReconciler struct {
 	client.Client
@@ -95,7 +89,6 @@ type GitJobReconciler struct {
 	ShardID         string
 	JobNodeSelector string
 	GitFetcher      GitFetcher
-	Clock           TimeGetter
 	Recorder        record.EventRecorder
 }
 
@@ -110,6 +103,7 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
 					webhookCommitChangedPredicate(),
+					pollerCommitChangedPredicate(),
 				),
 			),
 		).
@@ -171,30 +165,18 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	oldCommit := gitrepo.Status.Commit
-	repoPolled, err := r.repoPolled(ctx, gitrepo)
-	if err != nil {
-		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToCheckCommit", err.Error())
-		logger.Info("Failed to check for latest commit", "error", err)
-	} else if repoPolled && oldCommit != gitrepo.Status.Commit {
-		r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
-		logger.Info("New commit from repository", "newCommit", gitrepo.Status.Commit)
+	// check for poller commit
+	repoPolled := false
+	if gitrepo.Status.PollerCommit != "" && gitrepo.Status.PollerCommit != gitrepo.Status.Commit {
+		repoPolled = true
+		gitrepo.Status.Commit = gitrepo.Status.PollerCommit
 	}
-
 	// check for webhook commit
 	if gitrepo.Status.WebhookCommit != "" && gitrepo.Status.WebhookCommit != gitrepo.Status.Commit {
 		gitrepo.Status.Commit = gitrepo.Status.WebhookCommit
 	}
 
-	// From this point onwards we have to take into account if the poller
-	// task was executed.
-	// If so, we need to return a Result with EnqueueAfter set.
-	result := reconcile.Result{}
-	if repoPolled {
-		result = reconcile.Result{RequeueAfter: getPollingIntervalDuration(gitrepo)}
-		result.RequeueAfter = addJitter(result.RequeueAfter)
-	}
-
-	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled, result)
+	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled)
 	if err != nil || res.Requeue {
 		return res, err
 	}
@@ -205,24 +187,14 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
 
-		return result, err
+		return reconcile.Result{}, err
 	}
 
-	return result, nil
-}
-
-// addJitter to the requeue time to avoid thundering herd
-// generate a random number between -10% and +10% of the duration
-func addJitter(d time.Duration) time.Duration {
-	if d <= 0 {
-		return d
-	}
-
-	return d + time.Duration(rand.Int64N(int64(d)/10)) // nolint:gosec // gosec G404 false positive, not used for crypto
+	return reconcile.Result{}, nil
 }
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
-func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string, repoPolled bool, oldResult reconcile.Result) (reconcile.Result, error) {
+func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string, repoPolled bool) (reconcile.Result, error) {
 	name := types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}
 	var job batchv1.Job
 	err := r.Get(ctx, types.NamespacedName{
@@ -232,7 +204,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	if err != nil && !errors.IsNotFound(err) {
 		err = fmt.Errorf("error retrieving git job: %w", err)
 		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToGetGitJob", err.Error())
-		return oldResult, err
+		return reconcile.Result{}, err
 	}
 
 	if errors.IsNotFound(err) {
@@ -255,16 +227,16 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
-				return oldResult, updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+				return reconcile.Result{}, updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
-				return oldResult, err
+				return reconcile.Result{}, err
 			}
 		}
 	} else if gitrepo.Status.Commit != "" && gitrepo.Status.Commit == oldCommit {
 		err, recreateGitJob := r.deleteJobIfNeeded(ctx, gitrepo, &job)
 		if err != nil {
-			return oldResult, fmt.Errorf("error deleting git job: %w", err)
+			return reconcile.Result{}, fmt.Errorf("error deleting git job: %w", err)
 		}
 		// job was deleted and we need to recreate it
 		// Requeue so the reconciler creates the job again
@@ -276,7 +248,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
 	if err = setStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
-		return oldResult, updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+		return reconcile.Result{}, updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 	}
 
 	return reconcile.Result{}, nil
@@ -1113,50 +1085,6 @@ func proxyEnvVars() []corev1.EnvVar {
 	return envVars
 }
 
-// repoPolled returns true if the git poller was executed and the repo should still be polled.
-func (r *GitJobReconciler) repoPolled(ctx context.Context, gitrepo *v1alpha1.GitRepo) (bool, error) {
-	if gitrepo.Spec.DisablePolling {
-		return false, nil
-	}
-	if r.shouldRunPollingTask(gitrepo) {
-		gitrepo.Status.LastPollingTime.Time = r.Clock.Now()
-		commit, err := r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
-		condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "", err)
-		if err != nil {
-			return true, err
-		}
-		gitrepo.Status.Commit = commit
-
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func (r *GitJobReconciler) shouldRunPollingTask(gitrepo *v1alpha1.GitRepo) bool {
-	if gitrepo.Spec.DisablePolling {
-		return false
-	}
-
-	t := gitrepo.Status.LastPollingTime
-
-	if t.IsZero() || (r.Clock.Since(t.Time) >= getPollingIntervalDuration(gitrepo)) {
-		return true
-	}
-	if gitrepo.Status.ObservedGeneration != gitrepo.Generation {
-		return true
-	}
-	return false
-}
-
-func getPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
-	if gitrepo.Spec.PollingInterval == nil || gitrepo.Spec.PollingInterval.Duration == 0 {
-		return defaultPollingSyncInterval
-	}
-
-	return gitrepo.Spec.PollingInterval.Duration
-}
-
 func webhookCommitChangedPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
@@ -1169,6 +1097,22 @@ func webhookCommitChangedPredicate() predicate.Predicate {
 				return true
 			}
 			return oldGitRepo.Status.WebhookCommit != newGitRepo.Status.WebhookCommit
+		},
+	}
+}
+
+func pollerCommitChangedPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldGitRepo, ok := e.ObjectOld.(*v1alpha1.GitRepo)
+			if !ok {
+				return true
+			}
+			newGitRepo, ok := e.ObjectNew.(*v1alpha1.GitRepo)
+			if !ok {
+				return true
+			}
+			return oldGitRepo.Status.PollerCommit != newGitRepo.Status.PollerCommit
 		},
 	}
 }
