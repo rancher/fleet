@@ -12,28 +12,22 @@ import (
 )
 
 func TestSetResources(t *testing.T) {
-	gitrepo := &fleet.GitRepo{
-		Status: fleet.GitRepoStatus{
-			StatusBase: fleet.StatusBase{
-				Summary: fleet.BundleSummary{
-					Ready:       2,
-					WaitApplied: 1,
-				},
-			},
-		},
-	}
 	list := &fleet.BundleDeploymentList{
 		Items: []fleet.BundleDeployment{
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "bd1",
+					Name:      "bd1",
+					Namespace: "ns1-cluster1-ns",
 					Labels: map[string]string{
-						fleet.RepoLabel:             "gitrepo1",
 						fleet.ClusterLabel:          "cluster1",
 						fleet.ClusterNamespaceLabel: "c-ns1",
 					},
 				},
+				Spec: fleet.BundleDeploymentSpec{
+					DeploymentID: "id2",
+				},
 				Status: fleet.BundleDeploymentStatus{
+					AppliedDeploymentID: "id1",
 					Resources: []fleet.BundleDeploymentResource{
 						{
 							Kind:       "Deployment",
@@ -49,13 +43,17 @@ func TestSetResources(t *testing.T) {
 							Namespace:  "default",
 						},
 					},
+					ResourceCounts: fleet.ResourceCounts{
+						DesiredReady: 2,
+						WaitApplied:  2,
+					},
 				},
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "bd1",
+					Name:      "bd1",
+					Namespace: "ns1-cluster2-ns",
 					Labels: map[string]string{
-						fleet.RepoLabel:             "gitrepo1",
 						fleet.ClusterLabel:          "cluster2",
 						fleet.ClusterNamespaceLabel: "c-ns1",
 					},
@@ -69,18 +67,50 @@ func TestSetResources(t *testing.T) {
 							Namespace:  "default",
 						},
 					},
+					ResourceCounts: fleet.ResourceCounts{
+						DesiredReady: 1,
+						Ready:        1,
+					},
 				},
 			},
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "bd1",
+					Name:      "bd2",
+					Namespace: "ns1-cluster2-ns",
 					Labels: map[string]string{
-						fleet.RepoLabel:             "gitrepo1",
+						fleet.ClusterLabel:          "cluster2",
+						fleet.ClusterNamespaceLabel: "c-ns1",
+					},
+				},
+				Status: fleet.BundleDeploymentStatus{
+					Resources: []fleet.BundleDeploymentResource{
+						{
+							Kind:       "ConfigMap",
+							APIVersion: "v1",
+							Name:       "cm-web",
+							Namespace:  "default",
+						},
+					},
+					ResourceCounts: fleet.ResourceCounts{
+						DesiredReady: 1,
+						Ready:        1,
+					},
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bd1",
+					Namespace: "ns2-cluster1",
+					Labels: map[string]string{
 						fleet.ClusterLabel:          "cluster1",
 						fleet.ClusterNamespaceLabel: "c-ns2",
 					},
 				},
+				Spec: fleet.BundleDeploymentSpec{
+					DeploymentID: "id2",
+				},
 				Status: fleet.BundleDeploymentStatus{
+					AppliedDeploymentID: "id1",
 					NonReadyStatus: []fleet.NonReadyStatus{
 						{
 							Kind:       "Deployment",
@@ -103,15 +133,20 @@ func TestSetResources(t *testing.T) {
 							Namespace:  "default",
 						},
 					},
+					ResourceCounts: fleet.ResourceCounts{
+						DesiredReady: 1,
+						NotReady:     1,
+					},
 				},
 			},
 		},
 	}
 
-	SetResources(list, &gitrepo.Status.StatusBase)
+	var status fleet.GitRepoStatus
+	SetResources(list, &status.StatusBase)
 
-	assert.Len(t, gitrepo.Status.Resources, 2)
-	assert.Contains(t, gitrepo.Status.Resources, fleet.Resource{
+	assert.Len(t, status.Resources, 3)
+	assert.Contains(t, status.Resources, fleet.Resource{
 		APIVersion: "v1",
 		Kind:       "Deployment",
 		Type:       "deployment",
@@ -136,7 +171,7 @@ func TestSetResources(t *testing.T) {
 			},
 		},
 	})
-	assert.Contains(t, gitrepo.Status.Resources, fleet.Resource{
+	assert.Contains(t, status.Resources, fleet.Resource{
 		APIVersion: "v1",
 		Kind:       "Service",
 		Type:       "service",
@@ -153,14 +188,28 @@ func TestSetResources(t *testing.T) {
 		PerClusterState: []fleet.ResourcePerClusterState{},
 	})
 
-	assert.Empty(t, gitrepo.Status.ResourceErrors)
+	assert.Empty(t, status.ResourceErrors)
 
-	assert.Equal(t, gitrepo.Status.ResourceCounts.Ready, 0)
-	assert.Equal(t, gitrepo.Status.ResourceCounts.DesiredReady, 4)
-	assert.Equal(t, gitrepo.Status.ResourceCounts.WaitApplied, 3)
-	assert.Equal(t, gitrepo.Status.ResourceCounts.Modified, 0)
-	assert.Equal(t, gitrepo.Status.ResourceCounts.Orphaned, 0)
-	assert.Equal(t, gitrepo.Status.ResourceCounts.Missing, 0)
-	assert.Equal(t, gitrepo.Status.ResourceCounts.Unknown, 0)
-	assert.Equal(t, gitrepo.Status.ResourceCounts.NotReady, 1)
+	assert.Equal(t, fleet.ResourceCounts{
+		Ready:        2,
+		DesiredReady: 5,
+		WaitApplied:  2,
+		NotReady:     1,
+	}, status.ResourceCounts)
+
+	assert.Equal(t, map[string]*fleet.ResourceCounts{
+		"c-ns1/cluster1": {
+			DesiredReady: 2,
+			WaitApplied:  2,
+		},
+		"c-ns1/cluster2": {
+			DesiredReady: 2,
+			Ready:        2,
+		},
+		"c-ns2/cluster1": {
+			DesiredReady: 1,
+			NotReady:     1,
+		},
+	}, status.PerClusterResourceCounts)
+
 }
