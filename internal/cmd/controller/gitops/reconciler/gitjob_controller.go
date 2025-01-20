@@ -607,7 +607,17 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 		},
 	)
 
-	if obj.Spec.CABundle != nil {
+	// Look for a `--ca-bundle-file` arg to the git cloner. This applies to cases where the GitRepo's `Spec.CABundle` is
+	// specified, but also to cases where a CA bundle secret has been created instead, with data from Rancher
+	// secrets.
+	hasCABundleArg := false
+	for _, arg := range initContainer.Args {
+		if arg == "--ca-bundle-file" {
+			hasCABundleArg = true
+			break
+		}
+	}
+	if hasCABundleArg {
 		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
 			Name: bundleCAVolumeName,
 			VolumeSource: corev1.VolumeSource{
@@ -1121,7 +1131,17 @@ func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRe
 	if obj.Spec.InsecureSkipTLSverify {
 		args = append(args, "--insecure-skip-tls")
 	}
-	if obj.Spec.CABundle != nil {
+
+	var CABundleSecret corev1.Secret
+	err := r.Get(ctx, types.NamespacedName{
+		Namespace: obj.Namespace,
+		Name:      caBundleName(obj),
+	}, &CABundleSecret)
+	if client.IgnoreNotFound(err) != nil {
+		return corev1.Container{}, err
+	}
+
+	if !errors.IsNotFound(err) {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      bundleCAVolumeName,
 			MountPath: "/gitjob/cabundle",

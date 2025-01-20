@@ -260,6 +260,43 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 				}, time.Second*5, time.Second*1).Should(Succeed())
 
+				By("feeding the mounted CA bundle to the fleet apply command for the git cloner")
+				Eventually(func(g Gomega) {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
+					// Ignore not-found errors in case the job has not yet been created
+					g.Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
+				})
+
+				volumes := job.Spec.Template.Spec.Volumes
+				Expect(volumes).ToNot(BeEmpty())
+
+				found := false
+				for _, v := range volumes {
+					if v.Name == "additional-ca" {
+						found = true
+						break
+					}
+				}
+				Expect(found).To(BeTrue())
+
+				initContainers := job.Spec.Template.Spec.InitContainers
+				Expect(initContainers).ToNot(BeEmpty())
+				Expect(strings.Join(initContainers[0].Args, " ")).
+					To(ContainSubstring("--ca-bundle-file /gitjob/cabundle/additional-ca.crt"))
+
+				volumeMounts := initContainers[0].VolumeMounts
+				Expect(volumeMounts).ToNot(BeEmpty())
+
+				found = false
+				for _, vm := range volumeMounts {
+					if vm.Name == "additional-ca" {
+						found = true
+						Expect(vm.MountPath).To(Equal("/gitjob/cabundle"))
+						break
+					}
+				}
+				Expect(found).To(BeTrue())
+
 				By("creating a CA bundle secret for the Helm client")
 				secretName = fmt.Sprintf("%s-rancher-cabundle", gitRepoName)
 				ns = types.NamespacedName{Name: secretName, Namespace: gitRepo.Namespace}
@@ -274,31 +311,19 @@ var _ = Describe("GitJob controller", func() {
 					g.Expect(secret.ObjectMeta).To(beOwnedBy(gitRepoOwnerRef))
 				}, time.Second*5, time.Second*1).Should(Succeed())
 
-				By("feeding the mounted CA bundle to the fleet apply command")
-				Eventually(func(g Gomega) {
-					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
-					// Ignore not-found errors in case the job has not yet been created
-					g.Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
-				})
-
-				volumes := job.Spec.Template.Spec.Volumes
-				Expect(volumes).ToNot(BeEmpty())
-
-				found := false
+				By("feeding the mounted CA bundle to the fleet apply command for Helm")
+				found = false
 				for _, v := range volumes {
 					if v.Name == "helm-secret-cert" {
 						found = true
 						break
 					}
 				}
+
 				Expect(found).To(BeTrue())
-
 				containers := job.Spec.Template.Spec.Containers
-				Expect(containers).ToNot(BeEmpty())
+				volumeMounts = containers[0].VolumeMounts
 				Expect(strings.Join(containers[0].Args, " ")).To(ContainSubstring("--cacerts-file /etc/ssl/certs/cacerts"))
-
-				volumeMounts := containers[0].VolumeMounts
-				Expect(volumeMounts).ToNot(BeEmpty())
 
 				found = false
 				for _, vm := range volumeMounts {
