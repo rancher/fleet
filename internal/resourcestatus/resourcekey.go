@@ -10,8 +10,7 @@ import (
 )
 
 func SetResources(list *fleet.BundleDeploymentList, status *fleet.StatusBase) {
-	s := summaryState(status.Summary)
-	r, errors := fromResources(list, s)
+	r, errors := fromResources(list)
 	status.ResourceErrors = errors
 	status.Resources = merge(r)
 	status.ResourceCounts = sumResourceCounts(list)
@@ -52,16 +51,6 @@ func key(resource fleet.Resource) string {
 	return resource.Type + "/" + resource.ID
 }
 
-func summaryState(summary fleet.BundleSummary) string {
-	if summary.WaitApplied > 0 {
-		return "WaitApplied"
-	}
-	if summary.ErrApplied > 0 {
-		return "ErrApplied"
-	}
-	return ""
-}
-
 func resourceCountsPerCluster(list *fleet.BundleDeploymentList) map[string]*fleet.ResourceCounts {
 	res := make(map[string]*fleet.ResourceCounts)
 	for _, bd := range list.Items {
@@ -78,13 +67,14 @@ func resourceCountsPerCluster(list *fleet.BundleDeploymentList) map[string]*flee
 // Resources and error messages.
 //
 // It populates gitrepo status resources from bundleDeployments. BundleDeployment.Status.Resources is the list of deployed resources.
-func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fleet.Resource, []string) {
+func fromResources(list *fleet.BundleDeploymentList) ([]fleet.Resource, []string) {
 	var (
 		resources []fleet.Resource
 		errors    []string
 	)
 
 	for _, bd := range list.Items {
+		state := summary.GetDeploymentState(&bd)
 		bdResources := bundleDeploymentResources(bd)
 		incomplete, err := addState(bd, bdResources)
 
@@ -96,7 +86,7 @@ func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fle
 		}
 
 		for k, perCluster := range bdResources {
-			resource := toResourceState(k, perCluster, incomplete, summaryState)
+			resource := toResourceState(k, perCluster, incomplete, string(state))
 			resources = append(resources, resource)
 		}
 	}
@@ -106,7 +96,7 @@ func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fle
 	return resources, errors
 }
 
-func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterState, incomplete bool, summaryState string) fleet.Resource {
+func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterState, incomplete bool, bdState string) fleet.Resource {
 	resource := fleet.Resource{
 		APIVersion:      k.APIVersion,
 		Kind:            k.Kind,
@@ -128,13 +118,13 @@ func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterS
 	// fallback to state from gitrepo summary
 	if resource.State == "" {
 		if resource.IncompleteState {
-			if summaryState != "" {
-				resource.State = summaryState
+			if bdState != "" {
+				resource.State = bdState
 			} else {
 				resource.State = "Unknown"
 			}
-		} else if summaryState != "" {
-			resource.State = summaryState
+		} else if bdState != "" {
+			resource.State = bdState
 		} else {
 			resource.State = "Ready"
 		}
