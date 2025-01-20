@@ -945,6 +945,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 		},
 		"custom CA": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-custom-ca",
+					Namespace: "test-ns",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					CABundle: []byte("ca"),
 					Repo:     "repo",
@@ -1000,11 +1004,21 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					Name: bundleCAVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							SecretName: "-cabundle",
+							SecretName: "test-custom-ca-cabundle",
 						},
 					},
 				},
 			},
+			client: fake.NewFakeClient(&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-custom-ca-cabundle",
+					Namespace: "test-ns",
+				},
+				Data: map[string][]byte{
+					"cacerts": []byte("foo"),
+				},
+				Type: corev1.SecretTypeSSHAuth,
+			}),
 		},
 		"skip tls": {
 			gitrepo: &fleetv1.GitRepo{
@@ -1055,6 +1069,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
+			client: fake.NewFakeClient(),
 		},
 	}
 
