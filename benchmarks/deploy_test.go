@@ -124,9 +124,9 @@ var _ = Context("Benchmarks Deploy", func() {
 						cluster := &v1alpha1.Cluster{}
 						err := k8sClient.Get(ctx, client.ObjectKey{Namespace: workspace, Name: c.Name}, cluster)
 						g.Expect(err).ToNot(HaveOccurred())
-						g.Expect(cluster.Status.Summary.DesiredReady).To(Equal(n*50 + 1))
-						// we expect the agent to be ready as well
-						g.Expect(cluster.Status.Summary.Ready).To(Equal(n*50 + 1))
+						// +1 because we expect the agent to be ready as well
+						g.Expect(cluster.Status.Summary.DesiredReady).To(Equal(50 + 1))
+						g.Expect(cluster.Status.Summary.Ready).To(Equal(50 + 1))
 					}
 				}).Should(Succeed())
 			}, gm.Style("{{bold}}"))
