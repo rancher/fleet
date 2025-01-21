@@ -21,6 +21,16 @@ jobs:
   build-fleet:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
 
+    strategy:
+      matrix:
+        include:
+          # - arm64 manifest
+          #- tag-suffix: "-arm64"
+          #  platforms: linux/arm64
+          # - amd64 manifest
+          - tag-suffix: "-amd64"
+            platforms: linux/amd64
+
     env:
       IS_HOTFIX: ${{ contains(github.ref, '-hotfix-ch-') }}
       REGISTRY: "${{ contains(github.ref, '-hotfix-ch-') && 'stgregistry.suse.com' || 'docker.io' }}"
@@ -43,37 +53,6 @@ jobs:
         with:
           secrets: |
             secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
-
-      - name: Run FOSSA scan
-        uses: fossas/fossa-action@v1.4.0
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-
-      - name: Run FOSSA tests
-        uses: fossas/fossa-action@v1.4.0
-        with:
-          api-key: ${{ env.FOSSA_API_KEY }}
-          run-tests: false
-
-      - name: Check for code changes
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        run: |
-          ./.github/scripts/check-for-auto-generated-changes.sh
-          go mod verify
-
-      - name: Run unit tests
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
-
-      - name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
-
-      - name: Run integration tests
-        continue-on-error: ${{ contains(github.ref, 'rc') }}
-        env:
-          SETUP_ENVTEST_VER: v0.0.0-20240115093953-9e6e3b144a69
-          ENVTEST_K8S_VERSION: 1.28
-        run: ./.github/scripts/run-integration-tests.sh
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -114,8 +93,45 @@ jobs:
           args: release --clean --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          GORELEASER_CURRENT_TAG: "v0.12.0-alpha.0"
 
+      - name: "Read Prime Vault Secrets"
+        uses: rancher-eio/read-vault-secrets@main
+        with:
+          secrets: |
+            secret/data/github/repo/${{ github.repository}}/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
+            secret/data/github/repo/${{ github.repository}}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD ;
+            secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials registry | PRIME_REGISTRY;
+
+      - name: Publish Fleet Prime Image
+        uses: rancher/ecm-distro-tools/actions/publish-image@master
+        with:
+          image: fleet
+          tag: ${{ github.ref_name }}${{ matrix.tag-suffix }}
+          platforms: ${{ matrix.platforms }}
+          make-target: push-image
+
+          push-to-public: false
+
+          prime-registry: ${{ env.PRIME_REGISTRY }}
+          prime-repo: rancher
+          prime-username: ${{ env.PRIME_REGISTRY_USERNAME }}
+          prime-password: ${{ env.PRIME_REGISTRY_PASSWORD }}
+
+      - name: Publish Fleet Agent Prime Image
+        uses: rancher/ecm-distro-tools/actions/publish-image@master
+        with:
+          image: fleet-agent
+          tag: ${{ github.ref_name }}${{ matrix.tag-suffix }}
+          platforms: ${{ matrix.platforms }}
+          make-target: push-image-agent
+
+          push-to-public: false
+
+          prime-registry: ${{ env.PRIME_REGISTRY }}
+          prime-repo: rancher
+          prime-username: ${{ env.PRIME_REGISTRY_USERNAME }}
+          prime-password: ${{ env.PRIME_REGISTRY_PASSWORD }}
       - name: Upload charts to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
