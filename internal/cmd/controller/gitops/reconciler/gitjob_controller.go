@@ -659,7 +659,7 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 }
 
 func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.GitRepo) (*batchv1.JobSpec, error) {
-	var isCACertsFileSet bool
+	var CACertsFilePathOverride string
 
 	paths := gitrepo.Spec.Paths
 	if len(paths) == 0 {
@@ -673,27 +673,38 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	}
 
 	volumes, volumeMounts := volumes(configMap.Name)
+	var certVolCreated bool
 
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
-		vols, volMnts := volumesFromSecret(ctx, r.Client,
+		vols, volMnts, hasCertVol := volumesFromSecret(ctx, r.Client,
 			gitrepo.Namespace,
 			gitrepo.Spec.HelmSecretNameForPaths,
 			"helm-secret-by-path",
+			"",
 		)
+
+		certVolCreated = hasCertVol
 
 		volumes = append(volumes, vols...)
 		volumeMounts = append(volumeMounts, volMnts...)
 
 	} else if gitrepo.Spec.HelmSecretName != "" {
-		vols, volMnts := volumesFromSecret(ctx, r.Client,
+		vols, volMnts, hasCertVol := volumesFromSecret(ctx, r.Client,
 			gitrepo.Namespace,
 			gitrepo.Spec.HelmSecretName,
 			"helm-secret",
+			"",
 		)
+
+		certVolCreated = hasCertVol
 
 		volumes = append(volumes, vols...)
 		volumeMounts = append(volumeMounts, volMnts...)
-	} else {
+	}
+
+	// In case no Helm secret volume has been created, because Helm secrets don't exist or don't contain a CA
+	// bundle, mount a volume with a Rancher CA bundle.
+	if !certVolCreated {
 		// Fall back to Rancher-configured secrets
 		// We need to copy secret data from Rancher, because Rancher secrets live in a different namespace and
 		// can therefore not be used as sources for a volume.
@@ -704,17 +715,22 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		}
 
 		if res {
-			vols, volMnts := volumesFromSecret(ctx, r.Client,
+			CACertsDirOverride := "/etc/rancher/certs"
+
+			// Override the volume name and mount path to prevent any conflict with an existing Helm secret
+			// providing username and password.
+			vols, volMnts, _ := volumesFromSecret(ctx, r.Client,
 				gitrepo.Namespace,
 				secretName,
-				"helm-secret",
+				"rancher-helm-secret",
+				CACertsDirOverride,
 			)
 
 			volumes = append(volumes, vols...)
 			volumeMounts = append(volumeMounts, volMnts...)
-		}
 
-		isCACertsFileSet = true
+			CACertsFilePathOverride = CACertsDirOverride + "/cacerts"
+		}
 	}
 
 	if ociwrapper.ExperimentalOCIIsEnabled() && gitrepo.Spec.OCIRegistry != nil && gitrepo.Spec.OCIRegistry.AuthSecretName != "" {
@@ -747,7 +763,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
-	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled(), isCACertsFileSet)
+	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled(), CACertsFilePathOverride)
 
 	return &batchv1.JobSpec{
 		BackoffLimit: &zero,
@@ -803,7 +819,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	}, nil
 }
 
-func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool, withCACertsFile bool) ([]string, []corev1.EnvVar) {
+func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool, CACertsPathOverride string) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
 		"apply",
@@ -869,11 +885,17 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool, withCACertsFile bool) ([
 		helmArgs := []string{
 			"--password-file",
 			"/etc/fleet/helm/password",
-			"--cacerts-file",
-			"/etc/fleet/helm/cacerts",
 			"--ssh-privatekey-file",
 			"/etc/fleet/helm/ssh-privatekey",
 		}
+
+		if CACertsPathOverride == "" {
+			helmArgs = append(helmArgs,
+				"--cacerts-file",
+				"/etc/fleet/helm/cacerts",
+			)
+		}
+
 		if gitrepo.Spec.HelmRepoURLRegex != "" {
 			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
 		}
@@ -896,10 +918,12 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool, withCACertsFile bool) ([
 					},
 				},
 			})
-	} else if withCACertsFile {
+	}
+
+	if CACertsPathOverride != "" {
 		helmArgs := []string{
 			"--cacerts-file",
-			"/etc/ssl/certs/cacerts",
+			CACertsPathOverride,
 		}
 		if gitrepo.Spec.HelmRepoURLRegex != "" {
 			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
@@ -1027,8 +1051,12 @@ func volumesFromSecret(
 	ctx context.Context,
 	c client.Client,
 	namespace string,
-	secretName, volumeName string,
-) ([]corev1.Volume, []corev1.VolumeMount) {
+	secretName, volumeName, mountPath string,
+) ([]corev1.Volume, []corev1.VolumeMount, bool) {
+	if mountPath == "" {
+		mountPath = "/etc/fleet/helm"
+	}
+
 	volumes := []corev1.Volume{
 		{
 			Name: volumeName,
@@ -1042,19 +1070,18 @@ func volumesFromSecret(
 	volumeMounts := []corev1.VolumeMount{
 		{
 			Name:      volumeName,
-			MountPath: "/etc/fleet/helm",
+			MountPath: mountPath,
 		},
 	}
 
 	// Mount a CA certificate, if specified in the secret. This is necessary to support Helm registries with
 	// self-signed certificates.
 	secret := &corev1.Secret{}
+	var certVolCreated bool
 	_ = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: secretName}, secret)
 	if _, ok := secret.Data["cacerts"]; ok {
-		certVolumeName := fmt.Sprintf("%s-cert", volumeName)
-
 		volumes = append(volumes, corev1.Volume{
-			Name: certVolumeName,
+			Name: fmt.Sprintf("%s-cert", volumeName),
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName: secretName,
@@ -1068,12 +1095,14 @@ func volumesFromSecret(
 			},
 		})
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      certVolumeName,
+			Name:      fmt.Sprintf("%s-cert", volumeName),
 			MountPath: "/etc/ssl/certs",
 		})
+
+		certVolCreated = true
 	}
 
-	return volumes, volumeMounts
+	return volumes, volumeMounts, certVolCreated
 }
 
 func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRepo) (corev1.Container, error) {

@@ -151,7 +151,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	DeferCleanup(func() {
-		k8sClient.Delete(ctx, &corev1.Namespace{
+		_ = k8sClient.Delete(ctx, &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "cattle-system",
 			},
