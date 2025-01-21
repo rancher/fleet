@@ -13,6 +13,7 @@ unique_api_port=${unique_api_port-36443}
 unique_tls_port=${unique_tls_port-443}
 METRICS_GITJOB_PORT=${METRICS_GITJOB_PORT-}
 METRICS_CONTROLLER_PORT=${METRICS_CONTROLLER_PORT-}
+METRICS_HELMOPS_PORT=${METRICS_HELMOPS_PORT-}
 
 name=${1-upstream}
 offs=${2-0}
@@ -23,6 +24,10 @@ fi
 
 if [ -n "$METRICS_GITJOB_PORT" ]; then
     args="$args -p "${METRICS_GITJOB_PORT}:${METRICS_GITJOB_PORT}@server:0""
+fi
+
+if [ -n "$METRICS_HELMOPS_PORT" ]; then
+    args="$args -p "${METRICS_HELMOPS_PORT}:${METRICS_HELMOPS_PORT}@server:0""
 fi
 
 if [ -n "$docker_mirror" ]; then
