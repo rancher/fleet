@@ -6,7 +6,12 @@ spec:
   selector:
     app: git-server
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: 8080
       targetPort: 80
+    - name: https
+      protocol: TCP
+      port: 4343
+      targetPort: 443
   type: LoadBalancer

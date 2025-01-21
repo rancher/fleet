@@ -14,9 +14,23 @@ spec:
       labels:
         app: git-server
     spec:
+      volumes:
+        - name: git-certs
+          secret:
+            secretName: git-server-certs
+            items:
+              - key: helm.crt
+                path: helm.crt
+              - key: helm.key
+                path: helm.key
       containers:
         - name: git-server
           image: nginx-git:test
           imagePullPolicy: IfNotPresent
           ports:
+          - containerPort: 4343
           - containerPort: 8080
+          volumeMounts:
+            - name: git-certs
+              mountPath: "/etc/ssl/certs"
+              readOnly: true
