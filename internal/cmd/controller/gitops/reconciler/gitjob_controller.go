@@ -211,16 +211,16 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	err = SetStatusFromBundleDeployments(ctx, r.Client, gitrepo)
 	if err != nil {
-		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+		return r.result(gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	err = SetStatusFromBundles(ctx, r.Client, gitrepo)
 	if err != nil {
-		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+		return r.result(gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	if err = UpdateDisplayState(gitrepo); err != nil {
-		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+		return r.result(gitrepo), updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	gitrepo.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
@@ -249,17 +249,17 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// in a ready status condition on the bundle.
 	err = r.setReadyStatusFromBundle(ctx, gitrepo)
 	if err != nil {
-		return result(repoPolled, gitrepo), err
+		return r.result(gitrepo), err
 	}
 
 	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
 
-		return result(repoPolled, gitrepo), err
+		return r.result(gitrepo), err
 	}
 
-	return result(repoPolled, gitrepo), nil
+	return r.result(gitrepo), nil
 }
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
@@ -273,7 +273,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	if err != nil && !errors.IsNotFound(err) {
 		err = fmt.Errorf("error retrieving git job: %w", err)
 		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToGetGitJob", err.Error())
-		return result(repoPolled, gitrepo), err
+		return r.result(gitrepo), err
 	}
 
 	if errors.IsNotFound(err) {
@@ -296,16 +296,16 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
-				return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+				return r.result(gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
-				return result(repoPolled, gitrepo), err
+				return r.result(gitrepo), err
 			}
 		}
 	} else if gitrepo.Status.Commit != "" && gitrepo.Status.Commit == oldCommit {
 		err, recreateGitJob := r.deleteJobIfNeeded(ctx, gitrepo, &job)
 		if err != nil {
-			return result(repoPolled, gitrepo), fmt.Errorf("error deleting git job: %w", err)
+			return r.result(gitrepo), fmt.Errorf("error deleting git job: %w", err)
 		}
 		// job was deleted and we need to recreate it
 		// Requeue so the reconciler creates the job again
@@ -317,7 +317,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
 	if err = setStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
-		return result(repoPolled, gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+		return r.result(gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 	}
 
 	return reconcile.Result{}, nil
@@ -1222,11 +1222,33 @@ func getPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
 	return gitrepo.Spec.PollingInterval.Duration
 }
 
-func result(repoPolled bool, gitrepo *v1alpha1.GitRepo) reconcile.Result {
-	if repoPolled {
-		return reconcile.Result{RequeueAfter: getPollingIntervalDuration(gitrepo)}
+func (r *GitJobReconciler) result(gitrepo *v1alpha1.GitRepo) reconcile.Result {
+	// We always reeturn a reconcile Result with RequeueAfter set to the polling interval
+	// unless polling is disabled.
+	// This is done to ensure the polling cycle is never broken due to race conditions
+	// between regular events and RequeueAfter events.
+	// Requeuing more events when there is already an event in the queue is not a problem
+	// because controller-runtime ignores events with higher timestamp
+	// For example, if we have an event in the queue that should be executed at time X
+	// and we try to enqueue another event that should be executed at time X+10 it will be
+	// dropped.
+	// If we try to enqueue an event at time X-10, it will replace the one in the queue.
+	// The queue will always keep the event that should be triggered earlier.
+	if gitrepo.Spec.DisablePolling {
+		return reconcile.Result{}
 	}
-	return reconcile.Result{}
+
+	// calculate the new polling interval substracting the time elapsed since last polling time happened
+	// That adjusts possible drifts due to heavy workload, etc.
+	pollingDuration := getPollingIntervalDuration(gitrepo) - (r.Clock.Now().Sub(gitrepo.Status.LastPollingTime.Time))
+	if pollingDuration <= 0 {
+		// This is a protection for cases in which the calculation above is 0 or less.
+		// In those cases controller-runtime does not call AddAfter for this object and
+		// the RequeueAfter cycle is lost.
+		// To ensure that this cycle is not broken we force the object to be requeued.
+		return reconcile.Result{Requeue: true}
+	}
+	return reconcile.Result{RequeueAfter: pollingDuration}
 }
 
 func webhookCommitChangedPredicate() predicate.Predicate {
