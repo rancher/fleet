@@ -5,21 +5,20 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 func SetResources(list *fleet.BundleDeploymentList, status *fleet.StatusBase) {
-	s := summaryState(status.Summary)
-	r, errors := fromResources(list, s)
+	r, errors := fromResources(list)
 	status.ResourceErrors = errors
-	status.ResourceCounts = countResources(r)
 	status.Resources = merge(r)
+	status.ResourceCounts = sumResourceCounts(list)
+	status.PerClusterResourceCounts = resourceCountsPerCluster(list)
 }
 
 func SetClusterResources(list *fleet.BundleDeploymentList, cluster *fleet.Cluster) {
-	s := summaryState(cluster.Status.Summary)
-	r, _ := fromResources(list, s)
-	cluster.Status.ResourceCounts = countResources(r)
+	cluster.Status.ResourceCounts = sumResourceCounts(list)
 }
 
 // merge takes a list of GitRepo resources and deduplicates resources deployed to multiple clusters,
@@ -52,27 +51,30 @@ func key(resource fleet.Resource) string {
 	return resource.Type + "/" + resource.ID
 }
 
-func summaryState(summary fleet.BundleSummary) string {
-	if summary.WaitApplied > 0 {
-		return "WaitApplied"
+func resourceCountsPerCluster(list *fleet.BundleDeploymentList) map[string]*fleet.ResourceCounts {
+	res := make(map[string]*fleet.ResourceCounts)
+	for _, bd := range list.Items {
+		clusterID := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
+		if _, ok := res[clusterID]; !ok {
+			res[clusterID] = &fleet.ResourceCounts{}
+		}
+		summary.IncrementResourceCounts(res[clusterID], bd.Status.ResourceCounts)
 	}
-	if summary.ErrApplied > 0 {
-		return "ErrApplied"
-	}
-	return ""
+	return res
 }
 
 // fromResources inspects all bundledeployments for this GitRepo and returns a list of
 // Resources and error messages.
 //
 // It populates gitrepo status resources from bundleDeployments. BundleDeployment.Status.Resources is the list of deployed resources.
-func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fleet.Resource, []string) {
+func fromResources(list *fleet.BundleDeploymentList) ([]fleet.Resource, []string) {
 	var (
 		resources []fleet.Resource
 		errors    []string
 	)
 
 	for _, bd := range list.Items {
+		state := summary.GetDeploymentState(&bd)
 		bdResources := bundleDeploymentResources(bd)
 		incomplete, err := addState(bd, bdResources)
 
@@ -84,7 +86,7 @@ func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fle
 		}
 
 		for k, perCluster := range bdResources {
-			resource := toResourceState(k, perCluster, incomplete, summaryState)
+			resource := toResourceState(k, perCluster, incomplete, string(state))
 			resources = append(resources, resource)
 		}
 	}
@@ -94,7 +96,7 @@ func fromResources(list *fleet.BundleDeploymentList, summaryState string) ([]fle
 	return resources, errors
 }
 
-func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterState, incomplete bool, summaryState string) fleet.Resource {
+func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterState, incomplete bool, bdState string) fleet.Resource {
 	resource := fleet.Resource{
 		APIVersion:      k.APIVersion,
 		Kind:            k.Kind,
@@ -116,13 +118,13 @@ func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterS
 	// fallback to state from gitrepo summary
 	if resource.State == "" {
 		if resource.IncompleteState {
-			if summaryState != "" {
-				resource.State = summaryState
+			if bdState != "" {
+				resource.State = bdState
 			} else {
 				resource.State = "Unknown"
 			}
-		} else if summaryState != "" {
-			resource.State = summaryState
+		} else if bdState != "" {
+			resource.State = bdState
 		} else {
 			resource.State = "Ready"
 		}
@@ -237,28 +239,10 @@ func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey]
 	return bdResources
 }
 
-func countResources(resources []fleet.Resource) fleet.ResourceCounts {
-	counts := fleet.ResourceCounts{}
-
-	for _, resource := range resources {
-		counts.DesiredReady++
-		switch resource.State {
-		case "Ready":
-			counts.Ready++
-		case "WaitApplied":
-			counts.WaitApplied++
-		case "Modified":
-			counts.Modified++
-		case "Orphan":
-			counts.Orphaned++
-		case "Missing":
-			counts.Missing++
-		case "Unknown":
-			counts.Unknown++
-		default:
-			counts.NotReady++
-		}
+func sumResourceCounts(list *fleet.BundleDeploymentList) fleet.ResourceCounts {
+	var res fleet.ResourceCounts
+	for _, bd := range list.Items {
+		summary.IncrementResourceCounts(&res, bd.Status.ResourceCounts)
 	}
-
-	return counts
+	return res
 }
