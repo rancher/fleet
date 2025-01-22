@@ -162,6 +162,14 @@ func TestSetResources(t *testing.T) {
 		Message:         "",
 		PerClusterState: []fleet.ResourcePerClusterState{
 			{
+				State:     "WaitApplied",
+				ClusterID: "c-ns1/cluster1",
+			},
+			{
+				State:     "NotReady",
+				ClusterID: "c-ns1/cluster2",
+			},
+			{
 				State:         "Pending",
 				ClusterID:     "c-ns2/cluster1",
 				Error:         true,
@@ -185,7 +193,12 @@ func TestSetResources(t *testing.T) {
 		Error:           false,
 		Transitioning:   false,
 		Message:         "",
-		PerClusterState: []fleet.ResourcePerClusterState{},
+		PerClusterState: []fleet.ResourcePerClusterState{
+			{
+				State:     "WaitApplied",
+				ClusterID: "c-ns1/cluster1",
+			},
+		},
 	})
 
 	assert.Empty(t, status.ResourceErrors)
