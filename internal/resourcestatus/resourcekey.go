@@ -44,10 +44,8 @@ type resourceStateEntry struct {
 
 type resourceStatesByResourceKey map[fleet.ResourceKey][]resourceStateEntry
 
-// fromResources inspects all bundledeployments for this GitRepo and returns a list of
-// Resources and error messages.
-//
-// It populates gitrepo status resources from bundleDeployments. BundleDeployment.Status.Resources is the list of deployed resources.
+// fromResources inspects a list of BundleDeployments and returns a list of per-cluster states per resource keys.
+// It also returns a list of errors messages produced that may have occurred during processing
 func fromResources(list *fleet.BundleDeploymentList) (resourceStatesByResourceKey, []string) {
 	var (
 		errors    []string
