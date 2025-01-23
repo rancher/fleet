@@ -1223,7 +1223,7 @@ func getPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
 }
 
 func (r *GitJobReconciler) result(gitrepo *v1alpha1.GitRepo) reconcile.Result {
-	// We always reeturn a reconcile Result with RequeueAfter set to the polling interval
+	// We always return a reconcile Result with RequeueAfter set to the polling interval
 	// unless polling is disabled.
 	// This is done to ensure the polling cycle is never broken due to race conditions
 	// between regular events and RequeueAfter events.
@@ -1238,17 +1238,18 @@ func (r *GitJobReconciler) result(gitrepo *v1alpha1.GitRepo) reconcile.Result {
 		return reconcile.Result{}
 	}
 
-	// calculate the new polling interval substracting the time elapsed since last polling time happened
-	// That adjusts possible drifts due to heavy workload, etc.
-	pollingDuration := getPollingIntervalDuration(gitrepo) - (r.Clock.Now().Sub(gitrepo.Status.LastPollingTime.Time))
-	if pollingDuration <= 0 {
+	// Calculate next reconciliation schedule based on the elapsed time since the last polling
+	// so it matches the configured polling interval.
+	// A fixed value may lead to drifts due to out-of-schedule reconciliations.
+	requeueAfter := getPollingIntervalDuration(gitrepo) - r.Clock.Since(gitrepo.Status.LastPollingTime.Time)
+	if requeueAfter <= 0 {
 		// This is a protection for cases in which the calculation above is 0 or less.
 		// In those cases controller-runtime does not call AddAfter for this object and
 		// the RequeueAfter cycle is lost.
 		// To ensure that this cycle is not broken we force the object to be requeued.
 		return reconcile.Result{Requeue: true}
 	}
-	return reconcile.Result{RequeueAfter: pollingDuration}
+	return reconcile.Result{RequeueAfter: requeueAfter}
 }
 
 func webhookCommitChangedPredicate() predicate.Predicate {
