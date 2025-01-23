@@ -27,6 +27,8 @@ func TestSetResources(t *testing.T) {
 					DeploymentID: "id2",
 				},
 				Status: fleet.BundleDeploymentStatus{
+					Ready:               false,
+					NonModified:         true,
 					AppliedDeploymentID: "id1",
 					Resources: []fleet.BundleDeploymentResource{
 						{
@@ -59,6 +61,8 @@ func TestSetResources(t *testing.T) {
 					},
 				},
 				Status: fleet.BundleDeploymentStatus{
+					Ready:       true,
+					NonModified: true,
 					Resources: []fleet.BundleDeploymentResource{
 						{
 							Kind:       "Deployment",
@@ -83,6 +87,8 @@ func TestSetResources(t *testing.T) {
 					},
 				},
 				Status: fleet.BundleDeploymentStatus{
+					Ready:       true,
+					NonModified: true,
 					Resources: []fleet.BundleDeploymentResource{
 						{
 							Kind:       "ConfigMap",
@@ -110,6 +116,8 @@ func TestSetResources(t *testing.T) {
 					DeploymentID: "id2",
 				},
 				Status: fleet.BundleDeploymentStatus{
+					Ready:               false,
+					NonModified:         true,
 					AppliedDeploymentID: "id1",
 					NonReadyStatus: []fleet.NonReadyStatus{
 						{
@@ -164,10 +172,6 @@ func TestSetResources(t *testing.T) {
 			{
 				State:     "WaitApplied",
 				ClusterID: "c-ns1/cluster1",
-			},
-			{
-				State:     "NotReady",
-				ClusterID: "c-ns1/cluster2",
 			},
 			{
 				State:         "Pending",
