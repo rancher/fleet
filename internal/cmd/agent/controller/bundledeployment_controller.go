@@ -203,6 +203,10 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, orig *fleetv1.BundleDeployment, obj *fleetv1.BundleDeployment) error {
 	statusPatch := client.MergeFrom(orig)
+	if patchData, err := statusPatch.Data(obj); err == nil && string(patchData) == "{}" {
+		// skip update if patch is empty
+		return nil
+	}
 	return r.Status().Patch(ctx, obj, statusPatch)
 }
 
