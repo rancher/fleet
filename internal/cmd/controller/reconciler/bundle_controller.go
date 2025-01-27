@@ -22,7 +22,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -193,7 +192,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bundle.Status.Conditions = []genericcondition.GenericCondition{
 			{
 				Type:           string(fleet.Ready),
-				Status:         v1.ConditionFalse,
+				Status:         corev1.ConditionFalse,
 				Message:        "Targeting error: " + err.Error(),
 				LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
 			},
