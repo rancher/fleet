@@ -291,7 +291,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 
 					// check for contentsID
 					contentsID, err := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.spec.contentsId}`)
-					Expect(err).ToNot(HaveOccurred())
+					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(contentsID).To(BeEmpty())
 
 					GinkgoWriter.Printf("ContentsID: %s\n", contentsID)
