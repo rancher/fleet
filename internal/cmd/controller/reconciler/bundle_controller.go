@@ -458,8 +458,12 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle, bundle *fleet.Bundle) error {
 	logger := log.FromContext(ctx).WithName("bundle - updateStatus")
 	statusPatch := client.MergeFrom(orig)
-	err := r.Status().Patch(ctx, bundle, statusPatch)
-	if err != nil {
+
+	if patchData, err := statusPatch.Data(bundle); err == nil && string(patchData) == "{}" {
+		// skip update if patch is empty
+		return nil
+	}
+	if err := r.Status().Patch(ctx, bundle, statusPatch); err != nil {
 		logger.V(1).Info("Reconcile failed update to bundle status", "status", bundle.Status, "error", err)
 		return err
 	}
