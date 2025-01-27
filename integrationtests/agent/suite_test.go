@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
-
-	"github.com/google/go-cmp/cmp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -270,24 +267,16 @@ type specEnv struct {
 	namespace string
 }
 
-func (se specEnv) isNotReadyAndModified(name string, modifiedStatus v1alpha1.ModifiedStatus, message string) (bool, string) {
+func (se specEnv) isNotReadyAndModified(g Gomega, name string, modifiedStatus v1alpha1.ModifiedStatus, message string) {
 	bd := &v1alpha1.BundleDeployment{}
 	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
-	if err != nil {
-		return false, err.Error()
-	}
 
-	isReadyCondition := checkCondition(bd.Status.Conditions, "Ready", "False", message)
+	g.Expect(err).ToNot(HaveOccurred())
 
-	isOK := cmp.Equal(bd.Status.ModifiedStatus, []v1alpha1.ModifiedStatus{modifiedStatus}) &&
-		!bd.Status.NonModified &&
-		isReadyCondition
+	checkCondition(g, bd.Status.Conditions, "Ready", "False", message)
 
-	if !isOK {
-		return false, fmt.Sprintf("Status: %#v\n Conditions: %#v", bd.Status.ModifiedStatus, bd.Status.Conditions)
-	}
-
-	return true, ""
+	g.Expect(bd.Status.NonModified).To(BeFalse(), "bd.Status.NonModified has unexpected value")
+	g.Expect(bd.Status.ModifiedStatus).To(Equal([]v1alpha1.ModifiedStatus{modifiedStatus}))
 }
 
 func (se specEnv) isBundleDeploymentReadyAndNotModified(name string) bool {
@@ -328,14 +317,22 @@ func (se specEnv) getConfigMap(name string) (corev1.ConfigMap, error) {
 	return cm, nil
 }
 
-func checkCondition(conditions []genericcondition.GenericCondition, conditionType string, status string, message string) bool {
+func checkCondition(g Gomega, conditions []genericcondition.GenericCondition, conditionType string, status string, message string) {
+	var foundCond *genericcondition.GenericCondition
+
 	for _, condition := range conditions {
-		if condition.Type == conditionType && string(condition.Status) == status && strings.Contains(condition.Message, message) {
-			return true
+		if condition.Type == conditionType && string(condition.Status) == status {
+			foundCond = &condition
+			break
 		}
 	}
 
-	return false
+	g.Expect(foundCond).ToNot(
+		BeNil(),
+		fmt.Sprintf("Condition with type %q and status %q not found in %v", conditionType, status, conditions),
+	)
+
+	g.Expect(foundCond.Message).To(ContainSubstring(message))
 }
 
 func createNamespace() string {

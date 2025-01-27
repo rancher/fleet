@@ -286,15 +286,11 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				}
 
 				Eventually(func(g Gomega) {
-
 					bd := &v1alpha1.BundleDeployment{}
 					err := k8sClient.Get(context.TODO(), nsn, bd, &client.GetOptions{})
 					g.Expect(err).ToNot(HaveOccurred())
 
-					g.Expect(checkCondition(bd.Status.Conditions, "Ready", "False", expectedMsg)).To(BeTrue())
-
-					g.Expect(bd.Status.NonModified).To(BeFalse(), "bd.Status.NonModified has unexpected value")
-					g.Expect(bd.Status.ModifiedStatus).To(Equal([]v1alpha1.ModifiedStatus{modifiedStatus}))
+					env.isNotReadyAndModified(g, name, modifiedStatus, expectedMsg)
 				}).Should(Succeed())
 
 				By("Correcting drift once drift correction is set to force")
