@@ -116,12 +116,12 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					)
-					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
 			})
 
@@ -162,13 +162,12 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     true,
 						Patch:      "",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-finalizer extra",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}, timeout, 20*time.Millisecond).Should(Succeed())
 			})
 
@@ -204,13 +203,12 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-test missing",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
 			})
 		})
@@ -287,13 +285,12 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
 			})
 
@@ -334,13 +331,12 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     true,
 						Patch:      "",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-finalizer extra",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}, timeout, 20*time.Millisecond).Should(Succeed())
 			})
 
@@ -376,13 +372,12 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Delete:     false,
 						Patch:      "",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-test missing",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
 			})
 		})

@@ -52,8 +52,9 @@ var _ = BeforeSuite(func() {
 
 	// Set up the clustergroup reconciler
 	err = (&reconciler.BundleDeploymentReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
