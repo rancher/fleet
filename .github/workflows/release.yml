@@ -45,12 +45,12 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
 
       - name: Run FOSSA scan
-        uses: fossas/fossa-action@v1.4.0
+        uses: fossas/fossa-action@v1.5.0
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
 
       - name: Run FOSSA tests
-        uses: fossas/fossa-action@v1.4.0
+        uses: fossas/fossa-action@v1.5.0
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
           run-tests: false
