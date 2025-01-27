@@ -4,16 +4,18 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"sync"
 
-	"github.com/rancher/fleet/internal/bundlereader/progress"
-	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+
+	"github.com/rancher/fleet/internal/bundlereader/progress"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/data"
 
@@ -62,7 +64,9 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	}
 	resources, err := loadDirectories(ctx, compress, disableDepsUpdate, directories...)
 	if err != nil {
-		return nil, err
+		if _, ok := err.(*url.Error); !ok {
+			return nil, err
+		}
 	}
 
 	var result []fleet.BundleResource

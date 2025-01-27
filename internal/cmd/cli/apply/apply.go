@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -72,9 +71,9 @@ type Options struct {
 }
 
 func globDirs(baseDir string) (result []string, err error) {
-	for strings.HasPrefix(baseDir, "/") {
-		baseDir = baseDir[1:]
-	}
+	// for strings.HasPrefix(baseDir, "/") {
+	// 	baseDir = baseDir[1:]
+	// }
 	paths, err := filepath.Glob(baseDir)
 	if err != nil {
 		return nil, err
