@@ -27,6 +27,8 @@ func TestSetResources(t *testing.T) {
 					DeploymentID: "id2",
 				},
 				Status: fleet.BundleDeploymentStatus{
+					Ready:               false,
+					NonModified:         true,
 					AppliedDeploymentID: "id1",
 					Resources: []fleet.BundleDeploymentResource{
 						{
@@ -59,6 +61,8 @@ func TestSetResources(t *testing.T) {
 					},
 				},
 				Status: fleet.BundleDeploymentStatus{
+					Ready:       true,
+					NonModified: true,
 					Resources: []fleet.BundleDeploymentResource{
 						{
 							Kind:       "Deployment",
@@ -83,6 +87,8 @@ func TestSetResources(t *testing.T) {
 					},
 				},
 				Status: fleet.BundleDeploymentStatus{
+					Ready:       true,
+					NonModified: true,
 					Resources: []fleet.BundleDeploymentResource{
 						{
 							Kind:       "ConfigMap",
@@ -110,6 +116,8 @@ func TestSetResources(t *testing.T) {
 					DeploymentID: "id2",
 				},
 				Status: fleet.BundleDeploymentStatus{
+					Ready:               false,
+					NonModified:         true,
 					AppliedDeploymentID: "id1",
 					NonReadyStatus: []fleet.NonReadyStatus{
 						{
@@ -162,6 +170,10 @@ func TestSetResources(t *testing.T) {
 		Message:         "",
 		PerClusterState: []fleet.ResourcePerClusterState{
 			{
+				State:     "WaitApplied",
+				ClusterID: "c-ns1/cluster1",
+			},
+			{
 				State:         "Pending",
 				ClusterID:     "c-ns2/cluster1",
 				Error:         true,
@@ -185,7 +197,12 @@ func TestSetResources(t *testing.T) {
 		Error:           false,
 		Transitioning:   false,
 		Message:         "",
-		PerClusterState: []fleet.ResourcePerClusterState{},
+		PerClusterState: []fleet.ResourcePerClusterState{
+			{
+				State:     "WaitApplied",
+				ClusterID: "c-ns1/cluster1",
+			},
+		},
 	})
 
 	assert.Empty(t, status.ResourceErrors)
