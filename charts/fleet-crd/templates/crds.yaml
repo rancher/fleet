@@ -6662,6 +6662,15 @@ spec:
                   description: PerClusterResourceCounts contains the number of resources
                     in each state over all bundles, per cluster.
                   type: object
+                pollerCommit:
+                  description: PollerCommit is the latest Git commit gathered by the
+                    GitRepo poller
+                  type: string
+                pollerGeneration:
+                  description: PollerGeneration is the latest generation value processed
+                    by the GitRepo poller
+                  format: int64
+                  type: integer
                 readyClusters:
                   description: 'ReadyClusters is the lowest number of clusters that
                     are ready over
