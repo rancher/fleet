@@ -7,13 +7,14 @@ import (
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/kv"
-	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -115,6 +116,8 @@ func PurgeContent(ctx context.Context, c client.Client, name, deplID string) err
 		return client.IgnoreNotFound(err)
 	}
 
+	logger := log.FromContext(ctx).WithName("purge-content").WithValues("contentID", contentID, "finalizerName", name)
+
 	nn := types.NamespacedName{Name: content.Name}
 	if controllerutil.ContainsFinalizer(content, name) {
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -130,14 +133,14 @@ func PurgeContent(ctx context.Context, c client.Client, name, deplID string) err
 			return err
 		}
 
-		logrus.Infof("Removed finalizer %s from content resource %s", name, contentID)
+		logger.V(1).Info("Removed finalizer from content resource")
 	}
 
 	if len(content.Finalizers) == 0 {
 		if err := c.Delete(ctx, content); err != nil {
 			return err
 		}
-		logrus.Infof("Deleted content resource %s", contentID)
+		logger.V(1).Info("Deleted content resource")
 	}
 
 	return nil
