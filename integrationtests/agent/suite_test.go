@@ -127,6 +127,7 @@ var _ = BeforeSuite(func() {
 		DriftDetect: reconciler.DriftDetect,
 
 		DriftChan: driftChan,
+		Workers:   50,
 	}
 	err = driftReconciler.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
@@ -226,6 +227,7 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, dri
 		Cleanup:     cleanup,
 
 		AgentScope: agentScope,
+		Workers:    50,
 	}
 }
 

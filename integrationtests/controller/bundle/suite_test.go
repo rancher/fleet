@@ -67,19 +67,22 @@ var _ = BeforeSuite(func() {
 		Builder: builder,
 		Store:   store,
 		Query:   builder,
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
 	err = (&reconciler.BundleDeploymentReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
 	err = (&reconciler.ClusterReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Query:  builder,
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Query:   builder,
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 

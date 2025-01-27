@@ -52,8 +52,9 @@ var _ = BeforeSuite(func() {
 
 	// Set up the clustergroup reconciler
 	err = (&reconciler.ClusterGroupReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
@@ -61,7 +62,8 @@ var _ = BeforeSuite(func() {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 
-		Query: &FakeQuery{},
+		Query:   &FakeQuery{},
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
