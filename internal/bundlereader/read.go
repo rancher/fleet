@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/sirupsen/logrus"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
@@ -186,7 +188,20 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth, opts.HelmRepoURLRegex)
 	if err != nil {
-		return nil, nil, err
+		_, isUrlError := err.(*url.Error)
+		// Don't create a Bundle that has no resources whatsoever, even if we had a net/url.Error.
+		if len(resources) == 0 || !isUrlError {
+			return nil, nil, err
+		}
+
+		// isUrlError && len(resources) > 0
+		if meta.ObjectMeta.Annotations == nil {
+			meta.ObjectMeta.Annotations = make(map[string]string)
+		}
+
+		// Add the error we've deliberately ignored to the Bundle's metadata.
+		meta.ObjectMeta.Annotations["fleet.cattle.io/hadUrlError"] = "true"
+		meta.ObjectMeta.Annotations["fleet.cattle.io/urlError"] = err.Error()
 	}
 
 	fy.Resources = resources
@@ -270,7 +285,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		bundle.Spec.CorrectDrift = opts.CorrectDrift
 	}
 
-	return bundle, scans, nil
+	return bundle, scans, err
 }
 
 // propagateHelmChartProperties propagates root Helm chart properties to the child targets.

@@ -64,6 +64,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	}
 	resources, err := loadDirectories(ctx, compress, disableDepsUpdate, directories...)
 	if err != nil {
+		// We're deliberately ignoring URL errors to allow the bundle to be created, even if incomplete.
 		if _, ok := err.(*url.Error); !ok {
 			return nil, err
 		}
@@ -78,7 +79,9 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 		return result[i].Name < result[j].Name
 	})
 
-	return result, nil
+	// But we do want to return the information about the URL error, even though it did not stop the bundle from being
+	// created.
+	return result, err
 }
 
 type directory struct {
@@ -200,6 +203,9 @@ func checksum(helm *fleet.HelmOptions) string {
 	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
 }
 
+// loadDirectories loads all resources from the directories. If a URL is specified for a chart, it
+// will download the chart. If the download fails, the resources that were successfully downloaded
+// are returned, except for the chart that failed to be downloaded.
 func loadDirectories(ctx context.Context, compress bool, disableDepsUpdate bool, directories ...directory) (map[string][]fleet.BundleResource, error) {
 	var (
 		sem    = semaphore.NewWeighted(4)
@@ -209,8 +215,7 @@ func loadDirectories(ctx context.Context, compress bool, disableDepsUpdate bool,
 	)
 	defer p.Close()
 
-	eg, ctx := errgroup.WithContext(ctx)
-
+	eg := errgroup.Group{}
 	for _, dir := range directories {
 		if err := sem.Acquire(ctx, 1); err != nil {
 			return nil, err
