@@ -16,7 +16,7 @@ require (
 	github.com/cheggaaa/pb v1.0.29
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v27.5.1+incompatible
-	github.com/evanphx/json-patch v5.9.0+incompatible
+	github.com/evanphx/json-patch v5.9.10+incompatible
 	github.com/go-git/go-billy/v5 v5.6.2
 	github.com/go-git/go-git/v5 v5.13.2
 	github.com/go-logr/logr v1.4.2
