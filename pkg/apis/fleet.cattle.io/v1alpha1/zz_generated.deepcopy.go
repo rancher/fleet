@@ -1681,6 +1681,13 @@ func (in *HelmOptions) DeepCopyInto(out *HelmOptions) {
 		in, out := &in.Values, &out.Values
 		*out = (*in).DeepCopy()
 	}
+	if in.TemplateValues != nil {
+		in, out := &in.TemplateValues, &out.TemplateValues
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	if in.ValuesFrom != nil {
 		in, out := &in.ValuesFrom, &out.ValuesFrom
 		*out = make([]ValuesFrom, len(*in))

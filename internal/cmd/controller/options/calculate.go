@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"maps"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/data"
@@ -51,6 +52,11 @@ func Merge(base, custom fleet.BundleDeploymentOptions) fleet.BundleDeploymentOpt
 			result.Helm.Values = custom.Helm.Values
 		} else if custom.Helm.Values != nil {
 			result.Helm.Values.Data = data.MergeMaps(result.Helm.Values.Data, custom.Helm.Values.Data)
+		}
+		if result.Helm.TemplateValues == nil {
+			result.Helm.TemplateValues = custom.Helm.TemplateValues
+		} else if custom.Helm.TemplateValues != nil {
+			maps.Copy(result.Helm.TemplateValues, custom.Helm.TemplateValues)
 		}
 		if custom.Helm.ValuesFrom != nil {
 			result.Helm.ValuesFrom = append(result.Helm.ValuesFrom, custom.Helm.ValuesFrom...)

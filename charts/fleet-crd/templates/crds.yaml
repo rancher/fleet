@@ -349,6 +349,24 @@ spec:
                           description: TakeOwnership makes helm skip the check for
                             its own annotations
                           type: boolean
+                        templateValues:
+                          additionalProperties:
+                            type: string
+                          description: 'Template Values passed to Helm. It is possible
+                            to specify the keys and values
+
+                            as go template strings. Unlike .values, content of each
+                            key will be templated
+
+                            first, before serializing to yaml. This allows to template
+                            complex values,
+
+                            like ranges and maps.
+
+                            templateValues keys have precedence over values keys in
+                            case of conflict.'
+                          nullable: true
+                          type: object
                         timeoutSeconds:
                           description: TimeoutSeconds is the time to wait for Helm
                             operations.
@@ -695,6 +713,24 @@ spec:
                           description: TakeOwnership makes helm skip the check for
                             its own annotations
                           type: boolean
+                        templateValues:
+                          additionalProperties:
+                            type: string
+                          description: 'Template Values passed to Helm. It is possible
+                            to specify the keys and values
+
+                            as go template strings. Unlike .values, content of each
+                            key will be templated
+
+                            first, before serializing to yaml. This allows to template
+                            complex values,
+
+                            like ranges and maps.
+
+                            templateValues keys have precedence over values keys in
+                            case of conflict.'
+                          nullable: true
+                          type: object
                         timeoutSeconds:
                           description: TimeoutSeconds is the time to wait for Helm
                             operations.
@@ -1568,6 +1604,24 @@ spec:
                       description: TakeOwnership makes helm skip the check for its
                         own annotations
                       type: boolean
+                    templateValues:
+                      additionalProperties:
+                        type: string
+                      description: 'Template Values passed to Helm. It is possible
+                        to specify the keys and values
+
+                        as go template strings. Unlike .values, content of each key
+                        will be templated
+
+                        first, before serializing to yaml. This allows to template
+                        complex values,
+
+                        like ranges and maps.
+
+                        templateValues keys have precedence over values keys in case
+                        of conflict.'
+                      nullable: true
+                      type: object
                     timeoutSeconds:
                       description: TimeoutSeconds is the time to wait for Helm operations.
                       type: integer
@@ -2433,6 +2487,24 @@ spec:
                             description: TakeOwnership makes helm skip the check for
                               its own annotations
                             type: boolean
+                          templateValues:
+                            additionalProperties:
+                              type: string
+                            description: 'Template Values passed to Helm. It is possible
+                              to specify the keys and values
+
+                              as go template strings. Unlike .values, content of each
+                              key will be templated
+
+                              first, before serializing to yaml. This allows to template
+                              complex values,
+
+                              like ranges and maps.
+
+                              templateValues keys have precedence over values keys
+                              in case of conflict.'
+                            nullable: true
+                            type: object
                           timeoutSeconds:
                             description: TimeoutSeconds is the time to wait for Helm
                               operations.
@@ -7307,6 +7379,24 @@ spec:
                       description: TakeOwnership makes helm skip the check for its
                         own annotations
                       type: boolean
+                    templateValues:
+                      additionalProperties:
+                        type: string
+                      description: 'Template Values passed to Helm. It is possible
+                        to specify the keys and values
+
+                        as go template strings. Unlike .values, content of each key
+                        will be templated
+
+                        first, before serializing to yaml. This allows to template
+                        complex values,
+
+                        like ranges and maps.
+
+                        templateValues keys have precedence over values keys in case
+                        of conflict.'
+                      nullable: true
+                      type: object
                     timeoutSeconds:
                       description: TimeoutSeconds is the time to wait for Helm operations.
                       type: integer
@@ -8191,6 +8281,24 @@ spec:
                             description: TakeOwnership makes helm skip the check for
                               its own annotations
                             type: boolean
+                          templateValues:
+                            additionalProperties:
+                              type: string
+                            description: 'Template Values passed to Helm. It is possible
+                              to specify the keys and values
+
+                              as go template strings. Unlike .values, content of each
+                              key will be templated
+
+                              first, before serializing to yaml. This allows to template
+                              complex values,
+
+                              like ranges and maps.
+
+                              templateValues keys have precedence over values keys
+                              in case of conflict.'
+                            nullable: true
+                            type: object
                           timeoutSeconds:
                             description: TimeoutSeconds is the time to wait for Helm
                               operations.
