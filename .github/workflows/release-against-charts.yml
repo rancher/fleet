@@ -48,12 +48,9 @@ jobs:
           go-version: '1.22.*'
       - name: Install dependencies
         run: |
-          # get latest URL from output line `< location: $URL`
-          latest=$(curl -v https://github.com/mikefarah/yq/releases/latest 2>&1 | grep location | cut -d' ' -f3)
-          URL=$(echo ${latest/tag/download} | tr -d '\r')
-          curl -fsL $URL/yq_linux_amd64.tar.gz | tar xz
-
-          sudo mv yq_linux_amd64 /usr/bin/yq
+          sudo apt-get update
+          sudo apt install -y --allow-change-held-packages snapd
+          sudo snap install yq --channel=v4/stable
       - name: Run release script
         run: |
           export CHARTS_DIR="${GITHUB_WORKSPACE}/charts"
