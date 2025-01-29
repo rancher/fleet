@@ -203,6 +203,20 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
+	if bundle.Annotations != nil && bundle.Annotations["fleet.cattle.io/urlError"] != "" {
+		bundle.Status.Conditions = []genericcondition.GenericCondition{
+			{
+				Type:           string(fleet.Ready),
+				Status:         v1.ConditionFalse,
+				Message:        "URL error: " + bundle.Annotations["fleet.cattle.io/urlError"],
+				LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
+			},
+		}
+
+		err := r.updateStatus(ctx, bundleOrig, bundle)
+		return ctrl.Result{}, err
+	}
+
 	if (!contentsInOCI && !contentsInHelmChart) && len(matchedTargets) > 0 {
 		// when not using the OCI registry or helm chart we need to create a contents resource
 		// so the BundleDeployments are able to access the contents to be deployed.
