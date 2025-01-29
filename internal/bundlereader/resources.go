@@ -64,7 +64,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	}
 	resources, err := loadDirectories(ctx, compress, disableDepsUpdate, directories...)
 	if err != nil {
-		// We're deliberately ignoring URL errors to allow the bundle to be created, even if incomplete.
+		// We deliberately ignore URL errors to allow the bundle to be created, even if incomplete.
 		if _, ok := err.(*url.Error); !ok {
 			return nil, err
 		}

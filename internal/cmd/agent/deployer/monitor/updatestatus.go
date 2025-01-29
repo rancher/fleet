@@ -103,7 +103,7 @@ func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, 
 	}
 	status := bd.Status
 
-	readyError := readyError(status)
+	readyError := readyError(bd)
 	Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
 
 	status.SyncGeneration = &bd.Spec.Options.ForceSyncGeneration
@@ -126,21 +126,23 @@ func removePrivateFields(s1 *fleet.BundleDeploymentStatus) {
 
 // readyError returns an error based on the provided status.
 // That error is non-nil if the status corresponds to a non-ready or modified state of the bundle deployment.
-func readyError(status fleet.BundleDeploymentStatus) error {
-	if status.Ready && status.NonModified {
+func readyError(bd *fleet.BundleDeployment) error {
+	if bd.Status.Ready && bd.Status.NonModified {
 		return nil
 	}
 
 	var msg string
-	if !status.Ready {
+	if !bd.Status.Ready {
 		msg = "not ready"
-		if len(status.NonReadyStatus) > 0 {
-			msg = status.NonReadyStatus[0].String()
+		if len(bd.Status.NonReadyStatus) > 0 {
+			msg = bd.Status.NonReadyStatus[0].String()
+		} else if bd.Annotations != nil && bd.Annotations["fleet.cattle.io/urlError"] != "" {
+			msg += " - " + bd.Annotations["fleet.cattle.io/urlError"]
 		}
-	} else if !status.NonModified {
+	} else if !bd.Status.NonModified {
 		msg = "out of sync"
-		if len(status.ModifiedStatus) > 0 {
-			msg = status.ModifiedStatus[0].String()
+		if len(bd.Status.ModifiedStatus) > 0 {
+			msg = bd.Status.ModifiedStatus[0].String()
 		}
 	}
 
@@ -212,7 +214,8 @@ func toBundleDeploymentResources(client client.Client, objs []runtime.Object, de
 }
 
 func updateFromResources(bdStatus *fleet.BundleDeploymentStatus, resources []fleet.BundleDeploymentResource, nonReadyResources []fleet.NonReadyStatus, modifiedResources []fleet.ModifiedStatus) {
-	bdStatus.Ready = len(nonReadyResources) == 0
+	// Breaking change!
+	bdStatus.Ready = len(nonReadyResources) == 0 && len(resources) != 0
 	bdStatus.NonReadyStatus = nonReadyResources
 	if len(bdStatus.NonReadyStatus) > resourcesDetailsMaxLength {
 		bdStatus.IncompleteState = true

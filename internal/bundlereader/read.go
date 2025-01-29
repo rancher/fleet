@@ -200,7 +200,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		}
 
 		// Add the error we've deliberately ignored to the Bundle's metadata.
-		meta.ObjectMeta.Annotations["fleet.cattle.io/hadUrlError"] = "true"
+		// meta.ObjectMeta.Annotations["fleet.cattle.io/hasUrlError"] = "true"
 		meta.ObjectMeta.Annotations["fleet.cattle.io/urlError"] = err.Error()
 	}
 

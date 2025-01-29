@@ -59,6 +59,18 @@ func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 	}
 	bd.Spec.Paused = t.IsPaused()
 
+	// If the BundleDeployment has no resources, it might be because a net/url.Error occurred, in which case we want to
+	// get it from the Bundle and add it to the BundleDeployment.
+	if len(t.Deployment.Status.Resources) == 0 {
+		if bd.Annotations == nil {
+			bd.Annotations = map[string]string{}
+		}
+		urlError, ok := t.Bundle.Annotations["fleet.cattle.io/urlError"]
+		if ok {
+			bd.Annotations["fleet.cattle.io/urlError"] = urlError
+		}
+	}
+
 	initialiseOptionsMaps(bd)
 
 	for _, bundleTarget := range t.Bundle.Spec.Targets {
