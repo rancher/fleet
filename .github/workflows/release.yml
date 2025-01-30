@@ -22,8 +22,8 @@ jobs:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
 
     env:
-      IS_HOTFIX: ${{ contains(github.ref, '-hotfix-ch-') }}
-      REGISTRY: "${{ contains(github.ref, '-hotfix-ch-') && 'stgregistry.suse.com' || 'docker.io' }}"
+      IS_HOTFIX: ${{ contains(github.ref, '-hotfix-') }}
+      REGISTRY: "${{ contains(github.ref, '-hotfix-') && 'stgregistry.suse.com' || 'docker.io' }}"
 
     if: github.repository == 'rancher/fleet'
     steps:
