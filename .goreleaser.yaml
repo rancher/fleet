@@ -184,7 +184,7 @@ dockers:
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/arm64/v8"
 
-  # fleet-controller images
+  # Prime fleet-controller images
   -
     use: buildx
     id: fleet-amd64-private
