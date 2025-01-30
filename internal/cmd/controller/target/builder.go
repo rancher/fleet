@@ -10,7 +10,6 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
@@ -86,7 +85,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, targetOpts)
 			err = preprocessHelmValues(logger, &opts, &cluster)
 			if err != nil {
-				return nil, errors.Wrap(err, fmt.Sprintf("cluster %s in namespace %s", cluster.Name, cluster.Namespace))
+				return nil, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
 			}
 
 			deploymentID, err := options.DeploymentID(manifestID, opts)
