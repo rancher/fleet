@@ -40,5 +40,8 @@ spec:
             - gitjob
           nodeSelector: {{ include "linux-node-selector" . | nindent 12 }}
           tolerations: {{ include "linux-node-tolerations" . | nindent 12 }}
+{{- if $.Values.tolerations }}
+{{ toYaml $.Values.tolerations | indent 12 }}
+{{- end }}
       backoffLimit: 1
 {{- end }}
