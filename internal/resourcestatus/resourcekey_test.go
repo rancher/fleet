@@ -166,19 +166,10 @@ func TestSetResources(t *testing.T) {
 		Error:           false,
 		Transitioning:   false,
 		Message:         "",
-		PerClusterState: []fleet.ResourcePerClusterState{
-			{
-				State:     "WaitApplied",
-				ClusterID: "c-ns1/cluster1",
-			},
-			{
-				State:         "Pending",
-				ClusterID:     "c-ns2/cluster1",
-				Error:         true,
-				Transitioning: true,
-				Message:       "message1; message2",
-				Patch:         nil,
-			},
+		PerClusterState: fleet.PerClusterState{
+			Ready:       []string{"c-ns1/cluster2"},
+			WaitApplied: []string{"c-ns1/cluster1"},
+			Pending:     []string{"c-ns2/cluster1"},
 		},
 	})
 	assert.Contains(t, status.Resources, fleet.Resource{
@@ -195,15 +186,10 @@ func TestSetResources(t *testing.T) {
 		Error:           false,
 		Transitioning:   false,
 		Message:         "",
-		PerClusterState: []fleet.ResourcePerClusterState{
-			{
-				State:     "WaitApplied",
-				ClusterID: "c-ns1/cluster1",
-			},
+		PerClusterState: fleet.PerClusterState{
+			WaitApplied: []string{"c-ns1/cluster1"},
 		},
 	})
-
-	assert.Empty(t, status.ResourceErrors)
 
 	assert.Equal(t, fleet.ResourceCounts{
 		Ready:        2,
