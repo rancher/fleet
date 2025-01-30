@@ -22,19 +22,19 @@ before:
 
 archives:
   - id: fleet-controller
-    format: binary
+    formats: [ "binary" ]
     name_template: "{{ .Binary }}"
     builds:
       - fleet-controller
 
   - id: fleet-agent
-    format: binary
+    formats: [ "binary" ]
     name_template: "{{ .Binary }}"
     builds:
       - fleet-agent
 
   - id: fleet-cli
-    format: binary
+    formats: [ "binary" ]
     name_template: "{{ .Binary }}"
     builds:
       - fleet-cli
