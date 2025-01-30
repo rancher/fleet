@@ -89,7 +89,7 @@ func getGitPollingCondition(gitrepo *fleetv1.GitRepo) (genericcondition.GenericC
 	return genericcondition.GenericCondition{}, false
 }
 
-func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
+func TestReconcile_ReturnsAndDontRequeuesAfterAddingFinalizer(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
@@ -137,8 +137,8 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	if !res.Requeue {
-		t.Errorf("expecting Requeue set to true, it was false")
+	if res.Requeue {
+		t.Errorf("expecting Requeue set to false, it was true")
 	}
 }
 
