@@ -82,7 +82,7 @@ builds:
     - windows_amd64
 
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ .Tag }}-next"
 
 dockers:
   # fleet-controller images
