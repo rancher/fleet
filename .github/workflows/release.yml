@@ -98,7 +98,7 @@ jobs:
 
       - name: Prepare Docker environment to support sbom/provenance parameters
         run: |
-          sudo bash -c 'echo "{\"features\": {\"containerd-snapshotter\": true}}" >> /etc/docker/daemon.json'
+          sudo bash -c 'echo "{\"features\": {\"containerd-snapshotter\": true}}" > /etc/docker/daemon.json'
           sudo systemctl restart docker
 
       - name: Log into Docker Container registry
