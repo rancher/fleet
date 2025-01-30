@@ -44,9 +44,16 @@ type resourceStateEntry struct {
 
 type resourceStatesByResourceKey map[fleet.ResourceKey][]resourceStateEntry
 
+func clusterID(bd fleet.BundleDeployment) string {
+	return bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
+}
+
 // fromResources inspects a list of BundleDeployments and returns a list of per-cluster states per resource keys.
 // It also returns a list of errors messages produced that may have occurred during processing
 func fromResources(items []fleet.BundleDeployment) (resourceStatesByResourceKey, []string) {
+	sort.Slice(items, func(i, j int) bool {
+		return clusterID(items[i]) < clusterID(items[j])
+	})
 	var (
 		errors    []string
 		resources = make(resourceStatesByResourceKey)
@@ -64,11 +71,6 @@ func fromResources(items []fleet.BundleDeployment) (resourceStatesByResourceKey,
 			state.ClusterID = clusterID
 			resources[key] = append(resources[key], resourceStateEntry{state, bd.Status.IncompleteState})
 		}
-	}
-	for _, entries := range resources {
-		sort.Slice(entries, func(i, j int) bool {
-			return entries[i].ClusterID < entries[j].ClusterID
-		})
 	}
 
 	sort.Strings(errors)
