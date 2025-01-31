@@ -15,8 +15,10 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ociwrapper"
+	ssh "github.com/rancher/fleet/internal/ssh"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
@@ -28,7 +30,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -54,7 +56,8 @@ const (
 	ociRegistryAuthVolumeName = "oci-auth"
 	gitClonerVolumeName       = "git-cloner"
 	emptyDirVolumeName        = "git-cloner-empty-dir"
-	fleetHomeDir              = "/fleet-home"
+
+	fleetHomeDir = "/fleet-home"
 
 	defaultPollingSyncInterval = 15 * time.Second
 	gitPollingCondition        = "GitPolling"
@@ -79,7 +82,12 @@ type RealClock struct{}
 func (RealClock) Now() time.Time                  { return time.Now() }
 func (RealClock) Since(t time.Time) time.Duration { return time.Since(t) }
 
-// CronJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
+type KnownHostsGetter interface {
+	Get(ctx context.Context, client client.Client, namespace, secretName string) (string, error)
+	IsStrict() bool
+}
+
+// GitJobReconciler reconciles a GitRepo resource to create a git cloning k8s job
 type GitJobReconciler struct {
 	client.Client
 	Scheme          *runtime.Scheme
@@ -91,6 +99,7 @@ type GitJobReconciler struct {
 	GitFetcher      GitFetcher
 	Clock           TimeGetter
 	Recorder        record.EventRecorder
+	KnownHosts      KnownHostsGetter
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -143,9 +152,9 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger := log.FromContext(ctx).WithName("gitjob")
 	gitrepo := &v1alpha1.GitRepo{}
 
-	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !errors.IsNotFound(err) {
+	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !apierrors.IsNotFound(err) {
 		return ctrl.Result{}, err
-	} else if errors.IsNotFound(err) {
+	} else if apierrors.IsNotFound(err) {
 		logger.V(1).Info("Gitrepo deleted, cleaning up poll jobs")
 		return ctrl.Result{}, nil
 	}
@@ -270,13 +279,13 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 		Namespace: gitrepo.Namespace,
 		Name:      jobName(gitrepo),
 	}, &job)
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !apierrors.IsNotFound(err) {
 		err = fmt.Errorf("error retrieving git job: %w", err)
 		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToGetGitJob", err.Error())
 		return r.result(gitrepo), err
 	}
 
-	if errors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		if gitrepo.Spec.DisablePolling {
 			commit, err := r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
 			condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "", err)
@@ -414,7 +423,7 @@ func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.
 	if err := controllerutil.SetControllerReference(gitrepo, sa, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.Create(ctx, sa); err != nil && !errors.IsAlreadyExists(err) {
+	if err := r.Create(ctx, sa); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -422,7 +431,7 @@ func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.
 	if err := controllerutil.SetControllerReference(gitrepo, role, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.Create(ctx, role); err != nil && !errors.IsAlreadyExists(err) {
+	if err := r.Create(ctx, role); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -430,7 +439,7 @@ func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.
 	if err := controllerutil.SetControllerReference(gitrepo, rb, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.Create(ctx, rb); err != nil && !errors.IsAlreadyExists(err) {
+	if err := r.Create(ctx, rb); err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -533,7 +542,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 			if t != forceSync {
 				jobDeletedMessage := "job deletion triggered because of ForceUpdateGeneration"
 				logger.V(1).Info(jobDeletedMessage)
-				if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
+				if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
 					return err, true
 				}
 				return nil, true
@@ -549,7 +558,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 			if t != gen {
 				jobDeletedMessage := "job deletion triggered because of generation change"
 				logger.V(1).Info(jobDeletedMessage)
-				if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
+				if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
 					return err, true
 				}
 				return nil, true
@@ -561,7 +570,7 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	if job.Status.Succeeded == 1 {
 		jobDeletedMessage := "job deletion triggered because job succeeded"
 		logger.Info(jobDeletedMessage)
-		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !errors.IsNotFound(err) {
+		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
 			return err, false
 		}
 		r.Recorder.Event(gitRepo, fleetevent.Normal, "JobDeleted", jobDeletedMessage)
@@ -619,10 +628,16 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 		})
 	}
 
-	initContainer, err := r.newGitCloner(ctx, obj)
+	knownHostsData, err := r.KnownHosts.Get(ctx, r.Client, obj.Namespace, obj.Spec.ClientSecretName)
 	if err != nil {
 		return nil, err
 	}
+
+	initContainer, err := r.newGitCloner(ctx, obj, knownHostsData)
+	if err != nil {
+		return nil, err
+	}
+
 	job.Spec.Template.Spec.InitContainers = []corev1.Container{initContainer}
 	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes,
 		corev1.Volume{
@@ -660,6 +675,30 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 				},
 			},
 		)
+	} else {
+		// Create a volume for the default credentials secret if it exists
+		var secret corev1.Secret
+		err := r.Get(ctx, types.NamespacedName{
+			Namespace: obj.Namespace,
+			Name:      config.DefaultGitCredentialsSecretName,
+		}, &secret)
+
+		if err != nil && !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+
+		if err == nil {
+			job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes,
+				corev1.Volume{
+					Name: gitCredentialVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: config.DefaultGitCredentialsSecretName,
+						},
+					},
+				},
+			)
+		}
 	}
 
 	for i := range job.Spec.Template.Spec.Containers {
@@ -667,6 +706,14 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 			MountPath: "/workspace/source",
 			Name:      gitClonerVolumeName,
 		})
+
+		if knownHostsData != "" {
+			job.Spec.Template.Spec.Containers[i].Env = append(
+				job.Spec.Template.Spec.Containers[i].Env,
+				corev1.EnvVar{Name: ssh.KnownHostsEnvVar, Value: knownHostsData},
+			)
+		}
+
 		job.Spec.Template.Spec.Containers[i].Env = append(job.Spec.Template.Spec.Containers[i].Env,
 			corev1.EnvVar{
 				Name:  "COMMIT",
@@ -744,7 +791,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	saName := name.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
-	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled())
+	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled(), r.KnownHosts)
 
 	return &batchv1.JobSpec{
 		BackoffLimit: &two,
@@ -800,7 +847,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	}, nil
 }
 
-func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool) ([]string, []corev1.EnvVar) {
+func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool, knownHosts KnownHostsGetter) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
 		"apply",
@@ -848,6 +895,7 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool) ([]string, []corev1.EnvV
 			Value: fleetHomeDir,
 		},
 	}
+
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
 		helmArgs := []string{
 			"--helm-credentials-by-path-file",
@@ -855,13 +903,8 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool) ([]string, []corev1.EnvV
 		}
 
 		args = append(args, helmArgs...)
-		env = append(env,
-			// for ssh go-getter, make sure we always accept new host key
-			corev1.EnvVar{
-				Name:  "GIT_SSH_COMMAND",
-				Value: "ssh -o stricthostkeychecking=accept-new",
-			},
-		)
+		// for ssh go-getter
+		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 	} else if gitrepo.Spec.HelmSecretName != "" {
 		helmArgs := []string{
 			"--password-file",
@@ -875,12 +918,9 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool) ([]string, []corev1.EnvV
 			helmArgs = append(helmArgs, "--helm-repo-url-regex", gitrepo.Spec.HelmRepoURLRegex)
 		}
 		args = append(args, helmArgs...)
+		// for ssh go-getter
+		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 		env = append(env,
-			// for ssh go-getter, make sure we always accept new host key
-			corev1.EnvVar{
-				Name:  "GIT_SSH_COMMAND",
-				Value: "ssh -o stricthostkeychecking=accept-new",
-			},
 			corev1.EnvVar{
 				Name: "HELM_USERNAME",
 				ValueFrom: &corev1.EnvVarSource{
@@ -1058,7 +1098,11 @@ func volumesFromSecret(
 	return volumes, volumeMounts
 }
 
-func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRepo) (corev1.Container, error) {
+func (r *GitJobReconciler) newGitCloner(
+	ctx context.Context,
+	obj *v1alpha1.GitRepo,
+	knownHosts string,
+) (corev1.Container, error) {
 	args := []string{"gitcloner", obj.Spec.Repo, "/workspace"}
 	volumeMounts := []corev1.VolumeMount{
 		{
@@ -1080,15 +1124,24 @@ func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRe
 		args = append(args, "--branch", "master")
 	}
 
-	if obj.Spec.ClientSecretName != "" {
-		var secret corev1.Secret
-		if err := r.Get(ctx, types.NamespacedName{
-			Namespace: obj.Namespace,
-			Name:      obj.Spec.ClientSecretName,
-		}, &secret); err != nil {
-			return corev1.Container{}, err
-		}
+	secretName := obj.Spec.ClientSecretName
+	if secretName == "" {
+		secretName = config.DefaultGitCredentialsSecretName
+	}
 
+	var secret corev1.Secret
+	err := r.Get(ctx, types.NamespacedName{
+		Namespace: obj.Namespace,
+		Name:      secretName,
+	}, &secret)
+
+	if err != nil && secretName == obj.Spec.ClientSecretName {
+		// Only error if an explicitly referenced secret was not found;
+		// The absence of a default secret might simply mean that no credentials are needed.
+		return corev1.Container{}, err
+	}
+
+	if err == nil {
 		switch secret.Type {
 		case corev1.SecretTypeBasicAuth:
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
@@ -1103,10 +1156,6 @@ func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRe
 				MountPath: "/gitjob/ssh",
 			})
 			args = append(args, "--ssh-private-key-file", "/gitjob/ssh/"+corev1.SSHAuthPrivateKey)
-			knownHosts := secret.Data["known_hosts"]
-			if knownHosts != nil {
-				args = append(args, "--known-hosts-file", "/gitjob/ssh/known_hosts")
-			}
 		}
 	}
 
@@ -1121,6 +1170,16 @@ func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRe
 		args = append(args, "--ca-bundle-file", "/gitjob/cabundle/"+bundleCAFile)
 	}
 
+	env := proxyEnvVars()
+
+	// If strict host key checks are enabled but no entries are available, another error will be shown by the known
+	// hosts getter, as that means that the Fleet deployment is incomplete.
+	// On the other hand, we do not want to feed entries to the cloner if strict host key checks are disabled, as that
+	// would lead it to unduly reject SSH connection attempts.
+	if r.KnownHosts.IsStrict() {
+		env = append(env, corev1.EnvVar{Name: ssh.KnownHostsEnvVar, Value: knownHosts})
+	}
+
 	return corev1.Container{
 		Command: []string{
 			"fleet",
@@ -1129,7 +1188,7 @@ func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRe
 		Image:        r.Image,
 		Name:         "gitcloner-initializer",
 		VolumeMounts: volumeMounts,
-		Env:          proxyEnvVars(),
+		Env:          env,
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: &[]bool{false}[0],
 			ReadOnlyRootFilesystem:   &[]bool{true}[0],
@@ -1345,4 +1404,17 @@ bundles:
 	gitrepo.Status.Conditions = newConditions
 
 	return nil
+}
+
+func gitSSHCommandEnvVar(strictChecks bool) corev1.EnvVar {
+	strictVal := "no"
+
+	if strictChecks {
+		strictVal = "yes"
+	}
+
+	return corev1.EnvVar{
+		Name:  "GIT_SSH_COMMAND",
+		Value: fmt.Sprintf("ssh -o stricthostkeychecking=%s", strictVal),
+	}
 }

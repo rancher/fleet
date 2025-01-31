@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +16,7 @@ import (
 	dockercontainer "github.com/docker/docker/api/types/container"
 	dockermount "github.com/docker/docker/api/types/mount"
 	gogit "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
+	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -30,14 +29,16 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
 
+	config "github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/mocks"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git"
 
 	v1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -115,7 +116,8 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := git.Fetch{}
 			client := mocks.NewMockClient(ctlr)
-			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound"))
+			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
+				Return(apierrors.NewNotFound(schema.GroupResource{}, "notfound"))
 			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
 			if test.expectedErr == nil {
 				require.NoError(t, err)
@@ -166,7 +168,7 @@ func TestLatestCommit_BasicAuth(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			secret := &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      git.DefaultSecretName,
+					Name:      config.DefaultGitCredentialsSecretName,
 					Namespace: test.gitrepo.Namespace,
 				},
 				Data: map[string][]byte{v1.BasicAuthUsernameKey: []byte(gogsUser), v1.BasicAuthPasswordKey: []byte(gogsPass)},
@@ -197,10 +199,11 @@ func TestLatestCommitSSH(t *testing.T) {
 	gogsKnownHosts := []byte("[localhost]:" + sshPort.Port() + " " + gogsFingerPrint)
 
 	tests := map[string]struct {
-		gitrepo        *v1alpha1.GitRepo
-		knownHosts     []byte
-		expectedCommit string
-		expectedErr    error
+		gitrepo                    *v1alpha1.GitRepo
+		strictHostKeyChecksEnabled bool
+		knownHosts                 []byte
+		expectedCommit             string
+		expectedErr                error
 	}{
 		"public repo": {
 			gitrepo: &v1alpha1.GitRepo{
@@ -243,8 +246,8 @@ func TestLatestCommitSSH(t *testing.T) {
 				},
 			},
 			knownHosts:     []byte("doesntexist " + gogsFingerPrint),
-			expectedCommit: "",
-			expectedErr:    fmt.Errorf("ssh: handshake failed: knownhosts: key is unknown"),
+			expectedCommit: latestCommitPrivateRepo,
+			expectedErr:    nil,
 		},
 	}
 
@@ -252,7 +255,7 @@ func TestLatestCommitSSH(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			secret := &v1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      git.DefaultSecretName,
+					Name:      config.DefaultGitCredentialsSecretName,
 					Namespace: test.gitrepo.Namespace,
 				},
 				Data: map[string][]byte{
@@ -262,7 +265,12 @@ func TestLatestCommitSSH(t *testing.T) {
 				Type: v1.SecretTypeSSHAuth,
 			}
 			client := fake.NewClientBuilder().WithRuntimeObjects(secret).Build()
-			f := git.Fetch{}
+			f := git.Fetch{
+				KnownHosts: mockKnownHostsGetter{
+					isStrict:   test.strictHostKeyChecksEnabled,
+					knownHosts: string(test.knownHosts),
+				},
+			}
 			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
 
 			// works with nil and wrapped errors
@@ -341,7 +349,8 @@ func TestLatestCommit_Revision(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := git.Fetch{}
 			client := mocks.NewMockClient(ctlr)
-			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound"))
+			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
+				Return(apierrors.NewNotFound(schema.GroupResource{}, "notfound"))
 			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
 			if test.expectedCommit != latestCommit {
 				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
@@ -466,7 +475,7 @@ func initRepo(url string, name string, private bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cfg.Remotes["upstream"] = &config.RemoteConfig{
+	cfg.Remotes["upstream"] = &gitconfig.RemoteConfig{
 		Name: "upstream",
 		URLs: []string{repoURL},
 	}
@@ -529,7 +538,7 @@ func addRepoCommitAndTag(url string, name string, tag string, tagMessage string)
 	if err != nil {
 		return "", err
 	}
-	cfg.Remotes["upstream"] = &config.RemoteConfig{
+	cfg.Remotes["upstream"] = &gitconfig.RemoteConfig{
 		Name: "upstream",
 		URLs: []string{url},
 	}
@@ -574,7 +583,7 @@ func addRepoCommitAndTag(url string, name string, tag string, tagMessage string)
 			Username: gogsUser,
 			Password: gogsPass,
 		},
-		RefSpecs: []config.RefSpec{config.RefSpec("refs/tags/*:refs/tags/*")},
+		RefSpecs: []gitconfig.RefSpec{gitconfig.RefSpec("refs/tags/*:refs/tags/*")},
 	})
 	if err != nil {
 		return "", nil
@@ -653,4 +662,17 @@ func terminateContainer(ctx context.Context, container testcontainers.Container,
 	if err := container.Terminate(ctx); err != nil {
 		t.Fatalf("failed to terminate container: %s", err.Error())
 	}
+}
+
+type mockKnownHostsGetter struct {
+	isStrict   bool
+	knownHosts string
+}
+
+func (m mockKnownHostsGetter) IsStrict() bool {
+	return m.isStrict
+}
+
+func (m mockKnownHostsGetter) GetWithSecret(_ context.Context, _ client.Client, _ *v1.Secret) (string, error) {
+	return m.knownHosts, nil
 }

@@ -2,6 +2,7 @@ package git_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -53,129 +54,205 @@ func newTestGithubServer(refs []string) *httptest.Server {
 }
 
 var _ = Describe("git fetch's LatestCommit tests", func() {
-	When("secret credentials does not exist", func() {
-		var (
-			fakeGithub *httptest.Server
-			refs       []string
-		)
-		JustBeforeEach(func() {
-			fakeGithub = newTestGithubServer(refs)
-		})
+	var (
+		fakeGithub *httptest.Server
+		refs       []string
+	)
+	JustBeforeEach(func() {
+		fakeGithub = newTestGithubServer(refs)
+	})
 
-		AfterEach(func() {
-			fakeGithub.Close()
-		})
+	AfterEach(func() {
+		fakeGithub.Close()
+	})
 
-		BeforeEach(func() {
-			refs = []string{
-				"003f2ada7cca738877df8459b3a34839a15e5683edaa refs/heads/master",
-				"004522a46b7cfd14db4c93c5fa1e27df1d6d7b6ef1da refs/heads/release/v0.5",
-				"0044f1be9e1bd0387fb6ec0df35f38b147a7016937e6 refs/heads/test-simple",
-				"003f56bca25f648a951c2f8fd6db4981e4a4f040ca4e refs/tags/example",
-			}
-		})
+	BeforeEach(func() {
+		refs = []string{
+			"003f2ada7cca738877df8459b3a34839a15e5683edaa refs/heads/master",
+			"004522a46b7cfd14db4c93c5fa1e27df1d6d7b6ef1da refs/heads/release/v0.5",
+			"0044f1be9e1bd0387fb6ec0df35f38b147a7016937e6 refs/heads/test-simple",
+			"003f56bca25f648a951c2f8fd6db4981e4a4f040ca4e refs/tags/example",
+		}
+	})
 
-		It("returns the commit for the expected revision", func() {
-			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret",
-					Namespace: "test-ns",
-				},
-				Type: corev1.SecretTypeBasicAuth,
-				Data: map[string][]byte{
-					corev1.BasicAuthUsernameKey: []byte("username"),
-					corev1.BasicAuthPasswordKey: []byte("password"),
-				},
-			}
+	It("returns the commit for the expected revision", func() {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-secret",
+				Namespace: "test-ns",
+			},
+			Type: corev1.SecretTypeBasicAuth,
+			Data: map[string][]byte{
+				corev1.BasicAuthUsernameKey: []byte("username"),
+				corev1.BasicAuthPasswordKey: []byte("password"),
+			},
+		}
 
-			gr := &fleetv1.GitRepo{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gitrepo",
-					Namespace: "test-ns",
-				},
-				Spec: fleetv1.GitRepoSpec{
-					ClientSecretName: "test-secret-different",
-					Revision:         "example",
-					Repo:             fakeGithub.URL,
-				},
-				Status: fleetv1.GitRepoStatus{
-					Commit: "",
-				},
-			}
-			c := newTestClient(secret)
-			f := git.Fetch{}
-			commit, err := f.LatestCommit(context.Background(), gr, c)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(commit).To(Equal("56bca25f648a951c2f8fd6db4981e4a4f040ca4e"))
-		})
+		gr := &fleetv1.GitRepo{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-gitrepo",
+				Namespace: "test-ns",
+			},
+			Spec: fleetv1.GitRepoSpec{
+				ClientSecretName: "test-secret-different",
+				Revision:         "example",
+				Repo:             fakeGithub.URL,
+			},
+			Status: fleetv1.GitRepoStatus{
+				Commit: "",
+			},
+		}
+		c := newTestClient(secret)
+		f := git.Fetch{}
+		commit, err := f.LatestCommit(context.Background(), gr, c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(commit).To(Equal("56bca25f648a951c2f8fd6db4981e4a4f040ca4e"))
+	})
 
-		It("returns the commit for the expected branch", func() {
-			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret",
-					Namespace: "test-ns",
-				},
-				Type: corev1.SecretTypeBasicAuth,
-				Data: map[string][]byte{
-					corev1.BasicAuthUsernameKey: []byte("username"),
-					corev1.BasicAuthPasswordKey: []byte("password"),
-				},
-			}
+	It("returns the commit for the expected branch", func() {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-secret",
+				Namespace: "test-ns",
+			},
+			Type: corev1.SecretTypeBasicAuth,
+			Data: map[string][]byte{
+				corev1.BasicAuthUsernameKey: []byte("username"),
+				corev1.BasicAuthPasswordKey: []byte("password"),
+			},
+		}
 
-			gr := &fleetv1.GitRepo{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gitrepo",
-					Namespace: "test-ns",
-				},
-				Spec: fleetv1.GitRepoSpec{
-					ClientSecretName: "test-secret",
-					Repo:             fakeGithub.URL,
-					Branch:           "master",
-				},
-				Status: fleetv1.GitRepoStatus{
-					Commit: "",
-				},
-			}
-			c := newTestClient(secret)
-			f := git.Fetch{}
-			commit, err := f.LatestCommit(context.Background(), gr, c)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(commit).To(Equal("2ada7cca738877df8459b3a34839a15e5683edaa"))
-		})
+		gr := &fleetv1.GitRepo{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-gitrepo",
+				Namespace: "test-ns",
+			},
+			Spec: fleetv1.GitRepoSpec{
+				ClientSecretName: "test-secret",
+				Repo:             fakeGithub.URL,
+				Branch:           "master",
+			},
+			Status: fleetv1.GitRepoStatus{
+				Commit: "",
+			},
+		}
+		c := newTestClient(secret)
+		f := git.Fetch{}
+		commit, err := f.LatestCommit(context.Background(), gr, c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(commit).To(Equal("2ada7cca738877df8459b3a34839a15e5683edaa"))
+	})
 
-		It("returns an error when secret's type is not expected", func() {
-			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-secret",
-					Namespace: "test-ns",
-				},
-				Type: corev1.SecretTypeSSHAuth,
-				Data: map[string][]byte{
-					corev1.SSHAuthPrivateKey: []byte("Not_valid_key"),
-					"known_hosts":            []byte("Not_valid_known_hosts"),
-				},
-			}
+	It("returns an error when secret's type is not expected", func() {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-secret",
+				Namespace: "test-ns",
+			},
+			Type: corev1.SecretTypeSSHAuth,
+			Data: map[string][]byte{
+				corev1.SSHAuthPrivateKey: []byte("Not_valid_key"),
+				"known_hosts":            []byte("Not_valid_known_hosts"),
+			},
+		}
 
-			gr := &fleetv1.GitRepo{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-gitrepo",
-					Namespace: "test-ns",
-				},
-				Spec: fleetv1.GitRepoSpec{
-					ClientSecretName: "test-secret",
-					Repo:             fakeGithub.URL,
-					Branch:           "master",
-				},
-				Status: fleetv1.GitRepoStatus{
-					Commit: "",
-				},
-			}
-			c := newTestClient(secret)
-			f := git.Fetch{}
-			commit, err := f.LatestCommit(context.Background(), gr, c)
-			Expect(err).To(HaveOccurred())
-			Expect(commit).To(BeEmpty())
-			Expect(err.Error()).To(Equal("ssh: no key found"))
-		})
+		gr := &fleetv1.GitRepo{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-gitrepo",
+				Namespace: "test-ns",
+			},
+			Spec: fleetv1.GitRepoSpec{
+				ClientSecretName: "test-secret",
+				Repo:             fakeGithub.URL,
+				Branch:           "master",
+			},
+			Status: fleetv1.GitRepoStatus{
+				Commit: "",
+			},
+		}
+		c := newTestClient(secret)
+		f := git.Fetch{}
+		commit, err := f.LatestCommit(context.Background(), gr, c)
+		Expect(err).To(HaveOccurred())
+		Expect(commit).To(BeEmpty())
+		Expect(err.Error()).To(Equal("ssh: no key found"))
+	})
+
+	It("returns an error when strict host key checks are enabled and known hosts checks fail for an SSH gitrepo", func() {
+		gr := &fleetv1.GitRepo{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-gitrepo",
+				Namespace: "test-ns",
+			},
+			Spec: fleetv1.GitRepoSpec{
+				ClientSecretName: "test-secret",
+				Repo:             "ssh://foo.com/bar.git",
+				Branch:           "master",
+			},
+			Status: fleetv1.GitRepoStatus{
+				Commit: "",
+			},
+		}
+		c := newTestClient()
+		f := git.Fetch{
+			KnownHosts: mockKnownHostsGetter{
+				isStrict: true,
+				err:      errors.New("something happened"),
+			},
+		}
+
+		commit, err := f.LatestCommit(context.Background(), gr, c)
+		Expect(err).To(HaveOccurred())
+		Expect(commit).To(BeEmpty())
+		Expect(err.Error()).To(Equal("something happened"))
+	})
+
+	It("succeeds despite known hosts errors for a non-SSH gitrepo", func() {
+		fakeGithub = newTestGithubServer(refs)
+		defer fakeGithub.Close()
+
+		gr := &fleetv1.GitRepo{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-gitrepo",
+				Namespace: "test-ns",
+			},
+			Spec: fleetv1.GitRepoSpec{
+				ClientSecretName: "test-secret",
+				Repo:             fakeGithub.URL,
+				Branch:           "master",
+			},
+			Status: fleetv1.GitRepoStatus{
+				Commit: "",
+			},
+		}
+
+		c := newTestClient()
+		f := git.Fetch{
+			KnownHosts: mockKnownHostsGetter{
+				isStrict: true,
+				err:      errors.New("something happened"),
+			},
+		}
+		commit, err := f.LatestCommit(context.Background(), gr, c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(commit).To(Equal("2ada7cca738877df8459b3a34839a15e5683edaa"))
 	})
 })
+
+type mockKnownHostsGetter struct {
+	isStrict bool
+	data     string
+	err      error
+}
+
+func (m mockKnownHostsGetter) IsStrict() bool {
+	return m.isStrict
+}
+
+func (m mockKnownHostsGetter) GetWithSecret(
+	ctx context.Context,
+	c client.Client,
+	secret *corev1.Secret,
+) (string, error) {
+	return m.data, m.err
+}

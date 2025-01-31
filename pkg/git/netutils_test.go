@@ -2,6 +2,7 @@ package git_test
 
 import (
 	"encoding/pem"
+	"fmt"
 	"net/http"
 
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -17,6 +18,19 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 	var (
 		secret *corev1.Secret
 	)
+
+	Context("Nil secret", func() {
+		It("returns no error and no auth when known hosts are empty", func() {
+			auth, err := git.GetAuthFromSecret("ssh://foo.bar", nil, "")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(auth).To(BeNil())
+
+			auth, err = git.GetAuthFromSecret("http://foo.bar", nil, "")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(auth).To(BeNil())
+		})
+	})
+
 	Context("Basic auth with no username nor password", func() {
 		BeforeEach(func() {
 			secret = &corev1.Secret{
@@ -24,13 +38,7 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 			}
 		})
 		It("returns no error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(auth).To(BeNil())
-		})
-
-		It("returns no error and no auth when passing a nil secret", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", nil)
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(BeNil())
 		})
@@ -44,7 +52,7 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 		})
 
 		It("returns no error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret)
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(BeNil())
 		})
@@ -65,7 +73,7 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 			}
 		})
 		It("returns the basic auth Auth and no error", func() {
-			auth, err := git.GetAuthFromSecret("test-url.com", secret)
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(Equal(&httpgit.BasicAuth{
 				Username: string(username),
@@ -73,6 +81,7 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 			}))
 		})
 	})
+
 	Context("SSH auth with not valid git url", func() {
 		BeforeEach(func() {
 			secret = &corev1.Secret{
@@ -80,9 +89,9 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 			}
 		})
 		It("returns an error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("notavalidurl", secret)
+			auth, err := git.GetAuthFromSecret("notavalidurl", secret, "")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal("failed to parse \"notavalidurl\""))
+			Expect(err.Error()).To(ContainSubstring("failed to parse \"notavalidurl\""))
 			Expect(auth).To(BeNil())
 		})
 	})
@@ -94,7 +103,7 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 			}
 		})
 		It("returns an error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret)
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("ssh: no key found"))
 			Expect(auth).To(BeNil())
@@ -102,7 +111,8 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 	})
 
 	Context("SSH auth with valid private key and no known_hosts", func() {
-		var privateKey = []byte(`-----BEGIN RSA PRIVATE KEY-----
+		var (
+			privateKey = []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEAmVh/5bCTwmFU+F7OWyYT6JFkG8V06AdesKSMyeJwT4kGs3Pm
 vKEzKd/CExhd25Tzk5CD8jj6x9usZOtnI0rmCJEgkviWbk6b0K0jPs2b4a6fSbvE
 GpSYheS89cQ7m8YrQr6MuqstjpS1Yz/uWwN0DCrNupyf0GkesqKLlgElPuwcfeQo
@@ -129,6 +139,9 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 5VKnu9SpmXPxjinS8Mg9QXLrfi5SArEllzfXrgW9OU7ht2xandDD+B8S1cmZF+Yz
 1salKM9mBBkl0sWraqtzQSEDjPeAz8P4TpQKn6kIMiZkMnrurvI=
 -----END RSA PRIVATE KEY-----`)
+			knownHosts = "foo.bar ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
+		)
+
 		BeforeEach(func() {
 			secret = &corev1.Secret{
 				Type: corev1.SecretTypeSSHAuth,
@@ -137,8 +150,12 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 				},
 			}
 		})
+
 		It("returns no error and the ssh auth", func() {
-			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret)
+			_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(knownHosts))
+			Expect(err).ToNot(HaveOccurred())
+
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "")
 			Expect(err).ToNot(HaveOccurred())
 			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
 			Expect(err).ToNot(HaveOccurred())
@@ -146,6 +163,31 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			Expect(ok).To(BeTrue())
 			Expect(pk.User).To(Equal("git"))
 			Expect(pk.Signer).To(Equal(expectedSigner))
+
+			// No host key enforcing through known hosts
+			Expect(pk.HostKeyCallback("foo.baz:22", mockAddr{ip: "8.8.8.8:22"}, publicKey)).NotTo(HaveOccurred())
+			Expect(pk.HostKeyCallback("foo.bar:22", mockAddr{ip: "8.8.8.8:22"}, publicKey)).NotTo(HaveOccurred())
+		})
+
+		It("includes known hosts if provided separately", func() {
+			_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(knownHosts))
+			Expect(err).ToNot(HaveOccurred())
+
+			url := "git@foo.bar:rancher/fleet.git"
+			auth, err := git.GetAuthFromSecret(url, secret, knownHosts)
+			Expect(err).ToNot(HaveOccurred())
+
+			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
+			Expect(err).ToNot(HaveOccurred())
+			pk, ok := auth.(*gossh.PublicKeys)
+			Expect(ok).To(BeTrue())
+			Expect(pk.User).To(Equal("git"))
+			Expect(pk.Signer).To(Equal(expectedSigner))
+
+			Expect(pk.HostKeyCallback).ToNot(BeNil())
+
+			Expect(pk.HostKeyCallback("foo.baz:22", mockAddr{ip: "8.8.8.8:22"}, publicKey)).To(HaveOccurred())
+			Expect(pk.HostKeyCallback("foo.bar:22", mockAddr{ip: "8.8.8.8:22"}, publicKey)).NotTo(HaveOccurred())
 		})
 	})
 
@@ -185,12 +227,13 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 				Type: corev1.SecretTypeSSHAuth,
 				Data: map[string][]byte{
 					corev1.SSHAuthPrivateKey: privateKey,
-					"known_hosts":            []byte("[localhost]: " + fingerPrint),
+					"known_hosts":            []byte("[localhost]:22 " + fingerPrint),
 				},
 			}
 		})
+
 		It("returns no error and the ssh auth", func() {
-			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret)
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "")
 			Expect(err).ToNot(HaveOccurred())
 			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
 			Expect(err).ToNot(HaveOccurred())
@@ -198,6 +241,34 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			Expect(ok).To(BeTrue())
 			Expect(pk.User).To(Equal("git"))
 			Expect(pk.Signer).To(Equal(expectedSigner))
+
+			// Check that host keys are enforced through known hosts
+			_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(fmt.Sprintf("[localhost] %s", fingerPrint)))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(pk.HostKeyCallback).ToNot(BeNil())
+			Expect(pk.HostKeyCallback("foo.baz:22", mockAddr{ip: "8.8.8.8:22"}, publicKey)).To(HaveOccurred())
+			Expect(pk.HostKeyCallback("[localhost]:22", mockAddr{ip: "8.8.8.8:22"}, publicKey)).NotTo(HaveOccurred())
+		})
+
+		It("ignores known hosts provided separately", func() {
+			knownHosts := "foo.bar ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, knownHosts)
+			Expect(err).ToNot(HaveOccurred())
+			expectedSigner, err := ssh.ParsePrivateKey(privateKey)
+			Expect(err).ToNot(HaveOccurred())
+			pk, ok := auth.(*gossh.PublicKeys)
+			Expect(ok).To(BeTrue())
+			Expect(pk.User).To(Equal("git"))
+			Expect(pk.Signer).To(Equal(expectedSigner))
+
+			// Check that host keys are enforced through known hosts
+			_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(fmt.Sprintf("[localhost] %s", fingerPrint)))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(pk.HostKeyCallback).ToNot(BeNil())
+			Expect(pk.HostKeyCallback("foo.bar:22", mockAddr{ip: "8.8.8.8:22"}, publicKey)).To(HaveOccurred())
+			Expect(pk.HostKeyCallback("[localhost]:22", mockAddr{ip: "8.8.8.8:22"}, publicKey)).NotTo(HaveOccurred())
 		})
 	})
 
@@ -241,7 +312,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			}
 		})
 		It("returns an error and no auth", func() {
-			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret)
+			auth, err := git.GetAuthFromSecret("git@github.com:rancher/fleet.git", secret, "")
 			Expect(err).To(HaveOccurred())
 			Expect(auth).To(BeNil())
 			Expect(err.Error()).To(ContainSubstring("knownhosts: missing host pattern"))
@@ -439,3 +510,10 @@ THIS IS NOT A VALID KEY
 		})
 	})
 })
+
+type mockAddr struct {
+	ip string
+}
+
+func (ma mockAddr) Network() string { return "tcp" }
+func (ma mockAddr) String() string  { return ma.ip }
