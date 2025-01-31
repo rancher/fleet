@@ -5,6 +5,7 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -15,14 +16,16 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/mocks"
+	"github.com/rancher/fleet/internal/ssh"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	gitmocks "github.com/rancher/fleet/pkg/git/mocks"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -603,7 +606,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	// we need to return a NotFound error, so the code tries to create it.
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
-			return errors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
+			return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 		},
 	)
 
@@ -680,12 +683,17 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 	tests := map[string]struct {
 		gitrepo                *fleetv1.GitRepo
 		client                 client.Client
+		strictHostKeyChecks    bool
 		expectedInitContainers []corev1.Container
 		expectedVolumes        []corev1.Volume
 		expectedErr            error
 	}{
 		"simple (no credentials, no ca, no skip tls)": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{Repo: "repo"},
 			},
 			expectedInitContainers: []corev1.Container{
@@ -723,10 +731,26 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: fake.NewFakeClient(),
+			client: getFakeClient(
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{
+						// Prevent deployment error about config map not existing, but the data
+						// does not matter in this test case.
+						"known_hosts": "",
+					},
+				},
+			),
 		},
 		"simple with custom branch": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					Repo:   "repo",
 					Branch: "foo",
@@ -767,10 +791,26 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: fake.NewFakeClient(),
+			client: getFakeClient(
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{
+						// Prevent deployment error about config map not existing, but the data
+						// does not matter in this test case.
+						"known_hosts": "",
+					},
+				},
+			),
 		},
 		"simple with custom revision": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					Repo:     "repo",
 					Revision: "foo",
@@ -811,10 +851,26 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: fake.NewFakeClient(),
+			client: getFakeClient(
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{
+						// Prevent deployment error about config map not existing, but the data
+						// does not matter in this test case.
+						"known_hosts": "",
+					},
+				},
+			),
 		},
 		"http credentials": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					Repo:             "repo",
 					ClientSecretName: "secretName",
@@ -877,10 +933,37 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: httpSecretMock(),
+			client: getFakeClient(
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "secretName",
+						Namespace: "default",
+					},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("user"),
+						corev1.BasicAuthPasswordKey: []byte("pass"),
+					},
+					Type: corev1.SecretTypeBasicAuth,
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{
+						// Prevent deployment error about config map not existing, but the data
+						// does not matter in this test case.
+						"known_hosts": "",
+					},
+				},
+			),
 		},
 		"ssh credentials": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					Repo:             "repo",
 					ClientSecretName: "secretName",
@@ -899,6 +982,177 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						"master",
 						"--ssh-private-key-file",
 						"/gitjob/ssh/" + corev1.SSHAuthPrivateKey,
+					},
+					// FLEET_KNOWN_HOSTS not expected here as strict host key checks are disabled
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      gitClonerVolumeName,
+							MountPath: "/workspace",
+						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+						{
+							Name:      gitCredentialVolumeName,
+							MountPath: "/gitjob/ssh",
+						},
+					},
+					SecurityContext: securityContext,
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: gitCredentialVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: "secretName",
+						},
+					},
+				},
+			},
+			client: getFakeClient(
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "secretName"},
+					Data: map[string][]byte{
+						corev1.SSHAuthPrivateKey: []byte("ssh key"),
+						"known_hosts":            []byte("foo"),
+					},
+					Type: corev1.SecretTypeSSHAuth,
+				},
+			),
+		},
+		"no ssh credentials, known_hosts info found in gitcredential secret": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "ssh://repo",
+				},
+			},
+			strictHostKeyChecks: true,
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{
+						"fleet",
+					},
+					Args: []string{
+						"gitcloner",
+						"ssh://repo",
+						"/workspace",
+						"--branch",
+						"master",
+						"--ssh-private-key-file",
+						"/gitjob/ssh/" + corev1.SSHAuthPrivateKey,
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name:  "FLEET_KNOWN_HOSTS",
+							Value: "some known hosts",
+						},
+					},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      gitClonerVolumeName,
+							MountPath: "/workspace",
+						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+						{
+							Name:      gitCredentialVolumeName,
+							MountPath: "/gitjob/ssh",
+						},
+					},
+					SecurityContext: securityContext,
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: gitCredentialVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: "gitcredential",
+						},
+					},
+				},
+			},
+			client: getFakeClient(
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "gitcredential",
+					},
+					Data: map[string][]byte{
+						corev1.SSHAuthPrivateKey: []byte("ssh key"),
+						"known_hosts":            []byte("some known hosts"),
+					},
+					Type: corev1.SecretTypeSSHAuth,
+				},
+			),
+		},
+		"ssh credentials, incomplete secret, known_hosts found in config map": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo:             "ssh://repo",
+					ClientSecretName: "secretName",
+				},
+			},
+			strictHostKeyChecks: true,
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{
+						"fleet",
+					},
+					Args: []string{
+						"gitcloner",
+						"ssh://repo",
+						"/workspace",
+						"--branch",
+						"master",
+						"--ssh-private-key-file",
+						"/gitjob/ssh/" + corev1.SSHAuthPrivateKey,
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name:  "FLEET_KNOWN_HOSTS",
+							Value: "foo",
+						},
 					},
 					Image: "test",
 					Name:  "gitcloner-initializer",
@@ -941,10 +1195,104 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: sshSecretMock(),
+			client: getFakeClient(
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{
+						"known_hosts": "foo",
+					},
+				},
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "secretName",
+						Namespace: "default",
+					},
+					Data: map[string][]byte{
+						corev1.SSHAuthPrivateKey: []byte("ssh key"),
+					},
+					Type: corev1.SecretTypeSSHAuth,
+				},
+			),
+		},
+		"ssh credentials, no secret, known_hosts found in config map": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "ssh://repo",
+				},
+			},
+			strictHostKeyChecks: true,
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{
+						"fleet",
+					},
+					Args: []string{
+						"gitcloner",
+						"ssh://repo",
+						"/workspace",
+						"--branch",
+						"master",
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name:  "FLEET_KNOWN_HOSTS",
+							Value: "foo",
+						},
+					},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      gitClonerVolumeName,
+							MountPath: "/workspace",
+						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+					},
+					SecurityContext: securityContext,
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+			},
+			client: getFakeClient(
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{
+						"known_hosts": "foo",
+					},
+				},
+			),
 		},
 		"custom CA": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					CABundle: []byte("ca"),
 					Repo:     "repo",
@@ -1000,14 +1348,41 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					Name: bundleCAVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							SecretName: "-cabundle",
+							SecretName: "gitrepo-cabundle",
 						},
 					},
 				},
 			},
+			client: getFakeClient(
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gitrepo-cabundle",
+						Namespace: "default",
+					},
+					Data: map[string][]byte{
+						"cacerts": []byte("foo"),
+					},
+					Type: corev1.SecretTypeSSHAuth,
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{
+						// Prevent deployment error about config map not existing, but the data
+						// does not matter in this test case.
+						"known_hosts": "",
+					},
+				},
+			),
 		},
 		"skip tls": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					InsecureSkipTLSverify: true,
 					Repo:                  "repo",
@@ -1055,23 +1430,37 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
+			client: getFakeClient(
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{
+						// Prevent deployment error about config map not existing, but the data
+						// does not matter in this test case.
+						"known_hosts": "",
+					},
+				},
+			),
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := GitJobReconciler{
-				Client: test.client,
-				Scheme: scheme,
-				Image:  "test",
-				Clock:  RealClock{},
+				Client:     test.client,
+				Scheme:     scheme,
+				Image:      "test",
+				Clock:      RealClock{},
+				KnownHosts: ssh.KnownHosts{EnforceHostKeyChecks: test.strictHostKeyChecks},
 			}
 			job, err := r.newGitJob(ctx, test.gitrepo)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if !cmp.Equal(job.Spec.Template.Spec.InitContainers, test.expectedInitContainers) {
-				t.Fatalf("expected initContainers: %v, got: %v", test.expectedInitContainers, job.Spec.Template.Spec.InitContainers)
+				t.Fatalf("expected initContainers:\n\t%v,\n got:\n\t%v", test.expectedInitContainers, job.Spec.Template.Spec.InitContainers)
 			}
 
 			for _, evol := range test.expectedVolumes {
@@ -1099,10 +1488,89 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 
 	tests := map[string]struct {
 		gitrepo                      *fleetv1.GitRepo
+		strictSSHHostKeyChecks       bool
 		osEnv                        map[string]string
 		expectedContainerEnvVars     []corev1.EnvVar
 		expectedInitContainerEnvVars []corev1.EnvVar
 	}{
+		"Helm secret name": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					HelmSecretName: "foo",
+				},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "commit",
+				},
+			},
+			expectedContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "HOME",
+					Value: "/fleet-home",
+				},
+				{
+					Name:  "GIT_SSH_COMMAND",
+					Value: "ssh -o stricthostkeychecking=no",
+				},
+				{
+					Name: "HELM_USERNAME",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Optional: &[]bool{true}[0],
+							Key:      "username",
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "foo",
+							},
+						},
+					},
+				},
+				{
+					Name:  "COMMIT",
+					Value: "commit",
+				},
+			},
+		},
+		"Helm secret name with strict host key checks": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					HelmSecretName: "foo",
+				},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "commit",
+				},
+			},
+			strictSSHHostKeyChecks: true,
+			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name: "FLEET_KNOWN_HOSTS",
+				},
+			},
+			expectedContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "HOME",
+					Value: "/fleet-home",
+				},
+				{
+					Name:  "GIT_SSH_COMMAND",
+					Value: "ssh -o stricthostkeychecking=yes",
+				},
+				{
+					Name: "HELM_USERNAME",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Optional: &[]bool{true}[0],
+							Key:      "username",
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "foo",
+							},
+						},
+					},
+				},
+				{
+					Name:  "COMMIT",
+					Value: "commit",
+				},
+			},
+		},
 		"Helm secret name for paths": {
 			gitrepo: &fleetv1.GitRepo{
 				Spec: fleetv1.GitRepoSpec{
@@ -1119,7 +1587,37 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				},
 				{
 					Name:  "GIT_SSH_COMMAND",
-					Value: "ssh -o stricthostkeychecking=accept-new",
+					Value: "ssh -o stricthostkeychecking=no",
+				},
+				{
+					Name:  "COMMIT",
+					Value: "commit",
+				},
+			},
+		},
+		"Helm secret name for paths with strict host key checks": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					HelmSecretNameForPaths: "foo",
+				},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "commit",
+				},
+			},
+			strictSSHHostKeyChecks: true,
+			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name: "FLEET_KNOWN_HOSTS",
+				},
+			},
+			expectedContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "HOME",
+					Value: "/fleet-home",
+				},
+				{
+					Name:  "GIT_SSH_COMMAND",
+					Value: "ssh -o stricthostkeychecking=yes",
 				},
 				{
 					Name:  "COMMIT",
@@ -1169,9 +1667,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := GitJobReconciler{
-				Client: fake.NewFakeClient(),
+				Client: getFakeClient(),
 				Image:  "test",
 				Clock:  RealClock{},
+				KnownHosts: mockKnownHostsGetter{
+					strict: test.strictSSHHostKeyChecks,
+				},
 			}
 			for k, v := range test.osEnv {
 				err := os.Setenv(k, v)
@@ -1289,29 +1790,134 @@ func TestCheckforPollingTask(t *testing.T) {
 	}
 }
 
-func httpSecretMock() client.Client {
-	scheme := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(scheme))
-
-	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
-		Data: map[string][]byte{
-			corev1.BasicAuthUsernameKey: []byte("user"),
-			corev1.BasicAuthPasswordKey: []byte("pass"),
-		},
-		Type: corev1.SecretTypeBasicAuth,
-	}).Build()
+type mockKnownHostsGetter struct {
+	data   string
+	strict bool
+	err    error
 }
 
-func sshSecretMock() client.Client {
+func (m mockKnownHostsGetter) Get(ctx context.Context, c client.Client, ns string, secretName string) (string, error) {
+	return m.data, m.err
+}
+
+func (m mockKnownHostsGetter) IsStrict() bool {
+	return m.strict
+}
+
+func TestGitClonerSSH(t *testing.T) {
+	tests := map[string]struct {
+		gitrepo               *fleetv1.GitRepo
+		knownHostsData        string
+		knownHostsErr         error
+		expectedContainerArgs []string
+		expectedErr           error
+	}{
+		"known hosts check would fail, non-SSH repo, no found known_hosts data": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "foo",
+				},
+			},
+			// The error does not matter, as known hosts checks should not be called for non-SSH repos
+			knownHostsErr: errors.New("something happened"),
+			expectedContainerArgs: []string{
+				"gitcloner",
+				"foo",
+				"/workspace",
+				"--branch",
+				"master",
+			},
+			expectedErr: nil,
+		},
+		"known hosts check passes, SSH repo, no found known_hosts data": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "ssh://foo",
+				},
+			},
+			expectedContainerArgs: []string{
+				"gitcloner",
+				"ssh://foo",
+				"/workspace",
+				"--branch",
+				"master",
+			},
+			expectedErr: nil,
+		},
+		"known hosts check would pass, non-SSH repo, no found known_hosts data": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "foo",
+				},
+			},
+			expectedContainerArgs: []string{
+				"gitcloner",
+				"foo",
+				"/workspace",
+				"--branch",
+				"master",
+			},
+			expectedErr: nil,
+		},
+		"SSH repo, found known_hosts data": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "ssh://foo",
+				},
+			},
+			knownHostsData: "foo",
+			expectedContainerArgs: []string{
+				"gitcloner",
+				"ssh://foo",
+				"/workspace",
+				"--branch",
+				"master",
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			r := GitJobReconciler{
+				Client: fake.NewFakeClient(),
+				Image:  "test",
+				KnownHosts: mockKnownHostsGetter{
+					data: test.knownHostsData,
+					err:  test.knownHostsErr,
+				},
+			}
+
+			cont, err := r.newGitCloner(context.TODO(), test.gitrepo, test.knownHostsData)
+			if (err != nil && test.expectedErr == nil) || (err == nil && test.expectedErr != nil) {
+				t.Errorf("expecting error %v, got %v", test.expectedErr, err)
+			}
+			if err != nil && test.expectedErr != nil && err.Error() != test.expectedErr.Error() {
+				t.Errorf("expecting error %v, got %v", test.expectedErr, err)
+			}
+			if len(cont.Args) != len(test.expectedContainerArgs) {
+				t.Fatalf("expecting args %v, got %v", test.expectedContainerArgs, cont.Args)
+			}
+
+			for idx := range test.expectedContainerArgs {
+				if cont.Args[idx] != test.expectedContainerArgs[idx] {
+					t.Errorf("expecting arg %q at index %d, got %q", test.expectedContainerArgs[idx], idx, cont.Args[idx])
+
+				}
+			}
+
+		})
+	}
+}
+
+func getFakeClient(objs ...runtime.Object) client.Client {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(appsv1.AddToScheme(scheme))
 
-	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
-		Data: map[string][]byte{
-			corev1.SSHAuthPrivateKey: []byte("ssh key"),
-		},
-		Type: corev1.SecretTypeSSHAuth,
-	}).Build()
+	return fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(objs...).Build()
 }
