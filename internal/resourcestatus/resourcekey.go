@@ -9,7 +9,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-func SetResources(list *fleet.BundleDeploymentList, status *fleet.StatusBase) {
+func SetResources(list []fleet.BundleDeployment, status *fleet.StatusBase) {
 	byCluster, errors := fromResources(list)
 	status.ResourceErrors = errors
 	status.Resources = aggregateResourceStatesClustersMap(byCluster)
@@ -17,7 +17,7 @@ func SetResources(list *fleet.BundleDeploymentList, status *fleet.StatusBase) {
 	status.PerClusterResourceCounts = resourceCountsPerCluster(list)
 }
 
-func SetClusterResources(list *fleet.BundleDeploymentList, cluster *fleet.Cluster) {
+func SetClusterResources(list []fleet.BundleDeployment, cluster *fleet.Cluster) {
 	cluster.Status.ResourceCounts = sumResourceCounts(list)
 }
 
@@ -25,9 +25,9 @@ func key(resource fleet.Resource) string {
 	return resource.Type + "/" + resource.ID
 }
 
-func resourceCountsPerCluster(list *fleet.BundleDeploymentList) map[string]*fleet.ResourceCounts {
+func resourceCountsPerCluster(items []fleet.BundleDeployment) map[string]*fleet.ResourceCounts {
 	res := make(map[string]*fleet.ResourceCounts)
-	for _, bd := range list.Items {
+	for _, bd := range items {
 		clusterID := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
 		if _, ok := res[clusterID]; !ok {
 			res[clusterID] = &fleet.ResourceCounts{}
@@ -44,14 +44,21 @@ type resourceStateEntry struct {
 
 type resourceStatesByResourceKey map[fleet.ResourceKey][]resourceStateEntry
 
+func clusterID(bd fleet.BundleDeployment) string {
+	return bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
+}
+
 // fromResources inspects a list of BundleDeployments and returns a list of per-cluster states per resource keys.
 // It also returns a list of errors messages produced that may have occurred during processing
-func fromResources(list *fleet.BundleDeploymentList) (resourceStatesByResourceKey, []string) {
+func fromResources(items []fleet.BundleDeployment) (resourceStatesByResourceKey, []string) {
+	sort.Slice(items, func(i, j int) bool {
+		return clusterID(items[i]) < clusterID(items[j])
+	})
 	var (
 		errors    []string
 		resources = make(resourceStatesByResourceKey)
 	)
-	for _, bd := range list.Items {
+	for _, bd := range items {
 		clusterID := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
 
 		bdResources, errs := bundleDeploymentResources(bd)
@@ -64,11 +71,6 @@ func fromResources(list *fleet.BundleDeploymentList) (resourceStatesByResourceKe
 			state.ClusterID = clusterID
 			resources[key] = append(resources[key], resourceStateEntry{state, bd.Status.IncompleteState})
 		}
-	}
-	for _, entries := range resources {
-		sort.Slice(entries, func(i, j int) bool {
-			return entries[i].ClusterID < entries[j].ClusterID
-		})
 	}
 
 	sort.Strings(errors)
@@ -197,9 +199,9 @@ func aggregateResourceStatesClustersMap(resourceKeyStates resourceStatesByResour
 	return result
 }
 
-func sumResourceCounts(list *fleet.BundleDeploymentList) fleet.ResourceCounts {
+func sumResourceCounts(items []fleet.BundleDeployment) fleet.ResourceCounts {
 	var res fleet.ResourceCounts
-	for _, bd := range list.Items {
+	for _, bd := range items {
 		summary.IncrementResourceCounts(&res, bd.Status.ResourceCounts)
 	}
 	return res

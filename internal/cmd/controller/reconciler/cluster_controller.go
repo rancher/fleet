@@ -141,9 +141,8 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// increased log level, this triggers a lot
 	logger.V(4).Info("Reconciling cluster, cleaning old bundledeployments and updating status", "oldDisplay", cluster.Status.Display)
 
-	bundleDeployments := &fleet.BundleDeploymentList{}
-	err = r.List(ctx, bundleDeployments, client.InNamespace(cluster.Status.Namespace))
-	if err != nil {
+	bundleDeploymentList := &fleet.BundleDeploymentList{}
+	if err = r.List(ctx, bundleDeploymentList, client.InNamespace(cluster.Status.Namespace)); err != nil {
 		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, cluster.Status, err)
 	}
 
@@ -155,7 +154,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	toDeleteBundles := indexByNamespacedName(cleanup)
 
 	// Delete BundleDeployments for Bundles being removed while getting a filtered items list
-	bundleDeployments.Items = slices.DeleteFunc(bundleDeployments.Items, func(bd fleet.BundleDeployment) bool {
+	bundleDeployments := slices.DeleteFunc(bundleDeploymentList.Items, func(bd fleet.BundleDeployment) bool {
 		bundleNamespace := bd.Labels[fleet.BundleNamespaceLabel]
 		bundleName := bd.Labels[fleet.BundleLabel]
 		if _, ok := toDeleteBundles[types.NamespacedName{Namespace: bundleNamespace, Name: bundleName}]; ok {
@@ -174,14 +173,14 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	cluster.Status.ResourceCounts = fleet.ResourceCounts{}
 	cluster.Status.Summary = fleet.BundleSummary{}
 
-	sort.Slice(bundleDeployments.Items, func(i, j int) bool {
-		return bundleDeployments.Items[i].Name < bundleDeployments.Items[j].Name
+	sort.Slice(bundleDeployments, func(i, j int) bool {
+		return bundleDeployments[i].Name < bundleDeployments[j].Name
 	})
 
 	resourcestatus.SetClusterResources(bundleDeployments, cluster)
 
 	repos := map[types.NamespacedName]bool{}
-	for _, bd := range bundleDeployments.Items {
+	for _, bd := range bundleDeployments {
 		state := summary.GetDeploymentState(&bd)
 		summary.IncrementState(&cluster.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
 		cluster.Status.Summary.DesiredReady++
