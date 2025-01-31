@@ -5,7 +5,7 @@ on:
       charts_ref:
         description: "Submit PR against the following rancher/charts branch (e.g. dev-v2.7)"
         required: true
-        default: "dev-v2.9"
+        default: "dev-v2.10"
       prev_fleet:
         description: "Previous Fleet version (e.g. 0.6.0-rc.3)"
         required: true

@@ -121,7 +121,7 @@ func setStatusHelm(list *fleet.BundleDeploymentList, helmapp *fleet.HelmApp) err
 		return err
 	}
 
-	resourcestatus.SetResources(list, &helmapp.Status.StatusBase)
+	resourcestatus.SetResources(list.Items, &helmapp.Status.StatusBase)
 
 	summary.SetReadyConditions(&helmapp.Status, "Bundle", helmapp.Status.Summary)
 
