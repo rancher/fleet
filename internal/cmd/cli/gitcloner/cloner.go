@@ -15,6 +15,8 @@ import (
 	giturls "github.com/rancher/fleet/pkg/git-urls"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	fleetssh "github.com/rancher/fleet/internal/ssh"
 )
 
 const defaultBranch = "master"
@@ -135,6 +137,11 @@ func getCABundleFromFile(path string) ([]byte, error) {
 
 // createAuthFromOpts adds auth for cloning git repos based on the parameters provided in opts.
 func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
+	knownHosts, isKnownHostsSet := os.LookupEnv(fleetssh.KnownHostsEnvVar)
+	if knownHosts == "" {
+		isKnownHostsSet = false
+	}
+
 	if opts.SSHPrivateKeyFile != "" {
 		privateKey, err := readFile(opts.SSHPrivateKeyFile)
 		if err != nil {
@@ -148,15 +155,12 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 		if err != nil {
 			return nil, err
 		}
-		if opts.KnownHostsFile != "" {
-			knownHosts, err := readFile(opts.KnownHostsFile)
+		if isKnownHostsSet {
+			knownHostsCallBack, err := fleetssh.CreateKnownHostsCallBack([]byte(knownHosts))
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("could not create known_hosts callback: %w", err)
 			}
-			knownHostsCallBack, err := createKnownHostsCallBack(knownHosts)
-			if err != nil {
-				return nil, err
-			}
+
 			auth.HostKeyCallback = knownHostsCallBack
 		} else {
 			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
@@ -179,24 +183,6 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 	}
 
 	return nil, nil
-}
-
-func createKnownHostsCallBack(knownHosts []byte) (ssh.HostKeyCallback, error) {
-	f, err := os.CreateTemp("", "known_hosts")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(f.Name())
-	defer f.Close()
-
-	if _, err := f.Write(knownHosts); err != nil {
-		return nil, err
-	}
-	if err := f.Close(); err != nil {
-		return nil, fmt.Errorf("closing knownHosts file %s: %w", f.Name(), err)
-	}
-
-	return gossh.NewKnownHostsCallback(f.Name())
 }
 
 func repo(opts *GitCloner) string {

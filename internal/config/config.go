@@ -41,6 +41,9 @@ const (
 	// APIServerCAKey is the key which contains the CA of the upstream
 	// server.
 	APIServerCAKey = "apiServerCA"
+
+	// Default secret name for git credentials, used as a fallback if no secret is referenced by an app.
+	DefaultGitCredentialsSecretName = "gitcredential" //nolint:gosec // this is a resource name
 )
 
 var (

@@ -18,7 +18,6 @@ type GitCloner struct {
 	PasswordFile      string
 	SSHPrivateKeyFile string
 	InsecureSkipTLS   bool
-	KnownHostsFile    string
 }
 
 var opts *GitCloner
@@ -43,7 +42,6 @@ func NewCmd(gitCloner CloneGit) *cobra.Command {
 	cmd.Flags().StringVar(&opts.PasswordFile, "password-file", "", "password file for basic auth")
 	cmd.Flags().StringVar(&opts.SSHPrivateKeyFile, "ssh-private-key-file", "", "ssh private key file path")
 	cmd.Flags().BoolVar(&opts.InsecureSkipTLS, "insecure-skip-tls", false, "do not verify tls certificates")
-	cmd.Flags().StringVar(&opts.KnownHostsFile, "known-hosts-file", "", "known hosts file")
 
 	return cmd
 }

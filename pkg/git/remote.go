@@ -18,6 +18,7 @@ type options struct {
 	Credential        *corev1.Secret
 	CABundle          []byte
 	InsecureTLSVerify bool
+	KnownHosts        string
 	Headers           map[string]string
 	Timeout           time.Duration
 	log               logr.Logger
@@ -72,7 +73,7 @@ type Remote struct {
 }
 
 func NewRemote(url string, opts *options) (*Remote, error) {
-	auth, err := GetAuthFromSecret(url, opts.Credential)
+	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts)
 	if err != nil {
 		return nil, err
 	}
