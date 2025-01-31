@@ -56,6 +56,9 @@ var _ = Describe("GitRepo", func() {
 			expectedCommit = commit
 			err := k8sClient.Create(ctx, gitrepo)
 			Expect(err).NotTo(HaveOccurred())
+			waitGitrepoCreated(*gitrepo)
+			// simulate update of generation after adding finalizer (the test environment does not do it)
+			Expect(simulateIncreaseForceSyncGeneration(*gitrepo)).ToNot(HaveOccurred())
 		})
 
 		It("updates the gitrepo status", func() {

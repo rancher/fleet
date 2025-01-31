@@ -205,6 +205,18 @@ func waitDeleteGitrepo(gitRepo v1alpha1.GitRepo) {
 	}).Should(BeTrue())
 }
 
+func waitGitrepoCreated(gitRepo v1alpha1.GitRepo) {
+	Eventually(func() string {
+		var gitRepoFromCluster v1alpha1.GitRepo
+		err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
+		if err != nil {
+			// maybe the resource gitrepo is not created yet
+			return ""
+		}
+		return gitRepoFromCluster.Status.Display.ReadyBundleDeployments
+	}).Should(ContainSubstring("0/0"))
+}
+
 func beOwnedBy(expected interface{}) gomegatypes.GomegaMatcher {
 	return gcustom.MakeMatcher(func(meta metav1.ObjectMeta) (bool, error) {
 		ref, ok := expected.(metav1.OwnerReference)

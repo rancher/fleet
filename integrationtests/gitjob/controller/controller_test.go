@@ -64,15 +64,9 @@ var _ = Describe("GitJob controller", func() {
 			gitRepo.Spec.CABundle = caBundle
 
 			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
-			Eventually(func() string {
-				var gitRepoFromCluster v1alpha1.GitRepo
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}, &gitRepoFromCluster)
-				if err != nil {
-					// maybe the resource gitrepo is not created yet
-					return ""
-				}
-				return gitRepoFromCluster.Status.Display.ReadyBundleDeployments
-			}).Should(ContainSubstring("0/0"))
+			waitGitrepoCreated(gitRepo)
+			// simulate update of generation after adding finalizer (the test environment does not do it)
+			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
 
 			By("Creating a job")
 			Eventually(func() error {
@@ -367,6 +361,9 @@ var _ = Describe("GitJob controller", func() {
 			expectedCommit = commit
 			gitRepo = createGitRepo(gitRepoName)
 			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
+			waitGitrepoCreated(gitRepo)
+			// simulate update of generation after adding finalizer (the test environment does not do it)
+			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
 
 			By("creating a Job")
 			Eventually(func() error {
@@ -402,6 +399,10 @@ var _ = Describe("GitJob controller", func() {
 		JustBeforeEach(func() {
 			gitRepo = createGitRepo(gitRepoName)
 			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
+			waitGitrepoCreated(gitRepo)
+			// simulate update of generation after adding finalizer (the test environment does not do it)
+			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
+
 			Eventually(func() error {
 				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
@@ -517,6 +518,10 @@ var _ = Describe("GitJob controller", func() {
 		JustBeforeEach(func() {
 			gitRepo = createGitRepo(gitRepoName)
 			Expect(k8sClient.Create(ctx, &gitRepo)).ToNot(HaveOccurred())
+			waitGitrepoCreated(gitRepo)
+			// simulate update of generation after adding finalizer (the test environment does not do it)
+			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
+
 			Eventually(func() error {
 				jobName = names.SafeConcatName(gitRepoName, names.Hex(repo+commit, 5))
 				return k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
@@ -582,6 +587,9 @@ var _ = Describe("GitJob controller", func() {
 		JustBeforeEach(func() {
 			gitRepo = createGitRepoWithDisablePolling(gitRepoName)
 			Expect(k8sClient.Create(ctx, &gitRepo)).To(Succeed())
+			waitGitrepoCreated(gitRepo)
+			// simulate update of generation after adding finalizer (the test environment does not do it)
+			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
 
 			By("Creating a job")
 			Eventually(func() error {
@@ -697,9 +705,12 @@ var _ = Describe("GitJob controller", func() {
 			gitRepo = createGitRepo(gitRepoName)
 			gitRepo.Spec.HelmSecretNameForPaths = helmSecretNameForPaths
 			gitRepo.Spec.HelmSecretName = helmSecretName
-			// Create should return an error
+			// Create should not return an error
 			err := k8sClient.Create(ctx, &gitRepo)
 			Expect(err).ToNot(HaveOccurred())
+			waitGitrepoCreated(gitRepo)
+			// simulate update of generation after adding finalizer (the test environment does not do it)
+			Expect(simulateIncreaseForceSyncGeneration(gitRepo)).ToNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
