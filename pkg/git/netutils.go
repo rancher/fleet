@@ -3,9 +3,7 @@ package git
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -14,15 +12,20 @@ import (
 	giturls "github.com/rancher/fleet/pkg/git-urls"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
+
+	fleetssh "github.com/rancher/fleet/internal/ssh"
 )
 
-// GetAuthFromSecret returns the AuthMethod calculated from the given secret
+// GetAuthFromSecret returns the AuthMethod calculated from the given secret, setting known hosts if needed.
+// Known hosts are sourced from the creds, if provided there. Otherwise, they will be sourced from the provided
+// knownHosts if non-empty.
 // The credentials secret is expected to be either basic-auth or ssh-auth (with extra known_hosts data option)
-func GetAuthFromSecret(url string, creds *corev1.Secret) (transport.AuthMethod, error) {
+func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (transport.AuthMethod, error) {
 	if creds == nil {
 		// no auth information was provided
 		return nil, nil
 	}
+
 	if creds.Type == corev1.SecretTypeBasicAuth {
 		username, password := creds.Data[corev1.BasicAuthUsernameKey], creds.Data[corev1.BasicAuthPasswordKey]
 		if len(password) == 0 && len(username) == 0 {
@@ -42,7 +45,12 @@ func GetAuthFromSecret(url string, creds *corev1.Secret) (transport.AuthMethod, 
 			return nil, err
 		}
 		if creds.Data["known_hosts"] != nil {
-			auth.HostKeyCallback, err = newCreateKnownHosts(creds.Data["known_hosts"])
+			auth.HostKeyCallback, err = fleetssh.CreateKnownHostsCallBack(creds.Data["known_hosts"])
+			if err != nil {
+				return nil, err
+			}
+		} else if len(knownHosts) > 0 {
+			auth.HostKeyCallback, err = fleetssh.CreateKnownHostsCallBack([]byte(knownHosts))
 			if err != nil {
 				return nil, err
 			}
@@ -108,24 +116,6 @@ func GetHTTPClientFromSecret(creds *corev1.Secret, CABundle []byte, insecureTLSV
 	}
 
 	return client, nil
-}
-
-func newCreateKnownHosts(knownHosts []byte) (ssh.HostKeyCallback, error) {
-	f, err := os.CreateTemp("", "known_hosts")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(f.Name())
-	defer f.Close()
-
-	if _, err := f.Write(knownHosts); err != nil {
-		return nil, err
-	}
-	if err := f.Close(); err != nil {
-		return nil, fmt.Errorf("closing knownHosts file %s: %w", f.Name(), err)
-	}
-
-	return gossh.NewKnownHostsCallback(f.Name())
 }
 
 type basicRoundTripper struct {

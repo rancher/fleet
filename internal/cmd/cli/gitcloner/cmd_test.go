@@ -8,7 +8,7 @@ func TestArgsAreSet(t *testing.T) {
 	mock := &clonerMock{}
 	cmd := NewCmd(mock)
 	cmd.SetArgs([]string{"test-repo", "test-path", "--branch", "master", "--revision", "v0.1.0", "--ca-bundle-file", "caFile", "--username", "user",
-		"--password-file", "passwordFile", "--ssh-private-key-file", "sshFile", "--insecure-skip-tls", "--known-hosts-file", "knownFile"})
+		"--password-file", "passwordFile", "--ssh-private-key-file", "sshFile", "--insecure-skip-tls"})
 	err := cmd.Execute()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -36,9 +36,6 @@ func TestArgsAreSet(t *testing.T) {
 	}
 	if !mock.opts.InsecureSkipTLS {
 		t.Fatalf("expected InsecureSkipTLS to be true")
-	}
-	if mock.opts.KnownHostsFile != "knownFile" {
-		t.Fatalf("expected KnownHostsFile knownFile, got %v", mock.opts.KnownHostsFile)
 	}
 }
 

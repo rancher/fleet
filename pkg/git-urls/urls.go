@@ -37,6 +37,8 @@ var (
 	// scpSyntax was modified from https://golang.org/src/cmd/go/vcs.go.
 	scpSyntax = regexp.MustCompile(`^([a-zA-Z0-9-._~]+@)?([a-zA-Z0-9._-]+):([a-zA-Z0-9./._-]+)(?:\?||$)(.*)$`)
 
+	schemeSyntax = regexp.MustCompile(`^[^:]+://`)
+
 	// Transports is a set of known Git URL schemes.
 	Transports = NewTransportSet(
 		"ssh",
@@ -70,9 +72,7 @@ func Parse(rawurl string) (u *url.URL, err error) {
 		}
 	}
 
-	// It's unlikely that none of the parsers will succeed, since
-	// ParseLocal is very forgiving.
-	return new(url.URL), fmt.Errorf("failed to parse %q", rawurl)
+	return nil, fmt.Errorf("failed to parse %q: %w", rawurl, err)
 }
 
 // ParseTransport parses rawurl into a URL object. Unless the URL's
@@ -91,6 +91,11 @@ func ParseScp(rawurl string) (*url.URL, error) {
 	if len(rawurl) > maxLen {
 		return nil, fmt.Errorf("URL too long: %q", rawurl)
 	}
+
+	if schemeSyntax.FindString(rawurl) != "" {
+		return nil, fmt.Errorf("no scp URL found in %q, this is a scheme URL", rawurl)
+	}
+
 	match := scpSyntax.FindAllStringSubmatch(rawurl, -1)
 	if len(match) == 0 {
 		return nil, fmt.Errorf("no scp URL found in %q", rawurl)
