@@ -211,6 +211,14 @@ type HelmOptions struct {
 	// +kubebuilder:validation:XPreserveUnknownFields
 	Values *GenericMap `json:"values,omitempty"`
 
+	// Template Values passed to Helm. It is possible to specify the keys and values
+	// as go template strings. Unlike .values, content of each key will be templated
+	// first, before serializing to yaml. This allows to template complex values,
+	// like ranges and maps.
+	// templateValues keys have precedence over values keys in case of conflict.
+	// +nullable
+	TemplateValues map[string]string `json:"templateValues,omitempty"`
+
 	// +nullable
 	// ValuesFrom loads the values from configmaps and secrets.
 	ValuesFrom []ValuesFrom `json:"valuesFrom,omitempty"`
