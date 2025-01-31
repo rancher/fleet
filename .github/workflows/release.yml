@@ -83,6 +83,7 @@ jobs:
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.7.0
+      - uses: rancherlabs/slsactl/actions/install-slsactl@9ff9d2204e76cd84962630fd788fa4a7a9272310
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@main
@@ -134,6 +135,33 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
+
+      - name: Attest provenance
+        shell: bash
+        env:
+          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
+          CURRENT_TAG: ${{ github.ref_name }}
+        run: |
+          for IMG_NAME in $(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep PRIME_REGISTRY | sed "s/{{ .Env.PRIME_REGISTRY }}/${PRIME_REGISTRY}/g" | sed "s/{{ .Tag }}/${CURRENT_TAG}/g"); do
+            max_retries=3
+            retry_delay=5
+            i=0
+
+            while [ "${i}" -lt "${max_retries}" ]; do
+                if slsactl download provenance --format=slsav1 "${IMG_NAME}" > provenance-slsav1.json; then
+                    break
+                fi
+                if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then
+                    echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Prime registry."
+                    exit 1
+                fi
+                i=$(( i + 1 ))
+                sleep "${retry_delay}"
+            done
+
+            cat provenance-slsav1.json
+            cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${IMG_NAME}"
+          done
 
       - name: Upload charts to release
         env:
