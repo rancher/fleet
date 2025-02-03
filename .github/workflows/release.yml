@@ -159,7 +159,6 @@ jobs:
                 sleep "${retry_delay}"
             done
 
-            cat provenance-slsav1.json
             cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${IMG_NAME}"
           done
 
