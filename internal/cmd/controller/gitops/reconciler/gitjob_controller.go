@@ -31,7 +31,6 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -367,33 +366,18 @@ func (r *GitJobReconciler) addGitRepoFinalizer(ctx context.Context, nsName types
 	return nil
 }
 
-func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
-	// No update needed, values are the same. So we ignore AlreadyExists.
-	saName := names.SafeConcatName("git", gitrepo.Name)
-	sa := newServiceAccount(gitrepo.Namespace, saName)
-	if err := controllerutil.SetControllerReference(gitrepo, sa, r.Scheme); err != nil {
-		return err
-	}
-	if err := r.Create(ctx, sa); err != nil && !errors.IsAlreadyExists(err) {
+func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
+	saName := names.SafeConcatName("git", gitRepo.Name)
+
+	if err := r.createServiceAccount(ctx, gitRepo, saName); err != nil {
 		return err
 	}
 
-	role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Namespace: gitrepo.Namespace, Name: saName}}
-	if err := controllerutil.SetControllerReference(gitrepo, role, r.Scheme); err != nil {
-		return err
-	}
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, role, func() error {
-		role.Rules = newPolicyRules()
-		return nil
-	}); err != nil {
+	if err := r.createOrUpdateRole(ctx, gitRepo, saName); err != nil {
 		return err
 	}
 
-	rb := newRoleBinding(gitrepo.Namespace, saName)
-	if err := controllerutil.SetControllerReference(gitrepo, rb, r.Scheme); err != nil {
-		return err
-	}
-	if err := r.Create(ctx, rb); err != nil && !errors.IsAlreadyExists(err) {
+	if err := r.createOrUpdateRoleBinding(ctx, gitRepo, saName); err != nil {
 		return err
 	}
 
