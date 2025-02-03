@@ -17,28 +17,22 @@ func newServiceAccount(namespace string, name string) *corev1.ServiceAccount {
 	}
 }
 
-func newRole(namespace string, name string) *rbacv1.Role {
-	return &rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+func newPolicyRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
+		{
+			Verbs:     []string{"get", "create", "update", "list", "delete"},
+			APIGroups: []string{"fleet.cattle.io"},
+			Resources: []string{"bundles", "imagescans"},
 		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				Verbs:     []string{"get", "create", "update", "list", "delete"},
-				APIGroups: []string{"fleet.cattle.io"},
-				Resources: []string{"bundles", "imagescans"},
-			},
-			{
-				Verbs:     []string{"get"},
-				APIGroups: []string{"fleet.cattle.io"},
-				Resources: []string{"gitrepos"},
-			},
-			{
-				Verbs:     []string{"create"},
-				APIGroups: []string{""},
-				Resources: []string{"secrets"},
-			},
+		{
+			Verbs:     []string{"get"},
+			APIGroups: []string{"fleet.cattle.io"},
+			Resources: []string{"gitrepos"},
+		},
+		{
+			Verbs:     []string{"create"},
+			APIGroups: []string{""},
+			Resources: []string{"secrets"},
 		},
 	}
 }

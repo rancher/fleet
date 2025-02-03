@@ -31,6 +31,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -377,11 +378,14 @@ func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitrepo *v1alpha1.
 		return err
 	}
 
-	role := newRole(gitrepo.Namespace, saName)
+	role := &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Namespace: gitrepo.Namespace, Name: saName}}
 	if err := controllerutil.SetControllerReference(gitrepo, role, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.Create(ctx, role); err != nil && !errors.IsAlreadyExists(err) {
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, role, func() error {
+		role.Rules = newPolicyRules()
+		return nil
+	}); err != nil {
 		return err
 	}
 
