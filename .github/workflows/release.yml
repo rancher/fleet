@@ -152,31 +152,28 @@ jobs:
 
       - name: Attest provenance
         shell: bash
-        env:
-          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
-          CURRENT_TAG: ${{ github.ref_name }}
         run: |
-          for IMG_NAME in $(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep PRIME_REGISTRY | sed "s/{{ .Env.PRIME_REGISTRY }}/${PRIME_REGISTRY}/g" | sed "s/{{ .Tag }}/${CURRENT_TAG}/g"); do
+          for IMG_NAME in $(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep PRIME_REGISTRY | sed "s/{{ .Env.PRIME_REGISTRY }}/${{ env.PRIME_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g"); do
             # Extract Docker image reference plus digest from local image
-            IMAGE=$(docker inspect --format='{{index .RepoDigests 0}}' ${IMG_NAME})
+            URL=$(docker inspect --format='{{index .RepoDigests 0}}' ${IMG_NAME})
 
             max_retries=3
             retry_delay=5
             i=0
 
             while [ "${i}" -lt "${max_retries}" ]; do
-                if slsactl download provenance --format=slsav1 "${IMAGE}" > provenance-slsav1.json; then
-                    break
-                fi
-                if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then
-                    echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Prime registry."
-                    exit 1
-                fi
-                i=$(( i + 1 ))
-                sleep "${retry_delay}"
+              if slsactl download provenance --format=slsav1 "${URL}" > provenance-slsav1.json; then
+                break
+              fi
+              if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then
+                echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Prime registry."
+                exit 1
+              fi
+              i=$(( i + 1 ))
+              sleep "${retry_delay}"
             done
 
-            cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${IMAGE}"
+            cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${URL}"
           done
 
       - name: Upload charts to release
