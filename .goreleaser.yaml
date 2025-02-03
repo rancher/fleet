@@ -310,17 +310,18 @@ docker_manifests:
     - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
     - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
 
-  - name_template: "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}"
-    id: fleet-manifest-private
-    image_templates:
-    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
-    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
-
-  - name_template: "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}"
-    id: fleet-agent-manifest-private
-    image_templates:
-    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
-    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    # Disabled until `docker manifest create` supports provenance meta data
+    # - name_template: "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}"
+    #   id: fleet-manifest-private
+    #   image_templates:
+    #   - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
+    #   - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
+    #
+    #  - name_template: "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}"
+    #    id: fleet-agent-manifest-private
+    #    image_templates:
+    #    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    #    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
 
 docker_signs:
   - # ID of the sign config, must be unique.
@@ -360,5 +361,6 @@ docker_signs:
       - fleet-arm64-private
       - fleet-agent-amd64-private
       - fleet-agent-arm64-private
-      - fleet-manifest-private
-      - fleet-agent-manifest-private
+      # Disabled until `docker manifest create` supports provenance meta data
+      #  - fleet-manifest-private
+      #  - fleet-agent-manifest-private
