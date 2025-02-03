@@ -136,6 +136,20 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
           PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
 
+      # Workaround until `docker manifest create` supports provenance meta data
+      # Background: https://stackoverflow.com/questions/75521775/buildx-docker-image-claims-to-be-a-manifest-list
+      - name: Create Docker manifest for Prime and sign it
+        shell: bash
+        run: |
+            for IMAGE in fleet fleet-agent; do
+              URL="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}"
+              docker buildx imagetools create -t "${URL}" \
+                "${URL}-linux-amd64" \
+                "${URL}-linux-arm64"
+
+              cosign sign --oidc-provider=github-actions --yes "${URL}"
+            done
+
       - name: Attest provenance
         shell: bash
         env:
