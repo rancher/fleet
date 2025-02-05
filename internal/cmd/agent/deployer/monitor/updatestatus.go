@@ -341,12 +341,12 @@ func modified(ctx context.Context, c client.Client, plan desiredset.Plan, resour
 
 			if exists {
 				logger.Info("Resource of BundleDeployment not owned by us",
-					"name", key.Name,
-					"kind", kind,
-					"apiVersion", apiVersion,
-					"namespace", key.Namespace,
-					"labels", obj.GetLabels(),
-					"annotations", obj.GetAnnotations(),
+					"resourceName", key.Name,
+					"resourceKind", kind,
+					"resourceApiVersion", apiVersion,
+					"resourceNamespace", key.Namespace,
+					"resourceLabels", obj.GetLabels(),
+					"resourceAnnotations", obj.GetAnnotations(),
 				)
 			}
 
