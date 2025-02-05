@@ -333,7 +333,10 @@ func setupKnownHosts(gitrepo *fleet.GitRepo, data []byte) error {
 	return nil
 }
 
-func commitAllAndPush(ctx context.Context, repo *gogit.Repository, auth transport.AuthMethod, commit fleet.CommitSpec) (string, error) {
+func commitAllAndPush(ctx context.Context, repo *gogit.Repository, auth transport.AuthMethod, commit *fleet.CommitSpec) (string, error) {
+	if commit == nil {
+		return "", nil
+	}
 	working, err := repo.Worktree()
 	if err != nil {
 		return "", err
