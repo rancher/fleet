@@ -271,26 +271,29 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
 
 				By("Updating the bundle deployment status")
+				expectedMsg := `cannot patch "svc-test" with kind Service: Service "svc-test" is invalid: ` +
+					`spec.ports[1].name: Duplicate value: "myport"`
+				nsn := types.NamespacedName{Namespace: clusterNS, Name: name}
+
+				modifiedStatus := v1alpha1.ModifiedStatus{
+					Kind:       "Service",
+					APIVersion: "v1",
+					Namespace:  namespace,
+					Name:       "svc-test",
+					Create:     false,
+					Delete:     false,
+					Patch:      `{"spec":{"ports":[{"name":"myport","port":80,"protocol":"TCP","targetPort":9376},{"name":"myport","port":4242,"protocol":"TCP","targetPort":4242}]}}`,
+				}
+
 				Eventually(func(g Gomega) {
-					modifiedStatus := v1alpha1.ModifiedStatus{
-						Kind:       "Service",
-						APIVersion: "v1",
-						Namespace:  namespace,
-						Name:       "svc-test",
-						Create:     false,
-						Delete:     false,
-						Patch:      `{"spec":{"ports":[{"name":"myport","port":80,"protocol":"TCP","targetPort":9376},{"name":"myport","port":4242,"protocol":"TCP","targetPort":4242}]}}`,
-					}
-					isOK, status := env.isNotReadyAndModified(
-						name,
-						modifiedStatus,
-						`cannot patch "svc-test" with kind Service: Service "svc-test" is invalid: spec.ports[1].name: Duplicate value: "myport"`,
-					)
-					g.Expect(isOK).To(BeTrue(), status)
+					bd := &v1alpha1.BundleDeployment{}
+					err := k8sClient.Get(context.TODO(), nsn, bd, &client.GetOptions{})
+					g.Expect(err).ToNot(HaveOccurred())
+
+					env.isNotReadyAndModified(g, name, modifiedStatus, expectedMsg)
 				}).Should(Succeed())
 
 				By("Correcting drift once drift correction is set to force")
-				nsn := types.NamespacedName{Namespace: clusterNS, Name: name}
 				bd := v1alpha1.BundleDeployment{}
 
 				err := k8sClient.Get(ctx, nsn, &bd, &client.GetOptions{})

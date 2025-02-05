@@ -94,13 +94,14 @@ var _ = Describe("Helm Chart uses Capabilities", Ordered, func() {
 			})
 		})
 
-		It("error message is added to status", func() {
-			Eventually(func() bool {
+		It("adds the error message to the bundle deployment status", func() {
+			Eventually(func(g Gomega) {
 				bd := &v1alpha1.BundleDeployment{}
 				err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
-				Expect(err).ToNot(HaveOccurred())
-				return checkCondition(bd.Status.Conditions, "Ready", "False", "chart requires kubeVersion")
-			}).Should(BeTrue())
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(bd.Status.Conditions).ToNot(BeEmpty())
+				checkCondition(g, bd.Status.Conditions, "Ready", "False", "chart requires kubeVersion")
+			}).Should(Succeed())
 		})
 	})
 })
