@@ -32,9 +32,29 @@ type Resource struct {
 	// Message is the first message from the PerClusterStates.
 	// +nullable
 	Message string `json:"message,omitempty"`
-	// PerClusterState is a list of states for each cluster. Derived from the summaries non-ready resources.
+	// PerClusterState contains lists of cluster IDs for every State for this resource
 	// +nullable
-	PerClusterState []ResourcePerClusterState `json:"perClusterState,omitempty"`
+	PerClusterState PerClusterState `json:"perClusterState"`
+}
+
+// PerClusterState aggregates list of cluster IDs per state for a given Resource
+type PerClusterState struct {
+	// Ready is a list of cluster IDs for which this a resource is in Ready state
+	Ready []string `json:"ready,omitempty"`
+	// WaitApplied is a list of cluster IDs for which this a resource is in WaitApplied state
+	WaitApplied []string `json:"waitApplied,omitempty"`
+	// Pending is a list of cluster IDs for which this a resource is in Pending state
+	Pending []string `json:"pending,omitempty"`
+	// Modified is a list of cluster IDs for which this a resource is in Modified state
+	Modified []string `json:"modified,omitempty"`
+	// Orphaned is a list of cluster IDs for which this a resource is in Orphaned state
+	Orphaned []string `json:"orphaned,omitempty"`
+	// Missing is a list of cluster IDs for which this a resource is in Missing state
+	Missing []string `json:"missing,omitempty"`
+	// Unknown is a list of cluster IDs for which this a resource is in Unknown state
+	Unknown []string `json:"unknown,omitempty"`
+	// NotReady is a list of cluster IDs for which this a resource is in NotReady state
+	NotReady []string `json:"notReady,omitempty"`
 }
 
 // ResourceCounts contains the number of resources in each state.
