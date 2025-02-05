@@ -154,7 +154,7 @@ func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
 		return err
 	}
 
-	resourcestatus.SetResources(list, &gitrepo.Status.StatusBase)
+	resourcestatus.SetResources(list.Items, &gitrepo.Status.StatusBase)
 
 	summary.SetReadyConditions(&gitrepo.Status, "Bundle", gitrepo.Status.Summary)
 

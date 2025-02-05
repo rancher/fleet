@@ -2,14 +2,17 @@ package target
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
@@ -83,7 +86,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, targetOpts)
 			err = preprocessHelmValues(logger, &opts, &cluster)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, fmt.Sprintf("cluster %s in namespace %s", cluster.Name, cluster.Namespace))
 			}
 
 			deploymentID, err := options.DeploymentID(manifestID, opts)
@@ -182,10 +185,15 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 	}
 
 	opts.Helm = opts.Helm.DeepCopy()
-	if opts.Helm.Values == nil || opts.Helm.Values.Data == nil {
-		opts.Helm.Values = &fleet.GenericMap{
-			Data: map[string]interface{}{},
-		}
+	opts.Helm.Values = cmp.Or(opts.Helm.Values, &fleet.GenericMap{
+		Data: map[string]interface{}{},
+	})
+
+	if opts.Helm.Values.Data == nil {
+		opts.Helm.Values.Data = map[string]interface{}{}
+	}
+
+	if opts.Helm.TemplateValues == nil && len(opts.Helm.Values.Data) == 0 {
 		return nil
 	}
 
@@ -211,6 +219,14 @@ func preprocessHelmValues(logger logr.Logger, opts *fleet.BundleDeploymentOption
 		if err != nil {
 			return err
 		}
+
+		templatedData, err := processTemplateValuesData(opts.Helm.TemplateValues, values)
+		if err != nil {
+			return err
+		}
+
+		maps.Copy(opts.Helm.Values.Data, templatedData)
+
 		logger.V(4).Info("preProcess completed", "releaseName", opts.Helm.ReleaseName)
 	}
 
@@ -276,6 +292,38 @@ func tplFuncMap() template.FuncMap {
 	delete(f, "tpl")
 
 	return f
+}
+
+func processTemplateValuesData(helmTemplateData map[string]string, templateContext map[string]interface{}) (map[string]interface{}, error) {
+	renderedValues := make(map[string]interface{}, len(helmTemplateData))
+
+	for k, v := range helmTemplateData {
+		// fleet.yaml must be valid yaml, however '{}[]' are YAML control
+		// characters and will be interpreted as JSON data structures. This
+		// causes issues when parsing the fleet.yaml so we change the delims
+		// for templating to '${ }'
+		tmpl := template.New("values").Funcs(tplFuncMap()).Option("missingkey=error").Delims("${", "}")
+		tmpl, err := tmpl.Parse(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse helm values template: %w", err)
+		}
+
+		var b bytes.Buffer
+		err = tmpl.Execute(&b, templateContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render helm values template: %w", err)
+		}
+
+		var value interface{}
+		err = kyaml.Unmarshal(b.Bytes(), &value)
+		if err != nil {
+			return nil, fmt.Errorf("failed to interpret rendered template as helm values: %s, %v", b.String(), err)
+		}
+
+		renderedValues[k] = value
+	}
+
+	return renderedValues, nil
 }
 
 func processTemplateValues(helmValues map[string]interface{}, templateContext map[string]interface{}) (map[string]interface{}, error) {

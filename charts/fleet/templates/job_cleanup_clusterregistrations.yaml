@@ -37,5 +37,8 @@ spec:
         - clusterregistration
       nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
       tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
+{{- if $.Values.tolerations }}
+{{ toYaml $.Values.tolerations | indent 8 }}
+{{- end }}
   backoffLimit: 1
 {{- end }}

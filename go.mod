@@ -16,7 +16,7 @@ require (
 	github.com/cheggaaa/pb v1.0.29
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v27.5.1+incompatible
-	github.com/evanphx/json-patch v5.9.0+incompatible
+	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/go-git/go-billy/v5 v5.6.2
 	github.com/go-git/go-git/v5 v5.13.2
 	github.com/go-logr/logr v1.4.2
@@ -38,7 +38,7 @@ require (
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.62.0
 	github.com/rancher/fleet/pkg/apis v0.11.3
-	github.com/rancher/lasso v0.0.0-20250123080302-9325fed68518
+	github.com/rancher/lasso v0.2.0
 	github.com/rancher/wrangler/v3 v3.1.0
 	github.com/reugn/go-quartz v0.13.0
 	github.com/sirupsen/logrus v1.9.3

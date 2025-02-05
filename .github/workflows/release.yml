@@ -22,8 +22,8 @@ jobs:
     runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
 
     env:
-      IS_HOTFIX: ${{ contains(github.ref, '-hotfix-ch-') }}
-      REGISTRY: "${{ contains(github.ref, '-hotfix-ch-') && 'stgregistry.suse.com' || 'docker.io' }}"
+      IS_HOTFIX: ${{ contains(github.ref, '-hotfix-') }}
+      REGISTRY: "${{ contains(github.ref, '-hotfix-') && 'stgregistry.suse.com' || 'docker.io' }}"
 
     if: github.repository == 'rancher/fleet'
     steps:
@@ -45,12 +45,12 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/fossa/credential token | FOSSA_API_KEY
 
       - name: Run FOSSA scan
-        uses: fossas/fossa-action@v1.4.0
+        uses: fossas/fossa-action@v1.5.0
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
 
       - name: Run FOSSA tests
-        uses: fossas/fossa-action@v1.4.0
+        uses: fossas/fossa-action@v1.5.0
         with:
           api-key: ${{ env.FOSSA_API_KEY }}
           run-tests: false
@@ -81,6 +81,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.7.0
+      - uses: rancherlabs/slsactl/actions/install-slsactl@v0.0.8
+
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@main
         with:
@@ -89,6 +93,14 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials username | STAGE_REGISTRY_USERNAME ;
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials password | STAGE_REGISTRY_PASSWORD ;
+            secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
+            secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD ;
+            secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials registry | PRIME_REGISTRY;
+
+      - name: Prepare Docker environment to support sbom/provenance parameters
+        run: |
+          sudo bash -c 'echo "{\"features\": {\"containerd-snapshotter\": true}}" > /etc/docker/daemon.json'
+          sudo systemctl restart docker
 
       - name: Log into Docker Container registry
         uses: docker/login-action@v3
@@ -105,6 +117,13 @@ jobs:
           password: ${{ env.STAGE_REGISTRY_PASSWORD }}
           registry: ${{ env.REGISTRY }}
 
+      - name: Log into Prime registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.PRIME_REGISTRY_USERNAME }}
+          password: ${{ env.PRIME_REGISTRY_PASSWORD }}
+          registry: ${{ env.PRIME_REGISTRY }}
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         id: goreleaser
@@ -115,6 +134,47 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
+
+      # Workaround until `docker manifest create` supports provenance meta data
+      # Background: https://stackoverflow.com/questions/75521775/buildx-docker-image-claims-to-be-a-manifest-list
+      - name: Create Docker manifest for Prime and sign it
+        shell: bash
+        run: |
+            for IMAGE in fleet fleet-agent; do
+              URL="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}"
+              docker buildx imagetools create -t "${URL}" \
+                "${URL}-linux-amd64" \
+                "${URL}-linux-arm64"
+
+              cosign sign --oidc-provider=github-actions --yes "${URL}"
+            done
+
+      - name: Attest provenance
+        shell: bash
+        run: |
+          for IMG_NAME in $(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep PRIME_REGISTRY | sed "s/{{ .Env.PRIME_REGISTRY }}/${{ env.PRIME_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g"); do
+            # Extract Docker image reference plus digest from local image
+            URL=$(docker inspect --format='{{index .RepoDigests 0}}' ${IMG_NAME})
+
+            max_retries=3
+            retry_delay=5
+            i=0
+
+            while [ "${i}" -lt "${max_retries}" ]; do
+              if slsactl download provenance --format=slsav1 "${URL}" > provenance-slsav1.json; then
+                break
+              fi
+              if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then
+                echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Prime registry."
+                exit 1
+              fi
+              i=$(( i + 1 ))
+              sleep "${retry_delay}"
+            done
+
+            cosign attest --yes --predicate provenance-slsav1.json --type slsaprovenance1 "${URL}"
+          done
 
       - name: Upload charts to release
         env:
