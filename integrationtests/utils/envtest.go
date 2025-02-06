@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -14,6 +17,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
@@ -28,11 +33,33 @@ func init() {
 }
 
 // NewEnvTest returns a new envtest with the Fleet CRDs loaded.
-func NewEnvTest() *envtest.Environment {
-	return &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
-		ErrorIfCRDPathMissing: true,
+// Run ginkgo with the -v flag to see the logs in real time.
+func NewEnvTest(root string) *envtest.Environment {
+	if os.Getenv("CI_SILENCE_CTRL") != "" {
+		ctrl.SetLogger(logr.New(log.NullLogSink{}))
+	} else {
+		ctrl.SetLogger(zap.New(zap.WriteTo(ginkgo.GinkgoWriter), zap.UseDevMode(true)))
 	}
+
+	existing := os.Getenv("CI_USE_EXISTING_CLUSTER") == "true"
+	return &envtest.Environment{
+		CRDDirectoryPaths:     []string{filepath.Join(root, "charts", "fleet-crd", "templates", "crds.yaml")},
+		ErrorIfCRDPathMissing: true,
+		UseExistingCluster:    &existing,
+	}
+}
+
+func StartTestEnv(testEnv *envtest.Environment) (*rest.Config, error) {
+	cfg, err := testEnv.Start()
+	if err != nil {
+		return nil, err
+	}
+
+	if config := os.Getenv("CI_KUBECONFIG"); config != "" {
+		err = WriteKubeConfig(cfg, config)
+	}
+
+	return cfg, err
 }
 
 // NewClient returns a new controller-runtime client.
