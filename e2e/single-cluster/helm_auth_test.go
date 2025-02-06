@@ -109,7 +109,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 func setupGitRepo(repoPath, repo string, port int) (tmpdir string, gh *githelper.Git) {
 	addr, err := githelper.GetExternalRepoAddr(env, port, repo)
 	Expect(err).ToNot(HaveOccurred())
-	Expect(addr).ToNot(HaveLen(0))
+	Expect(addr).ToNot(BeEmpty())
 
 	gh = githelper.NewHTTP(addr)
 

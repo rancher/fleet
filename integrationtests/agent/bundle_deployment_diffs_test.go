@@ -48,7 +48,7 @@ var _ = Describe("BundleDeployment diff", func() {
 		}
 
 		err := k8sClient.Create(context.TODO(), &bundled)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(bundled).To(Not(BeNil()))
 	}
 

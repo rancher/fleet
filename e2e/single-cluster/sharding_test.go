@@ -101,7 +101,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(shardLabelValue).To(Equal(shard))
-				})
+				}).Should(Succeed())
 
 				By("checking the bundle deployment bears the shard label with the right shard ID")
 				clusterNS, err := k.Get(
@@ -123,7 +123,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(shardLabelValue).To(Equal(shard))
-				})
+				}).Should(Succeed())
 			})
 
 			AfterEach(func() {
