@@ -1521,7 +1521,11 @@ func (in *GitRepoSpec) DeepCopyInto(out *GitRepoSpec) {
 		*out = new(v1.Duration)
 		**out = **in
 	}
-	out.ImageScanCommit = in.ImageScanCommit
+	if in.ImageScanCommit != nil {
+		in, out := &in.ImageScanCommit, &out.ImageScanCommit
+		*out = new(CommitSpec)
+		**out = **in
+	}
 	if in.CorrectDrift != nil {
 		in, out := &in.CorrectDrift, &out.CorrectDrift
 		*out = new(CorrectDrift)
