@@ -56,7 +56,7 @@ func checkEnvVariable(k kubectl.Command, component string, env string) (bool, er
 	for _, line := range lines {
 		if strings.Contains(line, env) {
 			keyValue := strings.Split(line, "=")
-			Expect(len(keyValue)).To(Equal(2))
+			Expect(keyValue).To(HaveLen(2))
 			return strconv.ParseBool(keyValue[1])
 		}
 	}

@@ -191,7 +191,7 @@ func (e adoptEnv) createBundleDeployment(name string, takeOwnership bool) {
 	}
 
 	err := k8sClient.Create(context.TODO(), &bundled)
-	Expect(err).To(BeNil())
+	Expect(err).ToNot(HaveOccurred())
 	Expect(bundled).To(Not(BeNil()))
 	Expect(bundled.Spec.DeploymentID).ToNot(Equal(bundled.Status.AppliedDeploymentID))
 	Expect(bundled.Status.Ready).To(BeFalse())

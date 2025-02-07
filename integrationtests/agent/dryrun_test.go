@@ -45,8 +45,8 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 
 			Expect(plan.Create).To(HaveLen(2))
 			Expect(plan.Delete).To(HaveLen(2))
-			Expect(plan.Update).To(HaveLen(0))
-			Expect(plan.Objects).To(HaveLen(0))
+			Expect(plan.Update).To(BeEmpty())
+			Expect(plan.Objects).To(BeEmpty())
 
 			By("creating the pod", func() {
 				pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
@@ -64,7 +64,7 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 
 				Expect(plan.Create).To(HaveLen(2))
 				Expect(plan.Delete).To(HaveLen(2))
-				Expect(plan.Update).To(HaveLen(0))
+				Expect(plan.Update).To(BeEmpty())
 				Expect(plan.Objects).To(HaveLen(1))
 			})
 
@@ -106,8 +106,8 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 
 			Expect(plan.Create).To(HaveLen(1))
 			Expect(plan.Delete).To(HaveLen(1))
-			Expect(plan.Update).To(HaveLen(0))
-			Expect(plan.Objects).To(HaveLen(0))
+			Expect(plan.Update).To(BeEmpty())
+			Expect(plan.Objects).To(BeEmpty())
 
 			By("creating the cm", func() {
 				err := k8sClient.Create(context.Background(), cm)
@@ -121,7 +121,7 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 
 				Expect(plan.Create).To(HaveLen(1))
 				Expect(plan.Delete).To(HaveLen(1))
-				Expect(plan.Update).To(HaveLen(0))
+				Expect(plan.Update).To(BeEmpty())
 				Expect(plan.Objects).To(HaveLen(1))
 			})
 
@@ -144,8 +144,8 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 
 			Expect(plan.Create).To(HaveLen(1))
 			Expect(plan.Delete).To(HaveLen(1))
-			Expect(plan.Update).To(HaveLen(0))
-			Expect(plan.Objects).To(HaveLen(0))
+			Expect(plan.Update).To(BeEmpty())
+			Expect(plan.Objects).To(BeEmpty())
 
 			By("creating the cm", func() {
 				err := k8sClient.Create(context.Background(), cm)
@@ -158,8 +158,8 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 
 				Expect(plan.Create).To(HaveLen(1))
 				Expect(plan.Delete).To(HaveLen(1))
-				Expect(plan.Update).To(HaveLen(0))
-				Expect(plan.Objects).To(HaveLen(0))
+				Expect(plan.Update).To(BeEmpty())
+				Expect(plan.Objects).To(BeEmpty())
 			})
 
 			By("modifying the desired state", func() {
@@ -170,8 +170,8 @@ var _ = Describe("DryRun determines difference between desired state and actual"
 
 				Expect(plan.Create).To(HaveLen(1))
 				Expect(plan.Delete).To(HaveLen(1))
-				Expect(plan.Update).To(HaveLen(0))
-				Expect(plan.Objects).To(HaveLen(0))
+				Expect(plan.Update).To(BeEmpty())
+				Expect(plan.Objects).To(BeEmpty())
 			})
 		})
 	})

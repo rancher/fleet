@@ -146,12 +146,12 @@ var _ = Describe("OCIUtils tests", func() {
 		}
 		repo, err := newOCIRepository("1234", opts)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(repo.PlainHTTP).To(Equal(true))
+		Expect(repo.PlainHTTP).To(BeTrue())
 
 		opts.BasicHTTP = false
 		repo, err = newOCIRepository("1234", opts)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(repo.PlainHTTP).To(Equal(false))
+		Expect(repo.PlainHTTP).To(BeFalse())
 	})
 	It("return the expected tls client", func() {
 		client := getHTTPClient(true)
