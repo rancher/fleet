@@ -85,7 +85,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 			opts := options.Merge(bundle.Spec.BundleDeploymentOptions, targetOpts)
 			err = preprocessHelmValues(logger, &opts, &cluster)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cluster %s in namespace %s: %w", cluster.Name, cluster.Namespace, err)
 			}
 
 			deploymentID, err := options.DeploymentID(manifestID, opts)
