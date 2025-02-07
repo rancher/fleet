@@ -7,6 +7,7 @@ toolchain go1.23.6
 replace (
 	github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
+	helm.sh/helm/v3 => github.com/rancher/helm/v3 v3.17.0-fleet.0
 )
 
 require (
