@@ -1227,6 +1227,8 @@ github.com/prometheus/procfs v0.0.2/go.mod h1:TjEm7ze935MbeOT/UhFTIMYKhuLP4wbCsT
 github.com/prometheus/procfs v0.0.3/go.mod h1:4A/X28fw3Fc593LaREMrKMqOKvUAntwMDaekg4FpcdQ=
 github.com/prometheus/procfs v0.15.1 h1:YagwOFzUgYfKKHX6Dr+sHT7km/hxC76UB0learggepc=
 github.com/prometheus/procfs v0.15.1/go.mod h1:fB45yRUv8NstnjriLhBQLuOUt+WW4BsoGhij/e3PBqk=
+github.com/rancher/helm/v3 v3.17.0-fleet.0 h1:nBZZOxdnasnNwOJe4o0UV0MO4MvEUvpYEqR9p62T9h4=
+github.com/rancher/helm/v3 v3.17.0-fleet.0/go.mod h1:Mo7eGyKPPHlS0Ml67W8z/lbkox/gD9Xt1XpD6bxvZZA=
 github.com/rancher/lasso v0.2.0 h1:0YaprDYRZNMQoG9/308ZI+oxvof2JUjo9rYT2It38L8=
 github.com/rancher/lasso v0.2.0/go.mod h1:stR7zYyew1IOnKYV5vFx1kXX5/pUoKeo5K5c78qAdV8=
 github.com/rancher/wrangler/v3 v3.1.0 h1:8ETBnQOEcZaR6WBmUSysWW7WnERBOiNTMJr4Dj3UG/s=
@@ -2098,8 +2100,6 @@ gotest.tools v2.2.0+incompatible h1:VsBPFP1AI068pPrMxtb/S8Zkgf9xEmTLJjfM+P5UIEo=
 gotest.tools v2.2.0+incompatible/go.mod h1:DsYFclhRJ6vuDpmuTbkuFWG+y2sxOXAzmJt81HFBacw=
 gotest.tools/v3 v3.5.1 h1:EENdUnS3pdur5nybKYIh2Vfgc8IUNBjxDPSjtiJcOzU=
 gotest.tools/v3 v3.5.1/go.mod h1:isy3WKz7GK6uNw/sbHzfKBLvlvXwUyV06n6brMxxopU=
-helm.sh/helm/v3 v3.17.0 h1:DUD4AGdNVn7PSTYfxe1gmQG7s18QeWv/4jI9TubnhT0=
-helm.sh/helm/v3 v3.17.0/go.mod h1:Mo7eGyKPPHlS0Ml67W8z/lbkox/gD9Xt1XpD6bxvZZA=
 honnef.co/go/tools v0.0.0-20190102054323-c2f93a96b099/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.0-20190106161140-3f1c8253044a/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.0-20190418001031-e561f6794a2a/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
