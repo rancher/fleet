@@ -210,6 +210,9 @@ func (g *Git) Create(repodir string, from string, subdir string) (*git.Repositor
 		Progress: os.Stdout,
 		// Force push, so our initial state is deterministic
 		RefSpecs: []config.RefSpec{config.RefSpec("+refs/heads/master:refs/heads/" + g.Branch)},
+		// This prevents IP SANs from being needed on the git server cert; the TLS verification we are most
+		// interested in is the one happening in Fleet's controllers and jobs.
+		InsecureSkipTLS: true,
 	}
 	k, err := g.Auth.getKeys()
 	if err != nil {
@@ -246,6 +249,9 @@ func (g *Git) Update(repo *git.Repository) (string, error) {
 	po := git.PushOptions{
 		Progress: os.Stdout,
 		RefSpecs: []config.RefSpec{config.RefSpec("refs/heads/master:refs/heads/" + g.Branch)},
+		// This prevents IP SANs from being needed on the git server cert; the TLS verification we are most
+		// interested in is the one happening in Fleet's controllers and jobs.
+		InsecureSkipTLS: true,
 	}
 	k, err := g.Auth.getKeys()
 	if err != nil {

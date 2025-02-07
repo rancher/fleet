@@ -26,8 +26,9 @@ import (
 )
 
 const (
-	port     = 8080
-	repoName = "repo"
+	port      = 8080
+	HTTPSPort = 4343
+	repoName  = "repo"
 )
 
 var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
@@ -366,6 +367,184 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				return out
 			}).Should(ContainSubstring("newsleep"))
 		}, Label("webhook"))
+	})
+})
+
+var _ = Describe("Monitoring Git repos via HTTPS with a custom CA for change", Label("infra-setup"), func() {
+	var (
+		tmpDir           string
+		clonedir         string
+		k                kubectl.Command
+		gh               *githelper.Git
+		clone            *git.Repository
+		repoName         string
+		inClusterRepoURL string
+		gitrepoName      string
+		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
+		targetNamespace  string
+	)
+
+	BeforeEach(func() {
+		k = env.Kubectl.Namespace(env.Namespace)
+	})
+
+	JustBeforeEach(func() {
+
+		// Build git repo URL reachable _within_ the cluster, for the GitRepo
+		host, err := githelper.BuildGitHostname(env.Namespace)
+		Expect(err).ToNot(HaveOccurred())
+
+		addr, err := githelper.GetExternalRepoAddr(env, HTTPSPort, repoName)
+		Expect(err).ToNot(HaveOccurred())
+		addr = strings.Replace(addr, "http://", "https://", 1)
+
+		gh = githelper.NewHTTP(addr)
+
+		inClusterRepoURL = gh.GetInClusterURL(host, HTTPSPort, repoName)
+
+		tmpDir, _ = os.MkdirTemp("", "fleet-")
+		clonedir = path.Join(tmpDir, repoName)
+
+		gitrepoName = testenv.RandomFilename("gitjob-test", r)
+	})
+
+	AfterEach(func() {
+		_ = os.RemoveAll(tmpDir)
+
+		_, err := k.Delete("gitrepo", gitrepoName)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Check that the bundle deployment resource has been deleted
+		Eventually(func(g Gomega) {
+			out, _ := k.Get(
+				"bundledeployments",
+				"-A",
+				"-l",
+				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+			)
+			g.Expect(out).To(ContainSubstring("No resources found"))
+		}).Should(Succeed())
+
+		out, err := k.Namespace("cattle-fleet-system").Logs(
+			"-l",
+			"app=fleet-controller",
+			"-c",
+			"fleet-controller",
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Errors about resources other than bundles or bundle deployments not being found at deletion time
+		// should be ignored, as they may result from other test suites.
+		Expect(out).ToNot(MatchRegexp(
+			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
+		))
+
+		_, err = k.Delete("ns", targetNamespace, "--wait=false")
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	When("updating a git repository monitored via polling", func() {
+		BeforeEach(func() {
+			repoName = "repo"
+			targetNamespace = testenv.NewNamespaceName("target", r)
+		})
+
+		JustBeforeEach(func() {
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+				Name            string
+				Repo            string
+				Branch          string
+				PollingInterval string
+				TargetNamespace string
+			}{
+				gitrepoName,
+				inClusterRepoURL,
+				gh.Branch,
+				"15s",           // default
+				targetNamespace, // to avoid conflicts with other tests
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("updates the deployment", func() {
+			By("checking the pod exists")
+			Eventually(func() string {
+				out, _ := k.Namespace(targetNamespace).Get("pods")
+				return out
+			}).Should(ContainSubstring("sleeper-"))
+
+			By("updating the git repository")
+			replace(path.Join(clonedir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
+			replace(path.Join(clonedir, "examples", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")
+
+			commit, err := gh.Update(clone)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("updating the gitrepo's status")
+			expectedStatus := fleet.GitRepoStatus{
+				Commit:       commit,
+				GitJobStatus: "Current",
+				StatusBase: fleet.StatusBase{
+					ReadyClusters:        1,
+					DesiredReadyClusters: 1,
+					Summary: fleet.BundleSummary{
+						NotReady:          0,
+						WaitApplied:       0,
+						ErrApplied:        0,
+						OutOfSync:         0,
+						Modified:          0,
+						Ready:             1,
+						Pending:           0,
+						DesiredReady:      1,
+						NonReadyResources: []fleet.NonReadyResource(nil),
+					},
+					Display: fleet.StatusDisplay{
+						ReadyBundleDeployments: "1/1",
+					},
+					Conditions: []genericcondition.GenericCondition{
+						{
+							Type:   "Ready",
+							Status: "True",
+						},
+						{
+							Type:   "Accepted",
+							Status: "True",
+						},
+						{
+							Type:   "Reconciling",
+							Status: "False",
+						},
+						{
+							Type:   "Stalled",
+							Status: "False",
+						},
+					},
+					ResourceCounts: fleet.ResourceCounts{
+						Ready:        1,
+						DesiredReady: 1,
+						WaitApplied:  0,
+						Modified:     0,
+						Orphaned:     0,
+						Missing:      0,
+						Unknown:      0,
+						NotReady:     0,
+					},
+				},
+			}
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(g, k, gitrepoName)
+				g.Expect(status).To(matchGitRepoStatus(expectedStatus))
+			}).Should(Succeed())
+
+			By("checking the deployment's new name")
+			Eventually(func() string {
+				out, _ := k.Namespace(targetNamespace).Get("deployments")
+				return out
+			}).Should(ContainSubstring("newsleep"))
+		})
 	})
 })
 
