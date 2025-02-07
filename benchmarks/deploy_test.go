@@ -53,7 +53,7 @@ var _ = Context("Benchmarks Deploy", func() {
 					GroupLabel: name,
 				})
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(len(list.Items)).To(Equal(n))
+				g.Expect(list.Items).To(HaveLen(n))
 			}).Should(Succeed())
 
 			experiment.MeasureDuration("TotalDuration", func() {
@@ -100,7 +100,7 @@ var _ = Context("Benchmarks Deploy", func() {
 					GroupLabel: name,
 				})
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(len(list.Items)).To(Equal(n * 50))
+				g.Expect(list.Items).To(HaveLen(n * 50))
 			}).Should(Succeed())
 
 			experiment.MeasureDuration("TotalDuration", func() {

@@ -54,7 +54,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 		}
 
 		err := k8sClient.Create(context.TODO(), &bundled)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(bundled).To(Not(BeNil()))
 	}
 
@@ -101,7 +101,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					g.Expect(err).NotTo(HaveOccurred())
 
 					g.Expect(svc.Spec.ExternalName).Should(Equal("modified"))
-				}, 2*time.Second, 100*time.Millisecond)
+				}, 2*time.Second, 100*time.Millisecond).Should(Succeed())
 			})
 		})
 	})
@@ -146,7 +146,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					g.Expect(err).NotTo(HaveOccurred())
 
 					g.Expect(svc.Spec.ExternalName).Should(Equal("svc-test"))
-				})
+				}).Should(Succeed())
 			})
 		})
 
@@ -186,7 +186,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					g.Expect(err).NotTo(HaveOccurred())
 
 					g.Expect(dpl.Spec.Template.Spec.Containers[0].Image).Should(Equal("k8s.gcr.io/pause"))
-				})
+				}).Should(Succeed())
 			})
 		})
 
@@ -217,7 +217,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					Expect(err).ToNot(HaveOccurred())
 
 					g.Expect(cm.Data["foo"]).Should(Equal("bar"))
-				})
+				}).Should(Succeed())
 
 				By("Leaving at most 2 Helm history items")
 				secrets := corev1.SecretList{}
@@ -230,7 +230,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					client.InNamespace(env.namespace),
 				)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(len(secrets.Items) <= 2).To(BeTrue(), fmt.Sprintf("Expected %#v to contain at most 2 items", secrets.Items))
+				Expect(len(secrets.Items)).To(BeNumerically("<=", 2), fmt.Sprintf("Expected %#v to contain at most 2 items", secrets.Items))
 			})
 		})
 
@@ -312,10 +312,10 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					g.Expect(err).NotTo(HaveOccurred())
 
 					g.Expect(svc.Spec.Ports).ToNot(BeEmpty())
-					g.Expect(svc.Spec.Ports[0].Port).Should(Equal(80))
-					g.Expect(svc.Spec.Ports[0].TargetPort).Should(Equal(9376))
+					g.Expect(svc.Spec.Ports[0].Port).Should(BeEquivalentTo(80))
+					g.Expect(svc.Spec.Ports[0].TargetPort).Should(BeEquivalentTo(9376))
 					g.Expect(svc.Spec.Ports[0].Name).Should(Equal("myport"))
-				})
+				}).Should(Succeed())
 
 				By("Updating the bundle deployment status to be ready and not modified")
 				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
@@ -360,10 +360,10 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					g.Expect(err).NotTo(HaveOccurred())
 
 					g.Expect(svc.Spec.Ports).ToNot(BeEmpty())
-					g.Expect(svc.Spec.Ports[0].Port).Should(Equal(80))
-					g.Expect(svc.Spec.Ports[0].TargetPort).Should(Equal(9376))
+					g.Expect(svc.Spec.Ports[0].Port).Should(BeEquivalentTo(80))
+					g.Expect(svc.Spec.Ports[0].TargetPort).Should(BeEquivalentTo(9376))
 					g.Expect(svc.Spec.Ports[0].Name).Should(Equal("myport"))
-				})
+				}).Should(Succeed())
 
 				By("Updating the bundle deployment status to be ready and not modified")
 				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())

@@ -458,7 +458,7 @@ var _ = Describe("HelmOps controller", func() {
 					bundle := &fleet.Bundle{}
 					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
 					err := k8sClient.Get(ctx, ns, bundle)
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}, 5*time.Second, time.Second).Should(Succeed())
 			})
@@ -495,7 +495,7 @@ var _ = Describe("HelmOps controller", func() {
 					bundle := &fleet.Bundle{}
 					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
 					err := k8sClient.Get(ctx, ns, bundle)
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}).Should(Succeed())
 
@@ -504,7 +504,7 @@ var _ = Describe("HelmOps controller", func() {
 					fh := &fleet.HelmApp{}
 					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
 					err := k8sClient.Get(ctx, ns, fh)
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}).Should(Succeed())
 			})
@@ -648,7 +648,7 @@ var _ = Describe("HelmOps controller", func() {
 					bundle := &fleet.Bundle{}
 					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
 					err := k8sClient.Get(ctx, ns, bundle)
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}, 5*time.Second, time.Second).Should(Succeed())
 
@@ -743,7 +743,7 @@ var _ = Describe("HelmOps controller", func() {
 					bundle := &fleet.Bundle{}
 					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
 					err := k8sClient.Get(ctx, ns, bundle)
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}, 5*time.Second, time.Second).Should(Succeed())
 
@@ -808,7 +808,7 @@ var _ = Describe("HelmOps controller", func() {
 					bundle := &fleet.Bundle{}
 					ns := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
 					err := k8sClient.Get(ctx, ns, bundle)
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}, 5*time.Second, time.Second).Should(Succeed())
 

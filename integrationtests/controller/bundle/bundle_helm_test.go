@@ -174,7 +174,7 @@ func verifyHelmBundlesDeploymentsAreCreated(
 		err = k8sClient.List(ctx, bdList, client.MatchingLabelsSelector{Selector: labels.SelectorFromSet(bdLabels)})
 		Expect(err).NotTo(HaveOccurred())
 
-		g.Expect(len(bdList.Items)).To(Equal(numBundleDeployments))
+		g.Expect(bdList.Items).To(HaveLen(numBundleDeployments))
 		for _, bd := range bdList.Items {
 			// all bds should have the expected helm options
 			g.Expect(bd.Spec.HelmChartOptions).To(Equal(helmOptions))

@@ -45,7 +45,7 @@ var _ = Context("Benchmarks Targeting", func() {
 						GroupLabel: name,
 					})
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(len(list.Items)).To(Equal(n))
+					g.Expect(list.Items).To(HaveLen(n))
 				}).Should(Succeed())
 			}, gm.Style("{{bold}}"))
 		})
@@ -72,7 +72,7 @@ var _ = Context("Benchmarks Targeting", func() {
 						GroupLabel: name,
 					})
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(len(list.Items)).To(Equal(n * 50))
+					g.Expect(list.Items).To(HaveLen(n * 50))
 				}).Should(Succeed())
 			}, gm.Style("{{bold}}"))
 		})
