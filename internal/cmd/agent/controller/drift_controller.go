@@ -109,13 +109,13 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	// final status update
-	logger.V(1).Info("Reconcile finished, updating the bundledeployment status")
 	err = r.updateStatus(ctx, orig, bd)
 	if apierrors.IsNotFound(err) {
 		merr = append(merr, fmt.Errorf("bundledeployment has been deleted: %w", err))
 	} else if err != nil {
 		merr = append(merr, fmt.Errorf("failed final update to bundledeployment status: %w", err))
 	}
+	logger.V(1).Info("Reconcile finished, updating the bundledeployment status", "newStatus", bd.Status)
 
 	return ctrl.Result{}, errutil.NewAggregate(merr)
 }

@@ -67,8 +67,14 @@ func isAgent(bd *fleet.BundleDeployment) bool {
 	return strings.HasPrefix(bd.Name, "fleet-agent")
 }
 
+// ShouldUpdateStatus skips resource and ready status updates if the bundle
+// deployment is unchanged, not deployed or not installed.
 func ShouldUpdateStatus(bd *fleet.BundleDeployment) bool {
 	if bd.Spec.DeploymentID != bd.Status.AppliedDeploymentID {
+		return false
+	}
+
+	if Cond(fleet.BundleDeploymentConditionDeployed).IsFalse(bd) {
 		return false
 	}
 
@@ -81,6 +87,9 @@ func ShouldUpdateStatus(bd *fleet.BundleDeployment) bool {
 	return true
 }
 
+// UpdateStatus updates the status of the bundledeployment based on the resources from the helm release history and the live state.
+// In the status it updates: Ready, NonReadyStatus, IncompleteState, NonReadyStatus, NonModified, ModifiedStatus, Resources and ResourceCounts fields.
+// Additionally it sets the Ready condition either from the NonReadyStatus or the NonModified status field.
 func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) (fleet.BundleDeploymentStatus, error) {
 	logger := log.FromContext(ctx).WithName("update-status")
 	ctx = log.IntoContext(ctx, logger)
@@ -109,6 +118,8 @@ func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, 
 	status.SyncGeneration = &bd.Spec.Options.ForceSyncGeneration
 	if readyError != nil {
 		logger.Info("Status not ready", "error", readyError)
+	} else {
+		logger.V(1).Info("UpdateStatus sets ready to true", "status", status)
 	}
 
 	removePrivateFields(&status)
@@ -149,6 +160,7 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 
 // updateFromPreviousDeployment updates the status with information from the
 // helm release history and an apply dry run.
+// Modified resources are resources that have changed from the previous helm release.
 func (m *Monitor) updateFromPreviousDeployment(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) error {
 	resourcesPreviousRelease, err := m.deployer.ResourcesFromPreviousReleaseVersion(bd.Name, bd.Status.Release)
 	if err != nil {
