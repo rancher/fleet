@@ -127,7 +127,7 @@ var _ = Describe("GitJob controller", func() {
 				Consistently(func(g Gomega) {
 					err := k8sClient.Get(ctx, ns, &secret)
 
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}, time.Second*5, time.Second*1).Should(Succeed())
 			})
@@ -213,7 +213,7 @@ var _ = Describe("GitJob controller", func() {
 							TypeMeta:      metav1.TypeMeta{Kind: "GitRepo"},
 						})
 					g.Expect(events).ToNot(BeNil())
-					g.Expect(len(events.Items)).To(Equal(3))
+					g.Expect(events.Items).To(HaveLen(3))
 					g.Expect(events.Items[0].Reason).To(Equal("GotNewCommit"))
 					g.Expect(events.Items[0].Message).To(Equal("9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"))
 					g.Expect(events.Items[0].Type).To(Equal("Normal"))
@@ -479,7 +479,7 @@ var _ = Describe("GitJob controller", func() {
 						TypeMeta:      metav1.TypeMeta{Kind: "GitRepo"},
 					})
 				g.Expect(events).ToNot(BeNil())
-				g.Expect(len(events.Items)).To(Equal(3))
+				g.Expect(events.Items).To(HaveLen(3))
 				g.Expect(events.Items[0].Reason).To(Equal("GotNewCommit"))
 				g.Expect(events.Items[0].Message).To(Equal("9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"))
 				g.Expect(events.Items[0].Type).To(Equal("Normal"))

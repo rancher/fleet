@@ -54,6 +54,37 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 			})
 
 			It(fmt.Sprintf("deploys the gitrepo via the gitjob labeled with shard ID %s", shard), func() {
+				shardNodeSelector, err := k.Namespace("cattle-fleet-system").Get(
+					"deploy",
+					fmt.Sprintf("fleet-controller-shard-%s", shard),
+					"-o=jsonpath={.spec.template.spec.nodeSelector}",
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("checking the gitjob pod has the same nodeSelector as the sharded controller deployment")
+				Eventually(func(g Gomega) {
+					pods, err := k.Namespace("fleet-local").Get(
+						"pods",
+						"-o",
+						`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.nodeSelector}{"\n"}{end}`,
+					)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(pods).ToNot(BeEmpty(), "no pod in namespace fleet-local")
+
+					var podNodeSelector string
+					for _, pod := range strings.Split(pods, "\n") {
+						fields := strings.Split(pod, "\t")
+						podName := fields[0]
+						if strings.HasPrefix(podName, "sharding-test") {
+							podNodeSelector = fields[1]
+							break
+						}
+					}
+
+					g.Expect(podNodeSelector).ToNot(BeEmpty(), "sharding-test* pod not found or has empty node selector")
+					g.Expect(podNodeSelector).To(Equal(shardNodeSelector))
+				}).Should(Succeed())
+
 				By("checking the configmap exists")
 				Eventually(func() string {
 					out, _ := k.Namespace(targetNamespace).Get("configmaps")
@@ -70,7 +101,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(shardLabelValue).To(Equal(shard))
-				})
+				}).Should(Succeed())
 
 				By("checking the bundle deployment bears the shard label with the right shard ID")
 				clusterNS, err := k.Get(
@@ -92,35 +123,6 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(shardLabelValue).To(Equal(shard))
-				})
-
-				By("checking the gitjob pod has the same nodeSelector as the sharded controller deployment")
-				Eventually(func(g Gomega) {
-					shardNodeSelector, err := k.Namespace("cattle-fleet-system").Get(
-						"deploy",
-						fmt.Sprintf("fleet-controller-shard-%s", shard),
-						"-o=jsonpath={.spec.template.spec.nodeSelector}",
-					)
-					g.Expect(err).ToNot(HaveOccurred())
-
-					pods, _ := k.Namespace("fleet-local").Get(
-						"pods",
-						"-o",
-						`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.nodeSelector}{"\n"}{end}`,
-					)
-
-					var podNodeSelector string
-					for _, pod := range strings.Split(pods, "\n") {
-						fields := strings.Split(pod, "\t")
-						podName := fields[0]
-						if strings.HasPrefix(podName, "sharding-test") {
-							podNodeSelector = fields[1]
-							break
-						}
-					}
-
-					g.Expect(podNodeSelector).ToNot(BeEmpty())
-					g.Expect(podNodeSelector).To(Equal(shardNodeSelector))
 				}).Should(Succeed())
 			})
 

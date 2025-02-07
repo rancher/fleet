@@ -65,7 +65,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		}
 
 		err := k8sClient.Create(context.TODO(), &bundled)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(bundled).To(Not(BeNil()))
 	}
 
@@ -151,7 +151,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Spec.Selector = map[string]string{"app.kubernetes.io/name": "MyApp"}
-				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
+				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
@@ -164,7 +164,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Eventually(func() bool {
 					bd := &v1alpha1.BundleDeployment{}
 					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
-					Expect(err).To(BeNil())
+					Expect(err).ToNot(HaveOccurred())
 					bd.Spec.DeploymentID = "v2"
 					err = k8sClient.Update(ctx, bd)
 					return err == nil && bd != nil
@@ -198,7 +198,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Finalizers = nil
-				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
+				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
@@ -323,7 +323,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Spec.Selector = map[string]string{"app.kubernetes.io/name": "MyApp"}
-				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
+				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
@@ -336,7 +336,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Eventually(func() bool {
 					bd := &v1alpha1.BundleDeployment{}
 					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
-					Expect(err).To(BeNil())
+					Expect(err).ToNot(HaveOccurred())
 					bd.Spec.DeploymentID = "v2"
 					err = k8sClient.Update(ctx, bd)
 					return err == nil && bd != nil
@@ -370,7 +370,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Finalizers = nil
-				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
+				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
