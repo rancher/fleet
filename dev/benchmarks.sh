@@ -23,3 +23,5 @@ if [ "$n" -eq 0 ]; then
 fi
 
 ginkgo run --fail-fast --seed 1731598958 --json-report "$FLEET_BENCH_OUTPUT" ./benchmarks
+
+go run ./benchmarks/cmd report -d benchmarks/db -i "$FLEET_BENCH_OUTPUT"
