@@ -6405,7 +6405,7 @@ spec:
                   properties:
                     authSecretName:
                       description: AuthSecretName contains the auth secret where the
-                        OCI regristry credentials are stored.
+                        OCI registry credentials are stored.
                       nullable: true
                       type: string
                     basicHTTP:

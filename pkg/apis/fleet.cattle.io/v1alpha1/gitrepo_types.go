@@ -220,7 +220,7 @@ type OCIRegistrySpec struct {
 	// Reference of the OCI Registry
 	Reference string `json:"reference,omitempty"`
 
-	// AuthSecretName contains the auth secret where the OCI regristry credentials are stored.
+	// AuthSecretName contains the auth secret where the OCI registry credentials are stored.
 	// +nullable
 	AuthSecretName string `json:"authSecretName,omitempty"`
 
