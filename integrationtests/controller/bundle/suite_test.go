@@ -3,6 +3,7 @@ package bundle
 import (
 	"context"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -41,6 +42,9 @@ func TestFleet(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	SetDefaultEventuallyTimeout(60 * time.Second)
+	SetDefaultEventuallyPollingInterval(1 * time.Second)
+
 	ctx, cancel = context.WithCancel(context.TODO())
 	testenv = utils.NewEnvTest()
 	testEnvBool = true

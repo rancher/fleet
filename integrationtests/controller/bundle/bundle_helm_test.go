@@ -1,6 +1,7 @@
 package bundle
 
 import (
+	"context"
 	"crypto/rand"
 	"os"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -42,7 +42,7 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 	)
 
 	JustBeforeEach(func() {
-		bundle, err := utils.CreateHelmBundle(ctx, k8sClient, bundleName, namespace, targets, targetRestrictions, helmOptions)
+		bundle, err := createHelmBundle(ctx, k8sClient, bundleName, namespace, targets, targetRestrictions, helmOptions)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bundle).To(Not(BeNil()))
 
@@ -218,13 +218,13 @@ func createHelmSecret(c client.Client, helmOptions *v1alpha1.BundleHelmOptions, 
 	if err != nil {
 		return err
 	}
-	secret := &v1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      helmOptions.SecretName,
 			Namespace: ns,
 		},
-		Data: map[string][]byte{v1.BasicAuthUsernameKey: username, v1.BasicAuthPasswordKey: password, "cacerts": certs},
-		Type: v1.SecretTypeBasicAuth,
+		Data: map[string][]byte{corev1.BasicAuthUsernameKey: username, corev1.BasicAuthPasswordKey: password, "cacerts": certs},
+		Type: corev1.SecretTypeBasicAuth,
 	}
 
 	return c.Create(ctx, secret)
@@ -235,7 +235,7 @@ func deleteHelmSecret(c client.Client, helmOptions *v1alpha1.BundleHelmOptions, 
 		return nil
 	}
 	nsName := types.NamespacedName{Namespace: ns, Name: helmOptions.SecretName}
-	secret := &v1.Secret{}
+	secret := &corev1.Secret{}
 	err := c.Get(ctx, nsName, secret)
 	if err != nil {
 		return err
@@ -252,13 +252,13 @@ func checkBundleDeploymentSecret(c client.Client, helmOptions *v1alpha1.BundleHe
 
 	// get the secret for the bundle
 	nsName := types.NamespacedName{Namespace: bNamespace, Name: helmOptions.SecretName}
-	bundleSecret := &v1.Secret{}
+	bundleSecret := &corev1.Secret{}
 	err := c.Get(ctx, nsName, bundleSecret)
 	Expect(err).NotTo(HaveOccurred())
 
 	// get the secret for the bundle deployment
 	bdNsName := types.NamespacedName{Namespace: bdNamespace, Name: helmOptions.SecretName}
-	bdSecret := &v1.Secret{}
+	bdSecret := &corev1.Secret{}
 	err = c.Get(ctx, bdNsName, bdSecret)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -272,4 +272,31 @@ func checkBundleDeploymentSecret(c client.Client, helmOptions *v1alpha1.BundleHe
 	Expect(controller.Name).To(Equal(bundleName))
 	Expect(controller.Kind).To(Equal("BundleDeployment"))
 	Expect(controller.APIVersion).To(Equal("fleet.cattle.io/v1alpha1"))
+}
+
+func createHelmBundle(ctx context.Context, k8sClient client.Client, name, namespace string, targets []v1alpha1.BundleTarget, targetRestrictions []v1alpha1.BundleTarget, helmOptions *v1alpha1.BundleHelmOptions) (*v1alpha1.Bundle, error) {
+	restrictions := []v1alpha1.BundleTargetRestriction{}
+	for _, r := range targetRestrictions {
+		restrictions = append(restrictions, v1alpha1.BundleTargetRestriction{
+			Name:                 r.Name,
+			ClusterName:          r.ClusterName,
+			ClusterSelector:      r.ClusterSelector,
+			ClusterGroup:         r.ClusterGroup,
+			ClusterGroupSelector: r.ClusterGroupSelector,
+		})
+	}
+	bundle := v1alpha1.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    map[string]string{"foo": "bar"},
+		},
+		Spec: v1alpha1.BundleSpec{
+			Targets:            targets,
+			TargetRestrictions: restrictions,
+			HelmAppOptions:     helmOptions,
+		},
+	}
+
+	return &bundle, k8sClient.Create(ctx, &bundle)
 }
