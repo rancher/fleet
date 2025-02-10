@@ -44,6 +44,14 @@ func (c Cond) IsFalse(obj interface{}) bool {
 	return getStatus(obj, string(c)) == "False"
 }
 
+func (c Cond) Unknown(obj interface{}) {
+	setStatus(obj, string(c), "Unknown")
+}
+
+func (c Cond) IsUnknown(obj interface{}) bool {
+	return getStatus(obj, string(c)) == "Unknown"
+}
+
 func (c Cond) Reason(obj interface{}, reason string) {
 	cond := findOrCreateCond(obj, string(c))
 	getFieldValue(cond, "Reason").SetString(reason)
