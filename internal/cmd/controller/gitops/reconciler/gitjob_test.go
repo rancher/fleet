@@ -683,6 +683,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 		expectedInitContainers []corev1.Container
 		expectedVolumes        []corev1.Volume
 		expectedErr            error
+		expectedTolerations    []corev1.Toleration
 	}{
 		"simple (no credentials, no ca, no skip tls)": {
 			gitrepo: &fleetv1.GitRepo{
@@ -724,6 +725,77 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 				},
 			},
 			client: fake.NewFakeClient(),
+		},
+		"simple with custom gitrepo tolerations": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "repo",
+					Tolerations: []corev1.Toleration{
+						{
+							Key:      "key1",
+							Value:    "value1",
+							Operator: "Equals",
+							Effect:   "NoSchedule",
+						},
+						{
+							Key:      "key2",
+							Value:    "value2",
+							Operator: "Exists",
+							Effect:   "NoExecute",
+						},
+					},
+				},
+			},
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{
+						"fleet",
+					},
+					Args:  []string{"gitcloner", "repo", "/workspace", "--branch", "master"},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      gitClonerVolumeName,
+							MountPath: "/workspace",
+						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+					},
+					SecurityContext: securityContext,
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+			},
+			client: fake.NewFakeClient(),
+			expectedTolerations: []corev1.Toleration{
+				{
+					Key:      "key1",
+					Value:    "value1",
+					Operator: "Equals",
+					Effect:   "NoSchedule",
+				},
+				{
+					Key:      "key2",
+					Value:    "value2",
+					Operator: "Exists",
+					Effect:   "NoExecute",
+				},
+			},
 		},
 		"simple with custom branch": {
 			gitrepo: &fleetv1.GitRepo{
