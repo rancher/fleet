@@ -536,6 +536,9 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 		return nil, err
 	}
 
+	// Add user defined tolerations
+	jobSpec.Template.Spec.Tolerations = append(jobSpec.Template.Spec.Tolerations, obj.Spec.Tolerations...)
+
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{

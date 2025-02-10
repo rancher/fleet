@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -134,6 +135,9 @@ type GitRepoSpec struct {
 
 	// Disables git polling. When enabled only webhooks will be used.
 	DisablePolling bool `json:"disablePolling,omitempty"`
+
+	// Tolerations specifies tolerations to be added when running fleet apply
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 
 	// OCIRegistry specifies the OCI registry related parameters
 	OCIRegistry *OCIRegistrySpec `json:"ociRegistry,omitempty"`

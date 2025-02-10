@@ -1520,6 +1520,13 @@ func (in *GitRepoSpec) DeepCopyInto(out *GitRepoSpec) {
 		*out = new(CorrectDrift)
 		**out = **in
 	}
+	if in.Tolerations != nil {
+		in, out := &in.Tolerations, &out.Tolerations
+		*out = make([]corev1.Toleration, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.OCIRegistry != nil {
 		in, out := &in.OCIRegistry, &out.OCIRegistry
 		*out = new(OCIRegistrySpec)
