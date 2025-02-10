@@ -47,9 +47,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 						MaxHistory: 2,
 					},
 				},
-				CorrectDrift: &v1alpha1.CorrectDrift{
-					Enabled: true,
-				},
+				CorrectDrift: &correctDrift,
 			},
 		}
 
@@ -134,7 +132,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 
 			It("Corrects drift", func() {
 				By("Receiving a modification on a service")
-				svc, err := env.getService(svcName)
+				svc, err := env.getService("svc-ext")
 				Expect(err).NotTo(HaveOccurred())
 				patchedSvc := svc.DeepCopy()
 				patchedSvc.Spec.ExternalName = "modified"
@@ -142,10 +140,10 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 
 				By("Restoring the service resource to its previous state")
 				Eventually(func(g Gomega) {
-					svc, err := env.getService(svcName)
+					svc, err := env.getService("svc-ext")
 					g.Expect(err).NotTo(HaveOccurred())
 
-					g.Expect(svc.Spec.ExternalName).Should(Equal("svc-test"))
+					g.Expect(svc.Spec.ExternalName).Should(Equal("svc-ext"))
 				}).Should(Succeed())
 			})
 		})
@@ -167,7 +165,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 
 				Eventually(func(g Gomega) {
 					bd := &v1alpha1.BundleDeployment{}
-					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
+					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 					// The bundle deployment will not be ready, because no image can be pulled for
 					// the deployment in envtest clusters.
 					Expect(err).NotTo(HaveOccurred())
@@ -271,32 +269,35 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
 
 				By("Updating the bundle deployment status")
-				expectedMsg := `cannot patch "svc-test" with kind Service: Service "svc-test" is invalid: ` +
-					`spec.ports[1].name: Duplicate value: "myport"`
 				nsn := types.NamespacedName{Namespace: clusterNS, Name: name}
-
-				modifiedStatus := v1alpha1.ModifiedStatus{
-					Kind:       "Service",
-					APIVersion: "v1",
-					Namespace:  namespace,
-					Name:       "svc-test",
-					Create:     false,
-					Delete:     false,
-					Patch:      `{"spec":{"ports":[{"name":"myport","port":80,"protocol":"TCP","targetPort":9376},{"name":"myport","port":4242,"protocol":"TCP","targetPort":4242}]}}`,
-				}
 
 				Eventually(func(g Gomega) {
 					bd := &v1alpha1.BundleDeployment{}
-					err := k8sClient.Get(context.TODO(), nsn, bd, &client.GetOptions{})
+					err := k8sClient.Get(context.TODO(), nsn, bd)
 					g.Expect(err).ToNot(HaveOccurred())
 
-					env.isNotReadyAndModified(g, name, modifiedStatus, expectedMsg)
+					// Note: the next check depends on either Deployed or Ready condition to be set to false
+					found := false
+					for _, condition := range bd.Status.Conditions {
+						if condition.Type == "Deployed" && string(condition.Status) == "False" {
+							found = true
+							g.Expect(condition).ToNot(BeNil(), fmt.Sprintf("Condition with type %q and status %q not found in %v", "Deployed", "", bd.Status.Conditions))
+							g.Expect(condition.Message).To(ContainSubstring(`cannot patch "svc-test" with kind Service: Service "svc-test" is invalid: ` +
+								`spec.ports[1].name: Duplicate value: "myport"`))
+						} else if condition.Type == "Ready" && string(condition.Status) == "False" {
+							found = true
+							g.Expect(condition).ToNot(BeNil(), fmt.Sprintf("Condition with type %q and status %q not found in %v", "Ready", "", bd.Status.Conditions))
+							g.Expect(condition.Message).To(MatchRegexp("service.v1 test-.*/svc-test modified"))
+						}
+					}
+					g.Expect(found).To(BeTrue())
+
 				}).Should(Succeed())
 
 				By("Correcting drift once drift correction is set to force")
 				bd := v1alpha1.BundleDeployment{}
 
-				err := k8sClient.Get(ctx, nsn, &bd, &client.GetOptions{})
+				err := k8sClient.Get(ctx, nsn, &bd)
 				Expect(err).ToNot(HaveOccurred())
 
 				patchedBD := bd.DeepCopy()
@@ -305,15 +306,15 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 
 				By("Restoring the service resource to its previous state")
 				Eventually(func(g Gomega) {
-					err = k8sClient.Get(ctx, nsn, &bd, &client.GetOptions{})
+					err = k8sClient.Get(ctx, nsn, &bd)
 					g.Expect(err).ToNot(HaveOccurred())
 
 					svc, err := env.getService(svcName)
 					g.Expect(err).NotTo(HaveOccurred())
 
 					g.Expect(svc.Spec.Ports).ToNot(BeEmpty())
-					g.Expect(svc.Spec.Ports[0].Port).Should(BeEquivalentTo(80))
-					g.Expect(svc.Spec.Ports[0].TargetPort).Should(BeEquivalentTo(9376))
+					g.Expect(svc.Spec.Ports[0].Port).Should(Equal(int32(80)))
+					g.Expect(svc.Spec.Ports[0].TargetPort.IntVal).Should(BeEquivalentTo(9376))
 					g.Expect(svc.Spec.Ports[0].Name).Should(Equal("myport"))
 				}).Should(Succeed())
 
@@ -342,6 +343,7 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 			BeforeEach(func() {
 				namespace = createNamespace()
 				name = "drift-force-service-port-test"
+				deplID = "v1"
 			})
 
 			It("Corrects drift", func() {
@@ -360,8 +362,8 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 					g.Expect(err).NotTo(HaveOccurred())
 
 					g.Expect(svc.Spec.Ports).ToNot(BeEmpty())
-					g.Expect(svc.Spec.Ports[0].Port).Should(BeEquivalentTo(80))
-					g.Expect(svc.Spec.Ports[0].TargetPort).Should(BeEquivalentTo(9376))
+					g.Expect(svc.Spec.Ports[0].Port).Should(Equal(int32(80)))
+					g.Expect(svc.Spec.Ports[0].TargetPort.IntVal).Should(BeEquivalentTo(9376))
 					g.Expect(svc.Spec.Ports[0].Name).Should(Equal("myport"))
 				}).Should(Succeed())
 
