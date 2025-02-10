@@ -3,6 +3,7 @@ package bundle
 import (
 	"context"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,19 +19,16 @@ import (
 
 	"k8s.io/client-go/rest"
 
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 var (
-	cancel      context.CancelFunc
-	cfg         *rest.Config
-	ctx         context.Context
-	k8sClient   client.Client
-	testenv     *envtest.Environment
-	testEnvBool bool
+	cancel    context.CancelFunc
+	cfg       *rest.Config
+	ctx       context.Context
+	k8sClient client.Client
+	testenv   *envtest.Environment
 
 	namespace string
 )
@@ -41,18 +39,18 @@ func TestFleet(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	SetDefaultEventuallyTimeout(60 * time.Second)
+	SetDefaultEventuallyPollingInterval(1 * time.Second)
+
 	ctx, cancel = context.WithCancel(context.TODO())
-	testenv = utils.NewEnvTest()
-	testEnvBool = true
+	testenv = utils.NewEnvTest("../../..")
 
 	var err error
-	cfg, err = testenv.Start()
+	cfg, err = utils.StartTestEnv(testenv)
 	Expect(err).NotTo(HaveOccurred())
 
 	k8sClient, err = utils.NewClient(cfg)
 	Expect(err).NotTo(HaveOccurred())
-
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
 
 	mgr, err := utils.NewManager(cfg)
 	Expect(err).ToNot(HaveOccurred())

@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path"
-	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -42,13 +41,10 @@ func TestFleetTarget(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
-		ErrorIfCRDPathMissing: true,
-	}
+	testEnv = utils.NewEnvTest("../../..")
 
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, err = utils.StartTestEnv(testEnv)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
