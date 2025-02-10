@@ -97,7 +97,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					shardLabelValue, err := k.Get(
 						"bundle",
 						bundleName,
-						`-o jsonpath='{.metadata.labels.fleet\.cattle\.io/shard-ref}'`,
+						`-o=jsonpath={.metadata.labels.fleet\.cattle\.io/shard-ref}`,
 					)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(shardLabelValue).To(Equal(shard))
@@ -109,7 +109,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 					"local",
 					"-n",
 					"fleet-local",
-					`-o=jsonpath='{.status.namespace}'`,
+					`-o=jsonpath={.status.namespace}`,
 				)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -119,7 +119,7 @@ var _ = Describe("Filtering events by shard", Label("sharding"), func() {
 						bundleName,
 						"-n",
 						clusterNS,
-						`-o=jsonpath='{.metadata.labels.fleet\.cattle\.io/shard-ref}'`,
+						`-o=jsonpath={.metadata.labels.fleet\.cattle\.io/shard-ref}`,
 					)
 					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(shardLabelValue).To(Equal(shard))
