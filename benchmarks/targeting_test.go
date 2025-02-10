@@ -77,4 +77,31 @@ var _ = Context("Benchmarks Targeting", func() {
 			}, gm.Style("{{bold}}"))
 		})
 	})
+
+	Describe("Adding 300 Bundles", Label("create-50-bundle"), func() {
+		BeforeEach(func() {
+			name = "create-300-bundle"
+			info = "creating 300 bundles targeting each cluster"
+		})
+
+		It("creates 300 bundledeployments", func() {
+			DeferCleanup(func() {
+				_, _ = k.Delete("-f", assetPath(name, "bundles.yaml"))
+			})
+
+			experiment.MeasureDuration("TotalDuration", func() {
+				record.MemoryUsage(experiment, "MemDuring")
+
+				_, _ = k.Apply("-f", assetPath(name, "bundles.yaml"))
+				Eventually(func(g Gomega) {
+					list := &v1alpha1.BundleDeploymentList{}
+					err := k8sClient.List(ctx, list, client.MatchingLabels{
+						GroupLabel: name,
+					})
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(len(list.Items)).To(Equal(n * 300))
+				}).Should(Succeed())
+			}, gm.Style("{{bold}}"))
+		})
+	})
 })
