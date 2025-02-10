@@ -55,6 +55,9 @@ jobs:
           api-key: ${{ env.FOSSA_API_KEY }}
           run-tests: false
 
+      - name: Install Ginkgo CLI
+        run: go install github.com/onsi/ginkgo/v2/ginkgo
+
       - name: Check for code changes
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         run: |
@@ -64,9 +67,6 @@ jobs:
       - name: Run unit tests
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         run: go test -cover -tags=test $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
-
-      - name: Install Ginkgo CLI
-        run: go install github.com/onsi/ginkgo/v2/ginkgo
 
       - name: Run integration tests
         continue-on-error: ${{ contains(github.ref, 'rc') }}
