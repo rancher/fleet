@@ -14,12 +14,21 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: svc-ext
+spec:
+  type: ExternalName
+  externalName: svc-ext
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: svc-finalizer
   finalizers:
   - kubernetes
 spec:
   selector:
     app.kubernetes.io/name: MyApp
+  externalName: svc-finalizer
   ports:
     - protocol: TCP
       port: 80
@@ -30,5 +39,6 @@ kind: ConfigMap
 metadata:
   name: cm-test
 data:
+  foo: bar
   test.properties: |
     foo=bar
