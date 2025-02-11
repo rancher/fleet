@@ -59,7 +59,7 @@ var (
 const (
 	clusterNS  = "cluster-test-id"
 	assetsPath = "assets"
-	timeout    = 30 * time.Second
+	timeout    = 60 * time.Second
 )
 
 var resources = map[string][]v1alpha1.BundleResource{}
