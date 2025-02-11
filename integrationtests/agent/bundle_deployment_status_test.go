@@ -84,14 +84,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			bd := &v1alpha1.BundleDeployment{}
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bd.Status.Resources).To(HaveLen(3))
+			Expect(bd.Status.Resources).To(HaveLen(4))
 			ts := bd.Status.Resources[0].CreatedAt
 			Expect(ts.Time).ToNot(BeZero())
 			Expect(bd.Status.Resources).To(ContainElement(v1alpha1.BundleDeploymentResource{
 				Kind:       "Service",
 				APIVersion: "v1",
 				Namespace:  namespace,
-				Name:       "svc-test",
+				Name:       svcName,
 				CreatedAt:  ts,
 			}))
 		})
@@ -111,7 +111,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-test",
+						Name:       svcName,
 						Create:     false,
 						Delete:     false,
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
@@ -157,7 +157,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-finalizer",
+						Name:       svcFinalizerName,
 						Create:     false,
 						Delete:     true,
 						Patch:      "",
@@ -198,7 +198,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-test",
+						Name:       svcName,
 						Create:     true,
 						Delete:     false,
 						Patch:      "",
@@ -253,14 +253,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			bd := &v1alpha1.BundleDeployment{}
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bd.Status.Resources).To(HaveLen(3))
+			Expect(bd.Status.Resources).To(HaveLen(4))
 			ts := bd.Status.Resources[0].CreatedAt
 			Expect(ts.Time).ToNot(BeZero())
 			Expect(bd.Status.Resources).To(ContainElement(v1alpha1.BundleDeploymentResource{
 				Kind:       "Service",
 				APIVersion: "v1",
 				Namespace:  namespace,
-				Name:       "svc-test",
+				Name:       svcName,
 				CreatedAt:  ts,
 			}))
 		})
@@ -280,7 +280,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-test",
+						Name:       svcName,
 						Create:     false,
 						Delete:     false,
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
@@ -326,7 +326,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-finalizer",
+						Name:       svcFinalizerName,
 						Create:     false,
 						Delete:     true,
 						Patch:      "",
@@ -367,7 +367,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-test",
+						Name:       svcName,
 						Create:     true,
 						Delete:     false,
 						Patch:      "",
