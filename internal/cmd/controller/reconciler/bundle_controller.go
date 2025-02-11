@@ -350,9 +350,11 @@ func (r *BundleReconciler) createBundleDeployment(
 
 	bd.Spec.OCIContents = contentsInOCI
 	bd.Spec.HelmChartOptions = helmAppOptions
+	logger = logger.WithValues("bundledeployment", bd, "deploymentID", bd.Spec.DeploymentID)
+	contentsInHelmChart := helmAppOptions != nil
 
-	// contents resources stored in etcd, finalizers to add here.
-	if !contentsInOCI {
+	// When content resources are stored in etcd, we need to add finalizers.
+	if !contentsInOCI && !contentsInHelmChart {
 		content := &fleet.Content{}
 		err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content)
 		if client.IgnoreNotFound(err) != nil {
@@ -367,7 +369,6 @@ func (r *BundleReconciler) createBundleDeployment(
 		}
 	}
 
-	contentsInHelmChart := helmAppOptions != nil
 	updated := bd.DeepCopy()
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
 		// When this mutation function is called by CreateOrUpdate, bd contains the
@@ -380,14 +381,7 @@ func (r *BundleReconciler) createBundleDeployment(
 			bd.Spec.DeploymentID != "" &&
 			bd.Spec.DeploymentID != updated.Spec.DeploymentID {
 			if err := finalize.PurgeContent(ctx, r.Client, bd.Name, bd.Spec.DeploymentID); err != nil {
-				logger.Error(
-					err,
-					"Reconcile failed to purge old content resource",
-					"bundledeployment",
-					bd,
-					"deploymentID",
-					bd.Spec.DeploymentID,
-				)
+				logger.Error(err, "Reconcile failed to purge old content resource")
 			}
 		}
 
@@ -397,17 +391,10 @@ func (r *BundleReconciler) createBundleDeployment(
 		return nil
 	})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		logger.Error(
-			err,
-			"Reconcile failed to create or update bundledeployment",
-			"bundledeployment",
-			bd,
-			"operation",
-			op,
-		)
+		logger.Error(err, "Reconcile failed to create or update bundledeployment", "operation", op)
 		return nil, err
 	}
-	logger.V(1).Info(upper(op)+" bundledeployment", "bundledeployment", bd, "operation", op)
+	logger.Info(upper(op)+" bundledeployment", "operation", op)
 
 	return bd, nil
 }
@@ -444,7 +431,7 @@ func (r *BundleReconciler) createDeploymentSecret(ctx context.Context, secretNam
 
 func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bundle) (string, error) {
 	if bundle.Spec.ContentsID == "" {
-		return "", fmt.Errorf("cannot get OCI reference. Bundles's ContentsID is not set")
+		return "", fmt.Errorf("cannot get OCI reference. Bundle's ContentsID is not set")
 	}
 	namespacedName := types.NamespacedName{
 		Namespace: bundle.Namespace,
