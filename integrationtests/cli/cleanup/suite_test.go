@@ -2,8 +2,6 @@ package cleanup
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -20,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -49,18 +46,12 @@ func TestFleetCLICleanUp(t *testing.T) {
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
 	ctx, cancel = context.WithCancel(context.TODO())
-	if os.Getenv("DEBUG") != "" {
-		ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
-	}
+
+	testEnv = utils.NewEnvTest("../../..")
 	ctx = log.IntoContext(ctx, ctrl.Log)
 
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
-		ErrorIfCRDPathMissing: true,
-	}
-
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, err = utils.StartTestEnv(testEnv)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 

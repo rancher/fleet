@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -30,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -73,15 +71,10 @@ var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
 
 	ctx, cancel = context.WithCancel(context.TODO())
-	existing := os.Getenv("CI_USE_EXISTING_CLUSTER") == "true"
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
-		ErrorIfCRDPathMissing: true,
-		UseExistingCluster:    &existing,
-	}
+	testEnv = utils.NewEnvTest("../..")
 
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, err = utils.StartTestEnv(testEnv)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
@@ -91,11 +84,6 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
-
-	zopts := zap.Options{
-		Development: true,
-	}
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:         scheme.Scheme,
