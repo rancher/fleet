@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
+
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,19 +64,19 @@ var (
 func TestMain(m *testing.M) {
 	teardown := setupSuite()
 	code := m.Run()
-	teardown()
+	teardown(code)
 	os.Exit(code)
 }
 
-func setupSuite() func() {
+func setupSuite() func(code int) {
 	ctx := context.Background()
 	var err error
 	t := &testing.T{}
 	container, url, err = createGogsContainer(ctx, createTempFolder(t))
 	require.NoError(t, err, "creating gogs container failed")
 
-	return func() {
-		terminateContainer(ctx, container, t)
+	return func(code int) {
+		terminateContainer(ctx, container, code, t)
 	}
 }
 
@@ -374,7 +376,6 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 					Target: "/data",
 				},
 			}
-
 		},
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -649,7 +650,20 @@ func makeSSHKeyPair() (string, string, error) {
 	return pubKeyBuf.String(), privKeyBuf.String(), nil
 }
 
-func terminateContainer(ctx context.Context, container testcontainers.Container, t *testing.T) {
+func terminateContainer(ctx context.Context, container testcontainers.Container, code int, t *testing.T) {
+	if code != 0 {
+		rc, err := container.Logs(ctx)
+		if err != nil {
+			t.Fatalf("failed to get logs: %s", err.Error())
+		}
+		defer rc.Close()
+		b, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("failed to read logs: %s", err.Error())
+		}
+		fmt.Printf("Container logs:\n%s\n", string(b))
+	}
+
 	if err := container.Terminate(ctx); err != nil {
 		t.Fatalf("failed to terminate container: %s", err.Error())
 	}
