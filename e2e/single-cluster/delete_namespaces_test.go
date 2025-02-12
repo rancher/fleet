@@ -77,7 +77,7 @@ var _ = Describe("delete namespaces", func() {
 
 		It("targetNamespace is deleted after deleting gitRepo", func() {
 			_, err := k.Get("namespaces", targetNamespace)
-			Expect(err).To(BeNil())
+			Expect(err).ToNot(HaveOccurred())
 
 			out, err := k.Delete("gitrepo", "my-gitrepo", "-n", "fleet-local")
 			Expect(err).ToNot(HaveOccurred(), out)
@@ -85,7 +85,7 @@ var _ = Describe("delete namespaces", func() {
 			Eventually(func() error {
 				_, err = k.Get("namespaces", targetNamespace)
 				return err
-			}).ShouldNot(BeNil())
+			}).ShouldNot(Succeed())
 		})
 	})
 

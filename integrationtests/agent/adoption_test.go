@@ -16,22 +16,6 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-func init() {
-	resources["BundleDeploymentConfigMap"] = []v1alpha1.BundleResource{
-		{
-			Name: "configmap.yaml",
-			Content: `apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cm1
-data:
-  key: value
-`,
-			Encoding: "",
-		},
-	}
-}
-
 var _ = Describe("Adoption", Label("adopt"), func() {
 	var (
 		namespace string
@@ -191,7 +175,7 @@ func (e adoptEnv) createBundleDeployment(name string, takeOwnership bool) {
 	}
 
 	err := k8sClient.Create(context.TODO(), &bundled)
-	Expect(err).To(BeNil())
+	Expect(err).ToNot(HaveOccurred())
 	Expect(bundled).To(Not(BeNil()))
 	Expect(bundled.Spec.DeploymentID).ToNot(Equal(bundled.Status.AppliedDeploymentID))
 	Expect(bundled.Status.Ready).To(BeFalse())

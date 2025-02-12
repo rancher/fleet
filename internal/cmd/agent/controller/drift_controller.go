@@ -68,6 +68,9 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	orig := bd.DeepCopy()
+	if bd.Spec.CorrectDrift != nil {
+		logger = logger.WithValues("enabled", bd.Spec.CorrectDrift.Enabled, "force", bd.Spec.CorrectDrift.Force)
+	}
 
 	if bd.Spec.Paused {
 		logger.V(1).Info("Bundle paused, clearing drift detection")
@@ -88,6 +91,7 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	// return early if the bundledeployment is still being installed
 	if !monitor.ShouldUpdateStatus(bd) {
+		logger.V(1).Info("BundleDeployment is still being installed")
 		return ctrl.Result{}, nil
 	}
 
@@ -99,6 +103,7 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	// run drift correction
 	if len(bd.Status.ModifiedStatus) > 0 && bd.Spec.CorrectDrift != nil && bd.Spec.CorrectDrift.Enabled {
+		logger.V(1).Info("Removing external changes")
 		if release, err := r.Deployer.RemoveExternalChanges(ctx, bd); err != nil {
 			merr = append(merr, fmt.Errorf("failed reconciling drift: %w", err))
 			// Propagate drift correction error to bundle deployment status.
@@ -109,22 +114,15 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	// final status update
-	logger.V(1).Info("Reconcile finished, updating the bundledeployment status")
-	err = r.updateStatus(ctx, orig, bd)
+	statusPatch := client.MergeFrom(orig)
+	err = r.Status().Patch(ctx, bd, statusPatch)
 	if apierrors.IsNotFound(err) {
 		merr = append(merr, fmt.Errorf("bundledeployment has been deleted: %w", err))
 	} else if err != nil {
 		merr = append(merr, fmt.Errorf("failed final update to bundledeployment status: %w", err))
+	} else {
+		logger.V(1).Info("Reconcile finished, bundledeployment status updated", "statusPatch", statusPatch)
 	}
 
 	return ctrl.Result{}, errutil.NewAggregate(merr)
-}
-
-func (r *DriftReconciler) updateStatus(
-	ctx context.Context,
-	orig *fleetv1.BundleDeployment,
-	obj *fleetv1.BundleDeployment,
-) error {
-	statusPatch := client.MergeFrom(orig)
-	return r.Status().Patch(ctx, obj, statusPatch)
 }

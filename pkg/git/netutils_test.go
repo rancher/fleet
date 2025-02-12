@@ -413,7 +413,7 @@ MC4CAQAwBQYDK2VwBCIEINifzf07d9qx3d44e0FSbV4mC/xQxT644RRbpgNpin7I
 		It("returns a client's transport with certificates", func() {
 			expectedTransport, ok := client.Transport.(*http.Transport)
 			Expect(ok).To(BeTrue())
-			Expect(len(expectedTransport.TLSClientConfig.Certificates)).ToNot(BeZero())
+			Expect(expectedTransport.TLSClientConfig.Certificates).ToNot(BeEmpty())
 		})
 	})
 

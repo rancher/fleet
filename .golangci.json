@@ -38,7 +38,8 @@
       "gosimple",
       "typecheck",
       "unused",
-      "funlen"
+      "funlen",
+      "ginkgolinter"
     ]
   },
   "issues": {
@@ -70,6 +71,7 @@
         "linters": [
           "gocyclo",
           "dupl",
+          "funlen",
           "gosec"
         ]
       },

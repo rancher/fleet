@@ -65,7 +65,7 @@ var _ = Describe("GitRepo", func() {
 				g.Expect(gitrepo.ResourceVersion > org).To(BeTrue())
 				g.Expect(gitrepo.Status.Display.ReadyBundleDeployments).To(Equal("0/0"))
 				g.Expect(gitrepo.Status.Display.Error).To(BeFalse())
-				g.Expect(len(gitrepo.Status.Conditions)).To(Equal(5))
+				g.Expect(gitrepo.Status.Conditions).To(HaveLen(5))
 				g.Expect(checkCondition(gitrepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())
 				g.Expect(checkCondition(gitrepo, "Reconciling", corev1.ConditionTrue, "")).To(BeTrue())
 				g.Expect(checkCondition(gitrepo, "Stalled", corev1.ConditionFalse, "")).To(BeTrue())

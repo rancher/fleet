@@ -69,7 +69,7 @@ var _ = Describe("git's vendor specific functions tests", func() {
 			svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				accept, ok := r.Header["Accept"]
 				Expect(ok).To(BeTrue())
-				Expect(len(accept)).To(Equal(1))
+				Expect(accept).To(HaveLen(1))
 				Expect(accept[0]).To(Equal("application/vnd.github.v3.sha"))
 				w.WriteHeader(http.StatusNotModified)
 			}))

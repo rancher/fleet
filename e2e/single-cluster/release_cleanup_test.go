@@ -217,7 +217,7 @@ func checkRelease(namespace, releaseName string) {
 
 		releases = strings.Split(strings.TrimSpace(string(out)), "\n")
 
-		g.Expect(len(releases)).To(Equal(1), strings.Join(releases, ","))
+		g.Expect(releases).To(HaveLen(1), strings.Join(releases, ","))
 		g.Expect(releases[0]).To(Equal(releaseName))
 	}).Should(Succeed())
 }

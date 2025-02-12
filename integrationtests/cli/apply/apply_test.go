@@ -40,7 +40,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		It("then a Bundle is created with all the resources and keepResources is false", func() {
 			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(bundle.Spec.Resources)).To(Equal(2))
+			Expect(bundle.Spec.Resources).To(HaveLen(2))
 			Expect(cli.AssetsPath + "simple/svc.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
 			Expect(cli.AssetsPath + "simple/deployment.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
 			Expect(bundle.Spec.KeepResources).Should(BeFalse())
@@ -56,7 +56,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		It("then a Bundle is created with all the resources", func() {
 			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(bundle.Spec.Resources)).To(Equal(3))
+			Expect(bundle.Spec.Resources).To(HaveLen(3))
 			Expect(cli.AssetsPath + "nested_simple/simple/svc.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_simple/simple/deployment.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_simple/README.md").To(bePresentInBundleResources(bundle.Spec.Resources))
@@ -72,7 +72,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		It("then a Bundle is created with all the resources", func() {
 			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(bundle.Spec.Resources)).To(Equal(2))
+			Expect(bundle.Spec.Resources).To(HaveLen(2))
 			Expect(cli.AssetsPath + "nested_two_levels/nested/svc/svc.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_two_levels/nested/deployment/deployment.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
 		})
@@ -87,14 +87,14 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		It("then 3 Bundles are created with the relevant resources", func() {
 			bundle, err := cli.GetBundleListFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(bundle)).To(Equal(3))
+			Expect(bundle).To(HaveLen(3))
 			deploymentA := bundle[0]
 			deploymentB := bundle[1]
 			deploymentC := bundle[2]
 
-			Expect(len(deploymentA.Spec.Resources)).To(Equal(2))
-			Expect(len(deploymentB.Spec.Resources)).To(Equal(2))
-			Expect(len(deploymentC.Spec.Resources)).To(Equal(2))
+			Expect(deploymentA.Spec.Resources).To(HaveLen(2))
+			Expect(deploymentB.Spec.Resources).To(HaveLen(2))
+			Expect(deploymentC.Spec.Resources).To(HaveLen(2))
 
 			Expect(cli.AssetsPath + "nested_multiple/deploymentA/fleet.yaml").To(bePresentInBundleResources(deploymentA.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_multiple/deploymentA/svc/svc.yaml").To(bePresentInBundleResources(deploymentA.Spec.Resources))
@@ -114,14 +114,14 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		It("then Bundles are created with all the resources", func() {
 			bundle, err := cli.GetBundleListFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(bundle)).To(Equal(3))
+			Expect(bundle).To(HaveLen(3))
 			root := bundle[0]
 			deploymentA := bundle[1]
 			deploymentC := bundle[2]
 
-			Expect(len(deploymentA.Spec.Resources)).To(Equal(2))
-			Expect(len(deploymentC.Spec.Resources)).To(Equal(1))
-			Expect(len(root.Spec.Resources)).To(Equal(5))
+			Expect(deploymentA.Spec.Resources).To(HaveLen(2))
+			Expect(deploymentC.Spec.Resources).To(HaveLen(1))
+			Expect(root.Spec.Resources).To(HaveLen(5))
 
 			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentA/fleet.yaml").To(bePresentInBundleResources(deploymentA.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentA/deployment.yaml").To(bePresentInBundleResources(deploymentA.Spec.Resources))
@@ -240,10 +240,10 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			// files expected are:
 			// Chart.yaml + values.yaml + templates/configmap.yaml +
 			// Chart.lock + charts/config-chart-0.1.0.tgz
-			Expect(len(bundle.Spec.Resources)).To(Equal(5))
+			Expect(bundle.Spec.Resources).To(HaveLen(5))
 			files, err := getAllFilesInDir(tmpDir)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(files)).To(Equal(len(bundle.Spec.Resources)))
+			Expect(files).To(HaveLen(len(bundle.Spec.Resources)))
 			for _, file := range files {
 				Expect(file).To(bePresentInBundleResources(bundle.Spec.Resources))
 			}
@@ -264,10 +264,10 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			// files expected are:
 			// Chart.yaml + values.yaml + templates/configmap.yaml + fleet.yaml +
 			// Chart.lock + charts/config-chart-0.1.0.tgz
-			Expect(len(bundle.Spec.Resources)).To(Equal(6))
+			Expect(bundle.Spec.Resources).To(HaveLen(6))
 			files, err := getAllFilesInDir(tmpDirRel)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(files)).To(Equal(len(bundle.Spec.Resources)))
+			Expect(files).To(HaveLen(len(bundle.Spec.Resources)))
 			for _, file := range files {
 				Expect(file).To(bePresentInBundleResources(bundle.Spec.Resources))
 			}
@@ -287,10 +287,10 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			Expect(err).NotTo(HaveOccurred())
 			// files expected are:
 			// Chart.yaml + values.yaml + templates/configmap.yaml + fleet.yaml
-			Expect(len(bundle.Spec.Resources)).To(Equal(4))
+			Expect(bundle.Spec.Resources).To(HaveLen(4))
 			files, err := getAllFilesInDir(tmpDirRel)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(files)).To(Equal(len(bundle.Spec.Resources)))
+			Expect(files).To(HaveLen(len(bundle.Spec.Resources)))
 			for _, file := range files {
 				Expect(file).To(bePresentInBundleResources(bundle.Spec.Resources))
 			}
@@ -313,7 +313,7 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			// expected files are:
 			// fleet.yaml + Chart.yaml + values.yaml + templates/configmap.yaml +
 			// Chart.lock + charts/config-chart-0.1.0.tgz
-			Expect(len(bundle.Spec.Resources)).To(Equal(6))
+			Expect(bundle.Spec.Resources).To(HaveLen(6))
 			Expect(path.Join(tmpDirRel, "fleet.yaml")).To(bePresentInBundleResources(bundle.Spec.Resources))
 			// as files were unpacked from the downloaded chart we can't just
 			// list the files in the original folder and compare.
@@ -337,7 +337,7 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			// expected files are:
 			// fleet.yaml +
 			// Chart.yaml + values.yaml + templates/configmap.yaml
-			Expect(len(bundle.Spec.Resources)).To(Equal(4))
+			Expect(bundle.Spec.Resources).To(HaveLen(4))
 			Expect(path.Join(tmpDirRel, "fleet.yaml")).To(bePresentInBundleResources(bundle.Spec.Resources))
 			// as files were unpacked from the downloaded chart we can't just
 			// list the files in the original folder and compare.
@@ -362,7 +362,7 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 		It("creates Bundles with the corresponding resources, depending if they should update dependencies", func() {
 			bundle, err := cli.GetBundleListFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(bundle)).To(Equal(3))
+			Expect(bundle).To(HaveLen(3))
 			remoteDepl := bundle[0]
 			simpleDepl := bundle[1]
 			noDepsDepl := bundle[2]
@@ -371,7 +371,7 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			// expected files are:
 			// fleet.yaml +
 			// Chart.yaml + values.yaml + templates/configmap.yaml + Chart.lock + charts/config-chart-0.1.0.tgz
-			Expect(len(remoteDepl.Spec.Resources)).To(Equal(6))
+			Expect(remoteDepl.Spec.Resources).To(HaveLen(6))
 			Expect(path.Join(tmpDirRel, "remote-chart-with-deps", "fleet.yaml")).To(bePresentInBundleResources(remoteDepl.Spec.Resources))
 			// as files were unpacked from the downloaded chart we can't just
 			// list the files in the original folder and compare.
@@ -386,10 +386,10 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			// expected files are:
 			// fleet.yaml + Chart.yaml + values.yaml + templates/configmap.yaml +
 			// Chart.lock + charts/config-chart-0.1.0.tgz
-			Expect(len(simpleDepl.Spec.Resources)).To(Equal(6))
+			Expect(simpleDepl.Spec.Resources).To(HaveLen(6))
 			files, err := getAllFilesInDir(path.Join(tmpDirRel, "simple-with-fleet-yaml"))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(files)).To(Equal(len(simpleDepl.Spec.Resources)))
+			Expect(files).To(HaveLen(len(simpleDepl.Spec.Resources)))
 			for _, file := range files {
 				Expect(file).To(bePresentInBundleResources(simpleDepl.Spec.Resources))
 			}
@@ -400,10 +400,10 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			// noDepsDepl corresponds to multi-char/simple-with-fleet-yaml-no-deps
 			// expected files are:
 			// Chart.yaml + fleet.yaml + values.yaml + templates/configmap.yaml
-			Expect(len(noDepsDepl.Spec.Resources)).To(Equal(4))
+			Expect(noDepsDepl.Spec.Resources).To(HaveLen(4))
 			files, err = getAllFilesInDir(path.Join(tmpDirRel, "simple-with-fleet-yaml-no-deps"))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(files)).To(Equal(len(noDepsDepl.Spec.Resources)))
+			Expect(files).To(HaveLen(len(noDepsDepl.Spec.Resources)))
 			for _, file := range files {
 				Expect(file).To(bePresentInBundleResources(noDepsDepl.Spec.Resources))
 			}
