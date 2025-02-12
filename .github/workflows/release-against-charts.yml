@@ -5,7 +5,7 @@ on:
       charts_ref:
         description: "Submit PR against the following rancher/charts branch (e.g. dev-v2.7)"
         required: true
-        default: "dev-v2.9"
+        default: "dev-v2.10"
       prev_fleet:
         description: "Previous Fleet version (e.g. 0.6.0-rc.3)"
         required: true
@@ -47,7 +47,10 @@ jobs:
         with:
           go-version: '1.22.*'
       - name: Install dependencies
-        run: sudo snap install yq --channel=v4/stable
+        run: |
+          sudo apt-get update
+          sudo apt install -y --allow-change-held-packages snapd
+          sudo snap install yq --channel=v4/stable
       - name: Run release script
         run: |
           export CHARTS_DIR="${GITHUB_WORKSPACE}/charts"

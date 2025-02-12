@@ -8,20 +8,15 @@ upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 # The single downstream cluster to import the agent image to.
 downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream1}"
 
-# If multi-cluster is enabled, import the agent image to all downstream clusters.
-FLEET_E2E_DS_CLUSTER_COUNT="${FLEET_E2E_DS_CLUSTER_COUNT:-1}"
-
 k3d image import rancher/fleet:dev rancher/fleet-agent:dev -m direct -c "${upstream_ctx#k3d-}"
 
+downstream_keyword="${downstream_ctx#k3d-}"
+downstream_keyword="${downstream_keyword%[0-9]*}"
 if [ "$upstream_ctx" != "$downstream_ctx" ]; then
-  if [ "$FLEET_E2E_DS_CLUSTER_COUNT" -gt 1 ]; then
-    for cluster in $(k3d cluster list -o json | \
-        jq -r ".[].name | select(. | contains(\"${downstream_ctx#k3d-}\"))"); do
-      k3d image import rancher/fleet-agent:dev -m direct -c "${cluster}"
-    done
-  else
-    k3d image import rancher/fleet-agent:dev -m direct -c "${downstream_ctx#k3d-}"
-  fi
+  for cluster in $(k3d cluster list -o json | \
+      jq -r ".[].name | select(. | contains(\"${downstream_keyword}\"))"); do
+    k3d image import rancher/fleet-agent:dev -m direct -c "${cluster}"
+  done
 else
   echo "not importing agent to any downstream clusters. Set FLEET_E2E_CLUSTER_DOWNSTREAM"
 fi

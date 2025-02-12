@@ -12,131 +12,137 @@ import (
 )
 
 func TestSetResources(t *testing.T) {
-	list := &fleet.BundleDeploymentList{
-		Items: []fleet.BundleDeployment{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "bd1",
-					Namespace: "ns1-cluster1-ns",
-					Labels: map[string]string{
-						fleet.ClusterLabel:          "cluster1",
-						fleet.ClusterNamespaceLabel: "c-ns1",
-					},
-				},
-				Spec: fleet.BundleDeploymentSpec{
-					DeploymentID: "id2",
-				},
-				Status: fleet.BundleDeploymentStatus{
-					AppliedDeploymentID: "id1",
-					Resources: []fleet.BundleDeploymentResource{
-						{
-							Kind:       "Deployment",
-							APIVersion: "v1",
-							Name:       "web",
-							Namespace:  "default",
-						},
-						{
-							// extra service for one cluster
-							Kind:       "Service",
-							APIVersion: "v1",
-							Name:       "web-svc",
-							Namespace:  "default",
-						},
-					},
-					ResourceCounts: fleet.ResourceCounts{
-						DesiredReady: 2,
-						WaitApplied:  2,
-					},
+	list := []fleet.BundleDeployment{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bd1",
+				Namespace: "ns1-cluster1-ns",
+				Labels: map[string]string{
+					fleet.ClusterLabel:          "cluster1",
+					fleet.ClusterNamespaceLabel: "c-ns1",
 				},
 			},
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "bd1",
-					Namespace: "ns1-cluster2-ns",
-					Labels: map[string]string{
-						fleet.ClusterLabel:          "cluster2",
-						fleet.ClusterNamespaceLabel: "c-ns1",
+			Spec: fleet.BundleDeploymentSpec{
+				DeploymentID: "id2",
+			},
+			Status: fleet.BundleDeploymentStatus{
+				Ready:               false,
+				NonModified:         true,
+				AppliedDeploymentID: "id1",
+				Resources: []fleet.BundleDeploymentResource{
+					{
+						Kind:       "Deployment",
+						APIVersion: "v1",
+						Name:       "web",
+						Namespace:  "default",
+					},
+					{
+						// extra service for one cluster
+						Kind:       "Service",
+						APIVersion: "v1",
+						Name:       "web-svc",
+						Namespace:  "default",
 					},
 				},
-				Status: fleet.BundleDeploymentStatus{
-					Resources: []fleet.BundleDeploymentResource{
-						{
-							Kind:       "Deployment",
-							APIVersion: "v1",
-							Name:       "web",
-							Namespace:  "default",
-						},
-					},
-					ResourceCounts: fleet.ResourceCounts{
-						DesiredReady: 1,
-						Ready:        1,
-					},
+				ResourceCounts: fleet.ResourceCounts{
+					DesiredReady: 2,
+					WaitApplied:  2,
 				},
 			},
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "bd2",
-					Namespace: "ns1-cluster2-ns",
-					Labels: map[string]string{
-						fleet.ClusterLabel:          "cluster2",
-						fleet.ClusterNamespaceLabel: "c-ns1",
-					},
-				},
-				Status: fleet.BundleDeploymentStatus{
-					Resources: []fleet.BundleDeploymentResource{
-						{
-							Kind:       "ConfigMap",
-							APIVersion: "v1",
-							Name:       "cm-web",
-							Namespace:  "default",
-						},
-					},
-					ResourceCounts: fleet.ResourceCounts{
-						DesiredReady: 1,
-						Ready:        1,
-					},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bd1",
+				Namespace: "ns1-cluster2-ns",
+				Labels: map[string]string{
+					fleet.ClusterLabel:          "cluster2",
+					fleet.ClusterNamespaceLabel: "c-ns1",
 				},
 			},
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "bd1",
-					Namespace: "ns2-cluster1",
-					Labels: map[string]string{
-						fleet.ClusterLabel:          "cluster1",
-						fleet.ClusterNamespaceLabel: "c-ns2",
+			Status: fleet.BundleDeploymentStatus{
+				Ready:       true,
+				NonModified: true,
+				Resources: []fleet.BundleDeploymentResource{
+					{
+						Kind:       "Deployment",
+						APIVersion: "v1",
+						Name:       "web",
+						Namespace:  "default",
 					},
 				},
-				Spec: fleet.BundleDeploymentSpec{
-					DeploymentID: "id2",
+				ResourceCounts: fleet.ResourceCounts{
+					DesiredReady: 1,
+					Ready:        1,
 				},
-				Status: fleet.BundleDeploymentStatus{
-					AppliedDeploymentID: "id1",
-					NonReadyStatus: []fleet.NonReadyStatus{
-						{
-							Kind:       "Deployment",
-							APIVersion: "v1",
-							Name:       "web",
-							Namespace:  "default",
-							Summary: summary.Summary{
-								State:         "Pending",
-								Error:         true,
-								Transitioning: true,
-								Message:       []string{"message1", "message2"},
-							},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bd2",
+				Namespace: "ns1-cluster2-ns",
+				Labels: map[string]string{
+					fleet.ClusterLabel:          "cluster2",
+					fleet.ClusterNamespaceLabel: "c-ns1",
+				},
+			},
+			Status: fleet.BundleDeploymentStatus{
+				Ready:       true,
+				NonModified: true,
+				Resources: []fleet.BundleDeploymentResource{
+					{
+						Kind:       "ConfigMap",
+						APIVersion: "v1",
+						Name:       "cm-web",
+						Namespace:  "default",
+					},
+				},
+				ResourceCounts: fleet.ResourceCounts{
+					DesiredReady: 1,
+					Ready:        1,
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bd1",
+				Namespace: "ns2-cluster1",
+				Labels: map[string]string{
+					fleet.ClusterLabel:          "cluster1",
+					fleet.ClusterNamespaceLabel: "c-ns2",
+				},
+			},
+			Spec: fleet.BundleDeploymentSpec{
+				DeploymentID: "id2",
+			},
+			Status: fleet.BundleDeploymentStatus{
+				Ready:               false,
+				NonModified:         true,
+				AppliedDeploymentID: "id1",
+				NonReadyStatus: []fleet.NonReadyStatus{
+					{
+						Kind:       "Deployment",
+						APIVersion: "v1",
+						Name:       "web",
+						Namespace:  "default",
+						Summary: summary.Summary{
+							State:         "Pending",
+							Error:         true,
+							Transitioning: true,
+							Message:       []string{"message1", "message2"},
 						},
 					},
-					Resources: []fleet.BundleDeploymentResource{
-						{
-							Kind:       "Deployment",
-							APIVersion: "v1",
-							Name:       "web",
-							Namespace:  "default",
-						},
+				},
+				Resources: []fleet.BundleDeploymentResource{
+					{
+						Kind:       "Deployment",
+						APIVersion: "v1",
+						Name:       "web",
+						Namespace:  "default",
 					},
-					ResourceCounts: fleet.ResourceCounts{
-						DesiredReady: 1,
-						NotReady:     1,
-					},
+				},
+				ResourceCounts: fleet.ResourceCounts{
+					DesiredReady: 1,
+					NotReady:     1,
 				},
 			},
 		},
@@ -160,15 +166,10 @@ func TestSetResources(t *testing.T) {
 		Error:           false,
 		Transitioning:   false,
 		Message:         "",
-		PerClusterState: []fleet.ResourcePerClusterState{
-			{
-				State:         "Pending",
-				ClusterID:     "c-ns2/cluster1",
-				Error:         true,
-				Transitioning: true,
-				Message:       "message1; message2",
-				Patch:         nil,
-			},
+		PerClusterState: fleet.PerClusterState{
+			Ready:       []string{"c-ns1/cluster2"},
+			WaitApplied: []string{"c-ns1/cluster1"},
+			Pending:     []string{"c-ns2/cluster1"},
 		},
 	})
 	assert.Contains(t, status.Resources, fleet.Resource{
@@ -185,10 +186,10 @@ func TestSetResources(t *testing.T) {
 		Error:           false,
 		Transitioning:   false,
 		Message:         "",
-		PerClusterState: []fleet.ResourcePerClusterState{},
+		PerClusterState: fleet.PerClusterState{
+			WaitApplied: []string{"c-ns1/cluster1"},
+		},
 	})
-
-	assert.Empty(t, status.ResourceErrors)
 
 	assert.Equal(t, fleet.ResourceCounts{
 		Ready:        2,

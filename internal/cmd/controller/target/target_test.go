@@ -112,6 +112,17 @@ func TestProcessLabelValues(t *testing.T) {
 const bundleYamlWithTemplate = `namespace: default
 helm:
   releaseName: labels
+  templateValues:
+    mapData: |
+      ${- range $key := .ClusterValues.items }
+      "${ $key }":
+        nested: "true"
+      ${- end}
+    listData: |
+      ${- range $key := .ClusterValues.items }
+      - "${ $key }":
+        nested: "true"
+      ${- end}
   values:
     clusterName: "${ .ClusterLabels.name }"
     fromAnnotation: "${ .ClusterAnnotations.testAnnotation }"
@@ -154,6 +165,10 @@ func TestProcessTemplateValues(t *testing.T) {
 				"thirdTier": "bar",
 			},
 		},
+		"items": []string{
+			"one",
+			"two",
+		},
 		"list": []string{
 			"alpha",
 			"beta",
@@ -187,7 +202,7 @@ func TestProcessTemplateValues(t *testing.T) {
 
 	templatedValues, err := processTemplateValues(bundle.Helm.Values.Data, values)
 	if err != nil {
-		t.Fatalf("error during label processing %v", err)
+		t.Fatalf("error during templated values processing %v", err)
 	}
 
 	clusterName, ok := templatedValues["clusterName"]
@@ -314,6 +329,70 @@ func TestProcessTemplateValues(t *testing.T) {
 		t.Fatal("join func was not right")
 	}
 
+	templatedValuesData, err := processTemplateValuesData(bundle.Helm.TemplateValues, values)
+	if err != nil {
+		t.Fatalf("error during templated values processing %v", err)
+	}
+
+	mapData, ok := templatedValuesData["mapData"].(map[string]interface{})
+	if !ok {
+		t.Fatal("mapData not found")
+	}
+
+	one, ok := mapData["one"]
+	if !ok {
+		t.Fatal("unable to find key one")
+	}
+
+	oneData, ok := one.(map[string]interface{})
+	if !ok {
+		t.Fatal("one key was not right")
+	}
+
+	if oneData["nested"].(string) != "true" {
+		t.Fatal("one value was not right")
+	}
+
+	two, ok := mapData["two"]
+	if !ok {
+		t.Fatal("unable to find key two")
+	}
+
+	twoData, ok := two.(map[string]interface{})
+	if !ok {
+		t.Fatal("two key was not right")
+	}
+
+	if twoData["nested"].(string) != "true" {
+		t.Fatal("two value was not right")
+	}
+
+	listData, ok := templatedValuesData["listData"].([]interface{})
+	if !ok {
+		t.Fatal("listData not found")
+	}
+
+	if len(listData) != 2 {
+		t.Fatal("unable to find all listData keys")
+	}
+
+	oneListData, ok := listData[0].(map[string]interface{})
+	if !ok {
+		t.Fatal("oneListData key is not right")
+	}
+
+	if oneListData["nested"] != "true" {
+		t.Fatal("oneListData item is missing")
+	}
+
+	twoListData, ok := listData[1].(map[string]interface{})
+	if !ok {
+		t.Fatal("twoListData key is not right")
+	}
+
+	if twoListData["nested"] != "true" {
+		t.Fatal("twoListData item is missing")
+	}
 }
 
 const clusterYamlWithTemplateValues = `apiVersion: fleet.cattle.io/v1alpha1
@@ -393,7 +472,7 @@ func TestDisablePreProcessFlagEnabled(t *testing.T) {
 			t.Fatalf("key %s not found", testCase.Key)
 		} else {
 			if field != testCase.ExpectedValue {
-				t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", testCase.Key, field, testCase.ExpectedValue)
+				t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", testCase.Key, testCase.ExpectedValue, field)
 			}
 		}
 
@@ -405,8 +484,11 @@ const bundleYamlWithDisablePreProcessDisabled = `namespace: default
 helm:
   disablePreprocess: false
   releaseName: labels
+  templateValues:
+    overridden: "something_templated"
   values:
     clusterName: "${ .ClusterName }"
+    overridden: ""
 `
 
 func TestDisablePreProcessFlagDisabled(t *testing.T) {
@@ -424,6 +506,17 @@ func TestDisablePreProcessFlagDisabled(t *testing.T) {
 
 	key := "clusterName"
 	expectedValue := "test-cluster"
+
+	if field, ok := valuesObj[key]; !ok {
+		t.Fatalf("key %s not found", key)
+	} else {
+		if field != expectedValue {
+			t.Fatalf("key %s was not the expected value. Expected: '%s' Actual: '%s'", key, field, expectedValue)
+		}
+	}
+
+	key = "overridden"
+	expectedValue = "something_templated"
 
 	if field, ok := valuesObj[key]; !ok {
 		t.Fatalf("key %s not found", key)

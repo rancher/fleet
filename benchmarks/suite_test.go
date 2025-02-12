@@ -167,7 +167,7 @@ func atLeastOneCluster() {
 	list := &v1alpha1.ClusterList{}
 	err := k8sClient.List(ctx, list, client.InNamespace(workspace), client.MatchingLabels{BenchmarkLabel: "true"})
 	Expect(err).ToNot(HaveOccurred(), "failed to list clusters")
-	Expect(len(list.Items)).To(BeNumerically(">=", 1))
+	Expect(list.Items).ToNot(BeEmpty())
 }
 
 // assetPath returns the path to an asset

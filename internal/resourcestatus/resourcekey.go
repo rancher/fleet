@@ -1,7 +1,6 @@
 package resourcestatus
 
 import (
-	"encoding/json"
 	"sort"
 	"strings"
 
@@ -9,51 +8,24 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-func SetResources(list *fleet.BundleDeploymentList, status *fleet.StatusBase) {
-	r, errors := fromResources(list)
-	status.ResourceErrors = errors
-	status.Resources = merge(r)
+func SetResources(list []fleet.BundleDeployment, status *fleet.StatusBase) {
+	byCluster := fromResources(list)
+	status.Resources = aggregateResourceStatesClustersMap(byCluster)
 	status.ResourceCounts = sumResourceCounts(list)
 	status.PerClusterResourceCounts = resourceCountsPerCluster(list)
 }
 
-func SetClusterResources(list *fleet.BundleDeploymentList, cluster *fleet.Cluster) {
+func SetClusterResources(list []fleet.BundleDeployment, cluster *fleet.Cluster) {
 	cluster.Status.ResourceCounts = sumResourceCounts(list)
-}
-
-// merge takes a list of GitRepo resources and deduplicates resources deployed to multiple clusters,
-// ensuring that for such resources, the output contains a single resource entry with a field summarizing
-// its status on each cluster.
-func merge(resources []fleet.Resource) []fleet.Resource {
-	merged := map[string]fleet.Resource{}
-	for _, resource := range resources {
-		key := key(resource)
-		if existing, ok := merged[key]; ok {
-			existing.PerClusterState = append(existing.PerClusterState, resource.PerClusterState...)
-			merged[key] = existing
-		} else {
-			merged[key] = resource
-		}
-	}
-
-	var result []fleet.Resource
-	for _, resource := range merged {
-		result = append(result, resource)
-	}
-
-	sort.Slice(result, func(i, j int) bool {
-		return key(result[i]) < key(result[j])
-	})
-	return result
 }
 
 func key(resource fleet.Resource) string {
 	return resource.Type + "/" + resource.ID
 }
 
-func resourceCountsPerCluster(list *fleet.BundleDeploymentList) map[string]*fleet.ResourceCounts {
+func resourceCountsPerCluster(items []fleet.BundleDeployment) map[string]*fleet.ResourceCounts {
 	res := make(map[string]*fleet.ResourceCounts)
-	for _, bd := range list.Items {
+	for _, bd := range items {
 		clusterID := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
 		if _, ok := res[clusterID]; !ok {
 			res[clusterID] = &fleet.ResourceCounts{}
@@ -63,122 +35,100 @@ func resourceCountsPerCluster(list *fleet.BundleDeploymentList) map[string]*flee
 	return res
 }
 
-// fromResources inspects all bundledeployments for this GitRepo and returns a list of
-// Resources and error messages.
-//
-// It populates gitrepo status resources from bundleDeployments. BundleDeployment.Status.Resources is the list of deployed resources.
-func fromResources(list *fleet.BundleDeploymentList) ([]fleet.Resource, []string) {
-	var (
-		resources []fleet.Resource
-		errors    []string
-	)
-
-	for _, bd := range list.Items {
-		state := summary.GetDeploymentState(&bd)
-		bdResources := bundleDeploymentResources(bd)
-		incomplete, err := addState(bd, bdResources)
-
-		if len(err) > 0 {
-			incomplete = true
-			for _, err := range err {
-				errors = append(errors, err.Error())
-			}
-		}
-
-		for k, perCluster := range bdResources {
-			resource := toResourceState(k, perCluster, incomplete, string(state))
-			resources = append(resources, resource)
-		}
-	}
-
-	sort.Strings(errors)
-
-	return resources, errors
+type resourceStateEntry struct {
+	state      string
+	clusterID  string
+	incomplete bool
 }
 
-func toResourceState(k fleet.ResourceKey, perCluster []fleet.ResourcePerClusterState, incomplete bool, bdState string) fleet.Resource {
-	resource := fleet.Resource{
-		APIVersion:      k.APIVersion,
-		Kind:            k.Kind,
-		Namespace:       k.Namespace,
-		Name:            k.Name,
-		IncompleteState: incomplete,
-		PerClusterState: perCluster,
-	}
-	resource.Type, resource.ID = toType(resource)
+type resourceStatesByResourceKey map[fleet.ResourceKey][]resourceStateEntry
 
-	for _, state := range perCluster {
-		resource.State = state.State
-		resource.Error = state.Error
-		resource.Transitioning = state.Transitioning
-		resource.Message = state.Message
-		break
-	}
+func clusterID(bd fleet.BundleDeployment) string {
+	return bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
+}
 
-	// fallback to state from gitrepo summary
-	if resource.State == "" {
-		if resource.IncompleteState {
-			if bdState != "" {
-				resource.State = bdState
-			} else {
-				resource.State = "Unknown"
-			}
-		} else if bdState != "" {
-			resource.State = bdState
-		} else {
-			resource.State = "Ready"
-		}
-	}
-
-	sort.Slice(perCluster, func(i, j int) bool {
-		return perCluster[i].ClusterID < perCluster[j].ClusterID
+// fromResources inspects a list of BundleDeployments and returns a list of per-cluster states per resource keys.
+// It also returns a list of errors messages produced that may have occurred during processing
+func fromResources(items []fleet.BundleDeployment) resourceStatesByResourceKey {
+	sort.Slice(items, func(i, j int) bool {
+		return clusterID(items[i]) < clusterID(items[j])
 	})
-	return resource
+
+	resources := make(resourceStatesByResourceKey)
+	for _, bd := range items {
+		for key, entry := range bundleDeploymentResources(bd) {
+			resources[key] = append(resources[key], entry)
+		}
+	}
+
+	return resources
 }
 
-func toType(resource fleet.Resource) (string, string) {
-	group := strings.Split(resource.APIVersion, "/")[0]
+func resourceId(namespace, name string) string {
+	if namespace != "" {
+		return namespace + "/" + name
+	}
+	return name
+}
+
+func toType(apiVersion, kind string) string {
+	group := strings.Split(apiVersion, "/")[0]
 	if group == "v1" {
 		group = ""
 	} else if len(group) > 0 {
 		group += "."
 	}
-	t := group + strings.ToLower(resource.Kind)
-	if resource.Namespace == "" {
-		return t, resource.Name
-	}
-	return t, resource.Namespace + "/" + resource.Name
+	return group + strings.ToLower(kind)
 }
 
-// addState adds per-cluster state information for nonReady and modified resources in a bundleDeployment.
-// It only adds up to 10 entries to not overwhelm the status.
-// It mutates resources and returns whether the reported state is incomplete and any errors encountered.
-func addState(bd fleet.BundleDeployment, resources map[fleet.ResourceKey][]fleet.ResourcePerClusterState) (bool, []error) {
-	var (
-		incomplete bool
-		errors     []error
-	)
+// resourceDefaultState calculates the state for items in the status.Resources list.
+// This default state may be replaced individually for each resource with the information from NonReadyStatus and ModifiedStatus fields.
+func resourcesDefaultState(bd *fleet.BundleDeployment) string {
+	switch bdState := summary.GetDeploymentState(bd); bdState {
+	// NotReady and Modified BD states are inferred from resource statuses, so it's incorrect to use that to calculate resource states
+	case fleet.NotReady, fleet.Modified:
+		if bd.Status.IncompleteState {
+			return "Unknown"
+		} else {
+			return string(fleet.Ready)
+		}
+	default:
+		return string(bdState)
+	}
+}
 
-	if len(bd.Status.NonReadyStatus) >= 10 || len(bd.Status.ModifiedStatus) >= 10 {
-		incomplete = true
+func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey]resourceStateEntry {
+	clusterID := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
+	incomplete := bd.Status.IncompleteState
+	defaultState := resourcesDefaultState(&bd)
+
+	resources := make(map[fleet.ResourceKey]resourceStateEntry, len(bd.Status.Resources))
+	for _, bdResource := range bd.Status.Resources {
+		resourceKey := fleet.ResourceKey{
+			Kind:       bdResource.Kind,
+			APIVersion: bdResource.APIVersion,
+			Name:       bdResource.Name,
+			Namespace:  bdResource.Namespace,
+		}
+		resources[resourceKey] = resourceStateEntry{
+			state:      defaultState,
+			clusterID:  clusterID,
+			incomplete: incomplete,
+		}
 	}
 
-	cluster := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
 	for _, nonReady := range bd.Status.NonReadyStatus {
-		key := fleet.ResourceKey{
+		resourceKey := fleet.ResourceKey{
 			Kind:       nonReady.Kind,
 			APIVersion: nonReady.APIVersion,
 			Namespace:  nonReady.Namespace,
 			Name:       nonReady.Name,
 		}
-		state := fleet.ResourcePerClusterState{
-			State:         nonReady.Summary.State,
-			Error:         nonReady.Summary.Error,
-			Transitioning: nonReady.Summary.Transitioning,
-			Message:       strings.Join(nonReady.Summary.Message, "; "),
-			ClusterID:     cluster,
+		resources[resourceKey] = resourceStateEntry{
+			state:      nonReady.Summary.State,
+			clusterID:  clusterID,
+			incomplete: incomplete,
 		}
-		appendState(resources, key, state)
 	}
 
 	for _, modified := range bd.Status.ModifiedStatus {
@@ -188,60 +138,84 @@ func addState(bd fleet.BundleDeployment, resources map[fleet.ResourceKey][]fleet
 			Namespace:  modified.Namespace,
 			Name:       modified.Name,
 		}
-		state := fleet.ResourcePerClusterState{
-			State:     "Modified",
-			ClusterID: cluster,
-		}
+		state := "Modified"
 		if modified.Delete {
-			state.State = "Orphaned"
+			state = "Orphaned"
 		} else if modified.Create {
-			state.State = "Missing"
-		} else if len(modified.Patch) > 0 {
-			state.Patch = &fleet.GenericMap{}
-			err := json.Unmarshal([]byte(modified.Patch), state.Patch)
-			if err != nil {
-				errors = append(errors, err)
+			state = "Missing"
+		}
+		resources[key] = resourceStateEntry{
+			state:      state,
+			clusterID:  clusterID,
+			incomplete: incomplete,
+		}
+	}
+
+	return resources
+}
+
+func aggregateResourceStatesClustersMap(resourceKeyStates resourceStatesByResourceKey) []fleet.Resource {
+	result := make([]fleet.Resource, 0, len(resourceKeyStates))
+	for resourceKey, entries := range resourceKeyStates {
+		resource := &fleet.Resource{
+			Kind:       resourceKey.Kind,
+			APIVersion: resourceKey.APIVersion,
+			Namespace:  resourceKey.Namespace,
+			Name:       resourceKey.Name,
+			State:      "Ready",
+			Type:       toType(resourceKey.APIVersion, resourceKey.Kind),
+			ID:         resourceId(resourceKey.Namespace, resourceKey.Name),
+		}
+
+		for _, entry := range entries {
+			if entry.incomplete {
+				resource.IncompleteState = true
+			}
+
+			appendToPerClusterState(&resource.PerClusterState, entry.state, entry.clusterID)
+
+			// top-level state is set from first non "Ready" per-cluster state
+			if resource.State == "Ready" {
+				resource.State = entry.state
 			}
 		}
-		appendState(resources, key, state)
+
+		result = append(result, *resource)
 	}
-	return incomplete, errors
+
+	sort.Slice(result, func(i, j int) bool {
+		return key(result[i]) < key(result[j])
+	})
+
+	return result
 }
 
-func appendState(states map[fleet.ResourceKey][]fleet.ResourcePerClusterState, key fleet.ResourceKey, state fleet.ResourcePerClusterState) {
-	if existing, ok := states[key]; ok || key.Namespace != "" {
-		states[key] = append(existing, state)
-		return
-	}
-
-	for k, existing := range states {
-		if k.Name == key.Name &&
-			k.APIVersion == key.APIVersion &&
-			k.Kind == key.Kind {
-			delete(states, key)
-			k.Namespace = ""
-			states[k] = append(existing, state)
-		}
+func appendToPerClusterState(states *fleet.PerClusterState, state, clusterID string) {
+	switch state {
+	case "Ready":
+		states.Ready = append(states.Ready, clusterID)
+	case "WaitApplied":
+		states.WaitApplied = append(states.WaitApplied, clusterID)
+	case "Pending":
+		states.Pending = append(states.Pending, clusterID)
+	case "Modified":
+		states.Modified = append(states.Modified, clusterID)
+	case "NotReady":
+		states.NotReady = append(states.NotReady, clusterID)
+	case "Orphaned":
+		states.Orphaned = append(states.Orphaned, clusterID)
+	case "Missing":
+		states.Missing = append(states.Missing, clusterID)
+	case "Unknown":
+		states.Unknown = append(states.Unknown, clusterID)
+	default:
+		// ignore
 	}
 }
 
-func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey][]fleet.ResourcePerClusterState {
-	bdResources := map[fleet.ResourceKey][]fleet.ResourcePerClusterState{}
-	for _, resource := range bd.Status.Resources {
-		key := fleet.ResourceKey{
-			Kind:       resource.Kind,
-			APIVersion: resource.APIVersion,
-			Name:       resource.Name,
-			Namespace:  resource.Namespace,
-		}
-		bdResources[key] = []fleet.ResourcePerClusterState{}
-	}
-	return bdResources
-}
-
-func sumResourceCounts(list *fleet.BundleDeploymentList) fleet.ResourceCounts {
+func sumResourceCounts(items []fleet.BundleDeployment) fleet.ResourceCounts {
 	var res fleet.ResourceCounts
-	for _, bd := range list.Items {
+	for _, bd := range items {
 		summary.IncrementResourceCounts(&res, bd.Status.ResourceCounts)
 	}
 	return res

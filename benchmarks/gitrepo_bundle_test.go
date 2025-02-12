@@ -103,7 +103,7 @@ var _ = Context("Benchmarks GitOps", func() {
 						v1alpha1.RepoLabel: "bm-1-gitrepo-50-bundle",
 					})
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(len(list.Items)).To(Equal(50))
+					g.Expect(list.Items).To(HaveLen(50))
 				}).Should(Succeed())
 			}, gm.Style("{{bold}}"))
 		})
@@ -130,7 +130,7 @@ var _ = Context("Benchmarks GitOps", func() {
 						"fleet.cattle.io/group": "bm-50-gitrepo-50-bundle",
 					})
 					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(len(list.Items)).To(Equal(50))
+					g.Expect(list.Items).To(HaveLen(50))
 				}).Should(Succeed())
 			}, gm.Style("{{bold}}"))
 		})

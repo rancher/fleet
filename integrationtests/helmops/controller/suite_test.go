@@ -1,9 +1,7 @@
 package controller
 
 import (
-	"bytes"
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 
+	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/helmops/reconciler"
 	ctrlreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
@@ -24,7 +23,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
@@ -37,7 +35,6 @@ var (
 	ctx          context.Context
 	cancel       context.CancelFunc
 	k8sClient    client.Client
-	logsBuffer   bytes.Buffer
 	namespace    string
 	k8sClientSet *kubernetes.Clientset
 )
@@ -50,13 +47,10 @@ func TestGitJobController(t *testing.T) {
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
 	ctx, cancel = context.WithCancel(context.TODO())
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
-		ErrorIfCRDPathMissing: true,
-	}
+	testEnv = utils.NewEnvTest("../../..")
 
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, err = utils.StartTestEnv(testEnv)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
@@ -77,22 +71,20 @@ var _ = BeforeSuite(func() {
 
 	ctlr := gomock.NewController(GinkgoT())
 
-	// redirect logs to a buffer that we can read in the tests
-	GinkgoWriter.TeeTo(&logsBuffer)
-	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-
 	config.Set(&config.Config{})
 
 	err = (&reconciler.HelmAppReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("helmops-controller"),
+		Workers:  50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&reconciler.HelmAppStatusReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -104,6 +96,7 @@ var _ = BeforeSuite(func() {
 		Builder: builder,
 		Store:   store,
 		Query:   builder,
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 

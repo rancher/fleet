@@ -56,7 +56,7 @@ func checkEnvVariable(k kubectl.Command, component string, env string) (bool, er
 	for _, line := range lines {
 		if strings.Contains(line, env) {
 			keyValue := strings.Split(line, "=")
-			Expect(len(keyValue)).To(Equal(2))
+			Expect(keyValue).To(HaveLen(2))
 			return strconv.ParseBool(keyValue[1])
 		}
 	}
@@ -291,7 +291,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 
 					// check for contentsID
 					contentsID, err := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.spec.contentsId}`)
-					Expect(err).ToNot(HaveOccurred())
+					g.Expect(err).ToNot(HaveOccurred())
 					g.Expect(contentsID).To(BeEmpty())
 
 					GinkgoWriter.Printf("ContentsID: %s\n", contentsID)

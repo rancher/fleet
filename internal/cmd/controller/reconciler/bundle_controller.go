@@ -22,7 +22,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -193,7 +192,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bundle.Status.Conditions = []genericcondition.GenericCondition{
 			{
 				Type:           string(fleet.Ready),
-				Status:         v1.ConditionFalse,
+				Status:         corev1.ConditionFalse,
 				Message:        "Targeting error: " + err.Error(),
 				LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
 			},
@@ -219,6 +218,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 	}
+	logger = logger.WithValues("manifestID", manifestID)
 
 	if err := resetStatus(&bundle.Status, matchedTargets); err != nil {
 		return ctrl.Result{}, err
@@ -333,10 +333,8 @@ func (r *BundleReconciler) createBundleDeployment(
 	}
 	if target.Deployment.Namespace == "" {
 		logger.V(1).Info(
-			"Skipping bundledeployment with empty namespace, "+
-				"waiting for agentmanagement to set cluster.status.namespace",
-			"bundledeployment",
-			target.Deployment,
+			"Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace",
+			"bundledeployment", target.Deployment,
 		)
 		return nil, nil
 	}
@@ -351,24 +349,23 @@ func (r *BundleReconciler) createBundleDeployment(
 
 	bd.Spec.OCIContents = contentsInOCI
 	bd.Spec.HelmChartOptions = helmAppOptions
+	logger = logger.WithValues("bundledeployment", bd, "deploymentID", bd.Spec.DeploymentID)
+	contentsInHelmChart := helmAppOptions != nil
 
-	// contents resources stored in etcd, finalizers to add here.
-	if !contentsInOCI {
+	// When content resources are stored in etcd, we need to add finalizers.
+	if !contentsInOCI && !contentsInHelmChart {
 		content := &fleet.Content{}
-		err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content)
-		if client.IgnoreNotFound(err) != nil {
-			logger.Error(err, "Reconcile failed to get content", "content ID", manifestID)
-			return nil, err
+		if err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content); err != nil {
+			return nil, fmt.Errorf("failed to get content resource: %w", err)
 		}
 
 		if added := controllerutil.AddFinalizer(content, bd.Name); added {
 			if err := r.Update(ctx, content); err != nil {
-				logger.Error(err, "Reconcile failed to add content finalizer", "content ID", manifestID)
+				return nil, fmt.Errorf("could not add finalizer to content resource: %w", err)
 			}
 		}
 	}
 
-	contentsInHelmChart := helmAppOptions != nil
 	updated := bd.DeepCopy()
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, bd, func() error {
 		// When this mutation function is called by CreateOrUpdate, bd contains the
@@ -381,14 +378,7 @@ func (r *BundleReconciler) createBundleDeployment(
 			bd.Spec.DeploymentID != "" &&
 			bd.Spec.DeploymentID != updated.Spec.DeploymentID {
 			if err := finalize.PurgeContent(ctx, r.Client, bd.Name, bd.Spec.DeploymentID); err != nil {
-				logger.Error(
-					err,
-					"Reconcile failed to purge old content resource",
-					"bundledeployment",
-					bd,
-					"deploymentID",
-					bd.Spec.DeploymentID,
-				)
+				logger.Error(err, "Reconcile failed to purge old content resource")
 			}
 		}
 
@@ -398,17 +388,10 @@ func (r *BundleReconciler) createBundleDeployment(
 		return nil
 	})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		logger.Error(
-			err,
-			"Reconcile failed to create or update bundledeployment",
-			"bundledeployment",
-			bd,
-			"operation",
-			op,
-		)
+		logger.Error(err, "Reconcile failed to create or update bundledeployment", "operation", op)
 		return nil, err
 	}
-	logger.V(1).Info(upper(op)+" bundledeployment", "bundledeployment", bd, "operation", op)
+	logger.Info(upper(op)+" bundledeployment", "operation", op)
 
 	return bd, nil
 }
@@ -445,7 +428,7 @@ func (r *BundleReconciler) createDeploymentSecret(ctx context.Context, secretNam
 
 func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bundle) (string, error) {
 	if bundle.Spec.ContentsID == "" {
-		return "", fmt.Errorf("cannot get OCI reference. Bundles's ContentsID is not set")
+		return "", fmt.Errorf("cannot get OCI reference. Bundle's ContentsID is not set")
 	}
 	namespacedName := types.NamespacedName{
 		Namespace: bundle.Namespace,
@@ -492,8 +475,12 @@ func experimentalHelmOpsEnabled() bool {
 func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle, bundle *fleet.Bundle) error {
 	logger := log.FromContext(ctx).WithName("bundle - updateStatus")
 	statusPatch := client.MergeFrom(orig)
-	err := r.Status().Patch(ctx, bundle, statusPatch)
-	if err != nil {
+
+	if patchData, err := statusPatch.Data(bundle); err == nil && string(patchData) == "{}" {
+		// skip update if patch is empty
+		return nil
+	}
+	if err := r.Status().Patch(ctx, bundle, statusPatch); err != nil {
 		logger.V(1).Info("Reconcile failed update to bundle status", "status", bundle.Status, "error", err)
 		return err
 	}

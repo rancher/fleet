@@ -27,18 +27,18 @@ if [[ -n "$FLEET_E2E_CLUSTER_DOWNSTREAM" ]]; then
         exit 0
     fi
 
-    # Delete downstream cluster.
+    # Delete one downstream cluster.
     if [[ -z "$FLEET_E2E_DS_CLUSTER_COUNT" ]]; then
         k3d-cluster-delete "$FLEET_E2E_CLUSTER_DOWNSTREAM"
         exit 0
     fi
 
-    # Delete all downstream clusters.
+    # Delete all downstream clusters matching the pattern in $FLEET_E2E_CLUSTER_DOWNSTREAM.
     for ((i=1; i<FLEET_E2E_DS_CLUSTER_COUNT+1; i++)); do
         if [[ $i -eq 1 ]]; then
             k3d-cluster-delete "${FLEET_E2E_CLUSTER_DOWNSTREAM}"
         else
-            k3d-cluster-delete "${FLEET_E2E_CLUSTER_DOWNSTREAM}${i}"
+            k3d-cluster-delete "${FLEET_E2E_CLUSTER_DOWNSTREAM%[0-9]*}${i}"
         fi
     done
 fi

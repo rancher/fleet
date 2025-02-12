@@ -44,7 +44,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		}
 
 		err := k8sClient.Create(context.TODO(), &bundled)
-		Expect(err).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(bundled).To(Not(BeNil()))
 	}
 
@@ -84,14 +84,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			bd := &v1alpha1.BundleDeployment{}
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bd.Status.Resources).To(HaveLen(3))
+			Expect(bd.Status.Resources).To(HaveLen(4))
 			ts := bd.Status.Resources[0].CreatedAt
 			Expect(ts.Time).ToNot(BeZero())
 			Expect(bd.Status.Resources).To(ContainElement(v1alpha1.BundleDeploymentResource{
 				Kind:       "Service",
 				APIVersion: "v1",
 				Namespace:  namespace,
-				Name:       "svc-test",
+				Name:       svcName,
 				CreatedAt:  ts,
 			}))
 		})
@@ -111,17 +111,17 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-test",
+						Name:       svcName,
 						Create:     false,
 						Delete:     false,
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					)
-					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
 			})
 
@@ -130,7 +130,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Spec.Selector = map[string]string{"app.kubernetes.io/name": "MyApp"}
-				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
+				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
@@ -143,7 +143,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Eventually(func() bool {
 					bd := &v1alpha1.BundleDeployment{}
 					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
-					Expect(err).To(BeNil())
+					Expect(err).ToNot(HaveOccurred())
 					bd.Spec.DeploymentID = "v2"
 					err = k8sClient.Update(ctx, bd)
 					return err == nil && bd != nil
@@ -157,18 +157,17 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-finalizer",
+						Name:       svcFinalizerName,
 						Create:     false,
 						Delete:     true,
 						Patch:      "",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-finalizer extra",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}, timeout, 20*time.Millisecond).Should(Succeed())
 			})
 
@@ -177,7 +176,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Finalizers = nil
-				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
+				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
@@ -199,18 +198,17 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-test",
+						Name:       svcName,
 						Create:     true,
 						Delete:     false,
 						Patch:      "",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-test missing",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
 			})
 		})
@@ -255,14 +253,14 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			bd := &v1alpha1.BundleDeployment{}
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bd.Status.Resources).To(HaveLen(3))
+			Expect(bd.Status.Resources).To(HaveLen(4))
 			ts := bd.Status.Resources[0].CreatedAt
 			Expect(ts.Time).ToNot(BeZero())
 			Expect(bd.Status.Resources).To(ContainElement(v1alpha1.BundleDeploymentResource{
 				Kind:       "Service",
 				APIVersion: "v1",
 				Namespace:  namespace,
-				Name:       "svc-test",
+				Name:       svcName,
 				CreatedAt:  ts,
 			}))
 		})
@@ -282,18 +280,17 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-test",
+						Name:       svcName,
 						Create:     false,
 						Delete:     false,
 						Patch:      "{\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
 			})
 
@@ -302,7 +299,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Spec.Selector = map[string]string{"app.kubernetes.io/name": "MyApp"}
-				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
+				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
@@ -315,7 +312,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Eventually(func() bool {
 					bd := &v1alpha1.BundleDeployment{}
 					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
-					Expect(err).To(BeNil())
+					Expect(err).ToNot(HaveOccurred())
 					bd.Spec.DeploymentID = "v2"
 					err = k8sClient.Update(ctx, bd)
 					return err == nil && bd != nil
@@ -329,18 +326,17 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-finalizer",
+						Name:       svcFinalizerName,
 						Create:     false,
 						Delete:     true,
 						Patch:      "",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-finalizer extra",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}, timeout, 20*time.Millisecond).Should(Succeed())
 			})
 
@@ -349,7 +345,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Finalizers = nil
-				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(BeNil())
+				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
 			})
 
 			It("BundleDeployment will eventually be ready and non modified", func() {
@@ -371,18 +367,17 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						Kind:       "Service",
 						APIVersion: "v1",
 						Namespace:  namespace,
-						Name:       "svc-test",
+						Name:       svcName,
 						Create:     true,
 						Delete:     false,
 						Patch:      "",
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						"service.v1 "+namespace+"/svc-test missing",
 					)
-
-					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
 			})
 		})

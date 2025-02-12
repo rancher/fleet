@@ -8,6 +8,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -113,6 +114,76 @@ var _ = Describe("GitJob controller", func() {
 			}).Should(Succeed())
 		})
 
+		// We are testing the migration of rules of a role, but we are testing a specific case, namely allowing the role
+		// to create secrets. The migration is necessary when the rules of a role have changed due to a Fleet update. In
+		// this case we do not want the user to have to recreate the GitRepo, but the rules of the role are supposed to
+		// be updated by Fleet, so that the GitRepo does not have to be recreated. We emulate this update with a forced
+		// sync in this test.
+		When("it should have updated the pre-existing and outdated permission of a role", func() {
+			BeforeEach(func() {
+				gitRepoName = "role-upgrade"
+			})
+
+			It("should update the rules of the role to contain the secret resource", func() {
+				By("removing the secret resource from the rules", func() {
+					role := &rbacv1.Role{}
+					Expect(k8sClient.Get(ctx, types.NamespacedName{
+						Name:      names.SafeConcatName("git", gitRepoName),
+						Namespace: gitRepo.Namespace}, role),
+					).ToNot(HaveOccurred())
+					role.Rules = []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"get", "create", "update", "list", "delete"},
+							APIGroups: []string{"fleet.cattle.io"},
+							Resources: []string{"bundles", "imagescans"},
+						},
+						{
+							Verbs:     []string{"get"},
+							APIGroups: []string{"fleet.cattle.io"},
+							Resources: []string{"gitrepos"},
+						},
+					}
+					Expect(k8sClient.Update(ctx, role)).ToNot(HaveOccurred())
+					// Update gitRepo variable, since have changed it.
+					Expect(k8sClient.Get(ctx, types.NamespacedName{
+						Name:      gitRepoName,
+						Namespace: gitRepoNamespace,
+					}, &gitRepo)).ToNot(HaveOccurred())
+				})
+
+				By("triggering a resync", func() {
+					Expect(retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+						gitRepo.Spec.ForceSyncGeneration++
+						return k8sClient.Update(ctx, &gitRepo)
+					})).ToNot(HaveOccurred())
+				})
+
+				By("expecting the rule to contain the permission to create secrets", func() {
+					Eventually(func() error {
+						var role rbacv1.Role
+						err := k8sClient.Get(ctx, types.NamespacedName{
+							Name: names.SafeConcatName("git", gitRepo.Name), Namespace: gitRepo.Namespace}, &role)
+						if err != nil {
+							return err
+						}
+						// Check if the role has been correctly updated.
+						for _, rule := range role.Rules {
+							for _, resource := range rule.Resources {
+								if resource == "secrets" {
+									for _, verb := range rule.Verbs {
+										if verb == "create" {
+											return nil
+										}
+									}
+								}
+							}
+						}
+						return fmt.Errorf("role %s in namespace %s was not updated", role.Name, role.Namespace)
+					}).ShouldNot(HaveOccurred(), "role was not or not correctly updated")
+				})
+			})
+		})
+
 		When("a job is created without a specified CA bundle", func() {
 			BeforeEach(func() {
 				gitRepoName = "no-ca-bundle"
@@ -127,7 +198,7 @@ var _ = Describe("GitJob controller", func() {
 				Consistently(func(g Gomega) {
 					err := k8sClient.Get(ctx, ns, &secret)
 
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}, time.Second*5, time.Second*1).Should(Succeed())
 			})
@@ -213,7 +284,7 @@ var _ = Describe("GitJob controller", func() {
 							TypeMeta:      metav1.TypeMeta{Kind: "GitRepo"},
 						})
 					g.Expect(events).ToNot(BeNil())
-					g.Expect(len(events.Items)).To(Equal(3))
+					g.Expect(events.Items).To(HaveLen(3))
 					g.Expect(events.Items[0].Reason).To(Equal("GotNewCommit"))
 					g.Expect(events.Items[0].Message).To(Equal("9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"))
 					g.Expect(events.Items[0].Type).To(Equal("Normal"))
@@ -479,7 +550,7 @@ var _ = Describe("GitJob controller", func() {
 						TypeMeta:      metav1.TypeMeta{Kind: "GitRepo"},
 					})
 				g.Expect(events).ToNot(BeNil())
-				g.Expect(len(events.Items)).To(Equal(3))
+				g.Expect(events.Items).To(HaveLen(3))
 				g.Expect(events.Items[0].Reason).To(Equal("GotNewCommit"))
 				g.Expect(events.Items[0].Message).To(Equal("9ca3a0ad308ed8bffa6602572e2a1343af9c3d2e"))
 				g.Expect(events.Items[0].Type).To(Equal("Normal"))

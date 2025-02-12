@@ -121,7 +121,7 @@ type GitRepoSpec struct {
 	ImageSyncInterval *metav1.Duration `json:"imageScanInterval,omitempty"`
 
 	// Commit specifies how to commit to the git repo when a new image is scanned and written back to git repo.
-	ImageScanCommit CommitSpec `json:"imageScanCommit,omitempty"`
+	ImageScanCommit *CommitSpec `json:"imageScanCommit,omitempty"`
 
 	// KeepResources specifies if the resources created must be kept after deleting the GitRepo.
 	KeepResources bool `json:"keepResources,omitempty"`
@@ -193,28 +193,6 @@ type GitRepoDisplay struct {
 	Error bool `json:"error,omitempty"`
 }
 
-// ResourcePerClusterState is generated for each non-ready resource of the bundles.
-type ResourcePerClusterState struct {
-	// State is the state of the resource.
-	// +nullable
-	State string `json:"state,omitempty"`
-	// Error is true if the resource is in an error state, copied from the bundle's summary for non-ready resources.
-	Error bool `json:"error,omitempty"`
-	// Transitioning is true if the resource is in a transitioning state,
-	// copied from the bundle's summary for non-ready resources.
-	Transitioning bool `json:"transitioning,omitempty"`
-	// Message combines the messages from the bundle's summary. Messages are joined with the delimiter ';'.
-	// +nullable
-	Message string `json:"message,omitempty"`
-	// Patch for modified resources.
-	// +nullable
-	// +kubebuilder:validation:XPreserveUnknownFields
-	Patch *GenericMap `json:"patch,omitempty"`
-	// ClusterID is the id of the cluster.
-	// +nullable
-	ClusterID string `json:"clusterId,omitempty"`
-}
-
 // CommitSpec specifies how to commit changes to the git repository
 type CommitSpec struct {
 	// AuthorName gives the name to provide when making a commit
@@ -242,7 +220,7 @@ type OCIRegistrySpec struct {
 	// Reference of the OCI Registry
 	Reference string `json:"reference,omitempty"`
 
-	// AuthSecretName contains the auth secret where the OCI regristry credentials are stored.
+	// AuthSecretName contains the auth secret where the OCI registry credentials are stored.
 	// +nullable
 	AuthSecretName string `json:"authSecretName,omitempty"`
 

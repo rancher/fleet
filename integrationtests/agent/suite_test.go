@@ -4,12 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
-
-	"github.com/google/go-cmp/cmp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -33,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -62,7 +57,7 @@ var (
 const (
 	clusterNS  = "cluster-test-id"
 	assetsPath = "assets"
-	timeout    = 30 * time.Second
+	timeout    = 60 * time.Second
 )
 
 var resources = map[string][]v1alpha1.BundleResource{}
@@ -74,17 +69,13 @@ func TestFleet(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
+	SetDefaultEventuallyPollingInterval(1 * time.Second)
 
 	ctx, cancel = context.WithCancel(context.TODO())
-	existing := os.Getenv("CI_USE_EXISTING_CLUSTER") == "true"
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "charts", "fleet-crd", "templates", "crds.yaml")},
-		ErrorIfCRDPathMissing: true,
-		UseExistingCluster:    &existing,
-	}
+	testEnv = utils.NewEnvTest("../..")
 
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, err = utils.StartTestEnv(testEnv)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
@@ -94,11 +85,6 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
-
-	zopts := zap.Options{
-		Development: true,
-	}
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zopts)))
 
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:         scheme.Scheme,
@@ -127,6 +113,7 @@ var _ = BeforeSuite(func() {
 		DriftDetect: reconciler.DriftDetect,
 
 		DriftChan: driftChan,
+		Workers:   50,
 	}
 	err = driftReconciler.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
@@ -226,6 +213,7 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, dri
 		Cleanup:     cleanup,
 
 		AgentScope: agentScope,
+		Workers:    50,
 	}
 }
 
@@ -268,29 +256,21 @@ type specEnv struct {
 	namespace string
 }
 
-func (se specEnv) isNotReadyAndModified(name string, modifiedStatus v1alpha1.ModifiedStatus, message string) (bool, string) {
+func (se specEnv) isNotReadyAndModified(g Gomega, name string, modifiedStatus v1alpha1.ModifiedStatus, message string) {
 	bd := &v1alpha1.BundleDeployment{}
-	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
-	if err != nil {
-		return false, err.Error()
-	}
+	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 
-	isReadyCondition := checkCondition(bd.Status.Conditions, "Ready", "False", message)
+	g.Expect(err).ToNot(HaveOccurred())
 
-	isOK := cmp.Equal(bd.Status.ModifiedStatus, []v1alpha1.ModifiedStatus{modifiedStatus}) &&
-		!bd.Status.NonModified &&
-		isReadyCondition
+	checkCondition(g, bd.Status.Conditions, "Ready", "False", message)
 
-	if !isOK {
-		return false, fmt.Sprintf("Status: %#v\n Conditions: %#v", bd.Status.ModifiedStatus, bd.Status.Conditions)
-	}
-
-	return true, ""
+	g.Expect(bd.Status.NonModified).To(BeFalse(), "bd.Status.NonModified has unexpected value")
+	g.Expect(bd.Status.ModifiedStatus).To(Equal([]v1alpha1.ModifiedStatus{modifiedStatus}))
 }
 
 func (se specEnv) isBundleDeploymentReadyAndNotModified(name string) bool {
 	bd := &v1alpha1.BundleDeployment{}
-	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
+	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 	if err != nil {
 		return false
 	}
@@ -326,14 +306,22 @@ func (se specEnv) getConfigMap(name string) (corev1.ConfigMap, error) {
 	return cm, nil
 }
 
-func checkCondition(conditions []genericcondition.GenericCondition, conditionType string, status string, message string) bool {
+func checkCondition(g Gomega, conditions []genericcondition.GenericCondition, conditionType string, status string, message string) {
+	var foundCond *genericcondition.GenericCondition
+
 	for _, condition := range conditions {
-		if condition.Type == conditionType && string(condition.Status) == status && strings.Contains(condition.Message, message) {
-			return true
+		if condition.Type == conditionType && string(condition.Status) == status {
+			foundCond = &condition
+			break
 		}
 	}
 
-	return false
+	g.Expect(foundCond).ToNot(
+		BeNil(),
+		fmt.Sprintf("Condition with type %q and status %q not found in %v", conditionType, status, conditions),
+	)
+
+	g.Expect(foundCond.Message).To(ContainSubstring(message))
 }
 
 func createNamespace() string {

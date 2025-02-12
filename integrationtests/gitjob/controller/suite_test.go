@@ -112,12 +112,14 @@ var _ = BeforeSuite(func() {
 		GitFetcher: fetcherMock,
 		Clock:      reconciler.RealClock{},
 		Recorder:   mgr.GetEventRecorderFor("gitjob-controller"),
+		Workers:    50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&reconciler.StatusReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -129,6 +131,7 @@ var _ = BeforeSuite(func() {
 		Builder: builder,
 		Store:   store,
 		Query:   builder,
+		Workers: 50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 

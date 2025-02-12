@@ -595,10 +595,10 @@ func TestGetContentOCI(t *testing.T) {
 			expectedErr: "dial tcp: lookup non-existing-hostname",
 		},
 		{
-			name:        "Invalid OCI URL which includes version too",
-			source:      "oci://non-existing-hostname/charts/chart:1.0",
+			name:        "OCI URL which includes version too",
+			source:      "oci://ghcr.io/rancher/fleet-test-configmap-chart:1234.0",
 			version:     "1.0",
-			expectedErr: "helm chart download: invalid_reference: invalid tag",
+			expectedErr: "chart reference and version mismatch: 1.0 is not 1234.0",
 		},
 		{
 			name:        "Non-existing OCI URL with valid semver",

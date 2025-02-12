@@ -134,6 +134,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 		merr = append(merr, fmt.Errorf("failed deploying bundle: %w", err))
 	} else {
+		logger.V(1).Info("Bundle deployed", "status", status)
 		bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 	}
 
@@ -194,6 +195,10 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, orig *fleetv1.BundleDeployment, obj *fleetv1.BundleDeployment) error {
 	statusPatch := client.MergeFrom(orig)
+	if patchData, err := statusPatch.Data(obj); err == nil && string(patchData) == "{}" {
+		// skip update if patch is empty
+		return nil
+	}
 	return r.Status().Patch(ctx, obj, statusPatch)
 }
 

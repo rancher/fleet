@@ -16,6 +16,9 @@ for res in gitrepos.fleet.cattle.io bundledeployments.fleet.cattle.io bundles.fl
   kubectl get "$res" -A --no-headers | while read ns name  _; do kubectl patch "$res" -n "$ns" "$name" -p '{"metadata":{"finalizers":[]}}' --type=merge; done
 done
 
+# Remove finalizers on contents too
+kubectl get content -o=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' | xargs -I{} kubectl patch content {} -p '{"metadata":{"finalizers":[]}}' --type=merge
+
 helm uninstall -n cattle-fleet-system fleet-crd
 
 # make sure crds are removed
