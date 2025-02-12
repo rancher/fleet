@@ -359,6 +359,12 @@ func createGogsContainer(ctx context.Context, tmpDir string) (testcontainers.Con
 	if err != nil {
 		return nil, "", err
 	}
+
+	err = os.Chmod(filepath.Join(tmpDir, "git", ".ssh"), 0700)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to change permissions for .ssh directory: %w", err)
+	}
+
 	req := testcontainers.ContainerRequest{
 		Image:        "gogs/gogs:0.13",
 		ExposedPorts: []string{"3000/tcp", "22/tcp"},
