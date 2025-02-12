@@ -69,6 +69,7 @@ func TestFleet(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
+	SetDefaultEventuallyPollingInterval(1 * time.Second)
 
 	ctx, cancel = context.WithCancel(context.TODO())
 	testEnv = utils.NewEnvTest("../..")
@@ -257,7 +258,7 @@ type specEnv struct {
 
 func (se specEnv) isNotReadyAndModified(g Gomega, name string, modifiedStatus v1alpha1.ModifiedStatus, message string) {
 	bd := &v1alpha1.BundleDeployment{}
-	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
+	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 
 	g.Expect(err).ToNot(HaveOccurred())
 
@@ -269,7 +270,7 @@ func (se specEnv) isNotReadyAndModified(g Gomega, name string, modifiedStatus v1
 
 func (se specEnv) isBundleDeploymentReadyAndNotModified(name string) bool {
 	bd := &v1alpha1.BundleDeployment{}
-	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
+	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 	if err != nil {
 		return false
 	}

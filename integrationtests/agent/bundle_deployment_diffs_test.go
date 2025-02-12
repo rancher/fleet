@@ -128,7 +128,6 @@ var _ = Describe("BundleDeployment diff", func() {
 						context.TODO(),
 						types.NamespacedName{Namespace: clusterNS, Name: name},
 						bd,
-						&client.GetOptions{},
 					)
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(bd.Status.NonModified).To(BeTrue())
@@ -155,7 +154,6 @@ var _ = Describe("BundleDeployment diff", func() {
 						context.TODO(),
 						types.NamespacedName{Namespace: clusterNS, Name: name},
 						bd,
-						&client.GetOptions{},
 					)
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(bd.Status.NonModified).To(BeTrue())
