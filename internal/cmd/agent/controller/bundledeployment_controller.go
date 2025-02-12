@@ -134,6 +134,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 		merr = append(merr, fmt.Errorf("failed deploying bundle: %w", err))
 	} else {
+		logger.V(1).Info("Bundle deployed", "status", status)
 		bd.Status = setCondition(status, nil, monitor.Cond(fleetv1.BundleDeploymentConditionDeployed))
 	}
 
