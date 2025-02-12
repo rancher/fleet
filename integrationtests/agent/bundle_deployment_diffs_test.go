@@ -128,7 +128,6 @@ var _ = Describe("BundleDeployment diff", func() {
 						context.TODO(),
 						types.NamespacedName{Namespace: clusterNS, Name: name},
 						bd,
-						&client.GetOptions{},
 					)
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(bd.Status.NonModified).To(BeTrue())
@@ -155,7 +154,6 @@ var _ = Describe("BundleDeployment diff", func() {
 						context.TODO(),
 						types.NamespacedName{Namespace: clusterNS, Name: name},
 						bd,
-						&client.GetOptions{},
 					)
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(bd.Status.NonModified).To(BeTrue())
@@ -185,7 +183,8 @@ var _ = Describe("BundleDeployment diff", func() {
 						Delete:     false,
 						Patch:      `{"spec":{"selector":{"app.kubernetes.io/name":"MyApp"}}}`,
 					}
-					isOK, status := env.isNotReadyAndModified(
+					env.isNotReadyAndModified(
+						g,
 						name,
 						modifiedStatus,
 						fmt.Sprintf(
@@ -194,7 +193,6 @@ var _ = Describe("BundleDeployment diff", func() {
 							svcName,
 						),
 					)
-					g.Expect(isOK).To(BeTrue(), status)
 				}).Should(Succeed())
 			})
 		})
