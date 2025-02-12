@@ -3,11 +3,9 @@ package agent_test
 import (
 	"context"
 	"fmt"
-	"strings"
+	"os"
 	"testing"
 	"time"
-
-	"github.com/google/go-cmp/cmp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -71,6 +69,7 @@ func TestFleet(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
+	SetDefaultEventuallyPollingInterval(1 * time.Second)
 
 	ctx, cancel = context.WithCancel(context.TODO())
 	testEnv = utils.NewEnvTest("../..")
@@ -94,6 +93,8 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
+	setupFakeContents()
+
 	driftChan := make(chan event.GenericEvent)
 
 	// Set up the bundledeployment reconciler
@@ -112,6 +113,7 @@ var _ = BeforeSuite(func() {
 		DriftDetect: reconciler.DriftDetect,
 
 		DriftChan: driftChan,
+		Workers:   50,
 	}
 	err = driftReconciler.SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
@@ -211,6 +213,7 @@ func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, dri
 		Cleanup:     cleanup,
 
 		AgentScope: agentScope,
+		Workers:    50,
 	}
 }
 
@@ -253,27 +256,25 @@ type specEnv struct {
 	namespace string
 }
 
-func (se specEnv) isNotReadyAndModified(name string, modifiedStatus v1alpha1.ModifiedStatus, message string) (bool, string) {
+func (se specEnv) isNotReadyAndModified(g Gomega, name string, modifiedStatus v1alpha1.ModifiedStatus, message string) {
 	bd := &v1alpha1.BundleDeployment{}
-	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
-	Expect(err).NotTo(HaveOccurred())
-	isReadyCondition := checkCondition(bd.Status.Conditions, "Ready", "False", message)
+	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 
-	isOK := cmp.Equal(bd.Status.ModifiedStatus, []v1alpha1.ModifiedStatus{modifiedStatus}) &&
-		!bd.Status.NonModified &&
-		isReadyCondition
+	g.Expect(err).ToNot(HaveOccurred())
 
-	if !isOK {
-		return false, fmt.Sprintf("Status: %#v\n Conditions: %#v", bd.Status.ModifiedStatus, bd.Status.Conditions)
-	}
+	checkCondition(g, bd.Status.Conditions, "Ready", "False", message)
 
-	return true, ""
+	g.Expect(bd.Status.NonModified).To(BeFalse(), "bd.Status.NonModified has unexpected value")
+	g.Expect(bd.Status.ModifiedStatus).To(Equal([]v1alpha1.ModifiedStatus{modifiedStatus}))
 }
 
 func (se specEnv) isBundleDeploymentReadyAndNotModified(name string) bool {
 	bd := &v1alpha1.BundleDeployment{}
-	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd, &client.GetOptions{})
-	Expect(err).NotTo(HaveOccurred())
+	err := k8sClient.Get(context.TODO(), types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
+	if err != nil {
+		return false
+	}
+
 	return bd.Status.Ready && bd.Status.NonModified
 }
 
@@ -305,14 +306,22 @@ func (se specEnv) getConfigMap(name string) (corev1.ConfigMap, error) {
 	return cm, nil
 }
 
-func checkCondition(conditions []genericcondition.GenericCondition, conditionType string, status string, message string) bool {
+func checkCondition(g Gomega, conditions []genericcondition.GenericCondition, conditionType string, status string, message string) {
+	var foundCond *genericcondition.GenericCondition
+
 	for _, condition := range conditions {
-		if condition.Type == conditionType && string(condition.Status) == status && strings.Contains(condition.Message, message) {
-			return true
+		if condition.Type == conditionType && string(condition.Status) == status {
+			foundCond = &condition
+			break
 		}
 	}
 
-	return false
+	g.Expect(foundCond).ToNot(
+		BeNil(),
+		fmt.Sprintf("Condition with type %q and status %q not found in %v", conditionType, status, conditions),
+	)
+
+	g.Expect(foundCond.Message).To(ContainSubstring(message))
 }
 
 func createNamespace() string {
@@ -323,4 +332,83 @@ func createNamespace() string {
 	Expect(k8sClient.Create(context.Background(), ns)).ToNot(HaveOccurred())
 
 	return namespace
+}
+
+func setupFakeContents() {
+	withStatus, _ := os.ReadFile(assetsPath + "/deployment-with-status.yaml")
+	withDeployment, _ := os.ReadFile(assetsPath + "/deployment-with-deployment.yaml")
+	v1, _ := os.ReadFile(assetsPath + "/deployment-v1.yaml")
+	v2, _ := os.ReadFile(assetsPath + "/deployment-v2.yaml")
+
+	resources = map[string][]v1alpha1.BundleResource{
+		"with-status": []v1alpha1.BundleResource{
+			{
+				Name:     "deployment-with-status.yaml",
+				Content:  string(withStatus),
+				Encoding: "",
+			},
+		},
+		"with-deployment": []v1alpha1.BundleResource{
+			{
+				Name:     "deployment-with-deployment.yaml",
+				Content:  string(withDeployment),
+				Encoding: "",
+			},
+		},
+		"BundleDeploymentConfigMap": []v1alpha1.BundleResource{
+			{
+				Name: "configmap.yaml",
+				Content: `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm1
+data:
+  key: value
+`,
+				Encoding: "",
+			},
+		},
+		"v1": []v1alpha1.BundleResource{
+			{
+				Name:     "deployment-v1.yaml",
+				Content:  string(v1),
+				Encoding: "",
+			},
+		},
+		"v2": []v1alpha1.BundleResource{
+			{
+				Name:     "deployment-v2.yaml",
+				Content:  string(v2),
+				Encoding: "",
+			},
+		},
+		"capabilitiesv1": []v1alpha1.BundleResource{
+			{
+				Content: "apiVersion: v2\nname: config-chart\ndescription: A test chart that verifies its config\ntype: application\nversion: 0.1.0\nappVersion: \"1.16.0\"\nkubeVersion: '>= 1.20.0-0'\n",
+				Name:    "config-chart/Chart.yaml",
+			},
+			{
+				Content: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-simple-chart-config\ndata:\n  test: \"value123\"\n  name: {{ .Values.name }}\n  kubeVersion: {{ .Capabilities.KubeVersion.Version }}\n  apiVersions: {{ join \", \" .Capabilities.APIVersions |  }}\n  helmVersion: {{ .Capabilities.HelmVersion.Version }}\n",
+				Name:    "config-chart/templates/configmap.yaml",
+			},
+			{
+				Content: "helm:\n  chart: config-chart\n  values:\n    name: example-value\n",
+				Name:    "fleet.yaml",
+			},
+		},
+		"capabilitiesv2": []v1alpha1.BundleResource{
+			{
+				Content: "apiVersion: v2\nname: config-chart\ndescription: A test chart that verifies its config\ntype: application\nversion: 0.1.0\nappVersion: \"1.16.0\"\nkubeVersion: '>= 920.920.0-0'\n",
+				Name:    "config-chart/Chart.yaml",
+			},
+			{
+				Content: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test-simple-chart-config\ndata:\n  test: \"value123\"\n  name: {{ .Values.name }}\n",
+				Name:    "config-chart/templates/configmap.yaml",
+			},
+			{
+				Content: "helm:\n  chart: config-chart\n  values:\n    name: example-value\n",
+				Name:    "fleet.yaml",
+			},
+		},
+	}
 }

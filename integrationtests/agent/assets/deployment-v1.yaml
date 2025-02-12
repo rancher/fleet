@@ -28,7 +28,6 @@ metadata:
 spec:
   selector:
     app.kubernetes.io/name: MyApp
-  externalName: svc-finalizer
   ports:
     - protocol: TCP
       port: 80
