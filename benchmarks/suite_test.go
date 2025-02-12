@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	gm "github.com/onsi/gomega/gmeasure"
 
+	"github.com/rancher/fleet/benchmarks/cmd/parser"
 	"github.com/rancher/fleet/benchmarks/record"
 	"github.com/rancher/fleet/benchmarks/report"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
@@ -75,7 +76,6 @@ var _ = JustBeforeEach(func() {
 	experiment = gm.NewExperiment(name)
 	AddReportEntry(experiment.Name, experiment, ReportEntryVisibilityNever)
 	experiment.RecordNote(record.Header("Info")+info, gm.Style("{{green}}"))
-	record.MemoryUsage(experiment, "MemBefore")
 	record.ResourceCount(ctx, experiment, "ResourceCountBefore")
 	if metrics {
 		record.Metrics(experiment, "Before")
@@ -129,7 +129,7 @@ var _ = BeforeSuite(func() {
 	record.Setup(workspace, k8sClient, k)
 
 	// describe the environment this suite is running against
-	e := gm.NewExperiment("beforeSetup")
+	e := gm.NewExperiment(parser.BeforeSetup)
 	record.MemoryUsage(e, "MemBefore")
 	record.ResourceCount(ctx, e, "ResourceCountBefore")
 	record.CRDCount(ctx, e, "CRDCount")
@@ -146,7 +146,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	e := gm.NewExperiment("afterSetup")
+	e := gm.NewExperiment(parser.AfterSetup)
 	record.MemoryUsage(e, "MemAfter")
 	record.ResourceCount(ctx, e, "ResourceCountAfter")
 	AddReportEntry("setup", e, ReportEntryVisibilityNever)
