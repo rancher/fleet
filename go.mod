@@ -39,7 +39,7 @@ require (
 	github.com/prometheus/common v0.62.0
 	github.com/rancher/fleet/pkg/apis v0.11.3
 	github.com/rancher/lasso v0.2.1
-	github.com/rancher/wrangler/v3 v3.2.0-rc.2
+	github.com/rancher/wrangler/v3 v3.2.0-rc.3
 	github.com/reugn/go-quartz v0.13.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
@@ -225,14 +225,14 @@ require (
 	go.opentelemetry.io/otel/trace v1.33.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
-	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/net v0.34.0 // indirect
+	golang.org/x/mod v0.23.0 // indirect
+	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/term v0.29.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
-	golang.org/x/tools v0.29.0 // indirect
+	golang.org/x/tools v0.30.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/api v0.155.0 // indirect
 	google.golang.org/genproto v0.0.0-20240123012728-ef4313101c80 // indirect
@@ -249,7 +249,7 @@ require (
 	k8s.io/component-base v0.32.1 // indirect
 	k8s.io/component-helpers v0.32.1 // indirect
 	k8s.io/controller-manager v0.32.1 // indirect
-	k8s.io/gengo v0.0.0-20240911193312-2b36238f13e9 // indirect
+	k8s.io/gengo v0.0.0-20250130153323-76c5745d3511 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect
 	k8s.io/helm v2.17.0+incompatible // indirect
 	oras.land/oras-go v1.2.5 // indirect
