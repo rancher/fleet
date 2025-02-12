@@ -102,6 +102,12 @@ jobs:
           ca=$(kubectl get secret -n cattle-fleet-system fleet-controller-bootstrap-token -o go-template='{{index .data "ca.crt" | base64decode}}')
           apiServerIP=$(kubectl get node k3d-upstream-server-0 -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 
+          # workaround for static tag references in helm charts
+          sed -i -e "s/tag:.*/tag: dev/" \
+            charts/fleet/values.yaml
+          sed -i -e "/repository: rancher\/fleet-agent/{n;s/tag:.*/tag: dev/}" \
+            charts/fleet-agent/values.yaml
+
           # agent initiated cluster registration
           helm \
             --kube-context k3d-downstream \
