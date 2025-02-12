@@ -81,10 +81,26 @@ func toType(apiVersion, kind string) string {
 	return group + strings.ToLower(kind)
 }
 
+// resourceDefaultState calculates the state for items in the status.Resources list.
+// This default state may be replaced individually for each resource with the information from NonReadyStatus and ModifiedStatus fields.
+func resourcesDefaultState(bd *fleet.BundleDeployment) string {
+	switch bdState := summary.GetDeploymentState(bd); bdState {
+	// NotReady and Modified BD states are inferred from resource statuses, so it's incorrect to use that to calculate resource states
+	case fleet.NotReady, fleet.Modified:
+		if bd.Status.IncompleteState {
+			return "Unknown"
+		} else {
+			return string(fleet.Ready)
+		}
+	default:
+		return string(bdState)
+	}
+}
+
 func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey]resourceStateEntry {
 	clusterID := bd.Labels[fleet.ClusterNamespaceLabel] + "/" + bd.Labels[fleet.ClusterLabel]
-	defaultState := string(summary.GetDeploymentState(&bd))
 	incomplete := bd.Status.IncompleteState
+	defaultState := resourcesDefaultState(&bd)
 
 	resources := make(map[fleet.ResourceKey]resourceStateEntry, len(bd.Status.Resources))
 	for _, bdResource := range bd.Status.Resources {
