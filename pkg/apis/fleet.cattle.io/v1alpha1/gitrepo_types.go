@@ -175,9 +175,13 @@ type GitRepoStatus struct {
 	// GitJobStatus is the status of the last Git job run, e.g. "Current" if there was no error.
 	GitJobStatus string `json:"gitJobStatus,omitempty"`
 	// LastSyncedImageScanTime is the time of the last image scan.
-	LastSyncedImageScanTime metav1.Time `json:"lastSyncedImageScanTime,omitempty"`
+	// +optional
+	// +nullable
+	LastSyncedImageScanTime *metav1.Time `json:"lastSyncedImageScanTime,omitempty"`
 	// LastPollingTime is the last time the polling check was triggered
-	LastPollingTime metav1.Time `json:"lastPollingTriggered,omitempty"`
+	// +optional
+	// +nullable
+	LastPollingTime *metav1.Time `json:"lastPollingTriggered,omitempty"`
 }
 
 type GitRepoDisplay struct {
