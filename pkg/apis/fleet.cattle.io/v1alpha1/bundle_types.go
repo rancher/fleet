@@ -306,9 +306,8 @@ const (
 	// BundleDeploymentConditionInstalled indicates the bundledeployment
 	// has been installed.
 	BundleDeploymentConditionInstalled = "Installed"
-	// BundleDeploymentConditionDeployed is used by the bundledeployment
-	// controller. It is true if the handler returns no error and false if
-	// an error is returned.
+	// BundleDeploymentConditionDeployed indicates whether the deployment
+	// succeeded.
 	BundleDeploymentConditionDeployed  = "Deployed"
 	BundleDeploymentConditionMonitored = "Monitored"
 )
