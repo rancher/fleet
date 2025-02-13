@@ -223,8 +223,8 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			if gitrepo.Status.WebhookCommit != revision && revision != "" {
+				var gitRepoFromCluster v1alpha1.GitRepo
 				if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-					var gitRepoFromCluster v1alpha1.GitRepo
 					err := w.client.Get(
 						ctx,
 						ktypes.NamespacedName{
@@ -236,16 +236,21 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 						return err
 					}
 					gitRepoFromCluster.Status.WebhookCommit = revision
-					// if PollingInterval is not set and webhook is configured, set it to 1 hour
-					if gitrepo.Spec.PollingInterval == nil {
-						gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{
-							Duration: webhookDefaultSyncInterval * time.Second,
-						}
-					}
 					return w.client.Status().Update(ctx, &gitRepoFromCluster)
 				}); err != nil {
 					w.logAndReturn(rw, err)
 					return
+				}
+				// if PollingInterval is not set and webhook is configured, set it to 1 hour
+				if gitrepo.Spec.PollingInterval == nil {
+					p := client.MergeFrom(&gitRepoFromCluster)
+					gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{
+						Duration: webhookDefaultSyncInterval * time.Second,
+					}
+					if err := w.client.Patch(ctx, &gitRepoFromCluster, p); err != nil {
+						w.logAndReturn(rw, err)
+						return
+					}
 				}
 			}
 		}

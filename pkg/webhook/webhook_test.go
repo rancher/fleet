@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"time"
 
 	"go.uber.org/mock/gomock"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -388,7 +389,14 @@ func TestGitHubRightSecretAndCommitUpdated(t *testing.T) {
 		func(ctx context.Context, repo *v1alpha1.GitRepo, opts ...interface{}) {
 			// check that the commit is the expected one
 			if repo.Status.WebhookCommit != expectedCommit {
-				t.Errorf("expecting girepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
+				t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
+			}
+		},
+	).Times(1)
+	mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...interface{}) {
+			if repo.Spec.PollingInterval.Duration != time.Hour {
+				t.Errorf("expecting gitrepo polling interval 1h, got %s", repo.Spec.PollingInterval.Duration)
 			}
 		},
 	).Times(1)
