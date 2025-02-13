@@ -5,6 +5,7 @@ import (
 
 	"github.com/rancher/fleet/internal/config"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/cert"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -43,8 +44,19 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 		branch = "master"
 	}
 
+	// Fall back to Rancher-configured CA bundles if no CA bundle is specified in the GitRepo
+	cabundle := gitrepo.Spec.CABundle
+	if len(cabundle) == 0 {
+		cab, err := cert.GetRancherCABundle(ctx, client)
+		if err != nil {
+			return "", err
+		}
+
+		cabundle = cab
+	}
+
 	r, err := NewRemote(gitrepo.Spec.Repo, &options{
-		CABundle:          gitrepo.Spec.CABundle,
+		CABundle:          cabundle,
 		Credential:        &secret,
 		InsecureTLSVerify: gitrepo.Spec.InsecureSkipTLSverify,
 		Timeout:           config.Get().GitClientTimeout.Duration,

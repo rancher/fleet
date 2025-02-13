@@ -1,10 +1,21 @@
 package git_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
+	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -30,7 +41,7 @@ func newTestClient(objs ...client.Object) client.Client {
 		Build()
 }
 
-func newTestGithubServer(refs []string) *httptest.Server {
+func newTestGithubServer(refs []string, TLSCfg *tls.Config) *httptest.Server {
 	// fake response from github with capabilities
 	header := "001e# service=git-upload-pack\n01552ada7cca738877df8459b3a34839a15e5683edaa HEAD\x00"
 	header += "multi_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed allow-tip-sha1-in-want allow-reachable-sha1-in-want no-done symref=HEAD:refs/heads/master filter object-format=sha1 agent=git/github-f133c3a1d7e6\n"
@@ -49,7 +60,13 @@ func newTestGithubServer(refs []string) *httptest.Server {
 	})
 
 	ts := httptest.NewUnstartedServer(mux)
-	ts.Start()
+	if TLSCfg != nil {
+		ts.TLS = TLSCfg
+		ts.StartTLS()
+	} else {
+		ts.Start()
+	}
+
 	return ts
 }
 
@@ -59,13 +76,6 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 			fakeGithub *httptest.Server
 			refs       []string
 		)
-		JustBeforeEach(func() {
-			fakeGithub = newTestGithubServer(refs)
-		})
-
-		AfterEach(func() {
-			fakeGithub.Close()
-		})
 
 		BeforeEach(func() {
 			refs = []string{
@@ -92,6 +102,9 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 				},
 			}
 
+			fakeGithub = newTestGithubServer(refs, nil)
+			defer fakeGithub.Close()
+
 			gr := &fleetv1.GitRepo{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gitrepo",
@@ -106,6 +119,7 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 					Commit: "",
 				},
 			}
+
 			c := newTestClient(secret)
 			f := git.Fetch{}
 			commit, err := f.LatestCommit(context.Background(), gr, c)
@@ -126,6 +140,9 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 				},
 			}
 
+			fakeGithub = newTestGithubServer(refs, nil)
+			defer fakeGithub.Close()
+
 			gr := &fleetv1.GitRepo{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gitrepo",
@@ -140,6 +157,7 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 					Commit: "",
 				},
 			}
+
 			c := newTestClient(secret)
 			f := git.Fetch{}
 			commit, err := f.LatestCommit(context.Background(), gr, c)
@@ -160,6 +178,9 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 				},
 			}
 
+			fakeGithub = newTestGithubServer(refs, nil)
+			defer fakeGithub.Close()
+
 			gr := &fleetv1.GitRepo{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gitrepo",
@@ -174,6 +195,7 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 					Commit: "",
 				},
 			}
+
 			c := newTestClient(secret)
 			f := git.Fetch{}
 			commit, err := f.LatestCommit(context.Background(), gr, c)
@@ -181,5 +203,145 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 			Expect(commit).To(BeEmpty())
 			Expect(err.Error()).To(Equal("ssh: no key found"))
 		})
+
+		It("uses a Rancher CA bundle if configured", func() {
+			cfg, ca, err := setupCerts()
+			Expect(err).ToNot(HaveOccurred())
+
+			buf := make([]byte, base64.StdEncoding.EncodedLen(len(ca)))
+			base64.StdEncoding.Encode(buf, ca)
+
+			fakeGithub = newTestGithubServer(refs, cfg)
+			defer fakeGithub.Close()
+
+			config.Set(&config.Config{
+				GitClientTimeout: metav1.Duration{Duration: 0},
+			})
+
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "tls-ca-additional",
+					Namespace: "cattle-system",
+				},
+				Data: map[string][]byte{
+					"ca-additional.pem": ca,
+				},
+			}
+
+			gr := &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-gitrepo",
+					Namespace: "test-ns",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo:   fakeGithub.URL,
+					Branch: "master",
+				},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "",
+				},
+			}
+
+			c := newTestClient(secret)
+			f := git.Fetch{}
+			commit, err := f.LatestCommit(context.Background(), gr, c)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(commit).To(Equal("2ada7cca738877df8459b3a34839a15e5683edaa"))
+
+			// Try again without the secret, and check that fetching the latest commit fails
+			c = newTestClient()
+			commit, err = f.LatestCommit(context.Background(), gr, c)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("signed by unknown authority"))
+			Expect(commit).To(BeEmpty())
+		})
 	})
 })
+
+// setupCerts creates a CA certificate, encodes it in PEM format, and creates server certificates signed with the
+// previously generated CA cert.
+// It returns server TLS config used to set up a test server, along with PEM data for the CA cert and an error, if any
+// (in which case the other 2 returned values will be nil).
+// Heavily inspired by https://shaneutt.com/blog/golang-ca-and-signed-cert-go/
+func setupCerts() (serverTLSConf *tls.Config, caPEMData []byte, err error) {
+	subject := pkix.Name{
+		Organization:  []string{"Testing Fleet, Inc."},
+		Country:       []string{"DE"},
+		Locality:      []string{"Fleet City"},
+		StreetAddress: []string{"Continuous Deployment Street"},
+		PostalCode:    []string{"4242"},
+	}
+
+	// set up CA certificate
+	ca := &x509.Certificate{
+		SerialNumber:          big.NewInt(2025),
+		Subject:               subject,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(10, 0, 0),
+		IsCA:                  true,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+
+	caPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	caPEM := new(bytes.Buffer)
+	_ = pem.Encode(caPEM, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: caBytes,
+	})
+
+	// set up server certificate
+	cert := &x509.Certificate{
+		SerialNumber: big.NewInt(2019),
+		Subject:      subject,
+		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().AddDate(10, 0, 0),
+		SubjectKeyId: []byte{1, 2, 3, 4, 6},
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+
+	certPrivKey, err := rsa.GenerateKey(rand.Reader, 4096)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, caPrivKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certPEM := new(bytes.Buffer)
+	_ = pem.Encode(certPEM, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certBytes,
+	})
+
+	certPrivKeyPEM := new(bytes.Buffer)
+	_ = pem.Encode(certPrivKeyPEM, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
+	})
+
+	serverCert, err := tls.X509KeyPair(certPEM.Bytes(), certPrivKeyPEM.Bytes())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	serverTLSConf = &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+	}
+
+	return serverTLSConf, caPEM.Bytes(), nil
+}
