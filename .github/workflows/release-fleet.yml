@@ -157,7 +157,7 @@ jobs:
           fi
 
           echo "publishing helm chart in the branch $charts_branch"
-          if ! git show-ref --quiet "refs/heads/$charts_branch"; then
+          if ! git ls-remote --exit-code --heads origin "$charts_branch"; then
             git checkout --orphan "$charts_branch"
             git rm -rf .
 
@@ -169,10 +169,11 @@ jobs:
             git add README.md LICENSE .gitignore
             git commit -m "Initial commit for $charts_branch"
           else
+            git checkout .
             git checkout "$charts_branch"
           fi
 
-          mkdir charts
+          mkdir -p charts
           find dist/ -name '*.tgz' -exec tar -xf {} -C charts/ \;
 
           git add charts/**/*
