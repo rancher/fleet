@@ -142,3 +142,41 @@ jobs:
           for f in $(find dist/ -name '*.tgz'); do
             gh release upload $tag $f
           done
+
+      - name: Add charts to branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(jq -r '.version' <<< '${{ steps.goreleaser.outputs.metadata }}')
+          branch_version=$(cut -d'.' -f1,2 <<< "$version")
+          charts_branch=charts/$branch_version
+
+          if [ ! -e ~/.gitconfig ]; then
+            git config --global user.name "fleet-bot"
+            git config --global user.email fleet@suse.de
+          fi
+
+          echo "publishing helm chart in the branch $charts_branch"
+          if ! git show-ref --quiet "refs/heads/$charts_branch"; then
+            git checkout --orphan "$charts_branch"
+            git rm -rf .
+
+            echo "# Fleet Helm Charts for v$branch_version versions" > README.md
+            echo "The documentation is centralized in a unique place, checkout https://fleet.rancher.io/." >> README.md
+
+            git checkout origin/main -- LICENSE .gitignore
+
+            git add README.md LICENSE .gitignore
+            git commit -m "Initial commit for $charts_branch"
+          else
+            git checkout "$charts_branch"
+          fi
+
+          mkdir charts
+          find dist/ -name '*.tgz' -exec tar -xf {} -C charts/ \;
+
+          git add charts/**/*
+          git commit -m "Update charts to version $version"
+
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          git push origin "$charts_branch"
