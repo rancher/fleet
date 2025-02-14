@@ -179,8 +179,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           repo: "rancher"
         run: |
-          version=$(jq -r '.version' <<< "${{ steps.goreleaser.outputs.metadata }}")
-          tag=$(jq -r '.tag' <<< "${{ steps.goreleaser.outputs.metadata }}")
+          version=$(jq -r '.version' <<< '${{ steps.goreleaser.outputs.metadata }}')
+          tag=$(jq -r '.tag' <<< '${{ steps.goreleaser.outputs.metadata }}')
           echo "publishing helm chart for (repo: $repo, tag: $tag, version: $version)"
 
           # Replace rancher/fleet, rancher/fleet-agent and rancher/gitjob image names, but not eg. rancher/kubectl
@@ -202,7 +202,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version=$(jq -r '.version' <<< "${{ steps.goreleaser.outputs.metadata }}")
+          version=$(jq -r '.version' <<< '${{ steps.goreleaser.outputs.metadata }}')
           branch_version=$(cut -d'.' -f1,2 <<< "$version")
           charts_branch=charts/$branch_version
 
@@ -216,10 +216,10 @@ jobs:
             git checkout --orphan "$charts_branch"
             git rm -rf .
 
-            echo "# Fleet Helm Charts for $branch_version versions" > README.md
+            echo "# Fleet Helm Charts for v$branch_version versions" > README.md
             echo "The documentation is centralized in a unique place, checkout https://fleet.rancher.io/." >> README.md
 
-            git checkout main -- LICENSE .gitignore
+            git checkout origin/main -- LICENSE .gitignore
 
             git add README.md LICENSE .gitignore
             git commit -m "Initial commit for $charts_branch"
