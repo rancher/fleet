@@ -225,9 +225,9 @@ jobs:
             echo "# Fleet Helm Charts for $branch_version versions" > README.md
             echo "The documentation is centralized in a unique place, checkout https://fleet.rancher.io/." >> README.md
 
-            git checkout main -- .gitignore
+            git checkout main -- LICENSE .gitignore
 
-            git add README.md .gitignore
+            git add README.md LICENSE .gitignore
             git commit -m "Initial commit for $charts_branch"
           else
             git checkout "$charts_branch"
