@@ -117,7 +117,9 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := git.Fetch{}
 			client := mocks.NewMockClient(ctlr)
-			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound"))
+			// May be called multiple times, including calls to get Rancher CA bundle secrets
+			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
+				Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound")).AnyTimes()
 			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
 			if test.expectedErr == nil {
 				require.NoError(t, err)
@@ -343,7 +345,9 @@ func TestLatestCommit_Revision(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := git.Fetch{}
 			client := mocks.NewMockClient(ctlr)
-			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound"))
+			// May be called multiple times, including calls to get Rancher CA bundle secrets
+			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
+				Return(kerrors.NewNotFound(schema.GroupResource{}, "notfound")).AnyTimes()
 			latestCommit, err := f.LatestCommit(ctx, test.gitrepo, client)
 			if test.expectedCommit != latestCommit {
 				t.Errorf("latestCommit doesn't match. got %s, expected %s", latestCommit, test.expectedCommit)
