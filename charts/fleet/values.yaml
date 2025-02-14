@@ -1,0 +1,136 @@
+image:
+  repository: rancher/fleet
+  tag: v0.11.4-rc.2
+  imagePullPolicy: IfNotPresent
+
+agentImage:
+  repository: rancher/fleet-agent
+  tag: v0.11.4-rc.2
+  imagePullPolicy: IfNotPresent
+
+# For cluster registration the public URL of the Kubernetes API server must be set here
+# Example: https://example.com:6443
+apiServerURL: ""
+
+# For cluster registration the pem encoded value of the CA of the Kubernetes API server must be set here
+# If left empty it is assumed this Kubernetes API TLS is signed by a well known CA.
+apiServerCA: ""
+
+# Determines whether the agent should trust CA bundles from the operating system's trust store when connecting to a
+# management cluster. True in `system-store` mode, false in `strict` mode.
+agentTLSMode: "system-store"
+
+# A duration string for how often agents should report a heartbeat
+agentCheckinInterval: "15m"
+
+# The amount of time that agents will wait before they clean up old Helm releases.
+# A non-existent value or 0 will result in an interval of 15 minutes.
+garbageCollectionInterval: "15m"
+
+# Whether you want to allow cluster upon registration to specify their labels.
+ignoreClusterRegistrationLabels: false
+
+# Counts from gitrepo are out of sync with bundleDeployment state.
+# Just retry in a number of seconds as there is no great way to trigger an event that doesn't cause a loop.
+# If not set default is 15 seconds.
+# clusterEnqueueDelay: 120s
+
+# http[s] proxy server
+# proxy: http://<username>@<password>:<url>:<port>
+
+# comma separated list of domains or ip addresses that will not use the proxy
+noProxy: 127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.cluster.local
+
+# The amount of time to wait for a response from the server before canceling the
+# request.  Used to retrieve the latest commit of configured git repositories.
+# A non-existent value or 0 will result in a timeout of 30 seconds.
+gitClientTimeout: 30s
+
+bootstrap:
+  enabled: true
+  # The namespace that will be autocreated and the local cluster will be registered in
+  namespace: fleet-local
+  # The namespace where the fleet agent for the local cluster will be ran, if empty
+  # this will default to cattle-fleet-system
+  agentNamespace: ""
+  # A repo to add at install time that will deploy to the local cluster. This allows
+  # one to fully bootstrap fleet, its configuration and all its downstream clusters
+  # in one shot.
+  repo: ""
+  secret: ""
+  branch: master
+  paths: ""
+
+global:
+  cattle:
+    systemDefaultRegistry: ""
+
+## Node labels for pod assignment
+## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+##
+nodeSelector: {}
+## List of node taints to tolerate (requires Kubernetes >= 1.6)
+tolerations: []
+
+## PriorityClassName assigned to deployment.
+priorityClassName: ""
+
+gitops:
+  enabled: true
+  # syncPeriod is used to pick up polling for lost gitrepo events.
+  # It should be larger than the largest gitrepo pollinginterval.
+  syncPeriod: 2h
+
+metrics:
+  enabled: true
+
+debug: false
+debugLevel: 0
+propagateDebugSettingsToAgents: true
+disableSecurityContext: false
+
+migrations:
+  clusterRegistrationCleanup: true
+  gitrepoJobsCleanup: true
+
+## Leader election configuration
+leaderElection:
+  leaseDuration: 30s
+  retryPeriod: 10s
+  renewDeadline: 25s
+
+## Fleet controller configuration
+controller:
+  reconciler:
+    # The number of workers that are allowed to each type of reconciler
+    workers:
+      gitrepo: "50"
+      bundle: "50"
+      bundledeployment: "50"
+      cluster: "50"
+      clustergroup: "50"
+      imagescan: "50"
+
+## Fleet agent configuration
+agent:
+  reconciler:
+    # The number of workers that are allowed for each type of reconciler
+    workers:
+      bundledeployment: "50"
+      drift: "50"
+
+# Extra environment variables passed to the fleet pods.
+# extraEnv:
+# - name: EXPERIMENTAL_OCI_STORAGE
+#   value: "true"
+
+# shards:
+#   - id: shard0
+#     nodeSelector:
+#       kubernetes.io/hostname: k3d-upstream-server-0
+#   - id: shard1
+#     nodeSelector:
+#       kubernetes.io/hostname: k3d-upstream-server-1
+#   - id: shard2
+#     nodeSelector:
+#       kubernetes.io/hostname: k3d-upstream-server-2

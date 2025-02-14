@@ -1,0 +1,11 @@
+{{if ne .Release.Namespace .Values.internal.systemNamespace }}
+{{ fail (printf "This chart must be installed in the namespace %s as the release name fleet-agent" .Values.internal.systemNamespace) }}
+{{end}}
+
+{{if ne .Release.Name .Values.internal.managedReleaseName }}
+{{ fail (printf "This chart must be installed in the namespace %s as the release name fleet-agent" .Values.internal.managedReleaseName) }}
+{{end}}
+
+{{if not .Values.apiServerURL }}
+{{ fail "apiServerURL is required to be set, and most likely also apiServerCA" }}
+{{end}}

@@ -1,0 +1,141 @@
+{{- $shards := list (dict "id" "" "nodeSelector" dict) -}}
+{{- $uniqueShards := list -}}
+{{- if .Values.shards -}}
+  {{- range .Values.shards -}}
+    {{- if not (has .id $uniqueShards) -}}
+      {{- $shards = append $shards . -}}
+      {{- $uniqueShards = append $uniqueShards .id -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{ range $shard := $shards }}
+{{- if $.Values.gitops.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "gitjob{{if $shard.id }}-shard-{{ $shard.id }}{{end}}"
+spec:
+  selector:
+    matchLabels:
+      app: "gitjob"
+  template:
+    metadata:
+      labels:
+        app: "gitjob"
+        fleet.cattle.io/shard-id: "{{ $shard.id }}"
+        {{- if empty $shard.id }}
+        fleet.cattle.io/shard-default: "true"
+        {{- end }}
+    spec:
+      serviceAccountName: gitjob
+      containers:
+        - image: "{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          name: gitjob
+          {{- if $.Values.metrics.enabled }}
+          ports:
+          - containerPort: 8081
+            name: metrics
+          {{- end }}
+          args:
+          - fleetcontroller
+          - gitjob
+          - --gitjob-image
+          - "{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          {{- if $.Values.debug }}
+          - --debug
+          - --debug-level
+          - {{ quote $.Values.debugLevel }}
+          {{- end }}
+          {{- if $shard.id }}
+          - --shard-id
+          - {{ quote $shard.id }}
+          {{- end }}
+          {{- if $shard.nodeSelector }}
+          - --shard-node-selector
+          - {{ toJson $shard.nodeSelector | squote }}
+          {{- end }}
+          {{- if not $.Values.metrics.enabled }}
+          - --disable-metrics
+          {{- end }}
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          {{- if $.Values.leaderElection.leaseDuration }}
+            - name: CATTLE_ELECTION_LEASE_DURATION
+              value: {{$.Values.leaderElection.leaseDuration}}
+          {{- end }}
+          {{- if $.Values.leaderElection.retryPeriod }}
+            - name: CATTLE_ELECTION_RETRY_PERIOD
+              value: {{$.Values.leaderElection.retryPeriod}}
+          {{- end }}
+          {{- if $.Values.leaderElection.renewDeadline }}
+            - name: CATTLE_ELECTION_RENEW_DEADLINE
+              value: {{$.Values.leaderElection.renewDeadline}}
+          {{- end }}
+          {{- if $.Values.proxy }}
+            - name: HTTP_PROXY
+              value: {{ $.Values.proxy }}
+            - name: HTTPS_PROXY
+              value: {{ $.Values.proxy }}
+            - name: NO_PROXY
+              value: {{ $.Values.noProxy }}
+          {{- end }}
+          {{- if $.Values.gitops.syncPeriod }}
+            - name: GITREPO_SYNC_PERIOD
+              value: {{ quote $.Values.gitops.syncPeriod }}
+          {{- end }}
+          {{- if $.Values.controller.reconciler.workers.gitrepo }}
+            - name: GITREPO_RECONCILER_WORKERS
+              value: {{ quote $.Values.controller.reconciler.workers.gitrepo }}
+          {{- end }}
+{{- if $.Values.extraEnv }}
+{{ toYaml $.Values.extraEnv | indent 12}}
+{{- end }}
+          {{- if $.Values.debug }}
+            - name: CATTLE_DEV_MODE
+              value: "true"
+          {{- end }}
+          {{- if not $.Values.disableSecurityContext }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            privileged: false
+            capabilities:
+                drop:
+                - ALL
+          {{- end }}
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      nodeSelector: {{ include "linux-node-selector" $shard.id | nindent 8 }}
+{{- if $.Values.nodeSelector }}
+{{ toYaml $.Values.nodeSelector | indent 8 }}
+{{- end }}
+{{- if $shard.nodeSelector -}}
+{{- range $key, $value := $shard.nodeSelector }}
+{{ $key | indent 8}}: {{ $value }}
+{{- end }}
+{{- end }}
+      tolerations: {{ include "linux-node-tolerations" $shard.id | nindent 8 }}
+{{- if $.Values.tolerations }}
+{{ toYaml $.Values.tolerations | indent 8 }}
+{{- end }}
+      {{- if $.Values.priorityClassName }}
+      priorityClassName: "{{$.Values.priorityClassName}}"
+      {{- end }}
+
+{{- if not $.Values.disableSecurityContext }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+{{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
+---
+{{- end }}
