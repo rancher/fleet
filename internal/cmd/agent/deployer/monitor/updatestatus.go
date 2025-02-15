@@ -67,6 +67,8 @@ func isAgent(bd *fleet.BundleDeployment) bool {
 	return strings.HasPrefix(bd.Name, "fleet-agent")
 }
 
+// ShouldUpdateStatus skips resource and ready status updates if the bundle
+// deployment is unchanged or not installed yet.
 func ShouldUpdateStatus(bd *fleet.BundleDeployment) bool {
 	if bd.Spec.DeploymentID != bd.Status.AppliedDeploymentID {
 		return false
@@ -81,6 +83,9 @@ func ShouldUpdateStatus(bd *fleet.BundleDeployment) bool {
 	return true
 }
 
+// UpdateStatus sets the status of the bundledeployment based on the resources from the helm release history and the live state.
+// In the status it updates: Ready, NonReadyStatus, IncompleteState, NonReadyStatus, NonModified, ModifiedStatus, Resources and ResourceCounts fields.
+// Additionally it sets the Ready condition either from the NonReadyStatus or the NonModified status field.
 func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) (fleet.BundleDeploymentStatus, error) {
 	logger := log.FromContext(ctx).WithName("update-status")
 	ctx = log.IntoContext(ctx, logger)
@@ -101,14 +106,16 @@ func (m *Monitor) UpdateStatus(ctx context.Context, bd *fleet.BundleDeployment, 
 
 		return origStatus, err
 	}
+
 	status := bd.Status
+	status.SyncGeneration = &bd.Spec.Options.ForceSyncGeneration
 
 	readyError := readyError(status)
 	Cond(fleet.BundleDeploymentConditionReady).SetError(&status, "", readyError)
-
-	status.SyncGeneration = &bd.Spec.Options.ForceSyncGeneration
 	if readyError != nil {
-		logger.Info("Status not ready", "error", readyError)
+		logger.Info("Status not ready according to nonModified and nonReady", "nonModified", status.NonModified, "nonReady", status.NonReadyStatus)
+	} else {
+		logger.V(1).Info("Status ready, Ready condition set to true")
 	}
 
 	removePrivateFields(&status)
@@ -149,6 +156,7 @@ func readyError(status fleet.BundleDeploymentStatus) error {
 
 // updateFromPreviousDeployment updates the status with information from the
 // helm release history and an apply dry run.
+// Modified resources are resources that have changed from the previous helm release.
 func (m *Monitor) updateFromPreviousDeployment(ctx context.Context, bd *fleet.BundleDeployment, resources *helmdeployer.Resources) error {
 	resourcesPreviousRelease, err := m.deployer.ResourcesFromPreviousReleaseVersion(bd.Name, bd.Status.Release)
 	if err != nil {

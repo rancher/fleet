@@ -83,7 +83,7 @@ jobs:
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.0
-      - uses: rancherlabs/slsactl/actions/install-slsactl@v0.0.8
+      - uses: rancherlabs/slsactl/actions/install-slsactl@v0.0.10
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@main
@@ -141,27 +141,26 @@ jobs:
       - name: Create Docker manifest for Prime and sign it
         shell: bash
         run: |
-            for IMAGE in fleet fleet-agent; do
-              URL="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}"
-              docker buildx imagetools create -t "${URL}" \
-                "${URL}-linux-amd64" \
-                "${URL}-linux-arm64"
+          for IMAGE in fleet fleet-agent; do
+            URL="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}"
+            docker buildx imagetools create -t "${URL}" \
+              "${URL}-linux-amd64" \
+              "${URL}-linux-arm64"
 
-              cosign sign --oidc-provider=github-actions --yes "${URL}"
-            done
+            cosign sign --oidc-provider=github-actions --yes "${URL}"
+          done
 
       - name: Attest provenance
         shell: bash
         run: |
           for IMG_NAME in $(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep PRIME_REGISTRY | sed "s/{{ .Env.PRIME_REGISTRY }}/${{ env.PRIME_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g"); do
             # Extract Docker image reference plus digest from local image
-            URL=$(docker inspect --format='{{index .RepoDigests 0}}' ${IMG_NAME})
+            URL=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMG_NAME}")
 
             max_retries=3
             retry_delay=5
-            i=0
 
-            while [ "${i}" -lt "${max_retries}" ]; do
+            for ((i=0; i<max_retries; i++)); do
               if slsactl download provenance --format=slsav1 "${URL}" > provenance-slsav1.json; then
                 break
               fi
@@ -169,7 +168,6 @@ jobs:
                 echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Prime registry."
                 exit 1
               fi
-              i=$(( i + 1 ))
               sleep "${retry_delay}"
             done
 
@@ -181,25 +179,59 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           repo: "rancher"
         run: |
-          version=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.version')
-          tag=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.tag')
+          version=$(jq -r '.version' <<< '${{ steps.goreleaser.outputs.metadata }}')
+          tag=$(jq -r '.tag' <<< '${{ steps.goreleaser.outputs.metadata }}')
           echo "publishing helm chart for (repo: $repo, tag: $tag, version: $version)"
 
           # Replace rancher/fleet, rancher/fleet-agent and rancher/gitjob image names, but not eg. rancher/kubectl
           sed -i \
-              -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
-              -e "s/tag:.*/tag: $tag/" \
-              charts/fleet/values.yaml
+            -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
+            -e "s/tag:.*/tag: $tag/" \
+            charts/fleet/values.yaml
 
           sed -i \
-              -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
-              -e "s/tag: dev/tag: $tag/" \
-              charts/fleet-agent/values.yaml
+            -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
+            -e "s/tag: dev/tag: $tag/" \
+            charts/fleet-agent/values.yaml
 
-          helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet
-          helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-crd
-          helm package --version="$version" --app-version="$version" -d ./dist ./charts/fleet-agent
+          find charts/ -maxdepth 1 -mindepth 1 -type d -exec helm package --version="$version" --app-version="$version" -d ./dist {} \;
 
-          for f in $(find dist/ -name '*.tgz'); do
-            gh release upload $tag $f
-          done
+          find dist/ -name '*.tgz' -exec gh release upload $tag {} +
+
+      - name: Add charts to branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(jq -r '.version' <<< '${{ steps.goreleaser.outputs.metadata }}')
+          branch_version=v$(cut -d'.' -f1,2 <<< "$version")
+          charts_branch=charts/$branch_version
+
+          if [ ! -e ~/.gitconfig ]; then
+            git config --global user.name "fleet-bot"
+            git config --global user.email fleet@suse.de
+          fi
+
+          echo "publishing helm chart in the branch $charts_branch"
+          if ! git show-ref --quiet "refs/heads/$charts_branch"; then
+            git checkout --orphan "$charts_branch"
+            git rm -rf .
+
+            echo "# Fleet Helm Charts for $branch_version versions" > README.md
+            echo "The documentation is centralized in a unique place, checkout https://fleet.rancher.io/." >> README.md
+
+            git checkout origin/main -- LICENSE .gitignore
+
+            git add README.md LICENSE .gitignore
+            git commit -m "Initial commit for $charts_branch"
+          else
+            git checkout "$charts_branch"
+          fi
+
+          mkdir charts
+          find dist/ -name '*.tgz' -exec tar -xf {} -C charts/ \;
+
+          git add charts/**/*
+          git commit -m "Update charts to version $version"
+
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+          git push origin "$charts_branch"
