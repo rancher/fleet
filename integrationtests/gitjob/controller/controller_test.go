@@ -210,7 +210,7 @@ var _ = Describe("GitJob controller", func() {
 				Consistently(func(g Gomega) {
 					err := k8sClient.Get(ctx, ns, &secret)
 
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}, time.Second*5, time.Second*1).Should(Succeed())
 			})
@@ -993,7 +993,7 @@ var _ = Describe("GitJob controller", func() {
 				Consistently(func(g Gomega) {
 					err := k8sClient.Get(ctx, ns, &secret)
 
-					g.Expect(err).ToNot(BeNil())
+					g.Expect(err).To(HaveOccurred())
 					g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
 				}, time.Second*5, time.Second*1).Should(Succeed())
 			})
