@@ -221,7 +221,11 @@ func Metrics(experiment *gm.Experiment, suffix string) {
 		case "NetworkRX", "NetworkTX":
 			experiment.RecordValue(n, v, gm.Precision(0), gm.Units("bytes"))
 		default:
-			experiment.RecordValue(n, v, gm.Precision(0))
+			if strings.HasPrefix(k, "RESTClient") {
+				experiment.RecordValue(n, v, gm.Precision(0), gm.Units("requests"))
+			} else {
+				experiment.RecordValue(n, v, gm.Precision(0))
+			}
 		}
 	}
 }
@@ -285,7 +289,35 @@ func extractFromMetricFamilies(res map[string]float64, controllers []string, mfs
 					res["ReconcileSuccess"] += v
 
 				}
+
+				break
 			}
+		}
+	}
+	// rest_client_requests_total{code="200",host="10.43.0.1:443",method="DELETE"} 791
+	// rest_client_requests_total{code="200",host="10.43.0.1:443",method="GET"} 1432
+	// rest_client_requests_total{code="200",host="10.43.0.1:443",method="PATCH"} 213
+	// rest_client_requests_total{code="200",host="10.43.0.1:443",method="PUT"} 15986
+	// rest_client_requests_total{code="201",host="10.43.0.1:443",method="POST"} 2088
+	// rest_client_requests_total{code="404",host="10.43.0.1:443",method="GET"} 1
+	// rest_client_requests_total{code="409",host="10.43.0.1:443",method="POST"} 6
+	// rest_client_requests_total{code="409",host="10.43.0.1:443",method="PUT"} 1392
+	mf = mfs["rest_client_requests_total"]
+	for _, m := range mf.Metric {
+		l := m.GetLabel()
+		v := m.Counter.GetValue()
+		code := ""
+		method := ""
+		for _, tmp := range l {
+			switch tmp.GetName() {
+			case "code":
+				code = tmp.GetValue()
+			case "method":
+				method = tmp.GetValue()
+			}
+		}
+		if code != "" && method != "" {
+			res["RESTClient"+method+code] = v
 		}
 	}
 
