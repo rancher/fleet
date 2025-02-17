@@ -14,6 +14,8 @@ import (
 	gomegatypes "github.com/onsi/gomega/types"
 	"github.com/reugn/go-quartz/quartz"
 	"go.uber.org/mock/gomock"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	ctrlreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
@@ -99,20 +101,53 @@ var _ = BeforeSuite(func() {
 		},
 	)
 
+	// fleet-controller deployment
+	err = k8sClient.Create(ctx, &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      config.ManagerConfigName,
+			Namespace: "default",
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "fleet-controller",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "fleet-controller",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "test", // value is required. but we don't need a real deployment for the test
+
+						},
+					},
+				},
+			},
+		},
+	})
+	Expect(err).ToNot(HaveOccurred())
+
 	sched := quartz.NewStdScheduler()
 	Expect(sched).ToNot(BeNil())
 
 	config.Set(&config.Config{})
 
 	err = (&reconciler.GitJobReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		Image:      "image",
-		Scheduler:  sched,
-		GitFetcher: fetcherMock,
-		Clock:      reconciler.RealClock{},
-		Recorder:   mgr.GetEventRecorderFor("gitjob-controller"),
-		Workers:    50,
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		Image:           "image",
+		Scheduler:       sched,
+		GitFetcher:      fetcherMock,
+		Clock:           reconciler.RealClock{},
+		Recorder:        mgr.GetEventRecorderFor("gitjob-controller"),
+		Workers:         50,
+		SystemNamespace: "default",
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

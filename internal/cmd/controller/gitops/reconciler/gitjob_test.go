@@ -14,12 +14,14 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/mocks"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	gitmocks "github.com/rancher/fleet/pkg/git/mocks"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +34,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+)
+
+type testClientType int
+
+const (
+	testClientHTTP testClientType = iota
+	testClientSSH
+	testClientSimple
 )
 
 func getCondition(gitrepo *fleetv1.GitRepo, condType string) (genericcondition.GenericCondition, bool) {
@@ -677,9 +687,25 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 	utilruntime.Must(batchv1.AddToScheme(scheme))
 	ctx := context.TODO()
 
+	// define the default tolerations that all jobs have
+	defaultTolerations := []corev1.Toleration{
+		{
+			Key:      "cattle.io/os",
+			Operator: "Equal",
+			Value:    "linux",
+			Effect:   "NoSchedule",
+		},
+		{
+			Key:      "node.cloudprovider.kubernetes.io/uninitialized",
+			Operator: "Equal",
+			Value:    "true",
+			Effect:   "NoSchedule",
+		},
+	}
 	tests := map[string]struct {
 		gitrepo                *fleetv1.GitRepo
-		client                 client.Client
+		client                 testClientType
+		deploymentTolerations  []corev1.Toleration
 		expectedInitContainers []corev1.Container
 		expectedVolumes        []corev1.Volume
 		expectedErr            error
@@ -723,7 +749,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: fake.NewFakeClient(),
+			client: testClientSimple,
 		},
 		"simple with custom branch": {
 			gitrepo: &fleetv1.GitRepo{
@@ -767,7 +793,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: fake.NewFakeClient(),
+			client: testClientSimple,
 		},
 		"simple with custom revision": {
 			gitrepo: &fleetv1.GitRepo{
@@ -811,7 +837,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: fake.NewFakeClient(),
+			client: testClientSimple,
 		},
 		"http credentials": {
 			gitrepo: &fleetv1.GitRepo{
@@ -877,7 +903,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: httpSecretMock(),
+			client: testClientHTTP,
 		},
 		"ssh credentials": {
 			gitrepo: &fleetv1.GitRepo{
@@ -941,7 +967,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: sshSecretMock(),
+			client: testClientSSH,
 		},
 		"custom CA": {
 			gitrepo: &fleetv1.GitRepo{
@@ -1056,16 +1082,73 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 				},
 			},
 		},
+		"simple with tolerations": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{Repo: "repo"},
+			},
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{
+						"fleet",
+					},
+					Args:  []string{"gitcloner", "repo", "/workspace", "--branch", "master"},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      gitClonerVolumeName,
+							MountPath: "/workspace",
+						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+					},
+					SecurityContext: securityContext,
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+			},
+			client: testClientSimple,
+			deploymentTolerations: []corev1.Toleration{
+				{
+					Effect:   "NoSchedule",
+					Key:      "key1",
+					Value:    "value1",
+					Operator: "Equals",
+				},
+				{
+					Effect:   "NoExecute",
+					Key:      "key2",
+					Value:    "value2",
+					Operator: "Exists",
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := GitJobReconciler{
-				Client: test.client,
-				Scheme: scheme,
-				Image:  "test",
-				Clock:  RealClock{},
+				Client:          getTestClient(test.client, test.deploymentTolerations),
+				Scheme:          scheme,
+				Image:           "test",
+				Clock:           RealClock{},
+				SystemNamespace: config.DefaultNamespace,
 			}
+
 			job, err := r.newGitJob(ctx, test.gitrepo)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -1085,6 +1168,13 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 				if !found {
 					t.Fatalf("volume %v not found in %v", evol, job.Spec.Template.Spec.Volumes)
 				}
+			}
+
+			// tolerations check
+			// tolerations will be the default ones plus the deployment ones
+			expectedTolerations := append(defaultTolerations, test.deploymentTolerations...)
+			if !cmp.Equal(expectedTolerations, job.Spec.Template.Spec.Tolerations) {
+				t.Fatalf("job tolerations differ. Expecting: %v and found: %v", test.deploymentTolerations, job.Spec.Template.Spec.Tolerations)
 			}
 		})
 	}
@@ -1169,9 +1259,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := GitJobReconciler{
-				Client: fake.NewFakeClient(),
-				Image:  "test",
-				Clock:  RealClock{},
+				Client:          getTestClient(testClientSimple, []corev1.Toleration{}),
+				Image:           "test",
+				Clock:           RealClock{},
+				SystemNamespace: config.DefaultNamespace,
 			}
 			for k, v := range test.osEnv {
 				err := os.Setenv(k, v)
@@ -1189,6 +1280,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			if !cmp.Equal(job.Spec.Template.Spec.InitContainers[0].Env, test.expectedInitContainerEnvVars) {
 				t.Errorf("unexpected envVars. expected %v, but got %v", test.expectedInitContainerEnvVars, job.Spec.Template.Spec.InitContainers[0].Env)
 			}
+
 			for k := range test.osEnv {
 				err := os.Unsetenv(k)
 				if err != nil {
@@ -1289,9 +1381,10 @@ func TestCheckforPollingTask(t *testing.T) {
 	}
 }
 
-func httpSecretMock() client.Client {
+func httpSecretMock(fleetControllerDeployment *appsv1.Deployment) client.Client {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(appsv1.AddToScheme(scheme))
 
 	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
@@ -1300,12 +1393,13 @@ func httpSecretMock() client.Client {
 			corev1.BasicAuthPasswordKey: []byte("pass"),
 		},
 		Type: corev1.SecretTypeBasicAuth,
-	}).Build()
+	}, fleetControllerDeployment).Build()
 }
 
-func sshSecretMock() client.Client {
+func sshSecretMock(fleetControllerDeployment *appsv1.Deployment) client.Client {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(appsv1.AddToScheme(scheme))
 
 	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
@@ -1313,5 +1407,41 @@ func sshSecretMock() client.Client {
 			corev1.SSHAuthPrivateKey: []byte("ssh key"),
 		},
 		Type: corev1.SecretTypeSSHAuth,
-	}).Build()
+	}, fleetControllerDeployment).Build()
+}
+
+func defaultMockClient(fleetControllerDeployment *appsv1.Deployment) client.Client {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(appsv1.AddToScheme(scheme))
+
+	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(
+		fleetControllerDeployment,
+	).Build()
+}
+
+func getFleetControllerDeployment(tolerations []corev1.Toleration) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      config.ManagerConfigName,
+			Namespace: config.DefaultNamespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Tolerations: tolerations,
+				},
+			},
+		},
+	}
+}
+
+func getTestClient(t testClientType, tolerations []corev1.Toleration) client.Client {
+	switch t {
+	case testClientHTTP:
+		return httpSecretMock(getFleetControllerDeployment(tolerations))
+	case testClientSSH:
+		return sshSecretMock(getFleetControllerDeployment(tolerations))
+	}
+	return defaultMockClient(getFleetControllerDeployment(tolerations))
 }
