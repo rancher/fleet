@@ -119,24 +119,9 @@ func Manifest(namespace string, agentScope string, opts ManifestOptions) []runti
 		},
 	}
 
-	// StatefulSets require a headless service. The service is not used.
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultName,
-			Namespace: namespace,
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: map[string]string{
-				"app": DefaultName,
-			},
-			Type:      corev1.ServiceTypeClusterIP,
-			ClusterIP: "None",
-		},
-	}
-
 	var objs []runtime.Object
 	objs = append(objs, clusterRole...)
-	objs = append(objs, admin, defaultSa, service, agent, networkPolicy)
+	objs = append(objs, admin, defaultSa, agent, networkPolicy)
 
 	return objs
 }
@@ -152,23 +137,23 @@ func Resolve(global, prefix, image string) string {
 	return image
 }
 
-func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1.StatefulSet {
+func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1.Deployment {
 	name := DefaultName
 	serviceAccount := DefaultName
 	image := Resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
 
-	app := &appsv1.StatefulSet{
+	app := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
-		Spec: appsv1.StatefulSetSpec{
+		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app": name,
 				},
 			},
-			ServiceName: name,
+			// ServiceName: name,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{

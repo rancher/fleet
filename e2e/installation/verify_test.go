@@ -63,7 +63,7 @@ var _ = Describe("Fleet Installation", func() {
 	Context("Verify agents are updated to new image", func() {
 		It("has the expected fleet images", func() {
 			Eventually(func() string {
-				out, _ := k.Namespace(localAgentNamespace).Get("statefulsets", "-owide")
+				out, _ := k.Namespace(localAgentNamespace).Get("deployments", "-owide")
 				return out
 			}).Should(ContainSubstring("rancher/fleet-agent:" + version))
 		})
@@ -71,7 +71,7 @@ var _ = Describe("Fleet Installation", func() {
 		It("has the expected fleet-agent image in the downstream cluster", Label("multi-cluster"), func() {
 			kd := env.Kubectl.Context(env.Downstream)
 			Eventually(func() string {
-				out, _ := kd.Namespace(agentNamespace).Get("statefulsets", "-owide")
+				out, _ := kd.Namespace(agentNamespace).Get("deployments", "-owide")
 				return out
 			}).Should(ContainSubstring("rancher/fleet-agent:" + version))
 		})
