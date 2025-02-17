@@ -218,6 +218,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 	}
+	logger = logger.WithValues("manifestID", manifestID)
 
 	if err := resetStatus(&bundle.Status, matchedTargets); err != nil {
 		return ctrl.Result{}, err
@@ -332,10 +333,8 @@ func (r *BundleReconciler) createBundleDeployment(
 	}
 	if target.Deployment.Namespace == "" {
 		logger.V(1).Info(
-			"Skipping bundledeployment with empty namespace, "+
-				"waiting for agentmanagement to set cluster.status.namespace",
-			"bundledeployment",
-			target.Deployment,
+			"Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace",
+			"bundledeployment", target.Deployment,
 		)
 		return nil, nil
 	}
@@ -356,15 +355,13 @@ func (r *BundleReconciler) createBundleDeployment(
 	// When content resources are stored in etcd, we need to add finalizers.
 	if !contentsInOCI && !contentsInHelmChart {
 		content := &fleet.Content{}
-		err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content)
-		if client.IgnoreNotFound(err) != nil {
-			logger.Error(err, "Reconcile failed to get content", "content ID", manifestID)
-			return nil, err
+		if err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content); err != nil {
+			return nil, fmt.Errorf("failed to get content resource: %w", err)
 		}
 
 		if added := controllerutil.AddFinalizer(content, bd.Name); added {
 			if err := r.Update(ctx, content); err != nil {
-				logger.Error(err, "Reconcile failed to add content finalizer", "content ID", manifestID)
+				return nil, fmt.Errorf("could not add finalizer to content resource: %w", err)
 			}
 		}
 	}
