@@ -25,7 +25,10 @@ var (
 )
 
 const (
-	DefaultName = "fleet-agent"
+	DefaultName           = "fleet-agent"
+	electionLeaseDuration = "30s"
+	electionRetryPeriod   = "10s"
+	electionRenewDeadline = "25s"
 )
 
 type ManifestOptions struct {
@@ -153,7 +156,6 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 					"app": name,
 				},
 			},
-			// ServiceName: name,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -176,6 +178,9 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 										},
 									},
 								},
+								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: electionLeaseDuration},
+								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: electionRetryPeriod},
+								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: electionRenewDeadline},
 							},
 							Command: []string{
 								"fleetagent",
@@ -206,6 +211,9 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 									},
 								},
 								{Name: "AGENT_SCOPE", Value: agentScope},
+								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: electionLeaseDuration},
+								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: electionRetryPeriod},
+								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: electionRenewDeadline},
 							},
 							Command: []string{
 								"fleetagent",
@@ -235,6 +243,9 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 									},
 								},
 								{Name: "CHECKIN_INTERVAL", Value: opts.CheckinInterval},
+								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: electionLeaseDuration},
+								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: electionRetryPeriod},
+								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: electionRenewDeadline},
 							},
 							Command: []string{
 								"fleetagent",

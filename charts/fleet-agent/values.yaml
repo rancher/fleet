@@ -81,3 +81,9 @@ agent:
     workers:
       bundledeployment: "50"
       drift: "50"
+
+## Leader election configuration
+leaderElection:
+  leaseDuration: 30s
+  retryPeriod: 10s
+  renewDeadline: 25s
