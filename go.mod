@@ -42,7 +42,7 @@ require (
 	github.com/rancher/wrangler/v3 v3.2.0-rc.3
 	github.com/reugn/go-quartz v0.13.0
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.35.0
 	go.uber.org/mock v0.5.0
