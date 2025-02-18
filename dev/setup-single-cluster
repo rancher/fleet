@@ -39,4 +39,5 @@ fi
 # needed for gitrepo tests
 ./dev/import-images-tests-k3d
 ./dev/create-zot-certs 'FleetCI-RootCA' # for OCI tests
+./dev/create-secrets 'FleetCI-RootCA'
 ./e2e/testenv/infra/infra setup
