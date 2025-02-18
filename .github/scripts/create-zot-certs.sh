@@ -45,6 +45,7 @@ if [ $? -eq 1 ]; then
     [alt_names]
     DNS.1 = zot-service.$FLEET_E2E_NS.svc.cluster.local
     DNS.2 = chartmuseum-service.$FLEET_E2E_NS.svc.cluster.local
+    DNS.3 = git-service.$FLEET_E2E_NS.svc.cluster.local
 EOF
 
     # sign Zot cert with CA root key

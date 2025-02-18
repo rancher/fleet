@@ -13,13 +13,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
+var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), func() {
 	var (
 		gitRepoPath     string
 		tmpdir          string
 		k               kubectl.Command
 		gh              *githelper.Git
 		targetNamespace string
+		helmSecretName  string
 	)
 
 	JustBeforeEach(func() {
@@ -37,7 +38,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 		}{
 			inClusterRepoURL,
 			gitRepoPath,
-			"helm-secret",
+			helmSecretName,
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -49,6 +50,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 		Context("containing a private OCI-based helm chart", Label("oci-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "oci-with-auth"
+				helmSecretName = "helm-secret"
 				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -62,9 +64,38 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 				}).Should(ContainSubstring("sleeper-"))
 			})
 		})
+		Context("containing a private HTTP-based helm chart with repo path and no CA bundle in secret", Label("helm-registry"), func() {
+			BeforeEach(func() {
+				gitRepoPath = "http-with-auth-repo-path"
+				helmSecretName = "helm-secret-no-ca"
+				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
+				k = env.Kubectl.Namespace(env.Namespace)
+
+				// No CA bundle in this secret
+				out, err := k.Create(
+					"secret", "generic", helmSecretName,
+					"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+					"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+				)
+				Expect(err).ToNot(HaveOccurred(), out)
+				tmpdir, gh = setupGitRepo(gitRepoPath, repoName, port)
+
+				DeferCleanup(func() {
+					_, _ = k.Delete("secret", helmSecretName)
+				})
+			})
+
+			It("deploys the helm chart", func() {
+				Eventually(func() string {
+					out, _ := k.Namespace(targetNamespace).Get("pods", "--field-selector=status.phase==Running")
+					return out
+				}).Should(ContainSubstring("sleeper-"))
+			})
+		})
 		Context("containing a private HTTP-based helm chart with repo path", Label("helm-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-repo-path"
+				helmSecretName = "helm-secret"
 				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -81,6 +112,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 		Context("containing a private HTTP-based helm chart with chart path", Label("helm-registry"), func() {
 			BeforeEach(func() {
 				gitRepoPath = "http-with-auth-chart-path"
+				helmSecretName = "helm-secret"
 				targetNamespace = fmt.Sprintf("fleet-helm-%s", gitRepoPath)
 				k = env.Kubectl.Namespace(env.Namespace)
 
@@ -106,6 +138,7 @@ var _ = Describe("Single Cluster Examples", Label("infra-setup"), func() {
 
 // setupGitRepo creates a local clone with data from repoPath and pushes it to that same path on the git server,
 // within a common repository named `repo`.
+// nolint: unparam // repo and port are always fed with the same value - for now.
 func setupGitRepo(repoPath, repo string, port int) (tmpdir string, gh *githelper.Git) {
 	addr, err := githelper.GetExternalRepoAddr(env, port, repo)
 	Expect(err).ToNot(HaveOccurred())

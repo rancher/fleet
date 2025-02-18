@@ -675,12 +675,14 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
 	utilruntime.Must(batchv1.AddToScheme(scheme))
+	utilruntime.Must(fleetv1.AddToScheme(scheme))
 	ctx := context.TODO()
 
 	tests := map[string]struct {
 		gitrepo                *fleetv1.GitRepo
 		client                 client.Client
 		expectedInitContainers []corev1.Container
+		expectedContainers     []corev1.Container
 		expectedVolumes        []corev1.Volume
 		expectedErr            error
 	}{
@@ -945,6 +947,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 		},
 		"custom CA": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-custom-ca",
+					Namespace: "test-ns",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					CABundle: []byte("ca"),
 					Repo:     "repo",
@@ -1000,11 +1006,136 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					Name: bundleCAVolumeName,
 					VolumeSource: corev1.VolumeSource{
 						Secret: &corev1.SecretVolumeSource{
-							SecretName: "-cabundle",
+							SecretName: "test-custom-ca-cabundle",
 						},
 					},
 				},
 			},
+			client: fake.NewFakeClient(&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-custom-ca-cabundle",
+					Namespace: "test-ns",
+				},
+				Data: map[string][]byte{
+					"cacerts": []byte("foo"),
+				},
+				Type: corev1.SecretTypeSSHAuth,
+			}),
+		},
+		"no custom CA but Rancher CA secret exists": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-rancher-custom-ca",
+					Namespace: "test-ns",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "repo",
+				},
+			},
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{
+						"fleet",
+					},
+					Args: []string{
+						"gitcloner",
+						"repo",
+						"/workspace",
+						"--branch",
+						"master",
+						"--ca-bundle-file",
+						"/gitjob/cabundle/" + bundleCAFile,
+					},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      gitClonerVolumeName,
+							MountPath: "/workspace",
+						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+						{
+							Name:      bundleCAVolumeName,
+							MountPath: "/gitjob/cabundle",
+						},
+					},
+					SecurityContext: securityContext,
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: bundleCAVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: "test-rancher-custom-ca-cabundle",
+						},
+					},
+				},
+				{
+					Name: "rancher-helm-secret-cert",
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: "test-rancher-custom-ca-rancher-cabundle",
+							Items: []corev1.KeyToPath{
+								{
+									Key:  "cacerts",
+									Path: "cacert.crt",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedContainers: []corev1.Container{
+				{
+					Args: []string{
+						"--cacerts-file",
+						"/etc/rancher/certs/cacerts",
+					},
+					Name: "fleet",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "rancher-helm-secret-cert",
+							MountPath: "/etc/ssl/certs",
+						},
+					},
+				},
+			},
+			client: fake.NewFakeClient(
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "tls-ca-additional",
+						Namespace: "cattle-system",
+					},
+					Data: map[string][]byte{
+						"ca-additional.pem": []byte("foo"),
+					},
+				},
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-rancher-custom-ca-cabundle",
+						Namespace: "test-ns",
+					},
+					Data: map[string][]byte{
+						"additional-ca.crt": []byte("foo"),
+					},
+				},
+			),
 		},
 		"skip tls": {
 			gitrepo: &fleetv1.GitRepo{
@@ -1055,6 +1186,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
+			client: fake.NewFakeClient(),
 		},
 	}
 
@@ -1070,8 +1202,50 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if !cmp.Equal(job.Spec.Template.Spec.InitContainers, test.expectedInitContainers) {
-				t.Fatalf("expected initContainers: %v, got: %v", test.expectedInitContainers, job.Spec.Template.Spec.InitContainers)
+				t.Fatalf("expected initContainers:\n\t%v,\n got:\n\t%v", test.expectedInitContainers, job.Spec.Template.Spec.InitContainers)
+			}
+
+			for _, eCont := range test.expectedContainers {
+				found := false
+				for _, cont := range job.Spec.Template.Spec.Containers {
+					if cont.Name == eCont.Name {
+						found = true
+
+						for _, eArg := range eCont.Args {
+							argFound := false
+							for _, arg := range cont.Args {
+								if arg == eArg {
+									argFound = true
+									break
+								}
+							}
+							if !argFound {
+								t.Fatalf("expected arg %q not found in container %s with args %#v", eArg, eCont.Name, cont.Args)
+							}
+						}
+
+						for _, eVM := range eCont.VolumeMounts {
+							vmFound := false
+							for _, vm := range cont.VolumeMounts {
+								if vm.Name != eVM.Name {
+									continue
+								}
+								vmFound = true
+								if vm != eVM {
+									t.Fatalf("expected volume mount %v in container %s, got %v", eVM, eCont.Name, vm)
+								}
+							}
+							if !vmFound {
+								t.Fatalf("expected volume mount %v not found in container %s", eVM, eCont.Name)
+							}
+						}
+					}
+				}
+				if !found {
+					t.Fatalf("expected container %s not found", eCont.Name)
+				}
 			}
 
 			for _, evol := range test.expectedVolumes {
@@ -1083,7 +1257,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					}
 				}
 				if !found {
-					t.Fatalf("volume %v not found in %v", evol, job.Spec.Template.Spec.Volumes)
+					t.Fatalf("volume %v not found in \n\t%v", evol, job.Spec.Template.Spec.Volumes)
 				}
 			}
 		})
