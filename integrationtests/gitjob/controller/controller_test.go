@@ -50,6 +50,26 @@ func checkCondition(gitrepo *v1alpha1.GitRepo, condType string, status corev1.Co
 }
 
 var _ = Describe("GitJob controller", func() {
+
+	succeeded := func(status batchv1.JobStatus) batchv1.JobStatus {
+		t := time.Now()
+		s := t.Add(-1 * time.Second)
+		status.StartTime = &metav1.Time{Time: s}
+		status.CompletionTime = &metav1.Time{Time: t}
+		status.Succeeded = 1
+		status.Conditions = []batchv1.JobCondition{
+			{
+				Type:   batchv1.JobComplete,
+				Status: corev1.ConditionTrue,
+			},
+			{
+				Type:   batchv1.JobSuccessCriteriaMet,
+				Status: corev1.ConditionTrue,
+			},
+		}
+		return status
+	}
+
 	When("a new GitRepo is created", func() {
 		var (
 			gitRepo     v1alpha1.GitRepo
@@ -376,13 +396,7 @@ var _ = Describe("GitJob controller", func() {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 					// We could be checking this when the job is still not created
 					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
-					job.Status.Succeeded = 1
-					job.Status.Conditions = []batchv1.JobCondition{
-						{
-							Type:   "Complete",
-							Status: "True",
-						},
-					}
+					job.Status = succeeded(job.Status)
 					return k8sClient.Status().Update(ctx, &job)
 				}).Should(Not(HaveOccurred()))
 
@@ -450,7 +464,6 @@ var _ = Describe("GitJob controller", func() {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 					// We could be checking this when the job is still not created
 					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
-					job.Status.Succeeded = 1
 					job.Status.Conditions = []batchv1.JobCondition{
 						{
 							Type:   "Ready",
@@ -526,12 +539,17 @@ var _ = Describe("GitJob controller", func() {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 					Expect(err).ToNot(HaveOccurred())
 					job.Status.Failed = 1
+					job.Status.StartTime = &metav1.Time{Time: time.Now().Add(-1 * time.Hour)}
 					job.Status.Conditions = []batchv1.JobCondition{
 						{
 							Type:    "Failed",
 							Status:  "True",
 							Reason:  "BackoffLimitExceeded",
 							Message: "Job has reached the specified backoff limit",
+						},
+						{
+							Type:   batchv1.JobFailureTarget,
+							Status: "True",
 						},
 					}
 					return k8sClient.Status().Update(ctx, &job)
@@ -614,13 +632,7 @@ var _ = Describe("GitJob controller", func() {
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 				// We could be checking this when the job is still not created
 				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
-				job.Status.Succeeded = 1
-				job.Status.Conditions = []batchv1.JobCondition{
-					{
-						Type:   "Complete",
-						Status: "True",
-					},
-				}
+				job.Status = succeeded(job.Status)
 				return k8sClient.Status().Update(ctx, &job)
 			}).Should(Not(HaveOccurred()))
 			// wait until the job has finished
@@ -639,13 +651,7 @@ var _ = Describe("GitJob controller", func() {
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 				// We could be checking this when the job is still not created
 				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
-				job.Status.Succeeded = 1
-				job.Status.Conditions = []batchv1.JobCondition{
-					{
-						Type:   "Complete",
-						Status: "True",
-					},
-				}
+				job.Status = succeeded(job.Status)
 				return k8sClient.Status().Update(ctx, &job)
 			}).Should(Not(HaveOccurred()))
 			// wait until the job has finished
@@ -729,13 +735,7 @@ var _ = Describe("GitJob controller", func() {
 				err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 				// We could be checking this when the job is still not created
 				Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
-				job.Status.Succeeded = 1
-				job.Status.Conditions = []batchv1.JobCondition{
-					{
-						Type:   "Complete",
-						Status: "True",
-					},
-				}
+				job.Status = succeeded(job.Status)
 				return k8sClient.Status().Update(ctx, &job)
 			}).Should(Not(HaveOccurred()))
 			// wait until the job has finished
@@ -800,13 +800,7 @@ var _ = Describe("GitJob controller", func() {
 					err := k8sClient.Get(ctx, types.NamespacedName{Name: jobName, Namespace: gitRepoNamespace}, &job)
 					// We could be checking this when the job is still not created
 					Expect(client.IgnoreNotFound(err)).ToNot(HaveOccurred())
-					job.Status.Succeeded = 1
-					job.Status.Conditions = []batchv1.JobCondition{
-						{
-							Type:   "Complete",
-							Status: "True",
-						},
-					}
+					job.Status = succeeded(job.Status)
 					return k8sClient.Status().Update(ctx, &job)
 				}).Should(Not(HaveOccurred()))
 
@@ -835,13 +829,7 @@ var _ = Describe("GitJob controller", func() {
 			})
 
 			It("updates the commit from the actual repo", func() {
-				job.Status.Succeeded = 1
-				job.Status.Conditions = []batchv1.JobCondition{
-					{
-						Type:   "Complete",
-						Status: "True",
-					},
-				}
+				job.Status = succeeded(job.Status)
 				Expect(k8sClient.Status().Update(ctx, &job)).ToNot(HaveOccurred())
 
 				By("verifying the commit is updated")
