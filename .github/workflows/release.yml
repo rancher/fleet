@@ -15,7 +15,6 @@ permissions:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.5.1'
 
 jobs:
   build-fleet:
@@ -71,8 +70,8 @@ jobs:
       - name: Run integration tests
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         env:
-          SETUP_ENVTEST_VER: v0.0.0-20240115093953-9e6e3b144a69
-          ENVTEST_K8S_VERSION: 1.28
+          SETUP_ENVTEST_VER: v0.0.0-20250218120612-6f6111124902
+          ENVTEST_K8S_VERSION: 1.32
         run: ./.github/scripts/run-integration-tests.sh
 
       - name: Set up QEMU

@@ -9,7 +9,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.7.4'
+  SETUP_K3D_VERSION: 'v5.8.3'
 
 jobs:
   fleet-upgrade-test:
@@ -19,7 +19,7 @@ jobs:
       matrix:
         k3s:
           - name: k3s-new
-            version: v1.31.1-k3s1
+            version: v1.32.1-k3s1
     name: fleet-upgrade-test-${{ matrix.k3s.name }}
 
     steps:

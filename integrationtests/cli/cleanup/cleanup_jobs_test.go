@@ -90,9 +90,21 @@ var _ = Describe("Fleet CLI jobs cleanup", Ordered, func() {
 			}
 
 			succeeded := func(t time.Time) batchv1.JobStatus {
+				s := t.Add(-1 * time.Second)
 				return batchv1.JobStatus{
+					StartTime:      &metav1.Time{Time: s},
 					CompletionTime: &metav1.Time{Time: t},
 					Succeeded:      1,
+					Conditions: []batchv1.JobCondition{
+						{
+							Type:   batchv1.JobComplete,
+							Status: corev1.ConditionTrue,
+						},
+						{
+							Type:   batchv1.JobSuccessCriteriaMet,
+							Status: corev1.ConditionTrue,
+						},
+					},
 				}
 			}
 

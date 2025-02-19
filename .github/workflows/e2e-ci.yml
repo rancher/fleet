@@ -10,7 +10,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  SETUP_K3D_VERSION: 'v5.7.4'
+  SETUP_K3D_VERSION: 'v5.8.3'
 
 jobs:
   e2e-fleet-test:
@@ -23,9 +23,9 @@ jobs:
           # k3d version list k3s | sed 's/+/-/' | sort -h
           # https://hub.docker.com/r/rancher/k3s/tags
           - name: k3s-new
-            version: v1.31.1-k3s1
+            version: v1.32.1-k3s1
           - name: k3s-old
-            version: v1.27.16-k3s1
+            version: v1.30.9-k3s1
         test_type:
           - name: default
           - name: sharding

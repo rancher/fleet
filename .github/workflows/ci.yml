@@ -44,6 +44,6 @@ jobs:
       -
         name: integration-tests
         env:
-          SETUP_ENVTEST_VER: v0.0.0-20240115093953-9e6e3b144a69
-          ENVTEST_K8S_VERSION: 1.28
+          SETUP_ENVTEST_VER: v0.0.0-20250218120612-6f6111124902
+          ENVTEST_K8S_VERSION: 1.32
         run: ./.github/scripts/run-integration-tests.sh
