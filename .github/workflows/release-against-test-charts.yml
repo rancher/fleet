@@ -153,9 +153,9 @@ jobs:
         run: |
           fleet_test_version=9.9.9
 
-          latest_chart=$(grep '^version: ' ./charts/packages/fleet/fleet/package.yaml | cut -d' ' -f2)
-          latest_fleet=$(ls -1 ./charts/charts/fleet/ | grep $latest_chart)
-          latest_fleet=${latest_fleet#*+up}
+          latest_fleet_rancher_version=$(ls ./charts/charts/fleet/ | tail -1)
+          latest_chart="${latest_fleet_rancher_version%%+*}"
+          latest_fleet="${latest_fleet_rancher_version#*+up}"
 
           ./fleet/.github/scripts/release-against-test-charts.sh \
             $latest_fleet \
