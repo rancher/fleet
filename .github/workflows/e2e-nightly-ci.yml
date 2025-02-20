@@ -126,21 +126,21 @@ jobs:
           helm package --version="$VERSION" --app-version="$VERSION" -d ./dist ./charts/fleet-agent
       -
         name: Upload Controller Chart
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: fleet-${{ env.VERSION }}.tgz
           path: ./dist/fleet-${{ env.VERSION }}.tgz
           retention-days: 3
       -
         name: Upload CRD Chart
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: fleet-crd-${{ env.VERSION }}.tgz
           path: ./dist/fleet-crd-${{ env.VERSION }}.tgz
           retention-days: 3
       -
         name: Upload Agent Chart
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: fleet-agent-${{ env.VERSION }}.tgz
           path: ./dist/fleet-agent-${{ env.VERSION }}.tgz

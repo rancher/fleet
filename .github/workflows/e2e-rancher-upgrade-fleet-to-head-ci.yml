@@ -181,7 +181,7 @@ jobs:
           ./.github/scripts/dump-failed-k3ds.sh
       -
         name: Upload logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: gha-fleet-rancher-logs-${{ github.sha }}-${{ github.run_id }}
