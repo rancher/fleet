@@ -5,10 +5,6 @@ on:
     - cron:  '0 13 * * *'
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Branch to use for GitHub action workflow"
-        required: true
-        default: "main"
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
         required: true
@@ -37,16 +33,12 @@ jobs:
       - name: Set environment variables
         id: compute_env
         run: |
-          tmp=${{github.event.inputs.ref}}
-          ref=${tmp:-${{github.ref}}}
-
           tmp=${{github.event.inputs.charts_base_branch}}
           charts_base_branch=${tmp:-'dev-v2.11'}
 
           tmp=${{github.event.inputs.charts_repo}}
           charts_repo=${tmp:-fleetrepoci/charts}
 
-          echo "ref=$ref" >> "$GITHUB_ENV"
           echo "charts_base_branch=$charts_base_branch" >> "$GITHUB_OUTPUT"
           echo "charts_repo=$charts_repo" >> "$GITHUB_OUTPUT"
 
@@ -54,7 +46,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{github.event.inputs.ref}}
           path: fleet
 
       - uses: actions/setup-go@v5
@@ -182,7 +173,6 @@ jobs:
     uses: ./.github/workflows/e2e-test-fleet-in-rancher.yml
     needs: push-test-rancher-charts
     with:
-      ref: ${{ github.ref }}
       charts_repo: ${{ needs.push-test-rancher-charts.outputs.charts_repo }}
       charts_branch: ${{ needs.push-test-rancher-charts.outputs.target_branch }}
       fleet_version: 999.9.9+up9.9.9
