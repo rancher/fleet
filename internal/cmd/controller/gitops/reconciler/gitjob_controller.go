@@ -18,6 +18,7 @@ import (
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ociwrapper"
@@ -30,6 +31,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
 
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -98,6 +100,7 @@ type GitJobReconciler struct {
 	GitFetcher      GitFetcher
 	Clock           TimeGetter
 	Recorder        record.EventRecorder
+	SystemNamespace string
 }
 
 func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -562,7 +565,19 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 	if err != nil {
 		return nil, err
 	}
+	var fleetControllerDeployment appsv1.Deployment
+	if err := r.Get(ctx, types.NamespacedName{
+		Namespace: r.SystemNamespace,
+		Name:      config.ManagerConfigName,
+	}, &fleetControllerDeployment); err != nil {
+		return nil, err
+	}
 
+	// add tolerations from the fleet-controller deployment
+	jobSpec.Template.Spec.Tolerations = append(
+		jobSpec.Template.Spec.Tolerations,
+		fleetControllerDeployment.Spec.Template.Spec.Tolerations...,
+	)
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
