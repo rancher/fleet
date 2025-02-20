@@ -4,11 +4,6 @@ name: Test Fleet in Rancher
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "checkout git branch/tag"
-        required: true
-        default: "main"
-        type: string
       charts_repo:
         description: Repository from which to source Fleet charts
         default: "fleetrepoci/charts"
@@ -22,11 +17,6 @@ on:
   workflow_call:
     # Variables to set when calling this reusable workflow
     inputs:
-      ref:
-        description: "checkout git branch/tag"
-        required: true
-        default: "main"
-        type: string
       charts_repo:
         description: Repository from which to source Fleet charts
         default: "fleetrepoci/charts"
@@ -64,7 +54,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.inputs.ref }}
 
       -
         name: Install Go
