@@ -154,7 +154,7 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
 			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo, chart.Chart)
 			if err != nil {
-				return nil, err
+				return nil, downloadChartError(*chart, err)
 			}
 			if !shouldAddAuthToRequest {
 				auth = Auth{}
@@ -162,7 +162,7 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 
 			chartURL, err := chartURL(*chart, auth)
 			if err != nil {
-				return nil, err
+				return nil, downloadChartError(*chart, err)
 			}
 
 			directories = append(directories, directory{
@@ -176,6 +176,16 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 		}
 	}
 	return directories, nil
+}
+
+func downloadChartError(c fleet.HelmOptions, e error) error {
+	return fmt.Errorf(
+		"repo=%s chart=%s version=%s: %w",
+		c.Repo,
+		c.Chart,
+		c.Version,
+		e,
+	)
 }
 
 func shouldAddAuthToRequest(helmRepoURLRegex, repo, chart string) (bool, error) {

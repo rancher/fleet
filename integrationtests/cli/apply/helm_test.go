@@ -1,7 +1,9 @@
 package apply
 
 import (
+	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -9,6 +11,8 @@ import (
 	"github.com/rancher/fleet/integrationtests/cli"
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -163,6 +167,16 @@ func testHelmRepo(path, port string) {
 			authEnabled = true
 		})
 		It("fleet apply fails when --helm-repo-url-regex is not valid", func() {
+			// read the fleet.yaml file, so we can later check if the error message
+			// contains the expected chart information.
+			assetsDir := filepath.Join(cli.AssetsPath, path)
+			data, err := os.ReadFile(filepath.Join(assetsDir, "fleet.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+
+			fy := &fleet.FleetYAML{}
+			err = yaml.Unmarshal(data, fy)
+			Expect(err).ToNot(HaveOccurred())
+
 			Eventually(func() string {
 				err := fleetApply("helm", []string{cli.AssetsPath + path}, apply.Options{
 					Auth:             bundlereader.Auth{Username: username, Password: password},
@@ -170,7 +184,13 @@ func testHelmRepo(path, port string) {
 				})
 				Expect(err).To(HaveOccurred())
 				return err.Error()
-			}).Should(Equal("error parsing regexp: missing closing ): `a(b`"))
+			}).Should(Equal(
+				fmt.Sprintf(
+					"repo=%s chart=%s version=%s: error parsing regexp: missing closing ): `a(b`",
+					fy.Helm.Repo,
+					fy.Helm.Chart,
+					fy.Helm.Version,
+				)))
 		})
 	})
 
