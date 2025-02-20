@@ -146,6 +146,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		GitFetcher:      &git.Fetch{},
 		Clock:           reconciler.RealClock{},
 		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
+		SystemNamespace: namespace,
 	}
 
 	statusReconciler := &reconciler.StatusReconciler{

@@ -10,14 +10,16 @@ import (
 
 	secretutil "github.com/rancher/fleet/internal/cmd/controller/agentmanagement/secret"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
-	"github.com/rancher/fleet/internal/config"
+	fleetconfig "github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/apply"
+	appscontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -39,6 +41,7 @@ type handler struct {
 	serviceAccountCache corecontrollers.ServiceAccountCache
 	secretsCache        corecontrollers.SecretCache
 	secretsController   corecontrollers.SecretController
+	deploymentsCache    appscontrollers.DeploymentCache
 	cfg                 clientcmd.ClientConfig
 }
 
@@ -49,19 +52,21 @@ func Register(ctx context.Context,
 	serviceAccountCache corecontrollers.ServiceAccountCache,
 	secretsController corecontrollers.SecretController,
 	secretsCache corecontrollers.SecretCache,
+	deploymentCache appscontrollers.DeploymentCache,
 ) {
 	h := handler{
 		systemNamespace:     systemNamespace,
 		serviceAccountCache: serviceAccountCache,
 		secretsCache:        secretsCache,
 		secretsController:   secretsController,
+		deploymentsCache:    deploymentCache,
 		apply:               apply.WithSetID("fleet-bootstrap"),
 		cfg:                 cfg,
 	}
-	config.OnChange(ctx, h.OnConfig)
+	fleetconfig.OnChange(ctx, h.OnConfig)
 }
 
-func (h *handler) OnConfig(config *config.Config) error {
+func (h *handler) OnConfig(config *fleetconfig.Config) error {
 	logrus.Debugf("Bootstrap config set, building namespace '%s', secret, local cluster, cluster group, ...", config.Bootstrap.Namespace)
 
 	var objs []runtime.Object
@@ -71,6 +76,10 @@ func (h *handler) OnConfig(config *config.Config) error {
 	}
 
 	secret, err := h.buildSecret(config.Bootstrap.Namespace, h.cfg)
+	if err != nil {
+		return err
+	}
+	fleetControllerDeployment, err := h.deploymentsCache.Get(h.systemNamespace, fleetconfig.ManagerConfigName)
 	if err != nil {
 		return err
 	}
@@ -89,6 +98,8 @@ func (h *handler) OnConfig(config *config.Config) error {
 		Spec: fleet.ClusterSpec{
 			KubeConfigSecret: secret.Name,
 			AgentNamespace:   config.Bootstrap.AgentNamespace,
+			// copy tolerations from fleet-controller
+			AgentTolerations: fleetControllerDeployment.Spec.Template.Spec.Tolerations,
 		},
 	}, &fleet.ClusterGroup{
 		ObjectMeta: metav1.ObjectMeta{
@@ -164,9 +175,9 @@ func (h *handler) buildSecret(bootstrapNamespace string, cfg clientcmd.ClientCon
 			},
 		},
 		Data: map[string][]byte{
-			config.KubeConfigSecretValueKey: value,
-			config.APIServerURLKey:          []byte(host),
-			config.APIServerCAKey:           ca,
+			fleetconfig.KubeConfigSecretValueKey: value,
+			fleetconfig.APIServerURLKey:          []byte(host),
+			fleetconfig.APIServerCAKey:           ca,
 		},
 	}, nil
 }

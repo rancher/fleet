@@ -20,6 +20,8 @@ import (
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/v3/pkg/apply"
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/apps"
+	appscontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/apps/v1"
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac"
@@ -42,6 +44,7 @@ type AppContext struct {
 
 	K8s          kubernetes.Interface
 	Core         corecontrollers.Interface
+	Apps         appscontrollers.Interface
 	RBAC         rbaccontrollers.Interface
 	RESTMapper   meta.RESTMapper
 	Apply        apply.Apply
@@ -86,7 +89,8 @@ func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, d
 			appCtx.ClientConfig,
 			appCtx.Core.ServiceAccount().Cache(),
 			appCtx.Core.Secret(),
-			appCtx.Core.Secret().Cache())
+			appCtx.Core.Secret().Cache(),
+			appCtx.Apps.Deployment().Cache())
 	}
 
 	cluster.Register(ctx,
@@ -182,6 +186,14 @@ func NewAppContext(cfg clientcmd.ClientConfig) (*AppContext, error) {
 	}
 	rbacv := rbac.Rbac().V1()
 
+	apps, err := apps.NewFactoryFromConfigWithOptions(client, &apps.FactoryOptions{
+		SharedControllerFactory: scf,
+	})
+	if err != nil {
+		return nil, err
+	}
+	appsv := apps.Apps().V1()
+
 	apply, err := apply.NewForConfig(client)
 	if err != nil {
 		return nil, err
@@ -197,6 +209,7 @@ func NewAppContext(cfg clientcmd.ClientConfig) (*AppContext, error) {
 		K8s:          k8s,
 		Interface:    fleetv,
 		Core:         corev,
+		Apps:         appsv,
 		RBAC:         rbacv,
 		Apply:        apply,
 		ClientConfig: cfg,
