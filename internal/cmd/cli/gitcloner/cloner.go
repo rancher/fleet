@@ -49,11 +49,11 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 	}
 	auth, err := createAuthFromOpts(opts)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
 	}
 	caBundle, err := getCABundleFromFile(opts.CABundleFile)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
 	}
 
 	if opts.Branch == "" && opts.Revision == "" {
@@ -82,7 +82,10 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 	})
 
-	return err
+	if err != nil {
+		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
+	}
+	return nil
 }
 
 func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
@@ -94,20 +97,22 @@ func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) 
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
 	}
 	h, err := r.ResolveRevision(plumbing.Revision(opts.Revision))
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
 	}
 	w, err := r.Worktree()
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
 	}
 
-	return w.Checkout(&git.CheckoutOptions{
-		Hash: *h,
-	})
+	if err := w.Checkout(&git.CheckoutOptions{Hash: *h}); err != nil {
+		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
+	}
+
+	return nil
 }
 
 func getCABundleFromFile(path string) ([]byte, error) {
@@ -181,4 +186,14 @@ func createKnownHostsCallBack(knownHosts []byte) (ssh.HostKeyCallback, error) {
 	}
 
 	return gossh.NewKnownHostsCallback(f.Name())
+}
+
+func gitClonerErrorContext(opts *GitCloner) string {
+	return fmt.Sprintf(
+		"gitcloner: repo=[%s] branch=[%s] revision=[%s] path=[%s]",
+		opts.Repo,
+		opts.Branch,
+		opts.Revision,
+		opts.Path,
+	)
 }

@@ -42,12 +42,17 @@ type Options struct {
 // Then it reads/downloads all referenced resources. It returns the populated
 // bundle and any existing imagescans.
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
+	errorContext := fmt.Sprintf("processing bundle %s", name)
+
 	if baseDir == "" {
 		baseDir = "."
 	}
 
 	if file == "-" {
-		return mayCompress(ctx, name, baseDir, os.Stdin, opts)
+		b, s, err := mayCompress(ctx, name, baseDir, os.Stdin, opts)
+		if err != nil {
+			return b, s, fmt.Errorf("%s: %w", errorContext, err)
+		}
 	}
 
 	var (
@@ -56,7 +61,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*flee
 
 	if file == "" {
 		if file, err := setupIOReader(baseDir); err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("%s: %w", errorContext, err)
 		} else if file != nil {
 			in = file
 			defer file.Close()
@@ -67,13 +72,18 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*flee
 	} else {
 		f, err := os.Open(filepath.Join(baseDir, file))
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("%s: %w", errorContext, err)
 		}
 		defer f.Close()
 		in = f
 	}
 
-	return mayCompress(ctx, name, baseDir, in, opts)
+	b, s, err := mayCompress(ctx, name, baseDir, in, opts)
+	if err != nil {
+		return b, s, fmt.Errorf("%s: %w", errorContext, err)
+	}
+
+	return b, s, nil
 }
 
 // Try accessing the documented, primary fleet.yaml extension first. If that returns an "IsNotExist" error, then we
@@ -148,7 +158,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	fy := &fleet.FleetYAML{}
 	if err := yaml.Unmarshal(bytes, fy); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("reading fleet.yaml: %w", err)
 	}
 
 	var scans []*fleet.ImageScan

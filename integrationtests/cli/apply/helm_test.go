@@ -184,13 +184,19 @@ func testHelmRepo(path, port string) {
 				})
 				Expect(err).To(HaveOccurred())
 				return err.Error()
-			}).Should(Equal(
-				fmt.Sprintf(
-					"repo=%s chart=%s version=%s: error parsing regexp: missing closing ): `a(b`",
-					fy.Helm.Repo,
-					fy.Helm.Chart,
-					fy.Helm.Version,
-				)))
+			}).Should(
+				And(
+					ContainSubstring("processing bundle"),
+					ContainSubstring(
+						fmt.Sprintf(
+							"repo=%s chart=%s version=%s: error parsing regexp: missing closing ): `a(b`",
+							fy.Helm.Repo,
+							fy.Helm.Chart,
+							fy.Helm.Version,
+						),
+					),
+				),
+			)
 		})
 	})
 

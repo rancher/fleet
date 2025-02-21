@@ -128,12 +128,12 @@ func generateValues(base string, chart *fleet.HelmOptions) (valuesMap *fleet.Gen
 	for _, value := range chart.ValuesFiles {
 		valuesByte, err := os.ReadFile(base + "/" + value)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", fmt.Sprintf("reading values file: %s/%s", base, value), err)
 		}
 		tmpDataOpt := &fleet.GenericMap{}
 		err = yaml.Unmarshal(valuesByte, tmpDataOpt)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", fmt.Sprintf("reading values file: %s/%s", base, value), err)
 		}
 		valuesMap = mergeGenericMap(valuesMap, tmpDataOpt)
 	}
@@ -154,7 +154,7 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
 			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo, chart.Chart)
 			if err != nil {
-				return nil, downloadChartError(*chart, err)
+				return nil, fmt.Errorf("%s: %w", downloadChartError(*chart), err)
 			}
 			if !shouldAddAuthToRequest {
 				auth = Auth{}
@@ -162,7 +162,7 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 
 			chartURL, err := chartURL(*chart, auth)
 			if err != nil {
-				return nil, downloadChartError(*chart, err)
+				return nil, fmt.Errorf("%s: %w", downloadChartError(*chart), err)
 			}
 
 			directories = append(directories, directory{
@@ -178,13 +178,12 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 	return directories, nil
 }
 
-func downloadChartError(c fleet.HelmOptions, e error) error {
-	return fmt.Errorf(
-		"repo=%s chart=%s version=%s: %w",
+func downloadChartError(c fleet.HelmOptions) string {
+	return fmt.Sprintf(
+		"repo=%s chart=%s version=%s",
 		c.Repo,
 		c.Chart,
 		c.Version,
-		e,
 	)
 }
 
@@ -226,7 +225,7 @@ func loadDirectories(ctx context.Context, compress bool, disableDepsUpdate bool,
 			defer sem.Release(1)
 			resources, err := loadDirectory(ctx, compress, disableDepsUpdate, dir.prefix, dir.base, dir.source, dir.version, dir.auth)
 			if err != nil {
-				return err
+				return fmt.Errorf("%s: %w", fmt.Sprintf("loading directory %s, %s", dir.prefix, dir.base), err)
 			}
 
 			key := dir.key

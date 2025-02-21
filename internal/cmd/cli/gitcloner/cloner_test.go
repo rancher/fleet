@@ -47,9 +47,6 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			x.Signer.PublicKey().Type() == y.Signer.PublicKey().Type() &&
 			cmp.Equal(x.Signer.PublicKey().Marshal(), y.Signer.PublicKey().Marshal())
 	})
-	errorComparer := cmp.Comparer(func(x, y error) bool {
-		return x.Error() == y.Error()
-	})
 	plainClone = func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
 		pathCalled = path
 		isBareCalled = isBare
@@ -131,7 +128,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				Username:     "user",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New("file not found"),
+			expectedErr:       errors.New("gitcloner: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
 		},
 		"ca file does not exist": {
 			opts: &GitCloner{
@@ -140,7 +137,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				CABundleFile: "doesntexist",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New("file not found"),
+			expectedErr:       errors.New("gitcloner: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
 		},
 		"ssh private key file does not exist": {
 			opts: &GitCloner{
@@ -149,7 +146,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				SSHPrivateKeyFile: "doesntexist",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New("file not found"),
+			expectedErr:       errors.New("gitcloner: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
 		},
 	}
 
@@ -161,8 +158,14 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		t.Run(name, func(t *testing.T) {
 			c := Cloner{}
 			err := c.CloneRepo(test.opts)
-			if !cmp.Equal(err, test.expectedErr, errorComparer) {
-				t.Fatalf("err expected to be %v, got %v", test.expectedErr, err)
+			if err == nil && test.expectedErr != nil {
+				t.Fatalf("err expected to be [%v], got [%v]", test.expectedErr, err)
+			} else if test.expectedErr != nil && err == nil {
+				t.Fatalf("err expected to be [%v], got [%v]", test.expectedErr, err)
+			} else if test.expectedErr != nil && err != nil {
+				if !cmp.Equal(test.expectedErr.Error(), err.Error()) {
+					t.Fatalf("err expected to be [%s], got [%s]", test.expectedErr.Error(), err.Error())
+				}
 			}
 
 			if pathCalled != test.opts.Path {
