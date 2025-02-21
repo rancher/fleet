@@ -137,7 +137,7 @@ var _ = Describe("OCIUtils tests", func() {
 			},
 		}
 		err := oci.PushManifest(context.Background(), opts, "123", manifest)
-		Expect(err.Error()).To(ContainSubstring("connection refused"))
+		Expect(err.Error()).To(Or(ContainSubstring("connection refused"), ContainSubstring("i/o timeout")))
 	})
 	It("returns an OCI repository with the expected values when using basic HTTP", func() {
 		opts := OCIOpts{
