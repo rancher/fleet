@@ -68,7 +68,7 @@ global:
     systemDefaultRegistry: ""
   kubectl:
     repository: rancher/kubectl
-    tag: v1.29.0
+    tag: v1.31.6
 
 debug: false
 debugLevel: 0
