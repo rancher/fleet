@@ -20,9 +20,11 @@ func TestE2E(t *testing.T) {
 }
 
 var (
-	env    *testenv.Env
-	ku     kubectl.Command
-	config string
+	env      *testenv.Env
+	ku       kubectl.Command
+	kd       kubectl.Command
+	config   string
+	strategy string
 )
 
 var _ = BeforeSuite(func() {
@@ -31,6 +33,7 @@ var _ = BeforeSuite(func() {
 
 	env = testenv.New()
 	ku = env.Kubectl.Context(env.Upstream)
+	kd = env.Kubectl.Context(env.Downstream)
 
 	// Save initial state of `fleet-controller` config map
 	cfg, err := ku.Get(
@@ -41,6 +44,29 @@ var _ = BeforeSuite(func() {
 		"-o",
 		"jsonpath={.data.config}")
 	Expect(err).ToNot(HaveOccurred(), cfg)
+
+	// Save initial state of `fleet-agent` deployment
+	strategy, err = kd.Get(
+		"deployment",
+		"fleet-agent",
+		"-n",
+		"cattle-fleet-system",
+		"-o",
+		"jsonpath={.spec.strategy}",
+	)
+	Expect(err).ToNot(HaveOccurred(), cfg)
+
+	// Patch `fleet-agent` deployment to use Recreate strategy
+	out, err := kd.Patch(
+		"deployment",
+		"fleet-agent",
+		"-n",
+		"cattle-fleet-system",
+		"--type=merge",
+		"-p",
+		`{"spec":{"strategy":{"type":"Recreate", "rollingUpdate":null}}}`,
+	)
+	Expect(err).ToNot(HaveOccurred(), string(out))
 
 	cfg = strings.ReplaceAll(cfg, `"`, `\"`)
 	config = strings.ReplaceAll(cfg, "\n", "")
@@ -56,6 +82,18 @@ var _ = AfterSuite(func() {
 		"--type=merge",
 		"-p",
 		fmt.Sprintf(`{"data":{"config":"%s"}}`, config),
+	)
+	Expect(err).ToNot(HaveOccurred(), string(out))
+
+	// Restore initial state of deployment
+	out, err = kd.Patch(
+		"deployment",
+		"fleet-agent",
+		"-n",
+		"cattle-fleet-system",
+		"--type=merge",
+		"-p",
+		fmt.Sprintf(`{"spec":{"strategy":%s}}`, strategy),
 	)
 	Expect(err).ToNot(HaveOccurred(), string(out))
 })
