@@ -51,7 +51,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*flee
 	if file == "-" {
 		b, s, err := mayCompress(ctx, name, baseDir, os.Stdin, opts)
 		if err != nil {
-			return b, s, fmt.Errorf("%s: %w", errorContext, err)
+			return b, s, fmt.Errorf("failed to process bundle from STDIN: %w", err)
 		}
 	}
 

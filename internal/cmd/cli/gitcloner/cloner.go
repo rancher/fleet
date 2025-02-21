@@ -190,7 +190,7 @@ func createKnownHostsCallBack(knownHosts []byte) (ssh.HostKeyCallback, error) {
 
 func gitClonerErrorContext(opts *GitCloner) string {
 	return fmt.Sprintf(
-		"gitcloner: repo=[%s] branch=[%s] revision=[%s] path=[%s]",
+		"failed checkout of: repo=[%s] branch=[%s] revision=[%s] path=[%s]",
 		opts.Repo,
 		opts.Branch,
 		opts.Revision,

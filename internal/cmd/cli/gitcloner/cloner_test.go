@@ -128,7 +128,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				Username:     "user",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New("gitcloner: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
+			expectedErr:       errors.New("failed checkout of: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
 		},
 		"ca file does not exist": {
 			opts: &GitCloner{
@@ -137,7 +137,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				CABundleFile: "doesntexist",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New("gitcloner: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
+			expectedErr:       errors.New("failed checkout of: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
 		},
 		"ssh private key file does not exist": {
 			opts: &GitCloner{
@@ -146,7 +146,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				SSHPrivateKeyFile: "doesntexist",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New("gitcloner: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
+			expectedErr:       errors.New("failed checkout of: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
 		},
 	}
 
