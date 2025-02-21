@@ -36,14 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-type testClientType int
-
-const (
-	testClientHTTP testClientType = iota
-	testClientSSH
-	testClientSimple
-)
-
 func getCondition(gitrepo *fleetv1.GitRepo, condType string) (genericcondition.GenericCondition, bool) {
 	for _, cond := range gitrepo.Status.Conditions {
 		if cond.Type == condType {
@@ -705,7 +697,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 	}
 	tests := map[string]struct {
 		gitrepo                *fleetv1.GitRepo
-		client                 testClientType
+		clientObjects          []runtime.Object
 		deploymentTolerations  []corev1.Toleration
 		expectedInitContainers []corev1.Container
 		expectedContainers     []corev1.Container
@@ -751,7 +743,6 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: testClientSimple,
 		},
 		"simple with custom branch": {
 			gitrepo: &fleetv1.GitRepo{
@@ -795,7 +786,6 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: testClientSimple,
 		},
 		"simple with custom revision": {
 			gitrepo: &fleetv1.GitRepo{
@@ -839,7 +829,6 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: testClientSimple,
 		},
 		"http credentials": {
 			gitrepo: &fleetv1.GitRepo{
@@ -905,7 +894,16 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: testClientHTTP,
+			clientObjects: []runtime.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
+					Data: map[string][]byte{
+						corev1.BasicAuthUsernameKey: []byte("user"),
+						corev1.BasicAuthPasswordKey: []byte("pass"),
+					},
+					Type: corev1.SecretTypeBasicAuth,
+				},
+			},
 		},
 		"ssh credentials": {
 			gitrepo: &fleetv1.GitRepo{
@@ -969,7 +967,15 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: testClientSSH,
+			clientObjects: []runtime.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
+					Data: map[string][]byte{
+						corev1.SSHAuthPrivateKey: []byte("ssh key"),
+					},
+					Type: corev1.SecretTypeSSHAuth,
+				},
+			},
 		},
 		"custom CA": {
 			gitrepo: &fleetv1.GitRepo{
@@ -1037,16 +1043,18 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: fake.NewFakeClient(&corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-custom-ca-cabundle",
-					Namespace: "test-ns",
+			clientObjects: []runtime.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-custom-ca-cabundle",
+						Namespace: "test-ns",
+					},
+					Data: map[string][]byte{
+						"cacerts": []byte("foo"),
+					},
+					Type: corev1.SecretTypeSSHAuth,
 				},
-				Data: map[string][]byte{
-					"cacerts": []byte("foo"),
-				},
-				Type: corev1.SecretTypeSSHAuth,
-			}),
+			},
 		},
 		"no custom CA but Rancher CA secret exists": {
 			gitrepo: &fleetv1.GitRepo{
@@ -1142,7 +1150,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: fake.NewFakeClient(
+			clientObjects: []runtime.Object{
 				&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "tls-ca-additional",
@@ -1161,7 +1169,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						"additional-ca.crt": []byte("foo"),
 					},
 				},
-			),
+			},
 		},
 		"skip tls": {
 			gitrepo: &fleetv1.GitRepo{
@@ -1212,7 +1220,6 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: fake.NewFakeClient(),
 		},
 		"simple with tolerations": {
 			gitrepo: &fleetv1.GitRepo{
@@ -1253,7 +1260,6 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 				},
 			},
-			client: testClientSimple,
 			deploymentTolerations: []corev1.Toleration{
 				{
 					Effect:   "NoSchedule",
@@ -1274,7 +1280,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := GitJobReconciler{
-				Client:          getTestClient(test.client, test.deploymentTolerations),
+				Client:          getFakeClient(test.deploymentTolerations, test.clientObjects...),
 				Scheme:          scheme,
 				Image:           "test",
 				Clock:           RealClock{},
@@ -1433,7 +1439,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := GitJobReconciler{
-				Client:          getTestClient(testClientSimple, []corev1.Toleration{}),
+				Client:          getFakeClient([]corev1.Toleration{}),
 				Image:           "test",
 				Clock:           RealClock{},
 				SystemNamespace: config.DefaultNamespace,
@@ -1555,45 +1561,6 @@ func TestCheckforPollingTask(t *testing.T) {
 	}
 }
 
-func httpSecretMock(fleetControllerDeployment *appsv1.Deployment) client.Client {
-	scheme := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(appsv1.AddToScheme(scheme))
-
-	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
-		Data: map[string][]byte{
-			corev1.BasicAuthUsernameKey: []byte("user"),
-			corev1.BasicAuthPasswordKey: []byte("pass"),
-		},
-		Type: corev1.SecretTypeBasicAuth,
-	}, fleetControllerDeployment).Build()
-}
-
-func sshSecretMock(fleetControllerDeployment *appsv1.Deployment) client.Client {
-	scheme := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(appsv1.AddToScheme(scheme))
-
-	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(&corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: "secretName"},
-		Data: map[string][]byte{
-			corev1.SSHAuthPrivateKey: []byte("ssh key"),
-		},
-		Type: corev1.SecretTypeSSHAuth,
-	}, fleetControllerDeployment).Build()
-}
-
-func defaultMockClient(fleetControllerDeployment *appsv1.Deployment) client.Client {
-	scheme := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(appsv1.AddToScheme(scheme))
-
-	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(
-		fleetControllerDeployment,
-	).Build()
-}
-
 func getFleetControllerDeployment(tolerations []corev1.Toleration) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1610,12 +1577,13 @@ func getFleetControllerDeployment(tolerations []corev1.Toleration) *appsv1.Deplo
 	}
 }
 
-func getTestClient(t testClientType, tolerations []corev1.Toleration) client.Client {
-	switch t {
-	case testClientHTTP:
-		return httpSecretMock(getFleetControllerDeployment(tolerations))
-	case testClientSSH:
-		return sshSecretMock(getFleetControllerDeployment(tolerations))
-	}
-	return defaultMockClient(getFleetControllerDeployment(tolerations))
+func getFakeClient(tolerations []corev1.Toleration, objs ...runtime.Object) client.Client {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(appsv1.AddToScheme(scheme))
+
+	return fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRuntimeObjects(objs...).
+		WithRuntimeObjects(getFleetControllerDeployment(tolerations)).Build()
 }
