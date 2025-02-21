@@ -252,7 +252,7 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 			c = newTestClient()
 			commit, err = f.LatestCommit(context.Background(), gr, c)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("signed by unknown authority"))
+			Expect(err.Error()).To(Or(ContainSubstring("signed by unknown authority"), ContainSubstring("certificate is not standards compliant")))
 			Expect(commit).To(BeEmpty())
 		})
 	})
