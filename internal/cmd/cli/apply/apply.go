@@ -112,7 +112,7 @@ func CreateBundles(ctx context.Context, client Getter, repoName string, baseDirs
 				opts := opts
 				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, info)
 				if e != nil {
-					return fmt.Errorf("%s: %w", fmt.Sprintf("checking for bundle in path %s", path), err)
+					return fmt.Errorf("checking for bundle in path %q: %w", path, err)
 				}
 				if !createBundle {
 					return nil
@@ -180,7 +180,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 	if opts.BundleReader != nil {
 		var bundle *fleet.Bundle
 		if err := json.NewDecoder(opts.BundleReader).Decode(bundle); err != nil {
-			return nil, nil, fmt.Errorf("%s: %w", fmt.Sprintf("decoding bundle %s", name), err)
+			return nil, nil, fmt.Errorf("decoding bundle %s: %w", name, err)
 		}
 		return bundle, nil, nil
 	}

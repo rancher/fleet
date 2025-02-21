@@ -42,8 +42,6 @@ type Options struct {
 // Then it reads/downloads all referenced resources. It returns the populated
 // bundle and any existing imagescans.
 func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
-	errorContext := fmt.Sprintf("processing bundle %s", name)
-
 	if baseDir == "" {
 		baseDir = "."
 	}
@@ -61,7 +59,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*flee
 
 	if file == "" {
 		if file, err := setupIOReader(baseDir); err != nil {
-			return nil, nil, fmt.Errorf("%s: %w", errorContext, err)
+			return nil, nil, fmt.Errorf("failed to open existing fleet.yaml in %q: %w", baseDir, err)
 		} else if file != nil {
 			in = file
 			defer file.Close()
@@ -72,7 +70,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*flee
 	} else {
 		f, err := os.Open(filepath.Join(baseDir, file))
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %w", errorContext, err)
+			return nil, nil, fmt.Errorf("failed to open file %q: %w", file, err)
 		}
 		defer f.Close()
 		in = f
@@ -80,7 +78,7 @@ func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*flee
 
 	b, s, err := mayCompress(ctx, name, baseDir, in, opts)
 	if err != nil {
-		return b, s, fmt.Errorf("%s: %w", errorContext, err)
+		return b, s, fmt.Errorf("failed to process bundle: %w", err)
 	}
 
 	return b, s, nil
