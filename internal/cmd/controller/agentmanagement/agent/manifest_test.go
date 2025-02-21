@@ -36,10 +36,10 @@ func TestImageResolve(t *testing.T) {
 	}
 }
 
-func getAgentFromManifests(scope string, opts agent.ManifestOptions) *appsv1.StatefulSet {
+func getAgentFromManifests(scope string, opts agent.ManifestOptions) *appsv1.Deployment {
 	objects := agent.Manifest(namespace, scope, opts)
 	for _, obj := range objects {
-		dep, ok := obj.(*appsv1.StatefulSet)
+		dep, ok := obj.(*appsv1.Deployment)
 		if ok {
 			return dep
 		}
