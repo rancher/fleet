@@ -5,11 +5,13 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v2"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -40,6 +42,24 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		expectedNumberOfBundleDeployments int
 		bundle                            *v1alpha1.Bundle
 	)
+
+	loadValues := func(bd v1alpha1.BundleDeployment) (map[string]any, map[string]any) {
+		values := make(map[string]any)
+		staged := make(map[string]any)
+		secret := corev1.Secret{}
+		Eventually(func(g Gomega) {
+			err := k8sClient.Get(ctx, types.NamespacedName{Name: bd.Name, Namespace: bd.Namespace}, &secret)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			err = yaml.Unmarshal(secret.Data["stagedValues"], &staged)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			err = yaml.Unmarshal(secret.Data["values"], &values)
+			g.Expect(err).ToNot(HaveOccurred())
+		}).Should(Succeed())
+
+		return values, staged
+	}
 
 	JustBeforeEach(func() {
 		var err error
@@ -85,6 +105,10 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			By("and BundleDeployments don't have values from customizations")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: bd.Name, Namespace: bd.Namespace}, &corev1.Secret{})
+				Expect(err).To(HaveOccurred())
+				Expect(apierrors.IsNotFound(err)).To(BeTrue())
+
 			}
 		})
 	})
@@ -161,7 +185,9 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and BundleDeployments have values from customizations")
 			for _, bd := range bdList.Items {
-				Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "3"}))
+				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
+				values, _ := loadValues(bd)
+				Expect(values).To(HaveKeyWithValue("replicas", "3"))
 			}
 		})
 	})
@@ -213,12 +239,13 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and just BundleDeployment from cluster one and two are customized")
 			for _, bd := range bdList.Items {
+				values, _ := loadValues(bd)
 				if strings.Contains(bd.Namespace, "cluster-one") {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "1"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "1"))
 				} else if strings.Contains(bd.Namespace, "cluster-two") {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "2"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "2"))
 				} else {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "4"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "4"))
 				}
 			}
 		})
@@ -271,10 +298,11 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and just BundleDeployment from cluster one is customized")
 			for _, bd := range bdList.Items {
+				values, _ := loadValues(bd)
 				if strings.Contains(bd.Namespace, "cluster-one") {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "1"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "1"))
 				} else {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "4"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "4"))
 				}
 			}
 		})
@@ -319,7 +347,9 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and the BundleDeployment is customized")
 			for _, bd := range bdList.Items {
-				Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "2"}))
+				values, staged := loadValues(bd)
+				Expect(staged).To(HaveKeyWithValue("replicas", "2"))
+				Expect(values).To(HaveKeyWithValue("replicas", "2"))
 			}
 		})
 	})
@@ -476,12 +506,13 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("checking that all bundle deployments are customized as expected")
 			for _, bd := range bdList.Items {
+				values, _ := loadValues(bd)
 				if strings.Contains(bd.Namespace, "cluster-one") {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "1"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "1"))
 				} else if strings.Contains(bd.Namespace, "cluster-two") {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "2"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "2"))
 				} else {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "4"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "4"))
 				}
 			}
 			By("setting the customization for cluster two as do not deploy")
@@ -501,10 +532,11 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			bdList = verifyBundlesDeploymentsAreCreated(2, bdLabels, bundleName)
 			for _, bd := range bdList.Items {
 				Expect(bd.Namespace).ToNot(ContainSubstring("cluster-two"))
+				values, _ := loadValues(bd)
 				if strings.Contains(bd.Namespace, "cluster-one") {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "1"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "1"))
 				} else if strings.Contains(bd.Namespace, "cluster-three") {
-					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "4"}))
+					Expect(values).To(HaveKeyWithValue("replicas", "4"))
 				}
 			}
 		})

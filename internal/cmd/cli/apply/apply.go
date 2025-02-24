@@ -17,6 +17,7 @@ import (
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/fleetyaml"
+	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ociwrapper"
@@ -245,12 +246,37 @@ func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options
 		if err != nil {
 			return err
 		}
+
+		h, data, err := helmvalues.ExtractValues(bundle)
+		if err != nil {
+			return err
+		}
+
+		// If values were found in the bundle the hash is not empty, we
+		// remove the values from the bundle. Also, delete any old
+		// secret if the values are empty.
+		if h != "" {
+			helmvalues.ClearValues(bundle)
+		} else if err := c.Core.Secret().Delete(bundle.Namespace, bundle.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		bundle.Spec.ValuesHash = h
+
 		if opts.OCIRegistry.Reference == "" {
-			if err := save(c, bundle); err != nil {
+			if bundle, err = save(c, bundle); err != nil {
 				return err
 			}
 		} else {
-			if err := saveOCIBundle(ctx, c, bundle, opts); err != nil {
+			if bundle, err = saveOCIBundle(ctx, c, bundle, opts); err != nil {
+				return err
+			}
+		}
+
+		// Saves the Helm values as a secret. The secret is owned by
+		// the bundle. It will not create a secret if the values are
+		// empty.
+		if len(data) > 0 {
+			if err := createOrUpdate(c, newValuesSecret(bundle, data)); err != nil {
 				return err
 			}
 		}
@@ -286,15 +312,15 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts *Options) (
 	return manifestID, nil
 }
 
-func save(c *client.Client, bundle *fleet.Bundle) error {
+func save(c *client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
 	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return bundle, err
 	}
 
 	if apierrors.IsNotFound(err) {
-		if _, err := c.Fleet.Bundle().Create(bundle); err != nil {
-			return err
+		if obj, err = c.Fleet.Bundle().Create(bundle); err != nil {
+			return bundle, err
 		}
 		logrus.Infof("created (bundle): %s/%s", bundle.Namespace, bundle.Name)
 	} else {
@@ -302,13 +328,13 @@ func save(c *client.Client, bundle *fleet.Bundle) error {
 		obj.Annotations = bundle.Annotations
 		obj.Labels = bundle.Labels
 
-		if _, err := c.Fleet.Bundle().Update(obj); err != nil {
-			return err
+		if obj, err = c.Fleet.Bundle().Update(obj); err != nil {
+			return bundle, err
 		}
 		logrus.Infof("updated (bundle): %s/%s", obj.Namespace, obj.Name)
 	}
 
-	return nil
+	return obj, nil
 }
 
 func saveImageScans(c *client.Client, bundle *fleet.Bundle, scans []*fleet.ImageScan) error {
@@ -338,16 +364,16 @@ func saveImageScans(c *client.Client, bundle *fleet.Bundle, scans []*fleet.Image
 	return nil
 }
 
-func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, opts *Options) error {
+func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, opts *Options) (*fleet.Bundle, error) {
 	manifestID, err := pushOCIManifest(ctx, bundle, opts)
 	if err != nil {
-		return err
+		return bundle, err
 	}
 	logrus.Infof("OCI artifact stored successfully: %s %s", bundle.Name, manifestID)
 
 	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return bundle, err
 	}
 
 	if apierrors.IsNotFound(err) {
@@ -357,11 +383,11 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 		bundle.Spec.ContentsID = manifestID
 		obj, err = c.Fleet.Bundle().Create(bundle)
 		if err != nil {
-			return err
+			return bundle, err
 		}
 
 		if err := createOrUpdate(c, newOCISecret(manifestID, obj, opts)); err != nil {
-			return err
+			return bundle, err
 		}
 		logrus.Infof("createOrUpdate (oci secret): %s/%s", obj.Namespace, obj.Name)
 	} else {
@@ -372,16 +398,16 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 		obj.Spec.ContentsID = manifestID
 		obj, err = c.Fleet.Bundle().Update(obj)
 		if err != nil {
-			return err
+			return bundle, err
 		}
 
 		if err := createOrUpdate(c, newOCISecret(manifestID, obj, opts)); err != nil {
-			return err
+			return bundle, err
 		}
 		logrus.Infof("createOrUpdate (oci secret): %s/%s", obj.Namespace, obj.Name)
 	}
 
-	return nil
+	return obj, nil
 }
 
 // when using the OCI registry manifestID won't be empty
@@ -411,6 +437,29 @@ func newOCISecret(manifestID string, bundle *fleet.Bundle, opts *Options) *corev
 			ociwrapper.OCISecretBasicHTTP: []byte(strconv.FormatBool(opts.OCIRegistry.BasicHTTP)),
 			ociwrapper.OCISecretInsecure:  []byte(strconv.FormatBool(opts.OCIRegistry.InsecureSkipTLS)),
 		},
+	}
+}
+
+func newValuesSecret(bundle *fleet.Bundle, data map[string][]byte) *corev1.Secret {
+	return &corev1.Secret{
+		Type: fleet.SecretTypeBundleValues,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bundle.Name,
+			Namespace: bundle.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         fleet.SchemeGroupVersion.String(),
+					Kind:               "Bundle",
+					Name:               bundle.Name,
+					UID:                bundle.GetUID(),
+					BlockOwnerDeletion: ptr.To(true),
+					Controller:         ptr.To(true),
+				},
+			},
+			Labels: bundle.Labels,
+		},
+
+		Data: data,
 	}
 }
 

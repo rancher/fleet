@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ociwrapper"
@@ -165,6 +166,14 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bundle.Status.ObservedGeneration,
 	)
 
+	// The values secret is optional, e.g. for non-helm type bundles.
+	// This sets the values on the bundle, which is safe as we don't update bundle, just its status
+	if bundle.Spec.ValuesHash != "" {
+		if err := loadBundleValues(ctx, r.Client, bundle); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	// if the bundle has the helmops options set but the experimental flag is not
 	// set we don't deploy the bundle.
 	// This is to avoid intentional or accidental deployment of bundles with no
@@ -234,7 +243,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	// this will add the defaults for a new bundledeployment
+	// this will add the defaults for a new bundledeployment. It propagates stagedOptions to options.
 	if err := target.UpdatePartitions(&bundle.Status, matchedTargets); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -278,6 +287,16 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bd.Spec.OCIContents = contentsInOCI
 		bd.Spec.HelmChartOptions = bundle.Spec.HelmAppOptions
 
+		h, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		// We need a checksum to trigger on value change, rely on later code in
+		// the reconciler to update the status
+		bd.Spec.ValuesHash = h
+
+		helmvalues.ClearOptions(bd)
+
 		bd, err = r.createBundleDeployment(
 			ctx,
 			logger,
@@ -290,7 +309,20 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
 
-		if err := r.handleDeploymentSecret(ctx, bundle, bd); err != nil {
+		if bd.Spec.ValuesHash != "" {
+			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
+				return ctrl.Result{}, err
+			}
+		} else {
+			// No values to store, delete the secret if it exists
+			if err := r.Delete(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
+			}); err != nil && !apierrors.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
+		}
+
+		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -413,31 +445,48 @@ func (r *BundleReconciler) createBundleDeployment(
 	return bd, nil
 }
 
-func (r *BundleReconciler) createDeploymentSecret(ctx context.Context, secretName string, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
-	namespacedName := types.NamespacedName{
-		Namespace: bundle.Namespace,
-		Name:      secretName,
+// loadBundleValues loads the values from the secret and sets them in the bundle spec
+func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
+	secret := &corev1.Secret{}
+	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); err != nil {
+		return fmt.Errorf("failed to get values secret for bundle %q, this is likely temporary: %w", bundle.Name, err)
 	}
-	var secret corev1.Secret
-	if err := r.Get(ctx, namespacedName, &secret); err != nil {
-		return err
+	hash, err := helmvalues.HashValuesSecret(secret.Data)
+	if err != nil {
+		return fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
 	}
-	// clone the secret, and just change the namespace so it's in the target's namespace
-	targetSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secret.Name,
-			Namespace: bd.Namespace,
-		},
-		Data: secret.Data,
+	if bundle.Spec.ValuesHash != hash {
+		return fmt.Errorf("bundle values secret has changed, requeuing")
 	}
 
-	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
+	if err := helmvalues.SetValues(bundle, secret.Data); err != nil {
+		return fmt.Errorf("failed load values secret %q: %w", secret.Name, err)
+	}
+
+	return nil
+}
+
+func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.BundleDeployment, options []byte, stagedOptions []byte) error {
+	secret := &corev1.Secret{
+		Type: fleet.SecretTypeBundleDeploymentOptions,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bd.Name,
+			Namespace: bd.Namespace,
+		},
+	}
+
+	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.Create(ctx, targetSecret); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
-			return err
+
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.Data = map[string][]byte{
+			helmvalues.ValuesKey:       options,
+			helmvalues.StagedValuesKey: stagedOptions,
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	return nil
@@ -463,18 +512,48 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 	return fmt.Sprintf("oci://%s/%s:latest", string(ref), bundle.Spec.ContentsID), nil
 }
 
-func (r *BundleReconciler) handleDeploymentSecret(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
-	if bd == nil {
-		return nil
+// cloneSecret clones a secret, identified by the provided secretName and
+// namespace, to the namespace of the provided bundle deployment bd. This makes
+// the secret available to agents when deploying bd to downstream clusters.
+func (r *BundleReconciler) cloneSecret(ctx context.Context, namespace string, secretName string, bd *fleet.BundleDeployment) error {
+	namespacedName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      secretName,
 	}
+	var secret corev1.Secret
+	if err := r.Get(ctx, namespacedName, &secret); err != nil {
+		return fmt.Errorf("failed to load source secret, cannot clone into %q: %w", namespace, err)
+	}
+	// clone the secret, and just change the namespace so it's in the target's namespace
+	targetSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secret.Name,
+			Namespace: bd.Namespace,
+		},
+		Data: secret.Data,
+	}
+
+	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
+		return err
+	}
+	if err := r.Create(ctx, targetSecret); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
 	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmAppOptions != nil && experimentalHelmOpsEnabled()
 
 	if contentsInOCI {
-		return r.createDeploymentSecret(ctx, bundle.Spec.ContentsID, bundle, bd)
+		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, bd)
 	}
 	if contentsInHelmChart && bundle.Spec.HelmAppOptions.SecretName != "" {
-		return r.createDeploymentSecret(ctx, bundle.Spec.HelmAppOptions.SecretName, bundle, bd)
+		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmAppOptions.SecretName, bd)
 	}
 	return nil
 }
