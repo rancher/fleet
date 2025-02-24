@@ -8,7 +8,7 @@ on:
         default: "dev-v2.11"
       prev_fleet:
         description: "Previous Fleet version (e.g. 0.6.0-rc.3)"
-        required: false
+        required: true
         default: ""
       new_fleet:
         description: "New Fleet version"
@@ -16,7 +16,7 @@ on:
         default: ""
       prev_chart:
         description: "Previous Rancher Chart version (e.g. 101.1.0)"
-        required: false
+        required: true
         default: ""
       new_chart:
         description: "New Rancher Chart version"
