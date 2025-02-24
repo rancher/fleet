@@ -38,10 +38,10 @@ type Options struct {
 	CorrectDrift     *fleet.CorrectDrift
 }
 
-// Open reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
+// New reads the fleet.yaml, from stdin, or basedir, or a file in basedir.
 // Then it reads/downloads all referenced resources. It returns the populated
 // bundle and any existing imagescans.
-func Open(ctx context.Context, name, baseDir, file string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
+func New(ctx context.Context, name, baseDir, file string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if baseDir == "" {
 		baseDir = "."
 	}
