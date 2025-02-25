@@ -1121,7 +1121,7 @@ func volumesFromSecret(
 }
 
 func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRepo) (corev1.Container, error) {
-	args := []string{"gitcloner", obj.Spec.Repo, "/workspace"}
+	args := []string{"fleet", "gitcloner", obj.Spec.Repo, "/workspace"}
 	volumeMounts := []corev1.VolumeMount{
 		{
 			Name:      gitClonerVolumeName,
@@ -1194,9 +1194,7 @@ func (r *GitJobReconciler) newGitCloner(ctx context.Context, obj *v1alpha1.GitRe
 	}
 
 	return corev1.Container{
-		Command: []string{
-			"fleet",
-		},
+		Command:      []string{"log.sh"},
 		Args:         args,
 		Image:        r.Image,
 		Name:         "gitcloner-initializer",
@@ -1369,6 +1367,15 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 		if len(podList.Items) > 0 {
 			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.ContainerStatuses {
 				if podStatus.Name != "step-git-source" && podStatus.State.Terminated != nil {
+					terminationMessage += podStatus.State.Terminated.Message
+				}
+			}
+
+			// set also the message from init containers (if they failed)
+			for _, podStatus := range podList.Items[len(podList.Items)-1].Status.InitContainerStatuses {
+				if podStatus.Name != "step-git-source" &&
+					podStatus.State.Terminated != nil &&
+					podStatus.State.Terminated.ExitCode != 0 {
 					terminationMessage += podStatus.State.Terminated.Message
 				}
 			}
