@@ -98,11 +98,12 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		CorrectDriftKeepFailHistory: a.CorrectDriftKeepFailHistory,
 	}
 	if err := a.addAuthToOpts(&opts, os.ReadFile); err != nil {
-		return err
+		return fmt.Errorf("adding auth to opts: %w", err)
 	}
 	if err := a.addOCISpecToOpts(&opts, os.ReadFile); err != nil {
-		return err
+		return fmt.Errorf("adding oci spec to opts: %w", err)
 	}
+
 	if a.File == "-" {
 		opts.BundleReader = os.Stdin
 		if len(args) != 1 {

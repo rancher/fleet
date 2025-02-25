@@ -105,14 +105,14 @@ func CreateBundles(ctx context.Context, client Getter, repoName string, baseDirs
 		for _, baseDir := range matches {
 			if i > 0 && opts.Output != nil {
 				if _, err := opts.Output.Write([]byte("\n---\n")); err != nil {
-					return err
+					return fmt.Errorf("writing to bundle output: %w", err)
 				}
 			}
 			err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
 				opts := opts
 				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, info)
 				if e != nil {
-					return e
+					return fmt.Errorf("checking for bundle in path %q: %w", path, err)
 				}
 				if !createBundle {
 					return nil
@@ -180,7 +180,7 @@ func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*flee
 	if opts.BundleReader != nil {
 		var bundle *fleet.Bundle
 		if err := json.NewDecoder(opts.BundleReader).Decode(bundle); err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("decoding bundle %s: %w", name, err)
 		}
 		return bundle, nil, nil
 	}
