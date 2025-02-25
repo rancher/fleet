@@ -6680,11 +6680,13 @@ spec:
                   description: LastPollingTime is the last time the polling check
                     was triggered
                   format: date-time
+                  nullable: true
                   type: string
                 lastSyncedImageScanTime:
                   description: LastSyncedImageScanTime is the time of the last image
                     scan.
                   format: date-time
+                  nullable: true
                   type: string
                 observedGeneration:
                   description: 'ObservedGeneration is the current generation of the
