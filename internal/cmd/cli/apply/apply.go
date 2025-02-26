@@ -223,7 +223,6 @@ func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options
 		return err
 	}
 
-	bundle = bundle.DeepCopy()
 	bundle.Namespace = client.GetNamespace()
 
 	if len(bundle.Spec.Resources) == 0 {
