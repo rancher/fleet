@@ -343,7 +343,7 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 	if err != nil {
 		return err
 	}
-	logrus.Infof("OCI artifact stored successful: %s %s", bundle.Name, manifestID)
+	logrus.Infof("OCI artifact stored successfully: %s %s", bundle.Name, manifestID)
 
 	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
