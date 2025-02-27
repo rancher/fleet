@@ -95,7 +95,7 @@ var _ = BeforeSuite(func() {
 
 	setupFakeContents()
 
-	driftChan := make(chan event.GenericEvent)
+	driftChan := make(chan event.TypedGenericEvent[*v1alpha1.BundleDeployment])
 
 	// Set up the bundledeployment reconciler
 	Expect(k8sClient.Create(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: clusterNS}})).ToNot(HaveOccurred())
@@ -133,7 +133,7 @@ var _ = AfterSuite(func() {
 // newReconciler creates a new BundleDeploymentReconciler that will watch for changes
 // in the test Fleet namespace, using configuration from the provided manager.
 // Resources are provided by the lookup parameter.
-func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, driftChan chan event.GenericEvent) *controller.BundleDeploymentReconciler {
+func newReconciler(ctx context.Context, mgr manager.Manager, lookup *lookup, driftChan chan event.TypedGenericEvent[*v1alpha1.BundleDeployment]) *controller.BundleDeploymentReconciler {
 	upstreamClient := mgr.GetClient()
 	// re-use client, since this is a single cluster test
 	localClient := upstreamClient

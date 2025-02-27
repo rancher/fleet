@@ -92,7 +92,7 @@ func start(
 	localCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	driftChan := make(chan event.GenericEvent)
+	driftChan := make(chan event.TypedGenericEvent[*v1alpha1.BundleDeployment])
 
 	reconciler, err := newReconciler(
 		ctx,
@@ -196,7 +196,7 @@ func newReconciler(
 	fleetNamespace string,
 	agentScope string,
 	agentConfig config.Config,
-	driftChan chan event.GenericEvent,
+	driftChan chan event.TypedGenericEvent[*v1alpha1.BundleDeployment],
 	workers int,
 ) (*controller.BundleDeploymentReconciler, error) {
 	upstreamClient := mgr.GetClient()

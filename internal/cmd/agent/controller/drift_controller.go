@@ -10,7 +10,6 @@ import (
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
@@ -31,14 +30,14 @@ type DriftReconciler struct {
 	Monitor     *monitor.Monitor
 	DriftDetect *driftdetect.DriftDetect
 
-	DriftChan chan event.GenericEvent
+	DriftChan chan event.TypedGenericEvent[*fleetv1.BundleDeployment]
 
 	Workers int
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DriftReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	src := source.Channel(r.DriftChan, &handler.EnqueueRequestForObject{})
+	src := source.Channel(r.DriftChan, &handler.TypedEnqueueRequestForObject[*fleetv1.BundleDeployment]{})
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("drift-reconciler").
 		WatchesRawSource(src).
