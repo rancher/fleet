@@ -22,7 +22,7 @@ type DriftDetect struct {
 	labelPrefix      string
 	labelSuffix      string
 
-	driftChan chan event.GenericEvent
+	driftChan chan event.TypedGenericEvent[*fleet.BundleDeployment]
 }
 
 func New(
@@ -31,7 +31,7 @@ func New(
 	defaultNamespace string,
 	labelPrefix string,
 	labelSuffix string,
-	driftChan chan event.GenericEvent,
+	driftChan chan event.TypedGenericEvent[*fleet.BundleDeployment],
 ) *DriftDetect {
 	return &DriftDetect{
 		trigger:          trigger,
@@ -63,7 +63,7 @@ func (d *DriftDetect) Refresh(ctx context.Context, bdKey string, bd *fleet.Bundl
 
 	handler := func(key string) {
 		logger.V(1).Info("Notifying driftdetect reconciler of a resource change", "triggeredBy", key)
-		d.driftChan <- event.GenericEvent{Object: bd}
+		d.driftChan <- event.TypedGenericEvent[*fleet.BundleDeployment]{Object: bd}
 
 	}
 
