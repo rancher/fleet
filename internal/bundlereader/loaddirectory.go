@@ -182,17 +182,17 @@ func readFleetIgnore(path string) ([]string, error) {
 	return ignored, nil
 }
 
-func loadDirectory(ctx context.Context, compress bool, disableDepsUpdate bool, prefix, base, source, version string, auth Auth) ([]fleet.BundleResource, error) {
+func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := GetContent(ctx, base, source, version, auth, disableDepsUpdate)
+	files, err := GetContent(ctx, dir.base, dir.source, dir.version, dir.auth, opts.disableDepsUpdate)
 	if err != nil {
 		return nil, err
 	}
 
 	for name, data := range files {
 		r := fleet.BundleResource{Name: name}
-		if compress || !utf8.Valid(data) {
+		if opts.compress || !utf8.Valid(data) {
 			content, err := content.Base64GZ(data)
 			if err != nil {
 				return nil, err
@@ -202,8 +202,8 @@ func loadDirectory(ctx context.Context, compress bool, disableDepsUpdate bool, p
 		} else {
 			r.Content = string(data)
 		}
-		if prefix != "" {
-			r.Name = filepath.Join(prefix, name)
+		if dir.prefix != "" {
+			r.Name = filepath.Join(dir.prefix, name)
 		}
 		resources = append(resources, r)
 	}

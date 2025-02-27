@@ -36,7 +36,16 @@ func GetManifestFromHelmChart(ctx context.Context, c client.Client, bd *fleet.Bu
 		return nil, err
 	}
 
-	resources, err := loadDirectory(ctx, false, false, checksum(helm), temp, chartURL, helm.Version, auth)
+	resources, err := loadDirectory(ctx,
+		loadOpts{},
+		directory{
+			prefix:  checksum(helm),
+			base:    temp,
+			source:  chartURL,
+			version: helm.Version,
+			auth:    auth,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
