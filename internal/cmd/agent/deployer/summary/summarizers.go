@@ -103,20 +103,12 @@ var (
 		"Reconciling": "reconciling",
 	}
 
-	Summarizers          []Summarizer
-	ConditionSummarizers []Summarizer
+	Summarizers []Summarizer
 )
 
 type Summarizer func(obj data.Object, conditions []Condition, summary fleetv1.Summary) fleetv1.Summary
 
 func init() {
-	ConditionSummarizers = []Summarizer{
-		checkErrors,
-		checkTransitioning,
-		checkRemoving,
-		checkCattleReady,
-	}
-
 	Summarizers = []Summarizer{
 		checkStatusSummary,
 		checkErrors,
