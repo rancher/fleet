@@ -82,14 +82,20 @@ type loadOpts struct {
 	disableDepsUpdate bool
 }
 
+// directory represents a directory to load resources from. The directory can
+// be created from an external Helm chart, or a local path.
+// One bundle can consist of multiple directories.
 type directory struct {
-	key string
-
-	prefix  string
-	base    string
-	source  string
+	// prefix is the generated top level dir of the chart, e.g. '.chart/1234'
+	prefix string
+	// base is the directory on disk to load the files from
+	base string
+	// source is the chart URL to download the chart from
+	source string
+	// version is the version of the chart
 	version string
-	auth    Auth
+	// auth is the auth to use for the chart URL
+	auth Auth
 }
 
 func addDirectory(base, customDir, defaultDir string) ([]directory, error) {
@@ -107,7 +113,6 @@ func addDirectory(base, customDir, defaultDir string) ([]directory, error) {
 		prefix: defaultDir,
 		base:   base,
 		source: customDir,
-		key:    defaultDir,
 	}}, nil
 }
 
@@ -175,7 +180,6 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 				prefix:  checksum(chart),
 				base:    base,
 				source:  chartURL,
-				key:     checksum(chart),
 				auth:    auth,
 				version: chart.Version,
 			})
@@ -234,7 +238,7 @@ func loadDirectories(ctx context.Context, opts loadOpts, directories ...director
 				return fmt.Errorf("loading directory %s, %s: %w", dir.prefix, dir.base, err)
 			}
 
-			key := dir.key
+			key := dir.prefix
 			if key == "" {
 				key = dir.source
 			}
