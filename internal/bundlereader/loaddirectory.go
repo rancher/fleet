@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -185,7 +186,7 @@ func readFleetIgnore(path string) ([]string, error) {
 func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.BundleResource, error) {
 	var resources []fleet.BundleResource
 
-	files, err := GetContent(ctx, dir.base, dir.source, dir.version, dir.auth, opts.disableDepsUpdate)
+	files, err := GetContent(ctx, dir.base, dir.source, dir.version, dir.auth, opts.disableDepsUpdate, opts.ignoreApplyConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +213,7 @@ func loadDirectory(ctx context.Context, opts loadOpts, dir directory) ([]fleet.B
 }
 
 // GetContent uses go-getter (and Helm for OCI) to read the files from directories and servers.
-func GetContent(ctx context.Context, base, source, version string, auth Auth, disableDepsUpdate bool) (map[string][]byte, error) {
+func GetContent(ctx context.Context, base, source, version string, auth Auth, disableDepsUpdate bool, ignoreApplyConfigs []string) (map[string][]byte, error) {
 	temp, err := os.MkdirTemp("", "fleet")
 	if err != nil {
 		return nil, err
@@ -294,6 +295,11 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		ignore, err := ignoredPaths.isIgnored(path, info)
 		if err != nil {
 			return err
+		}
+
+		// ignore files containing only fleet apply config
+		if slices.Contains(ignoreApplyConfigs, name) {
+			return nil
 		}
 
 		if info.IsDir() {
