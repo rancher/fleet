@@ -116,6 +116,7 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       - name: Upload charts to release
+        if: ${{ env.IS_HOTFIX == 'false' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           repo: "rancher"
@@ -144,6 +145,7 @@ jobs:
           done
 
       - name: Add charts to branch
+        if: ${{ env.IS_HOTFIX == 'false' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
