@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,13 @@ import (
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
+)
+
+const (
+	FleetApplyConflictRetriesEnv = "FLEET_APPLY_CONFLICT_RETRIES"
+	defaultApplyConflictRetries  = 1
 )
 
 type readFile func(name string) ([]byte, error)
@@ -68,6 +75,20 @@ func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
+	// Apply retries on conflict errors.
+	// We could have race conditions updating the Bundle in high load situations
+	var err error
+	for range GetOnConflictRetries() {
+		err = a.run(cmd, args)
+		if !errors.IsConflict(err) {
+			break
+		}
+	}
+
+	return err
+}
+
+func (a *Apply) run(cmd *cobra.Command, args []string) error {
 	labels := a.Label
 	if a.Commit == "" {
 		a.Commit = currentCommit()
@@ -209,4 +230,16 @@ func currentCommit() string {
 		return strings.TrimSpace(buf.String())
 	}
 	return ""
+}
+
+func GetOnConflictRetries() int {
+	s := os.Getenv(FleetApplyConflictRetriesEnv)
+
+	retries := defaultApplyConflictRetries
+	r, err := strconv.Atoi(s)
+	if err == nil {
+		retries = r
+	}
+
+	return retries
 }

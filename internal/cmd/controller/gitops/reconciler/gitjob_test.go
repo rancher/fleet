@@ -1393,6 +1393,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
+					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
+					Value: "1",
+				},
+				{
 					Name:  "GIT_SSH_COMMAND",
 					Value: "ssh -o stricthostkeychecking=accept-new",
 				},
@@ -1413,6 +1417,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "HOME",
 					Value: "/fleet-home",
+				},
+				{
+					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
+					Value: "1",
 				},
 				{
 					Name:  "COMMIT",

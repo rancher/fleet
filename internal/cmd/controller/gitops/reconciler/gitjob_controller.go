@@ -15,6 +15,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/reugn/go-quartz/quartz"
 
+	fleetcli "github.com/rancher/fleet/internal/cmd/cli"
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
@@ -880,6 +881,10 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool, CACertsPathOverride stri
 		{
 			Name:  "HOME",
 			Value: fleetHomeDir,
+		},
+		{
+			Name:  fleetcli.FleetApplyConflictRetriesEnv,
+			Value: strconv.Itoa(fleetcli.GetOnConflictRetries()),
 		},
 	}
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
