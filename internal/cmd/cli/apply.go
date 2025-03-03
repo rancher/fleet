@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/rancher/fleet/internal/bundlereader"
@@ -78,7 +79,11 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	// Apply retries on conflict errors.
 	// We could have race conditions updating the Bundle in high load situations
 	var err error
-	for range GetOnConflictRetries() {
+	retries, err := GetOnConflictRetries()
+	if err != nil {
+		logrus.Errorf("failed parsing env variable %s, using defaults, err: %v", FleetApplyConflictRetriesEnv, err)
+	}
+	for range retries {
 		err = a.run(cmd, args)
 		if !errors.IsConflict(err) {
 			break
@@ -232,14 +237,18 @@ func currentCommit() string {
 	return ""
 }
 
-func GetOnConflictRetries() int {
+func GetOnConflictRetries() (int, error) {
 	s := os.Getenv(FleetApplyConflictRetriesEnv)
-
-	retries := defaultApplyConflictRetries
-	r, err := strconv.Atoi(s)
-	if err == nil {
-		retries = r
+	if s != "" {
+		// check if we have a valid value
+		// it must be an integer
+		r, err := strconv.Atoi(s)
+		if err != nil {
+			return defaultApplyConflictRetries, err
+		} else {
+			return r, nil
+		}
 	}
 
-	return retries
+	return defaultApplyConflictRetries, nil
 }
