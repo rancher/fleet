@@ -6,7 +6,6 @@ project_name: fleet
 env:
   - CGO_ENABLED=0
   - IS_HOTFIX={{ if isEnvSet "IS_HOTFIX"}}{{ .Env.IS_HOTFIX }}{{else}}false{{end}}
-  - REGISTRY={{ if isEnvSet "REGISTRY" }}{{ .Env.REGISTRY }}{{else}}docker.io{{end}}
 
 release:
   prerelease: auto
@@ -89,6 +88,8 @@ dockers:
   -
     use: buildx
     id: fleet-amd64-public
+    skip_build: "{{ .Env.IS_HOTFIX }}"
+    skip_push: "{{ .Env.IS_HOTFIX }}"
 
     # GOOS of the built binaries/packages that should be used.
     goos: linux
@@ -103,7 +104,7 @@ dockers:
 
     # Templates of the Docker image names.
     image_templates:
-    - "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
 
     # Path to the Dockerfile (from the project root).
     dockerfile: package/Dockerfile
@@ -123,13 +124,15 @@ dockers:
   -
     use: buildx
     id: fleet-arm64-public
+    skip_build: "{{ .Env.IS_HOTFIX }}"
+    skip_push: "{{ .Env.IS_HOTFIX }}"
     goos: linux
     goarch: arm64
     ids:
     - fleet-controller
     - fleet-cli
     image_templates:
-    - "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile
     build_flag_templates:
     - "--pull"
@@ -146,12 +149,14 @@ dockers:
   -
     use: buildx
     id: fleet-agent-amd64-public
+    skip_build: "{{ .Env.IS_HOTFIX }}"
+    skip_push: "{{ .Env.IS_HOTFIX }}"
     goos: linux
     goarch: amd64
     ids:
     - fleet-agent
     image_templates:
-    - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
     dockerfile: package/Dockerfile.agent
     build_flag_templates:
     - "--pull"
@@ -166,12 +171,14 @@ dockers:
   -
     use: buildx
     id: fleet-agent-arm64-public
+    skip_build: "{{ .Env.IS_HOTFIX }}"
+    skip_push: "{{ .Env.IS_HOTFIX }}"
     goos: linux
     goarch: arm64
     ids:
     - fleet-agent
     image_templates:
-    - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile.agent
     build_flag_templates:
     - "--pull"
@@ -298,17 +305,19 @@ dockers:
 
 docker_manifests:
   # https://goreleaser.com/customization/docker_manifest/
-  - name_template: "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}"
+  - name_template: "docker.io/rancher/fleet:{{ .Tag }}"
     id: fleet-manifest-public
+    skip_push: "{{ .Env.IS_HOTFIX }}"
     image_templates:
-    - "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
-    - "{{ .Env.REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet:{{ .Tag }}-linux-arm64"
 
-  - name_template: "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}"
+  - name_template: "docker.io/rancher/fleet-agent:{{ .Tag }}"
     id: fleet-agent-manifest-public
+    skip_push: "{{ .Env.IS_HOTFIX }}"
     image_templates:
-    - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
-    - "{{ .Env.REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
 
     # Disabled until `docker manifest create` supports provenance meta data
     # - name_template: "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}"
