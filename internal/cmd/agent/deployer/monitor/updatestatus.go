@@ -258,6 +258,7 @@ func calculateResourceCounts(all []fleet.BundleDeploymentResource, nonReady []fl
 	for _, r := range modified {
 		if r.Create {
 			counts.Missing++
+			counts.DesiredReady++ // plan.Objects do not include missing resources
 		} else if r.Delete {
 			counts.Orphaned++
 		} else {

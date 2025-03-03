@@ -82,14 +82,7 @@ func Test_updateFromResources(t *testing.T) {
 		{
 			name: "missing",
 			args: args{
-				resources: []fleet.BundleDeploymentResource{
-					{
-						Kind:       "ConfigMap",
-						APIVersion: "v1",
-						Namespace:  "testns",
-						Name:       "testcm",
-					},
-				},
+				resources: []fleet.BundleDeploymentResource{},
 				modified: []fleet.ModifiedStatus{
 					{
 						Kind:       "ConfigMap",
@@ -104,7 +97,7 @@ func Test_updateFromResources(t *testing.T) {
 				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Missing: 1})
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
-				assert.Lenf(t, status.Resources, 1, "unexpected resources length")
+				assert.Emptyf(t, status.Resources, "unexpected resources to be empty")
 				assert.Len(t, status.ModifiedStatus, 1, "incorrect modified status length")
 				assert.True(t, status.ModifiedStatus[0].Create)
 				assert.Emptyf(t, status.NonReadyStatus, "expected non-ready status to be empty")
@@ -146,12 +139,6 @@ func Test_updateFromResources(t *testing.T) {
 			args: args{
 				resources: []fleet.BundleDeploymentResource{
 					{
-						Kind:       "ConfigMap",
-						APIVersion: "v1",
-						Namespace:  "testns",
-						Name:       "testcm",
-					},
-					{
 						Kind:       "Pod",
 						APIVersion: "v1",
 						Namespace:  "testns",
@@ -164,7 +151,7 @@ func Test_updateFromResources(t *testing.T) {
 						APIVersion: "v1",
 						Namespace:  "testns",
 						Name:       "testcm",
-						Patch:      `{"data": {"foo": "bar"}`,
+						Create:     true,
 					},
 				},
 				nonReady: []fleet.NonReadyStatus{
@@ -182,29 +169,20 @@ func Test_updateFromResources(t *testing.T) {
 				},
 			},
 			assert: func(t *testing.T, status fleet.BundleDeploymentStatus) {
-				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 2, Modified: 1, NotReady: 1})
+				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 2, Missing: 1, NotReady: 1})
 				assert.Falsef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
-				assert.Lenf(t, status.Resources, 2, "unexpected resources length")
+				assert.Lenf(t, status.Resources, 1, "unexpected resources length")
 				assert.Len(t, status.NonReadyStatus, 1, "incorrect non-ready status length")
 				assert.NotEmptyf(t, status.NonReadyStatus[0].Summary, "unexpected empty summary for non-ready resource")
 				assert.Len(t, status.ModifiedStatus, 1, "incorrect modified status length")
-				assert.NotEmpty(t, status.ModifiedStatus[0].Patch)
+				assert.True(t, status.ModifiedStatus[0].Create)
 			},
 		},
 		{
 			name: "non-ready and modified status lists have a max length",
 			args: args{
 				resources: func(n int) []fleet.BundleDeploymentResource {
-					cms := make([]fleet.BundleDeploymentResource, n)
-					for x := range n {
-						cms[x] = fleet.BundleDeploymentResource{
-							Kind:       "ConfigMap",
-							APIVersion: "v1",
-							Namespace:  "testns",
-							Name:       fmt.Sprintf("testcm-%d", x),
-						}
-					}
 					pods := make([]fleet.BundleDeploymentResource, n)
 					for x := range n {
 						pods[x] = fleet.BundleDeploymentResource{
@@ -214,7 +192,7 @@ func Test_updateFromResources(t *testing.T) {
 							Name:       fmt.Sprintf("pod-%d", x),
 						}
 					}
-					return append(cms, pods...)
+					return pods
 				}(12),
 				nonReady: func(n int) []fleet.NonReadyStatus {
 					pods := make([]fleet.NonReadyStatus, n)
@@ -249,7 +227,7 @@ func Test_updateFromResources(t *testing.T) {
 				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 24, Missing: 12, NotReady: 12})
 				assert.Falsef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
-				assert.Lenf(t, status.Resources, 24, "unexpected resources length")
+				assert.Lenf(t, status.Resources, 12, "unexpected resources length")
 
 				assert.Len(t, status.NonReadyStatus, 10, "non-ready status length exceeds maximum")
 				assert.Len(t, status.ModifiedStatus, 10, "incorrect modified exceeds maximum")
