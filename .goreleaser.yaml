@@ -88,7 +88,6 @@ dockers:
   -
     use: buildx
     id: fleet-amd64-public
-    skip_build: "{{ .Env.IS_HOTFIX }}"
     skip_push: "{{ .Env.IS_HOTFIX }}"
 
     # GOOS of the built binaries/packages that should be used.
@@ -124,7 +123,6 @@ dockers:
   -
     use: buildx
     id: fleet-arm64-public
-    skip_build: "{{ .Env.IS_HOTFIX }}"
     skip_push: "{{ .Env.IS_HOTFIX }}"
     goos: linux
     goarch: arm64
@@ -149,7 +147,6 @@ dockers:
   -
     use: buildx
     id: fleet-agent-amd64-public
-    skip_build: "{{ .Env.IS_HOTFIX }}"
     skip_push: "{{ .Env.IS_HOTFIX }}"
     goos: linux
     goarch: amd64
@@ -171,7 +168,6 @@ dockers:
   -
     use: buildx
     id: fleet-agent-arm64-public
-    skip_build: "{{ .Env.IS_HOTFIX }}"
     skip_push: "{{ .Env.IS_HOTFIX }}"
     goos: linux
     goarch: arm64
