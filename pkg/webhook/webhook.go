@@ -24,9 +24,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	ktypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
 	kcache "k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -224,33 +223,29 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 			if gitrepo.Status.WebhookCommit != revision && revision != "" {
 				var gitRepoFromCluster v1alpha1.GitRepo
-				if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-					err := w.client.Get(
-						ctx,
-						ktypes.NamespacedName{
-							Name:      gitrepo.Name,
-							Namespace: gitrepo.Namespace,
-						}, &gitRepoFromCluster,
-					)
-					if err != nil {
-						return err
-					}
-					gitRepoFromCluster.Status.WebhookCommit = revision
-					return w.client.Status().Update(ctx, &gitRepoFromCluster)
-				}); err != nil {
+				err := w.client.Get(
+					ctx,
+					types.NamespacedName{
+						Name:      gitrepo.Name,
+						Namespace: gitrepo.Namespace,
+					}, &gitRepoFromCluster,
+				)
+				if err != nil {
 					w.logAndReturn(rw, err)
 					return
 				}
+				orig := gitRepoFromCluster.DeepCopy()
+				gitRepoFromCluster.Status.WebhookCommit = revision
 				// if PollingInterval is not set and webhook is configured, set it to 1 hour
-				if gitrepo.Spec.PollingInterval == nil {
-					p := client.MergeFrom(&gitRepoFromCluster)
+				if gitRepoFromCluster.Spec.PollingInterval == nil {
 					gitRepoFromCluster.Spec.PollingInterval = &metav1.Duration{
 						Duration: webhookDefaultSyncInterval * time.Second,
 					}
-					if err := w.client.Patch(ctx, &gitRepoFromCluster, p); err != nil {
-						w.logAndReturn(rw, err)
-						return
-					}
+				}
+				p := client.MergeFrom(orig)
+				if err := w.client.Status().Patch(ctx, &gitRepoFromCluster, p); err != nil {
+					w.logAndReturn(rw, err)
+					return
 				}
 			}
 		}

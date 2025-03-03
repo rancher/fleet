@@ -15,6 +15,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/reugn/go-quartz/quartz"
 
+	fleetcli "github.com/rancher/fleet/internal/cmd/cli"
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
@@ -778,7 +779,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
-	args, envs := argsAndEnvs(gitrepo, logger.V(1).Enabled(), CACertsFilePathOverride)
+	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride)
 
 	return &batchv1.JobSpec{
 		BackoffLimit: &zero,
@@ -834,13 +835,13 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	}, nil
 }
 
-func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool, CACertsPathOverride string) ([]string, []corev1.EnvVar) {
+func argsAndEnvs(gitrepo *v1alpha1.GitRepo, logger logr.Logger, CACertsPathOverride string) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
 		"apply",
 	}
 
-	if debug {
+	if logger.V(1).Enabled() {
 		args = append(args, "--debug", "--debug-level", "9")
 	}
 
@@ -876,10 +877,18 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, debug bool, CACertsPathOverride stri
 		}
 	}
 
+	fleetApplyRetries, err := fleetcli.GetOnConflictRetries()
+	if err != nil {
+		logger.Error(err, "failed parsing env variable, using defaults", "env_var_name", fleetcli.FleetApplyConflictRetriesEnv)
+	}
 	env := []corev1.EnvVar{
 		{
 			Name:  "HOME",
 			Value: fleetHomeDir,
+		},
+		{
+			Name:  fleetcli.FleetApplyConflictRetriesEnv,
+			Value: strconv.Itoa(fleetApplyRetries),
 		},
 	}
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
