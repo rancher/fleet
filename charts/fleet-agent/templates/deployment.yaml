@@ -11,43 +11,6 @@ spec:
       labels:
         app: fleet-agent
     spec:
-      initContainers:
-      - env:
-        - name: NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        {{- if $.Values.leaderElection.leaseDuration }}
-        - name: CATTLE_ELECTION_LEASE_DURATION
-          value: {{$.Values.leaderElection.leaseDuration}}
-        {{- end }}
-        {{- if $.Values.leaderElection.retryPeriod }}
-        - name: CATTLE_ELECTION_RETRY_PERIOD
-          value: {{$.Values.leaderElection.retryPeriod}}
-        {{- end }}
-        {{- if $.Values.leaderElection.renewDeadline }}
-        - name: CATTLE_ELECTION_RENEW_DEADLINE
-          value: {{$.Values.leaderElection.renewDeadline}}
-        {{- end }}
-        image: '{{ template "system_default_registry" . }}{{.Values.image.repository}}:{{.Values.image.tag}}'
-        name: fleet-agent-register
-        command:
-        - fleetagent
-        - register
-        {{- if .Values.debug }}
-        - --debug
-        - --debug-level
-        - {{ quote .Values.debugLevel }}
-        {{- end }}
-        {{- if not .Values.disableSecurityContext }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          privileged: false
-          capabilities:
-            drop:
-            - ALL
-        {{- end }}
       containers:
       - env:
         - name: NAMESPACE
