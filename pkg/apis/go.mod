@@ -4,8 +4,8 @@ go 1.22.0
 
 require (
 	github.com/rancher/wrangler/v3 v3.0.0
-	k8s.io/api v0.30.2
-	k8s.io/apimachinery v0.30.2
+	k8s.io/api v0.30.10
+	k8s.io/apimachinery v0.30.10
 )
 
 require (
