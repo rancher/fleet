@@ -846,6 +846,11 @@ spec:
                           type: array
                       type: object
                   type: object
+                valuesHash:
+                  description: ValuesHash is the hash of the values used to deploy
+                    the bundle.
+                  nullable: true
+                  type: string
               type: object
             status:
               properties:
@@ -2527,6 +2532,15 @@ spec:
                         type: object
                     type: object
                   type: array
+                valuesHash:
+                  description: 'ValuesHash is the hash of the values used to render
+                    the Helm chart.
+
+                    It changes when any values from fleet.yaml, values from ValuesFiles
+                    or values from target
+
+                    customization changes.'
+                  type: string
                 yaml:
                   description: 'YAML options, if using raw YAML these are names that
                     map to

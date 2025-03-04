@@ -121,7 +121,7 @@ func (a *ClusterRegistration) Run(cmd *cobra.Command, args []string) error {
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	cfg := ctrl.GetConfigOrDie()
-	client, err := newClient(ctx, cfg)
+	client, _, err := newClient(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func (r *Gitjob) Run(cmd *cobra.Command, args []string) error {
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	cfg := ctrl.GetConfigOrDie()
-	client, err := newClient(ctx, cfg)
+	client, _, err := newClient(ctx, cfg)
 	if err != nil {
 		return err
 	}

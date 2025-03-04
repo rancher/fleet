@@ -13,10 +13,12 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
+	"github.com/rancher/fleet/internal/helmvalues"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -25,10 +27,11 @@ import (
 
 type Manager struct {
 	client client.Client
+	reader client.Reader
 }
 
-func New(client client.Client) *Manager {
-	return &Manager{client: client}
+func New(client client.Client, reader client.Reader) *Manager {
+	return &Manager{client: client, reader: reader}
 }
 
 // Targets returns all targets for a bundle, so we can create bundledeployments for each.
@@ -119,7 +122,24 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 
 	byNamespace := map[string]*fleet.BundleDeployment{}
 	for _, bd := range bundleDeployments.Items {
-		byNamespace[bd.Namespace] = bd.DeepCopy()
+		// and set their options
+		if bd.Spec.ValuesHash != "" {
+			secret := &corev1.Secret{}
+			if err := m.reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, secret); err != nil {
+				return nil, fmt.Errorf("failed to get options secret for bundledeployment %q, this is likely temporary: %w", bundle.Name, err)
+			}
+
+			h := helmvalues.HashOptions(secret.Data[helmvalues.ValuesKey], secret.Data[helmvalues.StagedValuesKey])
+			if h != bd.Spec.ValuesHash {
+				return nil, fmt.Errorf("retrying, hash mismatch between secret and bundledeployment: actual %s != expected %s", h, bd.Spec.ValuesHash)
+			}
+
+			if err := helmvalues.SetOptions(&bd, secret.Data); err != nil {
+				return nil, err
+			}
+		}
+
+		byNamespace[bd.Namespace] = &bd
 	}
 
 	for _, target := range targets {
