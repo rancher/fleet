@@ -41,7 +41,6 @@ type DriftReconciler struct {
 
 // enqueueDelay is used as an artificial delay for enqueuing BundleDeployment reconciliation requests
 // This allows aggregating multiple consecutive events on deployed resources, reducing the number of BundleDeployment (and Bundle) reconciliations at the cost of introducing a delay in the notification
-// TODO: make this configurable?
 const enqueueDelay = 5 * time.Second
 
 // SetupWithManager sets up the controller with the Manager.
