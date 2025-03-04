@@ -245,12 +245,34 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
 	for _, target := range matchedTargets {
-		bd, err := r.createBundleDeployment(
+		if target.Deployment == nil {
+			continue
+		}
+		if target.Deployment.Namespace == "" {
+			logger.V(1).Info(
+				"Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace",
+				"bundledeployment", target.Deployment,
+			)
+			continue
+		}
+
+		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
+		// copy labels from Bundle as they might have changed
+		bd := target.BundleDeployment()
+
+		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
+		// been created.
+		controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
+
+		bd.Spec.OCIContents = contentsInOCI
+		bd.Spec.HelmChartOptions = bundle.Spec.HelmAppOptions
+
+		bd, err = r.createBundleDeployment(
 			ctx,
 			logger,
-			target,
+			bd,
 			contentsInOCI,
-			bundle.Spec.HelmAppOptions,
+			bundle.Spec.HelmAppOptions != nil,
 			manifestID)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -323,34 +345,12 @@ func (r *BundleReconciler) addOrRemoveFinalizer(ctx context.Context, logger logr
 func (r *BundleReconciler) createBundleDeployment(
 	ctx context.Context,
 	logger logr.Logger,
-	target *target.Target,
+	bd *fleet.BundleDeployment,
 	contentsInOCI bool,
-	helmAppOptions *fleet.BundleHelmOptions,
+	contentsInHelmChart bool,
 	manifestID string,
 ) (*fleet.BundleDeployment, error) {
-	if target.Deployment == nil {
-		return nil, nil
-	}
-	if target.Deployment.Namespace == "" {
-		logger.V(1).Info(
-			"Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace",
-			"bundledeployment", target.Deployment,
-		)
-		return nil, nil
-	}
-
-	// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
-	// copy labels from Bundle as they might have changed
-	bd := target.BundleDeployment()
-
-	// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
-	// been created.
-	controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
-
-	bd.Spec.OCIContents = contentsInOCI
-	bd.Spec.HelmChartOptions = helmAppOptions
 	logger = logger.WithValues("bundledeployment", bd, "deploymentID", bd.Spec.DeploymentID)
-	contentsInHelmChart := helmAppOptions != nil
 
 	// When content resources are stored in etcd, we need to add finalizers.
 	if !contentsInOCI && !contentsInHelmChart {

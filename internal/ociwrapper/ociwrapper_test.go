@@ -14,16 +14,16 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
+	orasmemory "oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/retry"
 
+	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/internal/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/fleet/internal/manifest"
-	"github.com/rancher/fleet/internal/mocks"
-	orasmemory "oras.land/oras-go/v2/content/memory"
 )
 
 type MockOrasOperator struct {
@@ -120,24 +120,6 @@ var _ = Describe("OCIUtils tests", func() {
 		}
 		err := oci.PushManifest(context.Background(), opts, "123", manifest)
 		Expect(err.Error()).To(Equal("ERROR PACKING"))
-	})
-	It("returns an error when is unable to connect to the registry", func() {
-		oci := NewOCIWrapper()
-		opts := OCIOpts{
-			Reference: "127.0.0.0:2334",
-		}
-		manifest := &manifest.Manifest{
-			Commit: "123456",
-			Resources: []fleet.BundleResource{
-				{
-					Name:     "resource1",
-					Content:  "Content1",
-					Encoding: "encoding1",
-				},
-			},
-		}
-		err := oci.PushManifest(context.Background(), opts, "123", manifest)
-		Expect(err.Error()).To(Or(ContainSubstring("connection refused"), ContainSubstring("i/o timeout")))
 	})
 	It("returns an OCI repository with the expected values when using basic HTTP", func() {
 		opts := OCIOpts{

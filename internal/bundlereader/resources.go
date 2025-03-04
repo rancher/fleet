@@ -22,7 +22,8 @@ import (
 
 var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
 
-// readResources reads and downloads all resources from the bundle
+// readResources reads and downloads all resources from the bundle. Resources
+// can be downloaded and are spread across multiple directories.
 func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth, helmRepoURLRegex string) ([]fleet.BundleResource, error) {
 	directories, err := addDirectory(base, ".", ".")
 	if err != nil {
@@ -32,7 +33,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	var chartDirs []*fleet.HelmOptions
 
 	if spec.Helm != nil && spec.Helm.Chart != "" {
-		if err := parseValueFiles(base, spec.Helm); err != nil {
+		if err := parseValuesFiles(base, spec.Helm); err != nil {
 			return nil, err
 		}
 		chartDirs = append(chartDirs, spec.Helm)
@@ -40,7 +41,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 
 	for _, target := range spec.Targets {
 		if target.Helm != nil {
-			err := parseValueFiles(base, target.Helm)
+			err := parseValuesFiles(base, target.Helm)
 			if err != nil {
 				return nil, err
 			}
@@ -60,14 +61,21 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	if spec.Helm != nil {
 		disableDepsUpdate = spec.Helm.DisableDependencyUpdate
 	}
-	resources, err := loadDirectories(ctx, compress, disableDepsUpdate, directories...)
+
+	loadOpts := loadOpts{
+		compress:           compress,
+		disableDepsUpdate:  disableDepsUpdate,
+		ignoreApplyConfigs: ignoreApplyConfigs(spec.Helm, spec.Targets...),
+	}
+	resources, err := loadDirectories(ctx, loadOpts, directories...)
 	if err != nil {
 		return nil, err
 	}
 
+	// flatten map to slice
 	var result []fleet.BundleResource
-	for _, resources := range resources {
-		result = append(result, resources...)
+	for _, r := range resources {
+		result = append(result, r...)
 	}
 
 	sort.Slice(result, func(i, j int) bool {
@@ -77,13 +85,48 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	return result, nil
 }
 
+type loadOpts struct {
+	compress           bool
+	disableDepsUpdate  bool
+	ignoreApplyConfigs []string
+}
+
+// ignoreApplyConfigs returns a list of config files that should not be added to the
+// bundle's resources. Their contents are converted into deployment options.
+// This includes:
+// * fleet.yaml
+// * spec.Helm.ValuesFiles
+// * spec.Targets[].Helm.ValuesFiles
+func ignoreApplyConfigs(spec *fleet.HelmOptions, targets ...fleet.BundleTarget) []string {
+	ignore := []string{"fleet.yaml"}
+	if spec != nil {
+		ignore = append(ignore, spec.ValuesFiles...)
+	}
+
+	for _, target := range targets {
+		if target.Helm == nil {
+			continue
+		}
+		ignore = append(ignore, target.Helm.ValuesFiles...)
+	}
+
+	return ignore
+}
+
+// directory represents a directory to load resources from. The directory can
+// be created from an external Helm chart, or a local path.
+// One bundle can consist of multiple directories.
 type directory struct {
-	prefix  string
-	base    string
-	source  string
-	key     string
+	// prefix is the generated top level dir of the chart, e.g. '.chart/1234'
+	prefix string
+	// base is the directory on disk to load the files from
+	base string
+	// source is the chart URL to download the chart from
+	source string
+	// version is the version of the chart
 	version string
-	auth    Auth
+	// auth is the auth to use for the chart URL
+	auth Auth
 }
 
 func addDirectory(base, customDir, defaultDir string) ([]directory, error) {
@@ -101,11 +144,10 @@ func addDirectory(base, customDir, defaultDir string) ([]directory, error) {
 		prefix: defaultDir,
 		base:   base,
 		source: customDir,
-		key:    defaultDir,
 	}}, nil
 }
 
-func parseValueFiles(base string, chart *fleet.HelmOptions) (err error) {
+func parseValuesFiles(base string, chart *fleet.HelmOptions) (err error) {
 	if len(chart.ValuesFiles) != 0 {
 		valuesMap, err := generateValues(base, chart)
 		if err != nil {
@@ -169,7 +211,6 @@ func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmO
 				prefix:  checksum(chart),
 				base:    base,
 				source:  chartURL,
-				key:     checksum(chart),
 				auth:    auth,
 				version: chart.Version,
 			})
@@ -205,7 +246,8 @@ func checksum(helm *fleet.HelmOptions) string {
 	return fmt.Sprintf(".chart/%x", sha256.Sum256([]byte(helm.Chart + ":" + helm.Repo + ":" + helm.Version)[:]))
 }
 
-func loadDirectories(ctx context.Context, compress bool, disableDepsUpdate bool, directories ...directory) (map[string][]fleet.BundleResource, error) {
+// loadDirectories loads all resources from a bundle's directories
+func loadDirectories(ctx context.Context, opts loadOpts, directories ...directory) (map[string][]fleet.BundleResource, error) {
 	var (
 		sem    = semaphore.NewWeighted(4)
 		result = map[string][]fleet.BundleResource{}
@@ -223,12 +265,12 @@ func loadDirectories(ctx context.Context, compress bool, disableDepsUpdate bool,
 		dir := dir
 		eg.Go(func() error {
 			defer sem.Release(1)
-			resources, err := loadDirectory(ctx, compress, disableDepsUpdate, dir.prefix, dir.base, dir.source, dir.version, dir.auth)
+			resources, err := loadDirectory(ctx, opts, dir)
 			if err != nil {
 				return fmt.Errorf("loading directory %s, %s: %w", dir.prefix, dir.base, err)
 			}
 
-			key := dir.key
+			key := dir.prefix
 			if key == "" {
 				key = dir.source
 			}

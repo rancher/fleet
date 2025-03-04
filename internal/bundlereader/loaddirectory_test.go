@@ -37,6 +37,20 @@ func TestGetContent(t *testing.T) {
 				name:  "no-fleetignore",
 				children: []fsNode{
 					{
+						name:     "fleet.yaml",
+						contents: "foo",
+					},
+					{
+						name:  "chart",
+						isDir: true,
+						children: []fsNode{
+							{
+								name:     "myvalues.yaml",
+								contents: "bar",
+							},
+						},
+					},
+					{
 						name:     "something.yaml",
 						contents: "foo",
 					},
@@ -52,6 +66,10 @@ func TestGetContent(t *testing.T) {
 				isDir: true,
 				name:  "empty-fleetignore",
 				children: []fsNode{
+					{
+						name:     "fleet.yaml",
+						contents: "foo",
+					},
 					{
 						name:     "something.yaml",
 						contents: "foo",
@@ -529,12 +547,14 @@ func TestGetContent(t *testing.T) {
 
 	defer os.RemoveAll(base)
 
+	ignoreApplyConfigs := []string{"fleet.yaml", "chart/myvalues.yaml"}
+
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 
 			root := createDirStruct(t, base, c.directoryStructure)
 
-			files, err := bundlereader.GetContent(context.Background(), root, root, "", bundlereader.Auth{}, false)
+			files, err := bundlereader.GetContent(context.Background(), root, root, "", bundlereader.Auth{}, false, ignoreApplyConfigs)
 			assert.NoError(t, err)
 
 			assert.Equal(t, len(c.expectedFiles), len(files))
@@ -617,7 +637,7 @@ func TestGetContentOCI(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			result, err := bundlereader.GetContent(context.Background(), base, c.source, c.version, bundlereader.Auth{}, false)
+			result, err := bundlereader.GetContent(context.Background(), base, c.source, c.version, bundlereader.Auth{}, false, []string{})
 			if c.expectedErr == "" {
 				assert.NoError(err)
 				for k := range result {
