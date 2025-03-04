@@ -219,8 +219,9 @@ func (j *GitCommitJob) cloneAndReplace(ctx context.Context) {
 	if interval == nil || interval.Seconds() == 0.0 {
 		interval = &DefaultInterval
 	}
-	gitrepo.Status.LastSyncedImageScanTime = metav1.NewTime(time.Now())
 
+	now := metav1.NewTime(time.Now())
+	gitrepo.Status.LastSyncedImageScanTime = &now
 	// update gitrepo status
 	condition.Cond(fleet.ImageScanSyncCondition).SetError(&gitrepo.Status, "", nil)
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
