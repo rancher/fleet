@@ -59,9 +59,9 @@ func start(
 	agentScope string,
 	workersOpts AgentReconcilerWorkers,
 ) error {
-	// Registration is done in an init container. If we are here, we are already registered.
-	// Retrieve the existing config from the registration.
-	// Cannot start without kubeconfig for upstream cluster:
+	// Registration is done before start is called. If we are here, we are already registered.
+	// Retrieve the existing config from the registration.  Cannot start without kubeconfig for
+	// upstream cluster:
 	upstreamConfig, agentConfig, fleetNamespace, clusterName, err := loadRegistration(ctx, systemNamespace, localConfig)
 	if err != nil {
 		setupLog.Error(err, "unable to load registration and start manager")

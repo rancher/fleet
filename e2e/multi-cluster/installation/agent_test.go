@@ -42,7 +42,7 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 	})
 
 	Context("with non-strict agent TLS mode", func() {
-		When("fetching fleet-agent-register logs", func() {
+		When("fetching fleet-agent logs", func() {
 			BeforeEach(func() {
 				agentMode = "system-store"
 			})
@@ -53,7 +53,7 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 						"-l",
 						"app=fleet-agent",
 						"-c",
-						"fleet-agent-register",
+						"fleet-agent",
 						"--tail=-1",
 					)
 					if err != nil {
@@ -69,7 +69,7 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 	})
 
 	Context("with strict agent TLS mode", func() {
-		When("fetching fleet-agent-register logs", func() {
+		When("fetching fleet-agent logs", func() {
 			BeforeEach(func() {
 				agentMode = "strict"
 			})
@@ -80,7 +80,7 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 						"-l",
 						"app=fleet-agent",
 						"-c",
-						"fleet-agent-register",
+						"fleet-agent",
 						"--tail=-1",
 					)
 					if err != nil {
