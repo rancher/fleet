@@ -253,12 +253,11 @@ func calculateResourceCounts(all []fleet.BundleDeploymentResource, nonReady []fl
 	// The agent must have enough visibility to determine the exact state of every resource.
 	// e.g. "WaitApplied" or "Unknown" states do not make sense in this context
 	counts := fleet.ResourceCounts{
-		DesiredReady: len(all),
+		DesiredReady: calculateDesiredReady(resourceKeys, modified),
 	}
 	for _, r := range modified {
 		if r.Create {
 			counts.Missing++
-			counts.DesiredReady++ // plan.Objects do not include missing resources
 		} else if r.Delete {
 			counts.Orphaned++
 		} else {
@@ -289,6 +288,28 @@ func calculateResourceCounts(all []fleet.BundleDeploymentResource, nonReady []fl
 	counts.Ready = len(resourceKeys)
 
 	return counts
+}
+
+// calculateDesiredReady retrieves the number of total resources to be deployed.
+// A ResourceKey set is obtained from plan.Objects, which only includes living objects in the cluster, so it needs to be extended with  resources in "Missing" state.
+func calculateDesiredReady(liveResourceKeys map[fleet.ResourceKey]struct{}, modified []fleet.ModifiedStatus) int {
+	desired := len(liveResourceKeys)
+	for _, r := range modified {
+		if !r.Create {
+			continue
+		}
+		// Missing resource state
+		// Increase desired count if not already present in the resource keys set
+		if _, ok := liveResourceKeys[fleet.ResourceKey{
+			Kind:       r.Kind,
+			APIVersion: r.APIVersion,
+			Namespace:  r.Namespace,
+			Name:       r.Name,
+		}]; !ok {
+			desired++
+		}
+	}
+	return desired
 }
 
 func nonReady(ctx context.Context, plan desiredset.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
