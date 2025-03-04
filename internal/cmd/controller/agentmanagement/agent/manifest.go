@@ -164,30 +164,6 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: serviceAccount,
-					InitContainers: []corev1.Container{
-						{
-							Name:            name + "-register",
-							Image:           image,
-							ImagePullPolicy: corev1.PullPolicy(opts.AgentImagePullPolicy),
-							Env: []corev1.EnvVar{
-								{
-									Name: "NAMESPACE",
-									ValueFrom: &corev1.EnvVarSource{
-										FieldRef: &corev1.ObjectFieldSelector{
-											FieldPath: "metadata.namespace",
-										},
-									},
-								},
-								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: electionLeaseDuration},
-								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: electionRetryPeriod},
-								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: electionRenewDeadline},
-							},
-							Command: []string{
-								"fleetagent",
-								"register",
-							},
-						},
-					},
 					Containers: []corev1.Container{
 						{
 							Name:            name,
