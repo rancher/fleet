@@ -1393,6 +1393,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
+					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
+					Value: "1",
+				},
+				{
 					Name:  "GIT_SSH_COMMAND",
 					Value: "ssh -o stricthostkeychecking=accept-new",
 				},
@@ -1413,6 +1417,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "HOME",
 					Value: "/fleet-home",
+				},
+				{
+					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
+					Value: "1",
 				},
 				{
 					Name:  "COMMIT",
@@ -1438,6 +1446,52 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				},
 			},
 			osEnv: map[string]string{"HTTP_PROXY": "httpProxy", "HTTPS_PROXY": "httpsProxy"},
+		},
+		"retries_valid": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "commit",
+				},
+			},
+			expectedContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "HOME",
+					Value: "/fleet-home",
+				},
+				{
+					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
+					Value: "3",
+				},
+				{
+					Name:  "COMMIT",
+					Value: "commit",
+				},
+			},
+			osEnv: map[string]string{"FLEET_APPLY_CONFLICT_RETRIES": "3"},
+		},
+		"retries_not_valid": {
+			gitrepo: &fleetv1.GitRepo{
+				Spec: fleetv1.GitRepoSpec{},
+				Status: fleetv1.GitRepoStatus{
+					Commit: "commit",
+				},
+			},
+			expectedContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  "HOME",
+					Value: "/fleet-home",
+				},
+				{
+					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
+					Value: "1",
+				},
+				{
+					Name:  "COMMIT",
+					Value: "commit",
+				},
+			},
+			osEnv: map[string]string{"FLEET_APPLY_CONFLICT_RETRIES": "this_is_not_an_int"},
 		},
 	}
 
