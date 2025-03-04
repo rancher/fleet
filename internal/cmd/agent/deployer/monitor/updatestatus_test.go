@@ -97,7 +97,7 @@ func Test_updateFromResources(t *testing.T) {
 				assert.Equal(t, status.ResourceCounts, fleet.ResourceCounts{DesiredReady: 1, Missing: 1})
 				assert.Truef(t, status.Ready, "unexpected ready status")
 				assert.Falsef(t, status.NonModified, "unexpected non-modified status")
-				assert.Emptyf(t, status.Resources, "unexpected resources to be empty")
+				assert.Emptyf(t, status.Resources, "expected resources to be empty")
 				assert.Len(t, status.ModifiedStatus, 1, "incorrect modified status length")
 				assert.True(t, status.ModifiedStatus[0].Create)
 				assert.Emptyf(t, status.NonReadyStatus, "expected non-ready status to be empty")
