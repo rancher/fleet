@@ -85,15 +85,15 @@ var _ = Describe("BundleDeployment drift correction", Ordered, func() {
 		})
 
 		Context("Modifying externalName in service resource", func() {
-			It("Receives a modification on a service", func() {
+			It("Leaves the bundle deployment untouched", func() {
+				By("Receiving a modification on a service")
 				svc, err := env.getService("svc-ext")
 				Expect(err).NotTo(HaveOccurred())
 				patchedSvc := svc.DeepCopy()
 				patchedSvc.Spec.ExternalName = "modified"
 				Expect(k8sClient.Patch(ctx, patchedSvc, client.StrategicMergeFrom(&svc))).NotTo(HaveOccurred())
-			})
 
-			It("Preserves the modification on the service", func() {
+				By("Preserving the modification on the service")
 				Consistently(func(g Gomega) {
 					svc, err := env.getService("svc-ext")
 					g.Expect(err).NotTo(HaveOccurred())

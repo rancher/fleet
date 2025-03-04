@@ -63,26 +63,24 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 		})
 
-		It("Detects the BundleDeployment as not ready", func() {
+		It("Updates the bundle deployment's status", func() {
+			By("Detecting the BundleDeployment as not ready")
 			bd := &v1alpha1.BundleDeployment{}
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Ready).To(BeFalse())
-		})
 
-		It("Eventually updates the BundleDeployment to make it ready and non modified", func() {
+			By("Eventually updating the BundleDeployment to make it ready and non modified")
 			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
-		})
 
-		It("Deploys resources from BundleDeployment to the cluster", func() {
+			By("Deploying resources from the BundleDeployment to the cluster")
 			svc, err := env.getService(svcName)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(svc.Name).NotTo(BeEmpty())
-		})
 
-		It("Lists deployed resources in the status", func() {
-			bd := &v1alpha1.BundleDeployment{}
-			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
+			By("Listing deployed resources in the status")
+			bd = &v1alpha1.BundleDeployment{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Resources).To(HaveLen(4))
 			ts := bd.Status.Resources[0].CreatedAt
@@ -97,15 +95,15 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		})
 
 		Context("A release resource is modified", func() {
-			It("Modify service", func() {
+			It("Updates the bundle deployment's status", func() {
+				By("Receiving an update on a service in the bundle deployment")
 				svc, err := env.getService(svcName)
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Spec.Selector = map[string]string{"foo": "bar"}
 				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).NotTo(HaveOccurred())
-			})
 
-			It("BundleDeployment status will not be Ready, and will contain the error message", func() {
+				By("Updating the BundleDeployment status as not Ready, and containing an error message")
 				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
@@ -123,23 +121,22 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						"service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					)
 				}).Should(Succeed())
-			})
 
-			It("Modify service to have its original value", func() {
-				svc, err := env.getService(svcName)
+				By("Modifying the service to have its original value")
+				svc, err = env.getService(svcName)
 				Expect(err).NotTo(HaveOccurred())
-				patch := svc.DeepCopy()
+				patch = svc.DeepCopy()
 				patch.Spec.Selector = map[string]string{"app.kubernetes.io/name": "MyApp"}
 				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
-			})
 
-			It("BundleDeployment will eventually be ready and non modified", func() {
+				By("Eventually updating the BundleDeployment status to ready and non modified")
 				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 
 		Context("Upgrading to a release that will leave an orphan resource", func() {
-			It("Upgrade BundleDeployment to a release that deletes the svc with a finalizer", func() {
+			It("Updates the bundle deployment's status", func() {
+				By("Receiving an update to a release that deletes the svc with a finalizer")
 				Eventually(func() bool {
 					bd := &v1alpha1.BundleDeployment{}
 					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
@@ -149,9 +146,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 					return err == nil && bd != nil
 				}).Should(BeTrue())
 
-			})
-
-			It("BundleDeployment status will eventually be extra", func() {
+				By("Eventually updating the BundleDeployment status to be extra")
 				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
@@ -169,30 +164,28 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						"service.v1 "+namespace+"/svc-finalizer extra",
 					)
 				}, timeout, 20*time.Millisecond).Should(Succeed())
-			})
 
-			It("Remove finalizer", func() {
+				By("Removing the finalizer")
 				svc, err := env.getService(svcFinalizerName)
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Finalizers = nil
 				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
-			})
 
-			It("BundleDeployment will eventually be ready and non modified", func() {
+				By("Eventually updating the BundleDeployment status to ready and non modified")
 				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 
 		Context("Delete a resource in the release", func() {
-			It("Delete service", func() {
+			It("Updates the deployment", func() {
+				By("Receiving an update deleting a resource from the release")
 				svc, err := env.getService(svcName)
 				Expect(err).NotTo(HaveOccurred())
 				err = k8sClient.Delete(ctx, &svc)
 				Expect(err).NotTo(HaveOccurred())
-			})
 
-			It("BundleDeployment status will eventually be missing", func() {
+				By("Eventually updating the BundleDeployment status to show the resource as missing")
 				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
@@ -232,26 +225,24 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 		})
 
-		It("BundleDeployment is not ready", func() {
+		It("Updates the bundle deployment's status", func() {
+			By("Showing the BundleDeployment's Ready status as false")
 			bd := &v1alpha1.BundleDeployment{}
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Ready).To(BeFalse())
-		})
 
-		It("BundleDeployment will eventually be ready and non modified", func() {
+			By("Eventually showing the BundleDeployment as ready and non modified")
 			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
-		})
 
-		It("Resources from BundleDeployment are present in the cluster", func() {
+			By("Including resources from BundleDeployment in the cluster")
 			svc, err := env.getService(svcName)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(svc.Name).NotTo(BeEmpty())
-		})
 
-		It("Lists deployed resources in the status", func() {
-			bd := &v1alpha1.BundleDeployment{}
-			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
+			By("Listing deployed resources in the status")
+			bd = &v1alpha1.BundleDeployment{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bd.Status.Resources).To(HaveLen(4))
 			ts := bd.Status.Resources[0].CreatedAt
@@ -266,15 +257,15 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 		})
 
 		Context("A release resource is modified", func() {
-			It("Modify service", func() {
+			It("Updates the bundle deployment's status", func() {
+				By("Receiving an update on the resource")
 				svc, err := env.getService(svcName)
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Spec.Selector = map[string]string{"foo": "bar"}
 				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).NotTo(HaveOccurred())
-			})
 
-			It("BundleDeployment status will not be Ready, and will contain the error message", func() {
+				By("Eventually updating the BundleDeployment status as not Ready, containing the error message")
 				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
@@ -292,23 +283,22 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						"service.v1 "+namespace+"/svc-test modified {\"spec\":{\"selector\":{\"app.kubernetes.io/name\":\"MyApp\"}}}",
 					)
 				}).Should(Succeed())
-			})
 
-			It("Modify service to have its original value", func() {
-				svc, err := env.getService(svcName)
+				By("Receiving an update to the resource, restoring its original state")
+				svc, err = env.getService(svcName)
 				Expect(err).NotTo(HaveOccurred())
-				patch := svc.DeepCopy()
+				patch = svc.DeepCopy()
 				patch.Spec.Selector = map[string]string{"app.kubernetes.io/name": "MyApp"}
 				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
-			})
 
-			It("BundleDeployment will eventually be ready and non modified", func() {
+				By("Eventually showing the BundleDeployment as ready and non modified")
 				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 
 		Context("Upgrading to a release that will leave an orphan resource", func() {
-			It("Upgrade BundleDeployment to a release that deletes the svc with a finalizer", func() {
+			It("Updates the bundle deployment's status", func() {
+				By("Receiving a BundleDeployment upgrade to a release that deletes the svc with a finalizer")
 				Eventually(func() bool {
 					bd := &v1alpha1.BundleDeployment{}
 					err := k8sClient.Get(ctx, types.NamespacedName{Namespace: clusterNS, Name: name}, bd)
@@ -318,9 +308,7 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 					return err == nil && bd != nil
 				}).Should(BeTrue())
 
-			})
-
-			It("BundleDeployment status will eventually be extra", func() {
+				By("Eventually updating the BundleDeployment status to be extra")
 				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
@@ -338,30 +326,28 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 						"service.v1 "+namespace+"/svc-finalizer extra",
 					)
 				}, timeout, 20*time.Millisecond).Should(Succeed())
-			})
 
-			It("Remove finalizer", func() {
+				By("Removing the finalizer")
 				svc, err := env.getService(svcFinalizerName)
 				Expect(err).NotTo(HaveOccurred())
 				patch := svc.DeepCopy()
 				patch.Finalizers = nil
 				Expect(k8sClient.Patch(ctx, patch, client.MergeFrom(&svc))).To(Succeed())
-			})
 
-			It("BundleDeployment will eventually be ready and non modified", func() {
+				By("Eventually updating the BundleDeployment status to ready and non modified")
 				Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
 			})
 		})
 
 		Context("Delete a resource in the release", func() {
-			It("Delete service", func() {
+			It("Updates the bundle deployment's status", func() {
+				By("Receiving an update deleting a resource from the release")
 				svc, err := env.getService(svcName)
 				Expect(err).NotTo(HaveOccurred())
 				err = k8sClient.Delete(ctx, &svc)
 				Expect(err).NotTo(HaveOccurred())
-			})
 
-			It("BundleDeployment status will eventually be missing", func() {
+				By("Eventually updating the BundleDeployment status to show the resource as missing")
 				Eventually(func(g Gomega) {
 					modifiedStatus := v1alpha1.ModifiedStatus{
 						Kind:       "Service",
@@ -421,11 +407,11 @@ var _ = Describe("BundleDeployment status", Ordered, func() {
 			})
 		})
 
-		It("BundleDeployment will eventually be ready and non modified", func() {
+		It("Updates the bundle deployment's status", func() {
+			By("Eventually updating the BundleDeployment status to ready and non modified")
 			Eventually(env.isBundleDeploymentReadyAndNotModified).WithArguments(name).Should(BeTrue())
-		})
 
-		It("Resources from BundleDeployment are present in the cluster", func() {
+			By("Including resources from BundleDeployment in the cluster")
 			svc, err := env.getService(svcName)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(svc.Name).NotTo(BeEmpty())
