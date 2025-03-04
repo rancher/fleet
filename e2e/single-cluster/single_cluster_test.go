@@ -73,14 +73,6 @@ var _ = Describe("Single Cluster Deployments", func() {
 				_, _ = k.Delete("ns", "test-fleet-mp-service")
 			})
 
-			It("sets status fields for gitrepo on deployment", func() {
-				Eventually(func() bool {
-					out, err := k.Get("gitrepo", "multiple-paths", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
-					Expect(err).ToNot(HaveOccurred(), out)
-					return strings.Contains(out, "\"ready\":2")
-				}).Should(BeTrue())
-			})
-
 			It("deploys bundles from all the paths", func() {
 				Eventually(func() string {
 					out, _ := k.Namespace("fleet-local").Get("bundles")
@@ -89,6 +81,12 @@ var _ = Describe("Single Cluster Deployments", func() {
 					ContainSubstring("multiple-paths-multiple-paths-config"),
 					ContainSubstring("multiple-paths-multiple-paths-service"),
 				))
+
+				Eventually(func() bool {
+					out, err := k.Get("gitrepo", "multiple-paths", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
+					Expect(err).ToNot(HaveOccurred(), out)
+					return strings.Contains(out, "\"ready\":2")
+				}).Should(BeTrue())
 
 				Eventually(func(g Gomega) {
 					out, err := k.Get(

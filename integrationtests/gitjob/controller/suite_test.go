@@ -126,7 +126,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	store := manifest.NewStore(mgr.GetClient())
-	builder := target.New(mgr.GetClient())
+	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 	err = (&ctrlreconciler.BundleReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),

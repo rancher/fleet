@@ -35,7 +35,7 @@ func newRole(namespace string, name string) *rbacv1.Role {
 				Resources: []string{"gitrepos"},
 			},
 			{
-				Verbs:     []string{"create"},
+				Verbs:     []string{"get", "create", "update", "delete"},
 				APIGroups: []string{""},
 				Resources: []string{"secrets"},
 			},
