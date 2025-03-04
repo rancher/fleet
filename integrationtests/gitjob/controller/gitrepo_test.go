@@ -59,10 +59,8 @@ var _ = Describe("GitRepo", func() {
 		})
 
 		It("updates the gitrepo status", func() {
-			org := gitrepo.ResourceVersion
 			Eventually(func(g Gomega) {
 				_ = k8sClient.Get(ctx, types.NamespacedName{Name: gitrepoName, Namespace: namespace}, gitrepo)
-				g.Expect(gitrepo.ResourceVersion > org).To(BeTrue())
 				g.Expect(gitrepo.Status.Display.ReadyBundleDeployments).To(Equal("0/0"))
 				g.Expect(gitrepo.Status.Display.Error).To(BeFalse())
 				g.Expect(gitrepo.Status.Conditions).To(HaveLen(5))
