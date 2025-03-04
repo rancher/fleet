@@ -235,7 +235,6 @@ func verifyResourcesArePresent() bool {
 	paths, err := getAllResourcesPathFromTheHelmRelease()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(paths).Should(HaveLen(numberOfFilesInHelmConfigChart))
-	// should contain all resources plus the fleet.yaml
 	Expect(bundle.Spec.Resources).Should(HaveLen(numberOfFilesInHelmConfigChart))
 	for _, path := range paths {
 		present, err := cli.IsResourcePresentInBundle(path, bundle.Spec.Resources)
