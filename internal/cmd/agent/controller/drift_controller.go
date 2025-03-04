@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
@@ -10,16 +11,18 @@ import (
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
@@ -31,14 +34,18 @@ type DriftReconciler struct {
 	Monitor     *monitor.Monitor
 	DriftDetect *driftdetect.DriftDetect
 
-	DriftChan chan event.GenericEvent
+	DriftChan chan event.TypedGenericEvent[*fleetv1.BundleDeployment]
 
 	Workers int
 }
 
+// enqueueDelay is used as an artificial delay for enqueuing BundleDeployment reconciliation requests
+// This allows aggregating multiple consecutive events on deployed resources, reducing the number of BundleDeployment (and Bundle) reconciliations at the cost of introducing a delay in the notification
+const enqueueDelay = 5 * time.Second
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *DriftReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	src := source.Channel(r.DriftChan, &handler.EnqueueRequestForObject{})
+	src := source.Channel(r.DriftChan, enqueueRequestHandlerWithDelay(enqueueDelay))
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("drift-reconciler").
 		WatchesRawSource(src).
@@ -125,4 +132,23 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	return ctrl.Result{}, errutil.NewAggregate(merr)
+}
+
+// enqueueRequestHandlerWithDelay implements a TypedEventHandler that introduces a constant delay in the resources being enqueued
+// Due to how workqueue.TypedDelayingInterface's AddAfter is implemented, successive calls with the same key are aggregated.
+// Only implemented for Generic events, as this is only meant to be used from with source.Channel to receive internal events, not from an informer
+func enqueueRequestHandlerWithDelay(delay time.Duration) handler.TypedEventHandler[*fleetv1.BundleDeployment, reconcile.Request] {
+	return &handler.TypedFuncs[*fleetv1.BundleDeployment, reconcile.Request]{
+		GenericFunc: func(ctx context.Context, e event.TypedGenericEvent[*fleetv1.BundleDeployment], w workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			if e.Object == nil {
+				log.FromContext(ctx).Error(nil, "GenericEvent received with no metadata", "event", e)
+				return
+			}
+			w.AddAfter(reconcile.Request{NamespacedName: types.NamespacedName{
+				Name:      e.Object.GetName(),
+				Namespace: e.Object.GetNamespace(),
+			}}, delay)
+		},
+	}
+
 }
