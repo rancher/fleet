@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/rancher/fleet/internal/bundlereader"
@@ -16,7 +18,13 @@ import (
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
+)
+
+const (
+	FleetApplyConflictRetriesEnv = "FLEET_APPLY_CONFLICT_RETRIES"
+	defaultApplyConflictRetries  = 1
 )
 
 type readFile func(name string) ([]byte, error)
@@ -68,6 +76,24 @@ func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
 }
 
 func (a *Apply) Run(cmd *cobra.Command, args []string) error {
+	// Apply retries on conflict errors.
+	// We could have race conditions updating the Bundle in high load situations
+	var err error
+	retries, err := GetOnConflictRetries()
+	if err != nil {
+		logrus.Errorf("failed parsing env variable %s, using defaults, err: %v", FleetApplyConflictRetriesEnv, err)
+	}
+	for range retries {
+		err = a.run(cmd, args)
+		if !errors.IsConflict(err) {
+			break
+		}
+	}
+
+	return err
+}
+
+func (a *Apply) run(cmd *cobra.Command, args []string) error {
 	labels := a.Label
 	if a.Commit == "" {
 		a.Commit = currentCommit()
@@ -209,4 +235,20 @@ func currentCommit() string {
 		return strings.TrimSpace(buf.String())
 	}
 	return ""
+}
+
+func GetOnConflictRetries() (int, error) {
+	s := os.Getenv(FleetApplyConflictRetriesEnv)
+	if s != "" {
+		// check if we have a valid value
+		// it must be an integer
+		r, err := strconv.Atoi(s)
+		if err != nil {
+			return defaultApplyConflictRetries, err
+		} else {
+			return r, nil
+		}
+	}
+
+	return defaultApplyConflictRetries, nil
 }

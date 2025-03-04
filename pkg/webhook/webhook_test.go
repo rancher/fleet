@@ -385,16 +385,12 @@ func TestGitHubRightSecretAndCommitUpdated(t *testing.T) {
 
 	// Status().Update() mock call
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *v1alpha1.GitRepo, opts ...interface{}) {
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...interface{}) {
 			// check that the commit is the expected one
 			if repo.Status.WebhookCommit != expectedCommit {
 				t.Errorf("expecting gitrepo webhook commit %s, got %s", expectedCommit, repo.Status.WebhookCommit)
 			}
-		},
-	).Times(1)
-	mockClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *v1alpha1.GitRepo, _ client.Patch, opts ...interface{}) {
 			if repo.Spec.PollingInterval.Duration != time.Hour {
 				t.Errorf("expecting gitrepo polling interval 1h, got %s", repo.Spec.PollingInterval.Duration)
 			}
