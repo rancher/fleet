@@ -45,7 +45,7 @@ func Match(ctx context.Context, opts *Options) error {
 	)
 
 	if opts.BundleFile == "" {
-		bundle, _, err = bundlereader.Open(ctx, "test", opts.BaseDir, opts.BundleSpec, nil)
+		bundle, _, err = bundlereader.New(ctx, "test", opts.BaseDir, opts.BundleSpec, nil)
 		if err != nil {
 			return err
 		}

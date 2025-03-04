@@ -68,11 +68,12 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 		return objs, err
 	}
 
+	// keep in sync with manageagent.go
 	mo := opts.ManifestOptions
 	mo.AgentImage = cfg.AgentImage
-	mo.SystemDefaultRegistry = cfg.SystemDefaultRegistry
 	mo.AgentImagePullPolicy = cfg.AgentImagePullPolicy
 	mo.CheckinInterval = cfg.AgentCheckinInterval.Duration.String()
+	mo.SystemDefaultRegistry = cfg.SystemDefaultRegistry
 	mo.BundleDeploymentWorkers = cfg.AgentWorkers.BundleDeployment
 	mo.DriftWorkers = cfg.AgentWorkers.Drift
 

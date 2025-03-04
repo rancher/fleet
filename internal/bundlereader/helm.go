@@ -11,7 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// GetManifestFromHelmChart downloads the given helm chart and creates a manifest with its contents
+// GetManifestFromHelmChart downloads the given helm chart and creates a
+// manifest with its contents. This is used by the agent to deploy HelmApps.
 func GetManifestFromHelmChart(ctx context.Context, c client.Client, bd *fleet.BundleDeployment) (*manifest.Manifest, error) {
 	helm := bd.Spec.Options.Helm
 
@@ -36,7 +37,16 @@ func GetManifestFromHelmChart(ctx context.Context, c client.Client, bd *fleet.Bu
 		return nil, err
 	}
 
-	resources, err := loadDirectory(ctx, false, false, checksum(helm), temp, chartURL, helm.Version, auth)
+	resources, err := loadDirectory(ctx,
+		loadOpts{},
+		directory{
+			prefix:  checksum(helm),
+			base:    temp,
+			source:  chartURL,
+			version: helm.Version,
+			auth:    auth,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
