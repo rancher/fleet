@@ -406,32 +406,6 @@ func GetLastAppliedConfigAnnotation(live *unstructured.Unstructured) (*unstructu
 	return &obj, nil
 }
 
-// DiffArray performs a diff on a list of unstructured objects. Objects are expected to match
-// environments
-func DiffArray(configArray, liveArray []*unstructured.Unstructured, opts ...Option) (*DiffResultList, error) {
-	numItems := len(configArray)
-	if len(liveArray) != numItems {
-		return nil, errors.New("left and right arrays have mismatched lengths")
-	}
-
-	diffResultList := DiffResultList{
-		Diffs: make([]DiffResult, numItems),
-	}
-	for i := 0; i < numItems; i++ {
-		config := configArray[i]
-		live := liveArray[i]
-		diffRes, err := Diff(config, live, opts...)
-		if err != nil {
-			return nil, err
-		}
-		diffResultList.Diffs[i] = *diffRes
-		if diffRes.Modified {
-			diffResultList.Modified = true
-		}
-	}
-	return &diffResultList, nil
-}
-
 func Normalize(un *unstructured.Unstructured, opts ...Option) {
 	if un == nil {
 		return
