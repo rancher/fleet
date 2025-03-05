@@ -91,6 +91,13 @@ var _ = Describe("BundleDeployment diff", func() {
 						},
 					},
 				},
+				{
+					APIVersion: "v1",
+					Kind:       "Service",
+					Name:       svcName,
+					Namespace:  namespace,
+					Operations: []v1alpha1.Operation{{Op: "ignore"}},
+				},
 			}
 
 			env = &specEnv{namespace: namespace}
@@ -158,6 +165,30 @@ var _ = Describe("BundleDeployment diff", func() {
 					g.Expect(err).NotTo(HaveOccurred())
 					g.Expect(bd.Status.NonModified).To(BeTrue())
 				}, 5*time.Second, time.Second).Should(Succeed())
+			})
+		})
+
+		Context("Deleting resources covered by the diff", func() {
+			BeforeEach(func() {
+				name = "diff-ignore-resource-test"
+			})
+
+			It("Keeps the bundle deployment in ready state", func() {
+				svc, err := env.getService(svcName)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(k8sClient.Delete(ctx, &svc)).NotTo(HaveOccurred())
+
+				Consistently(func(g Gomega) {
+					bd := &v1alpha1.BundleDeployment{}
+					err := k8sClient.Get(
+						context.TODO(),
+						types.NamespacedName{Namespace: clusterNS, Name: name},
+						bd,
+					)
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(bd.Status.NonModified).To(BeTrue())
+				}, 10*time.Second, time.Second).Should(Succeed())
 			})
 		})
 
