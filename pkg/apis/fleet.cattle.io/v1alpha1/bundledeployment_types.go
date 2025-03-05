@@ -22,6 +22,8 @@ func init() {
 // See https://github.com/helm/helm/blob/293b50c65d4d56187cd4e2f390f0ada46b4c4737/pkg/chartutil/validate_name.go#L54-L61
 const MaxHelmReleaseNameLen = 53
 
+const IgnoreOp = "ignore"
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
@@ -117,7 +119,7 @@ type BundleDeploymentOptions struct {
 }
 
 type DiffOptions struct {
-	// ComparePatches match a resource and remove fields from the check for modifications.
+	// ComparePatches match a resource and remove fields, or the resource itself from the check for modifications.
 	// +nullable
 	ComparePatches []ComparePatch `json:"comparePatches,omitempty"`
 }
@@ -144,12 +146,14 @@ type ComparePatch struct {
 	JsonPointers []string `json:"jsonPointers,omitempty"`
 }
 
-// Operation of a ComparePatch, usually "remove".
+// Operation of a ComparePatch, usually:
+// * "remove" to remove a specific path in a resource
+// * "ignore" to remove the entire resource from checks for modifications.
 type Operation struct {
-	// Op is usually "remove"
+	// Op is usually "remove" or "ignore"
 	// +nullable
 	Op string `json:"op,omitempty"`
-	// Path is the JSON path to remove.
+	// Path is the JSON path to remove. Not needed if Op is "ignore".
 	// +nullable
 	Path string `json:"path,omitempty"`
 	// Value is usually empty.
