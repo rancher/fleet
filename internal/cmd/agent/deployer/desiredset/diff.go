@@ -2,6 +2,7 @@ package desiredset
 
 import (
 	"encoding/json"
+	"slices"
 
 	jsonpatch "github.com/evanphx/json-patch"
 
@@ -31,6 +32,38 @@ func Diff(plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Obje
 	}
 
 	var errs []error
+	if bd.Spec.Options.Diff != nil {
+		toIgnore := objectset.ObjectKeyByGVK{}
+		for _, patch := range bd.Spec.Options.Diff.ComparePatches {
+			for _, op := range patch.Operations {
+				gvk := schema.FromAPIVersionAndKind(patch.APIVersion, patch.Kind)
+
+				if op.Op == fleet.IgnoreOp {
+					key := objectset.ObjectKey{
+						Name:      patch.Name,
+						Namespace: patch.Namespace,
+					}
+
+					if _, ok := toIgnore[gvk]; !ok {
+						toIgnore[gvk] = []objectset.ObjectKey{}
+					}
+
+					toIgnore[gvk] = append(toIgnore[gvk], key)
+				}
+			}
+		}
+		for gvk, objs := range plan.Create {
+			if _, ok := toIgnore[gvk]; !ok {
+				continue
+			}
+			for _, key := range objs {
+				if idx := slices.Index(toIgnore[gvk], key); idx >= 0 {
+					plan.Create[gvk] = slices.Delete(plan.Create[gvk], idx, idx+1)
+					continue
+				}
+			}
+		}
+	}
 	for gvk, objs := range plan.Update {
 		for key := range objs {
 			desiredObj := desired[gvk][key]
@@ -92,6 +125,7 @@ func Diff(plan Plan, bd *fleet.BundleDeployment, ns string, objs ...runtime.Obje
 func newNormalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (diff.Normalizer, error) {
 	var ignore []resource.ResourceIgnoreDifferences
 	jsonPatchNorm := &normalizers.JSONPatchNormalizer{}
+
 	if bd.Spec.Options.Diff != nil {
 		for _, patch := range bd.Spec.Options.Diff.ComparePatches {
 			groupVersion, err := schema.ParseGroupVersion(patch.APIVersion)
@@ -112,6 +146,11 @@ func newNormalizers(live objectset.ObjectByGVK, bd *fleet.BundleDeployment) (dif
 				if err != nil {
 					return nil, err
 				}
+
+				if op.Op == fleet.IgnoreOp {
+					continue
+				}
+
 				gvk := schema.FromAPIVersionAndKind(patch.APIVersion, patch.Kind)
 				key := objectset.ObjectKey{
 					Name:      patch.Name,
