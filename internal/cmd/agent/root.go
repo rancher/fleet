@@ -31,8 +31,9 @@ type UpstreamOptions struct {
 
 type FleetAgent struct {
 	command.DebugConfig
-	Namespace  string `usage:"system namespace is the namespace, the agent runs in, e.g. cattle-fleet-system" env:"NAMESPACE"`
 	AgentScope string `usage:"An identifier used to scope the agent bundleID names, typically the same as namespace" env:"AGENT_SCOPE"`
+	UpstreamOptions
+	CheckinInterval string `usage:"How often to post cluster status" env:"CHECKIN_INTERVAL"`
 }
 
 type AgentReconcilerWorkers struct {
@@ -153,7 +154,16 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 					}
 					workersOpts.Drift = w
 				}
-				if err := start(ctx, localConfig, a.Namespace, a.AgentScope, workersOpts); err != nil {
+
+				clusterStatus := &ClusterStatus{
+					UpstreamOptions: UpstreamOptions{
+						Kubeconfig: a.Kubeconfig,
+						Namespace:  a.Namespace,
+					},
+					CheckinInterval: a.CheckinInterval,
+				}
+
+				if err := start(ctx, localConfig, a.Namespace, a.AgentScope, workersOpts, clusterStatus); err != nil {
 					setupLog.Error(err, "failed to start agent")
 				}
 			},
@@ -187,8 +197,5 @@ func App() *cobra.Command {
 	ctrl.RegisterFlags(fs)
 	root.Flags().AddGoFlagSet(fs)
 
-	root.AddCommand(
-		NewClusterStatus(),
-	)
 	return root
 }

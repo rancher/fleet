@@ -58,6 +58,7 @@ func start(
 	systemNamespace,
 	agentScope string,
 	workersOpts AgentReconcilerWorkers,
+	clusterStatus *ClusterStatus,
 ) error {
 	// Registration is done before start is called. If we are here, we are already registered.
 	// Retrieve the existing config from the registration.  Cannot start without kubeconfig for
@@ -133,6 +134,11 @@ func start(
 	}
 	if err = driftReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BundleDeployment")
+		return err
+	}
+
+	if err := mgr.Add(clusterStatus); err != nil {
+		setupLog.Error(err, "unable to add cluster status controller")
 		return err
 	}
 
