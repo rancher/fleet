@@ -2,7 +2,6 @@ package githelper
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -22,6 +21,7 @@ import (
 	"github.com/go-git/go-git/v5/storage/filesystem"
 
 	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 )
 
 type gitAuth interface {
@@ -299,12 +299,8 @@ func CreateKnownHosts(path string, host string) (string, error) {
 }
 
 // BuildGitHostname builds the hostname of a cluster-local git repo from the provided namespace.
-func BuildGitHostname(ns string) (string, error) {
-	if ns == "" {
-		return "", errors.New("namespace is required")
-	}
-
-	return fmt.Sprintf("git-service.%s.svc.cluster.local", ns), nil
+func BuildGitHostname() string {
+	return fmt.Sprintf("git-service.%s.svc.cluster.local", cmd.InfraNamespace)
 }
 
 // GetExternalRepoAddr retrieves the external URL where our local git server can be reached, based on the provided port
@@ -314,11 +310,11 @@ func GetExternalRepoAddr(env *testenv.Env, port int, repoName string) (string, e
 		return fmt.Sprintf("http://%s:8080/%s", v, repoName), nil
 	}
 
-	systemk := env.Kubectl.Namespace(env.Namespace)
+	systemk := env.Kubectl.Namespace(cmd.InfraNamespace)
 
 	externalIP, err := systemk.Get("service", "git-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 	if err != nil {
-		return "", fmt.Errorf("failed to get ingress ip for git-service in %s: %w", env.Namespace, err)
+		return "", fmt.Errorf("failed to get ingress ip for git-service in %s: %w", cmd.InfraNamespace, err)
 	}
 
 	return fmt.Sprintf("http://%s:%d/%s", externalIP, port, repoName), nil

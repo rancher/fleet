@@ -10,7 +10,7 @@ helm:
   releaseName: sleeper-chart
 
   chart: "sleeper-chart"
-  repo: "https://chartmuseum-service.fleet-local.svc.cluster.local:8081"
+  repo: "https://chartmuseum-service.default.svc.cluster.local:8081"
 
   # Used if repo is set to look up the version of the chart
   version: "0.1.0"

@@ -71,8 +71,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		JustBeforeEach(func() {
 
 			// Build git repo URL reachable _within_ the cluster, for the GitRepo
-			host, err := githelper.BuildGitHostname(env.Namespace)
-			Expect(err).ToNot(HaveOccurred())
+			host := githelper.BuildGitHostname()
 
 			addr, err := githelper.GetExternalRepoAddr(env, c.port, repoName)
 			Expect(err).ToNot(HaveOccurred())

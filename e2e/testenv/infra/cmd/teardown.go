@@ -18,7 +18,7 @@ var teardownCmd = &cobra.Command{
 		fmt.Println("Tearing down test environment...")
 
 		env := testenv.New()
-		k := env.Kubectl.Namespace(env.Namespace)
+		k := env.Kubectl.Namespace(InfraNamespace)
 
 		// Only act on specified components, unless none is specified in which case all are affected.
 		if !withGitServer && !withHelmRegistry && !withOCIRegistry {
@@ -46,7 +46,7 @@ var teardownCmd = &cobra.Command{
 
 		if withHelmRegistry && withOCIRegistry {
 			_, _ = k.Delete("secret", "helm-tls")
-			_, _ = k.Delete("secret", "helm-secret")
+			_, _ = k.Namespace(env.Namespace).Delete("secret", "helm-secret")
 		}
 
 	},
