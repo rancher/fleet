@@ -224,8 +224,7 @@ func setupRepo(k kubectl.Command, tmpdir, clonedir, repoDir string) (*git.Reposi
 	Expect(err).ToNot(HaveOccurred())
 
 	// Build git repo URL reachable _within_ the cluster, for the GitRepo
-	host, err := githelper.BuildGitHostname(env.Namespace)
-	Expect(err).ToNot(HaveOccurred())
+	host := githelper.BuildGitHostname()
 
 	inClusterRepoURL := gh.GetInClusterURL(host, port, repoName)
 

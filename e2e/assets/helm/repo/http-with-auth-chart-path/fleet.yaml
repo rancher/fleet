@@ -9,7 +9,7 @@ helm:
   # The release name to use. If empty a generated release name will be used
   releaseName: sleeper-chart
 
-  chart: "https://chartmuseum-service.fleet-local.svc.cluster.local:8081/charts/sleeper-chart-0.1.0.tgz"
+  chart: "https://chartmuseum-service.default.svc.cluster.local:8081/charts/sleeper-chart-0.1.0.tgz"
 
   # Used if repo is set to look up the version of the chart
   version: "0.1.0"

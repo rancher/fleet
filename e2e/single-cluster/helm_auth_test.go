@@ -25,13 +25,12 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 
 	JustBeforeEach(func() {
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
-		host, err := githelper.BuildGitHostname(env.Namespace)
-		Expect(err).ToNot(HaveOccurred())
+		host := githelper.BuildGitHostname()
 
 		inClusterRepoURL := gh.GetInClusterURL(host, port, repoName)
 
 		gitrepo := path.Join(tmpdir, "gitrepo.yaml")
-		err = testenv.Template(gitrepo, testenv.AssetPath("single-cluster/helm-with-auth.yaml"), struct {
+		err := testenv.Template(gitrepo, testenv.AssetPath("single-cluster/helm-with-auth.yaml"), struct {
 			Repo       string
 			Path       string
 			SecretName string

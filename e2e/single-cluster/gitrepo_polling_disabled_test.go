@@ -34,8 +34,7 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 
 	JustBeforeEach(func() {
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
-		host, err := githelper.BuildGitHostname(env.Namespace)
-		Expect(err).ToNot(HaveOccurred())
+		host := githelper.BuildGitHostname()
 
 		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -129,7 +130,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		tempDir = GinkgoT().TempDir()
-		externalIP, err := k.Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+		externalIP, err := k.Namespace(cmd.InfraNamespace).Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 		Expect(err).ToNot(HaveOccurred(), externalIP)
 		Expect(net.ParseIP(externalIP)).ShouldNot(BeNil())
 		ociRegistry = fmt.Sprintf("%s:8082", externalIP)
