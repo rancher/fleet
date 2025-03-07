@@ -43,6 +43,7 @@ rules:
   resources:
     - 'deployments'
   verbs:
+    - 'watch'
     - 'list'
     - 'get'
 ---

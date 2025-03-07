@@ -229,7 +229,7 @@ spec:
                       properties:
                         comparePatches:
                           description: ComparePatches match a resource and remove
-                            fields from the check for modifications.
+                            fields, or the resource itself from the check for modifications.
                           items:
                             description: ComparePatch matches a resource and removes
                               fields from the check for modifications.
@@ -263,15 +263,20 @@ spec:
                                 description: Operations remove a JSON path from the
                                   resource.
                                 items:
-                                  description: Operation of a ComparePatch, usually
-                                    "remove".
+                                  description: 'Operation of a ComparePatch, usually:
+
+                                    * "remove" to remove a specific path in a resource
+
+                                    * "ignore" to remove the entire resource from
+                                    checks for modifications.'
                                   properties:
                                     op:
-                                      description: Op is usually "remove"
+                                      description: Op is usually "remove" or "ignore"
                                       nullable: true
                                       type: string
                                     path:
                                       description: Path is the JSON path to remove.
+                                        Not needed if Op is "ignore".
                                       nullable: true
                                       type: string
                                     value:
@@ -593,7 +598,7 @@ spec:
                       properties:
                         comparePatches:
                           description: ComparePatches match a resource and remove
-                            fields from the check for modifications.
+                            fields, or the resource itself from the check for modifications.
                           items:
                             description: ComparePatch matches a resource and removes
                               fields from the check for modifications.
@@ -627,15 +632,20 @@ spec:
                                 description: Operations remove a JSON path from the
                                   resource.
                                 items:
-                                  description: Operation of a ComparePatch, usually
-                                    "remove".
+                                  description: 'Operation of a ComparePatch, usually:
+
+                                    * "remove" to remove a specific path in a resource
+
+                                    * "ignore" to remove the entire resource from
+                                    checks for modifications.'
                                   properties:
                                     op:
-                                      description: Op is usually "remove"
+                                      description: Op is usually "remove" or "ignore"
                                       nullable: true
                                       type: string
                                     path:
                                       description: Path is the JSON path to remove.
+                                        Not needed if Op is "ignore".
                                       nullable: true
                                       type: string
                                     value:
@@ -1485,8 +1495,8 @@ spec:
                   nullable: true
                   properties:
                     comparePatches:
-                      description: ComparePatches match a resource and remove fields
-                        from the check for modifications.
+                      description: ComparePatches match a resource and remove fields,
+                        or the resource itself from the check for modifications.
                       items:
                         description: ComparePatch matches a resource and removes fields
                           from the check for modifications.
@@ -1519,14 +1529,20 @@ spec:
                           operations:
                             description: Operations remove a JSON path from the resource.
                             items:
-                              description: Operation of a ComparePatch, usually "remove".
+                              description: 'Operation of a ComparePatch, usually:
+
+                                * "remove" to remove a specific path in a resource
+
+                                * "ignore" to remove the entire resource from checks
+                                for modifications.'
                               properties:
                                 op:
-                                  description: Op is usually "remove"
+                                  description: Op is usually "remove" or "ignore"
                                   nullable: true
                                   type: string
                                 path:
-                                  description: Path is the JSON path to remove.
+                                  description: Path is the JSON path to remove. Not
+                                    needed if Op is "ignore".
                                   nullable: true
                                   type: string
                                 value:
@@ -2361,7 +2377,7 @@ spec:
                         properties:
                           comparePatches:
                             description: ComparePatches match a resource and remove
-                              fields from the check for modifications.
+                              fields, or the resource itself from the check for modifications.
                             items:
                               description: ComparePatch matches a resource and removes
                                 fields from the check for modifications.
@@ -2397,15 +2413,20 @@ spec:
                                   description: Operations remove a JSON path from
                                     the resource.
                                   items:
-                                    description: Operation of a ComparePatch, usually
-                                      "remove".
+                                    description: 'Operation of a ComparePatch, usually:
+
+                                      * "remove" to remove a specific path in a resource
+
+                                      * "ignore" to remove the entire resource from
+                                      checks for modifications.'
                                     properties:
                                       op:
-                                        description: Op is usually "remove"
+                                        description: Op is usually "remove" or "ignore"
                                         nullable: true
                                         type: string
                                       path:
                                         description: Path is the JSON path to remove.
+                                          Not needed if Op is "ignore".
                                         nullable: true
                                         type: string
                                       value:
@@ -7270,8 +7291,8 @@ spec:
                   nullable: true
                   properties:
                     comparePatches:
-                      description: ComparePatches match a resource and remove fields
-                        from the check for modifications.
+                      description: ComparePatches match a resource and remove fields,
+                        or the resource itself from the check for modifications.
                       items:
                         description: ComparePatch matches a resource and removes fields
                           from the check for modifications.
@@ -7304,14 +7325,20 @@ spec:
                           operations:
                             description: Operations remove a JSON path from the resource.
                             items:
-                              description: Operation of a ComparePatch, usually "remove".
+                              description: 'Operation of a ComparePatch, usually:
+
+                                * "remove" to remove a specific path in a resource
+
+                                * "ignore" to remove the entire resource from checks
+                                for modifications.'
                               properties:
                                 op:
-                                  description: Op is usually "remove"
+                                  description: Op is usually "remove" or "ignore"
                                   nullable: true
                                   type: string
                                 path:
-                                  description: Path is the JSON path to remove.
+                                  description: Path is the JSON path to remove. Not
+                                    needed if Op is "ignore".
                                   nullable: true
                                   type: string
                                 value:
@@ -8165,7 +8192,7 @@ spec:
                         properties:
                           comparePatches:
                             description: ComparePatches match a resource and remove
-                              fields from the check for modifications.
+                              fields, or the resource itself from the check for modifications.
                             items:
                               description: ComparePatch matches a resource and removes
                                 fields from the check for modifications.
@@ -8201,15 +8228,20 @@ spec:
                                   description: Operations remove a JSON path from
                                     the resource.
                                   items:
-                                    description: Operation of a ComparePatch, usually
-                                      "remove".
+                                    description: 'Operation of a ComparePatch, usually:
+
+                                      * "remove" to remove a specific path in a resource
+
+                                      * "ignore" to remove the entire resource from
+                                      checks for modifications.'
                                     properties:
                                       op:
-                                        description: Op is usually "remove"
+                                        description: Op is usually "remove" or "ignore"
                                         nullable: true
                                         type: string
                                       path:
                                         description: Path is the JSON path to remove.
+                                          Not needed if Op is "ignore".
                                         nullable: true
                                         type: string
                                       value:
