@@ -73,7 +73,7 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 
 func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	_, err := plainClone(opts.Path, false, &git.CloneOptions{
-		URL:               opts.Repo,
+		URL:               normalizeRepo(opts.Repo),
 		Auth:              auth,
 		InsecureSkipTLS:   opts.InsecureSkipTLS,
 		CABundle:          caBundle,
@@ -90,7 +90,7 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 
 func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) error {
 	r, err := plainClone(opts.Path, false, &git.CloneOptions{
-		URL:               opts.Repo,
+		URL:               normalizeRepo(opts.Repo),
 		Auth:              auth,
 		InsecureSkipTLS:   opts.InsecureSkipTLS,
 		CABundle:          caBundle,
@@ -113,6 +113,17 @@ func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) 
 	}
 
 	return nil
+}
+
+// normalizeRepo normalizes the repo URL to a canonical form. For example, it
+// will convert git@server to ssh://git@server.
+func normalizeRepo(repo string) string {
+
+	url, err := giturls.Parse(repo)
+	if err != nil {
+		return repo
+	}
+	return url.String()
 }
 
 func getCABundleFromFile(path string) ([]byte, error) {
