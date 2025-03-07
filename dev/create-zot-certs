@@ -1,4 +1,3 @@
 #!/bin/bash
 
-export FLEET_E2E_NS=default
 ./.github/scripts/create-zot-certs.sh "$@"

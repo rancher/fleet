@@ -20,11 +20,6 @@ must_create_certs ()
     return $?
 }
 
-if [ -z $FLEET_E2E_NS ]; then
-    echo "Error: env var FLEET_E2E_NS is not set. Exiting."
-    exit 1
-fi
-
 must_create_certs
 if [ $? -eq 1 ]; then
     # generate private key for CA
@@ -43,9 +38,9 @@ if [ $? -eq 1 ]; then
     keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
     subjectAltName = @alt_names
     [alt_names]
-    DNS.1 = zot-service.$FLEET_E2E_NS.svc.cluster.local
-    DNS.2 = chartmuseum-service.$FLEET_E2E_NS.svc.cluster.local
-    DNS.3 = git-service.$FLEET_E2E_NS.svc.cluster.local
+    DNS.1 = zot-service.default.svc.cluster.local
+    DNS.2 = chartmuseum-service.default.svc.cluster.local
+    DNS.3 = git-service.default.svc.cluster.local
 EOF
 
     # sign Zot cert with CA root key

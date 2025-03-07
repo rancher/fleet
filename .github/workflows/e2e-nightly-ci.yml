@@ -76,8 +76,6 @@ jobs:
       -
         name: Create Zot certificates for OCI tests
         if: ${{ matrix.test_type == 'e2e-nosecrets' }}
-        env:
-          FLEET_E2E_NS: fleet-local
         run: |
           # Generate cert and key for TLS
           ./.github/scripts/create-zot-certs.sh "FleetCI-RootCA"
