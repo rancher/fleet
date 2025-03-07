@@ -43,7 +43,6 @@ type AgentReconcilerWorkers struct {
 const (
 	leaseLockName              = "fleet-agent"
 	leaseLockNameClusterStatus = "fleet-agent-clusterstatus"
-	leaseLockNameRegister      = "fleet-agent-register"
 )
 
 var (
@@ -125,6 +124,18 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 		RenewDeadline: *leaderOpts.RenewDeadline,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
+				// Handle agent registration.
+				r := &Register{
+					UpstreamOptions: UpstreamOptions{
+						Namespace: a.Namespace,
+					},
+				}
+				err := r.RegisterAgent(ctx)
+				if err != nil {
+					setupLog.Error(err, "failed to register with upstream cluster")
+					return
+				}
+
 				workersOpts := AgentReconcilerWorkers{}
 
 				if d := os.Getenv("BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
@@ -178,7 +189,6 @@ func App() *cobra.Command {
 
 	root.AddCommand(
 		NewClusterStatus(),
-		NewRegister(),
 	)
 	return root
 }
