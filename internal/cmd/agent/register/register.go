@@ -47,32 +47,6 @@ type AgentInfo struct {
 	ClientConfig     clientcmd.ClientConfig
 }
 
-func GetAgentConfig(ctx context.Context, namespace string, cfg *rest.Config) (agentConfig *config.Config, err error) {
-	cfg = rest.CopyConfig(cfg)
-	// disable the rate limiter
-	cfg.RateLimiter = ratelimit.None
-	k8s, err := core.NewFactoryFromConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	agentConfig, err = config.Lookup(ctx, namespace, config.AgentConfigName, k8s.Core().V1().ConfigMap())
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to look up client config %s/%s: %w",
-			namespace,
-			config.AgentConfigName,
-			err,
-		)
-	}
-
-	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {
-		config.BypassSystemCAStore()
-	}
-
-	return agentConfig, nil
-}
-
 // Register creates a fleet-agent secret with the upstream kubeconfig, by
 // running the registration process with the upstream cluster.
 // For the initial registration, the fleet-agent-bootstrap secret must exist

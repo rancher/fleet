@@ -21,6 +21,9 @@ import (
 
 	"helm.sh/helm/v3/pkg/cli"
 
+	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
+	"github.com/rancher/wrangler/v3/pkg/ratelimit"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
@@ -66,7 +69,7 @@ func start(
 	if err != nil {
 		return fmt.Errorf("failed to get client config: %w", err)
 	}
-	agentConfig, err := register.GetAgentConfig(ctx, systemNamespace, localConfig)
+	agentConfig, err := getAgentConfig(ctx, systemNamespace, localConfig)
 	if err != nil {
 		return fmt.Errorf("failed to get agent config: %w", err)
 	}
@@ -300,4 +303,30 @@ func newCluster(ctx context.Context, config *rest.Config, options manager.Option
 	cluster.GetCache().WaitForCacheSync(ctx)
 
 	return cluster, nil
+}
+
+func getAgentConfig(ctx context.Context, namespace string, cfg *rest.Config) (agentConfig *config.Config, err error) {
+	cfg = rest.CopyConfig(cfg)
+	// disable the rate limiter
+	cfg.RateLimiter = ratelimit.None
+	k8s, err := core.NewFactoryFromConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	agentConfig, err = config.Lookup(ctx, namespace, config.AgentConfigName, k8s.Core().V1().ConfigMap())
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to look up client config %s/%s: %w",
+			namespace,
+			config.AgentConfigName,
+			err,
+		)
+	}
+
+	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {
+		config.BypassSystemCAStore()
+	}
+
+	return agentConfig, nil
 }
