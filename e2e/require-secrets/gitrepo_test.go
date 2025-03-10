@@ -27,52 +27,92 @@ var _ = Describe("Git Repo", func() {
 		repo    *git.Repository
 	)
 
-	replace := func(path string, s string, r string) {
-		b, err := os.ReadFile(path)
-		Expect(err).ToNot(HaveOccurred())
+	When("using scp syntax for the gitrepo URL", func() {
+		BeforeEach(func() {
+			k = env.Kubectl.Namespace(env.Namespace)
 
-		b = bytes.ReplaceAll(b, []byte(s), []byte(r))
+			out, err := k.Create(
+				"secret", "generic", "git-auth", "--type", "kubernetes.io/ssh-auth",
+				"--from-file=ssh-privatekey="+os.Getenv("GIT_SSH_KEY"),
+				"--from-file=ssh-publickey="+os.Getenv("GIT_SSH_PUBKEY"),
+			)
+			Expect(err).ToNot(HaveOccurred(), out)
 
-		err = os.WriteFile(path, b, 0644)
-		Expect(err).ToNot(HaveOccurred())
-	}
+			url := os.Getenv("GIT_REPO_URL")
+			Expect(url).To(HavePrefix("git@"))
 
-	BeforeEach(func() {
-		k = env.Kubectl.Namespace(env.Namespace)
-		gh = githelper.NewSSH()
+			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo_with_auth.yaml"), struct {
+				Repo            string
+				Branch          string
+				PollingInterval string
+			}{
+				url,
+				"main",
+				"15s", // default
+			})
+			Expect(err).ToNot(HaveOccurred(), out)
 
-		out, err := k.Create(
-			"secret", "generic", "git-auth", "--type", "kubernetes.io/ssh-auth",
-			"--from-file=ssh-privatekey="+os.Getenv("GIT_SSH_KEY"),
-			"--from-file=ssh-publickey="+os.Getenv("GIT_SSH_PUBKEY"),
-		)
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo_with_auth.yaml"), struct {
-			Repo            string
-			Branch          string
-			PollingInterval string
-		}{
-			gh.GetURL(),
-			gh.Branch,
-			"15s", // default
+			DeferCleanup(func() {
+				_, _ = k.Delete("gitrepo", "gitrepo-test")
+				_, _ = k.Delete("secret", "git-auth")
+			})
 		})
-		Expect(err).ToNot(HaveOccurred(), out)
 
-		tmpdir, _ = os.MkdirTemp("", "fleet-")
-		repodir = path.Join(tmpdir, "repo")
-		repo, err = gh.Create(repodir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-		Expect(err).ToNot(HaveOccurred())
-
-	})
-
-	AfterEach(func() {
-		os.RemoveAll(tmpdir)
-		_, _ = k.Delete("secret", "git-auth")
-		_, _ = k.Delete("gitrepo", "gitrepo-test")
+		It("clones the repo", func() {
+			By("checking just the clone was attempted and successful")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", "gitrepo-test", `-o=jsonpath={.status.conditions[?(@.type=="Stalled")].message}`)
+				return out
+			}).Should(ContainSubstring("no resource found at the following paths to deploy"))
+		})
 	})
 
 	When("updating a git repository", func() {
+		replace := func(path string, s string, r string) {
+			b, err := os.ReadFile(path)
+			Expect(err).ToNot(HaveOccurred())
+
+			b = bytes.ReplaceAll(b, []byte(s), []byte(r))
+
+			err = os.WriteFile(path, b, 0644)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		BeforeEach(func() {
+			k = env.Kubectl.Namespace(env.Namespace)
+			gh = githelper.NewSSH()
+
+			out, err := k.Create(
+				"secret", "generic", "git-auth", "--type", "kubernetes.io/ssh-auth",
+				"--from-file=ssh-privatekey="+os.Getenv("GIT_SSH_KEY"),
+				"--from-file=ssh-publickey="+os.Getenv("GIT_SSH_PUBKEY"),
+			)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo_with_auth.yaml"), struct {
+				Repo            string
+				Branch          string
+				PollingInterval string
+			}{
+				gh.GetURL(),
+				gh.Branch,
+				"15s", // default
+			})
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			tmpdir, _ = os.MkdirTemp("", "fleet-")
+			repodir = path.Join(tmpdir, "repo")
+			repo, err = gh.Create(repodir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			Expect(err).ToNot(HaveOccurred())
+
+		})
+
+		AfterEach(func() {
+			os.RemoveAll(tmpdir)
+			_, _ = k.Delete("secret", "git-auth")
+			_, _ = k.Delete("gitrepo", "gitrepo-test")
+		})
+
 		It("updates the deployment", func() {
 			By("checking the pod exists")
 			Eventually(func() string {

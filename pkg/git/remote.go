@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	gogit "github.com/go-git/go-git/v5"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/go-logr/logr"
+	giturls "github.com/rancher/fleet/pkg/git-urls"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -74,6 +76,17 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// parse the url to make sure it is valid and convert scp-like urls to ssh
+	u, err := giturls.Parse(url)
+	if err != nil {
+		return nil, err
+	}
+
+	if auth == nil && strings.HasPrefix(u.String(), "ssh://") {
+		return nil, fmt.Errorf("SSH private key file is required for SSH/SCP-style URLs: %s", url)
+	}
+
 	return &Remote{
 		URL:     url,
 		Options: opts,
