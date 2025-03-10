@@ -3,6 +3,7 @@ package gitcloner
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -38,6 +39,16 @@ func New() *Cloner {
 }
 
 func (c *Cloner) CloneRepo(opts *GitCloner) error {
+	url, err := giturls.Parse(opts.Repo)
+	if err != nil {
+		return fmt.Errorf("failed to parse git URL: %w", err)
+	}
+	if strings.HasPrefix(url.String(), "ssh://") {
+		if opts.SSHPrivateKeyFile == "" {
+			return fmt.Errorf("SSH private key file is required for SSH/SCP-style URLs: %s", url)
+		}
+	}
+
 	// Azure DevOps requires capabilities multi_ack / multi_ack_detailed,
 	// which are not fully implemented and by default are included in
 	// transport.UnsupportedCapabilities.
@@ -49,11 +60,11 @@ func (c *Cloner) CloneRepo(opts *GitCloner) error {
 	}
 	auth, err := createAuthFromOpts(opts)
 	if err != nil {
-		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
+		return fmt.Errorf("failed to create auth from options for %s: %w", repo(opts), err)
 	}
 	caBundle, err := getCABundleFromFile(opts.CABundleFile)
 	if err != nil {
-		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
+		return fmt.Errorf("failed to read CA bundle from file for %s: %w", repo(opts), err)
 	}
 
 	if opts.Branch == "" && opts.Revision == "" {
@@ -83,7 +94,7 @@ func cloneBranch(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) er
 	})
 
 	if err != nil {
-		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
+		return fmt.Errorf("failed to clone repo from branch %s: %w", repo(opts), err)
 	}
 	return nil
 }
@@ -97,19 +108,19 @@ func cloneRevision(opts *GitCloner, auth transport.AuthMethod, caBundle []byte) 
 		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 	})
 	if err != nil {
-		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
+		return fmt.Errorf("failed to clone repo from revision %s: %w", repo(opts), err)
 	}
 	h, err := r.ResolveRevision(plumbing.Revision(opts.Revision))
 	if err != nil {
-		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
+		return fmt.Errorf("failed to resolve revision %s: %w", repo(opts), err)
 	}
 	w, err := r.Worktree()
 	if err != nil {
-		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
+		return fmt.Errorf("failed to get filesystem worktree for %s: %w", repo(opts), err)
 	}
 
 	if err := w.Checkout(&git.CheckoutOptions{Hash: *h}); err != nil {
-		return fmt.Errorf("%s: %w", gitClonerErrorContext(opts), err)
+		return fmt.Errorf("failed to checkout in worktree %s: %w", repo(opts), err)
 	}
 
 	return nil
@@ -188,12 +199,6 @@ func createKnownHostsCallBack(knownHosts []byte) (ssh.HostKeyCallback, error) {
 	return gossh.NewKnownHostsCallback(f.Name())
 }
 
-func gitClonerErrorContext(opts *GitCloner) string {
-	return fmt.Sprintf(
-		"failed checkout of: repo=[%s] branch=[%s] revision=[%s] path=[%s]",
-		opts.Repo,
-		opts.Branch,
-		opts.Revision,
-		opts.Path,
-	)
+func repo(opts *GitCloner) string {
+	return fmt.Sprintf("repo=%q branch=%q revision=%q path=%q", opts.Repo, opts.Branch, opts.Revision, opts.Path)
 }
