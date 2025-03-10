@@ -75,12 +75,12 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 	}{
 		"branch no auth": {
 			opts: &GitCloner{
-				Repo:   "repo",
+				Repo:   "https://repo",
 				Path:   "path",
 				Branch: "master",
 			},
 			expectedCloneOpts: &git.CloneOptions{
-				URL:               "repo",
+				URL:               "https://repo",
 				SingleBranch:      true,
 				ReferenceName:     "master",
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
@@ -88,14 +88,14 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		},
 		"branch basic auth": {
 			opts: &GitCloner{
-				Repo:         "repo",
+				Repo:         "https://repo",
 				Path:         "path",
 				Branch:       "master",
 				Username:     "user",
 				PasswordFile: passwordFile,
 			},
 			expectedCloneOpts: &git.CloneOptions{
-				URL:           "repo",
+				URL:           "https://repo",
 				SingleBranch:  true,
 				ReferenceName: "master",
 				Auth: &httpgit.BasicAuth{
@@ -122,31 +122,31 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		},
 		"password file does not exist": {
 			opts: &GitCloner{
-				Repo:         "repo",
+				Repo:         "https://repo",
 				Branch:       "master",
 				PasswordFile: "doesntexist",
 				Username:     "user",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New("failed checkout of: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
+			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
 		},
 		"ca file does not exist": {
 			opts: &GitCloner{
-				Repo:         "repo",
+				Repo:         "https://repo",
 				Branch:       "master",
 				CABundleFile: "doesntexist",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New("failed checkout of: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
+			expectedErr:       errors.New(`failed to read CA bundle from file for repo="https://repo" branch="master" revision="" path="": file not found`),
 		},
 		"ssh private key file does not exist": {
 			opts: &GitCloner{
-				Repo:              "repo",
+				Repo:              "https://repo",
 				Branch:            "master",
 				SSHPrivateKeyFile: "doesntexist",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New("failed checkout of: repo=[repo] branch=[master] revision=[] path=[]: file not found"),
+			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
 		},
 	}
 
