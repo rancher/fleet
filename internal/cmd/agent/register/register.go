@@ -47,6 +47,32 @@ type AgentInfo struct {
 	ClientConfig     clientcmd.ClientConfig
 }
 
+func GetAgentConfig(ctx context.Context, namespace string, cfg *rest.Config) (agentConfig *config.Config, err error) {
+	cfg = rest.CopyConfig(cfg)
+	// disable the rate limiter
+	cfg.RateLimiter = ratelimit.None
+	k8s, err := core.NewFactoryFromConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	agentConfig, err = config.Lookup(ctx, namespace, config.AgentConfigName, k8s.Core().V1().ConfigMap())
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to look up client config %s/%s: %w",
+			namespace,
+			config.AgentConfigName,
+			err,
+		)
+	}
+
+	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {
+		config.BypassSystemCAStore()
+	}
+
+	return agentConfig, nil
+}
+
 // Get a registration token from the local cluster and fail if it does not exist.
 // This does not create a new registration process and only works after
 // registration has been completed.
@@ -59,18 +85,9 @@ func Get(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, *
 		return nil, nil, err
 	}
 
-	agentConfig, err := config.Lookup(ctx, namespace, config.AgentConfigName, k8s.Core().V1().ConfigMap())
+	agentConfig, err := GetAgentConfig(ctx, namespace, cfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf(
-			"failed to look up client config %s/%s: %w",
-			namespace,
-			config.AgentConfigName,
-			err,
-		)
-	}
-
-	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {
-		config.BypassSystemCAStore()
+		return nil, nil, err
 	}
 
 	secret, err := k8s.Core().V1().Secret().Get(namespace, CredName, metav1.GetOptions{})
@@ -136,7 +153,7 @@ func tryRegister(ctx context.Context, namespace string, cfg *rest.Config) (*Agen
 		return nil, err
 	} else if err := testClientConfig(secret.Data[Kubeconfig]); err != nil {
 		// skip testClientConfig check if previous error, or IsNotFound fallback succeeded
-		logrus.Errorf("Current credential failed, failing back to reregistering: %v", err)
+		logrus.Errorf("Current credential failed, falling back to reregistering: %v", err)
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace)
 		if err != nil {
 			return nil, fmt.Errorf("re-registration failed: %w", err)

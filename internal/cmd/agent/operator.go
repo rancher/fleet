@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 
 	"github.com/rancher/fleet/internal/cmd/agent/controller"
@@ -59,18 +60,25 @@ func start(
 	agentScope string,
 	workersOpts AgentReconcilerWorkers,
 	clusterStatus *ClusterStatus,
+	agentInfo *register.AgentInfo,
 ) error {
-	// Registration is done before start is called. If we are here, we are already registered.
-	// Retrieve the existing config from the registration.  Cannot start without kubeconfig for
-	// upstream cluster:
-	upstreamConfig, agentConfig, fleetNamespace, clusterName, err := loadRegistration(ctx, systemNamespace, localConfig)
+	upstreamConfig, err := agentInfo.ClientConfig.ClientConfig()
 	if err != nil {
-		setupLog.Error(err, "unable to load registration and start manager")
-		return err
+		return fmt.Errorf("failed to get client config: %w", err)
+	}
+	agentConfig, err := register.GetAgentConfig(ctx, systemNamespace, localConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get agent config: %w", err)
+	}
+
+	// fleetNamespace is the upstream cluster namespace from AgentInfo, e.g. cluster-fleet-ID
+	fleetNamespace, _, err := agentInfo.ClientConfig.Namespace()
+	if err != nil {
+		return fmt.Errorf("failed to get namespace from upstream cluster: %w", err)
 	}
 
 	// Start manager for upstream cluster, we do not use leader election
-	setupLog.Info("listening for changes on upstream cluster", "cluster", clusterName, "namespace", fleetNamespace)
+	setupLog.Info("listening for changes on upstream cluster", "cluster", agentInfo.ClusterName, "namespace", fleetNamespace)
 
 	metricsAddr := ":8080"
 	probeAddr := ":8081"
@@ -103,7 +111,7 @@ func start(
 		systemNamespace,
 		fleetNamespace,
 		agentScope,
-		agentConfig,
+		*agentConfig,
 		driftChan,
 		workersOpts.BundleDeployment,
 	)
@@ -159,38 +167,6 @@ func start(
 	}
 
 	return nil
-}
-
-func loadRegistration(
-	ctx context.Context,
-	systemNamespace string,
-	localConfig *rest.Config,
-) (*rest.Config, config.Config, string, string, error) {
-	agentInfo, agentConfig, err := register.Get(ctx, systemNamespace, localConfig)
-	if err != nil {
-		setupLog.Error(err, "cannot get registration info for upstream cluster")
-		return nil, config.Config{}, "", "", err
-	}
-
-	// fleetNamespace is the upstream cluster namespace from AgentInfo, e.g. cluster-fleet-ID
-	fleetNamespace, _, err := agentInfo.ClientConfig.Namespace()
-	if err != nil {
-		setupLog.Error(err, "cannot get upstream namespace from registration")
-		return nil, config.Config{}, "", "", err
-	}
-
-	upstreamConfig, err := agentInfo.ClientConfig.ClientConfig()
-	if err != nil {
-		setupLog.Error(err, "cannot get upstream kubeconfig from registration")
-		return nil, config.Config{}, "", "", err
-	}
-
-	if agentConfig == nil {
-		setupLog.Error(err, "unexpected nil agent config")
-		return nil, config.Config{}, "", "", err
-	}
-
-	return upstreamConfig, *agentConfig, fleetNamespace, agentInfo.ClusterName, nil
 }
 
 func newReconciler(
