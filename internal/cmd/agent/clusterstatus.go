@@ -7,10 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
-	memory "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -27,8 +24,6 @@ import (
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/lasso/pkg/mapper"
-	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
-	"github.com/rancher/wrangler/v3/pkg/ticker"
 )
 
 type ClusterStatus struct {
@@ -76,8 +71,7 @@ func (cs *ClusterStatus) Start(ctx context.Context) error {
 		return err
 	}
 
-	//  now we have both configs
-	fleetMapper, mapper, _, err := newMappers(ctx, fleetRESTConfig, localConfig)
+	fleetMapper, err := mapper.New(fleetRESTConfig)
 	if err != nil {
 		setupLog.Error(err, "failed to get mappers")
 		return err
@@ -97,21 +91,6 @@ func (cs *ClusterStatus) Start(ctx context.Context) error {
 		return err
 	}
 
-	// set up factory for local cluster
-	localFactory, err := newSharedControllerFactory(localConfig, mapper, "")
-	if err != nil {
-		setupLog.Error(err, "failed to build shared controller factory")
-		return err
-	}
-
-	coreFactory, err := core.NewFactoryFromConfigWithOptions(localConfig, &core.FactoryOptions{
-		SharedControllerFactory: localFactory,
-	})
-	if err != nil {
-		setupLog.Error(err, "failed to build core factory")
-		return err
-	}
-
 	setupLog.Info("Starting cluster status ticker", "checkin interval", checkinInterval.String(), "cluster namespace", cs.AgentInfo.ClusterNamespace, "cluster name", cs.AgentInfo.ClusterName)
 
 	go func() {
@@ -120,7 +99,6 @@ func (cs *ClusterStatus) Start(ctx context.Context) error {
 			cs.AgentInfo.ClusterNamespace,
 			cs.AgentInfo.ClusterName,
 			checkinInterval,
-			coreFactory.Core().V1().Node(),
 			fleetFactory.Fleet().V1alpha1().Cluster(),
 		)
 
@@ -152,27 +130,4 @@ func newSharedControllerFactory(config *rest.Config, mapper meta.RESTMapper, nam
 			v1alpha1.SchemeGroupVersion.WithKind("BundleDeployment"): slowRateLimiter,
 		},
 	}), nil
-}
-
-func newMappers(ctx context.Context, fleetRESTConfig *rest.Config, localConfig *rest.Config) (meta.RESTMapper, meta.RESTMapper, discovery.CachedDiscoveryInterface, error) {
-	fleetMapper, err := mapper.New(fleetRESTConfig)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	d, err := discovery.NewDiscoveryClientForConfig(localConfig)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	discovery := memory.NewMemCacheClient(d)
-	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discovery)
-
-	go func() {
-		for range ticker.Context(ctx, 30*time.Second) {
-			discovery.Invalidate()
-			mapper.Reset()
-		}
-	}()
-
-	return fleetMapper, mapper, discovery, nil
 }

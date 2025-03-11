@@ -7,10 +7,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
-	"go.uber.org/mock/gomock"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -18,7 +18,6 @@ import (
 var _ = Describe("ClusterStatus Ticker", func() {
 	var (
 		clusterClient        *fake.MockClientInterface[*fleet.Cluster, *fleet.ClusterList]
-		nodeClient           *fake.MockNonNamespacedClientInterface[*v1.Node, *v1.NodeList]
 		ctx                  context.Context
 		cancel               context.CancelFunc
 		agentNamespace       string
@@ -32,7 +31,6 @@ var _ = Describe("ClusterStatus Ticker", func() {
 	BeforeEach(func() {
 		ctrl := gomock.NewController(GinkgoT())
 		clusterClient = fake.NewMockClientInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-		nodeClient = fake.NewMockNonNamespacedClientInterface[*v1.Node, *v1.NodeList](ctrl)
 		agentNamespace = "cattle-fleet-system"
 		clusterName = "cluster-name"
 		clusterNamespace = "cluster-namespace"
@@ -52,7 +50,7 @@ var _ = Describe("ClusterStatus Ticker", func() {
 				agentStatusNamespace = cluster.Status.Agent.Namespace
 				return *cluster, nil
 			}).AnyTimes()
-		Ticker(ctx, agentNamespace, clusterNamespace, clusterName, time.Second*1, nodeClient, clusterClient)
+		Ticker(ctx, agentNamespace, clusterNamespace, clusterName, time.Second*1, clusterClient)
 	})
 
 	It("Increases the timestamp used to call Patch", func() {

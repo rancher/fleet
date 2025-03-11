@@ -12,7 +12,6 @@ import (
 	"github.com/rancher/fleet/pkg/durations"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
-	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/ticker"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -25,7 +24,6 @@ type handler struct {
 	agentNamespace   string
 	clusterName      string
 	clusterNamespace string
-	nodes            corecontrollers.NodeClient
 	clusters         fleetcontrollers.ClusterClient
 	reported         fleet.AgentStatus
 }
@@ -35,7 +33,6 @@ func Ticker(ctx context.Context,
 	clusterNamespace string,
 	clusterName string,
 	checkinInterval time.Duration,
-	nodes corecontrollers.NodeClient,
 	clusters fleetcontrollers.ClusterClient) {
 
 	logger := log.FromContext(ctx).WithName("clusterstatus").WithValues("cluster", clusterName, "interval", checkinInterval)
@@ -44,7 +41,6 @@ func Ticker(ctx context.Context,
 		agentNamespace:   agentNamespace,
 		clusterName:      clusterName,
 		clusterNamespace: clusterNamespace,
-		nodes:            nodes,
 		clusters:         clusters,
 	}
 
