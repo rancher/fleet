@@ -25,7 +25,8 @@ var _ = Describe("Fleet CLI Deploy", func() {
 		cmd.SetArgs(args)
 
 		buf := gbytes.NewBuffer()
-		cmd.SetOutput(buf)
+		cmd.SetOut(buf)
+		cmd.SetErr(buf)
 		err := cmd.Execute()
 		return buf, err
 	}
