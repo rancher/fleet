@@ -131,7 +131,8 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 						Namespace: a.Namespace,
 					},
 				}
-				err := r.RegisterAgent(ctx)
+
+				agentInfo, err := r.RegisterAgent(ctx)
 				if err != nil {
 					setupLog.Error(err, "failed to register with upstream cluster")
 					return
@@ -161,9 +162,10 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 						Namespace:  a.Namespace,
 					},
 					CheckinInterval: a.CheckinInterval,
+					AgentInfo:       agentInfo,
 				}
 
-				if err := start(ctx, localConfig, a.Namespace, a.AgentScope, workersOpts, clusterStatus); err != nil {
+				if err := start(ctx, localConfig, a.Namespace, a.AgentScope, workersOpts, clusterStatus, agentInfo); err != nil {
 					setupLog.Error(err, "failed to start agent")
 				}
 			},

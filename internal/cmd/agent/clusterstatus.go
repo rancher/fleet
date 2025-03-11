@@ -35,6 +35,7 @@ import (
 type ClusterStatus struct {
 	UpstreamOptions
 	CheckinInterval string `usage:"How often to post cluster status" env:"CHECKIN_INTERVAL"`
+	AgentInfo       *register.AgentInfo
 }
 
 func (cs *ClusterStatus) Start(ctx context.Context) error {
@@ -63,20 +64,15 @@ func (cs *ClusterStatus) Start(ctx context.Context) error {
 
 	// cannot start without kubeconfig for upstream cluster
 	setupLog.Info("Fetching kubeconfig for upstream cluster from registration", "namespace", cs.Namespace)
-	agentInfo, _, err := register.Get(ctx, cs.Namespace, localConfig)
-	if err != nil {
-		setupLog.Error(err, "failed to get kubeconfig from upstream cluster")
-		return err
-	}
 
 	// set up factory for upstream cluster
-	fleetNamespace, _, err := agentInfo.ClientConfig.Namespace()
+	fleetNamespace, _, err := cs.AgentInfo.ClientConfig.Namespace()
 	if err != nil {
 		setupLog.Error(err, "failed to get namespace from upstream cluster")
 		return err
 	}
 
-	fleetRESTConfig, err := agentInfo.ClientConfig.ClientConfig()
+	fleetRESTConfig, err := cs.AgentInfo.ClientConfig.ClientConfig()
 	if err != nil {
 		setupLog.Error(err, "failed to get kubeconfig from upstream cluster")
 		return err
@@ -118,13 +114,13 @@ func (cs *ClusterStatus) Start(ctx context.Context) error {
 		return err
 	}
 
-	setupLog.Info("Starting cluster status ticker", "checkin interval", checkinInterval.String(), "cluster namespace", agentInfo.ClusterNamespace, "cluster name", agentInfo.ClusterName)
+	setupLog.Info("Starting cluster status ticker", "checkin interval", checkinInterval.String(), "cluster namespace", cs.AgentInfo.ClusterNamespace, "cluster name", cs.AgentInfo.ClusterName)
 
 	go func() {
 		clusterstatus.Ticker(ctx,
 			cs.Namespace,
-			agentInfo.ClusterNamespace,
-			agentInfo.ClusterName,
+			cs.AgentInfo.ClusterNamespace,
+			cs.AgentInfo.ClusterName,
 			checkinInterval,
 			coreFactory.Core().V1().Node(),
 			fleetFactory.Fleet().V1alpha1().Cluster(),

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rancher/fleet/internal/cmd/agent/register"
 
@@ -16,14 +17,14 @@ type Register struct {
 	UpstreamOptions
 }
 
-func (r *Register) RegisterAgent(ctx context.Context) error {
+func (r *Register) RegisterAgent(ctx context.Context) (*register.AgentInfo, error) {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx = log.IntoContext(ctx, ctrl.Log)
 
 	clientConfig := kubeconfig.GetNonInteractiveClientConfig(r.Kubeconfig)
 	kc, err := clientConfig.ClientConfig()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to get kubeconfig: %w", err)
 	}
 
 	setupLog.Info("starting registration on upstream cluster", "namespace", r.Namespace)
@@ -35,23 +36,20 @@ func (r *Register) RegisterAgent(ctx context.Context) error {
 	// a kubeconfig for the upstream cluster
 	agentInfo, err := register.Register(ctx, r.Namespace, kc)
 	if err != nil {
-		setupLog.Error(err, "failed to register with upstream cluster")
-		return err
+		return nil, fmt.Errorf("failed to register with upstream cluster: %w", err)
 	}
 
 	ns, _, err := agentInfo.ClientConfig.Namespace()
 	if err != nil {
-		setupLog.Error(err, "failed to get namespace from upstream cluster")
-		return err
+		return nil, fmt.Errorf("failed to get namespace from upstream cluster: %w", err)
 	}
 
 	_, err = agentInfo.ClientConfig.ClientConfig()
 	if err != nil {
-		setupLog.Error(err, "failed to get kubeconfig from upstream cluster")
-		return err
+		return nil, fmt.Errorf("failed to get kubeconfig from upstream cluster: %w", err)
 	}
 
 	setupLog.Info("successfully registered with upstream cluster", "namespace", ns)
 
-	return nil
+	return agentInfo, nil
 }

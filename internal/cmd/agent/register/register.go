@@ -47,53 +47,6 @@ type AgentInfo struct {
 	ClientConfig     clientcmd.ClientConfig
 }
 
-// Get a registration token from the local cluster and fail if it does not exist.
-// This does not create a new registration process and only works after
-// registration has been completed.
-func Get(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, *config.Config, error) {
-	cfg = rest.CopyConfig(cfg)
-	// disable the rate limiter
-	cfg.RateLimiter = ratelimit.None
-	k8s, err := core.NewFactoryFromConfig(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	agentConfig, err := config.Lookup(ctx, namespace, config.AgentConfigName, k8s.Core().V1().ConfigMap())
-	if err != nil {
-		return nil, nil, fmt.Errorf(
-			"failed to look up client config %s/%s: %w",
-			namespace,
-			config.AgentConfigName,
-			err,
-		)
-	}
-
-	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {
-		config.BypassSystemCAStore()
-	}
-
-	secret, err := k8s.Core().V1().Secret().Get(namespace, CredName, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		logrus.Warn("Cannot find fleet-agent secret")
-		return nil, nil, err
-	} else if err != nil {
-		logrus.Error("Cannot get fleet-agent secret")
-		return nil, nil, err
-	}
-
-	clientConfig, err := clientcmd.NewClientConfigFromBytes(secret.Data[Kubeconfig])
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return &AgentInfo{
-		ClusterNamespace: string(secret.Data[ClusterNamespace]),
-		ClusterName:      string(secret.Data[ClusterName]),
-		ClientConfig:     clientConfig,
-	}, agentConfig, nil
-}
-
 // Register creates a fleet-agent secret with the upstream kubeconfig, by
 // running the registration process with the upstream cluster.
 // For the initial registration, the fleet-agent-bootstrap secret must exist
@@ -136,7 +89,7 @@ func tryRegister(ctx context.Context, namespace string, cfg *rest.Config) (*Agen
 		return nil, err
 	} else if err := testClientConfig(secret.Data[Kubeconfig]); err != nil {
 		// skip testClientConfig check if previous error, or IsNotFound fallback succeeded
-		logrus.Errorf("Current credential failed, failing back to reregistering: %v", err)
+		logrus.Errorf("Current credential failed, falling back to reregistering: %v", err)
 		secret, err = runRegistration(ctx, k8s.Core().V1(), namespace)
 		if err != nil {
 			return nil, fmt.Errorf("re-registration failed: %w", err)
