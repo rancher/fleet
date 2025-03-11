@@ -28,7 +28,6 @@ import (
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/lasso/pkg/mapper"
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
-	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 	"github.com/rancher/wrangler/v3/pkg/ticker"
 )
 
@@ -58,7 +57,8 @@ func (cs *ClusterStatus) Start(ctx context.Context) error {
 
 	// without rate limiting
 	localConfig = rest.CopyConfig(localConfig)
-	localConfig.RateLimiter = ratelimit.None
+	localConfig.QPS = -1
+	localConfig.RateLimiter = nil
 
 	// cannot start without kubeconfig for upstream cluster
 	setupLog.Info("Fetching kubeconfig for upstream cluster from registration", "namespace", cs.Namespace)

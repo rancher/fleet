@@ -7,7 +7,6 @@ import (
 
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/leader"
-	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 
 	"github.com/sirupsen/logrus"
@@ -26,7 +25,8 @@ func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap b
 
 	// try to claim leadership lease without rate limiting
 	localConfig := rest.CopyConfig(kc)
-	localConfig.RateLimiter = ratelimit.None
+	localConfig.QPS = -1
+	localConfig.RateLimiter = nil
 	k8s, err := kubernetes.NewForConfig(localConfig)
 	if err != nil {
 		return err

@@ -18,7 +18,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/randomtoken"
-	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -71,7 +70,9 @@ func Register(ctx context.Context, namespace string, config *rest.Config) (*Agen
 func tryRegister(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, error) {
 	cfg = rest.CopyConfig(cfg)
 	// disable the rate limiter
-	cfg.RateLimiter = ratelimit.None
+	cfg.QPS = -1
+	cfg.RateLimiter = nil
+
 	k8s, err := core.NewFactoryFromConfig(cfg)
 	if err != nil {
 		return nil, err
