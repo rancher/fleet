@@ -5,8 +5,7 @@ import (
 	"fmt"
 
 	"github.com/rancher/fleet/internal/cmd/agent/register"
-
-	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
+	"k8s.io/client-go/tools/clientcmd"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -21,10 +20,9 @@ func (r *Register) RegisterAgent(ctx context.Context) (*register.AgentInfo, erro
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx = log.IntoContext(ctx, ctrl.Log)
 
-	clientConfig := kubeconfig.GetNonInteractiveClientConfig(r.Kubeconfig)
-	kc, err := clientConfig.ClientConfig()
+	clientConfig, err := clientcmd.BuildConfigFromFlags("", r.Kubeconfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get kubeconfig: %w", err)
+		return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
 	}
 
 	setupLog.Info("starting registration on upstream cluster", "namespace", r.Namespace)
@@ -34,7 +32,7 @@ func (r *Register) RegisterAgent(ctx context.Context) (*register.AgentInfo, erro
 
 	// try to register with upstream fleet controller by obtaining
 	// a kubeconfig for the upstream cluster
-	agentInfo, err := register.Register(ctx, r.Namespace, kc)
+	agentInfo, err := register.Register(ctx, r.Namespace, clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register with upstream cluster: %w", err)
 	}
