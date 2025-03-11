@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -27,7 +28,6 @@ import (
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/lasso/pkg/mapper"
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
-	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 	"github.com/rancher/wrangler/v3/pkg/ticker"
 )
@@ -51,15 +51,13 @@ func (cs *ClusterStatus) Start(ctx context.Context) error {
 		}
 	}
 
-	clientConfig := kubeconfig.GetNonInteractiveClientConfig(cs.Kubeconfig)
-	kc, err := clientConfig.ClientConfig()
+	localConfig, err := clientcmd.BuildConfigFromFlags("", cs.Kubeconfig)
 	if err != nil {
-		setupLog.Error(err, "failed to get kubeconfig")
-		return err
+		return fmt.Errorf("failed to load kubeconfig: %w", err)
 	}
 
 	// without rate limiting
-	localConfig := rest.CopyConfig(kc)
+	localConfig = rest.CopyConfig(localConfig)
 	localConfig.RateLimiter = ratelimit.None
 
 	// cannot start without kubeconfig for upstream cluster
@@ -79,7 +77,7 @@ func (cs *ClusterStatus) Start(ctx context.Context) error {
 	}
 
 	//  now we have both configs
-	fleetMapper, mapper, _, err := newMappers(ctx, fleetRESTConfig, clientConfig)
+	fleetMapper, mapper, _, err := newMappers(ctx, fleetRESTConfig, localConfig)
 	if err != nil {
 		setupLog.Error(err, "failed to get mappers")
 		return err
@@ -156,19 +154,13 @@ func newSharedControllerFactory(config *rest.Config, mapper meta.RESTMapper, nam
 	}), nil
 }
 
-func newMappers(ctx context.Context, fleetRESTConfig *rest.Config, clientconfig clientcmd.ClientConfig) (meta.RESTMapper, meta.RESTMapper, discovery.CachedDiscoveryInterface, error) {
+func newMappers(ctx context.Context, fleetRESTConfig *rest.Config, localConfig *rest.Config) (meta.RESTMapper, meta.RESTMapper, discovery.CachedDiscoveryInterface, error) {
 	fleetMapper, err := mapper.New(fleetRESTConfig)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	client, err := clientconfig.ClientConfig()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	client.RateLimiter = ratelimit.None
-
-	d, err := discovery.NewDiscoveryClientForConfig(client)
+	d, err := discovery.NewDiscoveryClientForConfig(localConfig)
 	if err != nil {
 		return nil, nil, nil, err
 	}
