@@ -26,4 +26,6 @@ var _ = BeforeSuite(func() {
 	testenv.SetRoot("../..")
 
 	env = testenv.New()
+
+	Expect(env.Namespace).To(Equal("fleet-local"), "The single-cluster test assets target the default clustergroup and only work in fleet-local")
 })

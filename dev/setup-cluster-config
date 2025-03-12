@@ -3,7 +3,7 @@
 set -ex
 
 if [ "$1" = "teardown" ]; then
-    ./e2e/testenv/infra/infra teardown
+    go run ./e2e/testenv/infra/main.go teardown
     exit 0
 fi
 

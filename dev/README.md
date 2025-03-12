@@ -224,10 +224,8 @@ To build and run the infra setup command do:
 ```
 dev/import-images-tests-k3d
 # ./dev/create-zot-certs 'FleetCI-RootCA'
-pushd e2e/testenv/infra
-  go build
-popd
-./e2e/testenv/infra/infra setup
+dev/create-secrets
+go run ./e2e/testenv/infra/main.go setup
 ```
 
 The resulting deployments use a loadbalancer service, which means the host must be able to reach the loadbalancer IP.

@@ -3,7 +3,7 @@
 dir=${1-'FleetCI-RootCA'}
 
 # Create secret with certs, needed by test git server
-kubectl -n fleet-local create secret generic git-server-certs \
+kubectl -n default create secret generic git-server-certs \
     --from-file=./"$dir"/helm.crt \
     --from-file=./"$dir"/helm.key
 

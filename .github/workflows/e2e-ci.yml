@@ -103,8 +103,6 @@ jobs:
       -
         name: Create Zot certificates for OCI tests
         if: ${{ matrix.test_type.name == 'infra-setup' }}
-        env:
-          FLEET_E2E_NS: fleet-local
         run: |
           ./.github/scripts/create-zot-certs.sh "FleetCI-RootCA"
           ./.github/scripts/create-secrets.sh 'FleetCI-RootCA'
