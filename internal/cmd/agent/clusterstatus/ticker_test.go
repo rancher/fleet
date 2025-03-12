@@ -7,69 +7,95 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"go.uber.org/mock/gomock"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/wrangler/v3/pkg/generic/fake"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
+
+var clientBuilder = fake.NewClientBuilder()
 
 var _ = Describe("ClusterStatus Ticker", func() {
 	var (
-		clusterClient        *fake.MockClientInterface[*fleet.Cluster, *fleet.ClusterList]
-		ctx                  context.Context
-		cancel               context.CancelFunc
-		agentNamespace       string
-		clusterName          string
-		clusterNamespace     string
-		baseTime             metav1.Time
-		lastTime             metav1.Time
-		agentStatusNamespace string
+		scheme *runtime.Scheme
+		cancel context.CancelFunc
+
+		ctx              context.Context
+		clt              client.Client
+		agentNamespace   string
+		clusterName      string
+		clusterNamespace string
+		checkinInterval  time.Duration
 	)
 
 	BeforeEach(func() {
-		ctrl := gomock.NewController(GinkgoT())
-		clusterClient = fake.NewMockClientInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
+		scheme = runtime.NewScheme()
+		utilruntime.Must(fleet.AddToScheme(scheme))
+
 		agentNamespace = "cattle-fleet-system"
 		clusterName = "cluster-name"
 		clusterNamespace = "cluster-namespace"
-		baseTime = metav1.Now()
-		ctx, cancel = context.WithCancel(context.TODO())
-		clusterClient.EXPECT().Patch(clusterNamespace, clusterName, types.MergePatchType, gomock.Any(), "status").
-			DoAndReturn(func(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (fleet.Cluster, error) {
-				cluster := &fleet.Cluster{}
-				err := json.Unmarshal(data, cluster)
+		checkinInterval = time.Millisecond * 1
+
+		interceptorFuncs := interceptor.Funcs{
+			SubResourcePatch: func(ctx context.Context, client client.Client, subResourceName string, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+				defer cancel()
+
+				bytes, err := patch.Data(obj)
 				if err != nil {
-					return fleet.Cluster{}, err
+					return err
 				}
-				// only storing the lastseen time value here.
-				// We're not checking for values here because calling Expect,
-				// for example, makes the mock call panic when it doesn't succeed
-				lastTime = cluster.Status.Agent.LastSeen
-				agentStatusNamespace = cluster.Status.Agent.Namespace
-				return *cluster, nil
-			}).AnyTimes()
-		Ticker(ctx, agentNamespace, clusterNamespace, clusterName, time.Second*1, clusterClient)
+
+				clusterStatus := struct {
+					Status struct {
+						Agent fleet.AgentStatus `json:"agent"`
+					} `json:"status"`
+				}{}
+				if err = json.Unmarshal(bytes, &clusterStatus); err != nil {
+					return err
+				}
+
+				Expect(clusterStatus.Status.Agent.LastSeen.Time).To(BeTemporally("~", time.Now(), time.Minute*5),
+					"time stamp should have been updated within the last 5 minutes")
+				return nil
+			},
+		}
+
+		ctx = context.Background()
+		cluster := &fleet.Cluster{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Cluster",
+				APIVersion: "fleet.cattle.io/v1alpha1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterName,
+				Namespace: clusterNamespace,
+			},
+			Status: fleet.ClusterStatus{
+				Agent: fleet.AgentStatus{
+					LastSeen: metav1.Time{Time: time.Now().Add(-time.Hour * 24)},
+				},
+			},
+		}
+		clt = clientBuilder.
+			WithScheme(scheme).
+			WithObjects(cluster).
+			WithStatusSubresource(cluster).
+			WithInterceptorFuncs(interceptorFuncs).
+			Build()
+
+		// Make sure the test is eventually aborted if the context is not canceled on success.
+		ctx, cancel = context.WithDeadline(ctx, time.Now().Add(time.Second*30))
 	})
 
-	It("Increases the timestamp used to call Patch", func() {
-		By("Comparing every 2 seconds for a 6 seconds period")
-		Consistently(func() bool {
-			// return true when we're calling before Patch was even called
-			if lastTime.IsZero() {
-				return true
-			}
-			// check that the timestamp increases and the namespace is the expected one
-			result := baseTime.Before(&lastTime) && agentStatusNamespace == agentNamespace
-			baseTime = lastTime
-			return result
-		}, 6*time.Second, 2*time.Second).Should(BeTrue())
-		// ensure that lastTime was set (which means Patch was successfully called)
-		Expect(lastTime).ShouldNot(BeZero())
-	})
-
-	AfterEach(func() {
-		cancel()
+	It("should patch the cluster status after checkinInterval", func() {
+		Ticker(ctx, clt, agentNamespace, clusterNamespace, clusterName, checkinInterval)
+		<-ctx.Done()
 	})
 })

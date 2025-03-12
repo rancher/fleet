@@ -3,20 +3,19 @@ package clusterstatus
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/sirupsen/logrus"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
-	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/ticker"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -24,30 +23,24 @@ type handler struct {
 	agentNamespace   string
 	clusterName      string
 	clusterNamespace string
-	clusters         fleetcontrollers.ClusterClient
+	client           client.Client
 	reported         fleet.AgentStatus
 }
 
-func Ticker(ctx context.Context,
-	agentNamespace string,
-	clusterNamespace string,
-	clusterName string,
-	checkinInterval time.Duration,
-	clusters fleetcontrollers.ClusterClient) {
-
+func Ticker(ctx context.Context, client client.Client, agentNamespace string, clusterNamespace string, clusterName string, checkinInterval time.Duration) {
 	logger := log.FromContext(ctx).WithName("clusterstatus").WithValues("cluster", clusterName, "interval", checkinInterval)
 
 	h := handler{
 		agentNamespace:   agentNamespace,
 		clusterName:      clusterName,
 		clusterNamespace: clusterNamespace,
-		clusters:         clusters,
+		client:           client,
 	}
 
 	go func() {
 		time.Sleep(durations.ClusterRegisterDelay)
 		logger.V(1).Info("Reporting cluster status once")
-		if err := h.Update(); err != nil {
+		if err := h.Update(ctx); err != nil {
 			logrus.Errorf("failed to report cluster status: %v", err)
 		}
 	}()
@@ -57,7 +50,7 @@ func Ticker(ctx context.Context,
 		}
 		for range ticker.Context(ctx, checkinInterval) {
 			logger.V(1).Info("Reporting cluster status")
-			if err := h.Update(); err != nil {
+			if err := h.Update(ctx); err != nil {
 				logrus.Errorf("failed to report cluster status: %v", err)
 			}
 		}
@@ -65,7 +58,7 @@ func Ticker(ctx context.Context,
 }
 
 // Update the cluster.fleet.cattle.io status in the upstream cluster with the current cluster status
-func (h *handler) Update() error {
+func (h *handler) Update(ctx context.Context) error {
 	agentStatus := fleet.AgentStatus{
 		LastSeen:  metav1.Now(),
 		Namespace: h.agentNamespace,
@@ -75,16 +68,21 @@ func (h *handler) Update() error {
 		return nil
 	}
 
-	data, err := json.Marshal(fleet.Cluster{
-		Status: fleet.ClusterStatus{
-			Agent: agentStatus,
-		},
-	})
+	cluster := &fleet.Cluster{}
+	err := h.client.Get(context.Background(), types.NamespacedName{
+		Namespace: h.clusterNamespace,
+		Name:      h.clusterName,
+	}, cluster)
 	if err != nil {
 		return err
 	}
 
-	_, err = h.clusters.Patch(h.clusterNamespace, h.clusterName, types.MergePatchType, data, "status")
+	// Create a patch with the updated status
+	patch := client.MergeFrom(cluster.DeepCopy())
+	cluster.Status.Agent = agentStatus
+
+	// Apply the patch
+	err = h.client.Status().Patch(ctx, cluster, patch)
 	if err != nil {
 		return err
 	}
