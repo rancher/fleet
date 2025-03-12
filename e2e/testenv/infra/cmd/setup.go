@@ -22,6 +22,8 @@ import (
 
 var timeoutDuration = 10 * time.Minute // default timeout duration
 
+const InfraNamespace = "default"
+
 func eventually(f func() (string, error)) string {
 	ctx, cancel := context.WithTimeout(context.Background(), timeoutDuration)
 	defer cancel()
@@ -84,7 +86,7 @@ var setupCmd = &cobra.Command{
 		// enables infra setup to be run from any location within the repo
 		testenv.SetRoot(strings.TrimSpace(string(repoRoot)))
 
-		k := env.Kubectl.Namespace(env.Namespace)
+		k := env.Kubectl.Namespace(InfraNamespace)
 
 		if err := packageHelmChart(); err != nil {
 			fail(fmt.Errorf("package Helm chart: %v", err))
@@ -114,7 +116,7 @@ var setupCmd = &cobra.Command{
 				fail(fmt.Errorf("create helm-tls secret: %s with error %v", out, err))
 			}
 
-			out, err = k.Create(
+			out, err = k.Namespace(env.Namespace).Create(
 				"secret", "generic", "helm-secret",
 				"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
 				"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),

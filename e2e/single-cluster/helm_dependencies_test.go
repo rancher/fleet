@@ -10,6 +10,7 @@ import (
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
+	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -22,7 +23,7 @@ func getChartMuseumExternalAddr(env *testenv.Env) string {
 	passwd := os.Getenv("GIT_HTTP_PASSWORD")
 	Expect(username).ToNot(Equal(""))
 	Expect(passwd).ToNot(Equal(""))
-	return fmt.Sprintf("https://%s:%s@chartmuseum-service.%s.svc.cluster.local:8081", username, passwd, env.Namespace)
+	return fmt.Sprintf("https://%s:%s@chartmuseum-service.%s.svc.cluster.local:8081", username, passwd, cmd.InfraNamespace)
 }
 
 func setupChartDepsInTmpDir(chartDir string, tmpDir string, namespace string, disableDependencyUpdate bool, env *testenv.Env) {
@@ -70,8 +71,7 @@ var _ = Describe("Helm dependency update tests", Label("infra-setup", "helm-regi
 	JustBeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
-		host, err := githelper.BuildGitHostname(env.Namespace)
-		Expect(err).ToNot(HaveOccurred())
+		host := githelper.BuildGitHostname()
 
 		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
 		Expect(err).ToNot(HaveOccurred())

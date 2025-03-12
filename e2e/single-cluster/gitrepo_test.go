@@ -20,6 +20,7 @@ import (
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
+	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
@@ -71,8 +72,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		JustBeforeEach(func() {
 
 			// Build git repo URL reachable _within_ the cluster, for the GitRepo
-			host, err := githelper.BuildGitHostname(env.Namespace)
-			Expect(err).ToNot(HaveOccurred())
+			host := githelper.BuildGitHostname()
 
 			addr, err := githelper.GetExternalRepoAddr(env, c.port, repoName)
 			Expect(err).ToNot(HaveOccurred())
@@ -237,9 +237,10 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				var (
 					out string
 					err error
+					kg  = k.Namespace(cmd.InfraNamespace)
 				)
 				Eventually(func() string {
-					out, err = k.Get("pod", "-l", "app=git-server", "-o", "name")
+					out, err = kg.Get("pod", "-l", "app=git-server", "-o", "name")
 					if err != nil {
 						fmt.Printf("%v\n", err)
 						return ""
@@ -260,7 +261,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				Expect(err).ToNot(HaveOccurred())
 
 				// Create a git repo, erasing a previous repo with the same name if any
-				out, err = k.Run(
+				out, err = kg.Run(
 					"exec",
 					gitServerPod,
 					"--",
@@ -277,13 +278,13 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				hookPathInRepo := fmt.Sprintf("/srv/git/%s/hooks/post-receive", repoName)
 
 				Eventually(func() error {
-					out, err = k.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
+					out, err = kg.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
 					return err
 				}).Should(Not(HaveOccurred()), out)
 
 				// Make hook script executable
 				Eventually(func() error {
-					out, err = k.Run("exec", gitServerPod, "--", "chmod", "+x", hookPathInRepo)
+					out, err = kg.Run("exec", gitServerPod, "--", "chmod", "+x", hookPathInRepo)
 					return err
 				}).ShouldNot(HaveOccurred(), out)
 
