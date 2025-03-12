@@ -18,7 +18,7 @@ import (
 	cp "github.com/otiai10/copy"
 )
 
-func getChartMuseumExternalAddr(env *testenv.Env) string {
+func getChartMuseumExternalAddr() string {
 	username := os.Getenv("GIT_HTTP_USER")
 	passwd := os.Getenv("GIT_HTTP_PASSWORD")
 	Expect(username).ToNot(Equal(""))
@@ -26,11 +26,11 @@ func getChartMuseumExternalAddr(env *testenv.Env) string {
 	return fmt.Sprintf("https://%s:%s@chartmuseum-service.%s.svc.cluster.local:8081", username, passwd, cmd.InfraNamespace)
 }
 
-func setupChartDepsInTmpDir(chartDir string, tmpDir string, namespace string, disableDependencyUpdate bool, env *testenv.Env) {
+func setupChartDepsInTmpDir(chartDir string, tmpDir string, namespace string, disableDependencyUpdate bool) {
 	err := cp.Copy(chartDir, tmpDir)
 	Expect(err).ToNot(HaveOccurred())
 	// replace the helm repo url
-	helmRepoUrl := getChartMuseumExternalAddr(env)
+	helmRepoUrl := getChartMuseumExternalAddr()
 	out := filepath.Join(tmpDir, "Chart.yaml")
 	in := filepath.Join(chartDir, "Chart.yaml")
 	err = testenv.Template(out, in, struct {
@@ -87,7 +87,7 @@ var _ = Describe("Helm dependency update tests", Label("infra-setup", "helm-regi
 		// setup the tmp chart dir.
 		// we use a tmp dir because dependencies are downloaded to the directory
 		tmpChart := GinkgoT().TempDir()
-		setupChartDepsInTmpDir(testenv.AssetPath(asset), tmpChart, namespace, disableDependencyUpdate, env)
+		setupChartDepsInTmpDir(testenv.AssetPath(asset), tmpChart, namespace, disableDependencyUpdate)
 
 		_, err = gh.Create(clonedir, tmpChart, "examples")
 		Expect(err).ToNot(HaveOccurred())
