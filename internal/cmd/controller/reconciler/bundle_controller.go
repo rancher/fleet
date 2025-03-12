@@ -4,12 +4,11 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
-
-	"github.com/go-logr/logr"
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -21,11 +20,13 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -244,6 +245,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
+	bundleDeploymentUIDs := make(sets.Set[types.UID])
 	for _, target := range matchedTargets {
 		if target.Deployment == nil {
 			continue
@@ -277,27 +279,24 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		bundleDeploymentUIDs.Insert(bd.UID)
 
 		if err := r.handleDeploymentSecret(ctx, bundle, bd); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
-	// purge bundle deployments that exist in the bundle but are no longer targeted
-	notTargeted, err := findNotTargetedBundleDeployments(ctx, r.Client, req.NamespacedName, matchedTargets)
-	if err != nil {
+	updateDisplay(&bundle.Status)
+	if err := r.updateStatus(ctx, bundleOrig, bundle); err != nil {
 		return ctrl.Result{}, err
 	}
-	if len(notTargeted) > 0 {
-		if err := finalize.PurgeBundleDeploymentList(ctx, r.Client, notTargeted); err != nil {
-			return ctrl.Result{}, err
-		}
+
+	// the targets configuration may have changed, leaving behind some BundleDeployments that are no longer needed
+	if err := r.cleanupOrphanedBundleDeployments(ctx, bundle, bundleDeploymentUIDs); err != nil {
+		logger.V(1).Error(err, "deleting orphaned bundle deployments", "bundle", bundle.GetName())
 	}
 
-	updateDisplay(&bundle.Status)
-	err = r.updateStatus(ctx, bundleOrig, bundle)
-
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 func upper(op controllerutil.OperationResult) string {
@@ -499,33 +498,26 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 	return nil
 }
 
-func findNotTargetedBundleDeployments(ctx context.Context, c client.Client, bundleId types.NamespacedName, targets []*target.Target) ([]types.NamespacedName, error) {
+// cleanupOrphanedBundleDeployments will delete all existing BundleDeployments which do not have a match in a provided list of UIDs
+func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context, bundle *fleet.Bundle, uidsToKeep sets.Set[types.UID]) error {
 	list := &fleet.BundleDeploymentList{}
-	err := c.List(
-		ctx,
-		list,
+	if err := r.List(ctx, list,
 		client.MatchingLabels{
-			fleet.BundleLabel:          bundleId.Name,
-			fleet.BundleNamespaceLabel: bundleId.Namespace,
+			fleet.BundleLabel:          bundle.GetName(),
+			fleet.BundleNamespaceLabel: bundle.GetNamespace(),
 		},
-	)
-	if err != nil {
-		return []types.NamespacedName{}, err
+	); err != nil {
+		return err
 	}
 
-	var notTargeted []types.NamespacedName
+	var errs []error
 	for _, bd := range list.Items {
-		found := false
-		for _, t := range targets {
-			if t.Deployment.Name == bd.Name && t.Deployment.Namespace == bd.Namespace {
-				found = true
-				break
-			}
+		if uidsToKeep.Has(bd.UID) {
+			continue
 		}
-		if !found {
-			notTargeted = append(notTargeted, types.NamespacedName{Namespace: bd.Namespace, Name: bd.Name})
+		if err := r.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
+			errs = append(errs, err)
 		}
 	}
-
-	return notTargeted, nil
+	return errors.Join(errs...)
 }
