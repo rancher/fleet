@@ -245,7 +245,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
-	var bundleDeployments []*fleet.BundleDeployment
+	bundleDeploymentUIDs := make(sets.Set[types.UID])
 	for _, target := range matchedTargets {
 		if target.Deployment == nil {
 			continue
@@ -279,7 +279,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		bundleDeployments = append(bundleDeployments, bd)
+		bundleDeploymentUIDs.Insert(bd.UID)
 
 		if err := r.handleDeploymentSecret(ctx, bundle, bd); err != nil {
 			return ctrl.Result{}, err
@@ -292,7 +292,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// the targets configuration may have changed, leaving behind some BundleDeployments that are no longer needed
-	if err := r.cleanupOrphanedBundleDeployments(ctx, bundle, bundleDeployments); err != nil {
+	if err := r.cleanupOrphanedBundleDeployments(ctx, bundle, bundleDeploymentUIDs); err != nil {
 		logger.V(1).Error(err, "deleting orphaned bundle deployments", "bundle", bundle.GetName())
 	}
 
@@ -498,13 +498,8 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 	return nil
 }
 
-// cleanupOrphanedBundleDeployments will delete all existing BundleDeployments corresponding that do not match a provided list
-func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context, bundle *fleet.Bundle, created []*fleet.BundleDeployment) error {
-	uidsToKeep := make(sets.Set[types.UID], len(created))
-	for _, bd := range created {
-		uidsToKeep.Insert(bd.UID)
-	}
-
+// cleanupOrphanedBundleDeployments will delete all existing BundleDeployments which do not have a match in a provided list of UIDs
+func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context, bundle *fleet.Bundle, uidsToKeep sets.Set[types.UID]) error {
 	list := &fleet.BundleDeploymentList{}
 	if err := r.List(ctx, list,
 		client.MatchingLabels{
