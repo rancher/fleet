@@ -4,12 +4,11 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
-
-	"github.com/go-logr/logr"
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -21,11 +20,13 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -244,6 +245,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
+	var bundleDeployments []*fleet.BundleDeployment
 	for _, target := range matchedTargets {
 		if target.Deployment == nil {
 			continue
@@ -277,6 +279,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		bundleDeployments = append(bundleDeployments, bd)
 
 		if err := r.handleDeploymentSecret(ctx, bundle, bd); err != nil {
 			return ctrl.Result{}, err
@@ -284,9 +287,16 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	updateDisplay(&bundle.Status)
-	err = r.updateStatus(ctx, bundleOrig, bundle)
+	if err := r.updateStatus(ctx, bundleOrig, bundle); err != nil {
+		return ctrl.Result{}, err
+	}
 
-	return ctrl.Result{}, err
+	// the targets configuration may have changed, leaving behind some BundleDeployments that are no longer needed
+	if err := r.cleanupOrphanedBundleDeployments(ctx, bundle, bundleDeployments); err != nil {
+		logger.V(1).Error(err, "deleting orphaned bundle deployments", "bundle", bundle.GetName())
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func upper(op controllerutil.OperationResult) string {
@@ -486,4 +496,33 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 	}
 	metrics.BundleCollector.Collect(ctx, bundle)
 	return nil
+}
+
+// cleanupOrphanedBundleDeployments will delete all existing BundleDeployments corresponding that do not match a provided list
+func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context, bundle *fleet.Bundle, created []*fleet.BundleDeployment) error {
+	uidsToKeep := make(sets.Set[types.UID], len(created))
+	for _, bd := range created {
+		uidsToKeep.Insert(bd.UID)
+	}
+
+	list := &fleet.BundleDeploymentList{}
+	if err := r.List(ctx, list,
+		client.MatchingLabels{
+			fleet.BundleLabel:          bundle.GetName(),
+			fleet.BundleNamespaceLabel: bundle.GetNamespace(),
+		},
+	); err != nil {
+		return err
+	}
+
+	var errs []error
+	for _, bd := range list.Items {
+		if uidsToKeep.Has(bd.UID) {
+			continue
+		}
+		if err := r.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
