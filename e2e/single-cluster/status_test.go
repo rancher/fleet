@@ -66,7 +66,8 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 			targetNamespace = "my-custom-namespace"
 		})
 
-		It("correctly sets the status values for GitRepos", func() {
+		It("correctly sets status values", func() {
+			By("correctly updating status values for GitRepos")
 			Eventually(func(g Gomega) {
 				out, err := k.Get("gitrepo", "my-gitrepo", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
 				g.Expect(err).ToNot(HaveOccurred(), out)
@@ -78,9 +79,8 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 				g.Expect(err).ToNot(HaveOccurred(), out)
 				g.Expect(out).Should(ContainSubstring("\"readyBundleDeployments\":\"1/1\""))
 			}).Should(Succeed())
-		})
 
-		It("correctly sets the status values for Clusters", func() {
+			By("correctly updating status values for Clusters")
 			Eventually(func(g Gomega) {
 				out, err := k.Get("cluster", "local", "-n", "fleet-local", "-o", "jsonpath='{.status.display.readyBundles}'")
 				g.Expect(err).ToNot(HaveOccurred(), out)
@@ -88,9 +88,8 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 				// Expected 2 bundles instead of just 1 because fleet-agent is also included here
 				g.Expect(out).Should(Equal("'2/2'"))
 			}).Should(Succeed())
-		})
 
-		It("correctly sets the status values for ClusterGroups", func() {
+			By("correctly updating status values for ClusterGroups")
 			Eventually(func(g Gomega) {
 				out, err := k.Get("clustergroup", "default", "-n", "fleet-local", "-o", "jsonpath='{.status.display.readyBundles}'")
 				g.Expect(err).ToNot(HaveOccurred(), out)
@@ -100,9 +99,8 @@ var _ = Describe("Checks status updates happen for a simple deployment", Ordered
 				g.Expect(err).ToNot(HaveOccurred(), out)
 				g.Expect(out).Should(Equal("'1/1'"))
 			}).Should(Succeed())
-		})
 
-		It("correctly sets the status values for bundle", func() {
+			By("correctly updating status values for bundles")
 			Eventually(func(g Gomega) {
 				out, err := k.Get("bundle", "my-gitrepo-helm-verify", "-n", "fleet-local", "-o", "jsonpath='{.status.summary}'")
 				g.Expect(err).ToNot(HaveOccurred(), out)
@@ -236,15 +234,15 @@ var _ = Describe("Checks that template errors are shown in bundles and gitrepos"
 			targetNamespace = testenv.NewNamespaceName("target", r)
 		})
 
-		It("should have an error in the bundle", func() {
+		It("should exhibit the error", func() {
+			By("showing the error in the bundle")
 			_, _ = ensureClusterHasNoLabelFoo()
 			Eventually(func(g Gomega) {
 				status := getBundleStatus(g, k, gitrepoName+"-examples")
 				expectTargetingError(g, status.Conditions)
 			}).Should(Succeed())
-		})
 
-		It("should have an error in the gitrepo", func() {
+			By("showing the error in the gitrepo")
 			_, _ = ensureClusterHasNoLabelFoo()
 			Eventually(func(g Gomega) {
 				status := getGitRepoStatus(g, k, gitrepoName)

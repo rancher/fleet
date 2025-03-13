@@ -59,7 +59,8 @@ var _ = Describe("Monitoring Helm releases along GitRepo/bundle namespace update
 	})
 
 	When("updating a bundle's namespace", func() {
-		It("creates a new release in the new namespace", func() {
+		It("properly manages releases", func() {
+			By("creating a new release in the new namespace")
 			out, err := k.Patch(
 				"gitrepo",
 				gitrepoName,
@@ -70,9 +71,8 @@ var _ = Describe("Monitoring Helm releases along GitRepo/bundle namespace update
 			Expect(err).ToNot(HaveOccurred(), out)
 
 			checkRelease(newNamespace, fmt.Sprintf("%s-%s", gitrepoName, path))
-		})
 
-		It("deletes the old release in the previous namespace", func() {
+			By("deleting the old release in the previous namespace")
 			Eventually(func(g Gomega) {
 				cmd := exec.Command("helm", "list", "-q", "-n", oldNamespace)
 				out, err := cmd.CombinedOutput()
