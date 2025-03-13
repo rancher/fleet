@@ -54,7 +54,7 @@ var _ = Describe("HelmApp resource tests", Label("infra-setup", "helm-registry")
 		}{
 			name,
 			namespace,
-			getChartMuseumExternalAddr(env),
+			getChartMuseumExternalAddr(),
 			"sleeper-chart",
 			helmOpsSecretName,
 			true,
