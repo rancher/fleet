@@ -128,7 +128,7 @@ type ClusterSpec struct {
 
 	// +nullable
 	// +optional
-	// HostNetwork sets the agent StatefulSet to use hostNetwork: true setting.
+	// HostNetwork sets the agent Deployment to use hostNetwork: true setting.
 	// Allows for provisioning of network related bundles (CNI configuration).
 	HostNetwork *bool `json:"hostNetwork,omitempty"`
 }
