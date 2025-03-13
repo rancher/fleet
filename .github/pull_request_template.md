@@ -7,3 +7,9 @@ Refers to #XXX
 <!--
   Please provide a unit, integration (`./integrationtests/`) or e2e (`./e2e/`) test if possible.
 -->
+
+## Additional Information
+
+### Checklist
+
+- [ ] <!-- If applicable,--> I have updated the documentation via pull request in [website](https://github.com/updatecli/website) repository.
