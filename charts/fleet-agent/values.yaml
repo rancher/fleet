@@ -1,7 +1,7 @@
 image:
   os: "windows,linux"
   repository: rancher/fleet-agent
-  tag: v0.12.0-beta.2
+  tag: v0.12.0-rc.1
 
 # The public URL of the Kubernetes API server running the Fleet Controller must be set here
 # Example: https://example.com:6443
