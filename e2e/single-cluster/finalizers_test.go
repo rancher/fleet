@@ -35,6 +35,7 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 
 		err := testenv.CreateGitRepo(k, targetNamespace, gitrepoName, "master", "", path)
 		Expect(err).ToNot(HaveOccurred())
+		GinkgoWriter.Printf("created GitRepo %q in %q", gitrepoName, targetNamespace)
 
 		Eventually(func(g Gomega) {
 			deployID, err := k.Get(
@@ -52,6 +53,9 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 
 			out, err := k.Get("content", contentID)
 			g.Expect(err).ToNot(HaveOccurred(), out)
+
+			out, err = k.Namespace(targetNamespace).Get("configmap", "test-simple-chart-config")
+			g.Expect(err).ToNot(HaveOccurred(), out)
 		}).Should(Succeed())
 	})
 
@@ -65,6 +69,7 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring("deployment.apps/fleet-controller scaled"))
+		GinkgoWriter.Print("Scaled up the fleet-controller to 1 replicas")
 
 		_, err = k.Namespace("cattle-fleet-system").Run(
 			"scale",
@@ -119,6 +124,7 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 			}).Should(ContainSubstring(gitrepoName))
 
 			By("scaling down the gitjob controller to 0 replicas")
+			GinkgoWriter.Print("Scaling down the fleet-controller to 0 replicas")
 			_, err := k.Namespace("cattle-fleet-system").Run(
 				"scale",
 				"deployment",
@@ -235,6 +241,7 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 			}).Should(ContainSubstring(gitrepoName))
 
 			By("scaling down the Fleet controller to 0 replicas")
+			GinkgoWriter.Print("Scaling down the fleet-controller to 0 replicas")
 			_, err := k.Namespace("cattle-fleet-system").Run(
 				"scale",
 				"deployment",
@@ -286,6 +293,7 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 			}).Should(ContainSubstring(gitrepoName))
 
 			By("scaling down the Fleet controller to 0 replicas")
+			GinkgoWriter.Print("Scaling down the fleet-controller to 0 replicas")
 			_, err := k.Namespace("cattle-fleet-system").Run(
 				"scale",
 				"deployment",
