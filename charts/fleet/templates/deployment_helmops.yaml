@@ -16,6 +16,7 @@ kind: Deployment
 metadata:
   name: "helmops{{if $shard.id }}-shard-{{ $shard.id }}{{end}}"
 spec:
+  replicas: {{ $.Values.helmops.replicas }}
   selector:
     matchLabels:
       app: "helmops"
