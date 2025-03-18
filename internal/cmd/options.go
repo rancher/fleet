@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -47,4 +48,23 @@ func NewLeaderElectionOptions() (LeaderElectionOptions, error) {
 		leaderOpts.RetryPeriod = &v
 	}
 	return leaderOpts, nil
+}
+
+func ParseEnvAgentReplicaCount() (int32, error) {
+	replicas, err := parseEnvInt32("FLEET_AGENT_REPLICA_COUNT")
+	if err != nil {
+		return 0, err
+	}
+	return replicas, nil
+}
+
+func parseEnvInt32(envVar string) (int32, error) {
+	if d := os.Getenv(envVar); d != "" {
+		v, err := strconv.ParseInt(d, 10, 32)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse %s with int32 %s: %w", envVar, d, err)
+		}
+		return int32(v), nil
+	}
+	return 0, nil
 }

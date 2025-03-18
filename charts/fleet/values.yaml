@@ -124,6 +124,7 @@ helmops:
 
 ## Fleet agent configuration
 agent:
+  replicas: 1
   reconciler:
     # The number of workers that are allowed for each type of reconciler
     workers:
