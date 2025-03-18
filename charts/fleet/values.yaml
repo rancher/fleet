@@ -101,6 +101,7 @@ leaderElection:
 
 ## Fleet controller configuration
 controller:
+  replicas: 1
   reconciler:
     # The number of workers that are allowed to each type of reconciler
     workers:
