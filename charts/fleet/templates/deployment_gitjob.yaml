@@ -16,6 +16,7 @@ kind: Deployment
 metadata:
   name: "gitjob{{if $shard.id }}-shard-{{ $shard.id }}{{end}}"
 spec:
+  replicas: {{ $.Values.gitjob.replicas }}
   selector:
     matchLabels:
       app: "gitjob"

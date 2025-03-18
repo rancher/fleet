@@ -115,6 +115,9 @@ controller:
       clustergroup: "50"
       imagescan: "50"
 
+gitjob:
+  replicas: 1
+
 ## Fleet agent configuration
 agent:
   reconciler:
