@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: fleet-agent
 spec:
+  replicas: {{ .Values.agent.replicas }}
   selector:
     matchLabels:
       app: fleet-agent
