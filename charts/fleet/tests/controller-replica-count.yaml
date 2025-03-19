@@ -1,0 +1,20 @@
+suite: replica values test for fleet controller
+templates:
+  - deployment.yaml
+  - deployment_gitjob.yaml
+  - deployment_helmops.yaml
+tests:
+  - it: should set spec.replicas to the number of replicas specified in agent.replicas
+    set:
+      controller.replicas: 3
+      gitjob.replicas: 3
+      helmops.replicas: 3
+      extraEnv:
+        - name: 'EXPERIMENTAL_HELM_OPS'
+          value: 'true'
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 3
