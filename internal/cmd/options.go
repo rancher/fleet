@@ -71,5 +71,5 @@ func parseEnvDuration(envVar string) (*time.Duration, error) {
 		}
 		return &v, nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("environment variable %s not set", envVar)
 }
