@@ -1,0 +1,13 @@
+suite: replica values test for fleet agent
+templates:
+  - deployment.yaml
+tests:
+  - it: should set the environment variable to the number of replicas
+    set:
+      agent.replicas: 3
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[?(@.name == 'fleet-agentmanagement')].env[?(@.name == 'FLEET_AGENT_REPLICA_COUNT')].value
+          value: "3"
