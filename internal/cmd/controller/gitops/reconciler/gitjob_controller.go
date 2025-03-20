@@ -441,12 +441,12 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 		return false, err
 	}
 	data := secret.StringData
-	res, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
 		secret.StringData = data // Supports update case, if the secret already exists.
 		return nil
 	})
 
-	return res == controllerutil.OperationResultCreated || res == controllerutil.OperationResultUpdated, err
+	return true, err
 }
 
 func (r *GitJobReconciler) validateExternalSecretExist(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {

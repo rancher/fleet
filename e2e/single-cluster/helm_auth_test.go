@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
@@ -89,6 +90,27 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 					out, _ := k.Namespace(targetNamespace).Get("pods", "--field-selector=status.phase==Running")
 					return out
 				}).Should(ContainSubstring("sleeper-"))
+
+				// Force-update the GitRepo and check that mount points are not altered
+				out, err := k.Patch(
+					"gitrepo",
+					"helm",
+					"--type=merge",
+					"-p",
+					// Use a deliberately larger number, not expected to have been reached yet.
+					`{"spec":{"forceSyncGeneration": 42}}`)
+				Expect(err).ToNot(HaveOccurred(), out)
+
+				Consistently(func(g Gomega) {
+					out, err := k.Get(
+						"gitrepo",
+						"helm",
+						"-o",
+						`jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Stalled")].message}'`,
+					)
+					g.Expect(err).ToNot(HaveOccurred())
+					g.Expect(out).ToNot(ContainSubstring("signed by unknown authority"))
+				}, 10*time.Second, 1*time.Second).Should(Succeed())
 			})
 		})
 		Context("containing a private HTTP-based helm chart with repo path", Label("helm-registry"), func() {
