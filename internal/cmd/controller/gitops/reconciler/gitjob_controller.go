@@ -7,6 +7,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -430,7 +431,7 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: gitrepo.ObjectMeta.Namespace,
+			Namespace: gitrepo.Namespace,
 			Name:      name,
 		},
 		Data: map[string][]byte{
@@ -626,14 +627,7 @@ func (r *GitJobReconciler) newGitJob(ctx context.Context, obj *v1alpha1.GitRepo)
 	// Look for a `--ca-bundle-file` arg to the git cloner. This applies to cases where the GitRepo's `Spec.CABundle` is
 	// specified, but also to cases where a CA bundle secret has been created instead, with data from Rancher
 	// secrets.
-	hasCABundleArg := false
-	for _, arg := range initContainer.Args {
-		if arg == "--ca-bundle-file" {
-			hasCABundleArg = true
-			break
-		}
-	}
-	if hasCABundleArg {
+	if slices.Contains(initContainer.Args, "--ca-bundle-file") {
 		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
 			Name: bundleCAVolumeName,
 			VolumeSource: corev1.VolumeSource{
