@@ -36,6 +36,7 @@ type ManifestOptions struct {
 	AgentImage              string // DefaultAgentImage = "rancher/fleet-agent" + ":" + version.Version
 	AgentImagePullPolicy    string
 	AgentTolerations        []corev1.Toleration
+	AgentReplicas           int32
 	CheckinInterval         string
 	PrivateRepoURL          string // PrivateRepoURL = registry.yourdomain.com:5000
 	SystemDefaultRegistry   string
@@ -144,6 +145,7 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 	name := DefaultName
 	serviceAccount := DefaultName
 	image := Resolve(opts.SystemDefaultRegistry, opts.PrivateRepoURL, opts.AgentImage)
+	replicas := opts.AgentReplicas
 
 	app := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -151,6 +153,7 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 			Name:      name,
 		},
 		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app": name,
