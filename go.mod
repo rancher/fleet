@@ -39,7 +39,7 @@ require (
 	github.com/prometheus/common v0.62.0
 	github.com/rancher/fleet/pkg/apis v0.11.3
 	github.com/rancher/lasso v0.2.1
-	github.com/rancher/wrangler/v3 v3.2.0-rc.3
+	github.com/rancher/wrangler/v3 v3.2.0
 	github.com/reugn/go-quartz v0.13.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
