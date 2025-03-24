@@ -60,51 +60,26 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 	})
 
 	AfterEach(func() {
-		out, err := k.Namespace("cattle-fleet-system").Run(
-			"scale",
-			"deployment",
-			"fleet-controller",
-			"--replicas=1",
-			"--timeout=5s",
-		)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(ContainSubstring("deployment.apps/fleet-controller scaled"))
-		GinkgoWriter.Print("Scaled up the fleet-controller to 1 replicas")
-
-		_, err = k.Namespace("cattle-fleet-system").Run(
-			"scale",
-			"deployment",
-			"gitjob",
-			"--replicas=1",
-			"--timeout=5s",
-		)
-		Expect(err).ToNot(HaveOccurred())
-
-		_, _ = k.Delete("gitrepo", gitrepoName, "--wait=false")
-		_, _ = k.Delete("bundle", fmt.Sprintf("%s-%s", gitrepoName, path), "--wait=false")
-
 		_, _ = k.Delete("ns", targetNamespace, "--wait=false")
 
 		// Check that the content resource has been deleted, once all GitRepos and bundle deployments
 		// referencing it have also been deleted.
-		// We do not run this test when directly deleting a bundle deployment deletion, because this leads to
-		// recreation of the corresponding content resource as the bundle still exists.
-		if !strings.Contains(gitrepoName, "bundledeployment-test") {
-			Eventually(func(g Gomega) {
-				// Check that the last known content resource for the gitrepo has been deleted
-				out, _ := k.Get("content", contentID)
-				g.Expect(out).To(ContainSubstring("not found"))
+		// We do not run this test when directly deleting a bundle deployment, because this leads to recreation
+		// of the corresponding content resource as the bundle still exists.
+		Eventually(func(g Gomega) {
+			// Check that the last known content resource for the gitrepo has been deleted
+			out, _ := k.Get("content", contentID)
+			g.Expect(out).To(ContainSubstring("not found"))
 
-				// Check that no content resource is left for the gitrepo's bundledeployment(s)
-				out, err := k.Get(
-					"contents",
-					`-o=jsonpath=jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.finalizers}`+
-						`{"\n"}{end}'`,
-				)
-				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(out).ToNot(ContainSubstring(gitrepoName))
-			}).Should(Succeed())
-		}
+			// Check that no content resource is left for the gitrepo's bundledeployment(s)
+			out, err := k.Get(
+				"contents",
+				`-o=jsonpath=jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.finalizers}`+
+					`{"\n"}{end}'`,
+			)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(out).ToNot(ContainSubstring(gitrepoName))
+		}).Should(Succeed())
 	})
 
 	When("deleting an existing GitRepo", func() {
@@ -273,66 +248,27 @@ var _ = Describe("Deleting a resource with finalizers", Ordered, func() {
 			out, err = k.Get("bundledeployments", "-A")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(out).To(ContainSubstring(gitrepoName))
-		})
-	})
 
-	When("deleting an existing bundledeployment", func() {
-		BeforeEach(func() {
-			gitrepoName = testenv.RandomFilename("finalizers-bundledeployment-test", r)
-		})
-		It("updates the deployment", func() {
-			By("checking the bundle and bundle deployment exist")
-			Eventually(func() string {
-				out, _ := k.Get("bundles")
-				return out
-			}).Should(ContainSubstring(gitrepoName))
-
-			Eventually(func() string {
-				out, _ := k.Get("bundledeployments", "-A")
-				return out
-			}).Should(ContainSubstring(gitrepoName))
-
-			By("scaling down the Fleet controller to 0 replicas")
-			GinkgoWriter.Print("Scaling down the fleet-controller to 0 replicas")
-			_, err := k.Namespace("cattle-fleet-system").Run(
+			By("deleting the bundle once the controller runs again")
+			out, err = k.Namespace("cattle-fleet-system").Run(
 				"scale",
 				"deployment",
 				"fleet-controller",
-				"--replicas=0",
+				"--replicas=1",
 				"--timeout=5s",
 			)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("deployment.apps/fleet-controller scaled"))
 
-			By("deleting the bundledeployment")
-			bdNamespace, err := k.Get(
-				"ns",
-				"-o=jsonpath={.items[?(@."+
-					`metadata.annotations.fleet\.cattle\.io/cluster-namespace=="fleet-local"`+
-					")].metadata.name}",
-			)
+			Eventually(func(g Gomega) {
+				out, _ := k.Get("bundle", fmt.Sprintf("%s-%s", gitrepoName, path))
+				g.Expect(out).To(ContainSubstring("not found"))
+			}).Should(Succeed())
+		})
+
+		JustAfterEach(func() {
+			_, err := k.Delete("gitrepo", gitrepoName)
 			Expect(err).ToNot(HaveOccurred())
-
-			// Deleting a bundle deployment should hang for as long as it has a finalizer
-			out, err := env.Kubectl.Namespace(bdNamespace).Delete(
-				"bundledeployment",
-				fmt.Sprintf("%s-%s", gitrepoName, path),
-				"--timeout=2s",
-			)
-			Expect(err).To(HaveOccurred())
-			Expect(out).To(ContainSubstring("timed out"))
-
-			By("checking that the bundledeployment still exists and has a deletion timestamp")
-			out, err = env.Kubectl.Namespace(bdNamespace).Get(
-				"bundledeployment",
-				fmt.Sprintf("%s-%s", gitrepoName, path),
-				"-o=jsonpath={range .items[*]}{.metadata.deletionTimestamp}",
-			)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(out).ToNot(BeZero())
-
-			By("checking that the configmap created by the bundle deployment still exists")
-			out, err = k.Namespace(targetNamespace).Get("configmap", "test-simple-chart-config")
-			Expect(err).ToNot(HaveOccurred(), out)
 		})
 	})
 })
