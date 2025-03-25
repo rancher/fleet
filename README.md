@@ -37,7 +37,7 @@ Install the Fleet Helm charts (there's two because we separate out CRDs for ulti
 
 ```shell
 helm -n cattle-fleet-system install --create-namespace --wait \
-    fleet-crd https://github.com/rancher/fleet/releases/download/v0.11.5/fleet-crd-0.11.5.tgz
+    fleet-crd https://github.com/rancher/fleet/releases/download/v0.12.0/fleet-crd-0.12.0.tgz
 helm -n cattle-fleet-system install --create-namespace --wait \
     fleet https://github.com/rancher/fleet/releases/download/v0.11.5/fleet-0.11.5.tgz
 ```
