@@ -66,6 +66,7 @@ type Apply struct {
 	OCIPasswordFile             string            `usage:"Path of file containing basic auth password for OCI registry" name:"oci-password-file"`
 	OCIBasicHTTP                bool              `usage:"Use HTTP to access the OCI regustry" name:"oci-basic-http"`
 	OCIInsecure                 bool              `usage:"Allow connections to OCI registry without certs" name:"oci-insecure"`
+	DrivenScan                  bool              `usage:"Use driven scan. Bundles are defined by the user" name:"driven-scan"`
 }
 
 func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
@@ -123,6 +124,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		CorrectDrift:                a.CorrectDrift,
 		CorrectDriftForce:           a.CorrectDriftForce,
 		CorrectDriftKeepFailHistory: a.CorrectDriftKeepFailHistory,
+		DrivenScan:                  a.DrivenScan,
 	}
 
 	knownHostsPath, err := writeTmpKnownHosts()
@@ -170,6 +172,9 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	defer restoreEnv() // nolint: errcheck // best-effort
 
+	if opts.DrivenScan {
+		return apply.CreateBundlesDriven(cmd.Context(), Client, name, args, opts)
+	}
 	return apply.CreateBundles(cmd.Context(), Client, name, args, opts)
 }
 

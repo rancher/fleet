@@ -6342,6 +6342,23 @@ spec:
                   description: Branch The git branch to follow.
                   nullable: true
                   type: string
+                bundles:
+                  description: 'Bundles defines the paths of bundles to be read.
+
+                    This drives the fleet resource scanner that simply loads the specified
+                    folders'
+                  items:
+                    properties:
+                      options:
+                        description: Options is the path (relative to path above)
+                          that defines a fleet.yaml file to configure the bundle
+                        nullable: true
+                        type: string
+                      path:
+                        description: Path is the base path for the bundle resources
+                        type: string
+                    type: object
+                  type: array
                 caBundle:
                   description: CABundle is a PEM encoded CA bundle which will be used
                     to validate the repo's certificate.

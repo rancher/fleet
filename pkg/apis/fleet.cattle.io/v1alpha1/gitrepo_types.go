@@ -140,6 +140,18 @@ type GitRepoSpec struct {
 
 	// WebhookSecret contains the name of the secret to use for webhook parsing
 	WebhookSecret string `json:"webhookSecret,omitempty"`
+
+	// Bundles defines the paths of bundles to be read.
+	// This drives the fleet resource scanner that simply loads the specified folders
+	Bundles []BundlePath `json:"bundles,omitempty"`
+}
+
+type BundlePath struct {
+	// Path is the base path for the bundle resources
+	Path string `json:"path,omitempty"`
+	// Options is the path (relative to path above) that defines a fleet.yaml file to configure the bundle
+	// +nullable
+	Options string `json:"options,omitempty"`
 }
 
 // GitTarget is a cluster or cluster group to deploy to.

@@ -14,6 +14,7 @@ import (
 	cp "github.com/otiai10/copy"
 
 	"github.com/rancher/fleet/integrationtests/cli"
+	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
@@ -190,6 +191,227 @@ var _ = Describe("Fleet apply", Ordered, func() {
 				Expect(bundle.Spec.Helm.TakeOwnership).To(BeTrue())
 				Expect(bundle.Spec.Helm.ReleaseName).To(Equal("kustomize"))
 			})
+		})
+	})
+})
+
+var _ = Describe("Fleet apply driven", Ordered, func() {
+
+	var (
+		dirs    []string
+		name    string
+		options apply.Options
+		repo    = repository{
+			port: port,
+		}
+	)
+
+	JustBeforeEach(func() {
+		err := fleetApplyDriven(name, dirs, options)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	When("using driven scan with multiple paths and options", func() {
+		BeforeEach(func() {
+			name = "keep_resources"
+			dirs = []string{
+				cli.AssetsPath + "driven/helm",
+				cli.AssetsPath + "driven/simple",
+				cli.AssetsPath + "driven/kustomize" + ",dev.yaml",
+				cli.AssetsPath + "driven/kustomize" + ",prod.yaml",
+			}
+			// set credentials to download helm chart for mock repository
+			options.AuthByPath = map[string]bundlereader.Auth{
+				cli.AssetsPath + "driven/helm": {Username: username, Password: password},
+			}
+			repo.startRepository(true)
+		})
+
+		AfterEach(func() {
+			err := repo.stopRepository()
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("creates the expected 4 bundles of different types", func() {
+			bundles, err := cli.GetBundleListFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundles).To(HaveLen(4))
+
+			// helm bundle
+			helmBundle := bundles[0]
+			Expect(helmBundle.Name).To(Equal("assets-driven-helm"))
+			Expect(helmBundle.Spec.Resources).To(HaveLen(3))
+			// as files were unpacked from the downloaded chart we can't just
+			// list the files in the original folder and compare.
+			// Files are only located in the bundle resources
+			Expect("Chart.yaml").To(bePresentOnlyInBundleResources(helmBundle.Spec.Resources))
+			Expect("values.yaml").To(bePresentOnlyInBundleResources(helmBundle.Spec.Resources))
+			Expect("templates/configmap.yaml").To(bePresentOnlyInBundleResources(helmBundle.Spec.Resources))
+			// check for helm options defined in the fleet.yaml file
+			Expect(helmBundle.Spec.Helm).ToNot(BeNil())
+			Expect(helmBundle.Spec.Helm.ReleaseName).To(Equal("config-chart"))
+			Expect(helmBundle.Spec.Helm.Chart).To(Equal("http://localhost:3000/config-chart-0.1.0.tgz"))
+
+			// simple bundle
+			simpleBundle := bundles[1]
+			Expect(simpleBundle.Name).To(Equal("assets-driven-simple"))
+			Expect(simpleBundle.Spec.Resources).To(HaveLen(2))
+			expectedResources := []string{
+				cli.AssetsPath + "driven/simple/deployment.yaml",
+				cli.AssetsPath + "driven/simple/svc.yaml",
+			}
+			for _, r := range expectedResources {
+				Expect(r).To(bePresentInBundleResources(simpleBundle.Spec.Resources))
+			}
+
+			// kustomize dev bundle
+			kDevBundle := bundles[2]
+			Expect(kDevBundle.Name).To(Equal("assets-driven-kustomize-dev"))
+
+			// kustomize prod bundle
+			kProdBundle := bundles[3]
+			Expect(kProdBundle.Name).To(Equal("assets-driven-kustomize-prod"))
+
+			// both kustomize bundles have the same resources, but different config fleet.yaml
+			kResources := []string{
+				cli.AssetsPath + "driven/kustomize/base/kustomization.yaml",
+				cli.AssetsPath + "driven/kustomize/base/secret.yaml",
+				cli.AssetsPath + "driven/kustomize/overlays/dev/kustomization.yaml",
+				cli.AssetsPath + "driven/kustomize/overlays/dev/secret.yaml",
+				cli.AssetsPath + "driven/kustomize/overlays/prod/kustomization.yaml",
+				cli.AssetsPath + "driven/kustomize/overlays/prod/secret.yaml",
+				cli.AssetsPath + "driven/kustomize/dev.yaml",
+				cli.AssetsPath + "driven/kustomize/prod.yaml",
+			}
+			Expect(kDevBundle.Spec.Resources).To(HaveLen(8))
+			Expect(kProdBundle.Spec.Resources).To(HaveLen(8))
+			for _, r := range kResources {
+				Expect(r).To(bePresentInBundleResources(kDevBundle.Spec.Resources))
+				Expect(r).To(bePresentInBundleResources(kProdBundle.Spec.Resources))
+			}
+
+			// they should have different Kustomize options
+			Expect(kDevBundle.Spec.Kustomize).ToNot(BeNil())
+			Expect(kProdBundle.Spec.Kustomize).ToNot(BeNil())
+			Expect(kDevBundle.Spec.Kustomize.Dir).To(Equal("overlays/dev"))
+			Expect(kProdBundle.Spec.Kustomize.Dir).To(Equal("overlays/prod"))
+		})
+	})
+
+	When("deploying folder with fleet files in camelCase", func() {
+		BeforeEach(func() {
+			name = "keep_resources"
+			dirs = []string{
+				cli.AssetsPath + "driven2/kustomize" + ",fleetDev.yaml",
+				cli.AssetsPath + "driven2/kustomize" + ",fleetProd.yaml",
+			}
+		})
+
+		It("creates the bundles with names in lower case and having a suffix", func() {
+			bundles, err := cli.GetBundleListFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundles).To(HaveLen(2))
+
+			// kustomize dev bundle
+			kDevBundle := bundles[0]
+			Expect(kDevBundle.Name).To(Equal("assets-driven2-kustomize-fleetdev-2946f474"))
+
+			// kustomize prod bundle
+			kProdBundle := bundles[1]
+			Expect(kProdBundle.Name).To(Equal("assets-driven2-kustomize-fleetprod-99f597b0"))
+
+			// both kustomize bundles have the same resources, but different config fleet.yaml
+			kResources := []string{
+				cli.AssetsPath + "driven2/kustomize/base/kustomization.yaml",
+				cli.AssetsPath + "driven2/kustomize/base/secret.yaml",
+				cli.AssetsPath + "driven2/kustomize/overlays/dev/kustomization.yaml",
+				cli.AssetsPath + "driven2/kustomize/overlays/dev/secret.yaml",
+				cli.AssetsPath + "driven2/kustomize/overlays/prod/kustomization.yaml",
+				cli.AssetsPath + "driven2/kustomize/overlays/prod/secret.yaml",
+				cli.AssetsPath + "driven2/kustomize/fleetDev.yaml",
+				cli.AssetsPath + "driven2/kustomize/fleetProd.yaml",
+			}
+			Expect(kDevBundle.Spec.Resources).To(HaveLen(8))
+			Expect(kProdBundle.Spec.Resources).To(HaveLen(8))
+			for _, r := range kResources {
+				Expect(r).To(bePresentInBundleResources(kDevBundle.Spec.Resources))
+				Expect(r).To(bePresentInBundleResources(kProdBundle.Spec.Resources))
+			}
+
+			// they should have different Kustomize options
+			Expect(kDevBundle.Spec.Kustomize).ToNot(BeNil())
+			Expect(kProdBundle.Spec.Kustomize).ToNot(BeNil())
+			Expect(kDevBundle.Spec.Kustomize.Dir).To(Equal("overlays/dev"))
+			Expect(kProdBundle.Spec.Kustomize.Dir).To(Equal("overlays/prod"))
+		})
+	})
+
+	When("deploying folder with fleet file in a subfolder and no specifying the path", func() {
+		BeforeEach(func() {
+			name = "keep_resources"
+			dirs = []string{
+				cli.AssetsPath + "driven_fleet_yaml_subfolder/helm",
+			}
+		})
+
+		It("creates 1 raw bundle, that has the fleet.yaml only and no helm options", func() {
+			bundles, err := cli.GetBundleListFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundles).To(HaveLen(1))
+
+			// kustomize dev bundle
+			b := bundles[0]
+
+			// name will be truncated
+			Expect(b.Name).To(Equal("assets-driven-fleet-yaml-subfolder-helm-f49dc35c"))
+			Expect(b.Spec.Resources).To(HaveLen(1))
+			resPath := cli.AssetsPath + "driven_fleet_yaml_subfolder/helm/test/fleet.yaml"
+			Expect(resPath).To(bePresentInBundleResources(b.Spec.Resources))
+
+			// as the fleet.yaml was not parsed as a fleet.yaml the helm options are not set
+			Expect(b.Spec.Helm).To(BeNil())
+		})
+	})
+
+	When("deploying folder with fleet file in a subfolder and specifying the path", func() {
+		BeforeEach(func() {
+			name = "keep_resources"
+			dirs = []string{
+				cli.AssetsPath + "driven_fleet_yaml_subfolder/helm,test/fleet.yaml",
+			}
+			// set credentials to download helm chart for mock repository
+			options.AuthByPath = map[string]bundlereader.Auth{
+				cli.AssetsPath + "driven_fleet_yaml_subfolder/helm": {Username: username, Password: password},
+			}
+			repo.startRepository(true)
+		})
+
+		AfterEach(func() {
+			err := repo.stopRepository()
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("creates 1 raw bundle, that has chart resources and has helm options", func() {
+			bundles, err := cli.GetBundleListFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundles).To(HaveLen(1))
+
+			// helm bundle
+			helmBundle := bundles[0]
+			Expect(helmBundle.Name).To(Equal("assets-driven-fleet-yaml-subfolder-helm-test-fl-b676f"))
+			Expect(helmBundle.Spec.Resources).To(HaveLen(4))
+			// as files were unpacked from the downloaded chart we can't just
+			// list the files in the original folder and compare.
+			// Files are only located in the bundle resources
+			Expect("Chart.yaml").To(bePresentOnlyInBundleResources(helmBundle.Spec.Resources))
+			Expect("values.yaml").To(bePresentOnlyInBundleResources(helmBundle.Spec.Resources))
+			Expect("templates/configmap.yaml").To(bePresentOnlyInBundleResources(helmBundle.Spec.Resources))
+			resPath := cli.AssetsPath + "driven_fleet_yaml_subfolder/helm/test/fleet.yaml"
+			Expect(resPath).To(bePresentInBundleResources(helmBundle.Spec.Resources))
+			// check for helm options defined in the fleet.yaml file
+			Expect(helmBundle.Spec.Helm).ToNot(BeNil())
+			Expect(helmBundle.Spec.Helm.ReleaseName).To(Equal("config-chart"))
+			Expect(helmBundle.Spec.Helm.Chart).To(Equal("http://localhost:3000/config-chart-0.1.0.tgz"))
 		})
 	})
 })
