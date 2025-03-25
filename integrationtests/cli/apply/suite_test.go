@@ -26,6 +26,14 @@ func fleetApply(name string, dirs []string, options apply.Options) error {
 	return apply.CreateBundles(context.Background(), client.NewGetter("", "", "fleet-local"), name, dirs, options)
 }
 
+// simulates fleet cli execution in driven mode
+func fleetApplyDriven(name string, dirs []string, options apply.Options) error {
+	buf = gbytes.NewBuffer()
+	options.DrivenScan = true
+	options.Output = buf
+	return apply.CreateBundlesDriven(context.Background(), client.NewGetter("", "", "fleet-local"), name, dirs, options)
+}
+
 // simulates fleet cli online execution, with mocked client
 func fleetApplyOnline(getter apply.Getter, name string, dirs []string, options apply.Options) error {
 	return apply.CreateBundles(context.Background(), getter, name, dirs, options)
