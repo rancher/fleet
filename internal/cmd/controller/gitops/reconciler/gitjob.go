@@ -48,6 +48,7 @@ const (
 
 func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v1alpha1.GitRepo, logger logr.Logger) error {
 	logger.V(1).Info("Creating Git job resources")
+
 	if err := r.createJobRBAC(ctx, gitrepo); err != nil {
 		return fmt.Errorf("failed to create RBAC resources for git job: %w", err)
 	}
@@ -60,6 +61,7 @@ func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v
 	if err := r.createJob(ctx, gitrepo); err != nil {
 		return fmt.Errorf("error creating git job: %w", err)
 	}
+
 	r.Recorder.Event(gitrepo, fleetevent.Normal, "Created", "GitJob was created")
 	return nil
 }
