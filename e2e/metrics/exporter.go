@@ -56,7 +56,7 @@ func (m *ExporterTest) FindOneMetric(
 	// check if name exists.
 	mf, ok := allMetrics[name]
 	if !ok {
-		return nil, fmt.Errorf("metric %q not found for URL %v", name, m.url)
+		return nil, fmt.Errorf("metric %q with labels %v not found for URL %v", name, labels, m.url)
 	}
 
 	var metrics []*dto.Metric

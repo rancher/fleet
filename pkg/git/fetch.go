@@ -2,8 +2,10 @@ package git
 
 import (
 	"context"
+	"time"
 
 	"github.com/rancher/fleet/internal/config"
+	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ssh"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/cert"
@@ -13,6 +15,22 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+var (
+	fetchLatestCommitSuccess = metrics.ObjCounter(
+		"gitrepo_fetch_latest_commit_success_total",
+		"Total number of successful fetches of latest commit",
+	)
+	fetchLatestCommitFailure = metrics.ObjCounter(
+		"gitrepo_fetch_latest_commit_failure_total",
+		"Total number of failed attempts to retrieve the latest commit, for any reason",
+	)
+	timeToFetchLatestCommit = metrics.ObjHistogram(
+		"gitrepo_fetch_latest_commit_duration_seconds",
+		"Duration in seconds to fetch the latest commit",
+		metrics.BucketsLatency,
+	)
 )
 
 type KnownHostsGetter interface {
@@ -40,6 +58,7 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 	}, &secret)
 
 	if err != nil && !errors.IsNotFound(err) {
+		fetchLatestCommitFailure.Inc(gitrepo)
 		return "", err
 	}
 
@@ -53,6 +72,7 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 	if len(cabundle) == 0 {
 		cab, err := cert.GetRancherCABundle(ctx, client)
 		if err != nil {
+			fetchLatestCommitFailure.Inc(gitrepo)
 			return "", err
 		}
 
@@ -63,6 +83,7 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 	if f.KnownHosts != nil && f.KnownHosts.IsStrict() && ssh.Is(gitrepo.Spec.Repo) {
 		kh, err := f.KnownHosts.GetWithSecret(ctx, client, &secret)
 		if err != nil {
+			fetchLatestCommitFailure.Inc(gitrepo)
 			return "", err
 		}
 
@@ -84,11 +105,24 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 		log:               log.FromContext(ctx),
 	})
 	if err != nil {
+		fetchLatestCommitFailure.Inc(gitrepo)
 		return "", err
 	}
 
 	if gitrepo.Spec.Revision != "" {
-		return r.RevisionCommit(gitrepo.Spec.Revision)
+		result, err := r.RevisionCommit(gitrepo.Spec.Revision)
+		if err != nil {
+			fetchLatestCommitFailure.Inc(gitrepo)
+		}
+		return result, err
 	}
-	return r.LatestBranchCommit(branch)
+	t := time.Now()
+	result, err := r.LatestBranchCommit(branch)
+	if err != nil {
+		fetchLatestCommitFailure.Inc(gitrepo)
+	}
+	timeToFetchLatestCommit.Observe(gitrepo, time.Since(t).Seconds())
+
+	fetchLatestCommitSuccess.Inc(gitrepo)
+	return result, err
 }
