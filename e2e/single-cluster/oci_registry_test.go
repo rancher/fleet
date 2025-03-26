@@ -97,24 +97,45 @@ func updateExperimentalFlagValue(k kubectl.Command, value bool) {
 	_, _ = k.Namespace(ns).Run("set", "env", "deployment/fleet-controller", strEnvValue)
 	_, _ = k.Namespace(ns).Run("set", "env", "deployment/gitjob", strEnvValue)
 
-	// wait for both pods to restart
-	Eventually(func() bool {
-		controllerPodNow, _ := k.Namespace(ns).Get("pod", "-l", "app=fleet-controller", "-l", "fleet.cattle.io/shard-default=true", "-o", "name")
-		return controllerPodNow != "" &&
-			strings.Contains(controllerPodNow, "pod/fleet-controller-") &&
-			!strings.Contains(controllerPodNow, controllerPod)
-	}).WithTimeout(time.Second * 30).Should(BeTrue())
-	Eventually(func() bool {
-		gitjobPodNow, _ := k.Namespace(ns).Get("pod", "-l", "app=gitjob", "-o", "name")
-		return gitjobPodNow != "" &&
-			strings.Contains(gitjobPodNow, "pod/gitjob-") &&
-			!strings.Contains(gitjobPodNow, gitjobPod)
-	}).WithTimeout(time.Second * 30).Should(BeTrue())
+	// wait for both pods to restart with the right value for the experimental feature env var
+	Eventually(func(g Gomega) {
+		out, err := k.Namespace(ns).Get(
+			"pod",
+			"-l", "app=fleet-controller,fleet.cattle.io/shard-default=true",
+			"-o", fmt.Sprintf(`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].env[?(@.name=="%s")].value}{end}`, experimentalEnvVar),
+		)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		elts := strings.Split(out, "\t")
+		controllerPodNow, valueNow := elts[0], elts[1]
+		g.Expect(controllerPodNow).ToNot(BeEmpty())
+		g.Expect(controllerPodNow).To(ContainSubstring("fleet-controller-"))
+		g.Expect(controllerPodNow).NotTo(ContainSubstring(controllerPod))
+
+		g.Expect(valueNow).To(Equal(fmt.Sprintf("%t", value)))
+	}).WithTimeout(time.Second * 30).Should(Succeed())
+
+	Eventually(func(g Gomega) {
+		out, err := k.Namespace(ns).Get(
+			"pod",
+			"-l", "app=gitjob,fleet.cattle.io/shard-default=true",
+			"-o", fmt.Sprintf(`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].env[?(@.name=="%s")].value}{end}`, experimentalEnvVar),
+		)
+		g.Expect(err).ToNot(HaveOccurred())
+
+		elts := strings.Split(out, "\t")
+		gitjobPodNow, valueNow := elts[0], elts[1]
+		g.Expect(gitjobPodNow).ToNot(BeEmpty())
+		g.Expect(gitjobPodNow).To(ContainSubstring("gitjob-"))
+		g.Expect(gitjobPodNow).NotTo(ContainSubstring(gitjobPod))
+
+		g.Expect(valueNow).To(Equal(fmt.Sprintf("%t", value)))
+	}).WithTimeout(time.Second * 30).Should(Succeed())
 }
 
 var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-registry", "infra-setup"), func() {
 	var (
-		asset                  string
+		asset                  = "single-cluster/test-oci.yaml"
 		insecureSkipTLS        bool
 		forceGitRepoURL        string
 		k                      kubectl.Command
@@ -212,7 +233,6 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	When("creating a gitrepo resource with ociRegistry info", func() {
 		Context("containing a valid helm chart", func() {
 			BeforeEach(func() {
-				asset = "single-cluster/test-oci.yaml"
 				insecureSkipTLS = true
 				forceGitRepoURL = ""
 				experimentalValue = true
@@ -278,7 +298,6 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	When("creating a gitrepo resource with invalid ociRegistry info and experimental flag is false", func() {
 		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
-				asset = "single-cluster/test-oci.yaml"
 				insecureSkipTLS = true
 				forceGitRepoURL = "not-valid-oci-registry.com"
 				experimentalValue = false
@@ -329,7 +348,6 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	When("creating a gitrepo resource with invalid ociRegistry info", func() {
 		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
-				asset = "single-cluster/test-oci.yaml"
 				insecureSkipTLS = true
 				forceGitRepoURL = "not-valid-oci-registry.com"
 				experimentalValue = true
@@ -374,7 +392,6 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	When("creating a gitrepo resource with valid ociRegistry but not ignoring certs", func() {
 		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
-				asset = "single-cluster/test-oci.yaml"
 				insecureSkipTLS = false
 				forceGitRepoURL = ""
 				experimentalValue = true
