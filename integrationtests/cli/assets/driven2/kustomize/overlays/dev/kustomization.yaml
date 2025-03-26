@@ -1,0 +1,5 @@
+nameSuffix: "-dev"
+resources:
+  - ../../base
+patchesStrategicMerge:
+  - secret.yaml

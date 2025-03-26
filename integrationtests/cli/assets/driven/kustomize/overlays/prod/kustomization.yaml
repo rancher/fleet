@@ -1,0 +1,5 @@
+nameSuffix: "-prod"
+resources:
+  - ../../base
+patchesStrategicMerge:
+  - secret.yaml
