@@ -271,6 +271,11 @@ func (r StatusReconciler) setReadyStatusFromBundle(ctx context.Context, gitrepo 
 		return err
 	}
 
+	// Make sure the bundles are always iterated in the same order
+	sort.Slice(bList.Items, func(i, j int) bool {
+		return bList.Items[i].UID < bList.Items[j].UID
+	})
+
 	found := false
 	// Find a ready status condition in a bundle which is not ready.
 	var condition genericcondition.GenericCondition
