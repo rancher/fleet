@@ -180,6 +180,7 @@ func (r StatusReconciler) setReadyStatusFromBundle(ctx context.Context, gitrepo 
 	}
 
 	// Make sure the bundles are always iterated in the same order
+	// The code below will pick the first element matching the condition, so successive executions should produce the same result.
 	sort.Slice(bList.Items, func(i, j int) bool {
 		return bList.Items[i].UID < bList.Items[j].UID
 	})
