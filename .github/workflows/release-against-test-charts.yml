@@ -43,12 +43,12 @@ jobs:
           echo "charts_repo=$charts_repo" >> "$GITHUB_OUTPUT"
 
       - name: Checkout rancher/fleet
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
           path: fleet
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
         with:
           go-version-file: 'fleet/go.mod'
           check-latest: true
@@ -65,14 +65,14 @@ jobs:
 
       - name: Extract metadata for Fleet controller image
         id: meta-fleet
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5
         with:
           images: |
             ttl.sh/rancher-fleet-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
 
       - name: Build and push Fleet controller image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile
@@ -84,14 +84,14 @@ jobs:
 
       - name: Extract metadata for Fleet agent image
         id: meta-fleet-agent
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5
         with:
           images: |
             ttl.sh/rancher-fleet-agent-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
 
       - name: Build and push Fleet agent image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
         with:
           context: ./fleet
           file: ./fleet/package/Dockerfile.agent
@@ -102,7 +102,7 @@ jobs:
           labels: ${{ steps.meta-fleet-agent.outputs.labels }}
 
       - name: Checkout test charts repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
           token: ${{secrets.CI_PUSH_TO_FLEETREPOCI}}
