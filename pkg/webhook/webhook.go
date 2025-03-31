@@ -1,8 +1,10 @@
 package webhook
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -19,13 +21,14 @@ import (
 	"gopkg.in/go-playground/webhooks.v5/gitlab"
 	"gopkg.in/go-playground/webhooks.v5/gogs"
 
-	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	kcache "k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,28 +37,15 @@ import (
 const (
 	webhookSecretName          = "gitjob-webhook" //nolint:gosec // this is a resource name
 	webhookDefaultSyncInterval = 3600
-	githubKey                  = "github"
-	gitlabKey                  = "gitlab"
-	bitbucketKey               = "bitbucket"
-	bitbucketServerKey         = "bitbucket-server"
-	gogsKey                    = "gogs"
-	azureUsername              = "azure-username"
-	azurePassword              = "azure-password"
 
 	branchRefPrefix = "refs/heads/"
 	tagRefPrefix    = "refs/tags/"
 )
 
 type Webhook struct {
-	client          client.Client
-	namespace       string
-	github          *github.Webhook
-	gitlab          *gitlab.Webhook
-	bitbucket       *bitbucket.Webhook
-	bitbucketServer *bitbucketserver.Webhook
-	gogs            *gogs.Webhook
-	log             logr.Logger
-	azureDevops     *azuredevops.Webhook
+	client    client.Client
+	namespace string
+	log       logr.Logger
 }
 
 func New(namespace string, client client.Client) (*Webhook, error) {
@@ -64,87 +54,8 @@ func New(namespace string, client client.Client) (*Webhook, error) {
 		namespace: namespace,
 		log:       ctrl.Log.WithName("webhook"),
 	}
-	err := webhook.initGitProviders()
-	if err != nil {
-		return nil, err
-	}
 
 	return webhook, nil
-}
-
-func (w *Webhook) initGitProviders() error {
-	var err error
-
-	w.github, err = github.New()
-	if err != nil {
-		return err
-	}
-	w.gitlab, err = gitlab.New()
-	if err != nil {
-		return err
-	}
-	w.bitbucket, err = bitbucket.New()
-	if err != nil {
-		return err
-	}
-	w.bitbucketServer, err = bitbucketserver.New()
-	if err != nil {
-		return err
-	}
-	w.gogs, err = gogs.New()
-	if err != nil {
-		return err
-	}
-	w.azureDevops, err = azuredevops.New()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (w *Webhook) onSecretChange(obj interface{}) error {
-	secret, ok := obj.(*corev1.Secret)
-	if !ok {
-		return fmt.Errorf("expected secret object but got %T", obj)
-	}
-	if secret.Name != webhookSecretName && secret.Namespace != w.namespace {
-		return nil
-	}
-
-	var err error
-	github, err := github.New(github.Options.Secret(string(secret.Data[githubKey])))
-	if err != nil {
-		return err
-	}
-	w.github = github
-	gitlab, err := gitlab.New(gitlab.Options.Secret(string(secret.Data[gitlabKey])))
-	if err != nil {
-		return err
-	}
-	w.gitlab = gitlab
-	bitbucket, err := bitbucket.New(bitbucket.Options.UUID(string(secret.Data[bitbucketKey])))
-	if err != nil {
-		return err
-	}
-	w.bitbucket = bitbucket
-	bitbucketServer, err := bitbucketserver.New(bitbucketserver.Options.Secret(string(secret.Data[bitbucketServerKey])))
-	if err != nil {
-		return err
-	}
-	w.bitbucketServer = bitbucketServer
-	gogs, err := gogs.New(gogs.Options.Secret(string(secret.Data[gogsKey])))
-	if err != nil {
-		return err
-	}
-	w.gogs = gogs
-	azureDevops, err := azuredevops.New(azuredevops.Options.BasicAuth(string(secret.Data[azureUsername]), string(secret.Data[azurePassword])))
-	if err != nil {
-		return err
-	}
-	w.azureDevops = azureDevops
-
-	return nil
 }
 
 func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -153,26 +64,24 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	var err error
 	ctx := r.Context()
 
+	// copy the body of the request because we need to parse it twice if secrets are defined
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.logAndReturn(rw, err)
+		return
+	}
+
 	switch {
-	//Gogs needs to be checked before Github since it carries both Gogs and (incompatible) Github headers
-	case r.Header.Get("X-Gogs-Event") != "":
-		payload, err = w.gogs.Parse(r, gogs.PushEvent)
 	case r.Header.Get("X-Github-Event") == "ping":
 		_, _ = rw.Write([]byte("Webhook received successfully"))
 		return
-	case r.Header.Get("X-GitHub-Event") != "":
-		payload, err = w.github.Parse(r, github.PushEvent)
-	case r.Header.Get("X-Gitlab-Event") != "":
-		payload, err = w.gitlab.Parse(r, gitlab.PushEvents, gitlab.TagEvents)
-	case r.Header.Get("X-Hook-UUID") != "":
-		payload, err = w.bitbucket.Parse(r, bitbucket.RepoPushEvent)
-	case r.Header.Get("X-Event-Key") != "":
-		payload, err = w.bitbucketServer.Parse(r, bitbucketserver.RepositoryReferenceChangedEvent)
-	case r.Header.Get("X-Vss-Activityid") != "" || r.Header.Get("X-Vss-Subscriptionid") != "":
-		payload, err = w.azureDevops.Parse(r, azuredevops.GitPushEventType)
 	default:
-		w.log.V(1).Info("Ignoring unknown webhook event")
-		return
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
+		payload, err = parseWebook(r, nil)
+		if payload == nil && err == nil {
+			w.log.V(1).Info("Ignoring unknown webhook event")
+			return
+		}
 	}
 
 	w.log.V(1).Info("Webhook payload", "payload", payload)
@@ -184,7 +93,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	revision, branch, _, repoURLs := parsePayload(payload)
 
-	var gitRepoList v1alpha1.GitRepoList
+	var gitRepoList fleet.GitRepoList
 	err = w.client.List(ctx, &gitRepoList, &client.ListOptions{LabelSelector: labels.Everything()})
 	if err != nil {
 		w.logAndReturn(rw, err)
@@ -222,8 +131,30 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			if gitrepo.Status.WebhookCommit != revision && revision != "" {
+				// before updating the gitrepo check if a secret was
+				// defined and, if so, verify that it is correct
+				secret, err := w.getSecret(ctx, gitrepo)
+				if err != nil {
+					w.logAndReturn(rw, err)
+					return
+				}
+				if secret != nil {
+					// At this point we know that a secret is defined and exists.
+					// Parse the request again (this time with secret)
+					// We need to parse twice because in the first parsing we didn't
+					// know the gitrepo associated with the webhook payload.
+					// The first parsing is used to get the gitrepo and, if a secret is
+					// defined in the gitrepo, it takes precedence over the global one.
+					r.Body = io.NopCloser(bytes.NewBuffer(body))
+					_, err = parseWebook(r, secret)
+					if err != nil {
+						w.logAndReturn(rw, err)
+						return
+					}
+				}
+
 				var gitRepoFromCluster v1alpha1.GitRepo
-				err := w.client.Get(
+				err = w.client.Get(
 					ctx,
 					types.NamespacedName{
 						Name:      gitrepo.Name,
@@ -263,36 +194,6 @@ func HandleHooks(ctx context.Context, namespace string, client client.Client, cl
 	root.UseEncodedPath()
 	root.Handle("/", webhook)
 
-	var secret corev1.Secret
-	informer, err := clientCache.GetInformer(ctx, &secret)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			err := webhook.onSecretChange(obj)
-			if err != nil {
-				webhook.log.Error(err, "new secret added")
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			err := webhook.initGitProviders()
-			if err != nil {
-				webhook.log.Error(err, "secret deleted")
-			}
-		},
-		UpdateFunc: func(_, newObj interface{}) {
-			err := webhook.onSecretChange(newObj)
-			if err != nil {
-				webhook.log.Error(err, "secret updated")
-			}
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	return root, nil
 }
 
@@ -300,6 +201,31 @@ func (w *Webhook) logAndReturn(rw http.ResponseWriter, err error) {
 	w.log.Error(err, "Webhook processing failed")
 	rw.WriteHeader(getErrorCodeFromErr(err))
 	_, _ = rw.Write([]byte(err.Error()))
+}
+
+func (w *Webhook) getSecret(ctx context.Context, gitrepo fleet.GitRepo) (*corev1.Secret, error) {
+	// global secret first (for backward compatibility)
+	secretName := webhookSecretName
+	ns := w.namespace
+	mustExist := false
+	if gitrepo.Spec.WebhookSecret != "" {
+		// the gitrepo secret takes preference over the global one
+		secretName = gitrepo.Spec.WebhookSecret
+		ns = gitrepo.Namespace
+		mustExist = true // when the secret has been defined in the GitRepo it must exist
+	}
+	var secret corev1.Secret
+	err := w.client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: ns}, &secret)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, err
+		}
+		if !mustExist {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("secret %q in namespace %q does not exist", secretName, ns)
+	}
+	return &secret, nil
 }
 
 func getErrorCodeFromErr(err error) int {
