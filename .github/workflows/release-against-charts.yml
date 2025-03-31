@@ -32,18 +32,18 @@ jobs:
     runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
           path: fleet
       - name: Checkout rancher/charts
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
           repository: rancher/charts
           ref: ${{github.event.inputs.charts_ref}}
           path: charts
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
         with:
           go-version: '1.24.*'
       - name: Install dependencies
