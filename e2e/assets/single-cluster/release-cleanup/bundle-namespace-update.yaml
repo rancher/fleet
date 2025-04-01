@@ -1,0 +1,18 @@
+kind: Bundle
+apiVersion: fleet.cattle.io/v1alpha1
+metadata:
+  name: namespace-update
+spec:
+  namespace: {{.TargetNamespace}}
+  resources:
+  - content: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: app-config
+      data:
+        test: "value"
+  targets:
+  - clusterGroup: default
+    ignore: {}
+    name: default

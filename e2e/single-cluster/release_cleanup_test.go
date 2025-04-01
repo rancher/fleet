@@ -3,52 +3,47 @@ package singlecluster_test
 import (
 	"fmt"
 	"math/rand"
-	"os"
 	"os/exec"
-	"path"
 	"strings"
 
-	"github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/e2e/testenv"
-	"github.com/rancher/fleet/e2e/testenv/githelper"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-var _ = Describe("Monitoring Helm releases along GitRepo/bundle namespace updates", Ordered, func() {
+var _ = Describe("Monitoring Helm releases along bundle namespace updates", Ordered, func() {
 	var (
 		k            kubectl.Command
 		r            = rand.New(rand.NewSource(GinkgoRandomSeed()))
 		oldNamespace string
 		newNamespace string
-		gitrepoName  string
-		path         string
+		bundleName   string
 	)
+
+	type TemplateData struct {
+		TargetNamespace string
+	}
 
 	BeforeAll(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
+		bundleName = "namespace-update"
 		oldNamespace = testenv.NewNamespaceName("target", r)
 		newNamespace = testenv.NewNamespaceName("target", r)
-		gitrepoName = "releases-cleanup"
-		path = "simple-chart"
 
-		err := testenv.CreateGitRepo(
+		GinkgoWriter.Printf("old namespace: %s\n", oldNamespace)
+		GinkgoWriter.Printf("new namespace: %s\n", newNamespace)
+
+		err := testenv.ApplyTemplate(
 			k,
-			oldNamespace,
-			gitrepoName,
-			"master",
-			"",
-			path,
+			testenv.AssetPath("single-cluster/release-cleanup/bundle-namespace-update.yaml"),
+			TemplateData{TargetNamespace: oldNamespace},
 		)
 		Expect(err).ToNot(HaveOccurred())
-
-		// Check for existence of Helm release as the only release in the target namespace
-		checkRelease(oldNamespace, fmt.Sprintf("%s-%s", gitrepoName, path))
 	})
 
 	AfterAll(func() {
-		out, err := k.Delete("gitrepo", gitrepoName)
+		out, err := k.Delete("bundle", bundleName)
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		out, err = k.Delete("ns", oldNamespace, "--wait=false")
@@ -62,15 +57,15 @@ var _ = Describe("Monitoring Helm releases along GitRepo/bundle namespace update
 		It("properly manages releases", func() {
 			By("creating a new release in the new namespace")
 			out, err := k.Patch(
-				"gitrepo",
-				gitrepoName,
+				"bundle",
+				bundleName,
 				"--type=merge",
 				"-p",
-				fmt.Sprintf(`{"spec":{"targetNamespace":"%s"}}`, newNamespace),
+				fmt.Sprintf(`{"spec":{"namespace":"%s"}}`, newNamespace),
 			)
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			checkRelease(newNamespace, fmt.Sprintf("%s-%s", gitrepoName, path))
+			checkRelease(newNamespace, bundleName)
 
 			By("deleting the old release in the previous namespace")
 			Eventually(func(g Gomega) {
@@ -83,124 +78,91 @@ var _ = Describe("Monitoring Helm releases along GitRepo/bundle namespace update
 	})
 })
 
-var _ = Describe("Monitoring Helm releases along GitRepo/bundle release name updates", Ordered, Label("infra-setup"), func() {
+var _ = Describe("Monitoring Helm releases along bundle release name updates", Ordered, func() {
 	var (
-		tmpDir           string
-		clonedir         string
 		k                kubectl.Command
-		gh               *githelper.Git
-		clone            *git.Repository
-		repoName         string
-		inClusterRepoURL string
-		gitrepoName      string
-		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
-		targetNamespace  string
+		bundleName       string
 		oldReleaseName   string
 		newReleaseName   string
 		assetPath        string
+		releaseNamespace string
 	)
+
+	type TemplateData struct {
+		ReleaseName string
+	}
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		oldReleaseName = "test-config-release"
 		newReleaseName = "new-test-config-release"
-		repoName = "repo"
+		bundleName = "bundle-release-name-update"
 
 		DeferCleanup(func() {
-			out, err := k.Delete("gitrepo", gitrepoName)
+			out, err := k.Delete("bundle", bundleName)
 			Expect(err).ToNot(HaveOccurred(), out)
-
-			if targetNamespace != "" {
-				out, err = k.Delete("ns", targetNamespace, "--wait=false")
-				Expect(err).ToNot(HaveOccurred(), out)
-			}
-
-			_ = os.RemoveAll(tmpDir)
 		})
 	})
 
 	JustBeforeEach(func() {
-		// Build git repo URL reachable _within_ the cluster, for the GitRepo
-		host := githelper.BuildGitHostname()
-
-		addr, err := githelper.GetExternalRepoAddr(env, port, repoName)
-		Expect(err).ToNot(HaveOccurred())
-		gh = githelper.NewHTTP(addr)
-
-		inClusterRepoURL = gh.GetInClusterURL(host, port, repoName)
-
-		tmpDir, _ = os.MkdirTemp("", "fleet-")
-		clonedir = path.Join(tmpDir, repoName)
-
-		gitrepoName = testenv.RandomFilename("releases-test", r)
-
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-			Name            string
-			Repo            string
-			Branch          string
-			PollingInterval string
-			TargetNamespace string
-		}{
-			gitrepoName,
-			inClusterRepoURL,
-			gh.Branch,
-			"15s",           // default
-			targetNamespace, // to avoid conflicts with other tests
-		})
-		Expect(err).ToNot(HaveOccurred())
-
-		clone, err = gh.Create(clonedir, testenv.AssetPath(assetPath), "examples")
+		err := testenv.ApplyTemplate(
+			k,
+			assetPath,
+			TemplateData{ReleaseName: oldReleaseName},
+		)
 		Expect(err).ToNot(HaveOccurred())
 
 		// Check for existence of Helm release with old name in the target namespace
-		checkRelease(targetNamespace, oldReleaseName)
+		checkRelease(releaseNamespace, oldReleaseName)
 	})
 
 	When("updating the release name of a bundle containing upstream Kubernetes resources", func() {
 		BeforeEach(func() {
-			assetPath = "helm/repo/with-release-name/no-crds"
-			targetNamespace = testenv.NewNamespaceName("target", r)
+			bundleName = "release-name-update"
+			assetPath = testenv.AssetPath("single-cluster/release-cleanup/bundle-release-name-update.yaml")
+			releaseNamespace = "default"
 		})
 		It("replaces the release", func() {
-			By("updating the release name in fleet.yaml")
+			By("updating the release name")
 			// Not adding `takeOwnership: true` leads to errors from Helm checking its own annotations and failing to
 			// deploy the new release because the config map already exists and belongs to the old one.
-			replace(
-				path.Join(clonedir, "examples", "fleet.yaml"),
-				oldReleaseName,
-				fmt.Sprintf("%s\n  takeOwnership: true", newReleaseName),
+			out, err := k.Patch(
+				"bundle",
+				bundleName,
+				"--type=merge",
+				"-p",
+				fmt.Sprintf(`{"spec":{"helm":{"releaseName":"%s", "takeOwnership": true}}}`, newReleaseName),
 			)
-
-			_, err := gh.Update(clone)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), out)
 
 			By("creating a release with the new name")
-			checkRelease(targetNamespace, newReleaseName)
+			checkRelease(releaseNamespace, newReleaseName)
 		})
 	})
 
 	When("updating the release name of a bundle containing only CRDs", func() {
 		BeforeEach(func() {
-			assetPath = "helm/repo/with-release-name/crds-only"
-			targetNamespace = ""
+			bundleName = "release-name-update-crds"
+			assetPath = testenv.AssetPath("single-cluster/release-cleanup/bundle-crds.yaml")
+			releaseNamespace = "default"
 			DeferCleanup(func() {
 				out, err := k.Delete("crd", "foobars.crd.test")
 				Expect(err).ToNot(HaveOccurred(), out)
 			})
 		})
 		It("replaces the release", func() {
-			By("updating the release name in fleet.yaml")
-			replace(
-				path.Join(clonedir, "examples", "fleet.yaml"),
-				oldReleaseName,
-				fmt.Sprintf("%s\n  takeOwnership: true", newReleaseName),
+			By("updating the release name")
+			out, err := k.Patch(
+				"bundle",
+				bundleName,
+				"--type=merge",
+				"-p",
+				fmt.Sprintf(`{"spec":{"helm":{"releaseName":"%s", "takeOwnership": true}}}`, newReleaseName),
 			)
-
-			_, err := gh.Update(clone)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred(), out)
 
 			By("creating a release with the new name")
-			checkRelease("default", newReleaseName)
+			checkRelease(releaseNamespace, newReleaseName)
 		})
 	})
 })
