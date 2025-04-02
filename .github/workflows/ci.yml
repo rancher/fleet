@@ -25,8 +25,6 @@ jobs:
       -
         name: Set up chart-testing
         uses: helm/chart-testing-action@0d28d3144d3a25ea2cc349d6e59901c4ff469b3b # v2.7.0
-        with:
-          version: v3.3.0
       -
         name: Run chart-testing (lint)
         run: ct lint --all --validate-maintainers=false charts/
