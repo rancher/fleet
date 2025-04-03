@@ -1,8 +1,6 @@
 {
   "formatters": {
-    "enable": [
-      "goimports"
-    ],
+    "enable": ["goimports"],
     "exclusions": {
       "generated": "lax",
       "paths": [
@@ -69,36 +67,23 @@
           "text": "ST1001: should not use dot imports"
         },
         {
-          "linters": [
-            "revive"
-          ],
+          "linters": ["revive"],
           "path": "internal/cmd/agent/deployer/internal/"
         },
         {
-          "linters": [
-            "dupl",
-            "funlen",
-            "gocyclo",
-            "gosec"
-          ],
+          "linters": ["dupl", "funlen", "gocyclo", "gosec"],
           "path": "_test.go"
         },
         {
-          "linters": [
-            "gosec"
-          ],
+          "linters": ["gosec"],
           "path": "e2e"
         },
         {
-          "linters": [
-            "gosec"
-          ],
+          "linters": ["gosec"],
           "path": "integrationtests"
         },
         {
-          "linters": [
-            "gosec"
-          ],
+          "linters": ["gosec"],
           "path": "benchmarks"
         }
       ]
