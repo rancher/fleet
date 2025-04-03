@@ -1,23 +1,10 @@
 {
   "formatters": {
-    "enable": ["goimports"],
-    "exclusions": {
-      "generated": "lax",
-      "paths": [
-        "third_party$",
-        "builtin$",
-        "examples$"
-      ]
-    }
+    "enable": ["goimports"]
   },
   "linters": {
     "exclusions": {
       "generated": "lax",
-      "paths": [
-        "third_party$",
-        "builtin$",
-        "examples$"
-      ],
       "presets": [
         "comments",
         "common-false-positives",
