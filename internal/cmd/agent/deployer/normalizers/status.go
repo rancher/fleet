@@ -7,7 +7,7 @@ import (
 // StatusNormalizer removes a top-level "status" fields from the object, if present
 type StatusNormalizer struct{}
 
-func (_ StatusNormalizer) Normalize(un *unstructured.Unstructured) error {
+func (StatusNormalizer) Normalize(un *unstructured.Unstructured) error {
 	unstructured.RemoveNestedField(un.Object, "status")
 	return nil
 }
