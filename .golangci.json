@@ -11,23 +11,6 @@
     }
   },
   "linters": {
-    "default": "none",
-    "enable": [
-      "dupl",
-      "errcheck",
-      "funlen",
-      "ginkgolinter",
-      "gocyclo",
-      "gosec",
-      "govet",
-      "ineffassign",
-      "misspell",
-      "nakedret",
-      "revive",
-      "staticcheck",
-      "unparam",
-      "unused"
-    ],
     "exclusions": {
       "generated": "lax",
       "paths": [
