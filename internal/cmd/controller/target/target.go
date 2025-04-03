@@ -126,8 +126,8 @@ func (t *Target) nonReady() []fleet.NonReadyStatus {
 
 // state calculates a fleet.BundleState from t (pure function)
 func (t *Target) state() fleet.BundleState {
-	switch {
-	case t.Deployment == nil:
+	switch t.Deployment {
+	case nil:
 		return fleet.Pending
 	default:
 		return summary.GetDeploymentState(t.Deployment)

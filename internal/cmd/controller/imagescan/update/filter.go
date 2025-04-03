@@ -153,7 +153,7 @@ func (s *SetAllCallback) visitScalar(object *yaml.RNode, p string, fieldSchema *
 }
 
 func getExtFromSchema(schema *spec.Schema) (*extension, error) {
-	cep := schema.VendorExtensible.Extensions[K8sCliExtensionKey]
+	cep := schema.Extensions[K8sCliExtensionKey]
 	if cep == nil {
 		return nil, nil
 	}

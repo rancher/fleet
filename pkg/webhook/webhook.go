@@ -306,19 +306,10 @@ func getErrorCodeFromErr(err error) int {
 	// check if the error is a verification of identity error
 	// secret check, or basic credentials or token verification
 	// depending on the provider
-	if err == gogs.ErrHMACVerificationFailed ||
-		err == github.ErrHMACVerificationFailed ||
-		err == gitlab.ErrGitLabTokenVerificationFailed ||
-		err == bitbucket.ErrUUIDVerificationFailed ||
-		err == bitbucketserver.ErrHMACVerificationFailed ||
-		err == azuredevops.ErrBasicAuthVerificationFailed {
+	switch err {
+	case gogs.ErrHMACVerificationFailed, github.ErrHMACVerificationFailed, gitlab.ErrGitLabTokenVerificationFailed, bitbucket.ErrUUIDVerificationFailed, bitbucketserver.ErrHMACVerificationFailed, azuredevops.ErrBasicAuthVerificationFailed:
 		return http.StatusUnauthorized
-	} else if err == gogs.ErrInvalidHTTPMethod ||
-		err == github.ErrInvalidHTTPMethod ||
-		err == gitlab.ErrInvalidHTTPMethod ||
-		err == bitbucket.ErrInvalidHTTPMethod ||
-		err == bitbucketserver.ErrInvalidHTTPMethod ||
-		err == azuredevops.ErrInvalidHTTPMethod {
+	case gogs.ErrInvalidHTTPMethod, github.ErrInvalidHTTPMethod, gitlab.ErrInvalidHTTPMethod, bitbucket.ErrInvalidHTTPMethod, bitbucketserver.ErrInvalidHTTPMethod, azuredevops.ErrInvalidHTTPMethod:
 		return http.StatusMethodNotAllowed
 	}
 	return http.StatusInternalServerError
@@ -363,9 +354,10 @@ func parsePayload(payload interface{}) (revision, branch, tag string, repoURLs [
 
 		change := t.Push.Changes[0]
 		revision = change.New.Target.Hash
-		if change.New.Type == "branch" {
+		switch change.New.Type {
+		case "branch":
 			branch = change.New.Name
-		} else if change.New.Type == "tag" {
+		case "tag":
 			tag = change.New.Name
 		}
 	case bitbucketserver.RepositoryReferenceChangedPayload:

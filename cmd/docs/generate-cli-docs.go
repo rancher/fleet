@@ -101,7 +101,7 @@ func createMarkdownFile(cmd *cobra.Command, dir string) error {
 		return nil
 	}
 
-	basename := strings.Replace(cmd.CommandPath(), " ", "_", -1) + ".md"
+	basename := strings.ReplaceAll(cmd.CommandPath(), " ", "_") + ".md"
 	filename := filepath.Join(dir, basename)
 
 	f, err := os.Create(filename)

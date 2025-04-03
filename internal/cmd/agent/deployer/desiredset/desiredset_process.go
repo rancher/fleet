@@ -167,7 +167,7 @@ func (o *desiredSet) list(ctx context.Context, informer cache.SharedIndexInforme
 		// we're cleaning up any owned resources.  Otherwise, search only objects from the namespaces
 		// used by the objects.  Note: desiredSets without owners will never return objects to delete;
 		// deletion requires an owner to track object references across multiple apply runs.
-		var namespaces []string = desiredObjects.Namespaces()
+		var namespaces = desiredObjects.Namespaces()
 
 		// no owner or lister namespace intentionally restricted; only search in specified namespaces
 		err := multiNamespaceList(ctx, namespaces, client, selector, func(obj unstructured.Unstructured) {

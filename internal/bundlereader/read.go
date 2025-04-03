@@ -176,7 +176,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 		})
 	}
 
-	fy.BundleSpec.Targets = append(fy.BundleSpec.Targets, fy.TargetCustomizations...)
+	fy.Targets = append(fy.Targets, fy.TargetCustomizations...)
 
 	meta, err := readMetadata(bytes)
 	if err != nil {

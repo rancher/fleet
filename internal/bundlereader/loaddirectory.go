@@ -344,7 +344,7 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 
 // downloadOCIChart uses Helm to download charts from OCI based registries
 func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
-	var requiresLogin bool = auth.Username != "" && auth.Password != ""
+	var requiresLogin = auth.Username != "" && auth.Password != ""
 
 	url, err := url.Parse(name)
 	if err != nil {
