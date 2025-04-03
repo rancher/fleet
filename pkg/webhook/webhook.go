@@ -307,9 +307,23 @@ func getErrorCodeFromErr(err error) int {
 	// secret check, or basic credentials or token verification
 	// depending on the provider
 	switch err {
-	case gogs.ErrHMACVerificationFailed, github.ErrHMACVerificationFailed, gitlab.ErrGitLabTokenVerificationFailed, bitbucket.ErrUUIDVerificationFailed, bitbucketserver.ErrHMACVerificationFailed, azuredevops.ErrBasicAuthVerificationFailed:
+	case
+		gogs.ErrHMACVerificationFailed,
+		github.ErrHMACVerificationFailed,
+		gitlab.ErrGitLabTokenVerificationFailed,
+		bitbucket.ErrUUIDVerificationFailed,
+		bitbucketserver.ErrHMACVerificationFailed,
+		azuredevops.ErrBasicAuthVerificationFailed:
+
 		return http.StatusUnauthorized
-	case gogs.ErrInvalidHTTPMethod, github.ErrInvalidHTTPMethod, gitlab.ErrInvalidHTTPMethod, bitbucket.ErrInvalidHTTPMethod, bitbucketserver.ErrInvalidHTTPMethod, azuredevops.ErrInvalidHTTPMethod:
+	case
+		gogs.ErrInvalidHTTPMethod,
+		github.ErrInvalidHTTPMethod,
+		gitlab.ErrInvalidHTTPMethod,
+		bitbucket.ErrInvalidHTTPMethod,
+		bitbucketserver.ErrInvalidHTTPMethod,
+		azuredevops.ErrInvalidHTTPMethod:
+
 		return http.StatusMethodNotAllowed
 	}
 	return http.StatusInternalServerError
