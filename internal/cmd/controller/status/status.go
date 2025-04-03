@@ -4,7 +4,6 @@ import (
 	"reflect"
 
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -19,11 +18,11 @@ func BundleStatusChangedPredicate() predicate.Funcs {
 			return true
 		},
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			n, isBundle := e.ObjectNew.(*v1alpha1.Bundle)
+			n, isBundle := e.ObjectNew.(*fleet.Bundle)
 			if !isBundle {
 				return false
 			}
-			o := e.ObjectOld.(*v1alpha1.Bundle)
+			o := e.ObjectOld.(*fleet.Bundle)
 			if n == nil || o == nil {
 				return false
 			}
