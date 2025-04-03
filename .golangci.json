@@ -61,6 +61,14 @@
           "text": "SA1019: workqueue.RateLimiter is deprecated"
         },
         {
+          "path": "e2e",
+          "text": "ST1001: should not use dot imports"
+        },
+        {
+          "path": "benchmarks",
+          "text": "ST1001: should not use dot imports"
+        },
+        {
           "linters": [
             "revive"
           ],
