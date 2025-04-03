@@ -71,6 +71,7 @@ type Options struct {
 	CorrectDriftKeepFailHistory bool
 	OCIRegistry                 OCIRegistrySpec
 	DrivenScan                  bool
+	DrivenScanSeparator         string
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -152,11 +153,11 @@ func CreateBundles(ctx context.Context, client Getter, repoName string, baseDirs
 	return nil
 }
 
-// CreateBundlesDriven creates bundles from the given baseDirs, their names are prefixed with
+// CreateBundlesDriven creates bundles from the given baseDirs. Those bundles' names will be prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-// CreateBundlesDriven does not scan the given dirs recursively, it simply considers the dir as the
-// base path for the bundle.
+// CreateBundlesDriven does not scan the given dirs recursively, it simply considers each of them
+// to be the base path for a bundle.
 // The given baseDirs may describe a simple path or a path and a fleet file comma separated.
 // If no fleet file is provided it tries to load a fleet.yaml in the root of the dir, or will consider
 // the directory as a raw content folder.
@@ -171,7 +172,7 @@ func CreateBundlesDriven(ctx context.Context, client Getter, repoName string, ba
 		opts := opts
 		// verify if it also defines a fleetFile
 		var err error
-		baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir)
+		baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
 		if err != nil {
 			return err
 		}
@@ -202,12 +203,14 @@ func CreateBundlesDriven(ctx context.Context, client Getter, repoName string, ba
 }
 
 // getPathAndFleetYaml returns the path and options file from a given path.
-// The path and options file should be comma separated.
-func getPathAndFleetYaml(path string) (string, string, error) {
-	baseDirFleetFile := strings.Split(path, ",")
+// The path and options file should be separated by the given separator
+func getPathAndFleetYaml(path, separator string) (string, string, error) {
+	baseDirFleetFile := strings.Split(path, separator)
 	if len(baseDirFleetFile) == 2 {
 		return baseDirFleetFile[0], baseDirFleetFile[1], nil
-	} else if len(baseDirFleetFile) > 2 {
+	}
+
+	if len(baseDirFleetFile) > 2 {
 		return "", "", fmt.Errorf("invalid bundle path: %q", path)
 	}
 

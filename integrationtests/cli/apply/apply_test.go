@@ -213,12 +213,12 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 
 	When("using driven scan with multiple paths and options", func() {
 		BeforeEach(func() {
-			name = "keep_resources"
+			name = "multiple_paths"
 			dirs = []string{
 				cli.AssetsPath + "driven/helm",
 				cli.AssetsPath + "driven/simple",
-				cli.AssetsPath + "driven/kustomize" + ",dev.yaml",
-				cli.AssetsPath + "driven/kustomize" + ",prod.yaml",
+				cli.AssetsPath + "driven/kustomize" + ":dev.yaml",
+				cli.AssetsPath + "driven/kustomize" + ":prod.yaml",
 			}
 			// set credentials to download helm chart for mock repository
 			options.AuthByPath = map[string]bundlereader.Auth{
@@ -300,10 +300,10 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 
 	When("deploying folder with fleet files in camelCase", func() {
 		BeforeEach(func() {
-			name = "keep_resources"
+			name = "camelCase_config_filenames"
 			dirs = []string{
-				cli.AssetsPath + "driven2/kustomize" + ",fleetDev.yaml",
-				cli.AssetsPath + "driven2/kustomize" + ",fleetProd.yaml",
+				cli.AssetsPath + "driven2/kustomize" + ":fleetDev.yaml",
+				cli.AssetsPath + "driven2/kustomize" + ":fleetProd.yaml",
 			}
 		})
 
@@ -346,9 +346,9 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 		})
 	})
 
-	When("deploying folder with fleet file in a subfolder and no specifying the path", func() {
+	When("deploying folder with fleet file in a subfolder and no specified config path", func() {
 		BeforeEach(func() {
-			name = "keep_resources"
+			name = "single_path_no_config_specified"
 			dirs = []string{
 				cli.AssetsPath + "driven_fleet_yaml_subfolder/helm",
 			}
@@ -375,9 +375,9 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 
 	When("deploying folder with fleet file in a subfolder and specifying the path", func() {
 		BeforeEach(func() {
-			name = "keep_resources"
+			name = "single_path_config_specified"
 			dirs = []string{
-				cli.AssetsPath + "driven_fleet_yaml_subfolder/helm,test/fleet.yaml",
+				cli.AssetsPath + "driven_fleet_yaml_subfolder/helm:test/fleet.yaml",
 			}
 			// set credentials to download helm chart for mock repository
 			options.AuthByPath = map[string]bundlereader.Auth{

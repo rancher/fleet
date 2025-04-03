@@ -73,6 +73,8 @@ const (
 	gitPollingCondition        = "GitPolling"
 	generationLabel            = "fleet.cattle.io/gitrepo-generation"
 	forceSyncGenerationLabel   = "fleet.cattle.io/force-sync-generation"
+
+	bundleOptionsSeparatorChars = ":,|?<>"
 )
 
 var zero = int32(0)
@@ -722,13 +724,22 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		paths = []string{"."}
 	}
 
+	drivenScanSeparator := ""
 	if len(gitrepo.Spec.Bundles) > 0 {
 		paths = []string{}
 		// use driven scan instead
+		// We calculate a separator because we will continue using the
+		// same call format for "fleet apply."
+		// The bundle definitions + options file (fleet.yaml)
+		// will be passed at the end, in the same way we pass the bundle
+		// directories for the classic fleet scan, but since we need to
+		// pass 2 strings, we will separate them with
+		// the calculated separator.
+		drivenScanSeparator = getDrivenScanSeparator(*gitrepo)
 		for _, b := range gitrepo.Spec.Bundles {
-			path := b.Path
+			path := b.Base
 			if b.Options != "" {
-				path = path + "," + b.Options
+				path = path + drivenScanSeparator + b.Options
 			}
 			paths = append(paths, path)
 		}
@@ -831,7 +842,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
-	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride, r.KnownHosts)
+	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride, r.KnownHosts, drivenScanSeparator)
 
 	return &batchv1.JobSpec{
 		BackoffLimit: &zero,
@@ -892,6 +903,7 @@ func argsAndEnvs(
 	logger logr.Logger,
 	CACertsPathOverride string,
 	knownHosts KnownHostsGetter,
+	drivenScanSeparator string,
 ) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
@@ -1033,6 +1045,9 @@ func argsAndEnvs(
 	}
 	if len(gitrepo.Spec.Bundles) > 0 {
 		args = append(args, "--driven-scan")
+		if drivenScanSeparator != "" {
+			args = append(args, "--driven-scan-sep", drivenScanSeparator)
+		}
 	}
 
 	return append(args, "--", gitrepo.Name), env
@@ -1580,4 +1595,56 @@ func gitSSHCommandEnvVar(strictChecks bool) corev1.EnvVar {
 		Name:  "GIT_SSH_COMMAND",
 		Value: fmt.Sprintf("ssh -o stricthostkeychecking=%s", strictVal),
 	}
+}
+
+// getDrivenScanSeparator returns a separator that is valid for all the Bundle
+// definitions in the given GitRepo.
+// Since we cannot disregard the possibility that a user might have an
+// unavoidable need to use the character ":" (or another character typically not
+// used in directory or file paths), we need to find a separator that works for any
+// possible combination.
+// The function will first search for simple characters from those in
+// bundleOptionsSeparatorChars, and if none of them can be used, it will create
+// separators consisting of random strings with incremental length until it finds one
+// that meets our requirements.
+func getDrivenScanSeparator(gitrepo v1alpha1.GitRepo) string {
+	for _, sep := range bundleOptionsSeparatorChars {
+		if !separatorInBundleDefinitions(gitrepo, string(sep)) {
+			// We can safely use this separator
+			return string(sep)
+		}
+	}
+	// we need to create a string separator because all the bytes in bundleOptionsSeparatorChars are
+	// used in the bundle definitions paths.
+	// Get a random combination of increasing length until it is not found in the bundles definitions.
+	length := 2
+	sep := getRandomStringSeparator(length)
+	for separatorInBundleDefinitions(gitrepo, sep) {
+		length++
+		sep = getRandomStringSeparator(length)
+	}
+
+	return sep
+}
+
+func separatorInBundleDefinitions(gitrepo v1alpha1.GitRepo, sep string) bool {
+	for _, b := range gitrepo.Spec.Bundles {
+		if strings.Contains(b.Options, sep) {
+			return true
+		}
+
+		if strings.Contains(b.Base, sep) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getRandomStringSeparator(length int) string {
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = bundleOptionsSeparatorChars[rand.IntN(len(bundleOptionsSeparatorChars))]
+	}
+	return string(b)
 }

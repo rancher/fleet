@@ -6,9 +6,9 @@ metadata:
 spec:
   repo: https://github.com/rancher/fleet-test-data
   bundles:
-  - path: driven/helm
-  - path: driven/simple
-  - path: driven/kustomize
+  - base: driven/helm
+  - base: driven/simple
+  - base: driven/kustomize
     options: dev.yaml
-  - path: driven/kustomize
+  - base: driven/kustomize
     options: test.yaml

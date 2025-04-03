@@ -6349,13 +6349,13 @@ spec:
                     folders'
                   items:
                     properties:
+                      base:
+                        description: Base is the base path for the bundle resources
+                        type: string
                       options:
                         description: Options is the path (relative to path above)
                           that defines a fleet.yaml file to configure the bundle
                         nullable: true
-                        type: string
-                      path:
-                        description: Path is the base path for the bundle resources
                         type: string
                     type: object
                   type: array

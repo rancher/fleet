@@ -70,8 +70,10 @@ var _ = Describe("Single Cluster Deployments", func() {
 			})
 
 			AfterEach(func() {
-				_, _ = k.Delete("ns", "test-fleet-mp-config")
-				_, _ = k.Delete("ns", "test-fleet-mp-service")
+				_, _ = k.Delete("ns", "fleet-helm-oci-example")
+				_, _ = k.Delete("ns", "fleet-kustomize-example")
+				_, _ = k.Delete("ns", "kustomize-dev")
+				_, _ = k.Delete("ns", "kustomize-test")
 			})
 
 			It("deploys bundles from all the paths", func() {
@@ -240,12 +242,12 @@ var _ = Describe("Single Cluster Deployments", func() {
 					g.Expect(out).To(ContainSubstring("value_test"))
 				}).Should(Succeed())
 
-				// finally, the prod configmap should not be deployed, as the specific fleet yaml
+				// finally, the kustomize-prod namespace should not be created, as the specific fleet yaml
 				// was not specified
-				Consistently(func() string {
-					out, _ := k.Namespace("kustomize-prod").Get("configmap")
-					return out
-				}, 5*time.Second, 1*time.Second).ShouldNot(ContainSubstring("superconfigmap-prod"))
+				Consistently(func(g Gomega) {
+					out, _ := k.Get("ns")
+					g.Expect(out).ToNot(ContainSubstring("kustomize-prod"))
+				}, 5*time.Second, 1*time.Second).Should(Succeed())
 			})
 		})
 	})

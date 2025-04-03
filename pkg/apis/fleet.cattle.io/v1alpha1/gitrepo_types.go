@@ -147,8 +147,8 @@ type GitRepoSpec struct {
 }
 
 type BundlePath struct {
-	// Path is the base path for the bundle resources
-	Path string `json:"path,omitempty"`
+	// Base is the base path for the bundle resources
+	Base string `json:"base,omitempty"`
 	// Options is the path (relative to path above) that defines a fleet.yaml file to configure the bundle
 	// +nullable
 	Options string `json:"options,omitempty"`

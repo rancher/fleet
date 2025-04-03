@@ -31,6 +31,7 @@ func fleetApplyDriven(name string, dirs []string, options apply.Options) error {
 	buf = gbytes.NewBuffer()
 	options.DrivenScan = true
 	options.Output = buf
+	options.DrivenScanSeparator = ":"
 	return apply.CreateBundlesDriven(context.Background(), client.NewGetter("", "", "fleet-local"), name, dirs, options)
 }
 

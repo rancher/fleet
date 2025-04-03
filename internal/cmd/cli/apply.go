@@ -67,6 +67,7 @@ type Apply struct {
 	OCIBasicHTTP                bool              `usage:"Use HTTP to access the OCI regustry" name:"oci-basic-http"`
 	OCIInsecure                 bool              `usage:"Allow connections to OCI registry without certs" name:"oci-insecure"`
 	DrivenScan                  bool              `usage:"Use driven scan. Bundles are defined by the user" name:"driven-scan"`
+	DrivenScanSeparator         string            `usage:"Separator to use for bundle folder and options file" name:"driven-scan-sep" default:":"`
 }
 
 func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
@@ -125,6 +126,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		CorrectDriftForce:           a.CorrectDriftForce,
 		CorrectDriftKeepFailHistory: a.CorrectDriftKeepFailHistory,
 		DrivenScan:                  a.DrivenScan,
+		DrivenScanSeparator:         a.DrivenScanSeparator,
 	}
 
 	knownHostsPath, err := writeTmpKnownHosts()
