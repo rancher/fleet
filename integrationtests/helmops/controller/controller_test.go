@@ -23,9 +23,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
-	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -215,7 +213,7 @@ func compareBundleAndHelmAppSpecs(g Gomega, bundle fleet.BundleSpec, helmapp fle
 
 // checkBundleIsAsExpected verifies that the bundle is a valid bundle created after
 // the given HelmApp resource.
-func checkBundleIsAsExpected(g Gomega, bundle fleet.Bundle, helmapp fleet.HelmApp, expectedTargets []v1alpha1.BundleTarget) {
+func checkBundleIsAsExpected(g Gomega, bundle fleet.Bundle, helmapp fleet.HelmApp, expectedTargets []fleet.BundleTarget) {
 	g.Expect(bundle.Name).To(Equal(helmapp.Name))
 	g.Expect(bundle.Namespace).To(Equal(helmapp.Namespace))
 	// the bundle should have the same labels as the helmapp resource
@@ -268,7 +266,7 @@ func getCondition(fllethelm *fleet.HelmApp, condType string) (genericcondition.G
 	return genericcondition.GenericCondition{}, false
 }
 
-func checkConditionContains(g Gomega, fllethelm *fleet.HelmApp, condType string, status corev1.ConditionStatus, message string) {
+func checkConditionContains(g Gomega, fllethelm *fleet.HelmApp, condType string, status v1.ConditionStatus, message string) {
 	cond, found := getCondition(fllethelm, condType)
 	g.Expect(found).To(BeTrue())
 	g.Expect(cond.Type).To(Equal(condType))
@@ -326,7 +324,7 @@ var _ = Describe("HelmOps controller", func() {
 		var doAfterNamespaceCreated func()
 		JustBeforeEach(func() {
 			os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
-			nsSpec := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
+			nsSpec := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 			err := k8sClient.Create(ctx, nsSpec)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(k8sClient.Create(ctx, &helmapp)).ToNot(HaveOccurred())
@@ -662,7 +660,7 @@ var _ = Describe("HelmOps controller", func() {
 						g,
 						fh,
 						fleet.HelmAppAcceptedCondition,
-						corev1.ConditionFalse,
+						v1.ConditionFalse,
 						"tls: failed to verify certificate: x509: certificate signed by unknown authority",
 					)
 
@@ -757,7 +755,7 @@ var _ = Describe("HelmOps controller", func() {
 						g,
 						fh,
 						fleet.HelmAppAcceptedCondition,
-						corev1.ConditionFalse,
+						v1.ConditionFalse,
 						"error code: 401, response body: Unauthorized",
 					)
 
@@ -822,7 +820,7 @@ var _ = Describe("HelmOps controller", func() {
 						g,
 						fh,
 						fleet.HelmAppAcceptedCondition,
-						corev1.ConditionFalse,
+						v1.ConditionFalse,
 						"error code: 401, response body: Unauthorized",
 					)
 

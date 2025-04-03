@@ -17,7 +17,6 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	"github.com/rancher/fleet/internal/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 func TestAuthorizeAndAssignDefaults(t *testing.T) {
@@ -223,7 +222,7 @@ func TestAuthorizeAndAssignDefaults(t *testing.T) {
 			client := mocks.NewMockClient(mockCtrl)
 
 			client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
-				func(_ context.Context, rl *fleetv1.GitRepoRestrictionList, ns crclient.InNamespace) error {
+				func(_ context.Context, rl *fleet.GitRepoRestrictionList, ns crclient.InNamespace) error {
 					if c.restrictions != nil && len(c.restrictions.Items) > 0 {
 						rl.Items = c.restrictions.Items
 					}
