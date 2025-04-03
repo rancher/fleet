@@ -6,6 +6,10 @@ spec:
   selector:
     matchLabels:
       app: fleet-agent
+  replicas: 1
+  revisionHistoryLimit: 0
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
