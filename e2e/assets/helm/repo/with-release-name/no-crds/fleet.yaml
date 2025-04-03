@@ -1,5 +1,0 @@
-helm:
-  chart: config-chart
-  values:
-    name: example-value
-  releaseName: test-config-release

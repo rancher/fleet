@@ -1,6 +1,0 @@
-apiVersion: v2
-name: crds-chart
-description: A test chart that only contains CRDs
-type: application
-version: 0.1.0
-appVersion: "1.16.0"
