@@ -151,7 +151,7 @@ func collectClusterGroupMetrics(obj any, metrics map[string]prometheus.Collector
 	labels := prometheus.Labels{
 		"name":       clusterGroup.Name,
 		"namespace":  clusterGroup.Namespace,
-		"generation": fmt.Sprintf("%d", clusterGroup.ObjectMeta.Generation),
+		"generation": fmt.Sprintf("%d", clusterGroup.Generation),
 		"state":      clusterGroup.Status.Display.State,
 	}
 

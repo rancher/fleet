@@ -149,9 +149,9 @@ func collectClusterMetrics(obj any, metrics map[string]prometheus.Collector) {
 	labels := prometheus.Labels{
 		"name":                 cluster.Name,
 		"namespace":            cluster.Namespace,
-		"cluster_name":         cluster.ObjectMeta.Labels[clusterNameLabel],
-		"cluster_display_name": cluster.ObjectMeta.Labels[clusterDisplayNameLabel],
-		"generation":           fmt.Sprintf("%d", cluster.ObjectMeta.Generation),
+		"cluster_name":         cluster.Labels[clusterNameLabel],
+		"cluster_display_name": cluster.Labels[clusterDisplayNameLabel],
+		"generation":           fmt.Sprintf("%d", cluster.Generation),
 		"state":                cluster.Status.Display.State,
 	}
 

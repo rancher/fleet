@@ -178,9 +178,9 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and just BundleDeployment from cluster one and two are customized")
 			for _, bd := range bdList.Items {
-				if strings.Contains(bd.ObjectMeta.Namespace, "cluster-one") {
+				if strings.Contains(bd.Namespace, "cluster-one") {
 					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "1"}))
-				} else if strings.Contains(bd.ObjectMeta.Namespace, "cluster-two") {
+				} else if strings.Contains(bd.Namespace, "cluster-two") {
 					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "2"}))
 				} else {
 					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "4"}))
@@ -236,7 +236,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 			By("and just BundleDeployment from cluster one is customized")
 			for _, bd := range bdList.Items {
-				if strings.Contains(bd.ObjectMeta.Namespace, "cluster-one") {
+				if strings.Contains(bd.Namespace, "cluster-one") {
 					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "1"}))
 				} else {
 					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "4"}))

@@ -198,8 +198,8 @@ func (e adoptEnv) waitForConfigMap(name string) {
 }
 
 func (e adoptEnv) createConfigMap(cm *corev1.ConfigMap) {
-	cm.ObjectMeta.Name = "cm1"
-	cm.ObjectMeta.Namespace = e.namespace
+	cm.Name = "cm1"
+	cm.Namespace = e.namespace
 	Expect(k8sClient.Create(ctx, cm)).To(Succeed())
 	e.waitForConfigMap("cm1")
 }

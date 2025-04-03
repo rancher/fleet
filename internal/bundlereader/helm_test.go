@@ -211,10 +211,11 @@ func newTLSServer(index string, withAuth bool) *httptest.Server {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		if r.URL.Path == "/index.yaml" {
-			index = strings.Replace(index, "##URL##", r.Host, -1)
+		switch r.URL.Path {
+		case "/index.yaml":
+			index = strings.ReplaceAll(index, "##URL##", r.Host)
 			fmt.Fprint(w, index)
-		} else if r.URL.Path == "/sleeper-chart-0.1.0.tgz" {
+		case "/sleeper-chart-0.1.0.tgz":
 			dir, chartPath, err := createHelmChartGZIP()
 			if dir != "" {
 				defer os.RemoveAll(dir)
@@ -399,12 +400,12 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 
 		resourcePrefix := ""
 		if c.bd.Spec.Options.Helm != nil {
-			c.bd.Spec.Options.Helm.Repo = strings.Replace(c.bd.Spec.Options.Helm.Repo, "##URL##", srv.URL, -1)
+			c.bd.Spec.Options.Helm.Repo = strings.ReplaceAll(c.bd.Spec.Options.Helm.Repo, "##URL##", srv.URL)
 			// resource names have a prefix that depends on helm options
 			resourcePrefix = checksumPrefix(c.bd.Spec.Options.Helm)
 		}
 		// change the url in the error in case it is present
-		c.expectedError = strings.Replace(c.expectedError, "##URL##", srv.URL, -1)
+		c.expectedError = strings.ReplaceAll(c.expectedError, "##URL##", srv.URL)
 
 		manifest, err := bundlereader.GetManifestFromHelmChart(context.TODO(), mockClient, &c.bd)
 
