@@ -41,7 +41,7 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 
 	branch := gitrepo.Spec.Branch
 	if branch == "" {
-		branch = "master"
+		branch = "main"
 	}
 
 	// Fall back to Rancher-configured CA bundles if no CA bundle is specified in the GitRepo
