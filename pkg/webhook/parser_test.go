@@ -104,7 +104,7 @@ func TestParseGogs(t *testing.T) {
 			}`),
 			headers: map[string]string{
 				"X-Gogs-Event":     "push",
-				"X-Gogs-Signature": "sha1=57968570459352679905f2372454008f9015101a",
+				"X-Gogs-Signature": "3453557968570459352679905f2372454008f9015101a",
 			},
 			wantErr:    true,
 			wantErrMsg: "secret key \"gogs\" not found in secret \"test-secret\"",
@@ -1038,7 +1038,6 @@ func TestParseBitbucketServer(t *testing.T) {
 
 				_, okCloneLinks := gotBB.Repository.Links["clone"]
 				if okCloneLinks {
-					// if len(gotBB.Repository.Links["clone"]) > 0 {}
 					for _, l := range gotBB.Repository.Links["clone"].([]interface{}) {
 						link := l.(map[string]interface{})
 						if link["name"] == "http" {

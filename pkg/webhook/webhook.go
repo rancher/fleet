@@ -21,7 +21,6 @@ import (
 	"gopkg.in/go-playground/webhooks.v5/gitlab"
 	"gopkg.in/go-playground/webhooks.v5/gogs"
 
-	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -77,7 +76,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	default:
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
-		payload, err = parseWebook(r, nil)
+		payload, err = parseWebhook(r, nil)
 		if payload == nil && err == nil {
 			w.log.V(1).Info("Ignoring unknown webhook event")
 			return
@@ -146,14 +145,14 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 					// The first parsing is used to get the gitrepo and, if a secret is
 					// defined in the gitrepo, it takes precedence over the global one.
 					r.Body = io.NopCloser(bytes.NewBuffer(body))
-					_, err = parseWebook(r, secret)
+					_, err = parseWebhook(r, secret)
 					if err != nil {
 						w.logAndReturn(rw, err)
 						return
 					}
 				}
 
-				var gitRepoFromCluster v1alpha1.GitRepo
+				var gitRepoFromCluster fleet.GitRepo
 				err = w.client.Get(
 					ctx,
 					types.NamespacedName{

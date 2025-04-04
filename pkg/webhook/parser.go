@@ -23,7 +23,7 @@ const (
 	azurePassword      = "azure-password"
 )
 
-func parseWebook(r *http.Request, secret *corev1.Secret) (interface{}, error) {
+func parseWebhook(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 	switch {
 	//Gogs needs to be checked before Github since it carries both Gogs and (incompatible) Github headers
 	case r.Header.Get("X-Gogs-Event") != "":

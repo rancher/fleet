@@ -377,7 +377,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 	expectedCommit := "af69d162de5a276abc86e0686b2b44033cd3f442"
 	gitrepoSecretName := "gitrepoSecret"
 	tests := map[string]struct {
-		secretValueInWebhook string
+		secretValueInRequest string
 		globalSecret         bool
 		gitrepoSecret        bool
 		globalSecretKey      string
@@ -389,7 +389,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		expectedCommitUpdate bool
 	}{
 		"global-secret-ok-no-gitrepo-secret": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         true,
 			gitrepoSecret:        false,
 			globalSecretKey:      "github",
@@ -401,7 +401,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			expectedCommitUpdate: true,
 		},
 		"global-secret-wrong-no-gitrepo-secret": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         true,
 			gitrepoSecret:        false,
 			globalSecretKey:      "github",
@@ -413,7 +413,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			expectedCommitUpdate: false,
 		},
 		"global-secret-ok-gitrepo-secret-ok": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         true,
 			gitrepoSecret:        true,
 			globalSecretKey:      "github",
@@ -427,7 +427,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		// does not matter that global secret is wrong because
 		// gitrepo secret takes preference
 		"global-secret-wrong-gitrepo-secret-ok": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         true,
 			gitrepoSecret:        true,
 			globalSecretKey:      "github",
@@ -441,7 +441,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		// does not matter that global secret is correct because
 		// gitrepo secret takes preference
 		"global-secret-ok-gitrepo-secret-wrong": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         true,
 			gitrepoSecret:        true,
 			globalSecretKey:      "github",
@@ -453,7 +453,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			expectedCommitUpdate: false,
 		},
 		"no-global-secret-gitrepo-secret-wrong": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         false,
 			gitrepoSecret:        true,
 			globalSecretKey:      "",
@@ -465,7 +465,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			expectedCommitUpdate: false,
 		},
 		"no-global-secret-gitrepo-secret-ok": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         false,
 			gitrepoSecret:        true,
 			globalSecretKey:      "",
@@ -477,7 +477,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			expectedCommitUpdate: true,
 		},
 		"global-secret-wrong-key-no-gitrepo-secret": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         true,
 			gitrepoSecret:        false,
 			globalSecretKey:      "github-bad-key",
@@ -491,7 +491,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		// does not matter that global secret is ok
 		// because gitrepo secret takes preference
 		"global-secret-ok-gitrepo-secret-wrong-key": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         true,
 			gitrepoSecret:        true,
 			globalSecretKey:      "github",
@@ -504,7 +504,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		},
 		// when no secret is defined we accept the payload
 		"no-global-secret-no-gitrepo-secret": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         false,
 			gitrepoSecret:        false,
 			globalSecretKey:      "",
@@ -516,9 +516,9 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			expectedCommitUpdate: true,
 		},
 
-		// when no secret is defined we accept the payload
+		// when a referenced secret does not exist, we throw an error
 		"no-global-secret-no-gitrepo-secret-secret-in-gitrepo": {
-			secretValueInWebhook: "supersecretvalue",
+			secretValueInRequest: "supersecretvalue",
 			globalSecret:         false,
 			gitrepoSecret:        false,
 			globalSecretKey:      "",
@@ -638,7 +638,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 		}
 		req.Header.Set("X-Github-Event", "push")
 		// calculate the value to store in the X-Hub-Signature header
-		mac := hmac.New(sha1.New, []byte("supersecretvalue"))
+		mac := hmac.New(sha1.New, []byte(tt.secretValueInRequest))
 		_, _ = mac.Write(jsonBody)
 		expectedMAC := hex.EncodeToString(mac.Sum(nil))
 		req.Header.Set("X-Hub-Signature", fmt.Sprintf("sha1=%s", expectedMAC))
