@@ -237,7 +237,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bundle.Status.OCIReference = url
 	}
 
-	setResourceKey(&bundle.Status, matchedTargets)
+	if resourceKeyGenerationEnabled() {
+		setResourceKey(&bundle.Status, matchedTargets)
+	} else {
+		bundle.Status.ResourceKey = []fleet.ResourceKey{}
+	}
 
 	summary.SetReadyConditions(&bundle.Status, "Cluster", bundle.Status.Summary)
 	bundle.Status.ObservedGeneration = bundle.Generation
@@ -486,4 +490,11 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 	}
 	metrics.BundleCollector.Collect(ctx, bundle)
 	return nil
+}
+
+// resourceKeyGenerationEnabled returns true if the RESOURCE_KEY_GENERATION env variable is set to true
+// or is empty, returns false if it is explicitly set to false
+func resourceKeyGenerationEnabled() bool {
+	value, err := strconv.ParseBool(os.Getenv("RESOURCE_KEY_GENERATION"))
+	return err != nil || value
 }
