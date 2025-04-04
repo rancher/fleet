@@ -80,7 +80,7 @@ func PurgeBundleDeployments(ctx context.Context, c client.Client, bundle types.N
 	}
 	for _, bd := range list.Items {
 		// Mark the object for deletion. The BundleDeployment reconciler will react to that calling PurgeContent and finally removing the finalizer
-		if err := c.Delete(ctx, &bd); err != nil {
+		if err := c.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
 			return err
 		}
 	}
