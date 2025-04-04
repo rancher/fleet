@@ -100,6 +100,13 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
+	err = (&ctrlreconciler.BundleDeploymentReconciler{
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Workers: 50,
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
+
 	go func() {
 		defer GinkgoRecover()
 		defer ctlr.Finish()
