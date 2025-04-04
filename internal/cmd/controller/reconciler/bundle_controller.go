@@ -37,8 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-const bundleFinalizer = "fleet.cattle.io/bundle-finalizer"
-
 type BundleQuery interface {
 	// BundlesForCluster is used to map from a cluster to bundles
 	BundlesForCluster(context.Context, *fleet.Cluster) ([]*fleet.Bundle, []*fleet.Bundle, error)
@@ -264,7 +262,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
 		// been created.
-		controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
+		controllerutil.AddFinalizer(bd, finalize.BundleDeploymentFinalizer)
 
 		bd.Spec.OCIContents = contentsInOCI
 		bd.Spec.HelmChartOptions = bundle.Spec.HelmAppOptions
@@ -321,7 +319,7 @@ func upper(op controllerutil.OperationResult) string {
 // occurred in the process.
 func (r *BundleReconciler) addOrRemoveFinalizer(ctx context.Context, logger logr.Logger, req ctrl.Request, bundle *fleet.Bundle) (bool, error) {
 	if !bundle.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
+		if controllerutil.ContainsFinalizer(bundle, finalize.BundleFinalizer) {
 			metrics.BundleCollector.Delete(req.Name, req.Namespace)
 
 			logger.V(1).Info("Bundle not found, purging bundle deployments")
@@ -331,7 +329,7 @@ func (r *BundleReconciler) addOrRemoveFinalizer(ctx context.Context, logger logr
 				return true, client.IgnoreNotFound(err)
 			}
 
-			controllerutil.RemoveFinalizer(bundle, bundleFinalizer)
+			controllerutil.RemoveFinalizer(bundle, finalize.BundleFinalizer)
 			err := r.Update(ctx, bundle)
 			if client.IgnoreNotFound(err) != nil {
 				return true, err
@@ -341,8 +339,8 @@ func (r *BundleReconciler) addOrRemoveFinalizer(ctx context.Context, logger logr
 		return true, nil
 	}
 
-	if !controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
-		controllerutil.AddFinalizer(bundle, bundleFinalizer)
+	if !controllerutil.ContainsFinalizer(bundle, finalize.BundleFinalizer) {
+		controllerutil.AddFinalizer(bundle, finalize.BundleFinalizer)
 		err := r.Update(ctx, bundle)
 		if client.IgnoreNotFound(err) != nil {
 			return true, err
