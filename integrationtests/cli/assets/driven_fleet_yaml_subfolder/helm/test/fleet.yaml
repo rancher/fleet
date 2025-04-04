@@ -1,0 +1,3 @@
+helm:
+  releaseName: config-chart
+  chart: http://localhost:3000/config-chart-0.1.0.tgz

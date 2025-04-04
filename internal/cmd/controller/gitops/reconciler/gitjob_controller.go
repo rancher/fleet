@@ -676,6 +676,18 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		paths = []string{"."}
 	}
 
+	if len(gitrepo.Spec.Bundles) > 0 {
+		paths = []string{}
+		// use driven scan instead
+		for _, b := range gitrepo.Spec.Bundles {
+			path := b.Path
+			if b.Options != "" {
+				path = path + "," + b.Options
+			}
+			paths = append(paths, path)
+		}
+	}
+
 	// compute configmap, needed because its name contains a hash
 	configMap, err := newTargetsConfigMap(gitrepo)
 	if err != nil {
@@ -979,6 +991,9 @@ func argsAndEnvs(gitrepo *v1alpha1.GitRepo, logger logr.Logger, CACertsPathOverr
 		if gitrepo.Spec.OCIRegistry.InsecureSkipTLS {
 			args = append(args, "--oci-insecure")
 		}
+	}
+	if len(gitrepo.Spec.Bundles) > 0 {
+		args = append(args, "--driven-scan")
 	}
 
 	return append(args, "--", gitrepo.Name), env
