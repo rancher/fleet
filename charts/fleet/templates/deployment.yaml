@@ -15,6 +15,7 @@ kind: Deployment
 metadata:
   name: "fleet-controller{{if $shard.id }}-shard-{{ $shard.id }}{{end}}"
 spec:
+  replicas: {{ $.Values.controller.replicas }}
   selector:
     matchLabels:
       app: fleet-controller
@@ -185,6 +186,8 @@ spec:
         - name: CATTLE_ELECTION_RENEW_DEADLINE
           value: {{$.Values.leaderElection.renewDeadline}}
         {{- end }}
+        - name: FLEET_AGENT_REPLICA_COUNT
+          value: "{{ $.Values.agent.replicas }}"
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-agentmanagement
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"
