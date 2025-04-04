@@ -79,28 +79,8 @@ func PurgeBundleDeployments(ctx context.Context, c client.Client, bundle types.N
 		return err
 	}
 	for _, bd := range list.Items {
-		if controllerutil.ContainsFinalizer(&bd, BundleDeploymentFinalizer) { // nolint: gosec // does not store pointer
-			nn := types.NamespacedName{Namespace: bd.Namespace, Name: bd.Name}
-			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				t := &v1alpha1.BundleDeployment{}
-				if err := c.Get(ctx, nn, t); err != nil {
-					return err
-				}
-
-				controllerutil.RemoveFinalizer(t, BundleDeploymentFinalizer)
-
-				return c.Update(ctx, t)
-			})
-			if err != nil {
-				return err
-			}
-		}
-
+		// Mark the object for deletion. The BundleDeployment reconciler will react to that calling PurgeContent and finally removing the finalizer
 		if err := c.Delete(ctx, &bd); err != nil {
-			return err
-		}
-
-		if err = PurgeContent(ctx, c, bd.Name, bd.Spec.DeploymentID); err != nil {
 			return err
 		}
 	}
