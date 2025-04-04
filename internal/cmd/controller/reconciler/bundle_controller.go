@@ -264,7 +264,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
 		// been created.
-		controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
+		controllerutil.AddFinalizer(bd, finalize.BundleDeploymentFinalizer)
 
 		bd.Spec.OCIContents = contentsInOCI
 		bd.Spec.HelmChartOptions = bundle.Spec.HelmAppOptions
