@@ -137,6 +137,9 @@ type GitRepoSpec struct {
 
 	// OCIRegistry specifies the OCI registry related parameters
 	OCIRegistry *OCIRegistrySpec `json:"ociRegistry,omitempty"`
+
+	// WebhookSecret contains the name of the secret to use for webhook parsing
+	WebhookSecret string `json:"webhookSecret,omitempty"`
 }
 
 // GitTarget is a cluster or cluster group to deploy to.

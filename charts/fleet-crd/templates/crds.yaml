@@ -6625,6 +6625,10 @@ spec:
                         type: string
                     type: object
                   type: array
+                webhookSecret:
+                  description: WebhookSecret contains the name of the secret to use
+                    for webhook parsing
+                  type: string
               type: object
             status:
               properties:
