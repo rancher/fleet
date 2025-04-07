@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.12.0
+  tag: v0.12.1-beta.1
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.12.0
+  tag: v0.12.1-beta.1
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
