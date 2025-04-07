@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -504,25 +505,6 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 	return nil
 }
 
-// cleanupOrphanedBundleDeployments will delete all existing BundleDeployments which do not have a match in a provided list of UIDs
-func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context, bundle *fleet.Bundle, uidsToKeep sets.Set[types.UID]) error {
-	list, err := r.listBundleDeploymentsForBundle(ctx, bundle)
-	if err != nil {
-		return err
-	}
-
-	var errs []error
-	for _, bd := range list {
-		if uidsToKeep.Has(bd.UID) {
-			continue
-		}
-		if err := r.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
 func (r *BundleReconciler) listBundleDeploymentsForBundle(ctx context.Context, bundle *fleet.Bundle) ([]fleet.BundleDeployment, error) {
 	list := &fleet.BundleDeploymentList{}
 	if err := r.List(ctx, list,
@@ -534,6 +516,18 @@ func (r *BundleReconciler) listBundleDeploymentsForBundle(ctx context.Context, b
 		return nil, err
 	}
 	return list.Items, nil
+}
+
+// cleanupOrphanedBundleDeployments will delete all existing BundleDeployments which do not have a match in a provided list of UIDs
+func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context, bundle *fleet.Bundle, uidsToKeep sets.Set[types.UID]) error {
+	list, err := r.listBundleDeploymentsForBundle(ctx, bundle)
+	if err != nil {
+		return err
+	}
+	toDelete := slices.DeleteFunc(list, func(bd fleet.BundleDeployment) bool {
+		return uidsToKeep.Has(bd.ObjectMeta.UID)
+	})
+	return batchDeleteBundleDeployments(ctx, r.Client, toDelete)
 }
 
 func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {
