@@ -37,6 +37,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+const (
+	// period after which the Bundle reconciler is re-scheduled, in order to wait for the BundleDeploymentReconciler cleanup to finish
+	requeueAfterBundleDeploymentCleanup = 2 * time.Second
+)
+
 type BundleQuery interface {
 	// BundlesForCluster is used to map from a cluster to bundles
 	BundlesForCluster(context.Context, *fleet.Cluster) ([]*fleet.Bundle, []*fleet.Bundle, error)
@@ -133,7 +138,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	bundleOrig := bundle.DeepCopy()
 
 	if bundle.Labels[fleet.RepoLabel] != "" {
 		logger = logger.WithValues(
@@ -142,9 +146,15 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		)
 	}
 
-	if res, err := r.addOrRemoveFinalizer(ctx, logger, req, bundle); res {
+	if !bundle.DeletionTimestamp.IsZero() {
+		return r.handleDelete(ctx, logger, req, bundle)
+	}
+
+	if err := r.ensureFinalizer(ctx, bundle); err != nil {
 		return ctrl.Result{}, err
 	}
+
+	bundleOrig := bundle.DeepCopy()
 
 	logger.V(1).Info(
 		"Reconciling bundle, checking targets, calculating changes, building objects",
@@ -314,40 +324,38 @@ func upper(op controllerutil.OperationResult) string {
 	}
 }
 
-// addOrRemoveFinalizer adds a finalizer to a recently created bundle, or removes it on a bundle marked for deletion.
-// It returns a boolean indicating whether the current reconcile loop should stop, along with any error which may have
-// occurred in the process.
-func (r *BundleReconciler) addOrRemoveFinalizer(ctx context.Context, logger logr.Logger, req ctrl.Request, bundle *fleet.Bundle) (bool, error) {
-	if !bundle.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(bundle, finalize.BundleFinalizer) {
-			metrics.BundleCollector.Delete(req.Name, req.Namespace)
-
-			logger.V(1).Info("Bundle not found, purging bundle deployments")
-			if err := finalize.PurgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
-				// A bundle deployment may have been purged by the GitRepo reconciler, hence we ignore
-				// not-found errors here.
-				return true, client.IgnoreNotFound(err)
-			}
-
-			controllerutil.RemoveFinalizer(bundle, finalize.BundleFinalizer)
-			err := r.Update(ctx, bundle)
-			if client.IgnoreNotFound(err) != nil {
-				return true, err
-			}
-		}
-
-		return true, nil
-	}
-
+// handleDelete runs cleanup for resources associated to a Bundle, finally removing the finalizer to unblock the deletion of the object from kubernetes.
+func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger, req ctrl.Request, bundle *fleet.Bundle) (ctrl.Result, error) {
 	if !controllerutil.ContainsFinalizer(bundle, finalize.BundleFinalizer) {
-		controllerutil.AddFinalizer(bundle, finalize.BundleFinalizer)
-		err := r.Update(ctx, bundle)
-		if client.IgnoreNotFound(err) != nil {
-			return true, err
-		}
+		return ctrl.Result{}, nil
 	}
 
-	return false, nil
+	bds, err := r.listBundleDeploymentsForBundle(ctx, bundle)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// BundleDeployment deletion happens asynchronously: mark them for deletion and requeue
+	// This ensures the Bundle is kept around until all its BundleDeployments are completely deleted.
+	// Both GitRepo and HelmApp status reconcilers rely on this condition, as they watch Bundles and not BundleDeployments
+	if len(bds) > 0 {
+		logger.V(1).Info("Bundle deleted, purging bundle deployments")
+		return ctrl.Result{RequeueAfter: requeueAfterBundleDeploymentCleanup}, batchDeleteBundleDeployments(ctx, r.Client, bds)
+	}
+
+	metrics.BundleCollector.Delete(req.Name, req.Namespace)
+	controllerutil.RemoveFinalizer(bundle, finalize.BundleFinalizer)
+	return ctrl.Result{}, r.Update(ctx, bundle)
+}
+
+// ensureFinalizer adds a finalizer to a recently created bundle.
+func (r *BundleReconciler) ensureFinalizer(ctx context.Context, bundle *fleet.Bundle) error {
+	if controllerutil.ContainsFinalizer(bundle, finalize.BundleFinalizer) {
+		return nil
+	}
+
+	controllerutil.AddFinalizer(bundle, finalize.BundleFinalizer)
+	return r.Update(ctx, bundle)
 }
 
 func (r *BundleReconciler) createBundleDeployment(
@@ -498,18 +506,13 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 
 // cleanupOrphanedBundleDeployments will delete all existing BundleDeployments which do not have a match in a provided list of UIDs
 func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context, bundle *fleet.Bundle, uidsToKeep sets.Set[types.UID]) error {
-	list := &fleet.BundleDeploymentList{}
-	if err := r.List(ctx, list,
-		client.MatchingLabels{
-			fleet.BundleLabel:          bundle.GetName(),
-			fleet.BundleNamespaceLabel: bundle.GetNamespace(),
-		},
-	); err != nil {
+	list, err := r.listBundleDeploymentsForBundle(ctx, bundle)
+	if err != nil {
 		return err
 	}
 
 	var errs []error
-	for _, bd := range list.Items {
+	for _, bd := range list {
 		if uidsToKeep.Has(bd.UID) {
 			continue
 		}
@@ -517,5 +520,34 @@ func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context,
 			errs = append(errs, err)
 		}
 	}
+	return errors.Join(errs...)
+}
+
+func (r *BundleReconciler) listBundleDeploymentsForBundle(ctx context.Context, bundle *fleet.Bundle) ([]fleet.BundleDeployment, error) {
+	list := &fleet.BundleDeploymentList{}
+	if err := r.List(ctx, list,
+		client.MatchingLabels{
+			fleet.BundleLabel:          bundle.GetName(),
+			fleet.BundleNamespaceLabel: bundle.GetNamespace(),
+		},
+	); err != nil {
+		return nil, err
+	}
+	return list.Items, nil
+}
+
+func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {
+	var errs []error
+	for _, bd := range list {
+		if bd.DeletionTimestamp != nil {
+			// already being deleted
+			continue
+		}
+		// Mark the object for deletion. The BundleDeployment reconciler will react to that calling PurgeContent and finally removing the finalizer
+		if err := c.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	return errors.Join(errs...)
 }
