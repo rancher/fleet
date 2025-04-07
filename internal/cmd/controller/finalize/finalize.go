@@ -2,7 +2,6 @@ package finalize
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 
@@ -63,35 +62,6 @@ func PurgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 	}
 
 	return nil
-}
-
-// PurgeBundleDeployments deletes all BundleDeployments related with the given Bundle namespaced name.
-func PurgeBundleDeployments(ctx context.Context, c client.Client, bundle types.NamespacedName) error {
-	list := &v1alpha1.BundleDeploymentList{}
-	err := c.List(
-		ctx,
-		list,
-		client.MatchingLabels{
-			v1alpha1.BundleLabel:          bundle.Name,
-			v1alpha1.BundleNamespaceLabel: bundle.Namespace,
-		},
-	)
-	if err != nil {
-		return err
-	}
-	var errs []error
-	for _, bd := range list.Items {
-		if bd.DeletionTimestamp != nil {
-			// already being deleted
-			continue
-		}
-		// Mark the object for deletion. The BundleDeployment reconciler will react to that calling PurgeContent and finally removing the finalizer
-		if err := c.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	return errors.Join(errs...)
 }
 
 // PurgeContent tries to delete the content resource related with the given bundle deployment.
