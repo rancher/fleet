@@ -393,6 +393,87 @@ var _ = Describe("Bundle targets", Ordered, func() {
 			_ = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
 		})
 	})
+
+	When("setting doNotDeploy to a target customization after the bundle has been deployed", func() {
+		BeforeEach(func() {
+			bundleName = "one-customized-do-not-deploy-two-later"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": namespace,
+			}
+			expectedNumberOfBundleDeployments = 3
+			// simulate targets in fleet.yaml which are used for customization
+			targets = []v1alpha1.BundleTarget{
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						Helm: &v1alpha1.HelmOptions{
+							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "1"}},
+						},
+					},
+					ClusterGroup: "one",
+				},
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						Helm: &v1alpha1.HelmOptions{
+							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "2"}},
+						},
+					},
+					ClusterGroup: "two",
+				},
+			}
+			// simulate targets in GitRepo. All targets in GitRepo are also added to targetRestrictions, which acts as a white list
+			targetsInGitRepo := []v1alpha1.BundleTarget{
+				{
+					BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+						Helm: &v1alpha1.HelmOptions{
+							Values: &v1alpha1.GenericMap{Data: map[string]interface{}{"replicas": "4"}},
+						},
+					},
+					ClusterGroup: "all",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targetsInGitRepo))
+			copy(targetRestrictions, targetsInGitRepo)
+			targets = append(targets, targetsInGitRepo...)
+		})
+
+		It("checks that bundle deployments for all three clusters exist and two is gone after setting do not deploy", func() {
+			var bdList = verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+			By("checking that all bundle deployments are customized as expected")
+			for _, bd := range bdList.Items {
+				if strings.Contains(bd.Namespace, "cluster-one") {
+					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "1"}))
+				} else if strings.Contains(bd.Namespace, "cluster-two") {
+					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "2"}))
+				} else {
+					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "4"}))
+				}
+			}
+			By("setting the customization for cluster two as do not deploy")
+			clusterBundle := &v1alpha1.Bundle{}
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: bundleName}, clusterBundle)
+			Expect(err).ToNot(HaveOccurred())
+
+			// do not deploy cluster two
+			for i, t := range clusterBundle.Spec.Targets {
+				if t.ClusterGroup == "two" {
+					clusterBundle.Spec.Targets[i].DoNotDeploy = true
+				}
+			}
+			Expect(k8sClient.Update(ctx, clusterBundle)).ToNot(HaveOccurred())
+
+			By("checking that bundle deployment for cluster two is gone")
+			bdList = verifyBundlesDeploymentsAreCreated(2, bdLabels, bundleName)
+			for _, bd := range bdList.Items {
+				Expect(bd.Namespace).ToNot(ContainSubstring("cluster-two"))
+				if strings.Contains(bd.Namespace, "cluster-one") {
+					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "1"}))
+				} else if strings.Contains(bd.Namespace, "cluster-three") {
+					Expect(bd.Spec.Options.Helm.Values.Data).To(Equal(map[string]interface{}{"replicas": "4"}))
+				}
+			}
+		})
+	})
 })
 
 func verifyBundlesDeploymentsAreCreated(numBundleDeployments int, bdLabels map[string]string, bundleName string) *v1alpha1.BundleDeploymentList {

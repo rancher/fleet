@@ -287,6 +287,17 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
+	// purge bundle deployments that exist in the bundle but are no longer targeted
+	notTargeted, err := findNotTargetedBundleDeployments(ctx, r.Client, req.NamespacedName, matchedTargets)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(notTargeted) > 0 {
+		if err := finalize.PurgeBundleDeploymentList(ctx, r.Client, notTargeted); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	updateDisplay(&bundle.Status)
 	err = r.updateStatus(ctx, bundleOrig, bundle)
 
@@ -497,4 +508,35 @@ func (r *BundleReconciler) updateStatus(ctx context.Context, orig *fleet.Bundle,
 func resourceKeyGenerationEnabled() bool {
 	value, err := strconv.ParseBool(os.Getenv("RESOURCE_KEY_GENERATION"))
 	return err != nil || value
+}
+
+func findNotTargetedBundleDeployments(ctx context.Context, c client.Client, bundleId types.NamespacedName, targets []*target.Target) ([]types.NamespacedName, error) {
+	list := &fleet.BundleDeploymentList{}
+	err := c.List(
+		ctx,
+		list,
+		client.MatchingLabels{
+			fleet.BundleLabel:          bundleId.Name,
+			fleet.BundleNamespaceLabel: bundleId.Namespace,
+		},
+	)
+	if err != nil {
+		return []types.NamespacedName{}, err
+	}
+
+	var notTargeted []types.NamespacedName
+	for _, bd := range list.Items {
+		found := false
+		for _, t := range targets {
+			if t.Deployment.Name == bd.Name && t.Deployment.Namespace == bd.Namespace {
+				found = true
+				break
+			}
+		}
+		if !found {
+			notTargeted = append(notTargeted, types.NamespacedName{Namespace: bd.Namespace, Name: bd.Name})
+		}
+	}
+
+	return notTargeted, nil
 }
