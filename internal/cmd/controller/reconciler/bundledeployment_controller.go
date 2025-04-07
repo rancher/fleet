@@ -69,15 +69,14 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 				return ctrl.Result{}, err
 			}
 			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				t := &fleet.BundleDeployment{}
-				err := r.Get(ctx, req.NamespacedName, t)
+				err := r.Get(ctx, req.NamespacedName, bd)
 				if err != nil {
 					return err
 				}
 
-				controllerutil.RemoveFinalizer(t, finalize.BundleDeploymentFinalizer)
+				controllerutil.RemoveFinalizer(bd, finalize.BundleDeploymentFinalizer)
 
-				return r.Update(ctx, t)
+				return r.Update(ctx, bd)
 			})
 			if err != nil {
 				return ctrl.Result{}, err
