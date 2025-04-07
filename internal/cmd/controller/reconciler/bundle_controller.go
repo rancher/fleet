@@ -284,14 +284,14 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
-	updateDisplay(&bundle.Status)
-	if err := r.updateStatus(ctx, bundleOrig, bundle); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	// the targets configuration may have changed, leaving behind some BundleDeployments that are no longer needed
 	if err := r.cleanupOrphanedBundleDeployments(ctx, bundle, bundleDeploymentUIDs); err != nil {
 		logger.V(1).Error(err, "deleting orphaned bundle deployments", "bundle", bundle.GetName())
+	}
+
+	updateDisplay(&bundle.Status)
+	if err := r.updateStatus(ctx, bundleOrig, bundle); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
