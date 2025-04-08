@@ -525,7 +525,7 @@ func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context,
 		return err
 	}
 	toDelete := slices.DeleteFunc(list, func(bd fleet.BundleDeployment) bool {
-		return uidsToKeep.Has(bd.ObjectMeta.UID)
+		return uidsToKeep.Has(bd.UID)
 	})
 	return batchDeleteBundleDeployments(ctx, r.Client, toDelete)
 }
