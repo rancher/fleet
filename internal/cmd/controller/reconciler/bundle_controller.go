@@ -4,16 +4,17 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"time"
-
-	"github.com/go-logr/logr"
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ociwrapper"
@@ -21,11 +22,13 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,7 +39,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
-const bundleFinalizer = "fleet.cattle.io/bundle-finalizer"
+const (
+	// period after which the Bundle reconciler is re-scheduled, in order to wait for the BundleDeploymentReconciler cleanup to finish
+	requeueAfterBundleDeploymentCleanup = 2 * time.Second
+)
 
 type BundleQuery interface {
 	// BundlesForCluster is used to map from a cluster to bundles
@@ -134,7 +140,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, bundle); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	bundleOrig := bundle.DeepCopy()
 
 	if bundle.Labels[fleet.RepoLabel] != "" {
 		logger = logger.WithValues(
@@ -143,9 +148,15 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		)
 	}
 
-	if res, err := r.addOrRemoveFinalizer(ctx, logger, req, bundle); res {
+	if !bundle.DeletionTimestamp.IsZero() {
+		return r.handleDelete(ctx, logger, req, bundle)
+	}
+
+	if err := r.ensureFinalizer(ctx, bundle); err != nil {
 		return ctrl.Result{}, err
 	}
+
+	bundleOrig := bundle.DeepCopy()
 
 	logger.V(1).Info(
 		"Reconciling bundle, checking targets, calculating changes, building objects",
@@ -154,6 +165,14 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		"observedGeneration",
 		bundle.Status.ObservedGeneration,
 	)
+
+	// The values secret is optional, e.g. for non-helm type bundles.
+	// This sets the values on the bundle, which is safe as we don't update bundle, just its status
+	if bundle.Spec.ValuesHash != "" {
+		if err := loadBundleValues(ctx, r.Client, bundle); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 
 	// if the bundle has the helmops options set but the experimental flag is not
 	// set we don't deploy the bundle.
@@ -224,7 +243,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	// this will add the defaults for a new bundledeployment
+	// this will add the defaults for a new bundledeployment. It propagates stagedOptions to options.
 	if err := target.UpdatePartitions(&bundle.Status, matchedTargets); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -248,6 +267,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
+	bundleDeploymentUIDs := make(sets.Set[types.UID])
 	for _, target := range matchedTargets {
 		if target.Deployment == nil {
 			continue
@@ -266,10 +286,20 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
 		// been created.
-		controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
+		controllerutil.AddFinalizer(bd, finalize.BundleDeploymentFinalizer)
 
 		bd.Spec.OCIContents = contentsInOCI
 		bd.Spec.HelmChartOptions = bundle.Spec.HelmAppOptions
+
+		h, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		// We need a checksum to trigger on value change, rely on later code in
+		// the reconciler to update the status
+		bd.Spec.ValuesHash = h
+
+		helmvalues.ClearOptions(bd)
 
 		bd, err = r.createBundleDeployment(
 			ctx,
@@ -281,27 +311,37 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		bundleDeploymentUIDs.Insert(bd.UID)
 
-		if err := r.handleDeploymentSecret(ctx, bundle, bd); err != nil {
+		if bd.Spec.ValuesHash != "" {
+			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
+				return ctrl.Result{}, err
+			}
+		} else {
+			// No values to store, delete the secret if it exists
+			if err := r.Delete(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
+			}); err != nil && !apierrors.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
+		}
+
+		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
-	// purge bundle deployments that exist in the bundle but are no longer targeted
-	notTargeted, err := findNotTargetedBundleDeployments(ctx, r.Client, req.NamespacedName, matchedTargets)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if len(notTargeted) > 0 {
-		if err := finalize.PurgeBundleDeploymentList(ctx, r.Client, notTargeted); err != nil {
-			return ctrl.Result{}, err
-		}
+	// the targets configuration may have changed, leaving behind some BundleDeployments that are no longer needed
+	if err := r.cleanupOrphanedBundleDeployments(ctx, bundle, bundleDeploymentUIDs); err != nil {
+		logger.V(1).Error(err, "deleting orphaned bundle deployments", "bundle", bundle.GetName())
 	}
 
 	updateDisplay(&bundle.Status)
-	err = r.updateStatus(ctx, bundleOrig, bundle)
+	if err := r.updateStatus(ctx, bundleOrig, bundle); err != nil {
+		return ctrl.Result{}, err
+	}
 
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 func upper(op controllerutil.OperationResult) string {
@@ -321,40 +361,38 @@ func upper(op controllerutil.OperationResult) string {
 	}
 }
 
-// addOrRemoveFinalizer adds a finalizer to a recently created bundle, or removes it on a bundle marked for deletion.
-// It returns a boolean indicating whether the current reconcile loop should stop, along with any error which may have
-// occurred in the process.
-func (r *BundleReconciler) addOrRemoveFinalizer(ctx context.Context, logger logr.Logger, req ctrl.Request, bundle *fleet.Bundle) (bool, error) {
-	if !bundle.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
-			metrics.BundleCollector.Delete(req.Name, req.Namespace)
-
-			logger.V(1).Info("Bundle not found, purging bundle deployments")
-			if err := finalize.PurgeBundleDeployments(ctx, r.Client, req.NamespacedName); err != nil {
-				// A bundle deployment may have been purged by the GitRepo reconciler, hence we ignore
-				// not-found errors here.
-				return true, client.IgnoreNotFound(err)
-			}
-
-			controllerutil.RemoveFinalizer(bundle, bundleFinalizer)
-			err := r.Update(ctx, bundle)
-			if client.IgnoreNotFound(err) != nil {
-				return true, err
-			}
-		}
-
-		return true, nil
+// handleDelete runs cleanup for resources associated to a Bundle, finally removing the finalizer to unblock the deletion of the object from kubernetes.
+func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger, req ctrl.Request, bundle *fleet.Bundle) (ctrl.Result, error) {
+	if !controllerutil.ContainsFinalizer(bundle, finalize.BundleFinalizer) {
+		return ctrl.Result{}, nil
 	}
 
-	if !controllerutil.ContainsFinalizer(bundle, bundleFinalizer) {
-		controllerutil.AddFinalizer(bundle, bundleFinalizer)
-		err := r.Update(ctx, bundle)
-		if client.IgnoreNotFound(err) != nil {
-			return true, err
-		}
+	bds, err := r.listBundleDeploymentsForBundle(ctx, bundle)
+	if err != nil {
+		return ctrl.Result{}, err
 	}
 
-	return false, nil
+	// BundleDeployment deletion happens asynchronously: mark them for deletion and requeue
+	// This ensures the Bundle is kept around until all its BundleDeployments are completely deleted.
+	// Both GitRepo and HelmApp status reconcilers rely on this condition, as they watch Bundles and not BundleDeployments
+	if len(bds) > 0 {
+		logger.V(1).Info("Bundle deleted, purging bundle deployments")
+		return ctrl.Result{RequeueAfter: requeueAfterBundleDeploymentCleanup}, batchDeleteBundleDeployments(ctx, r.Client, bds)
+	}
+
+	metrics.BundleCollector.Delete(req.Name, req.Namespace)
+	controllerutil.RemoveFinalizer(bundle, finalize.BundleFinalizer)
+	return ctrl.Result{}, r.Update(ctx, bundle)
+}
+
+// ensureFinalizer adds a finalizer to a recently created bundle.
+func (r *BundleReconciler) ensureFinalizer(ctx context.Context, bundle *fleet.Bundle) error {
+	if controllerutil.ContainsFinalizer(bundle, finalize.BundleFinalizer) {
+		return nil
+	}
+
+	controllerutil.AddFinalizer(bundle, finalize.BundleFinalizer)
+	return r.Update(ctx, bundle)
 }
 
 func (r *BundleReconciler) createBundleDeployment(
@@ -411,31 +449,48 @@ func (r *BundleReconciler) createBundleDeployment(
 	return bd, nil
 }
 
-func (r *BundleReconciler) createDeploymentSecret(ctx context.Context, secretName string, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
-	namespacedName := types.NamespacedName{
-		Namespace: bundle.Namespace,
-		Name:      secretName,
+// loadBundleValues loads the values from the secret and sets them in the bundle spec
+func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
+	secret := &corev1.Secret{}
+	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); err != nil {
+		return fmt.Errorf("failed to get values secret for bundle %q, this is likely temporary: %w", bundle.Name, err)
 	}
-	var secret corev1.Secret
-	if err := r.Get(ctx, namespacedName, &secret); err != nil {
-		return err
+	hash, err := helmvalues.HashValuesSecret(secret.Data)
+	if err != nil {
+		return fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
 	}
-	// clone the secret, and just change the namespace so it's in the target's namespace
-	targetSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secret.Name,
-			Namespace: bd.Namespace,
-		},
-		Data: secret.Data,
+	if bundle.Spec.ValuesHash != hash {
+		return fmt.Errorf("bundle values secret has changed, requeuing")
 	}
 
-	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
+	if err := helmvalues.SetValues(bundle, secret.Data); err != nil {
+		return fmt.Errorf("failed load values secret %q: %w", secret.Name, err)
+	}
+
+	return nil
+}
+
+func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.BundleDeployment, options []byte, stagedOptions []byte) error {
+	secret := &corev1.Secret{
+		Type: fleet.SecretTypeBundleDeploymentOptions,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bd.Name,
+			Namespace: bd.Namespace,
+		},
+	}
+
+	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.Create(ctx, targetSecret); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
-			return err
+
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.Data = map[string][]byte{
+			helmvalues.ValuesKey:       options,
+			helmvalues.StagedValuesKey: stagedOptions,
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	return nil
@@ -461,18 +516,48 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 	return fmt.Sprintf("oci://%s/%s:latest", string(ref), bundle.Spec.ContentsID), nil
 }
 
-func (r *BundleReconciler) handleDeploymentSecret(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
-	if bd == nil {
-		return nil
+// cloneSecret clones a secret, identified by the provided secretName and
+// namespace, to the namespace of the provided bundle deployment bd. This makes
+// the secret available to agents when deploying bd to downstream clusters.
+func (r *BundleReconciler) cloneSecret(ctx context.Context, namespace string, secretName string, bd *fleet.BundleDeployment) error {
+	namespacedName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      secretName,
 	}
+	var secret corev1.Secret
+	if err := r.Get(ctx, namespacedName, &secret); err != nil {
+		return fmt.Errorf("failed to load source secret, cannot clone into %q: %w", namespace, err)
+	}
+	// clone the secret, and just change the namespace so it's in the target's namespace
+	targetSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secret.Name,
+			Namespace: bd.Namespace,
+		},
+		Data: secret.Data,
+	}
+
+	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
+		return err
+	}
+	if err := r.Create(ctx, targetSecret); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
 	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmAppOptions != nil && experimentalHelmOpsEnabled()
 
 	if contentsInOCI {
-		return r.createDeploymentSecret(ctx, bundle.Spec.ContentsID, bundle, bd)
+		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, bd)
 	}
 	if contentsInHelmChart && bundle.Spec.HelmAppOptions.SecretName != "" {
-		return r.createDeploymentSecret(ctx, bundle.Spec.HelmAppOptions.SecretName, bundle, bd)
+		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmAppOptions.SecretName, bd)
 	}
 	return nil
 }
@@ -510,33 +595,43 @@ func resourceKeyGenerationEnabled() bool {
 	return err != nil || value
 }
 
-func findNotTargetedBundleDeployments(ctx context.Context, c client.Client, bundleId types.NamespacedName, targets []*target.Target) ([]types.NamespacedName, error) {
+func (r *BundleReconciler) listBundleDeploymentsForBundle(ctx context.Context, bundle *fleet.Bundle) ([]fleet.BundleDeployment, error) {
 	list := &fleet.BundleDeploymentList{}
-	err := c.List(
-		ctx,
-		list,
+	if err := r.List(ctx, list,
 		client.MatchingLabels{
-			fleet.BundleLabel:          bundleId.Name,
-			fleet.BundleNamespaceLabel: bundleId.Namespace,
+			fleet.BundleLabel:          bundle.GetName(),
+			fleet.BundleNamespaceLabel: bundle.GetNamespace(),
 		},
-	)
+	); err != nil {
+		return nil, err
+	}
+	return list.Items, nil
+}
+
+// cleanupOrphanedBundleDeployments will delete all existing BundleDeployments which do not have a match in a provided list of UIDs
+func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context, bundle *fleet.Bundle, uidsToKeep sets.Set[types.UID]) error {
+	list, err := r.listBundleDeploymentsForBundle(ctx, bundle)
 	if err != nil {
-		return []types.NamespacedName{}, err
+		return err
+	}
+	toDelete := slices.DeleteFunc(list, func(bd fleet.BundleDeployment) bool {
+		return uidsToKeep.Has(bd.UID)
+	})
+	return batchDeleteBundleDeployments(ctx, r.Client, toDelete)
+}
+
+func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {
+	var errs []error
+	for _, bd := range list {
+		if bd.DeletionTimestamp != nil {
+			// already being deleted
+			continue
+		}
+		// Mark the object for deletion. The BundleDeployment reconciler will react to that calling PurgeContent and finally removing the finalizer
+		if err := c.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	var notTargeted []types.NamespacedName
-	for _, bd := range list.Items {
-		found := false
-		for _, t := range targets {
-			if t.Deployment.Name == bd.Name && t.Deployment.Namespace == bd.Namespace {
-				found = true
-				break
-			}
-		}
-		if !found {
-			notTargeted = append(notTargeted, types.NamespacedName{Namespace: bd.Namespace, Name: bd.Name})
-		}
-	}
-
-	return notTargeted, nil
+	return errors.Join(errs...)
 }

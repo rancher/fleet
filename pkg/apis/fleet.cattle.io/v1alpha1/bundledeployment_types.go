@@ -12,15 +12,20 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 )
 
-const BundleDeploymentResourceNamePlural = "bundledeployments"
-
 func init() {
 	InternalSchemeBuilder.Register(&BundleDeployment{}, &BundleDeploymentList{})
 }
 
-// MaxHelmReleaseNameLen is the maximum length of a Helm release name.
-// See https://github.com/helm/helm/blob/293b50c65d4d56187cd4e2f390f0ada46b4c4737/pkg/chartutil/validate_name.go#L54-L61
-const MaxHelmReleaseNameLen = 53
+const (
+	BundleDeploymentResourceNamePlural = "bundledeployments"
+
+	// MaxHelmReleaseNameLen is the maximum length of a Helm release name.
+	// See https://github.com/helm/helm/blob/293b50c65d4d56187cd4e2f390f0ada46b4c4737/pkg/chartutil/validate_name.go#L54-L61
+	MaxHelmReleaseNameLen = 53
+
+	// SecretTypeBundleDeploymentOptions is the type of the secret that stores the deployment values options.
+	SecretTypeBundleDeploymentOptions = "fleet.cattle.io/bundle-deployment/v1alpha1"
+)
 
 const IgnoreOp = "ignore"
 
@@ -333,6 +338,9 @@ type BundleDeploymentSpec struct {
 	// HelmChartOptions is not nil and has the helm chart config details when contents
 	// should be downloaded from a helm chart
 	HelmChartOptions *BundleHelmOptions `json:"helmChartOptions,omitempty"`
+	// ValuesHash is the hash of the values used to deploy the bundle.
+	// +nullable
+	ValuesHash string `json:"valuesHash,omitempty"`
 }
 
 // BundleDeploymentResource contains the metadata of a deployed resource.
