@@ -1,0 +1,75 @@
+suite: extraAnnotations tests
+templates:
+  - deployment.yaml
+  - deployment_gitjob.yaml
+  - deployment_helmops.yaml
+tests:
+  - it: should set extraAnnotations variables in fleet-controller deployment
+    set:
+      extraAnnotations:
+        test-annotation-1: testvalue1
+        test-annotation-2: testvalue2
+    template: deployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.metadata.annotations.test-annotation-1
+          value: testvalue1
+      - equal:
+          path: spec.template.metadata.annotations.test-annotation-2
+          value: testvalue2
+  - it: should set extraAnnotations variables in gitjob deployment
+    set:
+      extraAnnotations:
+        test-annotation-1: testvalue1
+        test-annotation-2: testvalue2
+      gitops:
+        enabled: true
+    template: deployment_gitjob.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.metadata.annotations.test-annotation-1
+          value: testvalue1
+      - equal:
+          path: spec.template.metadata.annotations.test-annotation-2
+          value: testvalue2
+  - it: should set extraAnnotations variables in helmops deployment
+    set:
+      extraAnnotations:
+        test-annotation-1: testvalue1
+        test-annotation-2: testvalue2
+      extraEnv:
+        - name: EXPERIMENTAL_HELM_OPS
+          value: "true"
+    template: deployment_helmops.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.metadata.annotations.test-annotation-1
+          value: testvalue1
+      - equal:
+          path: spec.template.metadata.annotations.test-annotation-2
+          value: testvalue2
+  - it: should not set extraAnnotations variables when empty
+    set:
+      extraAnnotations: {}
+      extraEnv:
+        - name: EXPERIMENTAL_HELM_OPS
+          value: "true"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind: 
+          of: Deployment
+      - notExists:
+          path: spec.template.metadata.annotations

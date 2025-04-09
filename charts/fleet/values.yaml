@@ -136,3 +136,13 @@ agent:
 #   - id: shard2
 #     nodeSelector:
 #       kubernetes.io/hostname: k3d-upstream-server-2
+
+# Extra labels passed to the fleet pods.
+# extraLabels:
+#   new-label: "new-label-value"
+#   new-label-2: "new-label-value-2"
+
+# Extra annotations passed to the fleet pods.
+# extraAnnotations:
+#   new-annotation: "new-annotation-value"
+#   new-annotation-2: "new-annotation-value-2"
