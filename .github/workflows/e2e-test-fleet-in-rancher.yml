@@ -182,6 +182,9 @@ jobs:
 
           until kubectl get bundles -n fleet-local | grep -q "fleet-agent-local.*1/1"; do sleep 3; done
 
+          # wait for deployment of webhook, needed by tests
+          kubectl -n cattle-system rollout status deploy/rancher-webhook
+
           helm list -A
 
       -
