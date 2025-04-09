@@ -32,6 +32,9 @@ const (
 	// but there are some changes that were not made from the Git
 	// Repository.
 	Modified BundleState = "Modified"
+
+	// SecretTypeBundleValues is the secret type used to store the helm values
+	SecretTypeBundleValues = "fleet.cattle.io/bundle-values/v1alpha1"
 )
 
 var (
@@ -121,6 +124,11 @@ type BundleSpec struct {
 	// not a git repository.
 	// +nullable
 	HelmAppOptions *BundleHelmOptions `json:"helmAppOptions,omitempty"`
+
+	// ValuesHash is the hash of the values used to render the Helm chart.
+	// It changes when any values from fleet.yaml, values from ValuesFiles or values from target
+	// customization changes.
+	ValuesHash string `json:"valuesHash,omitempty"`
 }
 
 type BundleRef struct {

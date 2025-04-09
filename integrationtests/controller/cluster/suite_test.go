@@ -60,7 +60,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
 	store := manifest.NewStore(mgr.GetClient())
-	builder := target.New(mgr.GetClient())
+	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 
 	err = (&reconciler.BundleReconciler{
 		Client:  mgr.GetClient(),
