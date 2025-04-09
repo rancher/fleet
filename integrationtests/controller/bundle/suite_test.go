@@ -59,7 +59,7 @@ var _ = BeforeSuite(func() {
 
 	// Set up the bundle reconciler
 	store := manifest.NewStore(mgr.GetClient())
-	builder := target.New(mgr.GetClient())
+	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 
 	err = (&reconciler.BundleReconciler{
 		Client:  mgr.GetClient(),

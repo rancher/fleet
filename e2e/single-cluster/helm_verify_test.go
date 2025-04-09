@@ -1,8 +1,11 @@
 package singlecluster_test
 
 import (
+	"slices"
+
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -48,6 +51,25 @@ var _ = Describe("Helm Chart Values", func() {
 				ContainSubstring(`"name":"local"`),
 				ContainSubstring(`"url":"local"`),
 			))
+
+			By("checking apply configs are not in the resources", func() {
+				out, err := k.Get("bundles", "helm-verify-test-helm-verify", "-o", "jsonpath={.spec}")
+				Expect(err).ToNot(HaveOccurred(), out)
+
+				var b fleetv1.BundleSpec
+				err = yaml.Unmarshal([]byte(out), &b)
+				Expect(err).ToNot(HaveOccurred())
+
+				names := slices.Collect(func(yield func(string) bool) {
+					for _, r := range b.Resources {
+						if !yield(r.Name) {
+							return
+						}
+					}
+				})
+				Expect(names).NotTo(ContainElement("fleet.yaml"))
+				Expect(names).NotTo(ContainElement("values.yaml"))
+			})
 		})
 	})
 

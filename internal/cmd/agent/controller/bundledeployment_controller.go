@@ -9,10 +9,12 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
+	"github.com/rancher/fleet/internal/helmvalues"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
@@ -29,6 +31,8 @@ import (
 // deploying the bundle as a helm release.
 type BundleDeploymentReconciler struct {
 	client.Client
+	Reader client.Reader
+
 	Scheme *runtime.Scheme
 
 	// LocalClient is the client for the cluster the agent is running on.
@@ -59,6 +63,9 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(
 			// we do not trigger for status changes
 			predicate.Or(
+				// Note: These predicates prevent cache
+				// syncPeriod from triggering reconcile, since
+				// cache sync is an Update event.
 				predicate.GenerationChangedPredicate{},
 				predicate.AnnotationChangedPredicate{},
 				predicate.LabelChangedPredicate{},
@@ -85,15 +92,13 @@ func (r *BundleDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundledeployments/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// The Reconcile function compares the state specified by
-// the BundleDeployment object against the actual cluster state, and then
-// performs operations to make the cluster state reflect the state specified by
-// the user.
+// Reconcile compares the state specified by the BundleDeployment object
+// against the actual state, and decides if the bundle should be deployed.
+// The deployed resources are then monitored for drift.
+// It also updates the status of the BundleDeployment object with the results.
 //
 // For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.0/pkg/reconcile
 func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("bundledeployment")
 	ctx = log.IntoContext(ctx, logger)
@@ -122,6 +127,23 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 
+	// load the bundledeployment options from the secret, if present
+	if bd.Spec.ValuesHash != "" {
+		secret := &corev1.Secret{}
+		if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, secret); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		h := helmvalues.HashOptions(secret.Data[helmvalues.ValuesKey], secret.Data[helmvalues.StagedValuesKey])
+		if h != bd.Spec.ValuesHash {
+			return ctrl.Result{}, fmt.Errorf("retrying, hash mismatch between secret and bundledeployment: actual %s != expected %s", h, bd.Spec.ValuesHash)
+		}
+
+		if err := helmvalues.SetOptions(bd, secret.Data); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	var merr []error
 
 	// helm deploy the bundledeployment
@@ -136,6 +158,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		bd.Status = setCondition(status, nil, condition.Cond(fleetv1.BundleDeploymentConditionDeployed))
 	}
 
+	// retrieve the resources from the helm history.
 	// if we can't retrieve the resources, we don't need to try any of the other operations and requeue now
 	resources, err := r.Deployer.Resources(bd.Name, bd.Status.Release)
 	if err != nil {
@@ -180,7 +203,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 
-	// update our mini controller, which watches deployed resources for drift
+	// update our driftdetect mini controller, which watches deployed resources for drift
 	if err := r.DriftDetect.Refresh(logger, req.String(), bd, resources); err != nil {
 		logger.V(1).Error(err, "Failed to refresh drift detection", "step", "drift")
 		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
