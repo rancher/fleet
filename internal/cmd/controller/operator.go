@@ -90,7 +90,7 @@ func start(
 
 	// bundle related controllers
 	store := manifest.NewStore(mgr.GetClient())
-	builder := target.New(mgr.GetClient())
+	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 
 	if err = (&reconciler.ClusterReconciler{
 		Client: mgr.GetClient(),

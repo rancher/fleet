@@ -17,6 +17,7 @@ import (
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/fleetyaml"
+	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ociwrapper"
@@ -105,14 +106,14 @@ func CreateBundles(ctx context.Context, client Getter, repoName string, baseDirs
 		for _, baseDir := range matches {
 			if i > 0 && opts.Output != nil {
 				if _, err := opts.Output.Write([]byte("\n---\n")); err != nil {
-					return err
+					return fmt.Errorf("writing to bundle output: %w", err)
 				}
 			}
 			err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
 				opts := opts
 				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, info)
 				if e != nil {
-					return e
+					return fmt.Errorf("checking for bundle in path %q: %w", path, err)
 				}
 				if !createBundle {
 					return nil
@@ -174,13 +175,13 @@ func pruneBundlesNotFoundInRepo(client Getter, repoName string, gitRepoBundlesMa
 	return err
 }
 
-// readBundle reads bundle data from a source and returns a bundle with the
+// newBundle reads bundle data from a source and returns a bundle with the
 // given name, or the name from the raw source file
-func readBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
+func newBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if opts.BundleReader != nil {
 		var bundle *fleet.Bundle
 		if err := json.NewDecoder(opts.BundleReader).Decode(bundle); err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("decoding bundle %s: %w", name, err)
 		}
 		return bundle, nil, nil
 	}
@@ -218,20 +219,19 @@ func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options
 	bundleID := filepath.Join(name, baseDir)
 	bundleID = names.HelmReleaseName(bundleID)
 
-	bundle, scans, err := readBundle(ctx, bundleID, baseDir, opts)
+	bundle, scans, err := newBundle(ctx, bundleID, baseDir, opts)
 	if err != nil {
 		return err
 	}
 
-	def := bundle.DeepCopy()
-	def.Namespace = client.GetNamespace()
+	bundle.Namespace = client.GetNamespace()
 
-	if len(def.Spec.Resources) == 0 {
+	if len(bundle.Spec.Resources) == 0 {
 		return ErrNoResources
 	}
-	gitRepoBundlesMap[def.Name] = true
+	gitRepoBundlesMap[bundle.Name] = true
 
-	objects := []runtime.Object{def}
+	objects := []runtime.Object{bundle}
 	for _, scan := range scans {
 		objects = append(objects, scan)
 	}
@@ -242,7 +242,48 @@ func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options
 	}
 
 	if opts.Output == nil {
-		err = save(ctx, client, def, opts, scans...)
+		c, err := client.Get()
+		if err != nil {
+			return err
+		}
+
+		h, data, err := helmvalues.ExtractValues(bundle)
+		if err != nil {
+			return err
+		}
+
+		// If values were found in the bundle the hash is not empty, we
+		// remove the values from the bundle. Also, delete any old
+		// secret if the values are empty.
+		if h != "" {
+			helmvalues.ClearValues(bundle)
+		} else if err := c.Core.Secret().Delete(bundle.Namespace, bundle.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		bundle.Spec.ValuesHash = h
+
+		if opts.OCIRegistry.Reference == "" {
+			if bundle, err = save(c, bundle); err != nil {
+				return err
+			}
+		} else {
+			if bundle, err = saveOCIBundle(ctx, c, bundle, opts); err != nil {
+				return err
+			}
+		}
+
+		// Saves the Helm values as a secret. The secret is owned by
+		// the bundle. It will not create a secret if the values are
+		// empty.
+		if len(data) > 0 {
+			if err := createOrUpdate(c, newValuesSecret(bundle, data)); err != nil {
+				return err
+			}
+		}
+
+		if err := saveImageScans(c, bundle, scans); err != nil {
+			return err
+		}
 	} else {
 		_, err = opts.Output.Write(b)
 	}
@@ -271,48 +312,45 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts *Options) (
 	return manifestID, nil
 }
 
-func save(ctx context.Context, client Getter, bundle *fleet.Bundle, opts *Options, imageScans ...*fleet.ImageScan) error {
-	c, err := client.Get()
-	if err != nil {
-		return err
+func save(c *client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
+	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return bundle, err
 	}
 
-	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		if opts.OCIRegistry.Reference != "" {
-			if err := saveOCIBundle(ctx, c, bundle, opts); err != nil {
-				return err
-			}
-		} else {
-			if _, err := c.Fleet.Bundle().Create(bundle); err != nil {
-				return err
-			}
+		if obj, err = c.Fleet.Bundle().Create(bundle); err != nil {
+			return bundle, err
 		}
-		logrus.Infof("created: %s/%s", bundle.Namespace, bundle.Name)
-	} else if err != nil {
-		return err
+		logrus.Infof("created (bundle): %s/%s", bundle.Namespace, bundle.Name)
 	} else {
 		obj.Spec = bundle.Spec
 		obj.Annotations = bundle.Annotations
 		obj.Labels = bundle.Labels
 
-		if _, err := c.Fleet.Bundle().Update(obj); err != nil {
-			return err
+		if obj, err = c.Fleet.Bundle().Update(obj); err != nil {
+			return bundle, err
 		}
-		logrus.Infof("updated: %s/%s", obj.Namespace, obj.Name)
+		logrus.Infof("updated (bundle): %s/%s", obj.Namespace, obj.Name)
 	}
 
-	for _, scan := range imageScans {
-		scan.Namespace = client.GetNamespace()
+	return obj, nil
+}
+
+func saveImageScans(c *client.Client, bundle *fleet.Bundle, scans []*fleet.ImageScan) error {
+	for _, scan := range scans {
+		scan.Namespace = bundle.Namespace
 		scan.Spec.GitRepoName = bundle.Labels[fleet.RepoLabel]
 		obj, err := c.Fleet.ImageScan().Get(scan.Namespace, scan.Name, metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+
 		if apierrors.IsNotFound(err) {
 			if _, err = c.Fleet.ImageScan().Create(scan); err != nil {
 				return err
 			}
 			logrus.Infof("created (scan): %s/%s", bundle.Namespace, bundle.Name)
-		} else if err != nil {
-			return err
 		} else {
 			obj.Spec = scan.Spec
 			obj.Annotations = bundle.Annotations
@@ -326,26 +364,58 @@ func save(ctx context.Context, client Getter, bundle *fleet.Bundle, opts *Option
 	return nil
 }
 
-func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, opts *Options) error {
+func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, opts *Options) (*fleet.Bundle, error) {
 	manifestID, err := pushOCIManifest(ctx, bundle, opts)
 	if err != nil {
-		return err
+		return bundle, err
 	}
-	// OCI artifact stored successfully
-	// We don't store the resources in the bundle. Just keep the manifestID for
-	// being able to access the bundle's contents later.
-	bundle.Spec.Resources = nil
-	bundle.Spec.ContentsID = manifestID
+	logrus.Infof("OCI artifact stored successfully: %s %s", bundle.Name, manifestID)
 
-	bundleCreated, err := c.Fleet.Bundle().Create(bundle)
-	if err != nil {
-		return err
+	obj, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return bundle, err
 	}
-	// when using the OCI registry manifestID won't be empty
-	// In this case we need to create a secret to store the
-	// OCI registry reference and credentials so the fleet controller is
-	// able to access.
-	secret := &corev1.Secret{
+
+	if apierrors.IsNotFound(err) {
+		// We don't store the resources in the bundle. Just keep the manifestID for
+		// being able to access the bundle's contents later.
+		bundle.Spec.Resources = nil
+		bundle.Spec.ContentsID = manifestID
+		obj, err = c.Fleet.Bundle().Create(bundle)
+		if err != nil {
+			return bundle, err
+		}
+
+		if err := createOrUpdate(c, newOCISecret(manifestID, obj, opts)); err != nil {
+			return bundle, err
+		}
+		logrus.Infof("createOrUpdate (oci secret): %s/%s", obj.Namespace, obj.Name)
+	} else {
+		obj.Spec = bundle.Spec
+		obj.Annotations = bundle.Annotations
+		obj.Labels = bundle.Labels
+		obj.Spec.Resources = nil
+		obj.Spec.ContentsID = manifestID
+		obj, err = c.Fleet.Bundle().Update(obj)
+		if err != nil {
+			return bundle, err
+		}
+
+		if err := createOrUpdate(c, newOCISecret(manifestID, obj, opts)); err != nil {
+			return bundle, err
+		}
+		logrus.Infof("createOrUpdate (oci secret): %s/%s", obj.Namespace, obj.Name)
+	}
+
+	return obj, nil
+}
+
+// when using the OCI registry manifestID won't be empty
+// In this case we need to create a secret to store the
+// OCI registry reference and credentials so the fleet controller is
+// able to access.
+func newOCISecret(manifestID string, bundle *fleet.Bundle, opts *Options) *corev1.Secret {
+	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      manifestID,
 			Namespace: bundle.Namespace,
@@ -353,8 +423,8 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 				{
 					APIVersion:         fleet.SchemeGroupVersion.String(),
 					Kind:               "Bundle",
-					Name:               bundleCreated.GetName(),
-					UID:                bundleCreated.GetUID(),
+					Name:               bundle.GetName(),
+					UID:                bundle.GetUID(),
 					BlockOwnerDeletion: ptr.To(true),
 					Controller:         ptr.To(true),
 				},
@@ -368,10 +438,29 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 			ociwrapper.OCISecretInsecure:  []byte(strconv.FormatBool(opts.OCIRegistry.InsecureSkipTLS)),
 		},
 	}
-	if _, err := c.Core.Secret().Create(secret); err != nil {
-		return err
+}
+
+func newValuesSecret(bundle *fleet.Bundle, data map[string][]byte) *corev1.Secret {
+	return &corev1.Secret{
+		Type: fleet.SecretTypeBundleValues,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bundle.Name,
+			Namespace: bundle.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         fleet.SchemeGroupVersion.String(),
+					Kind:               "Bundle",
+					Name:               bundle.Name,
+					UID:                bundle.GetUID(),
+					BlockOwnerDeletion: ptr.To(true),
+					Controller:         ptr.To(true),
+				},
+			},
+			Labels: bundle.Labels,
+		},
+
+		Data: data,
 	}
-	return err
 }
 
 // shouldCreateBundleForThisPath returns true if a bundle should be created for this path. This happens when:
@@ -431,4 +520,19 @@ func hasSubDirectoryWithResourcesAndWithoutFleetYaml(path string) (bool, error) 
 	}
 
 	return false, nil
+}
+
+func createOrUpdate(c *client.Client, obj *corev1.Secret) error {
+	_, err := c.Core.Secret().Get(obj.GetNamespace(), obj.GetName(), metav1.GetOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("failed to get secret %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+	}
+
+	if apierrors.IsNotFound(err) {
+		_, err := c.Core.Secret().Create(obj)
+		return err
+	}
+
+	_, err = c.Core.Secret().Update(obj)
+	return err
 }
