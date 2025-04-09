@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.11.6-beta.1
+  tag: v0.11.6-beta.2
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.11.6-beta.1
+  tag: v0.11.6-beta.2
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
@@ -74,6 +74,10 @@ tolerations: []
 
 ## PriorityClassName assigned to deployment.
 priorityClassName: ""
+
+## Determines whether SSH operations (eg. cloning git repos, downloading Helm charts) could succeed if
+## host verification fails. Insecure when set to true. Default: true.
+insecureSkipHostKeyChecks: true
 
 gitops:
   enabled: true

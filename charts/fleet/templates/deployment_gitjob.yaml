@@ -58,6 +58,9 @@ spec:
           {{- if not $.Values.metrics.enabled }}
           - --disable-metrics
           {{- end }}
+          {{- if $.Values.insecureSkipHostKeyChecks }}
+          - --insecure-skip-host-key-checks
+          {{- end }}
           env:
             - name: NAMESPACE
               valueFrom:
