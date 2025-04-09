@@ -25,6 +25,7 @@ import (
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	"github.com/rancher/fleet/internal/metrics"
+	"github.com/rancher/fleet/internal/ssh"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git"
 	"github.com/rancher/fleet/pkg/version"
@@ -53,6 +54,7 @@ type GitOperator struct {
 	Listen               string `default:":8080" usage:"The port the webhook listens."`
 	ShardID              string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
 	ShardNodeSelector    string `usage:"node selector to apply to jobs based on the shard ID, if any" name:"shard-node-selector"`
+	SkipHostKeyChecks    bool   `name:"insecure-skip-host-key-checks" usage:"Enable SSH connections to succeed even without matching known_hosts entries. Enabling this will expose SSH operations to man-in-the-middle attacks."`
 }
 
 func App(zo *zap.Options) *cobra.Command {
@@ -123,6 +125,8 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		workers = w
 	}
 
+	kh := ssh.KnownHosts{EnforceHostKeyChecks: !g.SkipHostKeyChecks}
+
 	reconciler := &reconciler.GitJobReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
@@ -131,9 +135,10 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		Workers:         workers,
 		ShardID:         g.ShardID,
 		JobNodeSelector: g.ShardNodeSelector,
-		GitFetcher:      &git.Fetch{},
+		GitFetcher:      &git.Fetch{KnownHosts: kh},
 		Clock:           reconciler.RealClock{},
 		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
+		KnownHosts:      kh,
 	}
 
 	group, ctx := errgroup.WithContext(ctx)

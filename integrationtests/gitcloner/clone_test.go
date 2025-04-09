@@ -302,15 +302,11 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 			})
 
 			JustBeforeEach(func() {
-				// create known_hosts file
 				knownHostEntry, err := getKnownHostEntry(container)
 				Expect(err).NotTo(HaveOccurred())
-				tmpKnownHostsFile, err := os.CreateTemp("", "known_hosts")
+
+				err = os.Setenv("FLEET_KNOWN_HOSTS", knownHostEntry)
 				Expect(err).NotTo(HaveOccurred())
-				_, err = tmpKnownHostsFile.Write([]byte(knownHostEntry))
-				Expect(err).NotTo(HaveOccurred())
-				tmpKnownHosts = tmpKnownHostsFile.Name()
-				opts.KnownHostsFile = tmpKnownHosts
 			})
 
 			It("clones successfully when a matching host key is provided", func() {
@@ -326,10 +322,11 @@ var _ = Describe("Applying a git job gets content from git repo", Label("network
 			It("fails without a matching known host key", func() {
 				tmpKnownHostsFile, err := os.CreateTemp("", "known_hosts")
 				Expect(err).NotTo(HaveOccurred())
-				_, err = tmpKnownHostsFile.Write([]byte("github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"))
-				Expect(err).NotTo(HaveOccurred())
+
 				tmpKnownHosts = tmpKnownHostsFile.Name()
-				opts.KnownHostsFile = tmpKnownHosts
+
+				err = os.Setenv("FLEET_KNOWN_HOSTS", "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl")
+				Expect(err).NotTo(HaveOccurred())
 
 				c := gitcloner.New()
 				Eventually(func() error {
