@@ -1,11 +1,13 @@
 package singlecluster_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"math/rand"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	yaml "sigs.k8s.io/yaml"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
@@ -71,6 +73,27 @@ var _ = Describe("ValuesFrom", func() {
 				Expect(result).To(HaveKeyWithValue("englishname", "secret override"))
 				Expect(result).To(HaveKeyWithValue("optionconfigmap", "configmap option"))
 				Expect(result).To(HaveKeyWithValue("optionsecret", "secret option"))
+
+				By("checking other values are persisted to the values secrets", func() {
+					out, err := k.Get("secret", "values-from-helm-values-from", "-o", "jsonpath={.data}")
+					Expect(err).ToNot(HaveOccurred(), out)
+					Expect(out).To(MatchRegexp(`{"values.yaml":"\w+"}`))
+
+					data := map[string]string{}
+					err = yaml.Unmarshal([]byte(out), &data)
+					Expect(err).ToNot(HaveOccurred())
+					content := data["values.yaml"]
+					b, err := base64.StdEncoding.DecodeString(content)
+					Expect(err).ToNot(HaveOccurred())
+					values := map[string]interface{}{}
+					err = yaml.Unmarshal(b, &values)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(values).To(HaveLen(3))
+					Expect(values).To(HaveKeyWithValue("fleetyaml", "from fleet.yaml"))
+					Expect(values).To(HaveKeyWithValue("name", "name from fleet.yaml"))
+					Expect(values).To(HaveKeyWithValue("options", map[string]interface{}{"english": map[string]interface{}{"name": "english name from fleet.yaml"}}))
+				})
 			})
 		})
 	})

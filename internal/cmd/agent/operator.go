@@ -264,6 +264,7 @@ func newReconciler(
 
 	return &controller.BundleDeploymentReconciler{
 		Client: upstreamClient,
+		Reader: mgr.GetAPIReader(),
 
 		Scheme:      mgr.GetScheme(),
 		LocalClient: localClient,

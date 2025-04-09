@@ -127,7 +127,7 @@ func (d *Deploy) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg := ctrl.GetConfigOrDie()
-	client, err := newClient(ctx, cfg)
+	client, _, err := newClient(ctx, cfg)
 	if err != nil {
 		return err
 	}
