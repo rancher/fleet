@@ -126,7 +126,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 		if bd.Spec.ValuesHash != "" {
 			secret := &corev1.Secret{}
 			if err := m.reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, secret); err != nil {
-				return nil, fmt.Errorf("failed to get options secret for bundledeployment %q, this is likely temporary: %w", bundle.Name, err)
+				return nil, fmt.Errorf("failed to get options secret for bundledeployment %s/%s, this is likely temporary: %w", bd.Namespace, bd.Name, err)
 			}
 
 			h := helmvalues.HashOptions(secret.Data[helmvalues.ValuesKey], secret.Data[helmvalues.StagedValuesKey])
