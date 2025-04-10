@@ -70,10 +70,8 @@ var _ = Describe("Single Cluster Deployments", func() {
 			})
 
 			AfterEach(func() {
-				_, _ = k.Delete("ns", "fleet-helm-oci-example")
-				_, _ = k.Delete("ns", "fleet-kustomize-example")
-				_, _ = k.Delete("ns", "kustomize-dev")
-				_, _ = k.Delete("ns", "kustomize-test")
+				_, _ = k.Delete("ns", "test-fleet-mp-config")
+				_, _ = k.Delete("ns", "test-fleet-mp-service")
 			})
 
 			It("deploys bundles from all the paths", func() {
@@ -145,8 +143,10 @@ var _ = Describe("Single Cluster Deployments", func() {
 			})
 
 			AfterEach(func() {
-				_, _ = k.Delete("ns", "test-fleet-mp-config")
-				_, _ = k.Delete("ns", "test-fleet-mp-service")
+				_, _ = k.Delete("ns", "fleet-helm-oci-example")
+				_, _ = k.Delete("ns", "fleet-kustomize-example")
+				_, _ = k.Delete("ns", "kustomize-dev")
+				_, _ = k.Delete("ns", "kustomize-test")
 			})
 
 			It("deploys 4 bundles as expected", func() {

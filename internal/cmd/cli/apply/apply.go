@@ -158,7 +158,8 @@ func CreateBundles(ctx context.Context, client Getter, repoName string, baseDirs
 // printed to stdout, ...
 // CreateBundlesDriven does not scan the given dirs recursively, it simply considers each of them
 // to be the base path for a bundle.
-// The given baseDirs may describe a simple path or a path and a fleet file comma separated.
+// The given baseDirs may describe a simple path or a path and a fleet file,
+// separated by a character set in opts.
 // If no fleet file is provided it tries to load a fleet.yaml in the root of the dir, or will consider
 // the directory as a raw content folder.
 func CreateBundlesDriven(ctx context.Context, client Getter, repoName string, baseDirs []string, opts Options) error {
