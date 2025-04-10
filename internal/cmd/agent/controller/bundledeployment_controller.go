@@ -9,8 +9,10 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/cleanup"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
+	"github.com/rancher/fleet/internal/helmvalues"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
@@ -27,6 +29,8 @@ import (
 // deploying the bundle as a helm release.
 type BundleDeploymentReconciler struct {
 	client.Client
+	Reader client.Reader
+
 	Scheme *runtime.Scheme
 
 	// LocalClient is the client for the cluster the agent is running on.
@@ -121,6 +125,23 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		err := r.DriftDetect.Clear(req.String())
 
 		return ctrl.Result{}, err
+	}
+
+	// load the bundledeployment options from the secret, if present
+	if bd.Spec.ValuesHash != "" {
+		secret := &corev1.Secret{}
+		if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, secret); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		h := helmvalues.HashOptions(secret.Data[helmvalues.ValuesKey], secret.Data[helmvalues.StagedValuesKey])
+		if h != bd.Spec.ValuesHash {
+			return ctrl.Result{}, fmt.Errorf("retrying, hash mismatch between secret and bundledeployment: actual %s != expected %s", h, bd.Spec.ValuesHash)
+		}
+
+		if err := helmvalues.SetOptions(bd, secret.Data); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	var merr []error
