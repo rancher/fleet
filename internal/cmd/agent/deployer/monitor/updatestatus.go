@@ -4,9 +4,13 @@
 package monitor
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"iter"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -219,38 +223,58 @@ func (m *Monitor) updateFromResources(ctx context.Context, logger logr.Logger, b
 }
 
 func nonReady(logger logr.Logger, plan desiredset.Plan, ignoreOptions fleet.IgnoreOptions) (result []fleet.NonReadyStatus) {
-	defer func() {
-		sort.Slice(result, func(i, j int) bool {
-			return result[i].UID < result[j].UID
-		})
-	}()
-
+	objects := make([]*unstructured.Unstructured, 0, len(plan.Objects))
 	for _, obj := range plan.Objects {
+		if u, ok := obj.(*unstructured.Unstructured); ok {
+			objects = append(objects, u)
+		}
+	}
+	sort.Slice(objects, func(i, j int) bool {
+		return objects[i].GetUID() < objects[j].GetUID()
+	})
+
+	for _, u := range objects {
 		if len(result) >= 10 {
 			return result
 		}
-		if u, ok := obj.(*unstructured.Unstructured); ok {
-			if ignoreOptions.Conditions != nil {
-				if err := excludeIgnoredConditions(u, ignoreOptions); err != nil {
-					logger.Error(err, "failed to ignore conditions")
-				}
+		if ignoreOptions.Conditions != nil {
+			if err := excludeIgnoredConditions(u, ignoreOptions); err != nil {
+				logger.Error(err, "failed to ignore conditions")
 			}
+		}
 
-			summary := summary.Summarize(u)
-			if !summary.IsReady() {
-				result = append(result, fleet.NonReadyStatus{
-					UID:        u.GetUID(),
-					Kind:       u.GetKind(),
-					APIVersion: u.GetAPIVersion(),
-					Namespace:  u.GetNamespace(),
-					Name:       u.GetName(),
-					Summary:    summary,
-				})
-			}
+		summary := summary.Summarize(u)
+		if !summary.IsReady() {
+			result = append(result, fleet.NonReadyStatus{
+				UID:        u.GetUID(),
+				Kind:       u.GetKind(),
+				APIVersion: u.GetAPIVersion(),
+				Namespace:  u.GetNamespace(),
+				Name:       u.GetName(),
+				Summary:    summary,
+			})
 		}
 	}
 
 	return result
+}
+
+type stringer interface {
+	comparable
+	fmt.Stringer
+}
+
+// inOrder returns a key-value iterator that will run through the keys always in the same order
+func inOrder[K stringer, V any](m map[K]V) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		for _, gvk := range slices.SortedFunc(maps.Keys(m), func(a K, b K) int {
+			return cmp.Compare(a.String(), b.String())
+		}) {
+			if !yield(gvk, m[gvk]) {
+				return
+			}
+		}
+	}
 }
 
 // modified returns a list of modified statuses based on the provided plan and previous release resources.
@@ -263,7 +287,11 @@ func modified(ctx context.Context, c client.Client, logger logr.Logger, plan des
 			return sortKey(result[i]) < sortKey(result[j])
 		})
 	}()
-	for gvk, keys := range plan.Create {
+	for gvk, keys := range inOrder(plan.Create) {
+		// Also sort object keys
+		slices.SortFunc(keys, func(a, b objectset.ObjectKey) int {
+			return cmp.Compare(a.String(), b.String())
+		})
 		for _, key := range keys {
 			if len(result) >= 10 {
 				return result
@@ -303,7 +331,11 @@ func modified(ctx context.Context, c client.Client, logger logr.Logger, plan des
 		}
 	}
 
-	for gvk, keys := range plan.Delete {
+	for gvk, keys := range inOrder(plan.Delete) {
+		// Also sort object keys
+		slices.SortFunc(keys, func(a, b objectset.ObjectKey) int {
+			return cmp.Compare(a.String(), b.String())
+		})
 		for _, key := range keys {
 			if len(result) >= 10 {
 				return result
@@ -326,10 +358,10 @@ func modified(ctx context.Context, c client.Client, logger logr.Logger, plan des
 		}
 	}
 
-	for gvk, patches := range plan.Update {
-		for key, patch := range patches {
+	for gvk, patches := range inOrder(plan.Update) {
+		for key, patch := range inOrder(patches) {
 			if len(result) >= 10 {
-				break
+				return result
 			}
 
 			apiVersion, kind := gvk.ToAPIVersionAndKind()
