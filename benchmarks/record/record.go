@@ -197,7 +197,7 @@ func Nodes(ctx context.Context, experiment *gm.Experiment) {
 }
 
 func Header(s string) string {
-	h := fmt.Sprintf("{{bold}}%s{{/}}\n", s)
+	h := fmt.Sprintf("%s\n", s)
 	h += strings.Repeat("=", len(s)) + "\n"
 	return h
 }

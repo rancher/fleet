@@ -24,6 +24,7 @@ var (
 	input   string
 	db      string
 	verbose bool
+	debug   bool
 )
 
 func main() {
@@ -42,6 +43,7 @@ func init() {
 	rootCmd.AddCommand(reportCmd)
 	rootCmd.AddCommand(csvCmd)
 	rootCmd.PersistentFlags().StringVarP(&input, "input", "i", "report.json", "input file")
+	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "", false, "debug output")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 
 	reportCmd.PersistentFlags().StringVarP(&db, "db", "d", "db/", "path to json file database dir")
@@ -180,7 +182,7 @@ var reportCmd = &cobra.Command{
 
 		calculate(sample, dsPop, scores)
 
-		if verbose {
+		if debug {
 			fmt.Println("# Population from DB")
 			fmt.Println("```")
 			fmt.Println(prettyPrint(dsPop))
@@ -196,40 +198,54 @@ var reportCmd = &cobra.Command{
 		if sample.Description != "" {
 			fmt.Println("# Description of Setup")
 			fmt.Println()
+			fmt.Println("> This section contains information about the setup used for the current sample. Like the k8s version, the node resources and the images available to the node.")
 			fmt.Println(sample.Description)
-			fmt.Println()
-			fmt.Printf("Population size: %d\n", len(population.Samples))
+
+			fmt.Println("Population Size")
+			fmt.Println("===============")
+			fmt.Printf("Reports in %q: %d\n", db, len(population.Samples))
 			fmt.Println()
 		}
 
-		t1 := report.NewTable(sample.Setup)
-		t1.TableStyle.EnableTextStyling = false
-		fmt.Println(t1.Render())
-
-		fmt.Println("# Individual Measurements")
+		fmt.Println("# Results for Current Sample")
+		fmt.Println()
+		fmt.Println("> These measurements were taken before and after the experiments.")
 		fmt.Println()
 
-		mRows := map[string]map[string]MeasurementRow{}
-		for experiment, xp := range sample.Experiments {
-			mRows[experiment] = map[string]MeasurementRow{}
-			for measurement, m := range xp.Measurements {
-				row := MeasurementRow{
-					Experiment:  experiment,
-					Measurement: measurement,
-					Value:       m.String(),
-					Mean:        dsPop[experiment][measurement].Mean,
-					StdDev:      dsPop[experiment][measurement].StdDev,
-					ZScore:      dsPop[experiment][measurement].ZScore,
+		t := report.NewTable(sample.Setup)
+		t.TableStyle.EnableTextStyling = false
+		fmt.Println(t.Render())
+
+		if verbose {
+			fmt.Println("# Compare Individual Measurements to Population")
+			fmt.Println()
+			fmt.Println("> For each experiment, the measurements for the current sample are compared to the population's data.")
+			fmt.Println()
+
+			rows := map[string]map[string]MeasurementRow{}
+			for experiment, xp := range sample.Experiments {
+				rows[experiment] = map[string]MeasurementRow{}
+				for measurement, m := range xp.Measurements {
+					row := MeasurementRow{
+						Experiment:  experiment,
+						Measurement: measurement,
+						Value:       m.String(),
+						Mean:        dsPop[experiment][measurement].Mean,
+						StdDev:      dsPop[experiment][measurement].StdDev,
+						ZScore:      dsPop[experiment][measurement].ZScore,
+					}
+					rows[experiment][measurement] = row
 				}
-				mRows[experiment][measurement] = row
 			}
+
+			t := newMeasurementTable(rows)
+			fmt.Println(t.Render())
 		}
 
-		mTable := newMeasurementTable(mRows)
-		fmt.Println(mTable.Render())
-
 		// table for experiments
-		fmt.Println("# Experiment Summary")
+		fmt.Println("# Summary for each Experiment")
+		fmt.Println()
+		fmt.Println("> The duration of each experiment is compared to the population's data.")
 		fmt.Println()
 
 		rows := map[string]Row{}
@@ -244,12 +260,12 @@ var reportCmd = &cobra.Command{
 			rows[experiment] = row
 		}
 
-		xpTable := newTable(rows)
-		fmt.Println(xpTable.Render())
+		t = newTable(rows)
+		fmt.Println(t.Render())
 
-		// Final score
-		fmt.Println("# Total Score")
-		fmt.Printf("%s, %.02f\n", input, scores.AvgZScores())
+		fmt.Println("# Final Score")
+		fmt.Println()
+		fmt.Printf("%s: %.02f\n", input, scores.AvgZScores())
 
 		return nil
 	},
@@ -288,7 +304,6 @@ func newTable(rows map[string]Row) *table.Table {
 		table.C("ZScore"),
 		table.C(""),
 		table.Divider("="),
-		//"{{bold}}",
 	))
 
 	keys := slices.Sorted(maps.Keys(rows))
@@ -326,7 +341,6 @@ func newMeasurementTable(rows map[string]map[string]MeasurementRow) *table.Table
 		table.C("Population StdDev"),
 		table.C("ZScore"),
 		table.Divider("="),
-		//"{{bold}}",
 	))
 
 	keys := slices.Sorted(maps.Keys(rows))
