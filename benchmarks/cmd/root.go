@@ -24,6 +24,8 @@ var (
 	input   string
 	db      string
 	verbose bool
+	debug   bool
+	stats   bool
 )
 
 func main() {
@@ -42,9 +44,11 @@ func init() {
 	rootCmd.AddCommand(reportCmd)
 	rootCmd.AddCommand(csvCmd)
 	rootCmd.PersistentFlags().StringVarP(&input, "input", "i", "report.json", "input file")
+	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "", false, "debug output")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 
 	reportCmd.PersistentFlags().StringVarP(&db, "db", "d", "db/", "path to json file database dir")
+	reportCmd.Flags().BoolVarP(&stats, "stats", "s", false, "show StdDev and ZScore")
 }
 
 var jsonCmd = &cobra.Command{
@@ -180,7 +184,7 @@ var reportCmd = &cobra.Command{
 
 		calculate(sample, dsPop, scores)
 
-		if verbose {
+		if debug {
 			fmt.Println("# Population from DB")
 			fmt.Println("```")
 			fmt.Println(prettyPrint(dsPop))
@@ -196,40 +200,54 @@ var reportCmd = &cobra.Command{
 		if sample.Description != "" {
 			fmt.Println("# Description of Setup")
 			fmt.Println()
+			fmt.Println("> This section contains information about the setup used for the current sample. Like the k8s version, the node resources and the images available to the node.")
 			fmt.Println(sample.Description)
-			fmt.Println()
-			fmt.Printf("Population size: %d\n", len(population.Samples))
+
+			fmt.Println("Population Size")
+			fmt.Println("===============")
+			fmt.Printf("Reports in %q: %d\n", db, len(population.Samples))
 			fmt.Println()
 		}
 
-		t1 := report.NewTable(sample.Setup)
-		t1.TableStyle.EnableTextStyling = false
-		fmt.Println(t1.Render())
-
-		fmt.Println("# Individual Measurements")
+		fmt.Println("# Results for Current Sample")
+		fmt.Println()
+		fmt.Println("> These measurements were taken before and after the experiments.")
 		fmt.Println()
 
-		mRows := map[string]map[string]MeasurementRow{}
-		for experiment, xp := range sample.Experiments {
-			mRows[experiment] = map[string]MeasurementRow{}
-			for measurement, m := range xp.Measurements {
-				row := MeasurementRow{
-					Experiment:  experiment,
-					Measurement: measurement,
-					Value:       m.String(),
-					Mean:        dsPop[experiment][measurement].Mean,
-					StdDev:      dsPop[experiment][measurement].StdDev,
-					ZScore:      dsPop[experiment][measurement].ZScore,
+		t := report.NewTable(sample.Setup)
+		t.TableStyle.EnableTextStyling = false
+		fmt.Println(t.Render())
+
+		if verbose {
+			fmt.Println("# Compare Individual Measurements to Population")
+			fmt.Println()
+			fmt.Println("> For each experiment, the measurements for the current sample are compared to the population's data.")
+			fmt.Println()
+
+			rows := map[string]map[string]MeasurementRow{}
+			for experiment, xp := range sample.Experiments {
+				rows[experiment] = map[string]MeasurementRow{}
+				for measurement, m := range xp.Measurements {
+					row := MeasurementRow{
+						Experiment:  experiment,
+						Measurement: measurement,
+						Value:       m.String(),
+						Mean:        dsPop[experiment][measurement].Mean,
+						StdDev:      dsPop[experiment][measurement].StdDev,
+						ZScore:      dsPop[experiment][measurement].ZScore,
+					}
+					rows[experiment][measurement] = row
 				}
-				mRows[experiment][measurement] = row
 			}
+
+			t := newMeasurementTable(rows)
+			fmt.Println(t.Render())
 		}
 
-		mTable := newMeasurementTable(mRows)
-		fmt.Println(mTable.Render())
-
 		// table for experiments
-		fmt.Println("# Experiment Summary")
+		fmt.Println("# Summary for each Experiment")
+		fmt.Println()
+		fmt.Println("> The duration of each experiment is compared to the population's data.")
 		fmt.Println()
 
 		rows := map[string]Row{}
@@ -244,12 +262,12 @@ var reportCmd = &cobra.Command{
 			rows[experiment] = row
 		}
 
-		xpTable := newTable(rows)
-		fmt.Println(xpTable.Render())
+		t = newTable(rows)
+		fmt.Println(t.Render())
 
-		// Final score
-		fmt.Println("# Total Score")
-		fmt.Printf("%s, %.02f\n", input, scores.AvgZScores())
+		fmt.Println("# Final Score")
+		fmt.Println()
+		fmt.Printf("%s: %.02f\n", input, scores.AvgZScores())
 
 		return nil
 	},
@@ -280,16 +298,18 @@ type Row struct {
 func newTable(rows map[string]Row) *table.Table {
 	t := table.NewTable()
 	t.TableStyle.EnableTextStyling = false
-	t.AppendRow(table.R(
+	row := table.R(
 		table.C("Experiment"),
 		table.C("Duration"),
-		table.C("Population Mean Duration"),
-		table.C("Population StdDev Duration"),
-		table.C("ZScore"),
-		table.C(""),
+		table.C("Mean Duration"),
 		table.Divider("="),
-		//"{{bold}}",
-	))
+	)
+	if stats {
+		row.AppendCell(table.C("StdDev Duration"))
+		row.AppendCell(table.C("ZScore"))
+	}
+	row.AppendCell(table.C(""))
+	t.AppendRow(row)
 
 	keys := slices.Sorted(maps.Keys(rows))
 	for _, k := range keys {
@@ -300,8 +320,10 @@ func newTable(rows map[string]Row) *table.Table {
 		r.AppendCell(table.C(row.Experiment))
 		r.AppendCell(table.C(fmt.Sprintf("%.02fs", row.Duration)))
 		r.AppendCell(table.C(fmt.Sprintf("%.02fs", row.MeanDuration)))
-		r.AppendCell(table.C(fmt.Sprintf("%.02fs", row.StdDevDuration)))
-		r.AppendCell(table.C(fmt.Sprintf("%.02f", row.ZScore)))
+		if stats {
+			r.AppendCell(table.C(fmt.Sprintf("%.02fs", row.StdDevDuration)))
+			r.AppendCell(table.C(fmt.Sprintf("%.02f", row.ZScore)))
+		}
 		if row.ZScore < 0 {
 			r.AppendCell(table.C("better"))
 		} else if row.ZScore > 0 {
@@ -318,16 +340,18 @@ func newTable(rows map[string]Row) *table.Table {
 func newMeasurementTable(rows map[string]map[string]MeasurementRow) *table.Table {
 	t := table.NewTable()
 	t.TableStyle.EnableTextStyling = false
-	t.AppendRow(table.R(
+	row := table.R(
 		table.C("Experiment"),
 		table.C("Measurement"),
 		table.C("Value"),
-		table.C("Population Mean"),
-		table.C("Population StdDev"),
-		table.C("ZScore"),
+		table.C("Mean"),
 		table.Divider("="),
-		//"{{bold}}",
-	))
+	)
+	if stats {
+		row.AppendCell(table.C("StdDev"))
+		row.AppendCell(table.C("ZScore"))
+	}
+	t.AppendRow(row)
 
 	keys := slices.Sorted(maps.Keys(rows))
 	for _, k := range keys {
@@ -342,11 +366,13 @@ func newMeasurementTable(rows map[string]map[string]MeasurementRow) *table.Table
 			r.AppendCell(table.C(row.Measurement))
 			r.AppendCell(table.C(row.Value))
 			r.AppendCell(table.C(fmt.Sprintf("%.02f", row.Mean)))
-			r.AppendCell(table.C(fmt.Sprintf("%.02f", row.StdDev)))
-			if skip(row.Measurement) {
-				r.AppendCell(table.C("-"))
-			} else {
-				r.AppendCell(table.C(fmt.Sprintf("%.02f", row.ZScore)))
+			if stats {
+				r.AppendCell(table.C(fmt.Sprintf("%.02f", row.StdDev)))
+				if skip(row.Measurement) {
+					r.AppendCell(table.C("-"))
+				} else {
+					r.AppendCell(table.C(fmt.Sprintf("%.02f", row.ZScore)))
+				}
 			}
 		}
 	}

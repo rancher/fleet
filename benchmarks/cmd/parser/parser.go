@@ -59,7 +59,7 @@ func NewSetup(specReports types.SpecReports, result map[string]Measurement) (str
 			data := entry.Value.AsJSON
 			err := json.Unmarshal([]byte(data), &xp)
 			if err != nil {
-				fmt.Printf("error: %s\n", data)
+				fmt.Printf("failed to unmarshal setup: %s\n", data)
 				return "", err
 			}
 			// in report:
@@ -130,7 +130,7 @@ func NewExperiments(specReports types.SpecReports, result map[string]Experiment)
 			data := entry.Value.AsJSON
 			err := json.Unmarshal([]byte(data), &xp)
 			if err != nil {
-				fmt.Printf("error: %s\n", data)
+				fmt.Printf("failed to unmarshal experiment: %s\n", data)
 				return total, err
 			}
 			// raw := entry.GetRawValue()
