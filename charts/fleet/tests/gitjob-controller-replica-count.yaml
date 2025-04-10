@@ -1,0 +1,13 @@
+suite: replica values test for fleet controller
+templates:
+  - deployment_gitjob.yaml
+tests:
+  - it: should set spec.replicas to the number of replicas specified in the controller's replicas field
+    set:
+      gitjob.replicas: 3
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 3
