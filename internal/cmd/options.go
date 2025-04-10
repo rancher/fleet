@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"k8s.io/utils/ptr"
 )
 
 type LeaderElectionOptions struct {
@@ -32,6 +34,10 @@ func NewLeaderElectionOptions() (LeaderElectionOptions, error) {
 		}
 		leaderOpts.LeaseDuration = &v
 	}
+	if leaderOpts.LeaseDuration == nil {
+		leaderOpts.LeaseDuration = ptr.To(time.Duration(0))
+	}
+
 	if d := os.Getenv("CATTLE_ELECTION_RENEW_DEADLINE"); d != "" {
 		v, err := time.ParseDuration(d)
 		if err != nil {
