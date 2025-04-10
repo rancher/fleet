@@ -70,6 +70,8 @@ type Options struct {
 	CorrectDriftForce           bool
 	CorrectDriftKeepFailHistory bool
 	OCIRegistry                 OCIRegistrySpec
+	DrivenScan                  bool
+	DrivenScanSeparator         string
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -151,6 +153,71 @@ func CreateBundles(ctx context.Context, client Getter, repoName string, baseDirs
 	return nil
 }
 
+// CreateBundlesDriven creates bundles from the given baseDirs. Those bundles' names will be prefixed with
+// repoName. Depending on opts.Output the bundles are created in the cluster or
+// printed to stdout, ...
+// CreateBundlesDriven does not scan the given dirs recursively, it simply considers each of them
+// to be the base path for a bundle.
+// The given baseDirs may describe a simple path or a path and a fleet file,
+// separated by a character set in opts.
+// If no fleet file is provided it tries to load a fleet.yaml in the root of the dir, or will consider
+// the directory as a raw content folder.
+func CreateBundlesDriven(ctx context.Context, client Getter, repoName string, baseDirs []string, opts Options) error {
+	if len(baseDirs) == 0 {
+		baseDirs = []string{"."}
+	}
+
+	foundBundle := false
+	gitRepoBundlesMap := make(map[string]bool)
+	for _, baseDir := range baseDirs {
+		opts := opts
+		// verify if it also defines a fleetFile
+		var err error
+		baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
+		if err != nil {
+			return err
+		}
+		if auth, ok := opts.AuthByPath[baseDir]; ok {
+			opts.Auth = auth
+		}
+		if err := Dir(ctx, client, repoName, baseDir, &opts, gitRepoBundlesMap); err == ErrNoResources {
+			logrus.Warnf("%s: %v", baseDir, err)
+			return nil
+		} else if err != nil {
+			return err
+		}
+		foundBundle = true
+	}
+
+	if opts.Output == nil {
+		err := pruneBundlesNotFoundInRepo(client, repoName, gitRepoBundlesMap)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !foundBundle {
+		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
+	}
+
+	return nil
+}
+
+// getPathAndFleetYaml returns the path and options file from a given path.
+// The path and options file should be separated by the given separator
+func getPathAndFleetYaml(path, separator string) (string, string, error) {
+	baseDirFleetFile := strings.Split(path, separator)
+	if len(baseDirFleetFile) == 2 {
+		return baseDirFleetFile[0], baseDirFleetFile[1], nil
+	}
+
+	if len(baseDirFleetFile) > 2 {
+		return "", "", fmt.Errorf("invalid bundle path: %q", path)
+	}
+
+	return path, "", nil
+}
+
 // pruneBundlesNotFoundInRepo lists all bundles for this gitrepo and prunes those not found in the repo
 func pruneBundlesNotFoundInRepo(client Getter, repoName string, gitRepoBundlesMap map[string]bool) error {
 	c, err := client.Get()
@@ -217,6 +284,9 @@ func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options
 	// The bundleID is a valid helm release name, it's used as a default if a release name is not specified in helm options.
 	// It's also used to create the bundle name.
 	bundleID := filepath.Join(name, baseDir)
+	if opts.BundleFile != "" {
+		bundleID = filepath.Join(bundleID, strings.TrimSuffix(opts.BundleFile, filepath.Ext(opts.BundleFile)))
+	}
 	bundleID = names.HelmReleaseName(bundleID)
 
 	bundle, scans, err := newBundle(ctx, bundleID, baseDir, opts)
