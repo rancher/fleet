@@ -77,6 +77,14 @@ func getUniqueIdentifier() (string, error) {
 	return fmt.Sprintf("%s-%d", hostname, pid), nil
 }
 
+func fromPtr[T any](ptr *T) T {
+	if ptr == nil {
+		var zero T
+		return zero
+	}
+	return *ptr
+}
+
 func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 	logger := zap.New(zap.UseFlagOptions(zopts))
 	ctrl.SetLogger(logger)
@@ -120,9 +128,9 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          &lock,
-		LeaseDuration: *leaderOpts.LeaseDuration,
-		RetryPeriod:   *leaderOpts.RetryPeriod,
-		RenewDeadline: *leaderOpts.RenewDeadline,
+		LeaseDuration: fromPtr(leaderOpts.LeaseDuration),
+		RetryPeriod:   fromPtr(leaderOpts.RetryPeriod),
+		RenewDeadline: fromPtr(leaderOpts.RenewDeadline),
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// Handle agent registration.
