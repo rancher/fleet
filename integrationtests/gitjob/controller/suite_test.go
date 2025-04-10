@@ -22,6 +22,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/internal/ssh"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/mocks"
 
@@ -52,6 +53,7 @@ var (
 	namespace      string
 	expectedCommit string
 	k8sClientSet   *kubernetes.Clientset
+	cm             corev1.ConfigMap
 )
 
 func TestGitJobController(t *testing.T) {
@@ -148,6 +150,7 @@ var _ = BeforeSuite(func() {
 		Recorder:        mgr.GetEventRecorderFor("gitjob-controller"),
 		Workers:         50,
 		SystemNamespace: "default",
+		KnownHosts:      ssh.KnownHosts{},
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -159,7 +162,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	store := manifest.NewStore(mgr.GetClient())
-	builder := target.New(mgr.GetClient())
+	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 	err = (&ctrlreconciler.BundleReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
@@ -177,6 +180,7 @@ var _ = BeforeSuite(func() {
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
 
+	// Create Rancher-like namespace for CA bundle secret
 	err = k8sClient.Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cattle-system",
@@ -191,6 +195,27 @@ var _ = BeforeSuite(func() {
 			},
 		})
 	})
+
+	// Prevent errors about an incomplete Fleet deployment
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cattle-fleet-system",
+		},
+	}
+	err = k8sClient.Create(ctx, &ns)
+	Expect(err).ToNot(HaveOccurred())
+
+	cm = corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "known-hosts",
+			Namespace: "cattle-fleet-system",
+		},
+		Data: map[string]string{
+			"known_hosts": "foo", // the actual data doesn't matter for these tests.
+		},
+	}
+	err = k8sClient.Create(ctx, &cm)
+	Expect(err).ToNot(HaveOccurred())
 })
 
 var _ = AfterSuite(func() {

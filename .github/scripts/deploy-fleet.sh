@@ -69,6 +69,7 @@ eventually helm upgrade --install fleet charts/fleet \
   --set-string extraEnv[1].name=EXPERIMENTAL_HELM_OPS \
   --set-string extraEnv[1].value=true \
   --set garbageCollectionInterval=1s \
+  --set insecureSkipHostKeyChecks=false \
   --set debug=true --set debugLevel=1
 
 # wait for controller and agent rollout
