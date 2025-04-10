@@ -13,15 +13,15 @@ type LeaderElectionOptions struct {
 	// LeaseDuration is the duration that non-leader candidates will
 	// wait to force acquire leadership. This is measured against time of
 	// last observed ack. Default is 15 seconds.
-	LeaseDuration *time.Duration
+	LeaseDuration time.Duration
 
 	// RenewDeadline is the duration that the acting controlplane will retry
 	// refreshing leadership before giving up. Default is 10 seconds.
-	RenewDeadline *time.Duration
+	RenewDeadline time.Duration
 
 	// RetryPeriod is the duration the LeaderElector clients should wait
 	// between tries of actions. Default is 2 seconds.
-	RetryPeriod *time.Duration
+	RetryPeriod time.Duration
 }
 
 // NewLeaderElectionOptions returns a new LeaderElectionOptions struct with the
@@ -90,13 +90,13 @@ func parseEnvInt32(envVar string) (int32, error) {
 	return 0, fmt.Errorf("environment variable %s not set", envVar)
 }
 
-func parseEnvDuration(envVar string) (*time.Duration, error) {
+func parseEnvDuration(envVar string) (time.Duration, error) {
 	if d := os.Getenv(envVar); d != "" {
 		v, err := time.ParseDuration(d)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse %s with duration %s: %w", envVar, d, err)
+			return 0, fmt.Errorf("failed to parse %s with duration %s: %w", envVar, d, err)
 		}
-		return &v, nil
+		return v, nil
 	}
-	return nil, fmt.Errorf("environment variable %s not set", envVar)
+	return 0, fmt.Errorf("environment variable %s not set", envVar)
 }

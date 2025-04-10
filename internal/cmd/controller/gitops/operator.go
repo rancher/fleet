@@ -111,9 +111,9 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		LeaderElection:          g.EnableLeaderElection,
 		LeaderElectionID:        fmt.Sprintf("fleet-gitops-leader-election-shard%s", shardIDSuffix),
 		LeaderElectionNamespace: namespace,
-		LeaseDuration:           leaderOpts.LeaseDuration,
-		RenewDeadline:           leaderOpts.RenewDeadline,
-		RetryPeriod:             leaderOpts.RetryPeriod,
+		LeaseDuration:           &leaderOpts.LeaseDuration,
+		RenewDeadline:           &leaderOpts.RenewDeadline,
+		RetryPeriod:             &leaderOpts.RetryPeriod,
 		// resync to pick up lost gitrepos
 		Cache: cache.Options{
 			SyncPeriod: &syncPeriod,

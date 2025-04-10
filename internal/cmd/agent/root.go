@@ -120,9 +120,9 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          &lock,
-		LeaseDuration: *leaderOpts.LeaseDuration,
-		RetryPeriod:   *leaderOpts.RetryPeriod,
-		RenewDeadline: *leaderOpts.RenewDeadline,
+		LeaseDuration: leaderOpts.LeaseDuration,
+		RetryPeriod:   leaderOpts.RetryPeriod,
+		RenewDeadline: leaderOpts.RenewDeadline,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// Handle agent registration.

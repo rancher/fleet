@@ -90,9 +90,9 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 		LeaderElection:          g.EnableLeaderElection,
 		LeaderElectionID:        fmt.Sprintf("fleet-helmops-leader-election-shard%s", shardIDSuffix),
 		LeaderElectionNamespace: namespace,
-		LeaseDuration:           leaderOpts.LeaseDuration,
-		RenewDeadline:           leaderOpts.RenewDeadline,
-		RetryPeriod:             leaderOpts.RetryPeriod,
+		LeaseDuration:           &leaderOpts.LeaseDuration,
+		RenewDeadline:           &leaderOpts.RenewDeadline,
+		RetryPeriod:             &leaderOpts.RetryPeriod,
 	})
 
 	if err != nil {

@@ -21,9 +21,9 @@ const namespace = "fleet-system"
 var (
 	second     = time.Second
 	leaderOpts = cmd.LeaderElectionOptions{
-		LeaseDuration: &second,
-		RenewDeadline: &second,
-		RetryPeriod:   &second,
+		LeaseDuration: second,
+		RenewDeadline: second,
+		RetryPeriod:   second,
 	}
 )
 

@@ -67,9 +67,9 @@ func start(
 		LeaderElection:          true,
 		LeaderElectionID:        fmt.Sprintf("fleet-controller-leader-election-shard%s", leaderElectionSuffix),
 		LeaderElectionNamespace: systemNamespace,
-		LeaseDuration:           leaderOpts.LeaseDuration,
-		RenewDeadline:           leaderOpts.RenewDeadline,
-		RetryPeriod:             leaderOpts.RetryPeriod,
+		LeaseDuration:           &leaderOpts.LeaseDuration,
+		RenewDeadline:           &leaderOpts.RenewDeadline,
+		RetryPeriod:             &leaderOpts.RetryPeriod,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
