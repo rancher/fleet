@@ -156,6 +156,9 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 					"app": name,
 				},
 			},
+			Replicas:             &[]int32{1}[0],
+			RevisionHistoryLimit: &[]int32{0}[0],
+			Strategy:             appsv1.DeploymentStrategy{Type: appsv1.RecreateDeploymentStrategyType},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
