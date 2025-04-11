@@ -257,10 +257,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 		agentNamespace = cluster.Spec.AgentNamespace
 	}
 
-	agentReplicas, err := cmd.ParseEnvAgentReplicaCount()
-	if err != nil {
-		return nil, err
-	}
+	agentReplicas := cmd.ParseEnvAgentReplicaCount()
 
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before

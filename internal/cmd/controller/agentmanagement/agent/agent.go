@@ -78,10 +78,7 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 	mo.BundleDeploymentWorkers = cfg.AgentWorkers.BundleDeployment
 	mo.DriftWorkers = cfg.AgentWorkers.Drift
 
-	mo.AgentReplicas, err = cmd.ParseEnvAgentReplicaCount()
-	if err != nil {
-		return objs, err
-	}
+	mo.AgentReplicas = cmd.ParseEnvAgentReplicaCount()
 
 	objs = append(objs, Manifest(agentNamespace, agentScope, mo)...)
 

@@ -186,8 +186,10 @@ spec:
         - name: CATTLE_ELECTION_RENEW_DEADLINE
           value: {{$.Values.leaderElection.renewDeadline}}
         {{- end }}
+        {{- if $.Values.agent.replicas }}
         - name: FLEET_AGENT_REPLICA_COUNT
           value: "{{ $.Values.agent.replicas }}"
+        {{- end }}
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-agentmanagement
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"

@@ -308,10 +308,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 
 	clusterLabels := yaml.CleanAnnotationsForExport(cluster.Labels)
-	agentReplicas, err := cmd.ParseEnvAgentReplicaCount()
-	if err != nil {
-		return status, err
-	}
+	agentReplicas := cmd.ParseEnvAgentReplicaCount()
 
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before

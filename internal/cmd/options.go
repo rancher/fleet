@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type LeaderElectionOptions struct {
@@ -50,21 +52,26 @@ func NewLeaderElectionOptions() (LeaderElectionOptions, error) {
 	return leaderOpts, nil
 }
 
-func ParseEnvAgentReplicaCount() (int32, error) {
+// ParseEnvAgentReplicaCount parses the environment variable FLEET_AGENT_REPLICA_COUNT. If the
+// environment variable is not set or the value cannot be parsed, it will return 1.
+func ParseEnvAgentReplicaCount() int32 {
 	replicas, err := parseEnvInt32("FLEET_AGENT_REPLICA_COUNT")
 	if err != nil {
-		return 0, err
+		logrus.Warn("FLEET_AGENT_REPLICA_COUNT not set, defaulting to 1")
+		return 1
 	}
-	return replicas, nil
+	return replicas
 }
 
+// parseEnvInt32 parses an environment variable. It returns an error if the environment variable is
+// not set or if it cannot be parsed as an int32.
 func parseEnvInt32(envVar string) (int32, error) {
-	if d := os.Getenv(envVar); d != "" {
+	if d, ok := os.LookupEnv(envVar); ok {
 		v, err := strconv.ParseInt(d, 10, 32)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse %s with int32 %s: %w", envVar, d, err)
 		}
 		return int32(v), nil
 	}
-	return 0, nil
+	return 0, fmt.Errorf("environment variable %s not set", envVar)
 }
