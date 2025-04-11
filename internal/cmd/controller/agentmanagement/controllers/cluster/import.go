@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/rancher/fleet/internal/client"
+	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/desiredset"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/connection"
@@ -307,6 +308,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	}
 
 	clusterLabels := yaml.CleanAnnotationsForExport(cluster.Labels)
+	agentReplicas := cmd.ParseEnvAgentReplicaCount()
 
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
@@ -332,6 +334,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 				AgentAffinity:    cluster.Spec.AgentAffinity,
 				AgentResources:   cluster.Spec.AgentResources,
 				HostNetwork:      *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
+				AgentReplicas:    agentReplicas,
 			},
 		})
 	if err != nil {

@@ -105,6 +105,7 @@ leaderElection:
 
 ## Fleet controller configuration
 controller:
+  replicas: 1
   reconciler:
     # The number of workers that are allowed to each type of reconciler
     workers:
@@ -115,8 +116,15 @@ controller:
       clustergroup: "50"
       imagescan: "50"
 
+gitjob:
+  replicas: 1
+
+helmops:
+  replicas: 1
+
 ## Fleet agent configuration
 agent:
+  replicas: 1
   reconciler:
     # The number of workers that are allowed for each type of reconciler
     workers:
