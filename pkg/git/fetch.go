@@ -58,7 +58,7 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 		knownHosts = kh
 	}
 
-	if f.KnownHosts != nil && !f.KnownHosts.IsStrict() {
+	if secret.Data != nil && f.KnownHosts != nil && !f.KnownHosts.IsStrict() {
 		// This prevents errors about keys being mismatch or not found when host key checks are disabled.
 		secret.Data["known_hosts"] = nil
 	}
