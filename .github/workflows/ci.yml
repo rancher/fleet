@@ -29,13 +29,11 @@ jobs:
       -
         name: Run chart-testing (lint)
         run: ct lint --all --validate-maintainers=false charts/
-      - 
-        name: Run helm charts unittests
+      -
+        name: helm-unittest
         run: |
-          curl https://get.helm.sh/helm-v${{ env.HELM_VERSION }}-linux-amd64.tar.gz | tar xvzf - --strip-components=1 -C /tmp/
-          chmod +x /tmp/helm
-          /tmp/helm plugin install https://github.com/helm-unittest/helm-unittest.git --version ${{ env.HELM_UNITTEST_VERSION }}; \
-          /tmp/helm unittest ./charts/fleet
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git
+          helm unittest ./charts/fleet
       -
         uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
         with:
