@@ -1,6 +1,9 @@
 package v1alpha1
 
 import (
+	"bytes"
+	"encoding/json"
+
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -276,7 +279,26 @@ type GitRepoResource struct {
 	Message string `json:"message,omitempty"`
 	// PerClusterState is a list of states for each cluster. Derived from the summaries non-ready resources.
 	// +nullable
-	PerClusterState []ResourcePerClusterState `json:"perClusterState,omitempty"`
+	PerClusterState PerClusterState `json:"perClusterState,omitempty"`
+}
+
+type PerClusterState []ResourcePerClusterState
+
+// UnmarshalJSON implements the json.Unmarshaler interface, to which the yaml decoders delegate to
+// Fleet 0.12 will introduce a breaking change in the PerClusterState field for GitRepo resources: https://github.com/rancher/fleet/pull/3287
+// In order to ensure rollbacks to previous version work correctly, since the data may have been migrated to the newer format, we need to ensure we can deserialize it
+// Only required in Fleet 0.11
+// Complementary to this change in Fleet 0.12: https://github.com/rancher/fleet/pull/3542
+func (in *PerClusterState) UnmarshalJSON(data []byte) error {
+	if !bytes.HasPrefix(data, []byte("[")) {
+		return nil
+	}
+	var aux []ResourcePerClusterState
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*in = aux
+	return nil
 }
 
 // ResourcePerClusterState is generated for each non-ready resource of the bundles.
