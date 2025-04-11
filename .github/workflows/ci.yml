@@ -11,8 +11,7 @@ on:
 env:
   GOARCH: amd64
   CGO_ENABLED: 0
-  HELM_VERSION: 3.17.2
-  HELM_UNITTEST_VERSION: 0.8.1
+
 jobs:
   unit-test:
     runs-on: runs-on,runner=16cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
