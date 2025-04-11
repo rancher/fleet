@@ -19,7 +19,7 @@ if [ ! -e ~/.gitconfig ]; then
     git config --global user.email fleet@suse.de
 fi
 
-if [[ "$(git rev-parse --abbrev-ref HEAD)" =~ dev-v2\.1[0-9]+ ]]; then
+if [ -f packages/fleet/package.yaml ];  then
     # Use new auto bump scripting until the Github action CI works as expected
     # no parameters besides the target branch are needed in theory, but the pr
     # creation still needs the new Chart and Fleet version
