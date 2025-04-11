@@ -21,16 +21,16 @@ import (
 
 	"helm.sh/helm/v3/pkg/cli"
 
-	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
-	"github.com/rancher/wrangler/v3/pkg/ratelimit"
-
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -309,20 +309,26 @@ func newCluster(ctx context.Context, config *rest.Config, options manager.Option
 func getAgentConfig(ctx context.Context, namespace string, cfg *rest.Config) (agentConfig *config.Config, err error) {
 	cfg = rest.CopyConfig(cfg)
 	// disable the rate limiter
-	cfg.RateLimiter = ratelimit.None
-	k8s, err := core.NewFactoryFromConfig(cfg)
+	cfg.QPS = -1
+	cfg.RateLimiter = nil
+
+	client, err := client.New(cfg, client.Options{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create controller-runtime client: %w", err)
 	}
 
-	agentConfig, err = config.Lookup(ctx, namespace, config.AgentConfigName, k8s.Core().V1().ConfigMap())
+	configMap := &corev1.ConfigMap{}
+	err = client.Get(ctx, types.NamespacedName{
+		Namespace: namespace,
+		Name:      config.AgentConfigName,
+	}, configMap)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to look up client config %s/%s: %w",
-			namespace,
-			config.AgentConfigName,
-			err,
-		)
+		return nil, fmt.Errorf("failed to look up client config %s/%s: %w", namespace, config.AgentConfigName, err)
+	}
+
+	agentConfig, err = config.ReadConfig(configMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse config from ConfigMap: %w", err)
 	}
 
 	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {

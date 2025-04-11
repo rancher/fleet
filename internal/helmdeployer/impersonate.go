@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rancher/wrangler/v3/pkg/ratelimit"
-
 	corev1 "k8s.io/api/core/v1"
 	apierror "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -58,7 +56,8 @@ func newImpersonatingGetter(namespace, name string, getter genericclioptions.RES
 	if err != nil {
 		return nil, err
 	}
-	restConfig.RateLimiter = ratelimit.None
+	restConfig.QPS = -1
+	restConfig.RateLimiter = nil
 
 	return &impersonatingGetter{
 		RESTClientGetter: getter,
