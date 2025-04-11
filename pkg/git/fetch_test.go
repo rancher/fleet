@@ -164,6 +164,32 @@ var _ = Describe("git fetch's LatestCommit tests", func() {
 		Expect(commit).To(Equal("2ada7cca738877df8459b3a34839a15e5683edaa"))
 	})
 
+	It("returns the commit for the expected branch with no secret", func() {
+		gr := &fleetv1.GitRepo{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-gitrepo",
+				Namespace: "test-ns",
+			},
+			Spec: fleetv1.GitRepoSpec{
+				ClientSecretName: "test-secret",
+				Repo:             fakeGithub.URL,
+				Branch:           "master",
+			},
+			Status: fleetv1.GitRepoStatus{
+				Commit: "",
+			},
+		}
+		c := newTestClient()
+		f := git.Fetch{
+			KnownHosts: mockKnownHostsGetter{
+				data: "foo",
+			},
+		}
+		commit, err := f.LatestCommit(context.Background(), gr, c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(commit).To(Equal("2ada7cca738877df8459b3a34839a15e5683edaa"))
+	})
+
 	It("returns an error when secret's type is not expected", func() {
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
