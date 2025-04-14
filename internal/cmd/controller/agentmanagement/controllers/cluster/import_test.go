@@ -234,8 +234,8 @@ func TestOnConfig(t *testing.T) {
 									KubeConfigSecret: "my-kubeconfig-secret",
 								},
 								Status: fleet.ClusterStatus{
-									APIServerURL:              "https://hello.world",
-									APIServerCAHash:           hashStatusField("foo"),
+									APIServerURL:              "https://hello.secret.world",
+									APIServerCAHash:           hashStatusField("secret-foo"),
 									AgentTLSMode:              "system-store",
 									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
 								},
@@ -246,8 +246,8 @@ func TestOnConfig(t *testing.T) {
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{
 					Data: map[string][]byte{
-						"apiServerURL": []byte("https://hello.new.world"),
-						"apiServerCA":  []byte(hashStatusField("foo-new")),
+						"apiServerURL": []byte("https://hello.secret.world"),
+						"apiServerCA":  []byte(hashStatusField("secret-foo")),
 					},
 				}, nil)
 
@@ -261,8 +261,8 @@ func TestOnConfig(t *testing.T) {
 		},
 		"URL and CA in secret, trigger import when agent TLS mode changes": {
 			cfg: config.Config{
-				APIServerCA:               []byte("new-foo"),
-				APIServerURL:              "https://hello.new.world",
+				APIServerCA:               []byte("foo"),
+				APIServerURL:              "https://hello.world",
 				AgentTLSMode:              "strict",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
@@ -282,8 +282,8 @@ func TestOnConfig(t *testing.T) {
 									KubeConfigSecret: "my-kubeconfig-secret",
 								},
 								Status: fleet.ClusterStatus{
-									APIServerURL:              "https://hello.world",
-									APIServerCAHash:           hashStatusField("foo"),
+									APIServerURL:              "https://hello.secret.world",
+									APIServerCAHash:           hashStatusField("secret-foo"),
 									AgentTLSMode:              "system-store",
 									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
 								},
@@ -294,8 +294,8 @@ func TestOnConfig(t *testing.T) {
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{
 					Data: map[string][]byte{
-						"apiServerURL": []byte("https://hello.new.world"),
-						"apiServerCA":  []byte(hashStatusField("foo-new")),
+						"apiServerURL": []byte("https://hello.secret.world"),
+						"apiServerCA":  []byte(hashStatusField("secret-foo")),
 					},
 				}, nil)
 
