@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -2314,10 +2313,9 @@ func TestGitClonerSSH(t *testing.T) {
 
 func TestDrivenScanSeparator(t *testing.T) {
 	tests := map[string]struct {
-		bundles                    []fleetv1.BundlePath
-		expectedRandomResult       bool
-		expectedResult             string
-		expectedResultRandomLength int
+		bundles        []fleetv1.BundlePath
+		expectError    bool
+		expectedResult string
 	}{
 		"Bundle definitions have no separator character": {
 			bundles: []fleetv1.BundlePath{
@@ -2330,8 +2328,8 @@ func TestDrivenScanSeparator(t *testing.T) {
 					Options: "options2.yaml",
 				},
 			},
-			expectedRandomResult: false,
-			expectedResult:       ":",
+			expectError:    false,
+			expectedResult: ":",
 		},
 		"Bundle definitions have : separator character": {
 			bundles: []fleetv1.BundlePath{
@@ -2344,8 +2342,8 @@ func TestDrivenScanSeparator(t *testing.T) {
 					Options: "options2.yaml",
 				},
 			},
-			expectedRandomResult: false,
-			expectedResult:       ",",
+			expectError:    false,
+			expectedResult: ",",
 		},
 		"Bundle definitions have : and , separator characters": {
 			bundles: []fleetv1.BundlePath{
@@ -2358,8 +2356,8 @@ func TestDrivenScanSeparator(t *testing.T) {
 					Options: "options2.yaml",
 				},
 			},
-			expectedRandomResult: false,
-			expectedResult:       "|",
+			expectError:    false,
+			expectedResult: "|",
 		},
 		"Bundle definitions have : , and | separator characters": {
 			bundles: []fleetv1.BundlePath{
@@ -2372,8 +2370,8 @@ func TestDrivenScanSeparator(t *testing.T) {
 					Options: "options2|.yaml",
 				},
 			},
-			expectedRandomResult: false,
-			expectedResult:       "?",
+			expectError:    false,
+			expectedResult: "?",
 		},
 		"Bundle definitions have : ,  | and ? separator characters": {
 			bundles: []fleetv1.BundlePath{
@@ -2386,8 +2384,8 @@ func TestDrivenScanSeparator(t *testing.T) {
 					Options: "options2|.yaml",
 				},
 			},
-			expectedRandomResult: false,
-			expectedResult:       "<",
+			expectError:    false,
+			expectedResult: "<",
 		},
 		"Bundle definitions have : ,  |  ? and < separator characters": {
 			bundles: []fleetv1.BundlePath{
@@ -2400,10 +2398,10 @@ func TestDrivenScanSeparator(t *testing.T) {
 					Options: "options2|.yaml",
 				},
 			},
-			expectedRandomResult: false,
-			expectedResult:       ">",
+			expectError:    false,
+			expectedResult: ">",
 		},
-		"Bundle definitions all separator characters": {
+		"Bundle definitions have all separator characters": {
 			bundles: []fleetv1.BundlePath{
 				{
 					Base:    "test?one:two",
@@ -2414,9 +2412,8 @@ func TestDrivenScanSeparator(t *testing.T) {
 					Options: "options2|.yaml",
 				},
 			},
-			expectedRandomResult:       true,
-			expectedResult:             "",
-			expectedResultRandomLength: 2,
+			expectError:    true,
+			expectedResult: "",
 		},
 	}
 	for name, test := range tests {
@@ -2426,61 +2423,21 @@ func TestDrivenScanSeparator(t *testing.T) {
 					Bundles: test.bundles,
 				},
 			}
-			separator := getDrivenScanSeparator(*gitrepo)
-			if !test.expectedRandomResult {
+			separator, err := getDrivenScanSeparator(*gitrepo)
+			if !test.expectError {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
 				if test.expectedResult != separator {
 					t.Errorf("expecting separator to be: %q, got: %q", test.expectedResult, separator)
 				}
 			} else {
-				// Verify that the string has the desired length and
-				// is composed only of the specified characters.
-				if len(separator) != test.expectedResultRandomLength {
-					t.Errorf("expecting separator length to be: %d, got: %d", test.expectedResultRandomLength, len(separator))
+				expectedErrorMessage := fmt.Sprintf("bundle base and/or options paths contain all possible characters from %q, please update those paths to remedy this", bundleOptionsSeparatorChars)
+				if err == nil {
+					t.Errorf("expecting error, got none")
 				}
-				for _, char := range separator {
-					if !strings.ContainsRune(bundleOptionsSeparatorChars, char) {
-						t.Errorf("expecting separator to only contain characters from the set: %q, got: %q", bundleOptionsSeparatorChars, separator)
-					}
-				}
-				for _, b := range gitrepo.Spec.Bundles {
-					// use the separator and verify we get the expected items
-					concatStr := b.Base + separator + b.Options
-					items := strings.Split(concatStr, separator)
-					if len(items) != 2 {
-						t.Errorf("expecting to have exactly 2 items, got: %d", len(items))
-					}
-					if items[0] != b.Base {
-						t.Errorf("expecting first item to be: %q, got: %q", b.Base, items[0])
-					}
-					if items[1] != b.Options {
-						t.Errorf("expecting second item to be: %q, got: %q", b.Options, items[1])
-					}
-				}
-				// Take it a step further and use the random separator in the bundle definitions.
-				// This will verify that the function returns a longer separator.
-				gitrepo = &fleetv1.GitRepo{
-					Spec: fleetv1.GitRepoSpec{
-						Bundles: []fleetv1.BundlePath{
-							{
-								Base:    fmt.Sprintf("test?one:%stwo", separator),
-								Options: "options.yaml",
-							},
-							{
-								Base:    "test,one<>",
-								Options: "options2|.yaml",
-							},
-						},
-					},
-				}
-				// Finally, verify that the new separator is also valid.
-				newSeparator := getDrivenScanSeparator(*gitrepo)
-				if len(newSeparator) < len(separator) {
-					t.Errorf("expecting separator length to be greater or equal to %d, got: %d", len(separator), len(newSeparator))
-				}
-				for _, char := range newSeparator {
-					if !strings.ContainsRune(bundleOptionsSeparatorChars, char) {
-						t.Errorf("expecting separator to only contain characters from the set: %q, got: %q", bundleOptionsSeparatorChars, separator)
-					}
+				if err.Error() != expectedErrorMessage {
+					t.Errorf("expecting error %q, got %q", expectedErrorMessage, err.Error())
 				}
 			}
 		})
