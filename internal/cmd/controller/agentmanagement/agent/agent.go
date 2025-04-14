@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rancher/fleet/internal/client"
+	"github.com/rancher/fleet/internal/cmd"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/config"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -76,6 +77,8 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 	mo.SystemDefaultRegistry = cfg.SystemDefaultRegistry
 	mo.BundleDeploymentWorkers = cfg.AgentWorkers.BundleDeployment
 	mo.DriftWorkers = cfg.AgentWorkers.Drift
+
+	mo.AgentReplicas = cmd.ParseEnvAgentReplicaCount()
 
 	objs = append(objs, Manifest(agentNamespace, agentScope, mo)...)
 
