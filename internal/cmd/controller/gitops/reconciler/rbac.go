@@ -5,6 +5,8 @@ package reconciler
 import (
 	"context"
 
+	"github.com/rancher/fleet/internal/names"
+
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -12,6 +14,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+func (r *GitJobReconciler) createJobRBAC(ctx context.Context, gitRepo *v1alpha1.GitRepo) error {
+	saName := names.SafeConcatName("git", gitRepo.Name)
+
+	if err := r.createServiceAccount(ctx, gitRepo, saName); err != nil {
+		return err
+	}
+
+	if err := r.createOrUpdateRole(ctx, gitRepo, saName); err != nil {
+		return err
+	}
+
+	if err := r.createOrUpdateRoleBinding(ctx, gitRepo, saName); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func (r *GitJobReconciler) createServiceAccount(ctx context.Context, gitRepo *v1alpha1.GitRepo, saName string) error {
 	sa := &corev1.ServiceAccount{
