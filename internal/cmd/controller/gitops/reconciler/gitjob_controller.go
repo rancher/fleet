@@ -725,6 +725,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	}
 
 	drivenScanSeparator := ""
+	var err error
 	if len(gitrepo.Spec.Bundles) > 0 {
 		paths = []string{}
 		// use driven scan instead
@@ -735,7 +736,10 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		// directories for the classic fleet scan, but since we need to
 		// pass 2 strings, we will separate them with
 		// the calculated separator.
-		drivenScanSeparator = getDrivenScanSeparator(*gitrepo)
+		drivenScanSeparator, err = getDrivenScanSeparator(*gitrepo)
+		if err != nil {
+			return nil, err
+		}
 		for _, b := range gitrepo.Spec.Bundles {
 			path := b.Base
 			if b.Options != "" {
@@ -1601,50 +1605,30 @@ func gitSSHCommandEnvVar(strictChecks bool) corev1.EnvVar {
 // definitions in the given GitRepo.
 // Since we cannot disregard the possibility that a user might have an
 // unavoidable need to use the character ":" (or another character typically not
-// used in directory or file paths), we need to find a separator that works for any
-// possible combination.
-// The function will first search for simple characters from those in
-// bundleOptionsSeparatorChars, and if none of them can be used, it will create
-// separators consisting of random strings with incremental length until it finds one
-// that meets our requirements.
-func getDrivenScanSeparator(gitrepo v1alpha1.GitRepo) string {
+// used in directory or file paths), we need to find possible alternatives.
+// The function will search for simple characters from those in
+// bundleOptionsSeparatorChars, and if none of them can be used, it will return an error.
+func getDrivenScanSeparator(gitrepo v1alpha1.GitRepo) (string, error) {
 	for _, sep := range bundleOptionsSeparatorChars {
-		if !separatorInBundleDefinitions(gitrepo, string(sep)) {
+		if !separatorInBundleDefinitions(gitrepo, sep) {
 			// We can safely use this separator
-			return string(sep)
+			return string(sep), nil
 		}
 	}
-	// we need to create a string separator because all the bytes in bundleOptionsSeparatorChars are
-	// used in the bundle definitions paths.
-	// Get a random combination of increasing length until it is not found in the bundles definitions.
-	length := 2
-	sep := getRandomStringSeparator(length)
-	for separatorInBundleDefinitions(gitrepo, sep) {
-		length++
-		sep = getRandomStringSeparator(length)
-	}
 
-	return sep
+	return "", fmt.Errorf("bundle base and/or options paths contain all possible characters from %q, please update those paths to remedy this", bundleOptionsSeparatorChars)
 }
 
-func separatorInBundleDefinitions(gitrepo v1alpha1.GitRepo, sep string) bool {
+func separatorInBundleDefinitions(gitrepo v1alpha1.GitRepo, sep rune) bool {
 	for _, b := range gitrepo.Spec.Bundles {
-		if strings.Contains(b.Options, sep) {
+		if strings.ContainsRune(b.Options, sep) {
 			return true
 		}
 
-		if strings.Contains(b.Base, sep) {
+		if strings.ContainsRune(b.Base, sep) {
 			return true
 		}
 	}
 
 	return false
-}
-
-func getRandomStringSeparator(length int) string {
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = bundleOptionsSeparatorChars[rand.IntN(len(bundleOptionsSeparatorChars))]
-	}
-	return string(b)
 }
