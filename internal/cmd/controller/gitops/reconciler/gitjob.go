@@ -470,6 +470,118 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	}, nil
 }
 
+func (r *GitJobReconciler) newGitCloner(
+	ctx context.Context,
+	obj *v1alpha1.GitRepo,
+	knownHosts string,
+) (corev1.Container, error) {
+	args := []string{"fleet", "gitcloner", obj.Spec.Repo, "/workspace"}
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      gitClonerVolumeName,
+			MountPath: "/workspace",
+		},
+		{
+			Name:      emptyDirVolumeName,
+			MountPath: "/tmp",
+		},
+	}
+
+	branch, rev := obj.Spec.Branch, obj.Spec.Revision
+	if branch != "" {
+		args = append(args, "--branch", branch)
+	} else if rev != "" {
+		args = append(args, "--revision", rev)
+	} else {
+		args = append(args, "--branch", "master")
+	}
+
+	secretName := obj.Spec.ClientSecretName
+	if secretName == "" {
+		secretName = config.DefaultGitCredentialsSecretName
+	}
+
+	var secret corev1.Secret
+	err := r.Get(ctx, types.NamespacedName{
+		Namespace: obj.Namespace,
+		Name:      secretName,
+	}, &secret)
+
+	if err != nil && secretName == obj.Spec.ClientSecretName {
+		// Only error if an explicitly referenced secret was not found;
+		// The absence of a default secret might simply mean that no credentials are needed.
+		return corev1.Container{}, err
+	}
+
+	if err == nil {
+		switch secret.Type {
+		case corev1.SecretTypeBasicAuth:
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      gitCredentialVolumeName,
+				MountPath: "/gitjob/credentials",
+			})
+			args = append(args, "--username", string(secret.Data[corev1.BasicAuthUsernameKey]))
+			args = append(args, "--password-file", "/gitjob/credentials/"+corev1.BasicAuthPasswordKey)
+		case corev1.SecretTypeSSHAuth:
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      gitCredentialVolumeName,
+				MountPath: "/gitjob/ssh",
+			})
+			args = append(args, "--ssh-private-key-file", "/gitjob/ssh/"+corev1.SSHAuthPrivateKey)
+		}
+	}
+
+	if obj.Spec.InsecureSkipTLSverify {
+		args = append(args, "--insecure-skip-tls")
+	}
+
+	var CABundleSecret corev1.Secret
+	err = r.Get(ctx, types.NamespacedName{
+		Namespace: obj.Namespace,
+		Name:      caBundleName(obj),
+	}, &CABundleSecret)
+	if client.IgnoreNotFound(err) != nil {
+		return corev1.Container{}, err
+	}
+
+	if !apierrors.IsNotFound(err) {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      bundleCAVolumeName,
+			MountPath: "/gitjob/cabundle",
+		})
+		args = append(args, "--ca-bundle-file", "/gitjob/cabundle/"+bundleCAFile)
+	}
+
+	env := proxyEnvVars()
+
+	// If strict host key checks are enabled but no entries are available, another error will be shown by the known
+	// hosts getter, as that means that the Fleet deployment is incomplete.
+	// On the other hand, we do not want to feed entries to the cloner if strict host key checks are disabled, as that
+	// would lead it to unduly reject SSH connection attempts.
+	if r.KnownHosts.IsStrict() {
+		env = append(env, corev1.EnvVar{Name: ssh.KnownHostsEnvVar, Value: knownHosts})
+	}
+
+	return corev1.Container{
+		Command:      []string{"log.sh"},
+		Args:         args,
+		Image:        r.Image,
+		Name:         "gitcloner-initializer",
+		VolumeMounts: volumeMounts,
+		Env:          env,
+		SecurityContext: &corev1.SecurityContext{
+			AllowPrivilegeEscalation: &[]bool{false}[0],
+			ReadOnlyRootFilesystem:   &[]bool{true}[0],
+			Privileged:               &[]bool{false}[0],
+			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+			RunAsNonRoot:             &[]bool{true}[0],
+			SeccompProfile: &corev1.SeccompProfile{
+				Type: corev1.SeccompProfileTypeRuntimeDefault,
+			},
+		},
+	}, nil
+}
+
 func argsAndEnvs(
 	gitrepo *v1alpha1.GitRepo,
 	logger logr.Logger,
@@ -762,118 +874,6 @@ func volumesFromSecret(
 	}
 
 	return volumes, volumeMounts, certVolCreated
-}
-
-func (r *GitJobReconciler) newGitCloner(
-	ctx context.Context,
-	obj *v1alpha1.GitRepo,
-	knownHosts string,
-) (corev1.Container, error) {
-	args := []string{"fleet", "gitcloner", obj.Spec.Repo, "/workspace"}
-	volumeMounts := []corev1.VolumeMount{
-		{
-			Name:      gitClonerVolumeName,
-			MountPath: "/workspace",
-		},
-		{
-			Name:      emptyDirVolumeName,
-			MountPath: "/tmp",
-		},
-	}
-
-	branch, rev := obj.Spec.Branch, obj.Spec.Revision
-	if branch != "" {
-		args = append(args, "--branch", branch)
-	} else if rev != "" {
-		args = append(args, "--revision", rev)
-	} else {
-		args = append(args, "--branch", "master")
-	}
-
-	secretName := obj.Spec.ClientSecretName
-	if secretName == "" {
-		secretName = config.DefaultGitCredentialsSecretName
-	}
-
-	var secret corev1.Secret
-	err := r.Get(ctx, types.NamespacedName{
-		Namespace: obj.Namespace,
-		Name:      secretName,
-	}, &secret)
-
-	if err != nil && secretName == obj.Spec.ClientSecretName {
-		// Only error if an explicitly referenced secret was not found;
-		// The absence of a default secret might simply mean that no credentials are needed.
-		return corev1.Container{}, err
-	}
-
-	if err == nil {
-		switch secret.Type {
-		case corev1.SecretTypeBasicAuth:
-			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      gitCredentialVolumeName,
-				MountPath: "/gitjob/credentials",
-			})
-			args = append(args, "--username", string(secret.Data[corev1.BasicAuthUsernameKey]))
-			args = append(args, "--password-file", "/gitjob/credentials/"+corev1.BasicAuthPasswordKey)
-		case corev1.SecretTypeSSHAuth:
-			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      gitCredentialVolumeName,
-				MountPath: "/gitjob/ssh",
-			})
-			args = append(args, "--ssh-private-key-file", "/gitjob/ssh/"+corev1.SSHAuthPrivateKey)
-		}
-	}
-
-	if obj.Spec.InsecureSkipTLSverify {
-		args = append(args, "--insecure-skip-tls")
-	}
-
-	var CABundleSecret corev1.Secret
-	err = r.Get(ctx, types.NamespacedName{
-		Namespace: obj.Namespace,
-		Name:      caBundleName(obj),
-	}, &CABundleSecret)
-	if client.IgnoreNotFound(err) != nil {
-		return corev1.Container{}, err
-	}
-
-	if !apierrors.IsNotFound(err) {
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      bundleCAVolumeName,
-			MountPath: "/gitjob/cabundle",
-		})
-		args = append(args, "--ca-bundle-file", "/gitjob/cabundle/"+bundleCAFile)
-	}
-
-	env := proxyEnvVars()
-
-	// If strict host key checks are enabled but no entries are available, another error will be shown by the known
-	// hosts getter, as that means that the Fleet deployment is incomplete.
-	// On the other hand, we do not want to feed entries to the cloner if strict host key checks are disabled, as that
-	// would lead it to unduly reject SSH connection attempts.
-	if r.KnownHosts.IsStrict() {
-		env = append(env, corev1.EnvVar{Name: ssh.KnownHostsEnvVar, Value: knownHosts})
-	}
-
-	return corev1.Container{
-		Command:      []string{"log.sh"},
-		Args:         args,
-		Image:        r.Image,
-		Name:         "gitcloner-initializer",
-		VolumeMounts: volumeMounts,
-		Env:          env,
-		SecurityContext: &corev1.SecurityContext{
-			AllowPrivilegeEscalation: &[]bool{false}[0],
-			ReadOnlyRootFilesystem:   &[]bool{true}[0],
-			Privileged:               &[]bool{false}[0],
-			Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-			RunAsNonRoot:             &[]bool{true}[0],
-			SeccompProfile: &corev1.SeccompProfile{
-				Type: corev1.SeccompProfileTypeRuntimeDefault,
-			},
-		},
-	}, nil
 }
 
 func proxyEnvVars() []corev1.EnvVar {

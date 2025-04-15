@@ -200,16 +200,6 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return r.result(gitrepo), nil
 }
 
-// addJitter to the requeue time to avoid thundering herd
-// generate a random number between -10% and +10% of the duration
-func addJitter(d time.Duration) time.Duration {
-	if d <= 0 {
-		return d
-	}
-
-	return d + time.Duration(rand.Int64N(int64(d)/10)) // nolint:gosec // gosec G404 false positive, not used for crypto
-}
-
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
 func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string, repoPolled bool) (reconcile.Result, error) {
 	name := types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}
@@ -416,16 +406,6 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	return nil, false
 }
 
-func generationChanged(r *v1alpha1.GitRepo) bool {
-	// checks if generation changed.
-	// it ignores the case when Status.ObservedGeneration=0 because that's
-	// the initial value of a just created GitRepo and the initial value
-	// for Generation in k8s is 1.
-	// If we don't ignore we would be deleting the gitjob that was just created
-	// until later we reconcile ObservedGeneration with Generation
-	return (r.Generation != r.Status.ObservedGeneration) && r.Status.ObservedGeneration > 0
-}
-
 // repoPolled returns true if the git poller was executed and the repo should still be polled.
 func (r *GitJobReconciler) repoPolled(ctx context.Context, gitrepo *v1alpha1.GitRepo) (bool, error) {
 	if gitrepo.Spec.DisablePolling {
@@ -462,14 +442,6 @@ func (r *GitJobReconciler) shouldRunPollingTask(gitrepo *v1alpha1.GitRepo) bool 
 	return false
 }
 
-func getPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
-	if gitrepo.Spec.PollingInterval == nil || gitrepo.Spec.PollingInterval.Duration == 0 {
-		return defaultPollingSyncInterval
-	}
-
-	return gitrepo.Spec.PollingInterval.Duration
-}
-
 func (r *GitJobReconciler) result(gitrepo *v1alpha1.GitRepo) reconcile.Result {
 	// We always return a reconcile Result with RequeueAfter set to the polling interval
 	// unless polling is disabled.
@@ -499,6 +471,34 @@ func (r *GitJobReconciler) result(gitrepo *v1alpha1.GitRepo) reconcile.Result {
 	}
 	requeueAfter = addJitter(requeueAfter)
 	return reconcile.Result{RequeueAfter: requeueAfter}
+}
+
+// addJitter to the requeue time to avoid thundering herd
+// generate a random number between -10% and +10% of the duration
+func addJitter(d time.Duration) time.Duration {
+	if d <= 0 {
+		return d
+	}
+
+	return d + time.Duration(rand.Int64N(int64(d)/10)) // nolint:gosec // gosec G404 false positive, not used for crypto
+}
+
+func generationChanged(r *v1alpha1.GitRepo) bool {
+	// checks if generation changed.
+	// it ignores the case when Status.ObservedGeneration=0 because that's
+	// the initial value of a just created GitRepo and the initial value
+	// for Generation in k8s is 1.
+	// If we don't ignore we would be deleting the gitjob that was just created
+	// until later we reconcile ObservedGeneration with Generation
+	return (r.Generation != r.Status.ObservedGeneration) && r.Status.ObservedGeneration > 0
+}
+
+func getPollingIntervalDuration(gitrepo *v1alpha1.GitRepo) time.Duration {
+	if gitrepo.Spec.PollingInterval == nil || gitrepo.Spec.PollingInterval.Duration == 0 {
+		return defaultPollingSyncInterval
+	}
+
+	return gitrepo.Spec.PollingInterval.Duration
 }
 
 func webhookCommitChangedPredicate() predicate.Predicate {
