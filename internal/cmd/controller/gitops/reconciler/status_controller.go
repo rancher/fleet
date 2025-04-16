@@ -35,10 +35,11 @@ type StatusReconciler struct {
 func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.GitRepo{}).
-		Watches(
+		WatchesRawSource(source.TypedKind(
 			// Fan out from bundle to gitrepo
+			mgr.GetCache(),
 			&fleet.Bundle{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
+			handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, a *fleet.Bundle) []ctrl.Request {
 				repo := a.GetLabels()[fleet.RepoLabel]
 				if repo != "" {
 					return []ctrl.Request{{
@@ -51,8 +52,9 @@ func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return []ctrl.Request{}
 			}),
-			builder.WithPredicates(status.BundleStatusChangedPredicate()),
-		).
+			sharding.TypedFilterByShardID[*fleet.Bundle](r.ShardID), // WatchesRawSources ignores event filters, we need to use a predicate
+			status.BundleStatusChangedPredicate(),
+		)).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Named("GitRepoStatus").

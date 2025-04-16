@@ -11,12 +11,12 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -33,10 +33,11 @@ type HelmAppStatusReconciler struct {
 func (r *HelmAppStatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.HelmApp{}).
-		Watches(
-			// Fan out from bundle to HelmApp
+		// Fan out from bundle to HelmApp
+		WatchesRawSource(source.TypedKind(
+			mgr.GetCache(),
 			&fleet.Bundle{},
-			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
+			handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, a *fleet.Bundle) []ctrl.Request {
 				app := a.GetLabels()[fleet.HelmAppLabel]
 				if app != "" {
 					return []ctrl.Request{{
@@ -49,8 +50,9 @@ func (r *HelmAppStatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return []ctrl.Request{}
 			}),
-			builder.WithPredicates(status.BundleStatusChangedPredicate()),
-		).
+			sharding.TypedFilterByShardID[*fleet.Bundle](r.ShardID), // WatchesRawSources ignores event filters, we need to use a predicate
+			status.BundleStatusChangedPredicate(),
+		)).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Named("HelmAppStatus").
