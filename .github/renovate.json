@@ -9,9 +9,6 @@
     "release/v0.11",
     "release/v0.10"
   ],
-  "prHourlyLimit": 2,
-  "prConcurrentLimit": 4,
-  "prCreation": "status-success",
   "packageRules": [
     {
       "matchBaseBranches": ["release/v0.12"],
