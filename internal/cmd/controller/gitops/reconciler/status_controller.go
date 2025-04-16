@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/rancher/fleet/internal/cmd/controller/status"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -12,18 +13,22 @@ import (
 	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
+
+// enqueueDelay is used as an artificial delay for enqueuing GitRepo status reconciliation requests
+// This allows aggregating multiple consecutive Bundle update events, reducing the number of GitRepo status changes at the cost of introducing a delay in the notification
+const enqueueDelay = 3 * time.Second
 
 type StatusReconciler struct {
 	client.Client
@@ -35,7 +40,7 @@ type StatusReconciler struct {
 func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&fleet.GitRepo{}).
-		WatchesRawSource(source.TypedKind(
+		WatchesRawSource(wrapSourceWithForcedDelay(enqueueDelay, source.TypedKind(
 			// Fan out from bundle to gitrepo
 			mgr.GetCache(),
 			&fleet.Bundle{},
@@ -54,7 +59,7 @@ func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}),
 			sharding.TypedFilterByShardID[*fleet.Bundle](r.ShardID), // WatchesRawSources ignores event filters, we need to use a predicate
 			status.BundleStatusChangedPredicate(),
-		)).
+		))).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Named("GitRepoStatus").
@@ -228,4 +233,26 @@ bundles:
 	gitrepo.Status.Conditions = newConditions
 
 	return nil
+}
+
+type forcedDelayingSource[R comparable] struct {
+	source.TypedSource[R]
+	delay time.Duration
+}
+
+func wrapSourceWithForcedDelay[R comparable](delay time.Duration, delegate source.TypedSource[R]) source.TypedSource[R] {
+	return &forcedDelayingSource[R]{TypedSource: delegate, delay: delay}
+}
+
+func (s *forcedDelayingSource[R]) Start(ctx context.Context, delegate workqueue.TypedRateLimitingInterface[R]) error {
+	return s.TypedSource.Start(ctx, &forcedDelayingQueue[R]{delegate, s.delay})
+}
+
+type forcedDelayingQueue[R comparable] struct {
+	workqueue.TypedRateLimitingInterface[R]
+	delay time.Duration
+}
+
+func (f *forcedDelayingQueue[R]) Add(obj R) {
+	f.AddAfter(obj, f.delay)
 }
