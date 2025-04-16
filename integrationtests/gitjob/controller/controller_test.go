@@ -542,10 +542,15 @@ var _ = Describe("GitJob controller", func() {
 					job.Status.StartTime = &metav1.Time{Time: time.Now().Add(-1 * time.Hour)}
 					job.Status.Conditions = []batchv1.JobCondition{
 						{
-							Type:    "Failed",
+							// using Stalled because the Compute function uses Stalled
+							// for returning the condition message and it's simpler.
+							// For testing it in a different way we would need to setup a more complex
+							// scenario defining the job pods
+							// We are simulating job failures.
+							Type:    "Stalled",
 							Status:  "True",
 							Reason:  "BackoffLimitExceeded",
-							Message: "Job has reached the specified backoff limit",
+							Message: `{"fleetErrorMessage":"fleet error message","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}`,
 						},
 						{
 							Type:   batchv1.JobFailureTarget,
@@ -566,7 +571,7 @@ var _ = Describe("GitJob controller", func() {
 					// check the conditions related to the job
 					// Failed.... Stalled=true and Reconcilling=false
 					g.Expect(checkCondition(&gitRepo, "Reconciling", corev1.ConditionFalse, "")).To(BeTrue())
-					g.Expect(checkCondition(&gitRepo, "Stalled", corev1.ConditionTrue, "Job Failed. failed: 1/1")).To(BeTrue())
+					g.Expect(checkCondition(&gitRepo, "Stalled", corev1.ConditionTrue, "fleet error message")).To(BeTrue())
 
 					// check the rest
 					g.Expect(checkCondition(&gitRepo, "GitPolling", corev1.ConditionTrue, "")).To(BeTrue())

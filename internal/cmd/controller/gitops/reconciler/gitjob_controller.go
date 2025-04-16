@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"sort"
@@ -562,7 +563,7 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 	//   - Terminating
 	switch result.Status {
 	case status.FailedStatus:
-		kstatus.SetError(gitRepo, terminationMessage)
+		kstatus.SetError(gitRepo, filterFleetCLIJobOutput(terminationMessage))
 	case status.CurrentStatus:
 		if strings.Contains(result.Message, "Job Completed") {
 			gitRepo.Status.Commit = job.Annotations["commit"]
@@ -653,4 +654,60 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 
 		return nil
 	})
+}
+
+func filterFleetCLIJobOutput(output string) string {
+	// first split the output in lines
+	lines := strings.Split(output, "\n")
+	s := ""
+	for _, l := range lines {
+		s = s + getFleetCLIErrorsFromLine(l)
+	}
+
+	s = strings.Trim(s, "\n")
+	// in the case that all the messages from fleet apply are from libraries
+	// we just report an unknown error
+	if s == "" {
+		s = "Unknown error"
+	}
+
+	return s
+}
+
+func getFleetCLIErrorsFromLine(l string) string {
+	type LogEntry struct {
+		Level         string `json:"level"`
+		FleetErrorMsg string `json:"fleetErrorMessage"`
+		Time          string `json:"time"`
+		Msg           string `json:"msg"`
+	}
+	s := ""
+	open := strings.IndexByte(l, '{')
+	if open == -1 {
+		// line does not contain a valid json string
+		return ""
+	}
+	close := strings.IndexByte(l, '}')
+	if close != -1 {
+		if close < open {
+			// looks like there is some garbage before a possible json string
+			// ignore everything up to that closing bracked and try again
+			return getFleetCLIErrorsFromLine(l[close+1:])
+		}
+	} else if close == -1 {
+		// line does not contain a valid json string
+		return ""
+	}
+	var entry LogEntry
+	if err := json.Unmarshal([]byte(l[open:close+1]), &entry); err == nil {
+		if entry.FleetErrorMsg != "" {
+			s = s + entry.FleetErrorMsg + "\n"
+		}
+	}
+	// check if there's more to parse
+	if close+1 < len(l) {
+		s = s + getFleetCLIErrorsFromLine(l[close+1:])
+	}
+
+	return s
 }
