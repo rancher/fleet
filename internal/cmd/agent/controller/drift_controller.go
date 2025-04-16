@@ -10,6 +10,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	"github.com/go-logr/logr"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -121,17 +122,32 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 
 	// final status update
-	statusPatch := client.MergeFrom(orig)
-	err = r.Status().Patch(ctx, bd, statusPatch)
-	if apierrors.IsNotFound(err) {
-		merr = append(merr, fmt.Errorf("bundledeployment has been deleted: %w", err))
-	} else if err != nil {
-		merr = append(merr, fmt.Errorf("failed final update to bundledeployment status: %w", err))
-	} else {
-		logger.V(1).Info("Reconcile finished, bundledeployment status updated", "statusPatch", statusPatch)
+	if err := r.updateStatus(ctx, logger, orig, bd); err != nil {
+		if apierrors.IsNotFound(err) {
+			merr = append(merr, fmt.Errorf("bundledeployment has been deleted: %w", err))
+		} else {
+			merr = append(merr, fmt.Errorf("failed final update to bundledeployment status: %w", err))
+		}
 	}
 
 	return ctrl.Result{}, errutil.NewAggregate(merr)
+}
+
+func (r *DriftReconciler) updateStatus(ctx context.Context, logger logr.Logger, orig *fleetv1.BundleDeployment, obj *fleetv1.BundleDeployment) error {
+	statusPatch := client.MergeFrom(orig)
+
+	// Pre-calculate patch contents, to skip request if it's empty
+	patchData, err := statusPatch.Data(obj)
+	if err == nil && string(patchData) == "{}" {
+		return nil
+	}
+
+	if err := r.Status().Patch(ctx, obj, statusPatch); err != nil {
+		return err
+	}
+
+	logger.V(1).Info("Reconcile finished, bundledeployment status updated", "statusPatch", string(patchData))
+	return nil
 }
 
 // enqueueRequestHandlerWithDelay implements a TypedEventHandler that introduces a constant delay in the resources being enqueued
