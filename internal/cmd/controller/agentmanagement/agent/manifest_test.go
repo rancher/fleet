@@ -3,6 +3,7 @@ package agent_test
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -11,10 +12,20 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
+	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 )
 
 const namespace = "fleet-system"
+
+var (
+	second     = time.Second
+	leaderOpts = cmd.LeaderElectionOptions{
+		LeaseDuration: second,
+		RenewDeadline: second,
+		RetryPeriod:   second,
+	}
+)
 
 func TestImageResolve(t *testing.T) {
 	tests := []struct {
@@ -57,6 +68,7 @@ func TestManifestAgentTolerations(t *testing.T) {
 		CheckinInterval:       "1s",
 		PrivateRepoURL:        "private.rancher.com:5000",
 		SystemDefaultRegistry: "default.rancher.com",
+		LeaderElectionOptions: leaderOpts,
 	}
 
 	// these tolerations should exist regardless of what user sent
@@ -117,6 +129,7 @@ func TestManifestAgentHostNetwork(t *testing.T) {
 		CheckinInterval:       "1s",
 		PrivateRepoURL:        "private.rancher.com:5000",
 		SystemDefaultRegistry: "default.rancher.com",
+		LeaderElectionOptions: leaderOpts,
 	}
 
 	for _, testCase := range []struct {
@@ -178,24 +191,38 @@ func TestManifestAgentAffinity(t *testing.T) {
 		}},
 	}}
 
+	baseOpts := agent.ManifestOptions{
+		LeaderElectionOptions: leaderOpts,
+	}
+
 	for _, testCase := range []struct {
 		name             string
 		getOpts          func() agent.ManifestOptions
 		expectedAffinity *corev1.Affinity
 	}{
 		{
-			name:             "Builtin Affinity",
-			getOpts:          func() agent.ManifestOptions { return agent.ManifestOptions{} },
+			name: "Builtin Affinity",
+			getOpts: func() agent.ManifestOptions {
+				return baseOpts
+			},
 			expectedAffinity: builtinAffinity,
 		},
 		{
-			name:             "Remove Affinity",
-			getOpts:          func() agent.ManifestOptions { return agent.ManifestOptions{AgentAffinity: &corev1.Affinity{}} },
+			name: "Remove Affinity",
+			getOpts: func() agent.ManifestOptions {
+				opts := baseOpts
+				opts.AgentAffinity = &corev1.Affinity{}
+				return opts
+			},
 			expectedAffinity: &corev1.Affinity{},
 		},
 		{
-			name:             "Override Affinity",
-			getOpts:          func() agent.ManifestOptions { return agent.ManifestOptions{AgentAffinity: customAffinity} },
+			name: "Override Affinity",
+			getOpts: func() agent.ManifestOptions {
+				opts := baseOpts
+				opts.AgentAffinity = customAffinity
+				return opts
+			},
 			expectedAffinity: customAffinity,
 		},
 	} {
@@ -228,26 +255,38 @@ func TestManifestAgentResources(t *testing.T) {
 		},
 	}
 
+	baseOpts := agent.ManifestOptions{
+		LeaderElectionOptions: leaderOpts,
+	}
+
 	for _, testCase := range []struct {
 		name              string
 		getOpts           func() agent.ManifestOptions
 		expectedResources corev1.ResourceRequirements
 	}{
 		{
-			name:              "Builtin Resources",
-			getOpts:           func() agent.ManifestOptions { return agent.ManifestOptions{} },
+			name: "Builtin Resources",
+			getOpts: func() agent.ManifestOptions {
+				return baseOpts
+			},
 			expectedResources: builtinResources,
 		},
 		{
 			name: "Remove Resources",
 			getOpts: func() agent.ManifestOptions {
-				return agent.ManifestOptions{AgentResources: &corev1.ResourceRequirements{}}
+				opts := baseOpts
+				opts.AgentResources = &corev1.ResourceRequirements{}
+				return opts
 			},
 			expectedResources: corev1.ResourceRequirements{},
 		},
 		{
-			name:              "Override Resources",
-			getOpts:           func() agent.ManifestOptions { return agent.ManifestOptions{AgentResources: &customResources} },
+			name: "Override Resources",
+			getOpts: func() agent.ManifestOptions {
+				opts := baseOpts
+				opts.AgentResources = &customResources
+				return opts
+			},
 			expectedResources: customResources,
 		},
 	} {
