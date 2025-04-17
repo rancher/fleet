@@ -9,6 +9,9 @@
     "release/v0.11",
     "release/v0.10"
   ],
+  "ignorePaths": [
+    "**/assets/**"
+  ],
   "packageRules": [
     {
       "matchBaseBranches": ["release/v0.12"],
