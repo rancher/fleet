@@ -107,11 +107,11 @@ jobs:
         name: Set up Rancher
         env:
           public_hostname: "172.18.0.1.sslip.io"
-          fleetns: "cattle-fleet-system"
         run: |
           ./.github/scripts/setup-rancher.sh "${{github.event.inputs.rancher_version}}"
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
+          sleep 30
           ./.github/scripts/label-downstream-cluster.sh
       -
         name: Create example workload
