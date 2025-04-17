@@ -134,22 +134,14 @@ jobs:
             --network "nw01" \
             --image docker.io/rancher/k3s:${{ env.SETUP_K3S_VERSION }}
       -
-        name: Set up latest Rancher
+        name: Set up Rancher
         env:
           public_hostname: "172.18.0.1.sslip.io"
         run: |
-          ./.github/scripts/setup-latest-rancher.sh
-      -
-        name: Register Rancher's downstream clusters
-        env:
-          public_hostname: "172.18.0.1.sslip.io"
-        run: |
+          ./.github/scripts/setup-rancher.sh
           ./.github/scripts/wait-for-loadbalancer.sh
           ./.github/scripts/register-downstream-clusters.sh
-
-          # wait for cluster to settle
           sleep 30
-
           ./.github/scripts/label-downstream-cluster.sh
       -
         name: Create example workload

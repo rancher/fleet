@@ -41,7 +41,7 @@ Optional flags to `ginkgo` for reporting on long-running tests:
 
 For multi-cluster tests we need to configure two clusters. You also need to make
 the upstream clusters API accessible to the downstream cluster. The default URL
-in `dev/setup-fleet-downstream` should work with most systems.
+in `dev/setup-fleet-managed-downstream` should work with most systems.
 
 ```bash
 source dev/setup-multi-cluster
