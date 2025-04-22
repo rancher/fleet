@@ -212,6 +212,10 @@ func (h *Helm) getValues(ctx context.Context, options fleet.BundleDeploymentOpti
 		values = options.Helm.Values.Data
 	}
 
+	// avoid the possibility of returning a nil map
+	if values == nil {
+		values = map[string]interface{}{}
+	}
 	// do not run this when using template
 	if !h.template {
 		for _, valuesFrom := range options.Helm.ValuesFrom {
