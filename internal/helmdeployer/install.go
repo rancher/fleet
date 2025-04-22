@@ -318,6 +318,9 @@ func mergeMaps(base, other map[string]string) map[string]string {
 // from the source values. This is slightly adapted from:
 // https://github.com/helm/helm/blob/2332b480c9cb70a0d8a85247992d6155fbe82416/cmd/helm/install.go#L359
 func mergeValues(dest, src map[string]interface{}) map[string]interface{} {
+	if dest == nil {
+		return src
+	}
 	for k, v := range src {
 		// If the key doesn't exist already, then just set the key to that value
 		if _, exists := dest[k]; !exists {

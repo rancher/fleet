@@ -59,4 +59,9 @@ func TestValuesFrom(t *testing.T) {
 	totalValues = mergeValues(totalValues, secretValues)
 	totalValues = mergeValues(totalValues, configMapValues)
 	a.Equal(expected, totalValues)
+
+	// verify that merging values to an empty map does not panic
+	var nilValues map[string]interface{}
+	totalValuesWithNil := mergeValues(nilValues, configMapValues)
+	a.Equal(totalValuesWithNil, configMapValues)
 }
