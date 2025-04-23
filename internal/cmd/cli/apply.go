@@ -14,6 +14,7 @@ import (
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
+	ssh "github.com/rancher/fleet/internal/ssh"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -97,6 +98,14 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		CorrectDriftForce:           a.CorrectDriftForce,
 		CorrectDriftKeepFailHistory: a.CorrectDriftKeepFailHistory,
 	}
+
+	knownHostsPath, err := writeTmpKnownHosts()
+	if err != nil {
+		return err
+	}
+
+	defer os.RemoveAll(knownHostsPath)
+
 	if err := a.addAuthToOpts(&opts, os.ReadFile); err != nil {
 		return err
 	}
@@ -127,12 +136,19 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 		args = args[1:]
 	}
 
+	restoreEnv, err := setEnv(knownHostsPath)
+	if err != nil {
+		return fmt.Errorf("setting git SSH command env var for known hosts: %w", err)
+	}
+
+	defer restoreEnv() // nolint: errcheck // best-effort
+
 	return apply.CreateBundles(cmd.Context(), Client, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
 // is not provided it means that the same helm secret should be used for all helm repositories, then it will look for
-// Username, PasswordFile, CACertsFile and SSHPrivateKeyFile
+// Username, PasswordFile, CACertsFile and SSHPrivateKeyFile.
 func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {
 	if a.HelmCredentialsByPathFile != "" {
 		file, err := readFile(a.HelmCredentialsByPathFile)
@@ -208,4 +224,92 @@ func currentCommit() string {
 		return strings.TrimSpace(buf.String())
 	}
 	return ""
+}
+
+// writeTmpKnownHosts creates a temporary file and writes known_hosts data to it, if such data is available from
+// environment variable `FLEET_KNOWN_HOSTS`.
+// It returns the name of the file and any error which may have happened while creating the file or writing to it.
+func writeTmpKnownHosts() (string, error) {
+	knownHosts, isSet := os.LookupEnv(ssh.KnownHostsEnvVar)
+	if !isSet || knownHosts == "" {
+		return "", nil
+	}
+
+	f, err := os.CreateTemp("", "known_hosts")
+	if err != nil {
+		return "", err
+	}
+
+	knownHostsPath := f.Name()
+
+	if err := os.WriteFile(knownHostsPath, []byte(knownHosts), 0600); err != nil {
+		return "", fmt.Errorf(
+			"failed to write value of %q env var to known_hosts file %s: %w",
+			ssh.KnownHostsEnvVar,
+			knownHostsPath,
+			err,
+		)
+	}
+
+	return knownHostsPath, nil
+}
+
+// setEnv sets the `GIT_SSH_COMMAND` environment variable with a known_hosts flag pointing to the provided
+// knownHostsPath. It takes care of preserving existing flags in the existing value of the environment variable, if any,
+// except for other user known_hosts file flags.
+// It returns a function to restore the environment variable to its initial value, and any error that might have
+// occurred in the process.
+func setEnv(knownHostsPath string) (func() error, error) {
+	commandEnvVar := "GIT_SSH_COMMAND"
+	flagName := "UserKnownHostsFile"
+
+	initialCommand, isSet := os.LookupEnv(commandEnvVar)
+
+	fail := func(err error) (func() error, error) {
+		return func() error { return nil }, err
+	}
+
+	if !isSet {
+		if err := os.Setenv(commandEnvVar, fmt.Sprintf("ssh -o %s=%s", flagName, knownHostsPath)); err != nil {
+			return fail(err)
+		}
+
+		return func() error { return os.Unsetenv(commandEnvVar) }, nil
+	}
+
+	// Check if `UserKnownHostsFile` is already present (case-insensitive), even multiple times, and skip it if so.
+	var newSSHCommand strings.Builder
+	options := strings.Split(initialCommand, " -o ")
+	for _, opt := range options {
+		kv := strings.Split(opt, "=")
+		if len(kv) != 2 { // first element, pre `-o`, or other flag
+			if _, err := newSSHCommand.WriteString(opt); err != nil {
+				return fail(err)
+			}
+
+			continue
+		}
+
+		if strings.EqualFold(kv[0], flagName) { // case-insensitive comparison
+			continue
+		}
+
+		if _, err := newSSHCommand.WriteString(fmt.Sprintf(" -o %s", opt)); err != nil {
+			return fail(err)
+		}
+	}
+
+	if _, err := newSSHCommand.WriteString(fmt.Sprintf(" -o %s=%s", flagName, knownHostsPath)); err != nil {
+		return fail(err)
+	}
+
+	if err := os.Setenv(commandEnvVar, newSSHCommand.String()); err != nil {
+		return fail(err)
+	}
+
+	restore := func() error {
+		return os.Setenv(commandEnvVar, initialCommand)
+	}
+
+	return restore, nil
 }

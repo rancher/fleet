@@ -92,15 +92,12 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			deploymentB := bundle[1]
 			deploymentC := bundle[2]
 
-			Expect(deploymentA.Spec.Resources).To(HaveLen(2))
-			Expect(deploymentB.Spec.Resources).To(HaveLen(2))
-			Expect(deploymentC.Spec.Resources).To(HaveLen(2))
+			Expect(deploymentA.Spec.Resources).To(HaveLen(1))
+			Expect(deploymentB.Spec.Resources).To(HaveLen(1))
+			Expect(deploymentC.Spec.Resources).To(HaveLen(1))
 
-			Expect(cli.AssetsPath + "nested_multiple/deploymentA/fleet.yaml").To(bePresentInBundleResources(deploymentA.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_multiple/deploymentA/svc/svc.yaml").To(bePresentInBundleResources(deploymentA.Spec.Resources))
-			Expect(cli.AssetsPath + "nested_multiple/deploymentB/fleet.yaml").To(bePresentInBundleResources(deploymentB.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_multiple/deploymentB/svc/nested/svc.yaml").To(bePresentInBundleResources(deploymentB.Spec.Resources))
-			Expect(cli.AssetsPath + "nested_multiple/deploymentC/fleet.yaml").To(bePresentInBundleResources(deploymentC.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_multiple/deploymentC/deployment.yaml").To(bePresentInBundleResources(deploymentC.Spec.Resources))
 		})
 	})
@@ -119,17 +116,14 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			deploymentA := bundle[1]
 			deploymentC := bundle[2]
 
-			Expect(deploymentA.Spec.Resources).To(HaveLen(2))
+			Expect(deploymentA.Spec.Resources).To(HaveLen(1))
 			Expect(deploymentC.Spec.Resources).To(HaveLen(1))
-			Expect(root.Spec.Resources).To(HaveLen(5))
+			Expect(root.Spec.Resources).To(HaveLen(6))
 
-			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentA/fleet.yaml").To(bePresentInBundleResources(deploymentA.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentA/deployment.yaml").To(bePresentInBundleResources(deploymentA.Spec.Resources))
-			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentC/fleet.yaml").To(bePresentInBundleResources(deploymentC.Spec.Resources))
-			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentA/fleet.yaml").To(bePresentInBundleResources(root.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentA/deployment.yaml").To(bePresentInBundleResources(root.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentB/svc.yaml").To(bePresentInBundleResources(root.Spec.Resources))
-			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentC/fleet.yaml").To(bePresentInBundleResources(root.Spec.Resources))
+			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentC/cm.yaml").To(bePresentInBundleResources(deploymentC.Spec.Resources))
 			Expect(cli.AssetsPath + "nested_mixed_two_levels/nested/deploymentD/deployment.yaml").To(bePresentInBundleResources(root.Spec.Resources))
 		})
 	})
@@ -262,13 +256,16 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
 			// files expected are:
-			// Chart.yaml + values.yaml + templates/configmap.yaml + fleet.yaml +
+			// Chart.yaml + values.yaml + templates/configmap.yaml +
 			// Chart.lock + charts/config-chart-0.1.0.tgz
-			Expect(bundle.Spec.Resources).To(HaveLen(6))
+			Expect(bundle.Spec.Resources).To(HaveLen(5))
 			files, err := getAllFilesInDir(tmpDirRel)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(files).To(HaveLen(len(bundle.Spec.Resources)))
+			Expect(files).To(HaveLen(len(bundle.Spec.Resources) + 1))
 			for _, file := range files {
+				if strings.HasSuffix(file, "fleet.yaml") {
+					continue
+				}
 				Expect(file).To(bePresentInBundleResources(bundle.Spec.Resources))
 			}
 			// explicitly check for dependency files
@@ -286,12 +283,15 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
 			// files expected are:
-			// Chart.yaml + values.yaml + templates/configmap.yaml + fleet.yaml
-			Expect(bundle.Spec.Resources).To(HaveLen(4))
+			// Chart.yaml + values.yaml + templates/configmap.yaml
+			Expect(bundle.Spec.Resources).To(HaveLen(3))
 			files, err := getAllFilesInDir(tmpDirRel)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(files).To(HaveLen(len(bundle.Spec.Resources)))
+			Expect(files).To(HaveLen(len(bundle.Spec.Resources) + 1))
 			for _, file := range files {
+				if strings.HasSuffix(file, "fleet.yaml") {
+					continue
+				}
 				Expect(file).To(bePresentInBundleResources(bundle.Spec.Resources))
 			}
 			// explicitly check for dependency files (they should not exist in the file system nor in bundle resources)
@@ -311,10 +311,10 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
 			// expected files are:
-			// fleet.yaml + Chart.yaml + values.yaml + templates/configmap.yaml +
+			// Chart.yaml + values.yaml + templates/configmap.yaml +
 			// Chart.lock + charts/config-chart-0.1.0.tgz
-			Expect(bundle.Spec.Resources).To(HaveLen(6))
-			Expect(path.Join(tmpDirRel, "fleet.yaml")).To(bePresentInBundleResources(bundle.Spec.Resources))
+			Expect(bundle.Spec.Resources).To(HaveLen(5))
+			Expect(path.Join(tmpDirRel, "fleet.yaml")).NotTo(bePresentInBundleResources(bundle.Spec.Resources))
 			// as files were unpacked from the downloaded chart we can't just
 			// list the files in the original folder and compare.
 			// Files are only located in the bundle resources
@@ -335,10 +335,9 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 			bundle, err := cli.GetBundleFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
 			// expected files are:
-			// fleet.yaml +
 			// Chart.yaml + values.yaml + templates/configmap.yaml
-			Expect(bundle.Spec.Resources).To(HaveLen(4))
-			Expect(path.Join(tmpDirRel, "fleet.yaml")).To(bePresentInBundleResources(bundle.Spec.Resources))
+			Expect(bundle.Spec.Resources).To(HaveLen(3))
+			Expect(path.Join(tmpDirRel, "fleet.yaml")).NotTo(bePresentInBundleResources(bundle.Spec.Resources))
 			// as files were unpacked from the downloaded chart we can't just
 			// list the files in the original folder and compare.
 			// Files are only located in the bundle resources
@@ -369,10 +368,9 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 
 			// remoteDepl corresponds to multi-chart/remote-chart-with-deps
 			// expected files are:
-			// fleet.yaml +
 			// Chart.yaml + values.yaml + templates/configmap.yaml + Chart.lock + charts/config-chart-0.1.0.tgz
-			Expect(remoteDepl.Spec.Resources).To(HaveLen(6))
-			Expect(path.Join(tmpDirRel, "remote-chart-with-deps", "fleet.yaml")).To(bePresentInBundleResources(remoteDepl.Spec.Resources))
+			Expect(remoteDepl.Spec.Resources).To(HaveLen(5))
+			Expect(path.Join(tmpDirRel, "remote-chart-with-deps", "fleet.yaml")).NotTo(bePresentInBundleResources(remoteDepl.Spec.Resources))
 			// as files were unpacked from the downloaded chart we can't just
 			// list the files in the original folder and compare.
 			// Files are only located in the bundle resources
@@ -384,13 +382,16 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 
 			// simpleDepl corresponds to multi-chart/simple-with-fleet-yaml
 			// expected files are:
-			// fleet.yaml + Chart.yaml + values.yaml + templates/configmap.yaml +
+			// Chart.yaml + values.yaml + templates/configmap.yaml +
 			// Chart.lock + charts/config-chart-0.1.0.tgz
-			Expect(simpleDepl.Spec.Resources).To(HaveLen(6))
+			Expect(simpleDepl.Spec.Resources).To(HaveLen(5))
 			files, err := getAllFilesInDir(path.Join(tmpDirRel, "simple-with-fleet-yaml"))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(files).To(HaveLen(len(simpleDepl.Spec.Resources)))
+			Expect(files).To(HaveLen(len(simpleDepl.Spec.Resources) + 1))
 			for _, file := range files {
+				if strings.HasSuffix(file, "fleet.yaml") {
+					continue
+				}
 				Expect(file).To(bePresentInBundleResources(simpleDepl.Spec.Resources))
 			}
 			// explicitly check for dependency files
@@ -399,12 +400,15 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 
 			// noDepsDepl corresponds to multi-char/simple-with-fleet-yaml-no-deps
 			// expected files are:
-			// Chart.yaml + fleet.yaml + values.yaml + templates/configmap.yaml
-			Expect(noDepsDepl.Spec.Resources).To(HaveLen(4))
+			// Chart.yaml +  values.yaml + templates/configmap.yaml
+			Expect(noDepsDepl.Spec.Resources).To(HaveLen(3))
 			files, err = getAllFilesInDir(path.Join(tmpDirRel, "simple-with-fleet-yaml-no-deps"))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(files).To(HaveLen(len(noDepsDepl.Spec.Resources)))
+			Expect(files).To(HaveLen(len(noDepsDepl.Spec.Resources) + 1))
 			for _, file := range files {
+				if strings.HasSuffix(file, "fleet.yaml") {
+					continue
+				}
 				Expect(file).To(bePresentInBundleResources(noDepsDepl.Spec.Resources))
 			}
 			// explicitly check for dependency files (they should not exist in the file system nor in bundle resources)

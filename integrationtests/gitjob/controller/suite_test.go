@@ -14,12 +14,14 @@ import (
 	gomegatypes "github.com/onsi/gomega/types"
 	"github.com/reugn/go-quartz/quartz"
 	"go.uber.org/mock/gomock"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 	ctrlreconciler "github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/internal/ssh"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git/mocks"
 
@@ -50,6 +52,7 @@ var (
 	namespace      string
 	expectedCommit string
 	k8sClientSet   *kubernetes.Clientset
+	cm             corev1.ConfigMap
 )
 
 func TestGitJobController(t *testing.T) {
@@ -112,6 +115,7 @@ var _ = BeforeSuite(func() {
 		GitFetcher: fetcherMock,
 		Clock:      reconciler.RealClock{},
 		Recorder:   mgr.GetEventRecorderFor("gitjob-controller"),
+		KnownHosts: ssh.KnownHosts{},
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -122,7 +126,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	store := manifest.NewStore(mgr.GetClient())
-	builder := target.New(mgr.GetClient())
+	builder := target.New(mgr.GetClient(), mgr.GetAPIReader())
 	err = (&ctrlreconciler.BundleReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
@@ -138,6 +142,27 @@ var _ = BeforeSuite(func() {
 		err = mgr.Start(ctx)
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
+
+	// Prevent errors about an incomplete Fleet deployment
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cattle-fleet-system",
+		},
+	}
+	err = k8sClient.Create(ctx, &ns)
+	Expect(err).ToNot(HaveOccurred())
+
+	cm = corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "known-hosts",
+			Namespace: "cattle-fleet-system",
+		},
+		Data: map[string]string{
+			"known_hosts": "foo", // the actual data doesn't matter for these tests.
+		},
+	}
+	err = k8sClient.Create(ctx, &cm)
+	Expect(err).ToNot(HaveOccurred())
 })
 
 var _ = AfterSuite(func() {

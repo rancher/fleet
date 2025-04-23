@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ociwrapper"
@@ -154,6 +155,14 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bundle.Status.ObservedGeneration,
 	)
 
+	// The values secret is optional, e.g. for non-helm type bundles.
+	// This sets the values on the bundle, which is safe as we don't update bundle, just its status
+	if bundle.Spec.ValuesHash != "" {
+		if err := loadBundleValues(ctx, r.Client, bundle); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
 	manifestID := bundle.Spec.ContentsID
 	var resourcesManifest *manifest.Manifest
@@ -215,7 +224,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	// this will add the defaults for a new bundledeployment
+	// this will add the defaults for a new bundledeployment. It propagates stagedOptions to options.
 	if err := target.UpdatePartitions(&bundle.Status, matchedTargets); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -236,14 +245,63 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
 	for _, target := range matchedTargets {
-		bd, err := r.createBundleDeployment(ctx, logger, target, contentsInOCI, manifestID)
+		if target.Deployment == nil {
+			continue
+		}
+		if target.Deployment.Namespace == "" {
+			logger.V(1).Info(
+				"Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace",
+				"bundledeployment", target.Deployment,
+			)
+			continue
+		}
+
+		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
+		// copy labels from Bundle as they might have changed
+		bd := target.BundleDeployment()
+
+		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
+		// been created.
+		controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
+
+		bd.Spec.OCIContents = contentsInOCI
+
+		h, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		// We need a checksum to trigger on value change, rely on later code in
+		// the reconciler to update the status
+		bd.Spec.ValuesHash = h
+
+		helmvalues.ClearOptions(bd)
+
+		bd, err = r.createBundleDeployment(
+			ctx,
+			logger,
+			bd,
+			contentsInOCI,
+			manifestID)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
+		if bd.Spec.ValuesHash != "" {
+			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
+				return ctrl.Result{}, err
+			}
+		} else {
+			// No values to store, delete the secret if it exists
+			if err := r.Delete(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
+			}); err != nil && !apierrors.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
+		}
+
 		if bd != nil && contentsInOCI {
 			// we need to create the OCI registry credentials secret in the BundleDeployment's namespace
-			if err := r.createDeploymentOCISecret(ctx, bundle, bd); err != nil {
+			if err := r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, bd); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -311,30 +369,11 @@ func (r *BundleReconciler) addOrRemoveFinalizer(ctx context.Context, logger logr
 func (r *BundleReconciler) createBundleDeployment(
 	ctx context.Context,
 	logger logr.Logger,
-	target *target.Target,
+	bd *fleet.BundleDeployment,
 	contentsInOCI bool,
 	manifestID string,
 ) (*fleet.BundleDeployment, error) {
-	if target.Deployment == nil {
-		return nil, nil
-	}
-	if target.Deployment.Namespace == "" {
-		logger.V(1).Info(
-			"Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace",
-			"bundledeployment", target.Deployment,
-		)
-		return nil, nil
-	}
-
-	// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
-	// copy labels from Bundle as they might have changed
-	bd := target.BundleDeployment()
-
-	// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
-	// been created.
-	controllerutil.AddFinalizer(bd, bundleDeploymentFinalizer)
-
-	bd.Spec.OCIContents = contentsInOCI
+	logger = logger.WithValues("bundledeployment", bd, "deploymentID", bd.Spec.DeploymentID)
 
 	// contents resources stored in etcd, finalizers to add here.
 	if !contentsInOCI {
@@ -393,14 +432,84 @@ func (r *BundleReconciler) createBundleDeployment(
 	return bd, nil
 }
 
-func (r *BundleReconciler) createDeploymentOCISecret(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
+// loadBundleValues loads the values from the secret and sets them in the bundle spec
+func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
+	secret := &corev1.Secret{}
+	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); err != nil {
+		return fmt.Errorf("failed to get values secret for bundle %q, this is likely temporary: %w", bundle.Name, err)
+	}
+	hash, err := helmvalues.HashValuesSecret(secret.Data)
+	if err != nil {
+		return fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
+	}
+	if bundle.Spec.ValuesHash != hash {
+		return fmt.Errorf("bundle values secret has changed, requeuing")
+	}
+
+	if err := helmvalues.SetValues(bundle, secret.Data); err != nil {
+		return fmt.Errorf("failed load values secret %q: %w", secret.Name, err)
+	}
+
+	return nil
+}
+
+func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.BundleDeployment, options []byte, stagedOptions []byte) error {
+	secret := &corev1.Secret{
+		Type: fleet.SecretTypeBundleDeploymentOptions,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bd.Name,
+			Namespace: bd.Namespace,
+		},
+	}
+
+	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
+		return err
+	}
+
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.Data = map[string][]byte{
+			helmvalues.ValuesKey:       options,
+			helmvalues.StagedValuesKey: stagedOptions,
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bundle) (string, error) {
+	if bundle.Spec.ContentsID == "" {
+		return "", fmt.Errorf("cannot get OCI reference. Bundle's ContentsID is not set")
+	}
 	namespacedName := types.NamespacedName{
 		Namespace: bundle.Namespace,
 		Name:      bundle.Spec.ContentsID,
 	}
 	var ociSecret corev1.Secret
 	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
-		return err
+		return "", err
+	}
+	ref, ok := ociSecret.Data[ociwrapper.OCISecretReference]
+	if !ok {
+		return "", fmt.Errorf("expected data [reference] not found in secret: %s", bundle.Spec.ContentsID)
+	}
+	// this is not a valid reference, it is only for display
+	return fmt.Sprintf("oci://%s/%s:latest", string(ref), bundle.Spec.ContentsID), nil
+}
+
+// cloneSecret clones a secret, identified by the provided secretName and
+// namespace, to the namespace of the provided bundle deployment bd. This makes
+// the secret available to agents when deploying bd to downstream clusters.
+func (r *BundleReconciler) cloneSecret(ctx context.Context, namespace string, secretName string, bd *fleet.BundleDeployment) error {
+	namespacedName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      secretName,
+	}
+	var ociSecret corev1.Secret
+	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
+		return fmt.Errorf("failed to load source secret, cannot clone into %q: %w", namespace, err)
 	}
 	// clone the secret, and just change the namespace so it's in the target's namespace
 	targetOCISecret := &corev1.Secret{
@@ -421,26 +530,6 @@ func (r *BundleReconciler) createDeploymentOCISecret(ctx context.Context, bundle
 	}
 
 	return nil
-}
-
-func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bundle) (string, error) {
-	if bundle.Spec.ContentsID == "" {
-		return "", fmt.Errorf("cannot get OCI reference. Bundles's ContentsID is not set")
-	}
-	namespacedName := types.NamespacedName{
-		Namespace: bundle.Namespace,
-		Name:      bundle.Spec.ContentsID,
-	}
-	var ociSecret corev1.Secret
-	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
-		return "", err
-	}
-	ref, ok := ociSecret.Data[ociwrapper.OCISecretReference]
-	if !ok {
-		return "", fmt.Errorf("expected data [reference] not found in secret: %s", bundle.Spec.ContentsID)
-	}
-	// this is not a valid reference, it is only for display
-	return fmt.Sprintf("oci://%s/%s:latest", string(ref), bundle.Spec.ContentsID), nil
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of
