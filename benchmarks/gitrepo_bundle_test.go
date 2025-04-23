@@ -20,68 +20,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// create-1-gitrepo-1-bundle
-// create-1-gitrepo-1-big-bundle
 // create-1-gitrepo-50-bundle
 // create-50-gitrepo-50-bundle
 var _ = Context("Benchmarks GitOps", func() {
-	Describe("Adding 1 GitRepo results in 1 Bundle", Label("create-1-gitrepo-1-bundle"), func() {
-		BeforeEach(func() {
-			name = "create-1-gitrepo-1-bundle"
-			info = `creating one bundle from one gitrepo
-
-		This test is influenced by the network connection to the Git repository server.
-		`
-		})
-
-		It("creates a Bundle", func() {
-			DeferCleanup(func() {
-				_, _ = k.Delete("-f", assetPath(name, "gitrepo.yaml"))
-			})
-
-			experiment.MeasureDuration("TotalDuration", func() {
-				record.MemoryUsage(experiment, "MemDuring")
-
-				_, _ = k.Apply("-f", assetPath(name, "gitrepo.yaml"))
-				Eventually(func(g Gomega) {
-					err := k8sClient.Get(ctx, client.ObjectKey{
-						Namespace: workspace,
-						Name:      "bm-1-gitrepo-1-bundle-benchmarks-create-1-gitre-773b4",
-					}, &v1alpha1.Bundle{})
-					g.Expect(err).ToNot(HaveOccurred())
-				}).Should(Succeed())
-			}, gm.Style("{{bold}}"))
-
-		})
-	})
-
-	Describe("Adding 1 GitRepo results in 1 big Bundle", Label("create-1-gitrepo-1-big-bundle"), func() {
-		BeforeEach(func() {
-			name = "create-1-gitrepo-1-big-bundle"
-			info = "creating one big bundle from one GitRepo"
-		})
-
-		It("creates a big bundle", func() {
-			DeferCleanup(func() {
-				_, _ = k.Delete("-f", assetPath(name, "gitrepo.yaml"))
-			})
-
-			experiment.MeasureDuration("TotalDuration", func() {
-				record.MemoryUsage(experiment, "MemDuring")
-
-				_, _ = k.Apply("-f", assetPath(name, "gitrepo.yaml"))
-				Eventually(func(g Gomega) {
-					err := k8sClient.Get(ctx, client.ObjectKey{
-						Namespace: workspace,
-						Name:      "bm-1-gitrepo-1-big-bundle-benchmarks-create-1-g-84854",
-					}, &v1alpha1.Bundle{})
-					g.Expect(err).ToNot(HaveOccurred())
-				}).Should(Succeed())
-			}, gm.Style("{{bold}}"))
-
-		})
-	})
-
 	Describe("Adding 1 GitRepo results in 50 Bundles", Label("create-1-gitrepo-50-bundle"), func() {
 		BeforeEach(func() {
 			name = "create-1-gitrepo-50-bundle"

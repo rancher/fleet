@@ -11,7 +11,6 @@ import (
 	gm "github.com/onsi/gomega/gmeasure"
 )
 
-// create-1-bundle
 // create-50-bundle
 var _ = Context("Benchmarks Targeting", func() {
 	var n int
@@ -22,33 +21,6 @@ var _ = Context("Benchmarks Targeting", func() {
 			"fleet.cattle.io/benchmark": "true",
 		})).To(Succeed())
 		n = len(clusters.Items)
-	})
-
-	Describe("Adding 1 Bundle results in BundleDeployments", Label("create-1-bundle"), func() {
-		BeforeEach(func() {
-			name = "create-1-bundle"
-			info = "creating one bundle targeting each cluster"
-		})
-
-		It("creates one bundledeployment", func() {
-			DeferCleanup(func() {
-				_, _ = k.Delete("-f", assetPath(name, "bundle.yaml"))
-			})
-
-			experiment.MeasureDuration("TotalDuration", func() {
-				record.MemoryUsage(experiment, "MemDuring")
-
-				_, _ = k.Apply("-f", assetPath(name, "bundle.yaml"))
-				Eventually(func(g Gomega) {
-					list := &v1alpha1.BundleDeploymentList{}
-					err := k8sClient.List(ctx, list, client.MatchingLabels{
-						GroupLabel: name,
-					})
-					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(list.Items).To(HaveLen(n))
-				}).Should(Succeed())
-			}, gm.Style("{{bold}}"))
-		})
 	})
 
 	Describe("Adding 50 Bundles", Label("create-50-bundle"), func() {
