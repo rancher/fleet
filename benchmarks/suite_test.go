@@ -2,9 +2,14 @@ package benchmarks_test
 
 import (
 	"context"
+	"embed"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -58,6 +63,11 @@ var (
 	// metrics toggles metrics reporting, old fleet versions don't have
 	// metrics
 	metrics bool
+
+	//go:embed assets
+	assets embed.FS
+
+	assetsTmp string
 )
 
 // TestBenchmarkSuite runs the benchmark suite for Fleet.
@@ -126,9 +136,14 @@ var _ = BeforeSuite(func() {
 
 	atLeastOneCluster()
 
-	record.Setup(workspace, k8sClient, k)
+	// unpack embedded assets, k client needs real filesystem
+	assetsTmp, err = os.MkdirTemp("", "fleet-benchmark")
+	Expect(err).NotTo(HaveOccurred())
+	err = unpackAssets(assets, assetsTmp)
+	Expect(err).NotTo(HaveOccurred())
 
 	// describe the environment this suite is running against
+	record.Setup(workspace, k8sClient, k)
 	e := gm.NewExperiment(parser.BeforeSetup)
 	record.MemoryUsage(e, "MemBefore")
 	record.ResourceCount(ctx, e, "ResourceCountBefore")
@@ -151,6 +166,8 @@ var _ = AfterSuite(func() {
 	record.ResourceCount(ctx, e, "ResourceCountAfter")
 	AddReportEntry("setup", e, ReportEntryVisibilityNever)
 
+	_ = os.RemoveAll(assetsTmp)
+
 	cancel()
 })
 
@@ -172,6 +189,62 @@ func atLeastOneCluster() {
 
 // assetPath returns the path to an asset
 func assetPath(p ...string) string {
-	parts := append([]string{root, "benchmarks", "assets"}, p...)
+	parts := append([]string{assetsTmp}, p...)
 	return path.Join(parts...)
+}
+
+func unpackAssets(assets embed.FS, dest string) error {
+	return fs.WalkDir(assets, "assets", func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		rel, err := filepath.Rel("assets", p)
+		if err != nil {
+			return err
+		}
+
+		target := filepath.Join(dest, rel)
+
+		if d.IsDir() {
+			return os.MkdirAll(target, 0755)
+		}
+
+		data, err := assets.ReadFile(p)
+		if err != nil {
+			return err
+		}
+
+		return os.WriteFile(target, data, 0644)
+	})
+}
+
+func generateAsset(target string, tmplPath string, data any) error {
+	b, err := os.ReadFile(tmplPath)
+	if err != nil {
+		return err
+	}
+
+	tmpl := template.New("generator")
+	tmpl.Funcs(template.FuncMap{
+		"N": func(max int) []int {
+			var res []int
+			for i := range max {
+				res = append(res, i+1)
+			}
+			return res
+		},
+	})
+	tmpl = template.Must(tmpl.Parse(string(b)))
+
+	var sb strings.Builder
+	err = tmpl.Execute(&sb, data)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(target, []byte(sb.String()), 0644) // nolint:gosec // Non-crypto use
+	if err != nil {
+		return err
+	}
+	return nil
 }

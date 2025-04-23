@@ -21,6 +21,7 @@ var _ = Context("Benchmarks Deploy", func() {
 	var (
 		clusters *v1alpha1.ClusterList
 		n        int
+		manifest string
 	)
 
 	BeforeEach(func() {
@@ -85,15 +86,21 @@ var _ = Context("Benchmarks Deploy", func() {
 		BeforeEach(func() {
 			name = "create-50-bundledeployment-500-resources"
 			info = "creating 50 bundledeployments, targeting each cluster"
+			manifest = assetPath("create-bundledeployment-500-resources/bundles50.yaml")
+			err := generateAsset(
+				manifest,
+				assetPath("create-bundledeployment-500-resources/bundles.tmpl.yaml"),
+				struct{ Max int }{50})
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("creates 50 bundledeployments", func() {
 			DeferCleanup(func() {
-				_, _ = k.Delete("-f", assetPath(name, "bundles.yaml"))
+				_, _ = k.Delete("-f", manifest)
 			})
 
 			By("preparing the paused bundles")
-			_, _ = k.Apply("-f", assetPath(name, "bundles.yaml"))
+			_, _ = k.Apply("-f", manifest)
 			Eventually(func(g Gomega) {
 				list := &v1alpha1.BundleDeploymentList{}
 				err := k8sClient.List(ctx, list, client.MatchingLabels{
