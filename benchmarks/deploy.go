@@ -1,4 +1,4 @@
-package benchmarks_test
+package benchmarks
 
 import (
 	"github.com/rancher/fleet/benchmarks/record"

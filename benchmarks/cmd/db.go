@@ -80,6 +80,7 @@ func loadSampleFile(file string) (*parser.Sample, error) {
 		Setup:       map[string]parser.Measurement{},
 	}
 
+	fmt.Printf("Loading sample %s\n", file)
 	d, err := parser.NewSetup(r.SpecReports, s.Setup)
 	if err != nil {
 		return nil, err

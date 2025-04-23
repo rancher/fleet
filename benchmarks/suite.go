@@ -1,4 +1,12 @@
-package benchmarks_test
+// Package benchmarks is used to benchmark the performance of the controllers
+// against an existing Fleet installation. Each experiment aligns to a bundle's
+// lifecycle. Experiments might have requirements, like the number of clusters
+// in an installation. The experiments create a resource and wait for Fleet to
+// reconcile it. Experiments collect multiple metrics, like the number and
+// duration of reconciliations, the overall duration of the experiment, the
+// number of created k8s resources and the CPU and memory usage of the
+// controllers.
+package benchmarks
 
 import (
 	"context"
@@ -7,6 +15,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
@@ -49,7 +58,6 @@ var (
 	k8sClient client.Client
 	k         kubectl.Command
 
-	root   = ".."
 	scheme = apiruntime.NewScheme()
 
 	// experiments
@@ -78,7 +86,16 @@ var (
 // * if metrics should be recorded
 func TestBenchmarkSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fleet Benchmark Suite")
+
+	suiteConfig, reporterConfig := GinkgoConfiguration()
+	suiteConfig.FailFast = true
+	suiteConfig.RandomSeed = 1731598958
+	var JSONReportFile = os.Getenv("FLEET_BENCH_OUTPUT")
+	if JSONReportFile == "" {
+		JSONReportFile = "b-" + strconv.FormatInt(time.Now().Unix(), 10) + ".json"
+	}
+	reporterConfig.JSONReport = JSONReportFile
+	RunSpecs(t, "Fleet Benchmark Suite", suiteConfig, reporterConfig)
 }
 
 // this will run after BeforeEach, but before the actual experiment
@@ -173,7 +190,11 @@ var _ = AfterSuite(func() {
 
 var _ = ReportAfterSuite("Summary", func(r Report) {
 	if summary, ok := report.New(r); ok {
-		AddReportEntry("summary", summary)
+		if os.Getenv("FLEET_BENCH_VERBOSE") == "true" {
+			AddReportEntry("summary", summary)
+		} else {
+			AddReportEntry("summary", summary, ReportEntryVisibilityNever)
+		}
 	}
 })
 

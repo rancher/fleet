@@ -1,4 +1,4 @@
-package benchmarks_test
+package benchmarks
 
 import (
 	"github.com/rancher/fleet/benchmarks/record"
@@ -13,7 +13,7 @@ import (
 
 // create-50-bundle
 // create-150-bundle
-var _ = FContext("Benchmarks Targeting", func() {
+var _ = Context("Benchmarks Targeting", func() {
 	var (
 		n        int
 		manifest string

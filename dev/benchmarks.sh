@@ -12,16 +12,4 @@ export FLEET_BENCH_TIMEOUT
 export FLEET_BENCH_NAMESPACE
 export FLEET_BENCH_METRICS
 
-n=$(kubectl get clusters.fleet.cattle.io -n "$FLEET_BENCH_NAMESPACE" -l fleet.cattle.io/benchmark=true  -ojson | jq '.items | length')
-if [ "$n" -eq 0 ]; then
-  echo "No clusters found to benchmark"
-  echo "You need at least one cluster with the label fleet.cattle.io/benchmark=true"
-  echo
-  echo "Example:"
-  echo "kubectl label clusters.fleet.cattle.io -n fleet-local local fleet.cattle.io/benchmark=true"
-  exit 1
-fi
-
-ginkgo run --fail-fast --seed 1731598958 --json-report "$FLEET_BENCH_OUTPUT" ./benchmarks
-
-go run ./benchmarks/cmd report -d benchmarks/db -i "$FLEET_BENCH_OUTPUT"
+go run ./benchmarks/cmd run -d benchmarks/db -i "$FLEET_BENCH_OUTPUT"

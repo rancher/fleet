@@ -1,12 +1,4 @@
-// Package benchmarks is used to benchmark the performance of the controllers
-// against an existing Fleet installation. Each experiment aligns to a bundle's
-// lifecycle. Experiments might have requirements, like the number of clusters
-// in an installation. The experiments create a resource and wait for Fleet to
-// reconcile it. Experiments collect multiple metrics, like the number and
-// duration of reconciliations, the overall duration of the experiment, the
-// number of created k8s resources and the CPU and memory usage of the
-// controllers.
-package benchmarks_test
+package benchmarks
 
 import (
 	gm "github.com/onsi/gomega/gmeasure"
