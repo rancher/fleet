@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023 SUSE LLC
+// Copyright (c) 2021-2025 SUSE LLC
 
 package reconciler
 
