@@ -6498,7 +6498,7 @@ spec:
                   type: string
                 repo:
                   description: Repo is a URL to a git repo to clone and index.
-                  nullable: true
+                  minLength: 1
                   type: string
                 revision:
                   description: Revision A specific commit or tag to operate on.
@@ -6660,6 +6660,8 @@ spec:
                   description: WebhookSecret contains the name of the secret to use
                     for webhook parsing
                   type: string
+              required:
+                - repo
               type: object
             status:
               properties:
