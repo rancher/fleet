@@ -113,6 +113,7 @@ var runCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		fmt.Println()
 		fmt.Printf("Move the report %q to the %q folder, if you want to compare future benchmark against it.\n", report, db)
 		return nil
 	},
