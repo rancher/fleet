@@ -82,7 +82,10 @@ var runCmd = &cobra.Command{
 		}
 
 		if _, err := os.Stat(db); errors.Is(err, os.ErrNotExist) {
-			os.MkdirAll(db, 0755)
+			if err := os.MkdirAll(db, 0755); err != nil {
+				fmt.Printf("Failed to create db directory %q: %s\n", db, err)
+				os.Exit(1)
+			}
 		}
 
 		date := time.Now().Format("2006-01-02_15:04:05")

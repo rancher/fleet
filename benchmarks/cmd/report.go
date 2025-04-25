@@ -132,9 +132,11 @@ var reportCmd = &cobra.Command{
 		}
 		fmt.Println(t.Render())
 
-		fmt.Println("# Final Score")
-		fmt.Println()
-		fmt.Printf("%s: %.02f\n", input, scores.AvgZScores())
+		if len(population.Samples) > 1 {
+			fmt.Println("# Final Score")
+			fmt.Println()
+			fmt.Printf("%s: %.02f\n", input, scores.AvgZScores())
+		}
 
 		return nil
 	},
