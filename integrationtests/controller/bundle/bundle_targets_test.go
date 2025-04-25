@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"gopkg.in/yaml.v2"
+	"sigs.k8s.io/yaml"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
