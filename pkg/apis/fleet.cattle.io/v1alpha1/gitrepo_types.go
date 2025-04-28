@@ -51,7 +51,8 @@ type GitRepoList struct {
 
 type GitRepoSpec struct {
 	// Repo is a URL to a git repo to clone and index.
-	// +nullable
+	// +required
+	// +kubebuilder:validation:MinLength=1
 	Repo string `json:"repo,omitempty"`
 
 	// Branch The git branch to follow.
