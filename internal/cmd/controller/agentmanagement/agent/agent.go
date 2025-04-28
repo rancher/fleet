@@ -79,6 +79,10 @@ func AgentWithConfig(ctx context.Context, agentNamespace, controllerNamespace, a
 	mo.DriftWorkers = cfg.AgentWorkers.Drift
 
 	mo.AgentReplicas = cmd.ParseEnvAgentReplicaCount()
+	mo.LeaderElectionOptions, err = cmd.NewLeaderElectionOptionsWithPrefix("FLEET_AGENT")
+	if err != nil {
+		return objs, err
+	}
 
 	objs = append(objs, Manifest(agentNamespace, agentScope, mo)...)
 

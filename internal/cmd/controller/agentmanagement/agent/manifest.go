@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
 
@@ -25,10 +26,7 @@ var (
 )
 
 const (
-	DefaultName           = "fleet-agent"
-	electionLeaseDuration = "30s"
-	electionRetryPeriod   = "10s"
-	electionRenewDeadline = "25s"
+	DefaultName = "fleet-agent"
 )
 
 type ManifestOptions struct {
@@ -45,6 +43,7 @@ type ManifestOptions struct {
 	HostNetwork             bool
 	BundleDeploymentWorkers string
 	DriftWorkers            string
+	cmd.LeaderElectionOptions
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
@@ -191,9 +190,9 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 								},
 								{Name: "AGENT_SCOPE", Value: agentScope},
 								{Name: "CHECKIN_INTERVAL", Value: opts.CheckinInterval},
-								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: electionLeaseDuration},
-								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: electionRetryPeriod},
-								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: electionRenewDeadline},
+								{Name: "CATTLE_ELECTION_LEASE_DURATION", Value: opts.LeaseDuration.String()},
+								{Name: "CATTLE_ELECTION_RETRY_PERIOD", Value: opts.RetryPeriod.String()},
+								{Name: "CATTLE_ELECTION_RENEW_DEADLINE", Value: opts.RenewDeadline.String()},
 							},
 							Command: []string{
 								"fleetagent",

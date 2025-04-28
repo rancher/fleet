@@ -197,6 +197,18 @@ spec:
         - name: FLEET_AGENT_REPLICA_COUNT
           value: "{{ $.Values.agent.replicas }}"
         {{- end }}
+        {{- if $.Values.agent.leaderElection.leaseDuration }}
+        - name: FLEET_AGENT_ELECTION_LEASE_DURATION
+          value: {{$.Values.agent.leaderElection.leaseDuration}}
+        {{- end }}
+        {{- if $.Values.agent.leaderElection.retryPeriod }}
+        - name: FLEET_AGENT_ELECTION_RETRY_PERIOD
+          value: {{$.Values.agent.leaderElection.retryPeriod}}
+        {{- end }}
+        {{- if $.Values.agent.leaderElection.renewDeadline }}
+        - name: FLEET_AGENT_ELECTION_RENEW_DEADLINE
+          value: {{$.Values.agent.leaderElection.renewDeadline}}
+        {{- end }}
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-agentmanagement
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"

@@ -258,6 +258,10 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 	}
 
 	agentReplicas := cmd.ParseEnvAgentReplicaCount()
+	leaderElectionOptions, err := cmd.NewLeaderElectionOptionsWithPrefix("FLEET_AGENT")
+	if err != nil {
+		return nil, err
+	}
 
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
@@ -280,6 +284,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			BundleDeploymentWorkers: cfg.AgentWorkers.BundleDeployment,
 			DriftWorkers:            cfg.AgentWorkers.Drift,
 			AgentReplicas:           agentReplicas,
+			LeaderElectionOptions:   leaderElectionOptions,
 		},
 	)
 	agentYAML, err := yaml.Export(objs...)
