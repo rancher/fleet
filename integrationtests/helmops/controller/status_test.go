@@ -117,11 +117,14 @@ var _ = Describe("HelmApp Status Fields", func() {
 				return bundle.Status.Summary.Ready == 1
 			}).Should(BeTrue())
 
-			err = k8sClient.Get(ctx, helmAppName, helmapp)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(helmapp.Status.Summary.Ready).To(Equal(1))
-			Expect(helmapp.Status.ReadyClusters).To(Equal(1))
-			Expect(helmapp.Status.DesiredReadyClusters).To(Equal(1))
+			// waiting for the Helmapp to update
+			Eventually(func(g Gomega) {
+				err = k8sClient.Get(ctx, helmAppName, helmapp)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(helmapp.Status.Summary.Ready).To(Equal(1))
+				g.Expect(helmapp.Status.ReadyClusters).To(Equal(1))
+				g.Expect(helmapp.Status.DesiredReadyClusters).To(Equal(1))
+			}).Should(Succeed())
 
 			By("Deleting a bundle")
 			err = k8sClient.Delete(ctx, bundle)

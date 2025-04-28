@@ -114,11 +114,14 @@ var _ = Describe("GitRepo Status Fields", func() {
 				return bundle.Status.Summary.Ready == 1
 			}).Should(BeTrue())
 
-			err = k8sClient.Get(ctx, gitrepoName, gitrepo)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(gitrepo.Status.Summary.Ready).To(Equal(1))
-			Expect(gitrepo.Status.ReadyClusters).To(Equal(1))
-			Expect(gitrepo.Status.DesiredReadyClusters).To(Equal(1))
+			// waiting for the GitRepo to update
+			Eventually(func(g Gomega) {
+				err = k8sClient.Get(ctx, gitrepoName, gitrepo)
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(gitrepo.Status.Summary.Ready).To(Equal(1))
+				g.Expect(gitrepo.Status.ReadyClusters).To(Equal(1))
+				g.Expect(gitrepo.Status.DesiredReadyClusters).To(Equal(1))
+			}).Should(Succeed())
 
 			By("Deleting a bundle")
 			err = k8sClient.Delete(ctx, bundle)

@@ -12,23 +12,15 @@ import (
 
 // BundleStatusChangedPredicate returns true if the bundle
 // status has changed, or the bundle was created
-func BundleStatusChangedPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
+func BundleStatusChangedPredicate() predicate.TypedFuncs[*fleet.Bundle] {
+	return predicate.TypedFuncs[*fleet.Bundle]{
+		CreateFunc: func(e event.TypedCreateEvent[*fleet.Bundle]) bool {
 			return true
 		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			n, isBundle := e.ObjectNew.(*fleet.Bundle)
-			if !isBundle {
-				return false
-			}
-			o := e.ObjectOld.(*fleet.Bundle)
-			if n == nil || o == nil {
-				return false
-			}
-			return !reflect.DeepEqual(n.Status, o.Status)
+		UpdateFunc: func(e event.TypedUpdateEvent[*fleet.Bundle]) bool {
+			return !reflect.DeepEqual(e.ObjectNew.Status, e.ObjectOld.Status)
 		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
+		DeleteFunc: func(e event.TypedDeleteEvent[*fleet.Bundle]) bool {
 			return true
 		},
 	}
