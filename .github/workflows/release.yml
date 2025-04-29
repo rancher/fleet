@@ -91,9 +91,7 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/dockerhub/rancher/credentials password | DOCKER_PASSWORD ;
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials username | STAGE_REGISTRY_USERNAME ;
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials password | STAGE_REGISTRY_PASSWORD ;
-            secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials username | PRIME_REGISTRY_USERNAME ;
-            secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials password | PRIME_REGISTRY_PASSWORD ;
-            secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials registry | PRIME_REGISTRY;
+            secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials registry | STAGE_REGISTRY ;
 
       - name: Prepare Docker environment to support sbom/provenance parameters
         run: |
@@ -107,12 +105,12 @@ jobs:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
 
-      - name: Log into Prime registry
+      - name: Log into Staging registry
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
         with:
-          username: ${{ env.PRIME_REGISTRY_USERNAME }}
-          password: ${{ env.PRIME_REGISTRY_PASSWORD }}
-          registry: ${{ env.PRIME_REGISTRY }}
+          username: ${{ env.STAGE_REGISTRY_USERNAME }}
+          password: ${{ env.STAGE_REGISTRY_PASSWORD }}
+          registry: ${{ env.STAGE_REGISTRY }}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6
@@ -124,15 +122,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
-          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
+          STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
 
       # Workaround until `docker manifest create` supports provenance meta data
       # Background: https://stackoverflow.com/questions/75521775/buildx-docker-image-claims-to-be-a-manifest-list
-      - name: Create Docker manifest for Prime and sign it
+      - name: Create Docker manifest for Staging and sign it
         shell: bash
         run: |
           for IMAGE in fleet fleet-agent; do
-            URL="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}"
+            URL="${{ env.STAGE_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}"
             docker buildx imagetools create -t "${URL}" \
               "${URL}-linux-amd64" \
               "${URL}-linux-arm64"
@@ -143,7 +141,7 @@ jobs:
       - name: Attest provenance
         shell: bash
         run: |
-          for IMG_NAME in $(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep PRIME_REGISTRY | sed "s/{{ .Env.PRIME_REGISTRY }}/${{ env.PRIME_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g"); do
+          for IMG_NAME in $(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep STAGE_REGISTRY | sed "s/{{ .Env.STAGE_REGISTRY }}/${{ env.STAGE_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g"); do
             # Extract Docker image reference plus digest from local image
             URL=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMG_NAME}")
 
@@ -155,7 +153,7 @@ jobs:
                 break
               fi
               if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then
-                echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Prime registry."
+                echo "ERROR: Failed to generate slsav1 provenance. Check whether the image is present in the Staging registry."
                 exit 1
               fi
               sleep "${retry_delay}"

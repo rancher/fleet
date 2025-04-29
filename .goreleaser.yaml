@@ -208,7 +208,7 @@ dockers:
     - "--build-arg=BUILD_ENV=goreleaser"
     - "--platform=linux/arm64/v8"
 
-  # Prime fleet-controller images
+  # Staging fleet-controller images
   -
     use: buildx
     id: fleet-amd64-private
@@ -226,7 +226,7 @@ dockers:
 
     # Templates of the Docker image names.
     image_templates:
-    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
+    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
 
     # Path to the Dockerfile (from the project root).
     dockerfile: package/Dockerfile
@@ -255,7 +255,7 @@ dockers:
     - fleet-controller
     - fleet-cli
     image_templates:
-    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
+    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile
     build_flag_templates:
     - "--pull"
@@ -280,7 +280,7 @@ dockers:
     ids:
     - fleet-agent
     image_templates:
-    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
     dockerfile: package/Dockerfile.agent
     build_flag_templates:
     - "--pull"
@@ -303,7 +303,7 @@ dockers:
     ids:
     - fleet-agent
     image_templates:
-    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
     dockerfile: package/Dockerfile.agent
     build_flag_templates:
     - "--pull"
@@ -337,17 +337,17 @@ docker_manifests:
     - "docker.io/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
 
     # Disabled until `docker manifest create` supports provenance meta data
-    # - name_template: "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}"
+    # - name_template: "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}"
     #   id: fleet-manifest-private
     #   image_templates:
-    #   - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
-    #   - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
+    #   - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-amd64"
+    #   - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet:{{ .Tag }}-linux-arm64"
     #
-    #  - name_template: "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}"
+    #  - name_template: "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}"
     #    id: fleet-agent-manifest-private
     #    image_templates:
-    #    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
-    #    - "{{ .Env.PRIME_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
+    #    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-amd64"
+    #    - "{{ .Env.STAGE_REGISTRY }}/rancher/fleet-agent:{{ .Tag }}-linux-arm64"
 
 docker_signs:
   - # ID of the sign config, must be unique.
