@@ -194,7 +194,7 @@ func read(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader,
 
 	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth, opts.HelmRepoURLRegex)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed reading resources for %q: %w", baseDir, err)
 	}
 
 	fy.Resources = resources

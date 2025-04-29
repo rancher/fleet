@@ -13,7 +13,6 @@ require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/chartmuseum/helm-push v0.10.4
-	github.com/cheggaaa/pb v1.0.29
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v28.0.4+incompatible
 	github.com/evanphx/json-patch v5.9.11+incompatible
