@@ -264,7 +264,7 @@ func loadDirectories(ctx context.Context, opts loadOpts, directories ...director
 		// We don't take auth into account because having the same source
 		// with different authentication means having the same resources anyway.
 		// Using a comma separator to avoid false equivalents due to combinations with empty strings.
-		dirId := fmt.Sprintf("%s,%s,%s,%s", dir.prefix, dir.base, dir.source, dir.version)
+		dirId := fmt.Sprintf("%q,%q,%q,%q", dir.prefix, dir.base, dir.source, dir.version)
 		if _, ok := alreadyLoaded[dirId]; ok {
 			continue
 		}
