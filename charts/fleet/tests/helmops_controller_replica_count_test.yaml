@@ -1,0 +1,26 @@
+suite: replica values test for fleet controller
+templates:
+  - deployment_helmops.yaml
+tests:
+  - it: should set spec.replicas to the number of replicas specified in the controller's replicas field
+    set:
+      helmops.replicas: 3
+      extraEnv:
+        - name: 'EXPERIMENTAL_HELM_OPS'
+          value: 'true'
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should not render a document at all when 'EXPERIMENTAL_HELM_OPS' is false
+    set:
+      helmops.replicas: 3
+      extraEnv:
+        - name: 'EXPERIMENTAL_HELM_OPS'
+          value: 'false'
+    asserts:
+      - hasDocuments:
+          count: 0

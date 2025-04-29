@@ -1,0 +1,97 @@
+{{- if has (dict "name" "EXPERIMENTAL_HELM_OPS" "value" "true") .Values.extraEnv }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: helmops
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - 'secrets'
+    verbs:
+      - "create"
+      - "list"
+  - apiGroups:
+      - ""
+    resources:
+      - 'configmaps'
+    verbs:
+      - '*'
+  - apiGroups:
+      - "fleet.cattle.io"
+    resources:
+      - "helmapps"
+      - "helmapps/status"
+    verbs:
+      - "*"
+  - apiGroups:
+      - "fleet.cattle.io"
+    resources:
+      - "bundles"
+      - "bundledeployments"
+    verbs:
+      - list
+      - delete
+      - get
+      - watch
+      - update
+      - create
+  - apiGroups:
+      - ""
+    resources:
+      - 'events'
+    verbs:
+      - "create"
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+    verbs:
+      - "create"
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - "create"
+      - "delete"
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: helmops-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: helmops
+subjects:
+  - kind: ServiceAccount
+    name: helmops
+    namespace: {{ .Release.Namespace }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: helmops
+rules:
+  - apiGroups:
+      - "coordination.k8s.io"
+    resources:
+      - "leases"
+    verbs:
+      - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: helmops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: helmops
+subjects:
+  - kind: ServiceAccount
+    name: helmops
+{{- end }}
