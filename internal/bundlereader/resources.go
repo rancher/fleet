@@ -8,12 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"sync"
 
-	"github.com/rancher/fleet/internal/bundlereader/progress"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 
 	"github.com/rancher/wrangler/v3/pkg/data"
 
@@ -248,39 +244,31 @@ func checksum(helm *fleet.HelmOptions) string {
 
 // loadDirectories loads all resources from a bundle's directories
 func loadDirectories(ctx context.Context, opts loadOpts, directories ...directory) (map[string][]fleet.BundleResource, error) {
-	var (
-		sem    = semaphore.NewWeighted(4)
-		result = map[string][]fleet.BundleResource{}
-		l      = sync.Mutex{}
-		p      = progress.NewProgress()
-	)
-	defer p.Close()
+	var result = map[string][]fleet.BundleResource{}
 
-	eg, ctx := errgroup.WithContext(ctx)
-
+	alreadyLoaded := make(map[string]directory)
 	for _, dir := range directories {
-		if err := sem.Acquire(ctx, 1); err != nil {
-			return nil, err
+		// Avoid loading the same directory more than once
+		// We don't take auth into account because having the same source
+		// with different authentication means having the same resources anyway.
+		// Using a comma separator to avoid false equivalents due to combinations with empty strings.
+		dirId := fmt.Sprintf("%s,%s,%s,%s", dir.prefix, dir.base, dir.source, dir.version)
+		if _, ok := alreadyLoaded[dirId]; ok {
+			continue
 		}
-		dir := dir
-		eg.Go(func() error {
-			defer sem.Release(1)
-			resources, err := loadDirectory(ctx, opts, dir)
-			if err != nil {
-				return fmt.Errorf("loading directory %s, %s: %w", dir.prefix, dir.base, err)
-			}
+		alreadyLoaded[dirId] = dir
+		resources, err := loadDirectory(ctx, opts, dir)
+		if err != nil {
+			return nil, fmt.Errorf("loading directory %s, %s: %w", dir.prefix, dir.base, err)
+		}
 
-			key := dir.prefix
-			if key == "" {
-				key = dir.source
-			}
+		key := dir.prefix
+		if key == "" {
+			key = dir.source
+		}
 
-			l.Lock()
-			result[key] = resources
-			l.Unlock()
-			return nil
-		})
+		result[key] = resources
 	}
 
-	return result, eg.Wait()
+	return result, nil
 }
