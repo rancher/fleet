@@ -38,6 +38,12 @@ archives:
     builds:
       - fleet-cli
 
+  - id: fleet-benchmark
+    formats: [ "binary" ]
+    name_template: "{{ .Binary }}"
+    builds:
+      - fleet-benchmark
+
 builds:
   -
     id: fleet-controller
@@ -76,6 +82,21 @@ builds:
       - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
       - -X github.com/rancher/fleet/pkg/version.Version={{ .Tag }}
     targets:
+    - darwin_arm64
+    - linux_amd64_v1
+    - linux_arm64
+    - windows_amd64
+  -
+    id: fleet-benchmark
+    main: ./benchmarks/cmd
+    binary: fleet-benchmark-{{ .Os }}-{{ .Arch }}{{ if .Arm }}64{{ end }}
+    no_unique_dist_dir: true
+    ldflags:
+      - -w -s
+      - -X github.com/rancher/fleet/pkg/version.GitCommit={{ .Commit }}
+      - -X github.com/rancher/fleet/pkg/version.Version={{ .Tag }}
+    targets:
+    - darwin_arm64
     - linux_amd64_v1
     - linux_arm64
     - windows_amd64

@@ -55,20 +55,22 @@ func NewSetup(specReports types.SpecReports, result map[string]Measurement) (str
 				continue
 			}
 
-			xp := gm.Experiment{}
+			xp := &gm.Experiment{}
 			data := entry.Value.AsJSON
-			err := json.Unmarshal([]byte(data), &xp)
-			if err != nil {
-				fmt.Printf("error: %s\n", data)
-				return "", err
+			if data != "" {
+				err := json.Unmarshal([]byte(data), xp)
+				if err != nil {
+					fmt.Printf("failed to unmarshal setup: %s\n", data)
+					return "", err
+				}
+			} else {
+				raw := entry.GetRawValue()
+				var ok bool
+				xp, ok = raw.(*gm.Experiment)
+				if !ok {
+					return "", fmt.Errorf("failed to cast setup from report: %#v", entry)
+				}
 			}
-			// in report:
-			// raw := entry.GetRawValue()
-			// xp, ok := raw.(*gm.Experiment)
-			// if !ok {
-			// 	return nil, false
-			// }
-			//
 
 			if xp.Name != BeforeSetup && xp.Name != AfterSetup {
 				continue
@@ -126,19 +128,22 @@ func NewExperiments(specReports types.SpecReports, result map[string]Experiment)
 				Measurements: map[string]Measurement{},
 			}
 
-			xp := gm.Experiment{}
+			xp := &gm.Experiment{}
 			data := entry.Value.AsJSON
-			err := json.Unmarshal([]byte(data), &xp)
-			if err != nil {
-				fmt.Printf("error: %s\n", data)
-				return total, err
+			if data != "" {
+				err := json.Unmarshal([]byte(data), xp)
+				if err != nil {
+					fmt.Printf("failed to unmarshal experiment: %s\n", data)
+					return total, err
+				}
+			} else {
+				raw := entry.GetRawValue()
+				var ok bool
+				xp, ok = raw.(*gm.Experiment)
+				if !ok {
+					return total, fmt.Errorf("failed to cast experiment from report: %#v", entry)
+				}
 			}
-			// raw := entry.GetRawValue()
-			// xp, ok := raw.(*gm.Experiment)
-			// if !ok {
-			// 	fmt.Printf("failed to access report: %#v\n", entry)
-			// 	continue
-			// }
 
 			for _, m := range xp.Measurements {
 				name, v := Extract(m)

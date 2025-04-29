@@ -60,7 +60,7 @@ func loadSampleFile(file string) (*parser.Sample, error) {
 	reports := []types.Report{}
 	err = json.Unmarshal(data, &reports)
 	if err != nil {
-		fmt.Printf("error: %s\n", data)
+		fmt.Printf("failed to unmarshal report: %q\n", data)
 		return nil, err
 	}
 	if len(reports) < 1 {
@@ -80,6 +80,9 @@ func loadSampleFile(file string) (*parser.Sample, error) {
 		Setup:       map[string]parser.Measurement{},
 	}
 
+	if debug {
+		fmt.Printf("Loading sample %s\n", file)
+	}
 	d, err := parser.NewSetup(r.SpecReports, s.Setup)
 	if err != nil {
 		return nil, err
