@@ -125,7 +125,7 @@ jobs:
           tag=$(echo '${{ steps.goreleaser.outputs.metadata }}' | jq -r '.tag')
           echo "publishing helm chart for (repo: $repo, tag: $tag, version: $version)"
 
-          # Replace rancher/fleet, rancher/fleet-agent and rancher/gitjob image names, but not eg. rancher/kubectl
+          # Replace rancher/fleet and rancher/fleet-agent and rancher/gitjob image names
           sed -i \
               -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
               -e "s/tag:.*/tag: $tag/" \
