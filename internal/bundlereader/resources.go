@@ -258,7 +258,7 @@ func loadDirectories(ctx context.Context, opts loadOpts, directories ...director
 
 	eg, ctx := errgroup.WithContext(ctx)
 
-	alreadyLoaded := make(map[string]directory)
+	alreadyLoaded := make(map[string]struct{})
 	for _, dir := range directories {
 		// Avoid loading the same directory more than once
 		// We don't take auth into account because having the same source
@@ -268,7 +268,7 @@ func loadDirectories(ctx context.Context, opts loadOpts, directories ...director
 		if _, ok := alreadyLoaded[dirId]; ok {
 			continue
 		}
-		alreadyLoaded[dirId] = dir
+		alreadyLoaded[dirId] = struct{}{}
 		dir := dir
 		eg.Go(func() error {
 			if err := sem.Acquire(ctx, 1); err != nil {
