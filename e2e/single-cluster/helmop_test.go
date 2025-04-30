@@ -19,7 +19,7 @@ const (
 	helmOpsSecretName = "secret-helmops"
 )
 
-var _ = Describe("HelmApp resource tests", Label("infra-setup", "helm-registry"), func() {
+var _ = Describe("HelmOp resource tests", Label("infra-setup", "helm-registry"), func() {
 	var (
 		namespace string
 		name      string
@@ -43,7 +43,7 @@ var _ = Describe("HelmApp resource tests", Label("infra-setup", "helm-registry")
 		)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmapp/helmapp.yaml"), struct {
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
 			Name                  string
 			Namespace             string
 			Repo                  string
@@ -64,16 +64,16 @@ var _ = Describe("HelmApp resource tests", Label("infra-setup", "helm-registry")
 	})
 
 	AfterEach(func() {
-		out, err := k.Delete("helmapp", name)
+		out, err := k.Delete("helmop", name)
 		Expect(err).ToNot(HaveOccurred(), out)
 		out, err = k.Delete("secret", helmOpsSecretName)
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
-	When("applying a helmapp resource", func() {
-		Context("containing a valid helmapp description", func() {
+	When("applying a helmop resource", func() {
+		Context("containing a valid helmop description", func() {
 			BeforeEach(func() {
-				namespace = "helmapp-ns"
+				namespace = "helmop-ns"
 				name = "basic"
 			})
 			It("deploys the chart", func() {
@@ -90,7 +90,7 @@ var _ = Describe("HelmApp resource tests", Label("infra-setup", "helm-registry")
 	})
 })
 
-var _ = Describe("HelmApp resource tests with oci registry", Label("infra-setup", "oci-registry"), func() {
+var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup", "oci-registry"), func() {
 	var (
 		namespace string
 		name      string
@@ -118,7 +118,7 @@ var _ = Describe("HelmApp resource tests with oci registry", Label("infra-setup"
 		ociRef, err := zothelper.GetOCIReference(k)
 		Expect(err).ToNot(HaveOccurred(), ociRef)
 
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmapp/helmapp.yaml"), struct {
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
 			Name                  string
 			Namespace             string
 			Repo                  string
@@ -139,16 +139,16 @@ var _ = Describe("HelmApp resource tests with oci registry", Label("infra-setup"
 	})
 
 	AfterEach(func() {
-		out, err := k.Delete("helmapp", name)
+		out, err := k.Delete("helmop", name)
 		Expect(err).ToNot(HaveOccurred(), out)
 		out, err = k.Delete("secret", helmOpsSecretName)
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
-	When("applying a helmapp resource", func() {
-		Context("containing a valid helmapp description pointing to an oci registry and insecure TLS", func() {
+	When("applying a helmop resource", func() {
+		Context("containing a valid helmop description pointing to an oci registry and insecure TLS", func() {
 			BeforeEach(func() {
-				namespace = "helmapp-ns"
+				namespace = "helmop-ns"
 				name = "basic-oci"
 				insecure = true
 			})
@@ -163,9 +163,9 @@ var _ = Describe("HelmApp resource tests with oci registry", Label("infra-setup"
 				}).Should(BeTrue())
 			})
 		})
-		Context("containing a valid helmapp description pointing to an oci registry and not TLS", func() {
+		Context("containing a valid helmop description pointing to an oci registry and not TLS", func() {
 			BeforeEach(func() {
-				namespace = "helmapp-ns2"
+				namespace = "helmop-ns2"
 				name = "basic-oci-no-tls"
 				insecure = false
 			})

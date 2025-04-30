@@ -27,8 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func getCondition(helmapp *fleet.HelmApp, condType string) (genericcondition.GenericCondition, bool) {
-	for _, cond := range helmapp.Status.Conditions {
+func getCondition(helmop *fleet.HelmOp, condType string) (genericcondition.GenericCondition, bool) {
+	for _, cond := range helmop.Status.Conditions {
 		if cond.Type == condType {
 			return cond, true
 		}
@@ -42,18 +42,18 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
 	utilruntime.Must(batchv1.AddToScheme(scheme))
-	helmapp := fleet.HelmApp{
+	helmop := fleet.HelmOp{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "helmapp",
+			Name:      "helmop",
 			Namespace: "default",
 		},
 	}
-	namespacedName := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
+	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 	client := mocks.NewMockClient(mockCtrl)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmApp, opts ...interface{}) error {
-			fh.Name = helmapp.Name
-			fh.Namespace = helmapp.Namespace
+		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+			fh.Name = helmop.Name
+			fh.Namespace = helmop.Namespace
 			fh.Spec.Helm = &fleet.HelmOptions{
 				Chart: "chart",
 			}
@@ -64,7 +64,7 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Update(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
-	r := HelmAppReconciler{
+	r := HelmOpReconciler{
 		Client: client,
 		Scheme: scheme,
 	}
@@ -86,22 +86,22 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
 	utilruntime.Must(batchv1.AddToScheme(scheme))
-	helmapp := fleet.HelmApp{
+	helmop := fleet.HelmOp{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "helmapp",
+			Name:      "helmop",
 			Namespace: "default",
 		},
 	}
-	namespacedName := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
+	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 	client := mocks.NewMockClient(mockCtrl)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmApp, opts ...interface{}) error {
-			fh.Name = helmapp.Name
-			fh.Namespace = helmapp.Namespace
+		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+			fh.Name = helmop.Name
+			fh.Namespace = helmop.Namespace
 			fh.Spec.Helm = &fleet.HelmOptions{
 				Chart: "chart",
 			}
-			controllerutil.AddFinalizer(fh, finalize.HelmAppFinalizer)
+			controllerutil.AddFinalizer(fh, finalize.HelmOpFinalizer)
 			return nil
 		},
 	)
@@ -113,7 +113,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 	)
 
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, bundle *fleet.HelmApp, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, bundle *fleet.HelmOp, opts ...interface{}) error {
 			return nil
 		},
 	)
@@ -121,10 +121,10 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, helmapp *fleet.HelmApp, opts ...interface{}) {
-			c, found := getCondition(helmapp, fleet.HelmAppAcceptedCondition)
+		func(ctx context.Context, helmop *fleet.HelmOp, opts ...interface{}) {
+			c, found := getCondition(helmop, fleet.HelmOpAcceptedCondition)
 			if !found {
-				t.Errorf("expecting to find the %s condition and could not find it.", fleet.HelmAppAcceptedCondition)
+				t.Errorf("expecting to find the %s condition and could not find it.", fleet.HelmOpAcceptedCondition)
 			}
 			if c.Message != "this is a test error" {
 				t.Errorf("expecting message [this is a test error] in condition, got [%s]", c.Message)
@@ -132,7 +132,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		},
 	).Times(1)
 
-	r := HelmAppReconciler{
+	r := HelmOpReconciler{
 		Client: client,
 		Scheme: scheme,
 	}
@@ -157,23 +157,23 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
 	utilruntime.Must(batchv1.AddToScheme(scheme))
-	helmapp := fleet.HelmApp{
+	helmop := fleet.HelmOp{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "helmapp",
+			Name:      "helmop",
 			Namespace: "default",
 		},
 	}
-	namespacedName := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
+	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 	client := mocks.NewMockClient(mockCtrl)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmApp, opts ...interface{}) error {
-			fh.Name = helmapp.Name
-			fh.Namespace = helmapp.Namespace
+		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+			fh.Name = helmop.Name
+			fh.Namespace = helmop.Namespace
 			fh.Spec.Helm = &fleet.HelmOptions{
 				Chart:   "chart",
 				Version: "1.1.2",
 			}
-			controllerutil.AddFinalizer(fh, finalize.HelmAppFinalizer)
+			controllerutil.AddFinalizer(fh, finalize.HelmOpFinalizer)
 			return nil
 		},
 	)
@@ -191,7 +191,7 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 	)
 
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, bundle *fleet.HelmApp, opts ...interface{}) error {
+		func(ctx context.Context, req types.NamespacedName, bundle *fleet.HelmOp, opts ...interface{}) error {
 			return nil
 		},
 	)
@@ -199,15 +199,15 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
 	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, helmapp *fleet.HelmApp, opts ...interface{}) {
+		func(ctx context.Context, helmop *fleet.HelmOp, opts ...interface{}) {
 			// version in status should be the one in the spec
-			if helmapp.Status.Version != "1.1.2" {
-				t.Errorf("expecting Status.Version == 1.1.2, got %s", helmapp.Status.Version)
+			if helmop.Status.Version != "1.1.2" {
+				t.Errorf("expecting Status.Version == 1.1.2, got %s", helmop.Status.Version)
 			}
 		},
 	).Times(1)
 
-	r := HelmAppReconciler{
+	r := HelmOpReconciler{
 		Client: client,
 		Scheme: scheme,
 	}

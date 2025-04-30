@@ -34,31 +34,31 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// HelmAppController interface for managing HelmApp resources.
-type HelmAppController interface {
-	generic.ControllerInterface[*v1alpha1.HelmApp, *v1alpha1.HelmAppList]
+// HelmOpController interface for managing HelmOp resources.
+type HelmOpController interface {
+	generic.ControllerInterface[*v1alpha1.HelmOp, *v1alpha1.HelmOpList]
 }
 
-// HelmAppClient interface for managing HelmApp resources in Kubernetes.
-type HelmAppClient interface {
-	generic.ClientInterface[*v1alpha1.HelmApp, *v1alpha1.HelmAppList]
+// HelmOpClient interface for managing HelmOp resources in Kubernetes.
+type HelmOpClient interface {
+	generic.ClientInterface[*v1alpha1.HelmOp, *v1alpha1.HelmOpList]
 }
 
-// HelmAppCache interface for retrieving HelmApp resources in memory.
-type HelmAppCache interface {
-	generic.CacheInterface[*v1alpha1.HelmApp]
+// HelmOpCache interface for retrieving HelmOp resources in memory.
+type HelmOpCache interface {
+	generic.CacheInterface[*v1alpha1.HelmOp]
 }
 
-// HelmAppStatusHandler is executed for every added or modified HelmApp. Should return the new status to be updated
-type HelmAppStatusHandler func(obj *v1alpha1.HelmApp, status v1alpha1.HelmAppStatus) (v1alpha1.HelmAppStatus, error)
+// HelmOpStatusHandler is executed for every added or modified HelmOp. Should return the new status to be updated
+type HelmOpStatusHandler func(obj *v1alpha1.HelmOp, status v1alpha1.HelmOpStatus) (v1alpha1.HelmOpStatus, error)
 
-// HelmAppGeneratingHandler is the top-level handler that is executed for every HelmApp event. It extends HelmAppStatusHandler by a returning a slice of child objects to be passed to apply.Apply
-type HelmAppGeneratingHandler func(obj *v1alpha1.HelmApp, status v1alpha1.HelmAppStatus) ([]runtime.Object, v1alpha1.HelmAppStatus, error)
+// HelmOpGeneratingHandler is the top-level handler that is executed for every HelmOp event. It extends HelmOpStatusHandler by a returning a slice of child objects to be passed to apply.Apply
+type HelmOpGeneratingHandler func(obj *v1alpha1.HelmOp, status v1alpha1.HelmOpStatus) ([]runtime.Object, v1alpha1.HelmOpStatus, error)
 
-// RegisterHelmAppStatusHandler configures a HelmAppController to execute a HelmAppStatusHandler for every events observed.
+// RegisterHelmOpStatusHandler configures a HelmOpController to execute a HelmOpStatusHandler for every events observed.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterHelmAppStatusHandler(ctx context.Context, controller HelmAppController, condition condition.Cond, name string, handler HelmAppStatusHandler) {
-	statusHandler := &helmAppStatusHandler{
+func RegisterHelmOpStatusHandler(ctx context.Context, controller HelmOpController, condition condition.Cond, name string, handler HelmOpStatusHandler) {
+	statusHandler := &helmOpStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
@@ -66,31 +66,31 @@ func RegisterHelmAppStatusHandler(ctx context.Context, controller HelmAppControl
 	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
-// RegisterHelmAppGeneratingHandler configures a HelmAppController to execute a HelmAppGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// RegisterHelmOpGeneratingHandler configures a HelmOpController to execute a HelmOpGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
 // If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
-func RegisterHelmAppGeneratingHandler(ctx context.Context, controller HelmAppController, apply apply.Apply,
-	condition condition.Cond, name string, handler HelmAppGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
-	statusHandler := &helmAppGeneratingHandler{
-		HelmAppGeneratingHandler: handler,
-		apply:                    apply,
-		name:                     name,
-		gvk:                      controller.GroupVersionKind(),
+func RegisterHelmOpGeneratingHandler(ctx context.Context, controller HelmOpController, apply apply.Apply,
+	condition condition.Cond, name string, handler HelmOpGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
+	statusHandler := &helmOpGeneratingHandler{
+		HelmOpGeneratingHandler: handler,
+		apply:                   apply,
+		name:                    name,
+		gvk:                     controller.GroupVersionKind(),
 	}
 	if opts != nil {
 		statusHandler.opts = *opts
 	}
 	controller.OnChange(ctx, name, statusHandler.Remove)
-	RegisterHelmAppStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
+	RegisterHelmOpStatusHandler(ctx, controller, condition, name, statusHandler.Handle)
 }
 
-type helmAppStatusHandler struct {
-	client    HelmAppClient
+type helmOpStatusHandler struct {
+	client    HelmOpClient
 	condition condition.Cond
-	handler   HelmAppStatusHandler
+	handler   HelmOpStatusHandler
 }
 
 // sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
-func (a *helmAppStatusHandler) sync(key string, obj *v1alpha1.HelmApp) (*v1alpha1.HelmApp, error) {
+func (a *helmOpStatusHandler) sync(key string, obj *v1alpha1.HelmOp) (*v1alpha1.HelmOp, error) {
 	if obj == nil {
 		return obj, nil
 	}
@@ -129,8 +129,8 @@ func (a *helmAppStatusHandler) sync(key string, obj *v1alpha1.HelmApp) (*v1alpha
 	return obj, err
 }
 
-type helmAppGeneratingHandler struct {
-	HelmAppGeneratingHandler
+type helmOpGeneratingHandler struct {
+	HelmOpGeneratingHandler
 	apply apply.Apply
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
@@ -139,12 +139,12 @@ type helmAppGeneratingHandler struct {
 }
 
 // Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
-func (a *helmAppGeneratingHandler) Remove(key string, obj *v1alpha1.HelmApp) (*v1alpha1.HelmApp, error) {
+func (a *helmOpGeneratingHandler) Remove(key string, obj *v1alpha1.HelmOp) (*v1alpha1.HelmOp, error) {
 	if obj != nil {
 		return obj, nil
 	}
 
-	obj = &v1alpha1.HelmApp{}
+	obj = &v1alpha1.HelmOp{}
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
@@ -158,13 +158,13 @@ func (a *helmAppGeneratingHandler) Remove(key string, obj *v1alpha1.HelmApp) (*v
 		ApplyObjects()
 }
 
-// Handle executes the configured HelmAppGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
-func (a *helmAppGeneratingHandler) Handle(obj *v1alpha1.HelmApp, status v1alpha1.HelmAppStatus) (v1alpha1.HelmAppStatus, error) {
+// Handle executes the configured HelmOpGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
+func (a *helmOpGeneratingHandler) Handle(obj *v1alpha1.HelmOp, status v1alpha1.HelmOpStatus) (v1alpha1.HelmOpStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
 	}
 
-	objs, newStatus, err := a.HelmAppGeneratingHandler(obj, status)
+	objs, newStatus, err := a.HelmOpGeneratingHandler(obj, status)
 	if err != nil {
 		return newStatus, err
 	}
@@ -185,7 +185,7 @@ func (a *helmAppGeneratingHandler) Handle(obj *v1alpha1.HelmApp, status v1alpha1
 
 // isNewResourceVersion detects if a specific resource version was already successfully processed.
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *helmAppGeneratingHandler) isNewResourceVersion(obj *v1alpha1.HelmApp) bool {
+func (a *helmOpGeneratingHandler) isNewResourceVersion(obj *v1alpha1.HelmOp) bool {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return true
 	}
@@ -198,7 +198,7 @@ func (a *helmAppGeneratingHandler) isNewResourceVersion(obj *v1alpha1.HelmApp) b
 
 // storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
 // Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
-func (a *helmAppGeneratingHandler) storeResourceVersion(obj *v1alpha1.HelmApp) {
+func (a *helmOpGeneratingHandler) storeResourceVersion(obj *v1alpha1.HelmOp) {
 	if !a.opts.UniqueApplyForResourceVersion {
 		return
 	}
