@@ -265,8 +265,6 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		Pwd:     base,
 		Mode:    getter.ClientModeDir,
 		Getters: getters,
-		// TODO: why doesn't this work anymore
-		//ProgressListener: progress,
 	}
 
 	if err := c.Get(); err != nil {

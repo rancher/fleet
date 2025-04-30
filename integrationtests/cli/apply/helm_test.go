@@ -186,7 +186,7 @@ func testHelmRepo(path, port string) {
 				return err.Error()
 			}).Should(
 				And(
-					ContainSubstring("failed to process bundle: failed to add auth to request for"),
+					MatchRegexp("failed to process bundle: .* failed to add auth to request for"),
 					ContainSubstring(
 						fmt.Sprintf(
 							"repo=%s chart=%s version=%s: error parsing regexp: missing closing ): `a(b`",

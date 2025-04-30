@@ -10,7 +10,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/rancher/fleet/internal/bundlereader/progress"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -53,7 +52,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 
 	directories, err = addRemoteCharts(directories, base, chartDirs, auth, helmRepoURLRegex)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to add directory for chart: %w", err)
 	}
 
 	// helm chart dependency update is enabled by default
@@ -191,6 +190,7 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 
 // addRemoteCharts gets the chart url from a helm repo server and returns a `directory` struct.
 // For every chart that is not on disk, create a directory struct that contains the charts URL as path.
+// This adds one directory per HelmOption.
 func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
@@ -252,9 +252,7 @@ func loadDirectories(ctx context.Context, opts loadOpts, directories ...director
 		sem    = semaphore.NewWeighted(4)
 		result = map[string][]fleet.BundleResource{}
 		l      = sync.Mutex{}
-		p      = progress.NewProgress()
 	)
-	defer p.Close()
 
 	eg, ctx := errgroup.WithContext(ctx)
 

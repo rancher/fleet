@@ -111,8 +111,18 @@ func CreateBundles(ctx context.Context, client Getter, repoName string, baseDirs
 					return fmt.Errorf("writing to bundle output: %w", err)
 				}
 			}
+
 			err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+				// needed as opts are mutated in this loop
 				opts := opts
+
+				if err != nil {
+					return fmt.Errorf("failed walking path %q: %w", path, err)
+				}
+				if info.IsDir() && info.Name() == ".git" {
+					return filepath.SkipDir
+				}
+
 				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, info)
 				if e != nil {
 					return fmt.Errorf("checking for bundle in path %q: %w", path, err)
