@@ -251,23 +251,22 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 	// copy getter.Getters before changing
 	getters := map[string]getter.Getter{}
 	for k, v := range getter.Getters {
-		getters[k] = v
+		getters[fmt.Sprintf("%v", k)] = v
 	}
 
 	httpGetter := newHttpGetter(auth)
 	getters["http"] = httpGetter
 	getters["https"] = httpGetter
 
-	c := getter.Client{
-		Ctx:     ctx,
-		Src:     source,
-		Dst:     temp,
-		Pwd:     base,
-		Mode:    getter.ClientModeDir,
-		Getters: getters,
+	req := &getter.Request{
+		Src: source,
+		Dst: temp,
+		Pwd: base,
 	}
 
-	if err := c.Get(); err != nil {
+	c := getter.Client{}
+	_, err = c.Get(ctx, req)
+	if err != nil {
 		return nil, err
 	}
 
