@@ -135,7 +135,8 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	sched := quartz.NewStdScheduler()
+	sched, err := quartz.NewStdScheduler()
+	Expect(err).ToNot(HaveOccurred(), "failed to create scheduler")
 	Expect(sched).ToNot(BeNil())
 
 	config.Set(&config.Config{})
