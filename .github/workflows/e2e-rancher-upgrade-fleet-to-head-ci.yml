@@ -41,8 +41,42 @@ jobs:
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
+        name: Determine cache key
+        id: cache-key
+        run: |
+          DAY_OF_YEAR=$(date +%j)
+          if [ $(($DAY_OF_YEAR % 28)) -eq 0 ]; then
+            echo "value=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          else
+            echo "value=latest" >> $GITHUB_OUTPUT
+          fi
+      -
+        name: Cache crust-gather CLI
+        id: cache-crust
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        with:
+          path: ~/.local/bin/crust-gather
+          key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
+          restore-keys: |
+            ${{ runner.os }}-crust-gather-
+      -
         name: Install crust-gather CLI
-        run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
+        run: |
+          if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache not found, downloading from source"
+            mkdir -p ~/.local/bin
+            if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
+              # Cache the binary for future runs
+              which crust-gather && cp $(which crust-gather) ~/.local/bin/
+            else
+              echo "Failed to download crust-gather"
+              exit 1
+            fi
+          else
+            echo "Using cached crust-gather CLI"
+            chmod +x ~/.local/bin/crust-gather
+            sudo ln -sf ~/.local/bin/crust-gather /usr/local/bin/
+          fi
       -
         uses: actions/cache@v4
         id: rancher-cli-cache
