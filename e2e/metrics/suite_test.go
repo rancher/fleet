@@ -24,11 +24,11 @@ func TestE2E(t *testing.T) {
 var (
 	env *testenv.Env
 	// k is the kubectl command for the cluster registration namespace
-	k         kubectl.Command
-	et        metrics.ExporterTest
-	etGitjob  metrics.ExporterTest
-	etHelmApp metrics.ExporterTest
-	shard     string
+	k        kubectl.Command
+	et       metrics.ExporterTest
+	etGitjob metrics.ExporterTest
+	etHelmOp metrics.ExporterTest
+	shard    string
 )
 
 type ServiceData struct {
@@ -133,7 +133,7 @@ var _ = BeforeSuite(func() {
 	etGitjob = metrics.NewExporterTest(gitjobMetricsURL)
 
 	helmopsMetricsURL := setupLoadBalancer(shard, "helmops")
-	etHelmApp = metrics.NewExporterTest(helmopsMetricsURL)
+	etHelmOp = metrics.NewExporterTest(helmopsMetricsURL)
 
 	env = testenv.New()
 })

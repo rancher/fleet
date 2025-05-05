@@ -14,7 +14,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/zothelper"
 )
 
-var _ = Describe("HelmApp Metrics", Label("helmapp"), func() {
+var _ = Describe("HelmOp Metrics", Label("helmop"), func() {
 
 	var (
 		// kw is the kubectl command for namespace the workload is deployed to
@@ -35,7 +35,7 @@ var _ = Describe("HelmApp Metrics", Label("helmapp"), func() {
 		out, err := k.Create("ns", namespace)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		err = testenv.CreateHelmApp(
+		err = testenv.CreateHelmOp(
 			kw,
 			namespace,
 			objName,
@@ -51,26 +51,26 @@ var _ = Describe("HelmApp Metrics", Label("helmapp"), func() {
 		})
 	})
 
-	When("testing HelmApp metrics", func() {
-		helmappMetricNames := []string{
-			"fleet_helmapp_desired_ready_clusters",
-			"fleet_helmapp_ready_clusters",
-			"fleet_helmapp_resources_desired_ready",
-			"fleet_helmapp_resources_missing",
-			"fleet_helmapp_resources_modified",
-			"fleet_helmapp_resources_not_ready",
-			"fleet_helmapp_resources_orphaned",
-			"fleet_helmapp_resources_ready",
-			"fleet_helmapp_resources_unknown",
-			"fleet_helmapp_resources_wait_applied",
+	When("testing HelmOp metrics", func() {
+		helmopMetricNames := []string{
+			"fleet_helmop_desired_ready_clusters",
+			"fleet_helmop_ready_clusters",
+			"fleet_helmop_resources_desired_ready",
+			"fleet_helmop_resources_missing",
+			"fleet_helmop_resources_modified",
+			"fleet_helmop_resources_not_ready",
+			"fleet_helmop_resources_orphaned",
+			"fleet_helmop_resources_ready",
+			"fleet_helmop_resources_unknown",
+			"fleet_helmop_resources_wait_applied",
 		}
 
-		It("should have exactly one metric of each type for the helmapp", func() {
+		It("should have exactly one metric of each type for the helmop", func() {
 			Eventually(func() error {
-				metrics, err := etHelmApp.Get()
+				metrics, err := etHelmOp.Get()
 				Expect(err).ToNot(HaveOccurred())
-				for _, metricName := range helmappMetricNames {
-					metric, err := etHelmApp.FindOneMetric(
+				for _, metricName := range helmopMetricNames {
+					metric, err := etHelmOp.FindOneMetric(
 						metrics,
 						metricName,
 						map[string]string{
@@ -88,7 +88,7 @@ var _ = Describe("HelmApp Metrics", Label("helmapp"), func() {
 			}).ShouldNot(HaveOccurred())
 		})
 
-		When("the HelmApp is changed", func() {
+		When("the HelmOp is changed", func() {
 			It("it should not duplicate metrics", Label("oci-registry"), func() {
 				ociRef, err := zothelper.GetOCIReference(k)
 				Expect(err).ToNot(HaveOccurred(), ociRef)
@@ -96,25 +96,25 @@ var _ = Describe("HelmApp Metrics", Label("helmapp"), func() {
 				chartPath := fmt.Sprintf("%s/sleeper-chart", ociRef)
 
 				out, err := kw.Patch(
-					"helmapp", objName,
+					"helmop", objName,
 					"--type=json",
 					"-p", fmt.Sprintf(`[{"op": "replace", "path": "/spec/helm/chart", "value": %s}]`, chartPath),
 				)
 				Expect(err).ToNot(HaveOccurred(), out)
-				Expect(out).To(ContainSubstring("helmapp.fleet.cattle.io/metrics patched"))
+				Expect(out).To(ContainSubstring("helmop.fleet.cattle.io/metrics patched"))
 
 				// Wait for it to be changed.
 				Eventually(func() (string, error) {
-					return kw.Get("helmapp", objName, "-o", "jsonpath={.spec.helm.chart}")
+					return kw.Get("helmop", objName, "-o", "jsonpath={.spec.helm.chart}")
 				}).Should(Equal(chartPath))
 
 				var metric *metrics.Metric
 				// Expect still no metrics to be duplicated.
 				Eventually(func() error {
-					metrics, err := etHelmApp.Get()
+					metrics, err := etHelmOp.Get()
 					Expect(err).ToNot(HaveOccurred())
-					for _, metricName := range helmappMetricNames {
-						metric, err = etHelmApp.FindOneMetric(
+					for _, metricName := range helmopMetricNames {
+						metric, err = etHelmOp.FindOneMetric(
 							metrics,
 							metricName,
 							map[string]string{
@@ -133,15 +133,15 @@ var _ = Describe("HelmApp Metrics", Label("helmapp"), func() {
 				}).ShouldNot(HaveOccurred())
 			})
 
-			It("should not keep metrics if HelmApp is deleted", Label("helmapp-delete"), func() {
-				out, err := kw.Delete("helmapp", objName)
+			It("should not keep metrics if HelmOp is deleted", Label("helmop-delete"), func() {
+				out, err := kw.Delete("helmop", objName)
 				Expect(err).ToNot(HaveOccurred(), out)
 
 				Eventually(func() error {
-					metrics, err := etHelmApp.Get()
+					metrics, err := etHelmOp.Get()
 					Expect(err).ToNot(HaveOccurred())
-					for _, metricName := range helmappMetricNames {
-						_, err := etHelmApp.FindOneMetric(
+					for _, metricName := range helmopMetricNames {
+						_, err := etHelmOp.FindOneMetric(
 							metrics,
 							metricName,
 							map[string]string{

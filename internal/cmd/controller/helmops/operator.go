@@ -70,7 +70,7 @@ func (g *HelmOperator) PersistentPre(_ *cobra.Command, _ []string) error {
 
 func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
-	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("helmapp-reconciler"))
+	ctx := clog.IntoContext(cmd.Context(), ctrl.Log.WithName("helmop-reconciler"))
 
 	namespace := g.Namespace
 
@@ -110,7 +110,7 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 		workers = w
 	}
 
-	helmAppReconciler := &reconciler.HelmAppReconciler{
+	helmOpReconciler := &reconciler.HelmOpReconciler{
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Scheduler: sched,
@@ -119,7 +119,7 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 		Recorder:  mgr.GetEventRecorderFor(fmt.Sprintf("fleet-helmops%s", shardIDSuffix)),
 	}
 
-	helmAppStatusReconciler := &reconciler.HelmAppStatusReconciler{
+	helmOpStatusReconciler := &reconciler.HelmOpStatusReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
 		ShardID: g.ShardID,
@@ -146,12 +146,12 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 		}
 
 		setupLog.Info("starting helmops controller")
-		if err = helmAppReconciler.SetupWithManager(mgr); err != nil {
+		if err = helmOpReconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}
 
 		setupLog.Info("starting helmops status controller")
-		if err = helmAppStatusReconciler.SetupWithManager(mgr); err != nil {
+		if err = helmOpStatusReconciler.SetupWithManager(mgr); err != nil {
 			return err
 		}
 

@@ -36,8 +36,8 @@ import (
 	"github.com/rancher/fleet/pkg/sharding"
 )
 
-// HelmAppReconciler reconciles a HelmApp resource to create and apply bundles for helm charts
-type HelmAppReconciler struct {
+// HelmOpReconciler reconciles a HelmOp resource to create and apply bundles for helm charts
+type HelmOpReconciler struct {
 	client.Client
 	Scheme    *runtime.Scheme
 	Scheduler quartz.Scheduler
@@ -46,9 +46,9 @@ type HelmAppReconciler struct {
 	Recorder  record.EventRecorder
 }
 
-func (r *HelmAppReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *HelmOpReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.HelmApp{},
+		For(&fleet.HelmOp{},
 			builder.WithPredicates(
 				predicate.Or(
 					// Note: These predicates prevent cache
@@ -68,20 +68,20 @@ func (r *HelmAppReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // The Reconcile function compares the state specified by
-// the HelmApp object against the actual cluster state, and then
+// the HelmOp object against the actual cluster state, and then
 // performs operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
-func (r *HelmAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if !experimentalHelmOpsEnabled() {
-		return ctrl.Result{}, fmt.Errorf("HelmApp resource was found but env variable EXPERIMENTAL_HELM_OPS is not set to true")
+		return ctrl.Result{}, fmt.Errorf("HelmOp resource was found but env variable EXPERIMENTAL_HELM_OPS is not set to true")
 	}
-	logger := log.FromContext(ctx).WithName("HelmApp")
-	helmapp := &fleet.HelmApp{}
+	logger := log.FromContext(ctx).WithName("HelmOp")
+	helmop := &fleet.HelmOp{}
 
-	if err := r.Get(ctx, req.NamespacedName, helmapp); err != nil && !errors.IsNotFound(err) {
+	if err := r.Get(ctx, req.NamespacedName, helmop); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if errors.IsNotFound(err) {
 		return ctrl.Result{}, nil
@@ -89,22 +89,22 @@ func (r *HelmAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Finalizer handling
 	purgeBundlesFn := func() error {
-		nsName := types.NamespacedName{Name: helmapp.Name, Namespace: helmapp.Namespace}
-		if err := finalize.PurgeBundles(ctx, r.Client, nsName, fleet.HelmAppLabel); err != nil {
+		nsName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+		if err := finalize.PurgeBundles(ctx, r.Client, nsName, fleet.HelmOpLabel); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	if !helmapp.GetDeletionTimestamp().IsZero() {
+	if !helmop.GetDeletionTimestamp().IsZero() {
 
-		metrics.HelmCollector.Delete(helmapp.Name, helmapp.Namespace)
+		metrics.HelmCollector.Delete(helmop.Name, helmop.Namespace)
 
 		if err := purgeBundlesFn(); err != nil {
 			return ctrl.Result{}, err
 		}
-		if controllerutil.ContainsFinalizer(helmapp, finalize.HelmAppFinalizer) {
-			if err := deleteFinalizer(ctx, r.Client, helmapp, finalize.HelmAppFinalizer); err != nil {
+		if controllerutil.ContainsFinalizer(helmop, finalize.HelmOpFinalizer) {
+			if err := deleteFinalizer(ctx, r.Client, helmop, finalize.HelmOpFinalizer); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -112,8 +112,8 @@ func (r *HelmAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	if !controllerutil.ContainsFinalizer(helmapp, finalize.HelmAppFinalizer) {
-		if err := addFinalizer(ctx, r.Client, helmapp, finalize.HelmAppFinalizer); err != nil {
+	if !controllerutil.ContainsFinalizer(helmop, finalize.HelmOpFinalizer) {
+		if err := addFinalizer(ctx, r.Client, helmop, finalize.HelmOpFinalizer); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -121,25 +121,25 @@ func (r *HelmAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Reconciling
-	logger = logger.WithValues("generation", helmapp.Generation, "chart", helmapp.Spec.Helm.Chart)
+	logger = logger.WithValues("generation", helmop.Generation, "chart", helmop.Spec.Helm.Chart)
 	ctx = log.IntoContext(ctx, logger)
 
-	logger.V(1).Info("Reconciling HelmApp")
+	logger.V(1).Info("Reconciling HelmOp")
 
-	if helmapp.Spec.Helm.Chart == "" {
+	if helmop.Spec.Helm.Chart == "" {
 		return ctrl.Result{}, nil
 	}
 
-	bundle, err := r.createUpdateBundle(ctx, helmapp)
+	bundle, err := r.createUpdateBundle(ctx, helmop)
 	if err != nil {
-		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmapp.Status, err)
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop.Status, err)
 	}
 
-	helmapp.Status.Version = bundle.Spec.Helm.Version
+	helmop.Status.Version = bundle.Spec.Helm.Version
 
-	err = updateStatus(ctx, r.Client, req.NamespacedName, helmapp.Status)
+	err = updateStatus(ctx, r.Client, req.NamespacedName, helmop.Status)
 	if err != nil {
-		logger.Error(err, "Reconcile failed final update to helm app status", "status", helmapp.Status)
+		logger.Error(err, "Reconcile failed final update to helm app status", "status", helmop.Status)
 
 		return ctrl.Result{Requeue: true}, err
 	}
@@ -147,11 +147,11 @@ func (r *HelmAppReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, err
 }
 
-func (r *HelmAppReconciler) createUpdateBundle(ctx context.Context, helmapp *fleet.HelmApp) (*fleet.Bundle, error) {
+func (r *HelmOpReconciler) createUpdateBundle(ctx context.Context, helmop *fleet.HelmOp) (*fleet.Bundle, error) {
 	b := &fleet.Bundle{}
 	nsName := types.NamespacedName{
-		Name:      helmapp.Name,
-		Namespace: helmapp.Namespace,
+		Name:      helmop.Name,
+		Namespace: helmop.Namespace,
 	}
 
 	err := r.Get(ctx, nsName, b)
@@ -159,10 +159,10 @@ func (r *HelmAppReconciler) createUpdateBundle(ctx context.Context, helmapp *fle
 		return nil, err
 	}
 
-	// calculate the new representation of the helmapp resource
-	bundle := r.calculateBundle(helmapp)
+	// calculate the new representation of the helmop resource
+	bundle := r.calculateBundle(helmop)
 
-	if err := r.handleVersion(ctx, b, bundle, helmapp); err != nil {
+	if err := r.handleVersion(ctx, b, bundle, helmop); err != nil {
 		return nil, err
 	}
 
@@ -177,9 +177,9 @@ func (r *HelmAppReconciler) createUpdateBundle(ctx context.Context, helmapp *fle
 	return bundle, err
 }
 
-// Calculates the bundle representation of the given HelmApp resource
-func (r *HelmAppReconciler) calculateBundle(helmapp *fleet.HelmApp) *fleet.Bundle {
-	spec := helmapp.Spec.BundleSpec
+// Calculates the bundle representation of the given HelmOp resource
+func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
+	spec := helmop.Spec.BundleSpec
 
 	// set target names
 	for i, target := range spec.Targets {
@@ -188,12 +188,12 @@ func (r *HelmAppReconciler) calculateBundle(helmapp *fleet.HelmApp) *fleet.Bundl
 		}
 	}
 
-	propagateHelmAppProperties(&spec)
+	propagateHelmOpProperties(&spec)
 
 	bundle := &fleet.Bundle{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: helmapp.Namespace,
-			Name:      helmapp.Name,
+			Namespace: helmop.Namespace,
+			Name:      helmop.Name,
 		},
 		Spec: spec,
 	}
@@ -207,30 +207,30 @@ func (r *HelmAppReconciler) calculateBundle(helmapp *fleet.HelmApp) *fleet.Bundl
 	}
 
 	// apply additional labels from spec
-	for k, v := range helmapp.Spec.Labels {
+	for k, v := range helmop.Spec.Labels {
 		if bundle.Labels == nil {
 			bundle.Labels = make(map[string]string)
 		}
 		bundle.Labels[k] = v
 	}
 	bundle.Labels = labels.Merge(bundle.Labels, map[string]string{
-		fleet.HelmAppLabel: helmapp.Name,
+		fleet.HelmOpLabel: helmop.Name,
 	})
 
 	// Setting the Resources to nil, the agent will download the helm chart
 	bundle.Spec.Resources = nil
 	// store the helm options (this will also enable the helm chart deployment in the bundle)
-	bundle.Spec.HelmAppOptions = &fleet.BundleHelmOptions{
-		SecretName:            helmapp.Spec.HelmSecretName,
-		InsecureSkipTLSverify: helmapp.Spec.InsecureSkipTLSverify,
+	bundle.Spec.HelmOpOptions = &fleet.BundleHelmOptions{
+		SecretName:            helmop.Spec.HelmSecretName,
+		InsecureSkipTLSverify: helmop.Spec.InsecureSkipTLSverify,
 	}
 
 	return bundle
 }
 
-// propagateHelmAppProperties propagates root Helm chart properties to the child targets.
+// propagateHelmOpProperties propagates root Helm chart properties to the child targets.
 // This is necessary, so we can download the correct chart version for each target.
-func propagateHelmAppProperties(spec *fleet.BundleSpec) {
+func propagateHelmOpProperties(spec *fleet.BundleSpec) {
 	// Check if there is anything to propagate
 	if spec.Helm == nil {
 		return
@@ -291,22 +291,22 @@ func deleteFinalizer[T client.Object](ctx context.Context, c client.Client, obj 
 // handleVersion handles empty or * versions, downloading the current version from the registry.
 // This is calculated in the upstream cluster so all downstream bundle deployments have the same
 // version. (Potentially we could be gathering the version at very moment it is being updated, for example)
-func (r *HelmAppReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmapp *fleet.HelmApp) error {
-	if helmapp.Spec.Helm.Version != "" && helmapp.Spec.Helm.Version != "*" {
-		bundle.Spec.Helm.Version = helmapp.Spec.Helm.Version
+func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp) error {
+	if helmop.Spec.Helm.Version != "" && helmop.Spec.Helm.Version != "*" {
+		bundle.Spec.Helm.Version = helmop.Spec.Helm.Version
 		return nil
 	}
-	if helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmapp.Status.Version) {
+	if helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmop.Status.Version) {
 		auth := bundlereader.Auth{}
-		if helmapp.Spec.HelmSecretName != "" {
-			req := types.NamespacedName{Namespace: helmapp.Namespace, Name: helmapp.Spec.HelmSecretName}
+		if helmop.Spec.HelmSecretName != "" {
+			req := types.NamespacedName{Namespace: helmop.Namespace, Name: helmop.Spec.HelmSecretName}
 			var err error
 			auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, r.Client, req)
 			if err != nil {
 				return err
 			}
 		}
-		auth.InsecureSkipVerify = helmapp.Spec.InsecureSkipTLSverify
+		auth.InsecureSkipVerify = helmop.Spec.InsecureSkipTLSverify
 
 		version, err := bundlereader.ChartVersion(*bundle.Spec.Helm, auth)
 		if err != nil {
@@ -314,18 +314,18 @@ func (r *HelmAppReconciler) handleVersion(ctx context.Context, oldBundle *fleet.
 		}
 		bundle.Spec.Helm.Version = version
 	} else {
-		bundle.Spec.Helm.Version = helmapp.Status.Version
+		bundle.Spec.Helm.Version = helmop.Status.Version
 	}
 
 	return nil
 }
 
-// updateStatus updates the status for the HelmApp resource. It retries on
+// updateStatus updates the status for the HelmOp resource. It retries on
 // conflict. If the status was updated successfully, it also collects (as in
-// updates) metrics for the HelmApp resource.
-func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.HelmAppStatus) error {
+// updates) metrics for the HelmOp resource.
+func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.HelmOpStatus) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		t := &fleet.HelmApp{}
+		t := &fleet.HelmOp{}
 		err := c.Get(ctx, req, t)
 		if err != nil {
 			return err
@@ -362,7 +362,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 }
 
 // updateErrorStatusHelm sets the condition in the status and tries to update the resource
-func updateErrorStatusHelm(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.HelmAppStatus, orgErr error) error {
+func updateErrorStatusHelm(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.HelmOpStatus, orgErr error) error {
 	setAcceptedConditionHelm(&status, orgErr)
 	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
@@ -372,8 +372,8 @@ func updateErrorStatusHelm(ctx context.Context, c client.Client, req types.Names
 }
 
 // setAcceptedCondition sets the condition and updates the timestamp, if the condition changed
-func setAcceptedConditionHelm(status *fleet.HelmAppStatus, err error) {
-	cond := condition.Cond(fleet.HelmAppAcceptedCondition)
+func setAcceptedConditionHelm(status *fleet.HelmOpStatus, err error) {
+	cond := condition.Cond(fleet.HelmOpAcceptedCondition)
 	origStatus := status.DeepCopy()
 	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
 	if !equality.Semantic.DeepEqual(origStatus, status) {

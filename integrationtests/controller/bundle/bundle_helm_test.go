@@ -294,7 +294,7 @@ func createHelmBundle(ctx context.Context, k8sClient client.Client, name, namesp
 		Spec: v1alpha1.BundleSpec{
 			Targets:            targets,
 			TargetRestrictions: restrictions,
-			HelmAppOptions:     helmOptions,
+			HelmOpOptions:      helmOptions,
 		},
 	}
 
