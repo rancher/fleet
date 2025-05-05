@@ -80,8 +80,8 @@ jobs:
         uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3.8.1
-      - uses: rancherlabs/slsactl/actions/install-slsactl@0d7a982a403721b4bef1737b80eddf91676c9dbb # v0.0.12
+        uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
+      - uses: rancherlabs/slsactl/actions/install-slsactl@05585f4df91f36544f691a324a15fab117850613 # v0.0.13
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@main
