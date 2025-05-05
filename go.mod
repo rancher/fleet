@@ -4,10 +4,7 @@ go 1.23.0
 
 toolchain go1.24.2
 
-replace (
-	github.com/imdario/mergo => github.com/imdario/mergo v1.0.1
-	github.com/rancher/fleet/pkg/apis => ./pkg/apis
-)
+replace github.com/rancher/fleet/pkg/apis => ./pkg/apis
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
