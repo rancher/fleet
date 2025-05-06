@@ -139,7 +139,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	err = updateStatus(ctx, r.Client, req.NamespacedName, helmop.Status)
 	if err != nil {
-		logger.Error(err, "Reconcile failed final update to helm app status", "status", helmop.Status)
+		logger.Error(err, "Reconcile failed final update to HelmOp status", "status", helmop.Status)
 
 		return ctrl.Result{Requeue: true}, err
 	}

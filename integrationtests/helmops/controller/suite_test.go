@@ -41,7 +41,7 @@ var (
 
 func TestGitJobController(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Helm AppOps Controller Suite")
+	RunSpecs(t, "Helm Ops Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
