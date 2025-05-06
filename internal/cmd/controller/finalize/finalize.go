@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	HelmAppFinalizer          = "fleet.cattle.io/helmapp-finalizer"
+	HelmOpFinalizer           = "fleet.cattle.io/helmop-finalizer"
 	GitRepoFinalizer          = "fleet.cattle.io/gitrepo-finalizer"
 	BundleFinalizer           = "fleet.cattle.io/bundle-finalizer"
 	BundleDeploymentFinalizer = "fleet.cattle.io/bundle-deployment-finalizer"

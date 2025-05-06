@@ -12,14 +12,14 @@ import (
 )
 
 // GetManifestFromHelmChart downloads the given helm chart and creates a
-// manifest with its contents. This is used by the agent to deploy HelmApps.
+// manifest with its contents. This is used by the agent to deploy HelmOps.
 func GetManifestFromHelmChart(ctx context.Context, c client.Client, bd *fleet.BundleDeployment) (*manifest.Manifest, error) {
 	helm := bd.Spec.Options.Helm
 
 	if helm == nil {
 		return nil, fmt.Errorf("helm options not found")
 	}
-	temp, err := os.MkdirTemp("", "helmapp")
+	temp, err := os.MkdirTemp("", "helmop")
 	if err != nil {
 		return nil, err
 	}

@@ -23,22 +23,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type HelmAppStatusReconciler struct {
+type HelmOpStatusReconciler struct {
 	client.Client
 	Scheme  *runtime.Scheme
 	Workers int
 	ShardID string
 }
 
-func (r *HelmAppStatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *HelmOpStatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.HelmApp{}).
-		// Fan out from bundle to HelmApp
+		For(&fleet.HelmOp{}).
+		// Fan out from bundle to HelmOp
 		WatchesRawSource(source.TypedKind(
 			mgr.GetCache(),
 			&fleet.Bundle{},
 			handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, a *fleet.Bundle) []ctrl.Request {
-				app := a.GetLabels()[fleet.HelmAppLabel]
+				app := a.GetLabels()[fleet.HelmOpLabel]
 				if app != "" {
 					return []ctrl.Request{{
 						NamespacedName: types.NamespacedName{
@@ -55,81 +55,81 @@ func (r *HelmAppStatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
-		Named("HelmAppStatus").
+		Named("HelmOpStatus").
 		Complete(r)
 }
 
-// Reconcile reads the stat of the HelmApp and BundleDeployments and
-// computes status fields for the HelmApp. This status is used to
+// Reconcile reads the stat of the HelmOp and BundleDeployments and
+// computes status fields for the HelmOp. This status is used to
 // display information to the user.
-func (r *HelmAppStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if !experimentalHelmOpsEnabled() {
 		return ctrl.Result{}, nil
 	}
-	logger := log.FromContext(ctx).WithName("helmapp-status")
-	helmapp := &fleet.HelmApp{}
+	logger := log.FromContext(ctx).WithName("helmop-status")
+	helmop := &fleet.HelmOp{}
 
-	if err := r.Get(ctx, req.NamespacedName, helmapp); err != nil && !errors.IsNotFound(err) {
+	if err := r.Get(ctx, req.NamespacedName, helmop); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if errors.IsNotFound(err) {
 		return ctrl.Result{}, nil
 	}
 
-	if !helmapp.DeletionTimestamp.IsZero() {
-		// the HelmApp controller will handle deletion
+	if !helmop.DeletionTimestamp.IsZero() {
+		// the HelmOp controller will handle deletion
 		return ctrl.Result{}, nil
 	}
 
-	if helmapp.Spec.Helm.Chart == "" {
+	if helmop.Spec.Helm.Chart == "" {
 		return ctrl.Result{}, nil
 	}
 
-	logger = logger.WithValues("generation", helmapp.Generation, "chart", helmapp.Spec.Helm.Chart).WithValues("conditions", helmapp.Status.Conditions)
+	logger = logger.WithValues("generation", helmop.Generation, "chart", helmop.Spec.Helm.Chart).WithValues("conditions", helmop.Status.Conditions)
 	ctx = log.IntoContext(ctx, logger)
 
-	logger.V(1).Info("Reconciling HelmApp status")
+	logger.V(1).Info("Reconciling HelmOp status")
 
 	bdList := &fleet.BundleDeploymentList{}
 	err := r.List(ctx, bdList, client.MatchingLabels{
-		fleet.HelmAppLabel:         helmapp.Name,
-		fleet.BundleNamespaceLabel: helmapp.Namespace,
+		fleet.HelmOpLabel:          helmop.Name,
+		fleet.BundleNamespaceLabel: helmop.Namespace,
 	})
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	err = setStatusHelm(bdList, helmapp)
+	err = setStatusHelm(bdList, helmop)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	err = r.Client.Status().Update(ctx, helmapp)
+	err = r.Client.Status().Update(ctx, helmop)
 	if err != nil {
-		logger.Error(err, "Reconcile failed update to helm app status", "status", helmapp.Status)
-		return ctrl.Result{RequeueAfter: durations.HelmAppStatusDelay}, nil
+		logger.Error(err, "Reconcile failed update to helm app status", "status", helmop.Status)
+		return ctrl.Result{RequeueAfter: durations.HelmOpStatusDelay}, nil
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func setStatusHelm(list *fleet.BundleDeploymentList, helmapp *fleet.HelmApp) error {
+func setStatusHelm(list *fleet.BundleDeploymentList, helmop *fleet.HelmOp) error {
 	// sort for resourceKey?
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
 	})
 
-	err := status.SetFields(list, &helmapp.Status.StatusBase)
+	err := status.SetFields(list, &helmop.Status.StatusBase)
 	if err != nil {
 		return err
 	}
 
-	resourcestatus.SetResources(list.Items, &helmapp.Status.StatusBase)
+	resourcestatus.SetResources(list.Items, &helmop.Status.StatusBase)
 
-	summary.SetReadyConditions(&helmapp.Status, "Bundle", helmapp.Status.Summary)
+	summary.SetReadyConditions(&helmop.Status, "Bundle", helmop.Status.Summary)
 
-	helmapp.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
-		helmapp.Status.Summary.Ready,
-		helmapp.Status.Summary.DesiredReady)
+	helmop.Status.Display.ReadyBundleDeployments = fmt.Sprintf("%d/%d",
+		helmop.Status.Summary.Ready,
+		helmop.Status.Summary.DesiredReady)
 
 	return nil
 }

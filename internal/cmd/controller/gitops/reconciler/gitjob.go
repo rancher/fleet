@@ -552,7 +552,13 @@ func (r *GitJobReconciler) newGitCloner(
 		args = append(args, "--ca-bundle-file", "/gitjob/cabundle/"+bundleCAFile)
 	}
 
-	env := proxyEnvVars()
+	env := []corev1.EnvVar{
+		{
+			Name:  fleetcli.JSONOutputEnvVar,
+			Value: "true",
+		},
+	}
+	env = append(env, proxyEnvVars()...)
 
 	// If strict host key checks are enabled but no entries are available, another error will be shown by the known
 	// hosts getter, as that means that the Fleet deployment is incomplete.
@@ -638,6 +644,10 @@ func argsAndEnvs(
 		{
 			Name:  "HOME",
 			Value: fleetHomeDir,
+		},
+		{
+			Name:  fleetcli.JSONOutputEnvVar,
+			Value: "true",
 		},
 		{
 			Name:  fleetcli.FleetApplyConflictRetriesEnv,

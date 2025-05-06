@@ -14,10 +14,10 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
-var _ = Describe("HelmApp Status Fields", func() {
+var _ = Describe("HelmOp Status Fields", func() {
 	var (
-		helmapp *fleet.HelmApp
-		bd      *fleet.BundleDeployment
+		helmop *fleet.HelmOp
+		bd     *fleet.BundleDeployment
 	)
 
 	BeforeEach(func() {
@@ -52,12 +52,12 @@ var _ = Describe("HelmApp Status Fields", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(bundle).To(Not(BeNil()))
 
-			helmapp = &fleet.HelmApp{
+			helmop = &fleet.HelmOp{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-helmapp",
+					Name:      "test-helmop",
 					Namespace: namespace,
 				},
-				Spec: fleet.HelmAppSpec{
+				Spec: fleet.HelmOpSpec{
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
@@ -67,7 +67,7 @@ var _ = Describe("HelmApp Status Fields", func() {
 					},
 				},
 			}
-			err = k8sClient.Create(ctx, helmapp)
+			err = k8sClient.Create(ctx, helmop)
 			Expect(err).NotTo(HaveOccurred())
 
 			bd = &fleet.BundleDeployment{}
@@ -80,20 +80,20 @@ var _ = Describe("HelmApp Status Fields", func() {
 		It("updates the status fields", func() {
 			bundle := &fleet.Bundle{}
 			bundleName := types.NamespacedName{Namespace: namespace, Name: "name"}
-			helmAppName := types.NamespacedName{Namespace: namespace, Name: helmapp.Name}
+			helmOpName := types.NamespacedName{Namespace: namespace, Name: helmop.Name}
 			By("Receiving a bundle update")
 			Eventually(func() error {
 				err := k8sClient.Get(ctx, bundleName, bundle)
 				Expect(err).ToNot(HaveOccurred())
-				bundle.Labels[fleet.HelmAppLabel] = helmapp.Name
+				bundle.Labels[fleet.HelmOpLabel] = helmop.Name
 				return k8sClient.Update(ctx, bundle)
 			}).ShouldNot(HaveOccurred())
 			Expect(bundle.Status.Summary.Ready).ToNot(Equal(1))
 
-			err := k8sClient.Get(ctx, helmAppName, helmapp)
+			err := k8sClient.Get(ctx, helmOpName, helmop)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(helmapp.Status.Summary.Ready).To(Equal(0))
-			Expect(helmapp.Status.ReadyClusters).To(Equal(0))
+			Expect(helmop.Status.Summary.Ready).To(Equal(0))
+			Expect(helmop.Status.ReadyClusters).To(Equal(0))
 
 			// This simulates what the bundle deployment reconciler would do.
 			By("Updating the BundleDeployment status to ready")
@@ -117,13 +117,13 @@ var _ = Describe("HelmApp Status Fields", func() {
 				return bundle.Status.Summary.Ready == 1
 			}).Should(BeTrue())
 
-			// waiting for the Helmapp to update
+			// waiting for the HelmOp to update
 			Eventually(func(g Gomega) {
-				err = k8sClient.Get(ctx, helmAppName, helmapp)
+				err = k8sClient.Get(ctx, helmOpName, helmop)
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(helmapp.Status.Summary.Ready).To(Equal(1))
-				g.Expect(helmapp.Status.ReadyClusters).To(Equal(1))
-				g.Expect(helmapp.Status.DesiredReadyClusters).To(Equal(1))
+				g.Expect(helmop.Status.Summary.Ready).To(Equal(1))
+				g.Expect(helmop.Status.ReadyClusters).To(Equal(1))
+				g.Expect(helmop.Status.DesiredReadyClusters).To(Equal(1))
 			}).Should(Succeed())
 
 			By("Deleting a bundle")
@@ -131,11 +131,11 @@ var _ = Describe("HelmApp Status Fields", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(func(g Gomega) {
-				err := k8sClient.Get(ctx, helmAppName, helmapp)
+				err := k8sClient.Get(ctx, helmOpName, helmop)
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(helmapp.Status.Summary.Ready).To(Equal(0))
-				g.Expect(helmapp.Status.Summary.DesiredReady).To(Equal(0))
-				g.Expect(helmapp.Status.Display.ReadyBundleDeployments).To(Equal("0/0"))
+				g.Expect(helmop.Status.Summary.Ready).To(Equal(0))
+				g.Expect(helmop.Status.Summary.DesiredReady).To(Equal(0))
+				g.Expect(helmop.Status.Display.ReadyBundleDeployments).To(Equal("0/0"))
 			}).Should(Succeed())
 		})
 	})

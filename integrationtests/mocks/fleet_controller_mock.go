@@ -146,18 +146,18 @@ func (mr *FleetInterfaceMockRecorder) Content() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Content", reflect.TypeOf((*FleetInterface)(nil).Content))
 }
 
-// HelmApp mocks base method.
-func (m *FleetInterface) HelmApp() v1alpha1.HelmAppController {
+// HelmOp mocks base method.
+func (m *FleetInterface) HelmOp() v1alpha1.HelmOpController {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HelmApp")
-	ret0, _ := ret[0].(v1alpha1.HelmAppController)
+	ret := m.ctrl.Call(m, "HelmOp")
+	ret0, _ := ret[0].(v1alpha1.HelmOpController)
 	return ret0
 }
 
-// HelmApp indicates an expected call of HelmApp.
-func (mr *FleetInterfaceMockRecorder) HelmApp() *gomock.Call {
+// HelmOp indicates an expected call of HelmOp.
+func (mr *FleetInterfaceMockRecorder) HelmOp() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HelmApp", reflect.TypeOf((*FleetInterface)(nil).HelmApp))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HelmOp", reflect.TypeOf((*FleetInterface)(nil).HelmOp))
 }
 
 // GitRepo mocks base method.

@@ -12,14 +12,14 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"go.uber.org/mock/gomock"
-
+	fleetcli "github.com/rancher/fleet/internal/cmd/cli"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/mocks"
 	"github.com/rancher/fleet/internal/ssh"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	"go.uber.org/mock/gomock"
 
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	gitmocks "github.com/rancher/fleet/pkg/git/mocks"
@@ -741,6 +741,12 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						},
 					},
 					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -808,6 +814,12 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						},
 					},
 					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -875,6 +887,12 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						},
 					},
 					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -950,6 +968,12 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						},
 					},
 					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -1043,6 +1067,12 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						},
 					},
 					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -1105,6 +1135,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						"/gitjob/ssh/" + corev1.SSHAuthPrivateKey,
 					},
 					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
 						{
 							Name:  "FLEET_KNOWN_HOSTS",
 							Value: "some known hosts",
@@ -1193,6 +1227,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						"/gitjob/ssh/" + corev1.SSHAuthPrivateKey,
 					},
 					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
 						{
 							Name:  "FLEET_KNOWN_HOSTS",
 							Value: "foo",
@@ -1287,6 +1325,10 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 					Env: []corev1.EnvVar{
 						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+						{
 							Name:  "FLEET_KNOWN_HOSTS",
 							Value: "foo",
 						},
@@ -1375,6 +1417,12 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						},
 					},
 					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -1465,6 +1513,12 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						},
 					},
 					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -1588,6 +1642,12 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						},
 					},
 					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -1652,6 +1712,12 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 						},
 					},
 					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
 				},
 			},
 			expectedVolumes: []corev1.Volume{
@@ -1836,6 +1902,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
 					Value: "1",
 				},
@@ -1860,6 +1930,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "commit",
 				},
 			},
+			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+			},
 		},
 		"Helm secret name with strict host key checks": {
 			gitrepo: &fleetv1.GitRepo{
@@ -1873,6 +1949,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			strictSSHHostKeyChecks: true,
 			expectedInitContainerEnvVars: []corev1.EnvVar{
 				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+				{
 					Name: "FLEET_KNOWN_HOSTS",
 				},
 			},
@@ -1880,6 +1960,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "HOME",
 					Value: "/fleet-home",
+				},
+				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
 				},
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
@@ -1922,6 +2006,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
 					Value: "1",
 				},
@@ -1932,6 +2020,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "COMMIT",
 					Value: "commit",
+				},
+			},
+			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
 				},
 			},
 		},
@@ -1947,6 +2041,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			strictSSHHostKeyChecks: true,
 			expectedInitContainerEnvVars: []corev1.EnvVar{
 				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+				{
 					Name: "FLEET_KNOWN_HOSTS",
 				},
 			},
@@ -1954,6 +2052,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				{
 					Name:  "HOME",
 					Value: "/fleet-home",
+				},
+				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
 				},
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
@@ -1982,6 +2084,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
 					Value: "1",
 				},
@@ -1999,6 +2105,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				},
 			},
 			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
 				{
 					Name:  "HTTP_PROXY",
 					Value: "httpProxy",
@@ -2023,6 +2133,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
 					Value: "3",
 				},
@@ -2032,6 +2146,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				},
 			},
 			osEnv: map[string]string{"FLEET_APPLY_CONFLICT_RETRIES": "3"},
+			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+			},
 		},
 		"retries_not_valid": {
 			gitrepo: &fleetv1.GitRepo{
@@ -2046,6 +2166,10 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
 					Value: "1",
 				},
@@ -2055,6 +2179,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				},
 			},
 			osEnv: map[string]string{"FLEET_APPLY_CONFLICT_RETRIES": "this_is_not_an_int"},
+			expectedInitContainerEnvVars: []corev1.EnvVar{
+				{
+					Name:  fleetcli.JSONOutputEnvVar,
+					Value: "true",
+				},
+			},
 		},
 	}
 
@@ -2439,6 +2569,86 @@ func TestDrivenScanSeparator(t *testing.T) {
 				if err.Error() != expectedErrorMessage {
 					t.Errorf("expecting error %q, got %q", expectedErrorMessage, err.Error())
 				}
+			}
+		})
+	}
+}
+
+func TestFilterFleetApplyJobOutput(t *testing.T) {
+	tests := map[string]struct {
+		input          string
+		expectedOutput string
+	}{
+		"Filter a few lines and return a couple from Fleet": {
+			input: `this line should be ignored
+		this line should be ignored, too
+		{"level":"fatal","msg":"This line is not from fleet cli","time":"2025-04-15T14:53:15+02:00"}
+		{"fleetErrorMessage":"fleet line 1","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}
+		ignore this line as well
+		{"fleetErrorMessage":"fleet line 2","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}`,
+			expectedOutput: "fleet line 1\nfleet line 2",
+		},
+		"There are no lines from fleet apply": {
+			input: `this line should be ignored
+		this line should be ignored, too
+		{"level":"fatal","msg":"This line is not from fleet cli","time":"2025-04-15T14:53:15+02:00"}
+		ignore this line as well`,
+			expectedOutput: "Unknown error",
+		},
+		"The output is from fleet apply, but it's not in json format": {
+			input:          "FATA[0000] no resource found at the following paths to deploy: [tt]",
+			expectedOutput: "Unknown error",
+		},
+		"Valid message with some extra text before and after": {
+			input: `this line should be ignored
+		this line should be ignored, too
+		This line is OK{"fleetErrorMessage":"fleet line error 1","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}This part should be ignored
+		ignore this line as well`,
+			expectedOutput: "fleet line error 1",
+		},
+		"Valid message with some extra text before": {
+			input: `this line should be ignored
+		this line should be ignored, too
+		This line is OK{"fleetErrorMessage":"fleet line error 1","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}
+		ignore this line as well`,
+			expectedOutput: "fleet line error 1",
+		},
+		"Valid message with some extra text after": {
+			input: `this line should be ignored
+		this line should be ignored, too
+		This line is OK{"fleetErrorMessage":"fleet line error 1","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}
+		ignore this line as well`,
+			expectedOutput: "fleet line error 1",
+		},
+		"Not valid json message": {
+			input: `this line should be ignored
+		this line should be ignored, too
+		This lin}e is OK "{fleetErrorMessage":"fleet line error 1","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}
+		ignore this line as well`,
+			expectedOutput: "Unknown error",
+		},
+		"More than one error in the same line": {
+			input: `this line should be ignored
+this line should be ignored, too
+T}his{ lin}e is OK "{"fleetErrorMessage":"fleet line error 1","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}more garbage{"fleetErrorMessage":"fleet line error 2","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}some more noise
+ignore this line as well`,
+			expectedOutput: "fleet line error 1\nfleet line error 2",
+		},
+		"Empty input": {
+			input:          "",
+			expectedOutput: "Unknown error",
+		},
+
+		"The fleetErrorMessage field is empty": {
+			input:          `{"fleetErrorMessage":"","level":"fatal","msg":"Fleet cli failed","time":"2025-04-15T14:53:15+02:00"}`,
+			expectedOutput: "Unknown error",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			filteredMsg := filterFleetCLIJobOutput(test.input)
+			if filteredMsg != test.expectedOutput {
+				t.Errorf("expecting output %q, got %q", test.expectedOutput, filteredMsg)
 			}
 		})
 	}
