@@ -52,7 +52,7 @@ jobs:
       -
         name: Cache crust-gather CLI
         id: cache-crust
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
         with:
           path: ~/.local/bin/crust-gather
           key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
