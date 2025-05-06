@@ -515,7 +515,13 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 // cloneSecret clones a secret, identified by the provided secretName and
 // namespace, to the namespace of the provided bundle deployment bd. This makes
 // the secret available to agents when deploying bd to downstream clusters.
-func (r *BundleReconciler) cloneSecret(ctx context.Context, namespace string, secretName string, bd *fleet.BundleDeployment) error {
+func (r *BundleReconciler) cloneSecret(
+	ctx context.Context,
+	namespace string,
+	secretName string,
+	secretType string,
+	bd *fleet.BundleDeployment,
+) error {
 	namespacedName := types.NamespacedName{
 		Namespace: namespace,
 		Name:      secretName,
@@ -531,6 +537,10 @@ func (r *BundleReconciler) cloneSecret(ctx context.Context, namespace string, se
 			Namespace: bd.Namespace,
 		},
 		Data: secret.Data,
+	}
+
+	if secretType != "" {
+		targetSecret.Type = corev1.SecretType(secretType)
 	}
 
 	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
@@ -550,10 +560,10 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil && experimentalHelmOpsEnabled()
 
 	if contentsInOCI {
-		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, bd)
+		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, fleet.SecretTypeOCIStorage, bd)
 	}
 	if contentsInHelmChart && bundle.Spec.HelmOpOptions.SecretName != "" {
-		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmOpOptions.SecretName, bd)
+		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmOpOptions.SecretName, fleet.SecretTypeHelmOpsAccess, bd)
 	}
 	return nil
 }

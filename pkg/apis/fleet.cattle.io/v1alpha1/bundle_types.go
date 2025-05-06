@@ -35,6 +35,10 @@ const (
 
 	// SecretTypeBundleValues is the secret type used to store the helm values
 	SecretTypeBundleValues = "fleet.cattle.io/bundle-values/v1alpha1"
+
+	// SecretTypeOCIStorage is the secret type used internally to store bundle resources in an OCI registry instead
+	// of etcd.
+	SecretTypeOCIStorage = "fleet.cattle.io/bundle-oci-storage/v1alpha1"
 )
 
 var (
