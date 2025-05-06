@@ -19,6 +19,8 @@ var (
 	Client Getter
 )
 
+const JSONOutputEnvVar = "FLEET_JSON_OUTPUT"
+
 func App() *cobra.Command {
 	root := command.Command(&Fleet{}, cobra.Command{
 		Version:       version.FriendlyVersion(),

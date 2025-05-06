@@ -119,11 +119,11 @@ type BundleSpec struct {
 	// +nullable
 	ContentsID string `json:"contentsId,omitempty"`
 
-	// HelmAppOptions stores the options relative to HelmApp resources
-	// Non-nil HelmAppOptions indicate that the source of resources is a Helm chart,
+	// HelmOpOptions stores the options relative to HelmOp resources
+	// Non-nil HelmOpOptions indicate that the source of resources is a Helm chart,
 	// not a git repository.
 	// +nullable
-	HelmAppOptions *BundleHelmOptions `json:"helmAppOptions,omitempty"`
+	HelmOpOptions *BundleHelmOptions `json:"helmOpOptions,omitempty"`
 
 	// ValuesHash is the hash of the values used to render the Helm chart.
 	// It changes when any values from fleet.yaml, values from ValuesFiles or values from target
@@ -424,9 +424,9 @@ type PartitionStatus struct {
 
 type BundleHelmOptions struct {
 	// SecretName stores the secret name for storing credentials when accessing
-	// a remote helm repository defined in a HelmApp resource
-	SecretName string `json:"helmAppSecretName,omitempty"`
+	// a remote helm repository defined in a HelmOp resource
+	SecretName string `json:"helmOpSecretName,omitempty"`
 
 	// InsecureSkipTLSverify will use insecure HTTPS to clone the helm app resource.
-	InsecureSkipTLSverify bool `json:"helmAppInsecureSkipTLSVerify,omitempty"`
+	InsecureSkipTLSverify bool `json:"helmOpInsecureSkipTLSVerify,omitempty"`
 }

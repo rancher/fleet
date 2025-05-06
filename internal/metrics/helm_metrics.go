@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	helmSubsystem = "helmapp"
+	helmSubsystem = "helmop"
 	helmLabels    = []string{"name", "namespace", "repo", "chart", "version"}
 	HelmCollector = CollectorCollection{
 		helmSubsystem,
@@ -18,7 +18,7 @@ var (
 		obj any,
 		metrics map[string]prometheus.Collector,
 	) {
-		helm, ok := obj.(*fleet.HelmApp)
+		helm, ok := obj.(*fleet.HelmOp)
 		if !ok {
 			panic("unexpected object type")
 		}
