@@ -6,6 +6,7 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -23,8 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
-
-const bundleDeploymentFinalizer = "fleet.cattle.io/bundle-deployment-finalizer"
 
 // BundleDeploymentReconciler reconciles a BundleDeployment object
 type BundleDeploymentReconciler struct {
@@ -65,17 +64,19 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// The bundle reconciler takes care of adding the finalizer when creating a bundle deployment
 	if !bd.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(bd, bundleDeploymentFinalizer) {
+		if controllerutil.ContainsFinalizer(bd, finalize.BundleDeploymentFinalizer) {
+			if err := finalize.PurgeContent(ctx, r.Client, bd.Name, bd.Spec.DeploymentID); err != nil {
+				return ctrl.Result{}, err
+			}
 			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				t := &fleet.BundleDeployment{}
-				err := r.Get(ctx, req.NamespacedName, t)
+				err := r.Get(ctx, req.NamespacedName, bd)
 				if err != nil {
 					return err
 				}
 
-				controllerutil.RemoveFinalizer(t, bundleDeploymentFinalizer)
+				controllerutil.RemoveFinalizer(bd, finalize.BundleDeploymentFinalizer)
 
-				return r.Update(ctx, t)
+				return r.Update(ctx, bd)
 			})
 			if err != nil {
 				return ctrl.Result{}, err

@@ -64,29 +64,6 @@ func PurgeBundles(ctx context.Context, c client.Client, gitrepo types.Namespaced
 	return nil
 }
 
-// PurgeBundleDeployments deletes all BundleDeployments related with the given Bundle namespaced name.
-func PurgeBundleDeployments(ctx context.Context, c client.Client, bundle types.NamespacedName) error {
-	list := &v1alpha1.BundleDeploymentList{}
-	err := c.List(
-		ctx,
-		list,
-		client.MatchingLabels{
-			v1alpha1.BundleLabel:          bundle.Name,
-			v1alpha1.BundleNamespaceLabel: bundle.Namespace,
-		},
-	)
-	if err != nil {
-		return err
-	}
-	for _, bd := range list.Items {
-		if err := PurgeBundleDeployment(ctx, c, bd); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // PurgeContent tries to delete the content resource related with the given bundle deployment.
 func PurgeContent(ctx context.Context, c client.Client, name, deplID string) error {
 	contentID, _ := kv.Split(deplID, ":")
@@ -174,50 +151,6 @@ func PurgeNamespace(ctx context.Context, c client.Client, deleteNamespace bool, 
 		},
 	}
 	if err := c.Delete(ctx, namespace); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// PurgeBundleDeploymentList deletes the given list of bundledeployments
-func PurgeBundleDeploymentList(ctx context.Context, c client.Client, bds []types.NamespacedName) error {
-	for _, bdId := range bds {
-		bd := &v1alpha1.BundleDeployment{}
-		if err := c.Get(ctx, bdId, bd); err != nil {
-			return err
-		}
-		if err := PurgeBundleDeployment(ctx, c, *bd); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// PurgeBundleDeployment deletes the given bundle deployment and the content related to it
-func PurgeBundleDeployment(ctx context.Context, c client.Client, bd v1alpha1.BundleDeployment) error {
-	if controllerutil.ContainsFinalizer(&bd, BundleDeploymentFinalizer) { // nolint: gosec // does not store pointer
-		nn := types.NamespacedName{Namespace: bd.Namespace, Name: bd.Name}
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			t := &v1alpha1.BundleDeployment{}
-			if err := c.Get(ctx, nn, t); err != nil {
-				return err
-			}
-
-			controllerutil.RemoveFinalizer(t, BundleDeploymentFinalizer)
-
-			return c.Update(ctx, t)
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	if err := c.Delete(ctx, &bd); err != nil {
-		return err
-	}
-
-	if err := PurgeContent(ctx, c, bd.Name, bd.Spec.DeploymentID); err != nil {
 		return err
 	}
 
