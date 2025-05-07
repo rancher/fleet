@@ -7,6 +7,7 @@ toolchain go1.24.2
 replace (
 	github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
+	gopkg.in/go-playground/webhooks.v6 => github.com/go-playground/webhooks/v6 v6.4.0
 )
 
 require (
@@ -49,7 +50,6 @@ require (
 	golang.org/x/crypto v0.37.0
 	golang.org/x/sync v0.13.0
 	gonum.org/v1/gonum v0.16.0
-	gopkg.in/go-playground/webhooks.v6 v6.4.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.17.3
 	k8s.io/api v0.32.4

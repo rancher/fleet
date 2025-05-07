@@ -15,11 +15,11 @@ import (
 	"github.com/go-playground/webhooks/v6/azuredevops"
 	gogsclient "github.com/gogits/go-gogs-client"
 	"github.com/gorilla/mux"
-	"gopkg.in/go-playground/webhooks.v5/bitbucket"
-	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"
-	"gopkg.in/go-playground/webhooks.v5/github"
-	"gopkg.in/go-playground/webhooks.v5/gitlab"
-	"gopkg.in/go-playground/webhooks.v5/gogs"
+	"github.com/go-playground/webhooks/v6/bitbucket"
+	bitbucketserver "github.com/go-playground/webhooks/v6/bitbucket-server"
+	"github.com/go-playground/webhooks/v6/github"
+	"github.com/go-playground/webhooks/v6/gitlab"
+	"github.com/go-playground/webhooks/v6/gogs"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 

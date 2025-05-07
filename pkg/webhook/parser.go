@@ -5,11 +5,11 @@ import (
 	"net/http"
 
 	"github.com/go-playground/webhooks/v6/azuredevops"
-	"gopkg.in/go-playground/webhooks.v5/bitbucket"
-	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"
-	"gopkg.in/go-playground/webhooks.v5/github"
-	"gopkg.in/go-playground/webhooks.v5/gitlab"
-	"gopkg.in/go-playground/webhooks.v5/gogs"
+	"github.com/go-playground/webhooks/v6/bitbucket"
+	bitbucketserver "github.com/go-playground/webhooks/v6/bitbucket-server"
+	"github.com/go-playground/webhooks/v6/github"
+	"github.com/go-playground/webhooks/v6/gitlab"
+	"github.com/go-playground/webhooks/v6/gogs"
 	corev1 "k8s.io/api/core/v1"
 )
 
