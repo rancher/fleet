@@ -139,20 +139,10 @@ func randHelmOptions() *fleet.HelmOptions {
 	return h
 }
 
-func randKustomizeOptions() *fleet.KustomizeOptions {
-	if randBool() {
-		return nil
-	}
-	o := &fleet.KustomizeOptions{}
-	o.Dir = randString()
-	return o
-}
-
 func randBundleDeploymentOptions() fleet.BundleDeploymentOptions {
 	o := fleet.BundleDeploymentOptions{
 		DefaultNamespace: randString(),
 		TargetNamespace:  randString(),
-		Kustomize:        randKustomizeOptions(),
 		Helm:             randHelmOptions(),
 		CorrectDrift:     randCorrectDrift(),
 		ServiceAccount:   randString(),
