@@ -13,13 +13,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-playground/webhooks/v6/azuredevops"
-	gogsclient "github.com/gogits/go-gogs-client"
-	"github.com/gorilla/mux"
 	"github.com/go-playground/webhooks/v6/bitbucket"
 	bitbucketserver "github.com/go-playground/webhooks/v6/bitbucket-server"
 	"github.com/go-playground/webhooks/v6/github"
 	"github.com/go-playground/webhooks/v6/gitlab"
 	"github.com/go-playground/webhooks/v6/gogs"
+	gogsclient "github.com/gogits/go-gogs-client"
+	"github.com/gorilla/mux"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -311,7 +311,7 @@ func parsePayload(payload interface{}) (revision, branch, tag string, repoURLs [
 		}
 		for _, change := range t.Changes {
 			revision = change.ToHash
-			branch, tag = getBranchTagFromRef(change.ReferenceId)
+			branch, tag = getBranchTagFromRef(change.ReferenceID)
 			break
 		}
 	case gogsclient.PushPayload:

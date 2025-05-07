@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/go-playground/webhooks/v6/azuredevops"
-	gogsclient "github.com/gogits/go-gogs-client"
 	"github.com/go-playground/webhooks/v6/bitbucket"
 	bitbucketserver "github.com/go-playground/webhooks/v6/bitbucket-server"
 	"github.com/go-playground/webhooks/v6/github"
 	"github.com/go-playground/webhooks/v6/gitlab"
+	gogsclient "github.com/gogits/go-gogs-client"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1050,7 +1050,7 @@ func TestParseBitbucketServer(t *testing.T) {
 
 				if len(gotBB.Changes) > 0 {
 					if gotBB.Changes[0].Reference.ID != "refs/heads/"+tt.wantBranch && gotBB.Changes[0].Reference.ID != "refs/tags/"+tt.wantBranch {
-						t.Fatalf("parseBitbucketServer() got branch %s, want %s", gotBB.Changes[0].ReferenceId, tt.wantBranch)
+						t.Fatalf("parseBitbucketServer() got branch %s, want %s", gotBB.Changes[0].ReferenceID, tt.wantBranch)
 					}
 					if gotBB.Changes[0].ToHash != tt.wantRevision {
 						t.Fatalf("parseBitbucketServer() got revision %s, want %s", gotBB.Changes[0].ToHash, tt.wantRevision)
