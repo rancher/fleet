@@ -54,16 +54,16 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.15.3
-	k8s.io/api v0.30.10
-	k8s.io/apiextensions-apiserver v0.30.10
-	k8s.io/apimachinery v0.30.10
-	k8s.io/cli-runtime v0.30.10
-	k8s.io/client-go v0.30.10
+	k8s.io/api v0.30.12
+	k8s.io/apiextensions-apiserver v0.30.12
+	k8s.io/apimachinery v0.30.12
+	k8s.io/cli-runtime v0.30.12
+	k8s.io/client-go v0.30.12
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kube-openapi v0.0.0-20240620174524-b456828f718b
-	k8s.io/kubectl v0.30.10
+	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
+	k8s.io/kubectl v0.30.12
 	k8s.io/kubernetes v1.30.10
-	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
+	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
 	oras.land/oras-go/v2 v2.5.0
 	sigs.k8s.io/cli-utils v0.35.0
 	sigs.k8s.io/controller-runtime v0.18.4
@@ -136,9 +136,9 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/google/gnostic-models v0.6.8 // indirect
+	github.com/google/gnostic-models v0.6.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/google/pprof v0.0.0-20240625030939-27f56978b8b0 // indirect
+	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -243,12 +243,13 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiserver v0.30.10 // indirect
-	k8s.io/code-generator v0.30.10 // indirect
-	k8s.io/component-base v0.30.10 // indirect
-	k8s.io/gengo v0.0.0-20240310015720-9cff6334dab4 // indirect
-	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
+	k8s.io/apiserver v0.30.12 // indirect
+	k8s.io/code-generator v0.30.12 // indirect
+	k8s.io/component-base v0.30.12 // indirect
+	k8s.io/gengo v0.0.0-20250207200755-1244d31929d7 // indirect
+	k8s.io/gengo/v2 v2.0.0-20250207200755-1244d31929d7 // indirect
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
+	sigs.k8s.io/randfill v1.0.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 )
