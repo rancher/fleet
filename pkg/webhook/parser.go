@@ -43,7 +43,11 @@ func parseWebhook(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 	return nil, nil
 }
 
-func getValue(secret corev1.Secret, key string) (string, error) {
+func getValue(secret *corev1.Secret, key string) (string, error) {
+	if secret == nil {
+		return "", fmt.Errorf("secret is nil")
+	}
+
 	value, ok := secret.Data[key]
 	if !ok {
 		return "", fmt.Errorf("secret key %q not found in secret %q", key, secret.Name)
@@ -53,107 +57,141 @@ func getValue(secret corev1.Secret, key string) (string, error) {
 }
 
 func parseGogs(r *http.Request, secret *corev1.Secret) (interface{}, error) {
-	opts := []gogs.Option{}
+	var hook *gogs.Webhook
+	var err error
+
 	if secret != nil {
-		value, error := getValue(*secret, gogsKey)
-		if error != nil {
-			return nil, error
+		var value string
+		value, err = getValue(secret, gogsKey)
+		if err != nil {
+			return nil, err
 		}
-		opts = append(opts, gogs.Options.Secret(value))
+		hook, err = gogs.New(gogs.Options.Secret(value))
+	} else {
+		hook, err = gogs.New()
 	}
-	p, err := gogs.New(opts...)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return p.Parse(r, gogs.PushEvent)
+	return hook.Parse(r, gogs.PushEvent)
 }
 
 func parseGithub(r *http.Request, secret *corev1.Secret) (interface{}, error) {
-	opts := []github.Option{}
+	var hook *github.Webhook
+	var err error
+
 	if secret != nil {
-		value, error := getValue(*secret, githubKey)
-		if error != nil {
-			return nil, error
+		var value string
+		value, err := getValue(secret, githubKey)
+		if err != nil {
+			return nil, err
 		}
-		opts = append(opts, github.Options.Secret(value))
-	}
-	p, err := github.New(opts...)
-	if err != nil {
-		return nil, err
+		hook, err = github.New(github.Options.Secret(value))
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		hook, err = github.New()
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return p.Parse(r, github.PushEvent)
+	return hook.Parse(r, github.PushEvent, github.PingEvent)
 }
 
 func parseGitlab(r *http.Request, secret *corev1.Secret) (interface{}, error) {
-	opts := []gitlab.Option{}
+	var hook *gitlab.Webhook
+	var err error
+
 	if secret != nil {
-		value, error := getValue(*secret, gitlabKey)
-		if error != nil {
-			return nil, error
+		var value string
+		value, err = getValue(secret, gitlabKey)
+		if err != nil {
+			return nil, err
 		}
-		opts = append(opts, gitlab.Options.Secret(value))
+		hook, err = gitlab.New(gitlab.Options.Secret(value))
+	} else {
+		hook, err = gitlab.New()
 	}
-	p, err := gitlab.New(opts...)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return p.Parse(r, gitlab.PushEvents, gitlab.TagEvents)
+	return hook.Parse(r, gitlab.PushEvents, gitlab.TagEvents)
 }
 
 func parseBitbucket(r *http.Request, secret *corev1.Secret) (interface{}, error) {
-	opts := []bitbucket.Option{}
+	var hook *bitbucket.Webhook
+	var err error
+
 	if secret != nil {
-		value, error := getValue(*secret, bitbucketKey)
-		if error != nil {
-			return nil, error
+		var value string
+		value, err = getValue(secret, bitbucketKey)
+		if err != nil {
+			return nil, err
 		}
-		opts = append(opts, bitbucket.Options.UUID(value))
+		hook, err = bitbucket.New(bitbucket.Options.UUID(value))
+	} else {
+		hook, err = bitbucket.New()
 	}
-	p, err := bitbucket.New(opts...)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return p.Parse(r, bitbucket.RepoPushEvent)
+	return hook.Parse(r, bitbucket.RepoPushEvent)
 }
 
 func parseBitbucketServer(r *http.Request, secret *corev1.Secret) (interface{}, error) {
-	opts := []bitbucketserver.Option{}
+	var hook *bitbucketserver.Webhook
+	var err error
+
 	if secret != nil {
-		value, error := getValue(*secret, bitbucketServerKey)
-		if error != nil {
-			return nil, error
+		var value string
+		value, err = getValue(secret, bitbucketServerKey)
+		if err != nil {
+			return nil, err
 		}
-		opts = append(opts, bitbucketserver.Options.Secret(value))
+		hook, err = bitbucketserver.New(bitbucketserver.Options.Secret(value))
+	} else {
+		hook, err = bitbucketserver.New()
 	}
-	p, err := bitbucketserver.New(opts...)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return p.Parse(r, bitbucketserver.RepositoryReferenceChangedEvent)
+	return hook.Parse(r, bitbucketserver.RepositoryReferenceChangedEvent)
 }
 
 func parseAzureDevops(r *http.Request, secret *corev1.Secret) (interface{}, error) {
-	opts := []azuredevops.Option{}
+	var hook *azuredevops.Webhook
+	var err error
+
 	if secret != nil {
-		username, error := getValue(*secret, azureUsername)
-		if error != nil {
-			return nil, error
+		var username, token string
+		username, err = getValue(secret, azureUsername)
+		if err != nil {
+			return nil, err
 		}
-		password, error := getValue(*secret, azurePassword)
-		if error != nil {
-			return nil, error
+
+		token, err = getValue(secret, azurePassword)
+		if err != nil {
+			return nil, err
 		}
-		opts = append(opts, azuredevops.Options.BasicAuth(username, password))
+
+		hook, err = azuredevops.New(azuredevops.Options.BasicAuth(username, token))
+	} else {
+		hook, err = azuredevops.New()
 	}
-	p, err := azuredevops.New(opts...)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return p.Parse(r, azuredevops.GitPushEventType)
+	return hook.Parse(r, azuredevops.GitPushEventType)
 }

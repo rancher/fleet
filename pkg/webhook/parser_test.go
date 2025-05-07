@@ -214,8 +214,8 @@ func TestParseGithub(t *testing.T) {
 				}
 			}`),
 			headers: map[string]string{
-				"X-GitHub-Event":  "push",
-				"X-Hub-Signature": "sha1=dba820f85951e0f100549aa167ef67dcd989ca4a",
+				"X-GitHub-Event":      "push",
+				"X-Hub-Signature-256": "sha256=972ad6d669550ee03434bed5e7aae64b3c94dd9ce4c7eba04dad840ac7a8c6bd",
 			},
 			wantErr:      false,
 			wantNilEvent: false,
@@ -235,8 +235,8 @@ func TestParseGithub(t *testing.T) {
 				}
 			}`),
 			headers: map[string]string{
-				"X-GitHub-Event":  "push",
-				"X-Hub-Signature": "sha1=wrongsignature",
+				"X-GitHub-Event":      "push",
+				"X-Hub-Signature-256": "sha256=wrongsignature",
 			},
 			wantErr:      true,
 			wantErrMsg:   "HMAC verification failed",

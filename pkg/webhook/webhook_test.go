@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -357,11 +357,12 @@ func TestGitHubWrongSecret(t *testing.T) {
 		t.Fatalf("Failed to create HTTP request: %v", err)
 	}
 	req.Header.Set("X-Github-Event", "push")
-	// calculate the value to store in the X-Hub-Signature header
-	mac := hmac.New(sha1.New, []byte("supersecretvalue"))
-	_, _ = mac.Write(jsonBody)
-	expectedMAC := hex.EncodeToString(mac.Sum(nil))
-	req.Header.Set("X-Hub-Signature", fmt.Sprintf("sha1=%s", expectedMAC))
+
+	// calculate the value to store in the X-Hub-Signature-256 header
+	mac256 := hmac.New(sha256.New, []byte("supersecretvalue"))
+	mac256.Write(jsonBody)
+	sha256Signature := hex.EncodeToString(mac256.Sum(nil))
+	req.Header.Set("X-Hub-Signature-256", fmt.Sprintf("sha256=%s", sha256Signature))
 
 	// request execution
 	rr := httptest.NewRecorder()
@@ -637,11 +638,12 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 			t.Fatalf("Failed to create HTTP request: %v", err)
 		}
 		req.Header.Set("X-Github-Event", "push")
-		// calculate the value to store in the X-Hub-Signature header
-		mac := hmac.New(sha1.New, []byte(tt.secretValueInRequest))
-		_, _ = mac.Write(jsonBody)
-		expectedMAC := hex.EncodeToString(mac.Sum(nil))
-		req.Header.Set("X-Hub-Signature", fmt.Sprintf("sha1=%s", expectedMAC))
+
+		// calculate the value to store in the X-Hub-Signature-256 header
+		mac256 := hmac.New(sha256.New, []byte(tt.secretValueInRequest))
+		_, _ = mac256.Write(jsonBody)
+		expectedMAC256 := hex.EncodeToString(mac256.Sum(nil))
+		req.Header.Set("X-Hub-Signature-256", fmt.Sprintf("sha256=%s", expectedMAC256))
 
 		// request execution
 		rr := httptest.NewRecorder()
