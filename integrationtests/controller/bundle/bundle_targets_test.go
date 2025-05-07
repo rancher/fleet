@@ -40,6 +40,7 @@ var _ = Describe("Bundle targets", Ordered, func() {
 		bundleName                        string
 		bdLabels                          map[string]string
 		expectedNumberOfBundleDeployments int
+		bundle                            *v1alpha1.Bundle
 	)
 
 	loadValues := func(bd v1alpha1.BundleDeployment) (map[string]any, map[string]any) {
@@ -61,7 +62,8 @@ var _ = Describe("Bundle targets", Ordered, func() {
 	}
 
 	JustBeforeEach(func() {
-		bundle, err := utils.CreateBundle(ctx, k8sClient, bundleName, namespace, targets, targetRestrictions)
+		var err error
+		bundle, err = utils.CreateBundle(ctx, k8sClient, bundleName, namespace, targets, targetRestrictions)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bundle).To(Not(BeNil()))
 	})
@@ -108,6 +110,39 @@ var _ = Describe("Bundle targets", Ordered, func() {
 				Expect(apierrors.IsNotFound(err)).To(BeTrue())
 
 			}
+		})
+	})
+
+	When("a GitRepo targets are updated", func() {
+		BeforeEach(func() {
+			bundleName = "all-then-one"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": namespace,
+			}
+			expectedNumberOfBundleDeployments = 3
+			// simulate targets in GitRepo. All targets in GitRepo are also added to targetRestrictions, which acts as a white list
+			targets = []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "all",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targets))
+			copy(targetRestrictions, targets)
+		})
+
+		It("deletes orphaned BundleDeployments ", func() {
+			verifyBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName)
+
+			By("modifying the Bundle's targets spec")
+			mod := bundle.DeepCopy()
+			mod.Spec.Targets = []v1alpha1.BundleTarget{
+				{ClusterName: "one"},
+			}
+			err := k8sClient.Patch(ctx, mod, client.MergeFrom(bundle))
+			Expect(err).NotTo(HaveOccurred())
+
+			verifyBundlesDeploymentsAreCreated(1, bdLabels, bundleName)
 		})
 	})
 
