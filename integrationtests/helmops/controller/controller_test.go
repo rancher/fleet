@@ -85,15 +85,6 @@ func randString() string {
 	return string(b)
 }
 
-func randStringSlice() []string {
-	n := rand.Intn(maxLabelsLength)
-	r := make([]string, n)
-	for i := range r {
-		r[i] = randString()
-	}
-	return r
-}
-
 func randInterfaceMap() map[string]interface{} {
 	nbItems := rand.Intn(maxLabelsLength)
 	items := make(map[string]interface{})
@@ -127,7 +118,6 @@ func randHelmOptions() *fleet.HelmOptions {
 		Force:                   randBool(),
 		TakeOwnership:           randBool(),
 		MaxHistory:              rand.Intn(4),
-		ValuesFiles:             randStringSlice(),
 		WaitForJobs:             randBool(),
 		Atomic:                  randBool(),
 		DisablePreProcess:       randBool(),

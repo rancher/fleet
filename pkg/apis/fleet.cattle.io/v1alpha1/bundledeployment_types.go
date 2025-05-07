@@ -195,6 +195,8 @@ type KustomizeOptions struct {
 // used, otherwise some options are ignored. For example ReleaseName works with
 // all bundle types.
 type HelmOptions struct {
+	GitOpsHelmOptions `json:",inline"`
+
 	// Chart can refer to any go-getter URL or OCI registry based helm
 	// chart URL. The chart will be downloaded.
 	// +nullable
@@ -246,10 +248,6 @@ type HelmOptions struct {
 	// MaxHistory limits the maximum number of revisions saved per release by Helm.
 	MaxHistory int `json:"maxHistory,omitempty"`
 
-	// ValuesFiles is a list of files to load values from.
-	// +nullable
-	ValuesFiles []string `json:"valuesFiles,omitempty"`
-
 	// WaitForJobs if set and timeoutSeconds provided, will wait until all
 	// Jobs have been completed before marking the GitRepo as ready. It
 	// will wait for as long as timeoutSeconds
@@ -269,6 +267,13 @@ type HelmOptions struct {
 
 	// DisableDependencyUpdate allows skipping chart dependencies update
 	DisableDependencyUpdate bool `json:"disableDependencyUpdate,omitempty"`
+}
+
+// GitOpsHelmOptions contains Helm options which only make sense for GitOps.
+type GitOpsHelmOptions struct {
+	// ValuesFiles is a list of files to load values from.
+	// +nullable
+	ValuesFiles []string `json:"valuesFiles,omitempty"`
 }
 
 // IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
