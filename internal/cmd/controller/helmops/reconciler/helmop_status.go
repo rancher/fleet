@@ -105,7 +105,7 @@ func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	err = r.Client.Status().Update(ctx, helmop)
 	if err != nil {
-		logger.Error(err, "Reconcile failed update to helm app status", "status", helmop.Status)
+		logger.Error(err, "Reconcile failed update to HelmOp status", "status", helmop.Status)
 		return ctrl.Result{RequeueAfter: durations.HelmOpStatusDelay}, nil
 	}
 

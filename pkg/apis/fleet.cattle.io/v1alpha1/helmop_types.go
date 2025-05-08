@@ -14,6 +14,9 @@ var (
 
 const (
 	HelmOpAcceptedCondition = "Accepted"
+
+	// SecretTypeHelmOpsAccess is the secret type used to access Helm registries for HelmOps bundles.
+	SecretTypeHelmOpsAccess = "fleet.cattle.io/bundle-helmops-access/v1alpha1"
 )
 
 // +genclient
