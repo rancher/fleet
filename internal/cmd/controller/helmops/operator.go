@@ -99,7 +99,10 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	sched := quartz.NewStdScheduler()
+	sched, err := quartz.NewStdScheduler()
+	if err != nil {
+		return fmt.Errorf("failed to create scheduler: %w", err)
+	}
 
 	var workers int
 	if d := os.Getenv("HELMOPS_RECONCILER_WORKERS"); d != "" {
