@@ -48,18 +48,25 @@ const (
 
 func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v1alpha1.GitRepo, logger logr.Logger) error {
 	logger.V(1).Info("Creating Git job resources")
+
 	if err := r.createJobRBAC(ctx, gitrepo); err != nil {
+		gitjobsCreatedFailure.Inc(gitrepo)
 		return fmt.Errorf("failed to create RBAC resources for git job: %w", err)
 	}
 	if err := r.createTargetsConfigMap(ctx, gitrepo); err != nil {
+		gitjobsCreatedFailure.Inc(gitrepo)
 		return fmt.Errorf("failed to create targets config map for git job: %w", err)
 	}
 	if _, err := r.createCABundleSecret(ctx, gitrepo, caBundleName(gitrepo)); err != nil {
+		gitjobsCreatedFailure.Inc(gitrepo)
 		return fmt.Errorf("failed to create cabundle secret for git job: %w", err)
 	}
 	if err := r.createJob(ctx, gitrepo); err != nil {
+		gitjobsCreatedFailure.Inc(gitrepo)
 		return fmt.Errorf("error creating git job: %w", err)
 	}
+
+	gitjobsCreatedSuccess.Inc(gitrepo)
 	r.Recorder.Event(gitrepo, fleetevent.Normal, "Created", "GitJob was created")
 	return nil
 }

@@ -51,7 +51,7 @@ func start(
 		metricServerOptions = metricsserver.Options{BindAddress: "0"}
 	} else {
 		metricServerOptions = metricsserver.Options{BindAddress: bindAddresses.Metrics}
-		metrics.RegisterMetrics() // enable fleet related metrics
+		metrics.RegisterMetrics()
 	}
 
 	var leaderElectionSuffix string

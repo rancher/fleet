@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -26,29 +27,36 @@ var (
 		fleet.WaitApplied,
 		fleet.ErrApplied,
 	}
-	enabled = false
+
+	objMetrics = []prometheus.Collector{}
 )
 
-func RegisterMetrics() {
-	enabled = true
+func registerObjMetrics() {
+	for _, metric := range objMetrics {
+		metrics.Registry.MustRegister(metric)
+	}
+}
 
+func RegisterMetrics() {
 	GitRepoCollector.Register()
 	ClusterCollector.Register()
 	ClusterGroupCollector.Register()
 	BundleCollector.Register()
 	BundleDeploymentCollector.Register()
+
+	registerObjMetrics()
 }
 
 func RegisterGitOptsMetrics() {
-	enabled = true
-
 	GitRepoCollector.Register()
+
+	registerObjMetrics()
 }
 
 func RegisterHelmOpsMetrics() {
-	enabled = true
-
 	HelmCollector.Register()
+
+	registerObjMetrics()
 }
 
 // CollectorCollection implements the generic methods `Delete` and `Register`
@@ -69,9 +77,6 @@ type CollectorCollection struct {
 // old one around. Metrics are deleted by their name and namespace label values.
 func (c *CollectorCollection) Collect(ctx context.Context, obj metav1.ObjectMetaAccessor) {
 	logger := log.FromContext(ctx).WithName("metrics")
-	if !enabled {
-		return
-	}
 	defer func() {
 		if r := recover(); r != nil {
 			msg, ok := r.(string)
@@ -208,4 +213,96 @@ func getStatusMetrics(subsystem string, labels []string) map[string]prometheus.C
 			labels,
 		),
 	}
+}
+
+// ObjCounter creates and registers a new CounterVec metric with the given name and help
+// text. The returned CounterVec embeds the CounterVec from the prometheus package and adds a method
+// to increment the counter for a given object. The labels of the metric are determined from the
+// name and the namespace of the given object.
+func ObjCounter(name, help string) (c ObjCounterVec) {
+	labels := []string{"name", "namespace"}
+
+	counterVec := promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: metricPrefix,
+			Name:      name,
+			Help:      help,
+		},
+		labels,
+	)
+
+	objMetrics = append(objMetrics, counterVec)
+
+	return ObjCounterVec{
+		counterVec: counterVec,
+		labels:     labels,
+	}
+}
+
+// ObjCounterVec is a wrapper around prometheus.CounterVec that adds a method to increment the
+// counter for a given metav1 object. The labels of the metric are determined from the name and the
+type ObjCounterVec struct {
+	counterVec *prometheus.CounterVec
+	labels     []string
+}
+
+func (m *ObjCounterVec) Inc(obj metav1.Object) {
+	m.counterVec.WithLabelValues(obj.GetName(), obj.GetNamespace()).Inc()
+}
+
+var BucketsLatency = []float64{.1, .2, .5, 1, 2, 5, 10, 30}
+
+func ObjHistogram(name, help string, buckets []float64) (h ObjHistogramVec) {
+	histogram := promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: metricPrefix,
+			Name:      name,
+			Help:      help,
+			Buckets:   buckets,
+		},
+		[]string{"name", "namespace"},
+	)
+
+	objMetrics = append(objMetrics, histogram)
+
+	return ObjHistogramVec{
+		histogram: histogram,
+		labels:    []string{"name", "namespace"},
+	}
+}
+
+type ObjHistogramVec struct {
+	histogram *prometheus.HistogramVec
+	labels    []string
+}
+
+func (m *ObjHistogramVec) Observe(obj metav1.Object, value float64) {
+	m.histogram.WithLabelValues(obj.GetName(), obj.GetNamespace()).Observe(value)
+}
+
+func ObjGauge(name, help string) (g ObjGaugeVec) {
+	gauge := promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: metricPrefix,
+			Name:      name,
+			Help:      help,
+		},
+		[]string{"name", "namespace"},
+	)
+
+	objMetrics = append(objMetrics, gauge)
+
+	return ObjGaugeVec{
+		gauge:  gauge,
+		labels: []string{"name", "namespace"},
+	}
+}
+
+type ObjGaugeVec struct {
+	gauge  *prometheus.GaugeVec
+	labels []string
+}
+
+func (m *ObjGaugeVec) Set(obj metav1.Object, value float64) {
+	m.gauge.WithLabelValues(obj.GetName(), obj.GetNamespace()).Set(value)
 }
