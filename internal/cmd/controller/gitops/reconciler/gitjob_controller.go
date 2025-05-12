@@ -55,8 +55,9 @@ const (
 )
 
 var (
+	zero = int32(0)
+
 	GitJobDurationBuckets = []float64{1, 2, 5, 10, 30, 60, 180, 300, 600, 1200, 1800, 3600}
-	zero                  = int32(0)
 	gitjobsCreatedSuccess = metrics.ObjCounter(
 		"gitjobs_created_success_total",
 		"Total number of failed git job creations",
@@ -156,7 +157,15 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !apierrors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if apierrors.IsNotFound(err) {
-		logger.V(1).Info("Gitrepo deleted, cleaning up poll jobs")
+		gitjobsCreatedSuccess.Delete(gitrepo)
+		gitjobsCreatedFailure.Delete(gitrepo)
+		gitjobDurationGauge.Delete(gitrepo)
+		gitjobDuration.Delete(gitrepo)
+		fetchLatestCommitSuccess.Delete(gitrepo)
+		fetchLatestCommitFailure.Delete(gitrepo)
+		timeToFetchLatestCommit.Delete(gitrepo)
+
+		logger.V(1).Info("Gitrepo deleted, cleaning up pull jobs")
 		return ctrl.Result{}, nil
 	}
 
