@@ -30,7 +30,7 @@ env:
 
 jobs:
   create-rancher-pr:
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4

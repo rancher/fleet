@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   updatecli:
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     if: github.ref == 'refs/heads/main'
     steps:
