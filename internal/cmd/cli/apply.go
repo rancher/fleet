@@ -10,9 +10,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/rancher/fleet/internal/bundlereader"
-	"github.com/rancher/fleet/internal/client"
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
@@ -74,7 +74,7 @@ func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := r.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to set up debug logging: %w", err)
 	}
-	Client = client.NewGetter(r.Kubeconfig, r.Context, r.Namespace)
+
 	return nil
 }
 
@@ -110,6 +110,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	name := ""
 	opts := apply.Options{
+		Namespace:                   a.Namespace,
 		BundleFile:                  a.BundleFile,
 		Output:                      writer.NewDefaultNone(a.Output),
 		Compress:                    a.Compress,
@@ -174,10 +175,16 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	defer restoreEnv() // nolint: errcheck // best-effort
 
-	if opts.DrivenScan {
-		return apply.CreateBundlesDriven(cmd.Context(), Client, name, args, opts)
+	ctx := cmd.Context()
+	cfg := ctrl.GetConfigOrDie()
+	client, _, err := newClient(ctx, cfg, a.Namespace)
+	if err != nil {
+		return err
 	}
-	return apply.CreateBundles(cmd.Context(), Client, name, args, opts)
+	if opts.DrivenScan {
+		return apply.CreateBundlesDriven(ctx, client, name, args, opts)
+	}
+	return apply.CreateBundles(ctx, client, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile

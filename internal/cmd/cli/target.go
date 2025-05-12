@@ -21,6 +21,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -96,7 +97,7 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg := ctrl.GetConfigOrDie()
-	client, reader, err := newClient(ctx, cfg)
+	client, reader, err := newClient(ctx, cfg, "")
 	if err != nil {
 		return err
 	}
@@ -179,11 +180,25 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newClient(ctx context.Context, config *rest.Config) (client.Client, client.Reader, error) {
+func getCacheOptions(namespace string) cache.Options {
+	if namespace != "" {
+		return cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				namespace: {},
+			},
+		}
+	}
+
+	return cache.Options{}
+}
+
+func newClient(ctx context.Context, config *rest.Config, namespace string) (client.Client, client.Reader, error) {
 	cluster, err := cluster.New(config, func(clusterOptions *cluster.Options) {
 		clusterOptions.Scheme = scheme
 		clusterOptions.Logger = log.FromContext(ctx)
+		clusterOptions.Cache = getCacheOptions(namespace)
 	})
+
 	if err != nil {
 		return nil, nil, err
 	}
