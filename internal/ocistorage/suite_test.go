@@ -1,4 +1,4 @@
-package ociwrapper_test
+package ocistorage_test
 
 import (
 	"testing"
