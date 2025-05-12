@@ -54,6 +54,9 @@ jobs:
           api-key: ${{ env.FOSSA_API_KEY }}
           run-tests: false
 
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+
       - name: Check for code changes
         continue-on-error: ${{ contains(github.ref, 'rc') }}
         run: |
