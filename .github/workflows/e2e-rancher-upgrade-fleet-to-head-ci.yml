@@ -24,7 +24,7 @@ env:
 
 jobs:
   rancher-fleet-integration:
-    runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     steps:
       -
