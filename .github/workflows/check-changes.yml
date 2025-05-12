@@ -25,6 +25,8 @@ jobs:
       -
         name: go.mod
         run: ./.github/scripts/check-for-go-mod-changes.sh
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
       -
         name: generate.go
         run: ./.github/scripts/check-for-auto-generated-changes.sh
