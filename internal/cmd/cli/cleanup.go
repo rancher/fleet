@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -119,7 +120,7 @@ func (a *ClusterRegistration) Run(cmd *cobra.Command, args []string) error {
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	cfg := ctrl.GetConfigOrDie()
-	client, _, err := newClient(ctx, cfg, "")
+	client, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err
 	}
@@ -151,7 +152,7 @@ func (r *Gitjob) Run(cmd *cobra.Command, args []string) error {
 	ctx := log.IntoContext(cmd.Context(), ctrl.Log)
 
 	cfg := ctrl.GetConfigOrDie()
-	client, _, err := newClient(ctx, cfg, "")
+	client, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err
 	}

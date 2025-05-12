@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	command "github.com/rancher/fleet/internal/cmd"
@@ -177,7 +178,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	ctx := cmd.Context()
 	cfg := ctrl.GetConfigOrDie()
-	client, _, err := newClient(ctx, cfg, a.Namespace)
+	client, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err
 	}
