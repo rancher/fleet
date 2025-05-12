@@ -68,7 +68,7 @@ func (r *GitJobReconciler) createOrUpdateRole(ctx context.Context, gitRepo *v1al
 				Resources: []string{"gitrepos"},
 			},
 			{
-				Verbs:     []string{"get", "create", "update", "list", "delete"},
+				Verbs:     []string{"get", "create", "update", "delete"},
 				APIGroups: []string{""},
 				Resources: []string{"secrets"},
 			},
