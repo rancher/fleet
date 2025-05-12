@@ -26,15 +26,13 @@ jobs:
           export PATH=$PATH:/home/runner/go/bin/
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v4.0.0
+        uses: golangci/golangci-lint-action@v6.1.1
         with:
           # Required: the version of golangci-lint is required and must be specified without patch version: we always use the latest patch version.
-          version: v1.57.2
+          version: v1.60.3
 
           args: --timeout=10m --config=.golangci.json
 
           # Optional: show only new issues if it's a pull request. The default value is `false`.
           # The condition sets this to true for PR events.
           only-new-issues: "${{ github.event_name == 'pull_request'}}"
-
-          skip-pkg-cache: true
