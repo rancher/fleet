@@ -11,7 +11,7 @@ KUBEBUILDER_ASSETS=$(setup-envtest use --use-env -p path "$ENVTEST_K8S_VERSION")
 export KUBEBUILDER_ASSETS
 
 # Group 2: Run everything else - this will automatically include newly added directories
-find ./integrationtests -type d -not -path './integrationtests' -not -path '*/.git*' \
+find ./integrationtests -type d -not -path '*/.git*' \
   -not -path './integrationtests/agent*' \
   -not -path './integrationtests/bundlereader*' \
   -not -path './integrationtests/cli*' \
