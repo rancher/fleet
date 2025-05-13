@@ -41,12 +41,47 @@ jobs:
       -
         name: unit-test
         run: go test -shuffle=on $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
+
+  integration-tests-group1:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+      -
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
       -
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
-        name: integration-tests
+        name: integration-tests-group1
         env:
           SETUP_ENVTEST_VER: v0.0.0-20250218120612-6f6111124902
           ENVTEST_K8S_VERSION: 1.32
-        run: ./.github/scripts/run-integration-tests.sh
+        run: ./.github/scripts/run-integration-tests-group1.sh
+
+  integration-tests-group2:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+      -
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+      -
+        name: Install Ginkgo CLI
+        run: go install github.com/onsi/ginkgo/v2/ginkgo
+      -
+        name: integration-tests-group2
+        env:
+          SETUP_ENVTEST_VER: v0.0.0-20250218120612-6f6111124902
+          ENVTEST_K8S_VERSION: 1.32
+        run: ./.github/scripts/run-integration-tests-group2.sh
