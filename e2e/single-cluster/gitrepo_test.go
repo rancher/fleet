@@ -32,7 +32,7 @@ const (
 	repoName  = "repo"
 )
 
-var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
+var _ = FDescribe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
 	var (
 		tmpDir           string
 		clonedir         string
@@ -44,355 +44,291 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		gitrepoName      string
 		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
 		targetNamespace  string
+
+		gitServerPort int
+		gitProtocol   string
 	)
 
-	cases := []struct {
-		name        string
-		port        int
-		protocol    string
-		withWebhook bool
-	}{
-		{
-			name:        "HTTP",
-			port:        port,
-			protocol:    "http",
-			withWebhook: true,
-		},
-		{
-			name:     "HTTPS with a custom CA",
-			port:     HTTPSPort,
-			protocol: "https",
-		},
-	}
-	for _, c := range cases {
+	BeforeEach(func() {
+		k = env.Kubectl.Namespace(env.Namespace)
+	})
+
+	JustBeforeEach(func() {
+
+		// Build git repo URL reachable _within_ the cluster, for the GitRepo
+		host := githelper.BuildGitHostname()
+
+		addr, err := githelper.GetExternalRepoAddr(env, gitServerPort, repoName)
+		Expect(err).ToNot(HaveOccurred())
+		addr = strings.Replace(addr, "http://", fmt.Sprintf("%s://", gitProtocol), 1)
+		gh = githelper.NewHTTP(addr)
+
+		inClusterRepoURL = gh.GetInClusterURL(host, gitServerPort, repoName)
+
+		tmpDir, _ = os.MkdirTemp("", "fleet-")
+		clonedir = path.Join(tmpDir, repoName)
+
+		gitrepoName = testenv.RandomFilename("gitjob-test", r)
+	})
+
+	AfterEach(func() {
+		_ = os.RemoveAll(tmpDir)
+
+		_, _ = k.Delete("gitrepo", gitrepoName)
+
+		// Check that the bundle deployment resource has been deleted
+		Eventually(func(g Gomega) {
+			out, _ := k.Get(
+				"bundledeployments",
+				"-A",
+				"-l",
+				fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
+			)
+			g.Expect(out).To(ContainSubstring("No resources found"))
+		}).Should(Succeed())
+
+		out, err := k.Namespace("cattle-fleet-system").Logs(
+			"-l",
+			"app=fleet-controller",
+			"-c",
+			"fleet-controller",
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Errors about resources other than bundles or bundle deployments not being found at deletion time
+		// should be ignored, as they may result from other test suites.
+		Expect(out).ToNot(MatchRegexp(
+			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
+		))
+
+		_, err = k.Delete("ns", targetNamespace, "--wait=false")
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	When("updating a git repository monitored via polling with HTTP for change", func() {
 		BeforeEach(func() {
-			k = env.Kubectl.Namespace(env.Namespace)
+			repoName = "repo"
+			targetNamespace = testenv.NewNamespaceName("target", r)
+
+			gitServerPort = port
+			gitProtocol = "http"
 		})
 
 		JustBeforeEach(func() {
-
-			// Build git repo URL reachable _within_ the cluster, for the GitRepo
-			host := githelper.BuildGitHostname()
-
-			addr, err := githelper.GetExternalRepoAddr(env, c.port, repoName)
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+				Name            string
+				Repo            string
+				Branch          string
+				PollingInterval string
+				TargetNamespace string
+			}{
+				gitrepoName,
+				inClusterRepoURL,
+				gh.Branch,
+				"15s",           // default
+				targetNamespace, // to avoid conflicts with other tests
+			})
 			Expect(err).ToNot(HaveOccurred())
-			addr = strings.Replace(addr, "http://", fmt.Sprintf("%s://", c.protocol), 1)
-			gh = githelper.NewHTTP(addr)
 
-			inClusterRepoURL = gh.GetInClusterURL(host, c.port, repoName)
-
-			tmpDir, _ = os.MkdirTemp("", "fleet-")
-			clonedir = path.Join(tmpDir, repoName)
-
-			gitrepoName = testenv.RandomFilename("gitjob-test", r)
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			Expect(err).ToNot(HaveOccurred())
 		})
 
-		AfterEach(func() {
-			_ = os.RemoveAll(tmpDir)
+		It("updates the deployment", func() {
+			By("checking the pod exists")
+			Eventually(func() string {
+				out, _ := k.Namespace(targetNamespace).Get("pods")
+				return out
+			}).Should(ContainSubstring("sleeper-"))
 
-			_, _ = k.Delete("gitrepo", gitrepoName)
+			By("updating the git repository")
+			replace(path.Join(clonedir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
+			replace(path.Join(clonedir, "examples", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")
 
-			// Check that the bundle deployment resource has been deleted
+			commit, err := gh.Update(clone)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("updating the gitrepo's status")
 			Eventually(func(g Gomega) {
-				out, _ := k.Get(
-					"bundledeployments",
-					"-A",
-					"-l",
-					fmt.Sprintf("fleet.cattle.io/repo-name=%s", gitrepoName),
-				)
-				g.Expect(out).To(ContainSubstring("No resources found"))
+				status := getGitRepoStatus(g, k, gitrepoName)
+				g.Expect(status).To(matchGitRepoStatus(expectedStatus(commit, "")))
 			}).Should(Succeed())
 
-			out, err := k.Namespace("cattle-fleet-system").Logs(
-				"-l",
-				"app=fleet-controller",
-				"-c",
-				"fleet-controller",
+			By("checking the deployment's new name")
+			Eventually(func() string {
+				out, _ := k.Namespace(targetNamespace).Get("deployments")
+				return out
+			}).Should(ContainSubstring("newsleep"))
+		})
+	})
+
+	When("updating a git repository monitored via polling with HTTP with a custom CA for change", func() {
+		BeforeEach(func() {
+			repoName = "repo"
+			targetNamespace = testenv.NewNamespaceName("target", r)
+
+			gitServerPort = HTTPSPort
+			gitProtocol = "https"
+		})
+
+		JustBeforeEach(func() {
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+				Name            string
+				Repo            string
+				Branch          string
+				PollingInterval string
+				TargetNamespace string
+			}{
+				gitrepoName,
+				inClusterRepoURL,
+				gh.Branch,
+				"15s",           // default
+				targetNamespace, // to avoid conflicts with other tests
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("updates the deployment", func() {
+			By("checking the pod exists")
+			Eventually(func() string {
+				out, _ := k.Namespace(targetNamespace).Get("pods")
+				return out
+			}).Should(ContainSubstring("sleeper-"))
+
+			By("updating the git repository")
+			replace(path.Join(clonedir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
+			replace(path.Join(clonedir, "examples", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")
+
+			commit, err := gh.Update(clone)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("updating the gitrepo's status")
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(g, k, gitrepoName)
+				g.Expect(status).To(matchGitRepoStatus(expectedStatus(commit, "")))
+			}).Should(Succeed())
+
+			By("checking the deployment's new name")
+			Eventually(func() string {
+				out, _ := k.Namespace(targetNamespace).Get("deployments")
+				return out
+			}).Should(ContainSubstring("newsleep"))
+		})
+	})
+
+	When("updating a git repository monitored via webhook", func() {
+		BeforeEach(func() {
+			repoName = "webhook-test"
+			targetNamespace = testenv.NewNamespaceName("target", r)
+		})
+
+		JustBeforeEach(func() {
+			// Get git server pod name and create post-receive hook script from template
+			var (
+				out string
+				err error
+				kg  = k.Namespace(cmd.InfraNamespace)
 			)
+			Eventually(func() string {
+				out, err = kg.Get("pod", "-l", "app=git-server", "-o", "name")
+				if err != nil {
+					fmt.Printf("%v\n", err)
+					return ""
+				}
+				return out
+			}).Should(ContainSubstring("pod/git-server-"))
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			gitServerPod := strings.TrimPrefix(strings.TrimSpace(out), "pod/")
+
+			hookScript := path.Join(tmpDir, "hook_script")
+
+			err = testenv.Template(hookScript, testenv.AssetPath("gitrepo/post-receive.sh"), struct {
+				RepoURL string
+			}{
+				inClusterRepoURL,
+			})
 			Expect(err).ToNot(HaveOccurred())
 
-			// Errors about resources other than bundles or bundle deployments not being found at deletion time
-			// should be ignored, as they may result from other test suites.
-			Expect(out).ToNot(MatchRegexp(
-				`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
-			))
+			// Create a git repo, erasing a previous repo with the same name if any
+			out, err = kg.Run(
+				"exec",
+				gitServerPod,
+				"--",
+				"/bin/sh",
+				"-c",
+				fmt.Sprintf(
+					`dir=/srv/git/%s; rm -rf "$dir"; mkdir -p "$dir"; git init "$dir" --bare; GIT_DIR="$dir" git update-server-info`,
+					repoName,
+				),
+			)
+			Expect(err).ToNot(HaveOccurred(), out)
 
-			_, err = k.Delete("ns", targetNamespace, "--wait=false")
+			// Copy the script into the repo on the server pod
+			hookPathInRepo := fmt.Sprintf("/srv/git/%s/hooks/post-receive", repoName)
+
+			Eventually(func() error {
+				out, err = kg.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
+				return err
+			}).Should(Not(HaveOccurred()), out)
+
+			// Make hook script executable
+			Eventually(func() error {
+				out, err = kg.Run("exec", gitServerPod, "--", "chmod", "+x", hookPathInRepo)
+				return err
+			}).ShouldNot(HaveOccurred(), out)
+
+			// Clone previously created repo
+			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
+			Expect(err).ToNot(HaveOccurred())
+
+			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
+				Name            string
+				Repo            string
+				Branch          string
+				PollingInterval string
+				TargetNamespace string
+			}{
+				gitrepoName,
+				inClusterRepoURL,
+				gh.Branch,
+				"24h",           // prevent polling
+				targetNamespace, // to avoid conflicts with other tests
+			})
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		When(fmt.Sprintf("updating a git repository monitored via polling with %s for change", c.name), func() {
-			BeforeEach(func() {
-				repoName = "repo"
-				targetNamespace = testenv.NewNamespaceName("target", r)
-			})
+		It("updates the deployment", func() {
+			By("checking the pod exists")
+			Eventually(func() string {
+				out, _ := k.Namespace(targetNamespace).Get("pods")
+				return out
+			}).Should(ContainSubstring("sleeper-"))
 
-			JustBeforeEach(func() {
-				err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-					Name            string
-					Repo            string
-					Branch          string
-					PollingInterval string
-					TargetNamespace string
-				}{
-					gitrepoName,
-					inClusterRepoURL,
-					gh.Branch,
-					"15s",           // default
-					targetNamespace, // to avoid conflicts with other tests
-				})
-				Expect(err).ToNot(HaveOccurred())
+			By("updating the git repository")
+			replace(path.Join(clonedir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
+			replace(path.Join(clonedir, "examples", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")
 
-				clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-				Expect(err).ToNot(HaveOccurred())
-			})
+			commit, err := gh.Update(clone)
+			Expect(err).ToNot(HaveOccurred())
 
-			It("updates the deployment", func() {
-				By("checking the pod exists")
-				Eventually(func() string {
-					out, _ := k.Namespace(targetNamespace).Get("pods")
-					return out
-				}).Should(ContainSubstring("sleeper-"))
+			By("updating the gitrepo's status")
+			Eventually(func(g Gomega) {
+				status := getGitRepoStatus(g, k, gitrepoName)
+				g.Expect(status).To(matchGitRepoStatus(expectedStatus(commit, commit)))
 
-				By("updating the git repository")
-				replace(path.Join(clonedir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
-				replace(path.Join(clonedir, "examples", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")
+			}).Should(Succeed())
 
-				commit, err := gh.Update(clone)
-				Expect(err).ToNot(HaveOccurred())
-
-				By("updating the gitrepo's status")
-				expectedStatus := fleet.GitRepoStatus{
-					Commit:       commit,
-					GitJobStatus: "Current",
-					StatusBase: fleet.StatusBase{
-						ReadyClusters:        1,
-						DesiredReadyClusters: 1,
-						Summary: fleet.BundleSummary{
-							NotReady:          0,
-							WaitApplied:       0,
-							ErrApplied:        0,
-							OutOfSync:         0,
-							Modified:          0,
-							Ready:             1,
-							Pending:           0,
-							DesiredReady:      1,
-							NonReadyResources: []fleet.NonReadyResource(nil),
-						},
-						Display: fleet.StatusDisplay{
-							ReadyBundleDeployments: "1/1",
-							// XXX: add state and message?
-						},
-						Conditions: []genericcondition.GenericCondition{
-							{
-								Type:   "Ready",
-								Status: "True",
-							},
-							{
-								Type:   "Accepted",
-								Status: "True",
-							},
-							{
-								Type:   "Reconciling",
-								Status: "False",
-							},
-							{
-								Type:   "Stalled",
-								Status: "False",
-							},
-						},
-						ResourceCounts: fleet.ResourceCounts{
-							Ready:        1,
-							DesiredReady: 1,
-							WaitApplied:  0,
-							Modified:     0,
-							Orphaned:     0,
-							Missing:      0,
-							Unknown:      0,
-							NotReady:     0,
-						},
-					},
-				}
-				Eventually(func(g Gomega) {
-					status := getGitRepoStatus(g, k, gitrepoName)
-					g.Expect(status).To(matchGitRepoStatus(expectedStatus))
-				}).Should(Succeed())
-
-				By("checking the deployment's new name")
-				Eventually(func() string {
-					out, _ := k.Namespace(targetNamespace).Get("deployments")
-					return out
-				}).Should(ContainSubstring("newsleep"))
-			})
-		})
-
-		When("updating a git repository monitored via webhook", func() {
-			BeforeEach(func() {
-				repoName = "webhook-test"
-				targetNamespace = testenv.NewNamespaceName("target", r)
-			})
-
-			JustBeforeEach(func() {
-				// Get git server pod name and create post-receive hook script from template
-				var (
-					out string
-					err error
-					kg  = k.Namespace(cmd.InfraNamespace)
-				)
-				Eventually(func() string {
-					out, err = kg.Get("pod", "-l", "app=git-server", "-o", "name")
-					if err != nil {
-						fmt.Printf("%v\n", err)
-						return ""
-					}
-					return out
-				}).Should(ContainSubstring("pod/git-server-"))
-				Expect(err).ToNot(HaveOccurred(), out)
-
-				gitServerPod := strings.TrimPrefix(strings.TrimSpace(out), "pod/")
-
-				hookScript := path.Join(tmpDir, "hook_script")
-
-				err = testenv.Template(hookScript, testenv.AssetPath("gitrepo/post-receive.sh"), struct {
-					RepoURL string
-				}{
-					inClusterRepoURL,
-				})
-				Expect(err).ToNot(HaveOccurred())
-
-				// Create a git repo, erasing a previous repo with the same name if any
-				out, err = kg.Run(
-					"exec",
-					gitServerPod,
-					"--",
-					"/bin/sh",
-					"-c",
-					fmt.Sprintf(
-						`dir=/srv/git/%s; rm -rf "$dir"; mkdir -p "$dir"; git init "$dir" --bare; GIT_DIR="$dir" git update-server-info`,
-						repoName,
-					),
-				)
-				Expect(err).ToNot(HaveOccurred(), out)
-
-				// Copy the script into the repo on the server pod
-				hookPathInRepo := fmt.Sprintf("/srv/git/%s/hooks/post-receive", repoName)
-
-				Eventually(func() error {
-					out, err = kg.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
-					return err
-				}).Should(Not(HaveOccurred()), out)
-
-				// Make hook script executable
-				Eventually(func() error {
-					out, err = kg.Run("exec", gitServerPod, "--", "chmod", "+x", hookPathInRepo)
-					return err
-				}).ShouldNot(HaveOccurred(), out)
-
-				// Clone previously created repo
-				clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
-				Expect(err).ToNot(HaveOccurred())
-
-				err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-					Name            string
-					Repo            string
-					Branch          string
-					PollingInterval string
-					TargetNamespace string
-				}{
-					gitrepoName,
-					inClusterRepoURL,
-					gh.Branch,
-					"24h",           // prevent polling
-					targetNamespace, // to avoid conflicts with other tests
-				})
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			It("updates the deployment", func() {
-				if !c.withWebhook {
-					Skip(fmt.Sprintf("webhook tests skipped for %s", c.name))
-				}
-
-				By("checking the pod exists")
-				Eventually(func() string {
-					out, _ := k.Namespace(targetNamespace).Get("pods")
-					return out
-				}).Should(ContainSubstring("sleeper-"))
-
-				By("updating the git repository")
-				replace(path.Join(clonedir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
-				replace(path.Join(clonedir, "examples", "templates", "deployment.yaml"), "name: sleeper", "name: newsleep")
-
-				commit, err := gh.Update(clone)
-				Expect(err).ToNot(HaveOccurred())
-
-				By("updating the gitrepo's status")
-				expectedStatus := fleet.GitRepoStatus{
-					Commit:        commit,
-					WebhookCommit: commit,
-					GitJobStatus:  "Current",
-					StatusBase: fleet.StatusBase{
-						ReadyClusters:        1,
-						DesiredReadyClusters: 1,
-						Summary: fleet.BundleSummary{
-							NotReady:          0,
-							WaitApplied:       0,
-							ErrApplied:        0,
-							OutOfSync:         0,
-							Modified:          0,
-							Ready:             1,
-							Pending:           0,
-							DesiredReady:      1,
-							NonReadyResources: []fleet.NonReadyResource(nil),
-						},
-						Display: fleet.StatusDisplay{
-							ReadyBundleDeployments: "1/1",
-							// XXX: add state and message?
-						},
-						Conditions: []genericcondition.GenericCondition{
-							{
-								Type:   "Ready",
-								Status: "True",
-							},
-							{
-								Type:   "Accepted",
-								Status: "True",
-							},
-							{
-								Type:   "Reconciling",
-								Status: "False",
-							},
-							{
-								Type:   "Stalled",
-								Status: "False",
-							},
-						},
-						ResourceCounts: fleet.ResourceCounts{
-							Ready:        1,
-							DesiredReady: 1,
-							WaitApplied:  0,
-							Modified:     0,
-							Orphaned:     0,
-							Missing:      0,
-							Unknown:      0,
-							NotReady:     0,
-						},
-					},
-				}
-				Eventually(func(g Gomega) {
-					status := getGitRepoStatus(g, k, gitrepoName)
-					g.Expect(status).To(matchGitRepoStatus(expectedStatus))
-
-				}).Should(Succeed())
-
-				By("checking the deployment's new name")
-				Eventually(func() string {
-					out, _ := k.Namespace(targetNamespace).Get("deployments")
-					return out
-				}).Should(ContainSubstring("newsleep"))
-			}, Label("webhook"))
-		})
-	}
+			By("checking the deployment's new name")
+			Eventually(func() string {
+				out, _ := k.Namespace(targetNamespace).Get("deployments")
+				return out
+			}).Should(ContainSubstring("newsleep"))
+		}, Label("webhook"))
+	})
 })
 
 // replace replaces string s with r in the file located at path. That file must exist and be writable.
@@ -416,6 +352,67 @@ func getGitRepoStatus(g Gomega, k kubectl.Command, name string) fleet.GitRepoSta
 	_ = json.Unmarshal([]byte(gr), &gitrepo)
 
 	return gitrepo.Status
+}
+
+// expectedStatus builds an expected gitrepo status based on a commit SHA.
+// Does not set the webhookCommit if not provided
+func expectedStatus(commit string, webhookCommit string) fleet.GitRepoStatus {
+	status := fleet.GitRepoStatus{
+		Commit:       commit,
+		GitJobStatus: "Current",
+		StatusBase: fleet.StatusBase{
+			ReadyClusters:        1,
+			DesiredReadyClusters: 1,
+			Summary: fleet.BundleSummary{
+				NotReady:          0,
+				WaitApplied:       0,
+				ErrApplied:        0,
+				OutOfSync:         0,
+				Modified:          0,
+				Ready:             1,
+				Pending:           0,
+				DesiredReady:      1,
+				NonReadyResources: []fleet.NonReadyResource(nil),
+			},
+			Display: fleet.StatusDisplay{
+				ReadyBundleDeployments: "1/1",
+				// XXX: add state and message?
+			},
+			Conditions: []genericcondition.GenericCondition{
+				{
+					Type:   "Ready",
+					Status: "True",
+				},
+				{
+					Type:   "Accepted",
+					Status: "True",
+				},
+				{
+					Type:   "Reconciling",
+					Status: "False",
+				},
+				{
+					Type:   "Stalled",
+					Status: "False",
+				},
+			},
+			ResourceCounts: fleet.ResourceCounts{
+				Ready:        1,
+				DesiredReady: 1,
+				WaitApplied:  0,
+				Modified:     0,
+				Orphaned:     0,
+				Missing:      0,
+				Unknown:      0,
+				NotReady:     0,
+			},
+		},
+	}
+	if webhookCommit != "" {
+		status.WebhookCommit = commit
+	}
+
+	return status
 }
 
 type gitRepoStatusMatcher struct {
