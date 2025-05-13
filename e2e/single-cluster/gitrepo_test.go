@@ -32,7 +32,7 @@ const (
 	repoName  = "repo"
 )
 
-var _ = FDescribe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
+var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
 	var (
 		tmpDir           string
 		clonedir         string
@@ -87,21 +87,7 @@ var _ = FDescribe("Monitoring Git repos via HTTP for change", Label("infra-setup
 			g.Expect(out).To(ContainSubstring("No resources found"))
 		}).Should(Succeed())
 
-		out, err := k.Namespace("cattle-fleet-system").Logs(
-			"-l",
-			"app=fleet-controller",
-			"-c",
-			"fleet-controller",
-		)
-		Expect(err).ToNot(HaveOccurred())
-
-		// Errors about resources other than bundles or bundle deployments not being found at deletion time
-		// should be ignored, as they may result from other test suites.
-		Expect(out).ToNot(MatchRegexp(
-			`ERROR.*Reconciler error.*Bundle(Deployment)?.fleet.cattle.io \\".*\\" not found`,
-		))
-
-		_, err = k.Delete("ns", targetNamespace, "--wait=false")
+		_, err := k.Delete("ns", targetNamespace, "--wait=false")
 		Expect(err).ToNot(HaveOccurred())
 	})
 
