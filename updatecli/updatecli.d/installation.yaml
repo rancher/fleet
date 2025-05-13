@@ -4,13 +4,13 @@ scms:
   fleet:
     kind: github
     spec:
-      user: fleet-bot
-      email: fleet@suse.de
-      owner: rancher
-      repository: fleet
+      user: '{{ .scm.default.user }}'
+      email: '{{ .scm.default.email }}'
+      owner: '{{ .scm.default.owner }}'
+      repository: '{{ .scm.default.repository }}'
       token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
       username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
-      branch: main
+      branch: '{{ .scm.default.branch }}'
 
 sources:
   fleet:

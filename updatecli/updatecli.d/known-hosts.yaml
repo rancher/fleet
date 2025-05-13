@@ -1,0 +1,61 @@
+name: Update known_hosts config map
+
+scms:
+  fleet:
+    kind: github
+    spec:
+      user: '{{ .scm.default.user }}'
+      email: '{{ .scm.default.email }}'
+      owner: '{{ .scm.default.owner }}'
+      repository: '{{ .scm.default.repository }}'
+      token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
+      username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
+      branch: '{{ .scm.default.branch }}'
+
+      # XXX: could we get this to work with minimal duplication and maintenance effort for _all_ maintained branches
+      # containing the file?
+      # e.g. currently `main`, `release/v0.12`, `release/v0.11`, `release/v0.10`
+
+targets:
+  configMapWithUpdatedEntries:
+    name: 'chore: synchronise config map from new entries'
+    kind: 'shell'
+    scmid: 'fleet'
+    disablesourceinput: true
+    spec:
+      changedif:
+        kind: 'file/checksum'
+        spec:
+          files:
+            - charts/fleet/templates/configmap_known_hosts.yaml
+      command: |
+        providers=(
+            'bitbucket.org'
+            'github.com'
+            'gitlab.com'
+            'ssh.dev.azure.com'
+            'vs-ssh.visualstudio.com'
+        )
+
+        dst=charts/fleet/templates/configmap_known_hosts.yaml
+        echo "apiVersion: v1" > "$dst"
+        echo "kind: ConfigMap" >> "$dst"
+        echo "metadata:" >> "$dst"
+        echo "  name: known-hosts" >> "$dst"
+        echo "data:" >> "$dst"
+        echo "  known_hosts: |" >> "$dst"
+
+        for prov in "${providers[@]}"; do
+            ssh-keyscan "$prov" | grep "^$prov" | sort -b | sed 's/^/    /' >> "$dst"
+        done
+
+actions:
+  default:
+    name: '[updatecli] Update known-hosts config map with new entries'
+    kind: github/pullrequest
+    scmid: fleet
+    spec:
+      automerge: false
+      mergemethod: squash
+      labels:
+        - kind/known-hosts # /!\ label must exist in the repo!
