@@ -161,7 +161,6 @@ func (r *StatusReconciler) updateStatus(ctx context.Context, orig *fleet.GitRepo
 }
 
 func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
-	// sort for resourceKey?
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
 	})

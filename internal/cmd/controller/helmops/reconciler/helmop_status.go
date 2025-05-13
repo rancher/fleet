@@ -113,7 +113,6 @@ func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 func setStatusHelm(list *fleet.BundleDeploymentList, helmop *fleet.HelmOp) error {
-	// sort for resourceKey?
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
 	})

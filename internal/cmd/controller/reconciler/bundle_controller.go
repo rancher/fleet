@@ -256,8 +256,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bundle.Status.OCIReference = url
 	}
 
-	setResourceKey(&bundle.Status, matchedTargets)
-
 	summary.SetReadyConditions(&bundle.Status, "Cluster", bundle.Status.Summary)
 	bundle.Status.ObservedGeneration = bundle.Generation
 

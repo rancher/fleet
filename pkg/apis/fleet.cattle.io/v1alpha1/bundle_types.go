@@ -369,7 +369,7 @@ type BundleStatus struct {
 	Display BundleDisplay `json:"display,omitempty"`
 	// ResourceKey lists resources, which will likely be deployed. The
 	// actual list of resources on a cluster might differ, depending on the
-	// helm chart, value templating, etc..
+	// helm chart, value templating, etc.. (deprecated to reduce bundle size)
 	// +nullable
 	ResourceKey []ResourceKey `json:"resourceKey,omitempty"`
 	// OCIReference is the OCI reference used to store contents, this is
