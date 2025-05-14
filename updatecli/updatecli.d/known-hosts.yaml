@@ -1,0 +1,42 @@
+name: Update known_hosts config map
+
+scms:
+  fleet:
+    kind: github
+    spec:
+      user: '{{ .scm.default.user }}'
+      email: '{{ .scm.default.email }}'
+      owner: '{{ .scm.default.owner }}'
+      repository: '{{ .scm.default.repository }}'
+      token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
+      username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
+      branch: '{{ .scm.default.branch }}'
+
+      # XXX: could we get this to work with minimal duplication and maintenance effort for _all_ maintained branches
+      # containing the file?
+      # e.g. currently `main`, `release/v0.12`, `release/v0.11`, `release/v0.10`
+
+targets:
+  configMapWithUpdatedEntries:
+    name: 'synchronise config map from new entries'
+    kind: 'shell'
+    scmid: 'fleet'
+    disablesourceinput: true
+    spec:
+      changedif:
+        kind: 'file/checksum'
+        spec:
+          files:
+            - charts/fleet/templates/configmap_known_hosts.yaml
+      command: bash .github/scripts/update_known_hosts_configmap.sh
+
+actions:
+  default:
+    name: '[updatecli] Update known-hosts config map with new entries'
+    kind: github/pullrequest
+    scmid: fleet
+    spec:
+      automerge: false
+      mergemethod: squash
+      labels:
+        - kind/known-hosts # /!\ label must exist in the repo!
