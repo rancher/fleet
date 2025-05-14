@@ -61,6 +61,8 @@ type BundleDeploymentList struct {
 }
 
 type BundleDeploymentOptions struct {
+	GitOpsBundleDeploymentOptions `json:",inline"`
+
 	// DefaultNamespace is the namespace to use for resources that do not
 	// specify a namespace. This field is not used to enforce or lock down
 	// the deployment to a specific namespace.
@@ -73,11 +75,6 @@ type BundleDeploymentOptions struct {
 	// +nullable
 	TargetNamespace string `json:"namespace,omitempty"`
 
-	// Kustomize options for the deployment, like the dir containing the
-	// kustomization.yaml file.
-	// +nullable
-	Kustomize *KustomizeOptions `json:"kustomize,omitempty"`
-
 	// Helm options for the deployment, like the chart name, repo and values.
 	// +optional
 	Helm *HelmOptions `json:"helm,omitempty"`
@@ -88,11 +85,6 @@ type BundleDeploymentOptions struct {
 
 	// ForceSyncGeneration is used to force a redeployment
 	ForceSyncGeneration int64 `json:"forceSyncGeneration,omitempty"`
-
-	// YAML options, if using raw YAML these are names that map to
-	// overlays/{name} files that will be used to replace or patch a resource.
-	// +nullable
-	YAML *YAMLOptions `json:"yaml,omitempty"`
 
 	// Diff can be used to ignore the modified state of objects which are amended at runtime.
 	// +nullable
@@ -121,6 +113,19 @@ type BundleDeploymentOptions struct {
 
 	// DeleteCRDResources deletes CRDs. Warning! this will also delete all your Custom Resources.
 	DeleteCRDResources bool `json:"deleteCRDResources,omitempty"`
+}
+
+// GitOpsBundleDeploymentOptions contains options which only make sense for GitOps
+type GitOpsBundleDeploymentOptions struct {
+	// YAML options, if using raw YAML these are names that map to
+	// overlays/{name} files that will be used to replace or patch a resource.
+	// +nullable
+	YAML *YAMLOptions `json:"yaml,omitempty"`
+
+	// Kustomize options for the deployment, like the dir containing the
+	// kustomization.yaml file.
+	// +nullable
+	Kustomize *KustomizeOptions `json:"kustomize,omitempty"`
 }
 
 type DiffOptions struct {
@@ -190,6 +195,8 @@ type KustomizeOptions struct {
 // used, otherwise some options are ignored. For example ReleaseName works with
 // all bundle types.
 type HelmOptions struct {
+	GitOpsHelmOptions `json:",inline"`
+
 	// Chart can refer to any go-getter URL or OCI registry based helm
 	// chart URL. The chart will be downloaded.
 	// +nullable
@@ -241,10 +248,6 @@ type HelmOptions struct {
 	// MaxHistory limits the maximum number of revisions saved per release by Helm.
 	MaxHistory int `json:"maxHistory,omitempty"`
 
-	// ValuesFiles is a list of files to load values from.
-	// +nullable
-	ValuesFiles []string `json:"valuesFiles,omitempty"`
-
 	// WaitForJobs if set and timeoutSeconds provided, will wait until all
 	// Jobs have been completed before marking the GitRepo as ready. It
 	// will wait for as long as timeoutSeconds
@@ -264,6 +267,13 @@ type HelmOptions struct {
 
 	// DisableDependencyUpdate allows skipping chart dependencies update
 	DisableDependencyUpdate bool `json:"disableDependencyUpdate,omitempty"`
+}
+
+// GitOpsHelmOptions contains Helm options which only make sense for GitOps.
+type GitOpsHelmOptions struct {
+	// ValuesFiles is a list of files to load values from.
+	// +nullable
+	ValuesFiles []string `json:"valuesFiles,omitempty"`
 }
 
 // IgnoreOptions defines conditions to be ignored when monitoring the Bundle.
