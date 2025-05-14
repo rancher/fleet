@@ -256,7 +256,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bundle.Status.OCIReference = url
 	}
 
-	setResourceKey(&bundle.Status, matchedTargets)
+	// ResourceKey is deprecated and no longer used by the UI.
+	bundle.Status.ResourceKey = nil
 
 	summary.SetReadyConditions(&bundle.Status, "Cluster", bundle.Status.Summary)
 	bundle.Status.ObservedGeneration = bundle.Generation
