@@ -3049,7 +3049,8 @@ spec:
                     actual list of resources on a cluster might differ, depending
                     on the
 
-                    helm chart, value templating, etc..'
+                    helm chart, value templating, etc.. (deprecated to reduce bundle
+                    size)'
                   items:
                     description: ResourceKey lists resources, which will likely be
                       deployed.
