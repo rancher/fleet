@@ -29,7 +29,8 @@ func (h *Helm) getServiceAccount(ctx context.Context, name string) (string, stri
 		currentName = DefaultServiceAccount
 	}
 	sa := &corev1.ServiceAccount{}
-	err := h.client.Get(ctx, types.NamespacedName{Namespace: h.agentNamespace, Name: currentName}, sa)
+	ns := getServiceAccountNamespace(h.agentNamespace, h.defaultNamespace)
+	err := h.client.Get(ctx, types.NamespacedName{Namespace: ns, Name: currentName}, sa)
 	if apierror.IsNotFound(err) && name == "" {
 		// if we can't find the fleet-default service account, but none
 		// was asked for, use the pods service account instead
@@ -96,4 +97,17 @@ func impersonationConfig(namespace, name string) clientcmdapi.Config {
 		},
 		CurrentContext: "default",
 	}
+}
+
+func getServiceAccountNamespace(agentNamespace, defaultNamespace string) string {
+	if agentNamespace == "" {
+		// Since ServiceAccount is a namespaced resource,
+		// the client rejects the Get request if the agent namespace is not provided with the error:
+		// "an empty namespace may not be set when a resource name is provided".
+		// Use the default namespace to avoid this.
+		// Note: agent namespace is unset in some integration tests.
+		return defaultNamespace
+	}
+
+	return agentNamespace
 }

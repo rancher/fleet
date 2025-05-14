@@ -4,19 +4,9 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/rancher/fleet/internal/client"
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/gitcloner"
 	"github.com/rancher/fleet/pkg/version"
-)
-
-type Getter interface {
-	Get() (*client.Client, error)
-	GetNamespace() string
-}
-
-var (
-	Client Getter
 )
 
 const JSONOutputEnvVar = "FLEET_JSON_OUTPUT"

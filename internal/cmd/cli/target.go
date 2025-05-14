@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -19,10 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/yaml"
@@ -96,12 +93,12 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg := ctrl.GetConfigOrDie()
-	client, reader, err := newClient(ctx, cfg)
+	client, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		return err
 	}
 
-	builder := target.New(client, reader)
+	builder := target.New(client, client)
 	matchedTargets, err := builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
 		return err
@@ -177,23 +174,4 @@ func (t *Target) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-func newClient(ctx context.Context, config *rest.Config) (client.Client, client.Reader, error) {
-	cluster, err := cluster.New(config, func(clusterOptions *cluster.Options) {
-		clusterOptions.Scheme = scheme
-		clusterOptions.Logger = log.FromContext(ctx)
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	go func() {
-		err := cluster.GetCache().Start(ctx)
-		if err != nil {
-			os.Exit(1)
-		}
-	}()
-	cluster.GetCache().WaitForCacheSync(ctx)
-
-	return cluster.GetClient(), cluster.GetAPIReader(), nil
 }
