@@ -10,6 +10,7 @@ import (
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	"github.com/rancher/fleet/internal/cmd/controller/gitops/reconciler"
 )
 
 var _ = Describe("GitOps Metrics", Label("gitops"), func() {
@@ -147,6 +148,53 @@ var _ = Describe("GitOps Metrics", Label("gitops"), func() {
 					g.Expect(err).To(HaveOccurred(), fmt.Sprintf("metric found but expected not to: %q", metricName))
 				}
 			})
+		})
+
+		It("should not keep short-lived metrics for longer their TTL", func() {
+			// Short-lived metrics are created when the git job is completed.
+			slMetrics := []string{
+				"fleet_gitjob_duration_seconds_gauge",
+			}
+
+			// Wait for short-lived metrics to have appeared.
+			Eventually(func() error {
+				allMetrics, err := etGitjob.Get()
+				if err != nil {
+					return err
+				}
+
+				for _, metricName := range slMetrics {
+					_, err := etGitjob.FindOneMetric(
+						allMetrics,
+						metricName,
+						labels,
+					)
+					if err != nil {
+						return err
+					}
+				}
+				return nil
+			}).ShouldNot(HaveOccurred())
+
+			// Wait for short-lived metrics to have disappeared.
+			Eventually(func() error {
+				allMetrics, err := etGitjob.Get()
+				if err != nil {
+					return err
+				}
+
+				for _, metricName := range slMetrics {
+					_, err := etGitjob.FindOneMetric(
+						allMetrics,
+						metricName,
+						labels,
+					)
+					if err == nil {
+						return fmt.Errorf("found metric %q with labels %v, but expected it to be gone", metricName, labels)
+					}
+				}
+				return nil
+			}).WithTimeout(reconciler.ShortLivedMetricsTTL + 30*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 })
