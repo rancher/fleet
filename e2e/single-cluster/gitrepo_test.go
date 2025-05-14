@@ -29,7 +29,6 @@ import (
 const (
 	port      = 8080
 	HTTPSPort = 4343
-	repoName  = "repo"
 )
 
 var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
@@ -39,7 +38,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		k                kubectl.Command
 		gh               *githelper.Git
 		clone            *git.Repository
-		repoName         string
+		localRepoName    string
 		inClusterRepoURL string
 		gitrepoName      string
 		r                = rand.New(rand.NewSource(GinkgoRandomSeed()))
@@ -58,15 +57,15 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		// Build git repo URL reachable _within_ the cluster, for the GitRepo
 		host := githelper.BuildGitHostname()
 
-		addr, err := githelper.GetExternalRepoAddr(env, gitServerPort, repoName)
+		addr, err := githelper.GetExternalRepoAddr(env, gitServerPort, localRepoName)
 		Expect(err).ToNot(HaveOccurred())
 		addr = strings.Replace(addr, "http://", fmt.Sprintf("%s://", gitProtocol), 1)
 		gh = githelper.NewHTTP(addr)
 
-		inClusterRepoURL = gh.GetInClusterURL(host, gitServerPort, repoName)
+		inClusterRepoURL = gh.GetInClusterURL(host, gitServerPort, localRepoName)
 
 		tmpDir, _ = os.MkdirTemp("", "fleet-")
-		clonedir = path.Join(tmpDir, repoName)
+		clonedir = path.Join(tmpDir, localRepoName)
 
 		gitrepoName = testenv.RandomFilename("gitjob-test", r)
 	})
@@ -93,7 +92,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 	When("updating a git repository monitored via polling with HTTP for change", func() {
 		BeforeEach(func() {
-			repoName = "repo"
+			localRepoName = "repo"
 			targetNamespace = testenv.NewNamespaceName("target", r)
 
 			gitServerPort = port
@@ -150,7 +149,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 	When("updating a git repository monitored via polling with HTTP with a custom CA for change", func() {
 		BeforeEach(func() {
-			repoName = "repo"
+			localRepoName = "repo"
 			targetNamespace = testenv.NewNamespaceName("target", r)
 
 			gitServerPort = HTTPSPort
@@ -207,7 +206,7 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 
 	When("updating a git repository monitored via webhook", func() {
 		BeforeEach(func() {
-			repoName = "webhook-test"
+			localRepoName = "webhook-test"
 			targetNamespace = testenv.NewNamespaceName("target", r)
 		})
 
@@ -248,13 +247,13 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 				"-c",
 				fmt.Sprintf(
 					`dir=/srv/git/%s; rm -rf "$dir"; mkdir -p "$dir"; git init "$dir" --bare; GIT_DIR="$dir" git update-server-info`,
-					repoName,
+					localRepoName,
 				),
 			)
 			Expect(err).ToNot(HaveOccurred(), out)
 
 			// Copy the script into the repo on the server pod
-			hookPathInRepo := fmt.Sprintf("/srv/git/%s/hooks/post-receive", repoName)
+			hookPathInRepo := fmt.Sprintf("/srv/git/%s/hooks/post-receive", localRepoName)
 
 			Eventually(func() error {
 				out, err = kg.Run("cp", hookScript, fmt.Sprintf("%s:%s", gitServerPod, hookPathInRepo))
