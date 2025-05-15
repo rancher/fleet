@@ -116,7 +116,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo --github-output --label-filter="!multi-cluster" e2e/installation
+          ginkgo --github-output --trace --label-filter="!multi-cluster" e2e/installation
       -
         name: Upload Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
