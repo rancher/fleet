@@ -250,6 +250,10 @@ func (m *ObjCounterVec) Inc(obj metav1.Object) {
 	m.counterVec.WithLabelValues(obj.GetName(), obj.GetNamespace()).Inc()
 }
 
+func (m *ObjCounterVec) Delete(obj metav1.Object) bool {
+	return m.counterVec.DeleteLabelValues(obj.GetName(), obj.GetNamespace())
+}
+
 var BucketsLatency = []float64{.1, .2, .5, 1, 2, 5, 10, 30}
 
 func ObjHistogram(name, help string, buckets []float64) (h ObjHistogramVec) {
@@ -280,6 +284,10 @@ func (m *ObjHistogramVec) Observe(obj metav1.Object, value float64) {
 	m.histogram.WithLabelValues(obj.GetName(), obj.GetNamespace()).Observe(value)
 }
 
+func (m *ObjHistogramVec) Delete(obj metav1.Object) bool {
+	return m.histogram.DeleteLabelValues(obj.GetName(), obj.GetNamespace())
+}
+
 func ObjGauge(name, help string) (g ObjGaugeVec) {
 	gauge := promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -305,4 +313,8 @@ type ObjGaugeVec struct {
 
 func (m *ObjGaugeVec) Set(obj metav1.Object, value float64) {
 	m.gauge.WithLabelValues(obj.GetName(), obj.GetNamespace()).Set(value)
+}
+
+func (m *ObjGaugeVec) Delete(obj metav1.Object) bool {
+	return m.gauge.DeleteLabelValues(obj.GetName(), obj.GetNamespace())
 }
