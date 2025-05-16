@@ -79,7 +79,8 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred(), "failed to set up manager")
 
-	sched := quartz.NewStdScheduler()
+	sched, err := quartz.NewStdScheduler()
+	Expect(err).ToNot(HaveOccurred(), "failed to create scheduler")
 	Expect(sched).ToNot(BeNil())
 
 	go func() {
