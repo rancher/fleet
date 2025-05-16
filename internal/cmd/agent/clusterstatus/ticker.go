@@ -5,8 +5,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
 
@@ -41,7 +39,7 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 		time.Sleep(durations.ClusterRegisterDelay)
 		logger.V(1).Info("Reporting cluster status once")
 		if err := h.Update(ctx); err != nil {
-			logrus.Errorf("failed to report cluster status: %v", err)
+			logger.Error(err, "failed to report initial cluster status")
 		}
 	}()
 	go func() {
@@ -51,7 +49,7 @@ func Ticker(ctx context.Context, client client.Client, agentNamespace string, cl
 		for range ticker.Context(ctx, checkinInterval) {
 			logger.V(1).Info("Reporting cluster status")
 			if err := h.Update(ctx); err != nil {
-				logrus.Errorf("failed to report cluster status: %v", err)
+				logger.Error(err, "failed to report cluster status")
 			}
 		}
 	}()
@@ -68,21 +66,21 @@ func (h *handler) Update(ctx context.Context) error {
 		return nil
 	}
 
-	cluster := &fleet.Cluster{}
-	err := h.client.Get(context.Background(), types.NamespacedName{
-		Namespace: h.clusterNamespace,
-		Name:      h.clusterName,
-	}, cluster)
-	if err != nil {
-		return err
+	cluster := &fleet.Cluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      h.clusterName,
+			Namespace: h.clusterNamespace,
+		},
 	}
 
-	// Create a patch with the updated status
-	patch := client.MergeFrom(cluster.DeepCopy())
-	cluster.Status.Agent = agentStatus
+	// Create a patch with the updated status, we avoid Get as that would
+	// need additional RBAC
+	patch := `[{"op":"add","path":"/status/agent","value":{"lastSeen":"` +
+		agentStatus.LastSeen.Format(time.RFC3339) +
+		`","namespace":"` + agentStatus.Namespace +
+		`"}}]`
 
-	// Apply the patch
-	err = h.client.Status().Patch(ctx, cluster, patch)
+	err := h.client.Status().Patch(ctx, cluster, client.RawPatch(types.JSONPatchType, []byte(patch)))
 	if err != nil {
 		return err
 	}
