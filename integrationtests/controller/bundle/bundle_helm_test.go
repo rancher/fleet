@@ -265,6 +265,9 @@ func checkBundleDeploymentSecret(c client.Client, helmOptions *v1alpha1.BundleHe
 	// both secrets have the same data
 	Expect(bdSecret.Data).To(Equal(bundleSecret.Data))
 
+	// the bundle deployment secret should have the right type
+	Expect(string(bdSecret.Type)).To(Equal("fleet.cattle.io/bundle-helmops-access/v1alpha1"))
+
 	// check that the controller reference is set in the bundle deployment secret
 	controller := metav1.GetControllerOf(bdSecret)
 	Expect(controller).ToNot(BeNil())
@@ -294,7 +297,7 @@ func createHelmBundle(ctx context.Context, k8sClient client.Client, name, namesp
 		Spec: v1alpha1.BundleSpec{
 			Targets:            targets,
 			TargetRestrictions: restrictions,
-			HelmAppOptions:     helmOptions,
+			HelmOpOptions:      helmOptions,
 		},
 	}
 

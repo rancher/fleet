@@ -99,13 +99,7 @@ var _ = Describe("Bundle Status Fields", func() {
 			}).Should(BeTrue())
 			Expect(bundle.Status.Summary.DesiredReady).To(Equal(1))
 			Expect(bundle.Status.Display.ReadyClusters).To(Equal("1/1"))
-			Expect(bundle.Status.ResourceKey).To(HaveLen(1))
-			bdResource := bd.Status.Resources[0]
-			bundleResourceKey := bundle.Status.ResourceKey[0]
-			Expect(bundleResourceKey.APIVersion).To(Equal(bdResource.APIVersion))
-			Expect(bundleResourceKey.Name).To(Equal(bdResource.Name))
-			Expect(bundleResourceKey.Namespace).To(Equal(bdResource.Namespace))
-			Expect(bundleResourceKey.Kind).To(Equal(bdResource.Kind))
+			Expect(bundle.Status.ResourceKey).To(HaveLen(0))
 		})
 	})
 

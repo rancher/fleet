@@ -178,11 +178,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// set we don't deploy the bundle.
 	// This is to avoid intentional or accidental deployment of bundles with no
 	// resources or not well defined.
-	if bundle.Spec.HelmAppOptions != nil && !experimentalHelmOpsEnabled() {
+	if bundle.Spec.HelmOpOptions != nil && !experimentalHelmOpsEnabled() {
 		return ctrl.Result{}, fmt.Errorf("bundle contains data used by helm ops but env variable EXPERIMENTAL_HELM_OPS is not set to true")
 	}
 	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
-	contentsInHelmChart := bundle.Spec.HelmAppOptions != nil
+	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
 	manifestID := bundle.Spec.ContentsID
 	var resourcesManifest *manifest.Manifest
 	if !contentsInOCI && !contentsInHelmChart {
@@ -256,7 +256,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bundle.Status.OCIReference = url
 	}
 
-	setResourceKey(&bundle.Status, matchedTargets)
+	// ResourceKey is deprecated and no longer used by the UI.
+	bundle.Status.ResourceKey = nil
 
 	summary.SetReadyConditions(&bundle.Status, "Cluster", bundle.Status.Summary)
 	bundle.Status.ObservedGeneration = bundle.Generation
@@ -285,7 +286,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		controllerutil.AddFinalizer(bd, finalize.BundleDeploymentFinalizer)
 
 		bd.Spec.OCIContents = contentsInOCI
-		bd.Spec.HelmChartOptions = bundle.Spec.HelmAppOptions
+		bd.Spec.HelmChartOptions = bundle.Spec.HelmOpOptions
 
 		h, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
 		if err != nil {
@@ -302,7 +303,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			logger,
 			bd,
 			contentsInOCI,
-			bundle.Spec.HelmAppOptions != nil,
+			bundle.Spec.HelmOpOptions != nil,
 			manifestID)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -370,7 +371,7 @@ func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 
 	// BundleDeployment deletion happens asynchronously: mark them for deletion and requeue
 	// This ensures the Bundle is kept around until all its BundleDeployments are completely deleted.
-	// Both GitRepo and HelmApp status reconcilers rely on this condition, as they watch Bundles and not BundleDeployments
+	// Both GitRepo and HelmOp status reconcilers rely on this condition, as they watch Bundles and not BundleDeployments
 	if len(bds) > 0 {
 		logger.V(1).Info("Bundle deleted, purging bundle deployments")
 		return ctrl.Result{RequeueAfter: requeueAfterBundleDeploymentCleanup}, batchDeleteBundleDeployments(ctx, r.Client, bds)
@@ -515,7 +516,13 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 // cloneSecret clones a secret, identified by the provided secretName and
 // namespace, to the namespace of the provided bundle deployment bd. This makes
 // the secret available to agents when deploying bd to downstream clusters.
-func (r *BundleReconciler) cloneSecret(ctx context.Context, namespace string, secretName string, bd *fleet.BundleDeployment) error {
+func (r *BundleReconciler) cloneSecret(
+	ctx context.Context,
+	namespace string,
+	secretName string,
+	secretType string,
+	bd *fleet.BundleDeployment,
+) error {
 	namespacedName := types.NamespacedName{
 		Namespace: namespace,
 		Name:      secretName,
@@ -533,6 +540,10 @@ func (r *BundleReconciler) cloneSecret(ctx context.Context, namespace string, se
 		Data: secret.Data,
 	}
 
+	if secretType != "" {
+		targetSecret.Type = corev1.SecretType(secretType)
+	}
+
 	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
 		return err
 	}
@@ -547,13 +558,13 @@ func (r *BundleReconciler) cloneSecret(ctx context.Context, namespace string, se
 
 func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
 	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
-	contentsInHelmChart := bundle.Spec.HelmAppOptions != nil && experimentalHelmOpsEnabled()
+	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil && experimentalHelmOpsEnabled()
 
 	if contentsInOCI {
-		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, bd)
+		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, fleet.SecretTypeOCIStorage, bd)
 	}
-	if contentsInHelmChart && bundle.Spec.HelmAppOptions.SecretName != "" {
-		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmAppOptions.SecretName, bd)
+	if contentsInHelmChart && bundle.Spec.HelmOpOptions.SecretName != "" {
+		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmOpOptions.SecretName, fleet.SecretTypeHelmOpsAccess, bd)
 	}
 	return nil
 }

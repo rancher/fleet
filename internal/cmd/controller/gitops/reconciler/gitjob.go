@@ -48,6 +48,7 @@ const (
 
 func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v1alpha1.GitRepo, logger logr.Logger) error {
 	logger.V(1).Info("Creating Git job resources")
+
 	if err := r.createJobRBAC(ctx, gitrepo); err != nil {
 		return fmt.Errorf("failed to create RBAC resources for git job: %w", err)
 	}
@@ -60,6 +61,7 @@ func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v
 	if err := r.createJob(ctx, gitrepo); err != nil {
 		return fmt.Errorf("error creating git job: %w", err)
 	}
+
 	r.Recorder.Event(gitrepo, fleetevent.Normal, "Created", "GitJob was created")
 	return nil
 }
@@ -552,7 +554,13 @@ func (r *GitJobReconciler) newGitCloner(
 		args = append(args, "--ca-bundle-file", "/gitjob/cabundle/"+bundleCAFile)
 	}
 
-	env := proxyEnvVars()
+	env := []corev1.EnvVar{
+		{
+			Name:  fleetcli.JSONOutputEnvVar,
+			Value: "true",
+		},
+	}
+	env = append(env, proxyEnvVars()...)
 
 	// If strict host key checks are enabled but no entries are available, another error will be shown by the known
 	// hosts getter, as that means that the Fleet deployment is incomplete.
@@ -638,6 +646,10 @@ func argsAndEnvs(
 		{
 			Name:  "HOME",
 			Value: fleetHomeDir,
+		},
+		{
+			Name:  fleetcli.JSONOutputEnvVar,
+			Value: "true",
 		},
 		{
 			Name:  fleetcli.FleetApplyConflictRetriesEnv,

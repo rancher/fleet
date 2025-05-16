@@ -41,7 +41,7 @@ var (
 
 func TestGitJobController(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Helm AppOps Controller Suite")
+	RunSpecs(t, "Helm Ops Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -73,7 +73,7 @@ var _ = BeforeSuite(func() {
 
 	config.Set(&config.Config{})
 
-	err = (&reconciler.HelmAppReconciler{
+	err = (&reconciler.HelmOpReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("helmops-controller"),
@@ -81,7 +81,7 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
-	err = (&reconciler.HelmAppStatusReconciler{
+	err = (&reconciler.HelmOpStatusReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),
 		Workers: 50,

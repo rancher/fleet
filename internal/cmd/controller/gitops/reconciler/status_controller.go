@@ -71,14 +71,16 @@ func (r *StatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // display information to the user.
 func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithName("gitops-status")
-	gitrepo := &fleet.GitRepo{}
 
+	gitrepo := &fleet.GitRepo{}
 	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if errors.IsNotFound(err) {
 		logger.V(1).Info("Gitrepo deleted, cleaning up poll jobs")
 		return ctrl.Result{}, nil
 	}
+
+	orig := gitrepo.DeepCopy()
 
 	// Restrictions / Overrides, gitrepo reconciler is responsible for setting error in status
 	if err := AuthorizeAndAssignDefaults(ctx, r.Client, gitrepo); err != nil {
@@ -141,8 +143,7 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	err = r.Client.Status().Update(ctx, gitrepo)
-	if err != nil {
+	if err := r.updateStatus(ctx, orig, gitrepo); err != nil {
 		logger.Error(err, "Reconcile failed update to git repo status", "status", gitrepo.Status)
 		return ctrl.Result{RequeueAfter: durations.GitRepoStatusDelay}, nil
 	}
@@ -150,8 +151,17 @@ func (r *StatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
+func (r *StatusReconciler) updateStatus(ctx context.Context, orig *fleet.GitRepo, obj *fleet.GitRepo) error {
+	statusPatch := client.MergeFrom(orig)
+	if patchData, err := statusPatch.Data(obj); err == nil && string(patchData) == "{}" {
+		// skip update if patch is empty
+		return nil
+	}
+	return r.Client.Status().Patch(ctx, obj, statusPatch)
+}
+
 func setStatus(list *fleet.BundleDeploymentList, gitrepo *fleet.GitRepo) error {
-	// sort for resourceKey?
+	// sort bundledeployments so lists in status are always in the same order
 	sort.Slice(list.Items, func(i, j int) bool {
 		return list.Items[i].UID < list.Items[j].UID
 	})

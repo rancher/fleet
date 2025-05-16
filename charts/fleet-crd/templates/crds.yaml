@@ -168,15 +168,15 @@ spec:
 
                     should be downloaded from a helm chart'
                   properties:
-                    helmAppInsecureSkipTLSVerify:
+                    helmOpInsecureSkipTLSVerify:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         clone the helm app resource.
                       type: boolean
-                    helmAppSecretName:
+                    helmOpSecretName:
                       description: 'SecretName stores the secret name for storing
                         credentials when accessing
 
-                        a remote helm repository defined in a HelmApp resource'
+                        a remote helm repository defined in a HelmOp resource'
                       type: string
                   type: object
                 ociContents:
@@ -1717,25 +1717,25 @@ spec:
                         will wait for as long as timeoutSeconds'
                       type: boolean
                   type: object
-                helmAppOptions:
-                  description: 'HelmAppOptions stores the options relative to HelmApp
+                helmOpOptions:
+                  description: 'HelmOpOptions stores the options relative to HelmOp
                     resources
 
-                    Non-nil HelmAppOptions indicate that the source of resources is
+                    Non-nil HelmOpOptions indicate that the source of resources is
                     a Helm chart,
 
                     not a git repository.'
                   nullable: true
                   properties:
-                    helmAppInsecureSkipTLSVerify:
+                    helmOpInsecureSkipTLSVerify:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         clone the helm app resource.
                       type: boolean
-                    helmAppSecretName:
+                    helmOpSecretName:
                       description: 'SecretName stores the secret name for storing
                         credentials when accessing
 
-                        a remote helm repository defined in a HelmApp resource'
+                        a remote helm repository defined in a HelmOp resource'
                       type: string
                   type: object
                 ignore:
@@ -3049,7 +3049,8 @@ spec:
                     actual list of resources on a cluster might differ, depending
                     on the
 
-                    helm chart, value templating, etc..'
+                    helm chart, value templating, etc.. (deprecated to reduce bundle
+                    size)'
                   items:
                     description: ResourceKey lists resources, which will likely be
                       deployed.
@@ -7148,16 +7149,16 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.3
-  name: helmapps.fleet.cattle.io
+  name: helmops.fleet.cattle.io
 spec:
   group: fleet.cattle.io
   names:
     categories:
       - fleet
-    kind: HelmApp
-    listKind: HelmAppList
-    plural: helmapps
-    singular: helmapp
+    kind: HelmOp
+    listKind: HelmOpList
+    plural: helmops
+    singular: helmop
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
@@ -7179,7 +7180,7 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: 'HelmApp describes a helm chart information.
+          description: 'HelmOp describes a helm chart information.
 
             The resource contains the necessary information to deploy the chart to
             target clusters.'
@@ -7545,25 +7546,25 @@ spec:
                         will wait for as long as timeoutSeconds'
                       type: boolean
                   type: object
-                helmAppOptions:
-                  description: 'HelmAppOptions stores the options relative to HelmApp
+                helmOpOptions:
+                  description: 'HelmOpOptions stores the options relative to HelmOp
                     resources
 
-                    Non-nil HelmAppOptions indicate that the source of resources is
+                    Non-nil HelmOpOptions indicate that the source of resources is
                     a Helm chart,
 
                     not a git repository.'
                   nullable: true
                   properties:
-                    helmAppInsecureSkipTLSVerify:
+                    helmOpInsecureSkipTLSVerify:
                       description: InsecureSkipTLSverify will use insecure HTTPS to
                         clone the helm app resource.
                       type: boolean
-                    helmAppSecretName:
+                    helmOpSecretName:
                       description: 'SecretName stores the secret name for storing
                         credentials when accessing
 
-                        a remote helm repository defined in a HelmApp resource'
+                        a remote helm repository defined in a HelmOp resource'
                       type: string
                   type: object
                 helmSecretName:

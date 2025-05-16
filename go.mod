@@ -1,8 +1,8 @@
 module github.com/rancher/fleet
 
-go 1.23.0
+go 1.24.0
 
-toolchain go1.24.2
+toolchain go1.24.3
 
 replace (
 	github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
@@ -35,31 +35,31 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.63.0
-	github.com/rancher/fleet/pkg/apis v0.12.1
-	github.com/rancher/lasso v0.2.1
-	github.com/rancher/wrangler/v3 v3.2.0
+	github.com/prometheus/common v0.64.0
+	github.com/rancher/fleet/pkg/apis v0.12.3
+	github.com/rancher/lasso v0.2.2
+	github.com/rancher/wrangler/v3 v3.2.1
 	github.com/reugn/go-quartz v0.14.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
-	go.uber.org/mock v0.5.1
+	go.uber.org/mock v0.5.2
 	go.uber.org/zap v1.27.0
-	golang.org/x/crypto v0.37.0
-	golang.org/x/sync v0.13.0
+	golang.org/x/crypto v0.38.0
+	golang.org/x/sync v0.14.0
 	gonum.org/v1/gonum v0.16.0
 	gopkg.in/go-playground/webhooks.v5 v5.17.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.17.3
-	k8s.io/api v0.32.4
-	k8s.io/apiextensions-apiserver v0.32.4
-	k8s.io/apimachinery v0.32.4
-	k8s.io/cli-runtime v0.32.4
-	k8s.io/client-go v0.32.4
+	k8s.io/api v0.32.5
+	k8s.io/apiextensions-apiserver v0.32.5
+	k8s.io/apimachinery v0.32.5
+	k8s.io/cli-runtime v0.32.5
+	k8s.io/client-go v0.32.5
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
-	k8s.io/kubectl v0.32.4
+	k8s.io/kubectl v0.32.5
 	k8s.io/kubernetes v1.32.2
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
 	oras.land/oras-go/v2 v2.5.0
@@ -227,11 +227,11 @@ require (
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
-	golang.org/x/oauth2 v0.25.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/term v0.31.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/net v0.40.0 // indirect
+	golang.org/x/oauth2 v0.30.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
+	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
@@ -246,10 +246,10 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiserver v0.32.4 // indirect
-	k8s.io/code-generator v0.32.4 // indirect
-	k8s.io/component-base v0.32.4 // indirect
-	k8s.io/component-helpers v0.32.4 // indirect
+	k8s.io/apiserver v0.32.5 // indirect
+	k8s.io/code-generator v0.32.5 // indirect
+	k8s.io/component-base v0.32.5 // indirect
+	k8s.io/component-helpers v0.32.5 // indirect
 	k8s.io/controller-manager v0.32.1 // indirect
 	k8s.io/gengo v0.0.0-20250130153323-76c5745d3511 // indirect
 	k8s.io/gengo/v2 v2.0.0-20240911193312-2b36238f13e9 // indirect

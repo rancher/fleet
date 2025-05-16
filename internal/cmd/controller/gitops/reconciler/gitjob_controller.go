@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand/v2"
 	"sort"
@@ -53,7 +54,27 @@ const (
 	forceSyncGenerationLabel   = "fleet.cattle.io/force-sync-generation"
 )
 
-var zero = int32(0)
+var (
+	GitJobDurationBuckets = []float64{1, 2, 5, 10, 30, 60, 180, 300, 600, 1200, 1800, 3600}
+	zero                  = int32(0)
+	gitjobsCreatedSuccess = metrics.ObjCounter(
+		"gitjobs_created_success_total",
+		"Total number of failed git job creations",
+	)
+	gitjobsCreatedFailure = metrics.ObjCounter(
+		"gitjobs_created_failure_total",
+		"Total number of successfully created git jobs",
+	)
+	gitjobDuration = metrics.ObjHistogram(
+		"gitjob_duration_seconds",
+		"Duration to complete a Git job in seconds. Includes the time to fetch the git repo and to create the bundle.",
+		GitJobDurationBuckets,
+	)
+	gitjobDurationGauge = metrics.ObjGauge(
+		"gitjob_duration_seconds_gauge",
+		"Duration to complete a Git job in seconds. Includes the time to fetch the git repo and to create the bundle.",
+	)
+)
 
 type GitFetcher interface {
 	LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, client client.Client) (string, error)
@@ -235,8 +256,10 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 				return r.result(gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
+				gitjobsCreatedFailure.Inc(gitrepo)
 				return r.result(gitrepo), err
 			}
+			gitjobsCreatedSuccess.Inc(gitrepo)
 		}
 	} else if gitrepo.Status.Commit != "" && gitrepo.Status.Commit == oldCommit {
 		err, recreateGitJob := r.deleteJobIfNeeded(ctx, gitrepo, &job)
@@ -335,7 +358,6 @@ func (r *GitJobReconciler) addGitRepoFinalizer(ctx context.Context, nsName types
 
 		return r.Update(ctx, gitrepo)
 	})
-
 	if err != nil {
 		return client.IgnoreNotFound(err)
 	}
@@ -393,6 +415,11 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 
 	// check if the job finished and was successful
 	if job.Status.Succeeded == 1 {
+		if job.Status.StartTime != nil && job.Status.CompletionTime != nil {
+			duration := job.Status.CompletionTime.Sub(job.Status.StartTime.Time)
+			gitjobDuration.Observe(gitRepo, duration.Seconds())
+			gitjobDurationGauge.Set(gitRepo, duration.Seconds())
+		}
 		jobDeletedMessage := "job deletion triggered because job succeeded"
 		logger.Info(jobDeletedMessage)
 		if err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
@@ -562,7 +589,7 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 	//   - Terminating
 	switch result.Status {
 	case status.FailedStatus:
-		kstatus.SetError(gitRepo, terminationMessage)
+		kstatus.SetError(gitRepo, filterFleetCLIJobOutput(terminationMessage))
 	case status.CurrentStatus:
 		if strings.Contains(result.Message, "Job Completed") {
 			gitRepo.Status.Commit = job.Annotations["commit"]
@@ -653,4 +680,60 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 
 		return nil
 	})
+}
+
+func filterFleetCLIJobOutput(output string) string {
+	// first split the output in lines
+	lines := strings.Split(output, "\n")
+	s := ""
+	for _, l := range lines {
+		s = s + getFleetCLIErrorsFromLine(l)
+	}
+
+	s = strings.Trim(s, "\n")
+	// in the case that all the messages from fleet apply are from libraries
+	// we just report an unknown error
+	if s == "" {
+		s = "Unknown error"
+	}
+
+	return s
+}
+
+func getFleetCLIErrorsFromLine(l string) string {
+	type LogEntry struct {
+		Level         string `json:"level"`
+		FleetErrorMsg string `json:"fleetErrorMessage"`
+		Time          string `json:"time"`
+		Msg           string `json:"msg"`
+	}
+	s := ""
+	open := strings.IndexByte(l, '{')
+	if open == -1 {
+		// line does not contain a valid json string
+		return ""
+	}
+	close := strings.IndexByte(l, '}')
+	if close != -1 {
+		if close < open {
+			// looks like there is some garbage before a possible json string
+			// ignore everything up to that closing bracked and try again
+			return getFleetCLIErrorsFromLine(l[close+1:])
+		}
+	} else if close == -1 {
+		// line does not contain a valid json string
+		return ""
+	}
+	var entry LogEntry
+	if err := json.Unmarshal([]byte(l[open:close+1]), &entry); err == nil {
+		if entry.FleetErrorMsg != "" {
+			s = s + entry.FleetErrorMsg + "\n"
+		}
+	}
+	// check if there's more to parse
+	if close+1 < len(l) {
+		s = s + getFleetCLIErrorsFromLine(l[close+1:])
+	}
+
+	return s
 }

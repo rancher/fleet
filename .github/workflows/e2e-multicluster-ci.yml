@@ -16,7 +16,7 @@ env:
 
 jobs:
   e2e-fleet-mc-test:
-    runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     steps:
       -
@@ -24,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -32,8 +32,46 @@ jobs:
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
+        name: Determine cache key
+        id: cache-key
+        run: |
+          # Get the day of year (1-366)
+          DAY_OF_YEAR=$(date +%j)
+          
+          # Use modulo to create a key that changes every 28 days
+          if [ $(($DAY_OF_YEAR % 28)) -eq 0 ]; then
+            # On the 28th, 56th, 84th... day of the year, use a date-based key
+            echo "value=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          else
+            echo "value=latest" >> $GITHUB_OUTPUT
+          fi
+      -
+        name: Cache crust-gather CLI
+        id: cache-crust
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        with:
+          path: ~/.local/bin/crust-gather
+          key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
+          restore-keys: |
+            ${{ runner.os }}-crust-gather-
+      -
         name: Install crust-gather CLI
-        run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
+        run: |
+          if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache not found, downloading from source"
+            mkdir -p ~/.local/bin
+            if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
+              # Cache the binary for future runs
+              which crust-gather && cp $(which crust-gather) ~/.local/bin/
+            else
+              echo "Failed to download crust-gather"
+              exit 1
+            fi
+          else
+            echo "Using cached crust-gather CLI"
+            chmod +x ~/.local/bin/crust-gather
+            sudo ln -sf ~/.local/bin/crust-gather /usr/local/bin/
+          fi
       -
         name: Build Fleet Binaries
         run: |
@@ -189,7 +227,7 @@ jobs:
           export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}' | grep -v second)
 
           kubectl config use-context k3d-upstream
-          ginkgo --github-output e2e/multi-cluster
+          ginkgo --github-output --trace e2e/multi-cluster
       -
         name: E2E tests with managed downstream agent
         env:
@@ -198,7 +236,7 @@ jobs:
           FLEET_E2E_CLUSTER_DOWNSTREAM: k3d-managed-downstream
         run: |
           kubectl config use-context k3d-upstream
-          ginkgo --github-output e2e/multi-cluster/installation
+          ginkgo --github-output --trace e2e/multi-cluster/installation
       -
         name: Acceptance Tests for Examples
         if: >
@@ -207,7 +245,7 @@ jobs:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
-          ginkgo --github-output e2e/acceptance/multi-cluster-examples
+          ginkgo --github-output --trace e2e/acceptance/multi-cluster-examples
       -
         name: Dump Failed Downstream Environment
         if: failure()

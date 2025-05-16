@@ -5,21 +5,24 @@ import (
 )
 
 func init() {
-	InternalSchemeBuilder.Register(&HelmApp{}, &HelmAppList{})
+	InternalSchemeBuilder.Register(&HelmOp{}, &HelmOpList{})
 }
 
 var (
-	HelmAppLabel = "fleet.cattle.io/fleet-helm-name"
+	HelmOpLabel = "fleet.cattle.io/fleet-helm-name"
 )
 
 const (
-	HelmAppAcceptedCondition = "Accepted"
+	HelmOpAcceptedCondition = "Accepted"
+
+	// SecretTypeHelmOpsAccess is the secret type used to access Helm registries for HelmOps bundles.
+	SecretTypeHelmOpsAccess = "fleet.cattle.io/bundle-helmops-access/v1alpha1"
 )
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:categories=fleet,path=helmapps
+// +kubebuilder:resource:categories=fleet,path=helmops
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Repo",type=string,JSONPath=`.spec.helm.repo`
 // +kubebuilder:printcolumn:name="Chart",type=string,JSONPath=`.spec.helm.chart`
@@ -27,26 +30,26 @@ const (
 // +kubebuilder:printcolumn:name="BundleDeployments-Ready",type=string,JSONPath=`.status.display.readyBundleDeployments`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].message`
 
-// HelmApp describes a helm chart information.
+// HelmOp describes a helm chart information.
 // The resource contains the necessary information to deploy the chart to target clusters.
-type HelmApp struct {
+type HelmOp struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   HelmAppSpec   `json:"spec,omitempty"`
-	Status HelmAppStatus `json:"status,omitempty"`
+	Spec   HelmOpSpec   `json:"spec,omitempty"`
+	Status HelmOpStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// HelmAppList contains a list of HelmApp
-type HelmAppList struct {
+// HelmOpList contains a list of HelmOp
+type HelmOpList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []HelmApp `json:"items"`
+	Items           []HelmOp `json:"items"`
 }
 
-type HelmAppSpec struct {
+type HelmOpSpec struct {
 	BundleSpec `json:",inline"`
 	// Labels are copied to the bundle and can be used in a
 	// dependsOn.selector.
@@ -59,7 +62,7 @@ type HelmAppSpec struct {
 	InsecureSkipTLSverify bool `json:"insecureSkipTLSVerify,omitempty"`
 }
 
-type HelmAppStatus struct {
+type HelmOpStatus struct {
 	StatusBase `json:",inline"`
 	// Version installed for the helm chart.
 	// When using * or empty version in the spec we get the latest version from

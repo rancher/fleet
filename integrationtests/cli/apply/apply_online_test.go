@@ -5,58 +5,48 @@
 package apply
 
 import (
+	"context"
+
 	"go.uber.org/mock/gomock"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/rancher/fleet/integrationtests/cli"
-	"github.com/rancher/fleet/integrationtests/mocks"
-	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
+	"github.com/rancher/fleet/internal/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
-	"github.com/rancher/wrangler/v3/pkg/generic/fake"
-
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var _ = Describe("Fleet apply online", Label("online"), func() {
 
 	var (
-		ctrl             *gomock.Controller
-		getter           *mocks.MockGetter
-		c                client.Client
-		fleetMock        *mocks.FleetInterface
-		bundleController *fake.MockControllerInterface[*fleet.Bundle, *fleet.BundleList]
-		name             string
-		dirs             []string
-		options          apply.Options
-		oldBundle        *fleet.Bundle
-		newBundle        *fleet.Bundle
+		ctrl       *gomock.Controller
+		clientMock *mocks.MockClient
+		name       string
+		dirs       []string
+		options    apply.Options
+		oldBundle  *fleet.Bundle
+		newBundle  *fleet.Bundle
 	)
 
 	JustBeforeEach(func() {
 		//Setting up all the needed mocked interfaces for the test
 		ctrl = gomock.NewController(GinkgoT())
-		getter = mocks.NewMockGetter(ctrl)
-		c = client.Client{
-			Fleet:     mocks.NewFleetInterface(ctrl),
-			Core:      mocks.NewCoreInterface(ctrl),
-			Namespace: "foo",
-		}
-		bundleController = fake.NewMockControllerInterface[*fleet.Bundle, *fleet.BundleList](ctrl)
-		secretController := fake.NewMockControllerInterface[*corev1.Secret, *corev1.SecretList](ctrl)
-		fleetMock = c.Fleet.(*mocks.FleetInterface)
-		coreMock := c.Core.(*mocks.CoreInterface)
-		getter.EXPECT().GetNamespace().Return("foo").AnyTimes()
-		getter.EXPECT().Get().Return(&c, nil).AnyTimes()
-		fleetMock.EXPECT().Bundle().Return(bundleController).AnyTimes()
-		coreMock.EXPECT().Secret().Return(secretController).AnyTimes()
-		bundleController.EXPECT().Get("foo", gomock.Any(), gomock.Any()).Return(oldBundle, nil).AnyTimes()
-		bundleController.EXPECT().List(gomock.Any(), gomock.Any()).Return(&fleet.BundleList{}, nil).AnyTimes()
-		secretController.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		clientMock = mocks.NewMockClient(ctrl)
+		clientMock.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, ns types.NamespacedName, bundle *fleet.Bundle, _ ...interface{}) error {
+				bundle.ObjectMeta = oldBundle.ObjectMeta
+				bundle.Name = ns.Name
+				bundle.Namespace = ns.Namespace
+				return nil
+			},
+		)
+		clientMock.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		clientMock.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	})
 
 	When("We want to delete a label in the bundle from the cluster", func() {
@@ -108,12 +98,15 @@ data:
 
 		It("deletes labels present on the bundle but not in fleet.yaml", func() {
 			// Update is called with the actual output of the `apply` command here, hence we validate that its argument is what we expect.
-			bundleController.EXPECT().Update(newBundle).Return(newBundle, nil).AnyTimes()
-			bundleController.EXPECT().UpdateStatus(newBundle).Return(newBundle, nil).AnyTimes()
-			err := fleetApplyOnline(getter, name, dirs, options)
+			clientMock.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, bundle *fleet.Bundle, _ ...interface{}) error {
+					Expect(bundle.Spec).To(Equal(newBundle.Spec))
+					Expect(bundle.Labels).To(Equal(newBundle.Labels))
+					return nil
+				},
+			)
+			err := fleetApplyOnline(clientMock, name, dirs, options)
 			Expect(err).NotTo(HaveOccurred())
 		})
-
 	})
-
 })

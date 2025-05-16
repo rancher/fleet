@@ -13,7 +13,7 @@ env:
 
 jobs:
   e2e-fleet-nightly-test:
-    runs-on: runs-on,runner=16cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
@@ -32,7 +32,7 @@ jobs:
         with:
           fetch-depth: 0
       -
-        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -40,8 +40,42 @@ jobs:
         name: Install Ginkgo CLI
         run: go install github.com/onsi/ginkgo/v2/ginkgo
       -
+        name: Determine cache key
+        id: cache-key
+        run: |
+          DAY_OF_YEAR=$(date +%j)
+          if [ $(($DAY_OF_YEAR % 28)) -eq 0 ]; then
+            echo "value=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+          else
+            echo "value=latest" >> $GITHUB_OUTPUT
+          fi
+      -
+        name: Cache crust-gather CLI
+        id: cache-crust
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4
+        with:
+          path: ~/.local/bin/crust-gather
+          key: ${{ runner.os }}-crust-gather-${{ steps.cache-key.outputs.value }}
+          restore-keys: |
+            ${{ runner.os }}-crust-gather-
+      -
         name: Install crust-gather CLI
-        run: curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes
+        run: |
+          if [ "${{ steps.cache-crust.outputs.cache-hit }}" != "true" ]; then
+            echo "Cache not found, downloading from source"
+            mkdir -p ~/.local/bin
+            if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
+              # Cache the binary for future runs
+              which crust-gather && cp $(which crust-gather) ~/.local/bin/
+            else
+              echo "Failed to download crust-gather"
+              exit 1
+            fi
+          else
+            echo "Using cached crust-gather CLI"
+            chmod +x ~/.local/bin/crust-gather
+            sudo ln -sf ~/.local/bin/crust-gather /usr/local/bin/
+          fi
       -
         name: Build Fleet Binaries
         run: |
@@ -94,26 +128,26 @@ jobs:
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
 
           # 1. Run test cases not needing infra
-          ginkgo --github-output --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources
+          ginkgo --github-output --trace --label-filter='!infra-setup' e2e/single-cluster e2e/keep-resources
 
           # 2. Run tests for metrics
-          ginkgo --github-output --label-filter='!oci-registry' e2e/metrics
-          SHARD=shard1 ginkgo --github-output --label-filter='!oci-registry' e2e/metrics
+          ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
+          SHARD=shard1 ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
 
           # 3. Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
-          ginkgo --github-output --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
+          ginkgo --github-output --trace --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
 
           # 4. Run tests requiring a Helm registry
           e2e/testenv/infra/infra setup --helm-registry=true
-          ginkgo --github-output --label-filter='helm-registry' e2e/single-cluster
+          ginkgo --github-output --trace --label-filter='helm-registry' e2e/single-cluster
 
           e2e/testenv/infra/infra teardown --helm-registry=true
 
           # 5. Run tests requiring an OCI registry
           e2e/testenv/infra/infra setup --oci-registry=true
-          ginkgo --github-output --label-filter='oci-registry' e2e/single-cluster
-          ginkgo --github-output --label-filter='oci-registry' e2e/metrics
+          ginkgo --github-output --trace --label-filter='oci-registry' e2e/single-cluster
+          ginkgo --github-output --trace --label-filter='oci-registry' e2e/metrics
 
           # 6. Tear down all infra
           e2e/testenv/infra/infra teardown
@@ -123,7 +157,7 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo --github-output e2e/acceptance/single-cluster-examples
+          ginkgo --github-output --trace e2e/acceptance/single-cluster-examples
       -
         name: Fleet Tests Requiring Github Secrets
         if: ${{ matrix.test_type == 'e2e-secrets' }}
@@ -141,7 +175,7 @@ jobs:
           echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo --github-output e2e/require-secrets
+          ginkgo --github-output --trace e2e/require-secrets
       -
         name: Upload Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

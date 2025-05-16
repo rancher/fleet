@@ -18,7 +18,7 @@ env:
 
 jobs:
   build-fleet:
-    runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     env:
       IS_HOTFIX: ${{ contains(github.ref, '-hotfix-') }}
@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -81,7 +81,7 @@ jobs:
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
-      - uses: rancherlabs/slsactl/actions/install-slsactl@05585f4df91f36544f691a324a15fab117850613 # v0.0.13
+      - uses: rancherlabs/slsactl/actions/install-slsactl@43385ab2deb538998c480617f2939c5ddc7067ab # v0.0.14
 
       - name: "Read Vault Secrets"
         uses: rancher-eio/read-vault-secrets@main
@@ -172,7 +172,7 @@ jobs:
           tag=$(jq -r '.tag' <<< '${{ steps.goreleaser.outputs.metadata }}')
           echo "publishing helm chart for (repo: $repo, tag: $tag, version: $version)"
 
-          # Replace rancher/fleet, rancher/fleet-agent and rancher/gitjob image names, but not eg. rancher/kubectl
+          # Replace rancher/fleet and rancher/fleet-agent and rancher/gitjob image names
           sed -i \
             -e "s@repository: rancher/\(fleet.*\|gitjob\).*@repository: $repo/\\1@" \
             -e "s/tag:.*/tag: $tag/" \

@@ -41,7 +41,7 @@ type Interface interface {
 	Content() ContentController
 	GitRepo() GitRepoController
 	GitRepoRestriction() GitRepoRestrictionController
-	HelmApp() HelmAppController
+	HelmOp() HelmOpController
 	ImageScan() ImageScanController
 }
 
@@ -95,8 +95,8 @@ func (v *version) GitRepoRestriction() GitRepoRestrictionController {
 	return generic.NewController[*v1alpha1.GitRepoRestriction, *v1alpha1.GitRepoRestrictionList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "GitRepoRestriction"}, "gitreporestrictions", true, v.controllerFactory)
 }
 
-func (v *version) HelmApp() HelmAppController {
-	return generic.NewController[*v1alpha1.HelmApp, *v1alpha1.HelmAppList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "HelmApp"}, "helmapps", true, v.controllerFactory)
+func (v *version) HelmOp() HelmOpController {
+	return generic.NewController[*v1alpha1.HelmOp, *v1alpha1.HelmOpList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "HelmOp"}, "helmops", true, v.controllerFactory)
 }
 
 func (v *version) ImageScan() ImageScanController {

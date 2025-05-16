@@ -35,6 +35,10 @@ const (
 
 	// SecretTypeBundleValues is the secret type used to store the helm values
 	SecretTypeBundleValues = "fleet.cattle.io/bundle-values/v1alpha1"
+
+	// SecretTypeOCIStorage is the secret type used internally to store bundle resources in an OCI registry instead
+	// of etcd.
+	SecretTypeOCIStorage = "fleet.cattle.io/bundle-oci-storage/v1alpha1"
 )
 
 var (
@@ -119,11 +123,11 @@ type BundleSpec struct {
 	// +nullable
 	ContentsID string `json:"contentsId,omitempty"`
 
-	// HelmAppOptions stores the options relative to HelmApp resources
-	// Non-nil HelmAppOptions indicate that the source of resources is a Helm chart,
+	// HelmOpOptions stores the options relative to HelmOp resources
+	// Non-nil HelmOpOptions indicate that the source of resources is a Helm chart,
 	// not a git repository.
 	// +nullable
-	HelmAppOptions *BundleHelmOptions `json:"helmAppOptions,omitempty"`
+	HelmOpOptions *BundleHelmOptions `json:"helmOpOptions,omitempty"`
 
 	// ValuesHash is the hash of the values used to render the Helm chart.
 	// It changes when any values from fleet.yaml, values from ValuesFiles or values from target
@@ -365,7 +369,7 @@ type BundleStatus struct {
 	Display BundleDisplay `json:"display,omitempty"`
 	// ResourceKey lists resources, which will likely be deployed. The
 	// actual list of resources on a cluster might differ, depending on the
-	// helm chart, value templating, etc..
+	// helm chart, value templating, etc.. (deprecated to reduce bundle size)
 	// +nullable
 	ResourceKey []ResourceKey `json:"resourceKey,omitempty"`
 	// OCIReference is the OCI reference used to store contents, this is
@@ -424,9 +428,9 @@ type PartitionStatus struct {
 
 type BundleHelmOptions struct {
 	// SecretName stores the secret name for storing credentials when accessing
-	// a remote helm repository defined in a HelmApp resource
-	SecretName string `json:"helmAppSecretName,omitempty"`
+	// a remote helm repository defined in a HelmOp resource
+	SecretName string `json:"helmOpSecretName,omitempty"`
 
 	// InsecureSkipTLSverify will use insecure HTTPS to clone the helm app resource.
-	InsecureSkipTLSverify bool `json:"helmAppInsecureSkipTLSVerify,omitempty"`
+	InsecureSkipTLSverify bool `json:"helmOpInsecureSkipTLSVerify,omitempty"`
 }

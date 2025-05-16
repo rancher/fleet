@@ -16,6 +16,10 @@ func TestE2E(t *testing.T) {
 	RunSpecs(t, "E2E Suite for Single-Cluster")
 }
 
+const (
+	repoName = "repo"
+)
+
 var (
 	env *testenv.Env
 )

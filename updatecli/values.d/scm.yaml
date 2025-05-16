@@ -1,0 +1,8 @@
+scm:
+  enabled: true
+  default:
+    user: 'fleet-bot'
+    email: 'fleet@suse.de'
+    owner: rancher
+    repository: fleet
+    branch: main

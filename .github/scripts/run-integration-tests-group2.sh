@@ -10,5 +10,10 @@ go install sigs.k8s.io/controller-runtime/tools/setup-envtest@"$SETUP_ENVTEST_VE
 KUBEBUILDER_ASSETS=$(setup-envtest use --use-env -p path "$ENVTEST_K8S_VERSION")
 export KUBEBUILDER_ASSETS
 
-# run integration tests
-ginkgo --github-output --trace ./integrationtests/...
+# Group 2: Run everything else - this will automatically include newly added directories
+find ./integrationtests -type d -not -path '*/.git*' \
+  -not -path './integrationtests/agent*' \
+  -not -path './integrationtests/bundlereader*' \
+  -not -path './integrationtests/cli*' \
+  -not -path './integrationtests/controller*' | \
+  xargs ginkgo --github-output --trace
