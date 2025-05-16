@@ -19,7 +19,7 @@ import (
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/names"
-	"github.com/rancher/fleet/internal/ociwrapper"
+	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 )
 
@@ -72,6 +73,7 @@ type Options struct {
 	CorrectDriftForce           bool
 	CorrectDriftKeepFailHistory bool
 	OCIRegistry                 OCIRegistrySpec
+	OCIRegistrySecret           string
 	DrivenScan                  bool
 	DrivenScanSeparator         string
 }
@@ -333,12 +335,18 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 		}
 		bundle.Spec.ValuesHash = h
 
-		if opts.OCIRegistry.Reference == "" {
-			if bundle, err = save(ctx, client, bundle); err != nil {
+		var ociOpts ocistorage.OCIOpts
+		secretOCIRegistryID := types.NamespacedName{Name: opts.OCIRegistrySecret, Namespace: bundle.Namespace}
+		useOCIRegistry, err := shouldStoreInOCIRegistry(ctx, client, secretOCIRegistryID, &ociOpts)
+		if err != nil {
+			return err
+		}
+		if useOCIRegistry {
+			if bundle, err = saveOCIBundle(ctx, client, bundle, ociOpts); err != nil {
 				return err
 			}
 		} else {
-			if bundle, err = saveOCIBundle(ctx, client, bundle, opts); err != nil {
+			if bundle, err = save(ctx, client, bundle); err != nil {
 				return err
 			}
 		}
@@ -370,21 +378,36 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 	return err
 }
 
-func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts *Options) (string, error) {
+func shouldStoreInOCIRegistry(ctx context.Context, c client.Reader, ociSecretKey types.NamespacedName, ociOpts *ocistorage.OCIOpts) (bool, error) {
+	useOCIRegistry := false
+	if ocistorage.ExperimentalOCIIsEnabled() {
+		opts, err := ocistorage.ReadOptsFromSecret(ctx, c, ociSecretKey)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		useOCIRegistry = (err == nil)
+		if useOCIRegistry {
+			ociOpts.Reference = opts.Reference
+			ociOpts.Username = opts.Username
+			ociOpts.Password = opts.Password
+			ociOpts.AgentUsername = opts.AgentUsername
+			ociOpts.AgentPassword = opts.AgentPassword
+			ociOpts.BasicHTTP = opts.BasicHTTP
+			ociOpts.InsecureSkipTLS = opts.InsecureSkipTLS
+		}
+	}
+
+	return useOCIRegistry, nil
+}
+
+func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts ocistorage.OCIOpts) (string, error) {
 	manifest := manifest.FromBundle(bundle)
 	manifestID, err := manifest.ID()
 	if err != nil {
 		return "", err
 	}
-	ociOpts := ociwrapper.OCIOpts{
-		Reference:       opts.OCIRegistry.Reference,
-		Username:        opts.OCIRegistry.Username,
-		Password:        opts.OCIRegistry.Password,
-		BasicHTTP:       opts.OCIRegistry.BasicHTTP,
-		InsecureSkipTLS: opts.OCIRegistry.InsecureSkipTLS,
-	}
-	oci := ociwrapper.NewOCIWrapper()
-	err = oci.PushManifest(ctx, ociOpts, manifestID, manifest)
+	oci := ocistorage.NewOCIWrapper()
+	err = oci.PushManifest(ctx, opts, manifestID, manifest)
 	if err != nil {
 		return "", err
 	}
@@ -426,7 +449,7 @@ func saveImageScans(ctx context.Context, c client.Client, bundle *fleet.Bundle, 
 	return nil
 }
 
-func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, opts *Options) (*fleet.Bundle, error) {
+func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, opts ocistorage.OCIOpts) (*fleet.Bundle, error) {
 	manifestID, err := pushOCIManifest(ctx, bundle, opts)
 	if err != nil {
 		return bundle, err
@@ -467,7 +490,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, o
 // In this case we need to create a secret to store the
 // OCI registry reference and credentials so the fleet controller is
 // able to access.
-func newOCISecret(manifestID string, bundle *fleet.Bundle, opts *Options) *corev1.Secret {
+func newOCISecret(manifestID string, bundle *fleet.Bundle, opts ocistorage.OCIOpts) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      manifestID,
@@ -484,12 +507,15 @@ func newOCISecret(manifestID string, bundle *fleet.Bundle, opts *Options) *corev
 			},
 		},
 		Data: map[string][]byte{
-			ociwrapper.OCISecretReference: []byte(opts.OCIRegistry.Reference),
-			ociwrapper.OCISecretUsername:  []byte(opts.OCIRegistry.Username),
-			ociwrapper.OCISecretPassword:  []byte(opts.OCIRegistry.Password),
-			ociwrapper.OCISecretBasicHTTP: []byte(strconv.FormatBool(opts.OCIRegistry.BasicHTTP)),
-			ociwrapper.OCISecretInsecure:  []byte(strconv.FormatBool(opts.OCIRegistry.InsecureSkipTLS)),
+			ocistorage.OCISecretReference:     []byte(opts.Reference),
+			ocistorage.OCISecretUsername:      []byte(opts.Username),
+			ocistorage.OCISecretPassword:      []byte(opts.Password),
+			ocistorage.OCISecretAgentUsername: []byte(opts.AgentUsername),
+			ocistorage.OCISecretAgentPassword: []byte(opts.AgentPassword),
+			ocistorage.OCISecretBasicHTTP:     []byte(strconv.FormatBool(opts.BasicHTTP)),
+			ocistorage.OCISecretInsecure:      []byte(strconv.FormatBool(opts.InsecureSkipTLS)),
 		},
+		Type: fleet.SecretTypeOCIStorage,
 	}
 }
 

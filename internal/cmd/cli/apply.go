@@ -67,6 +67,7 @@ type Apply struct {
 	OCIPasswordFile             string            `usage:"Path of file containing basic auth password for OCI registry" name:"oci-password-file"`
 	OCIBasicHTTP                bool              `usage:"Use HTTP to access the OCI regustry" name:"oci-basic-http"`
 	OCIInsecure                 bool              `usage:"Allow connections to OCI registry without certs" name:"oci-insecure"`
+	OCIRegistrySecret           string            `usage:"OCI storage registry secret name" name:"oci-registry-secret"`
 	DrivenScan                  bool              `usage:"Use driven scan. Bundles are defined by the user" name:"driven-scan"`
 	DrivenScanSeparator         string            `usage:"Separator to use for bundle folder and options file" name:"driven-scan-sep" default:":"`
 }
@@ -129,6 +130,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		CorrectDriftKeepFailHistory: a.CorrectDriftKeepFailHistory,
 		DrivenScan:                  a.DrivenScan,
 		DrivenScanSeparator:         a.DrivenScanSeparator,
+		OCIRegistrySecret:           a.OCIRegistrySecret,
 	}
 
 	knownHostsPath, err := writeTmpKnownHosts()
@@ -140,9 +142,6 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	if err := a.addAuthToOpts(&opts, os.ReadFile); err != nil {
 		return fmt.Errorf("adding auth to opts: %w", err)
-	}
-	if err := a.addOCISpecToOpts(&opts, os.ReadFile); err != nil {
-		return fmt.Errorf("adding oci spec to opts: %w", err)
 	}
 
 	if a.File == "-" {
@@ -230,29 +229,6 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {
 		}
 		opts.Auth.SSHPrivateKey = privateKey
 	}
-
-	return nil
-}
-
-// addOCISpecToOpts adds the OCI registry specs (with auth if provided)
-func (a *Apply) addOCISpecToOpts(opts *apply.Options, readFile readFile) error {
-	// returning if the OCI registry reference is not defined
-	if a.OCIReference == "" {
-		return nil
-	}
-	opts.OCIRegistry.Reference = a.OCIReference
-
-	if a.OCIUsername != "" && a.OCIPasswordFile != "" {
-		password, err := readFile(a.OCIPasswordFile)
-		if err != nil {
-			return err
-		}
-
-		opts.OCIRegistry.Username = a.OCIUsername
-		opts.OCIRegistry.Password = string(password)
-	}
-	opts.OCIRegistry.BasicHTTP = a.OCIBasicHTTP
-	opts.OCIRegistry.InsecureSkipTLS = a.OCIInsecure
 
 	return nil
 }

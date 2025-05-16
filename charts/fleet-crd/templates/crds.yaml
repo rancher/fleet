@@ -6453,28 +6453,10 @@ spec:
                   description: KeepResources specifies if the resources created must
                     be kept after deleting the GitRepo.
                   type: boolean
-                ociRegistry:
-                  description: OCIRegistry specifies the OCI registry related parameters
-                  properties:
-                    authSecretName:
-                      description: AuthSecretName contains the auth secret where the
-                        OCI registry credentials are stored.
-                      nullable: true
-                      type: string
-                    basicHTTP:
-                      description: BasicHTTP uses HTTP connections to the OCI registry
-                        when enabled.
-                      nullable: true
-                      type: boolean
-                    insecureSkipTLS:
-                      description: InsecureSkipTLS allows connections to OCI registry
-                        without certs when enabled.
-                      nullable: true
-                      type: boolean
-                    reference:
-                      description: Reference of the OCI Registry
-                      type: string
-                  type: object
+                ociRegistrySecret:
+                  description: OCIRegistrySecret contains the name of the secret to
+                    be used for retrieving the OCI registry connection details.
+                  type: string
                 paths:
                   description: 'Paths is the directories relative to the git repo
                     root that contain resources to be applied.
