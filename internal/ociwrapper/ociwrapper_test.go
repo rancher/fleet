@@ -282,7 +282,7 @@ var _ = Describe("OCIUtils tests", func() {
 			oci: orasOperatorMock,
 		}
 		_, err := oci.PullManifest(context.Background(), opts, "s-123456")
-		Expect(err.Error()).To(Equal("not found"))
+		Expect(err.Error()).To(ContainSubstring("not found"))
 	})
 	It("returns an error if the OCI manifest is empty", func() {
 		orasOperatorMock := NewMockOrasOperator(ctrl, true)
