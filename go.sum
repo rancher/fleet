@@ -1232,8 +1232,8 @@ github.com/prometheus/procfs v0.15.1 h1:YagwOFzUgYfKKHX6Dr+sHT7km/hxC76UB0leargg
 github.com/prometheus/procfs v0.15.1/go.mod h1:fB45yRUv8NstnjriLhBQLuOUt+WW4BsoGhij/e3PBqk=
 github.com/rancher/lasso v0.2.2 h1:oKP5d4+eSupwHftLMTWo6QS1tYYZ5XK+ZjP+VNhwmk8=
 github.com/rancher/lasso v0.2.2/go.mod h1:KSV3jBXfdXqdCuMm2uC8kKB9q/wuDYb3h0eHZoRjShM=
-github.com/rancher/wrangler/v3 v3.2.0 h1:fZmhSOczW+pxAhyOaGG+9xbEwETPGA5gbS0x0Im2zWs=
-github.com/rancher/wrangler/v3 v3.2.0/go.mod h1:0C5QyvSrQOff8gQQzpB/L/FF03EQycjR3unSJcKCHno=
+github.com/rancher/wrangler/v3 v3.2.1 h1:V51PnoGb8bZ5jJdxFlqKQApzWdSp4sEy5OPGuEGqVbI=
+github.com/rancher/wrangler/v3 v3.2.1/go.mod h1:RV8kkv5br5HaxXWamIbr95pOjvVeoC5CeBldcdw5Fv0=
 github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/reugn/go-quartz v0.13.0 h1:0eMxvj28Qu1npIDdN9Mzg9hwyksGH6XJt4Cz0QB8EUk=
 github.com/reugn/go-quartz v0.13.0/go.mod h1:0ghKksELp8MJ4h84T203aTHRF3Kug5BrxEW3ErBvhzY=
