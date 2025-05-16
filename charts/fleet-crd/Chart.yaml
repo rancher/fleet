@@ -6,8 +6,8 @@ annotations:
   catalog.cattle.io/permits-os: linux,windows
   catalog.cattle.io/release-name: fleet-crd
 apiVersion: v2
-appVersion: 0.11.8-rc.1
+appVersion: 0.11.8
 description: Fleet CustomResourceDefinitions
 icon: https://charts.rancher.io/assets/logos/fleet.svg
 name: fleet-crd
-version: 0.11.8-rc.1
+version: 0.11.8
