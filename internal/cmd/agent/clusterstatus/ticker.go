@@ -74,7 +74,7 @@ func (h *handler) Update(ctx context.Context) error {
 	}
 
 	// Create a patch with the updated status, we avoid Get as that would
-	// need additonal RBAC
+	// need additional RBAC
 	patch := `[{"op":"add","path":"/status/agent","value":{"lastSeen":"` +
 		agentStatus.LastSeen.Format(time.RFC3339) +
 		`","namespace":"` + agentStatus.Namespace +
