@@ -52,14 +52,14 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.16.2
-	k8s.io/api v0.31.8
-	k8s.io/apiextensions-apiserver v0.31.8
-	k8s.io/apimachinery v0.31.8
-	k8s.io/cli-runtime v0.31.8
-	k8s.io/client-go v0.31.8
+	k8s.io/api v0.31.9
+	k8s.io/apiextensions-apiserver v0.31.9
+	k8s.io/apimachinery v0.31.9
+	k8s.io/cli-runtime v0.31.9
+	k8s.io/client-go v0.31.9
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
-	k8s.io/kubectl v0.31.8
+	k8s.io/kubectl v0.31.9
 	k8s.io/kubernetes v1.31.6
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
 	oras.land/oras-go/v2 v2.5.0
@@ -243,11 +243,11 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiserver v0.31.8 // indirect
-	k8s.io/code-generator v0.31.8 // indirect
-	k8s.io/component-base v0.31.8 // indirect
-	k8s.io/gengo v0.0.0-20250207200755-1244d31929d7 // indirect
-	k8s.io/gengo/v2 v2.0.0-20250207200755-1244d31929d7 // indirect
+	k8s.io/apiserver v0.31.9 // indirect
+	k8s.io/code-generator v0.31.9 // indirect
+	k8s.io/component-base v0.31.9 // indirect
+	k8s.io/gengo v0.0.0-20250513215321-e3bc6f1e78b4 // indirect
+	k8s.io/gengo/v2 v2.0.0-20250513215321-e3bc6f1e78b4 // indirect
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
