@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.13.0-alpha.2
+  tag: v0.13.0-alpha.3
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.13.0-alpha.2
+  tag: v0.13.0-alpha.3
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
@@ -157,10 +157,24 @@ agent:
 
 # Extra labels passed to the fleet pods.
 # extraLabels:
-#   new-label: "new-label-value"
-#   new-label-2: "new-label-value-2"
+#   fleetController:
+#     new-label: "new-label-value"
+#     new-label-2: "new-label-value-2"
+#   gitjob:
+#     new-label: "new-label-value"
+#     new-label-2: "new-label-value-2"
+#   helmops:
+#     new-label: "new-label-value"
+#     new-label-2: "new-label-value-2"
 
 # Extra annotations passed to the fleet pods.
 # extraAnnotations:
-#   new-annotation: "new-annotation-value"
-#   new-annotation-2: "new-annotation-value-2"
+#   fleetController:
+#     new-annotation: "new-annotation-value"
+#     new-annotation-2: "new-annotation-value-2"
+#   gitjob:
+#     new-annotation: "new-annotation-value"
+#     new-annotation-2: "new-annotation-value-2"
+#   helmops:
+#     new-annotation: "new-annotation-value"
+#     new-annotation-2: "new-annotation-value-2"
