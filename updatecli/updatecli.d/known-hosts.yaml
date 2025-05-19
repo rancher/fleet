@@ -28,8 +28,7 @@ targets:
         spec:
           files:
             - charts/fleet/templates/configmap_known_hosts.yaml
-      # TODO ensure this script is available on each branch
-      command: bash .github/scripts/update_known_hosts_configmap.sh
+      command: bash <(git show main:.github/scripts/update_known_hosts_configmap.sh)
 
 actions:
   default:
