@@ -1,5 +1,5 @@
 scms:
-  main:
+  main: &main
     enabled: true
     user: 'fleet-bot'
     email: 'fleet@suse.de'
@@ -7,23 +7,11 @@ scms:
     repository: fleet
     branch: main
   v12:
-    enabled: true
-    user: 'fleet-bot'
-    email: 'fleet@suse.de'
-    owner: rancher
-    repository: fleet
+    <<: *main
     branch: 'release/v0.12'
   v11:
-    enabled: true
-    user: 'fleet-bot'
-    email: 'fleet@suse.de'
-    owner: rancher
-    repository: fleet
+    <<: *main
     branch: 'release/v0.11'
   v10:
-    enabled: true
-    user: 'fleet-bot'
-    email: 'fleet@suse.de'
-    owner: rancher
-    repository: fleet
+    <<: *main
     branch: 'release/v0.10'
