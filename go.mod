@@ -246,8 +246,8 @@ require (
 	k8s.io/apiserver v0.31.9 // indirect
 	k8s.io/code-generator v0.31.9 // indirect
 	k8s.io/component-base v0.31.9 // indirect
-	k8s.io/gengo v0.0.0-20250513215321-e3bc6f1e78b4 // indirect
-	k8s.io/gengo/v2 v2.0.0-20250513215321-e3bc6f1e78b4 // indirect
+	k8s.io/gengo v0.0.0-20250521225637-5d81b218513b // indirect
+	k8s.io/gengo/v2 v2.0.0-20250521225637-5d81b218513b // indirect
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
