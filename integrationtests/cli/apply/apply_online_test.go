@@ -42,6 +42,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 				bundle.ObjectMeta = oldBundle.ObjectMeta
 				bundle.Name = ns.Name
 				bundle.Namespace = ns.Namespace
+				bundle.Spec = oldBundle.Spec
 				return nil
 			},
 		)
@@ -107,6 +108,36 @@ data:
 			)
 			err := fleetApplyOnline(clientMock, name, dirs, options)
 			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	When("A HelmOps bundle already exists in the same namespace", func() {
+		BeforeEach(func() {
+			name = "labels_update"
+			dirs = []string{cli.AssetsPath + "labels_update"}
+			//bundle in the cluster
+			oldBundle = &fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Name:      "labels_update",
+				},
+				Spec: fleet.BundleSpec{
+					HelmOpOptions: &fleet.BundleHelmOptions{
+						// values themselves do not matter, as long as Helm options are non-null and the bundle is therefore detected as
+						// a HelmOps bundle.
+						SecretName: "foo",
+					},
+				},
+			}
+		})
+
+		It("detects the existing bundle and fails to create the new bundle", func() {
+			// No update expected here, as checks for existence of an existing bundle should reveal that a
+			// HelmOps bundle with the same name already exists.
+
+			err := fleetApplyOnline(clientMock, name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("already exists"))
 		})
 	})
 })

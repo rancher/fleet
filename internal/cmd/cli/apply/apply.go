@@ -305,6 +305,7 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 	if len(bundle.Spec.Resources) == 0 {
 		return ErrNoResources
 	}
+
 	gitRepoBundlesMap[bundle.Name] = true
 
 	objects := []runtime.Object{bundle}
@@ -394,6 +395,10 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts *Options) (
 func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
 	updated := bundle.DeepCopy()
 	result, err := controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
+		if (updated.Spec.HelmOpOptions == nil) != (bundle.Spec.HelmOpOptions == nil) {
+			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
+		}
+
 		bundle.Spec = updated.Spec
 		bundle.Annotations = updated.Annotations
 		bundle.Labels = updated.Labels
@@ -435,6 +440,10 @@ func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, o
 
 	updated := bundle.DeepCopy()
 	_, err = controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
+		if (updated.Spec.HelmOpOptions == nil) != (bundle.Spec.HelmOpOptions == nil) {
+			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
+		}
+
 		bundle.Spec = updated.Spec
 		bundle.Annotations = updated.Annotations
 		bundle.Labels = updated.Labels
