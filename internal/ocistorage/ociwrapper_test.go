@@ -1,4 +1,4 @@
-package ociwrapper
+package ocistorage
 
 import (
 	"bytes"
@@ -317,27 +317,26 @@ var _ = Describe("OCIUtils tests", func() {
 
 var _ = Describe("OCIUtils Experimental flag tests", func() {
 	var envBeforeTest string
-	const experimentalEnv = "EXPERIMENTAL_OCI_STORAGE"
 
 	BeforeEach(func() {
-		envBeforeTest = os.Getenv(experimentalEnv)
+		envBeforeTest = os.Getenv(OCIStorageExperimentalFlag)
 	})
 
 	AfterEach(func() {
 		if envBeforeTest != "" {
 			// set the value it had before the test
-			Expect(os.Setenv(experimentalEnv, envBeforeTest)).ToNot(HaveOccurred())
+			Expect(os.Setenv(OCIStorageExperimentalFlag, envBeforeTest)).ToNot(HaveOccurred())
 		} else {
-			Expect(os.Unsetenv(experimentalEnv)).ToNot(HaveOccurred())
+			Expect(os.Unsetenv(OCIStorageExperimentalFlag)).ToNot(HaveOccurred())
 		}
 	})
 
 	DescribeTable("Check value returned is the expected one",
 		func(value string, expected bool) {
 			if value == "unset" {
-				Expect(os.Unsetenv(experimentalEnv)).ToNot(HaveOccurred())
+				Expect(os.Unsetenv(OCIStorageExperimentalFlag)).ToNot(HaveOccurred())
 			} else {
-				Expect(os.Setenv(experimentalEnv, value)).ToNot(HaveOccurred())
+				Expect(os.Setenv(OCIStorageExperimentalFlag, value)).ToNot(HaveOccurred())
 			}
 			result := ExperimentalOCIIsEnabled()
 			Expect(result).To(Equal(expected))

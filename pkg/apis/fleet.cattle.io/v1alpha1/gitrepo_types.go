@@ -136,8 +136,8 @@ type GitRepoSpec struct {
 	// Disables git polling. When enabled only webhooks will be used.
 	DisablePolling bool `json:"disablePolling,omitempty"`
 
-	// OCIRegistry specifies the OCI registry related parameters
-	OCIRegistry *OCIRegistrySpec `json:"ociRegistry,omitempty"`
+	// OCIRegistrySecret contains the name of the secret to be used for retrieving the OCI registry connection details.
+	OCIRegistrySecret string `json:"ociRegistrySecret,omitempty"`
 
 	// WebhookSecret contains the name of the secret to use for webhook parsing
 	WebhookSecret string `json:"webhookSecret,omitempty"`
@@ -230,23 +230,4 @@ type CorrectDrift struct {
 	Force bool `json:"force,omitempty"`
 	// KeepFailHistory keeps track of failed rollbacks in the helm history.
 	KeepFailHistory bool `json:"keepFailHistory,omitempty"`
-}
-
-type OCIRegistrySpec struct {
-	// Reference of the OCI Registry
-	Reference string `json:"reference,omitempty"`
-
-	// AuthSecretName contains the auth secret where the OCI registry credentials are stored.
-	// +nullable
-	AuthSecretName string `json:"authSecretName,omitempty"`
-
-	// BasicHTTP uses HTTP connections to the OCI registry when enabled.
-	// +optional
-	// +nullable
-	BasicHTTP bool `json:"basicHTTP,omitempty"`
-
-	// InsecureSkipTLS allows connections to OCI registry without certs when enabled.
-	// +optional
-	// +nullable
-	InsecureSkipTLS bool `json:"insecureSkipTLS,omitempty"`
 }

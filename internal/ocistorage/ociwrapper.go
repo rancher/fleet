@@ -1,4 +1,4 @@
-package ociwrapper
+package ocistorage
 
 import (
 	"bytes"
@@ -28,17 +28,25 @@ const (
 	fileType     = "application/fleet.file"
 	artifactType = "application/fleet.manifest"
 
-	OCISecretUsername  = "username"
-	OCISecretPassword  = "password"
-	OCISecretReference = "reference"
-	OCISecretBasicHTTP = "http"
-	OCISecretInsecure  = "insecure"
+	OCISecretUsername      = "username"
+	OCISecretPassword      = "password"
+	OCISecretAgentUsername = "agentUsername"
+	OCISecretAgentPassword = "agentPassword"
+	OCISecretReference     = "reference"
+	OCISecretBasicHTTP     = "basicHTTP"
+	OCISecretInsecure      = "insecure"
+
+	DefaultSecretNameOCIStorage = "ocistorage"
+
+	OCIStorageExperimentalFlag = "EXPERIMENTAL_OCI_STORAGE"
 )
 
 type OCIOpts struct {
 	Reference       string
 	Username        string
 	Password        string
+	AgentUsername   string
+	AgentPassword   string
 	BasicHTTP       bool
 	InsecureSkipTLS bool
 }
@@ -182,6 +190,14 @@ func (o *OCIWrapper) pushFile(ctx context.Context, opts OCIOpts, reader io.Reade
 func (o *OCIWrapper) pullFile(ctx context.Context, opts OCIOpts, id string) ([]byte, error) {
 	s := o.oci.NewStore()
 
+	// use the agent credentials (read only) if present
+	if opts.AgentUsername != "" {
+		opts.Username = opts.AgentUsername
+	}
+	if opts.AgentPassword != "" {
+		opts.Password = opts.AgentPassword
+	}
+
 	// copy from remote OCI registry to local memory store
 	repo, err := newOCIRepository(id, opts)
 	if err != nil {
@@ -261,6 +277,6 @@ func (o *OCIWrapper) PullManifest(ctx context.Context, opts OCIOpts, id string) 
 // ExperimentalOCIIsEnabled returns true if the EXPERIMENTAL_OCI_STORAGE env variable is set to true
 // returns false otherwise
 func ExperimentalOCIIsEnabled() bool {
-	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_OCI_STORAGE"))
+	value, err := strconv.ParseBool(os.Getenv(OCIStorageExperimentalFlag))
 	return err == nil && value
 }
