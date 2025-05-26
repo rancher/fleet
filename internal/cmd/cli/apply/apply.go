@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/fleetyaml"
 	"github.com/rancher/fleet/internal/helmvalues"
@@ -24,15 +22,16 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 var (
@@ -97,62 +96,79 @@ func globDirs(baseDir string) (result []string, err error) {
 // CreateBundles creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-func CreateBundles(ctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
+func CreateBundles(pctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
 
-	gitRepoBundlesMap := make(map[string]bool)
-	for i, baseDir := range baseDirs {
-		matches, err := globDirs(baseDir)
-		if err != nil {
-			return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
-		}
-		for _, baseDir := range matches {
-			if i > 0 && opts.Output != nil {
-				if _, err := opts.Output.Write([]byte("\n---\n")); err != nil {
-					return fmt.Errorf("writing to bundle output: %w", err)
-				}
+	eg, ctx := errgroup.WithContext(pctx)
+	bundlesChan := make(chan *fleet.Bundle)
+	eg.Go(func() error {
+		for _, baseDir := range baseDirs {
+			matches, err := globDirs(baseDir)
+			if err != nil {
+				return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
 			}
-
-			err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
-				// needed as opts are mutated in this loop
-				opts := opts
-
-				if err != nil {
-					return fmt.Errorf("failed walking path %q: %w", path, err)
-				}
-				if entry.IsDir() && entry.Name() == ".git" {
-					return filepath.SkipDir
-				}
-
-				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, entry)
-				if e != nil {
-					return fmt.Errorf("checking for bundle in path %q: %w", path, err)
-				}
-				if !createBundle {
-					return nil
-				}
-				if auth, ok := opts.AuthByPath[path]; ok {
-					opts.Auth = auth
-				}
-				bundle, scans, err := Dir(ctx, repoName, path, opts)
-				if err != nil {
-					if err == ErrNoResources {
-						logrus.Warnf("%s: %v", path, err)
+			for _, baseDir := range matches {
+				if err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
+					if err != nil {
+						return fmt.Errorf("failed walking path %q: %w", path, err)
+					}
+					if entry.IsDir() && entry.Name() == ".git" {
+						return filepath.SkipDir
+					}
+					createBundle, e := shouldCreateBundleForThisPath(baseDir, path, entry)
+					if e != nil {
+						return fmt.Errorf("checking for bundle in path %q: %w", path, err)
+					}
+					if !createBundle {
 						return nil
 					}
+
+					// needed as opts are mutated in this loop
+					opts := opts
+					eg.Go(func() error {
+						if auth, ok := opts.AuthByPath[path]; ok {
+							opts.Auth = auth
+						}
+
+						bundle, scans, err := Dir(ctx, repoName, path, opts)
+						if err != nil {
+							if err == ErrNoResources {
+								logrus.Warnf("%s: %v", path, err)
+								return nil
+							}
+							return err
+						}
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case bundlesChan <- bundle:
+						}
+						return writeBundle(ctx, client, bundle, scans, opts)
+					})
+					return nil
+				}); err != nil {
 					return err
 				}
-				gitRepoBundlesMap[bundle.Name] = true
-
-				return writeBundle(ctx, client, bundle, scans, opts)
-			})
-			if err != nil {
-				return err
 			}
 		}
+		return nil
+	})
+	go func() {
+		_ = eg.Wait()
+		close(bundlesChan)
+	}()
+
+	// bundlesChan is closed once all goroutines finish, making "range" consume and block all the processed items
+	gitRepoBundlesMap := make(map[string]bool)
+	for b := range bundlesChan {
+		gitRepoBundlesMap[b.Name] = true
 	}
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+	ctx = pctx // context from ErrorGroup is canceled after the first Wait() returns
 
 	if opts.Output == nil {
 		err := pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
@@ -177,37 +193,54 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 // separated by a character set in opts.
 // If no fleet file is provided it tries to load a fleet.yaml in the root of the dir, or will consider
 // the directory as a raw content folder.
-func CreateBundlesDriven(ctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
+func CreateBundlesDriven(pctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
 
-	gitRepoBundlesMap := make(map[string]bool)
+	eg, ctx := errgroup.WithContext(pctx)
+	bundlesChan := make(chan *fleet.Bundle)
 	for _, baseDir := range baseDirs {
 		opts := opts
-		// verify if it also defines a fleetFile
-		var err error
-		baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
-		if err != nil {
-			return err
-		}
-		if auth, ok := opts.AuthByPath[baseDir]; ok {
-			opts.Auth = auth
-		}
-		bundle, scans, err := Dir(ctx, repoName, baseDir, opts)
-		if err != nil {
-			if err == ErrNoResources {
-				logrus.Warnf("%s: %v", baseDir, err)
-				return nil
+		eg.Go(func() error {
+			// verify if it also defines a fleetFile
+			var err error
+			baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
+			if err != nil {
+				return err
 			}
-			return err
-		}
-		gitRepoBundlesMap[bundle.Name] = true
-
-		if err := writeBundle(ctx, client, bundle, scans, opts); err != nil {
-			return err
-		}
+			if auth, ok := opts.AuthByPath[baseDir]; ok {
+				opts.Auth = auth
+			}
+			bundle, scans, err := Dir(ctx, repoName, baseDir, opts)
+			if err != nil {
+				if err == ErrNoResources {
+					logrus.Warnf("%s: %v", baseDir, err)
+					return nil
+				}
+				return err
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case bundlesChan <- bundle:
+			}
+			return writeBundle(ctx, client, bundle, scans, opts)
+		})
 	}
+	go func() {
+		_ = eg.Wait()
+		close(bundlesChan)
+	}()
+
+	gitRepoBundlesMap := make(map[string]bool)
+	for b := range bundlesChan {
+		gitRepoBundlesMap[b.Name] = true
+	}
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+	ctx = pctx // context from ErrorGroup is canceled after the first Wait() returns
 
 	if opts.Output == nil {
 		err := pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
