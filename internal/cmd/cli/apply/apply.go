@@ -395,7 +395,7 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts *Options) (
 func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
 	updated := bundle.DeepCopy()
 	result, err := controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
-		if (updated.Spec.HelmOpOptions == nil) != (bundle.Spec.HelmOpOptions == nil) {
+		if bundle != nil && bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
 		}
 
@@ -440,7 +440,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, o
 
 	updated := bundle.DeepCopy()
 	_, err = controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
-		if (updated.Spec.HelmOpOptions == nil) != (bundle.Spec.HelmOpOptions == nil) {
+		if bundle != nil && bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
 		}
 
