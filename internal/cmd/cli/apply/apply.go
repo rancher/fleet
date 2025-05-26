@@ -310,6 +310,67 @@ func Dir(ctx context.Context, c client.Client, name, baseDir string, opts *Optio
 
 	gitRepoBundlesMap[bundle.Name] = true
 
+	return writeBundle(ctx, c, bundle, scans, *opts)
+}
+
+func writeBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, scans []*fleet.ImageScan, opts Options) error {
+	// Early return for "offline" mode, only printing the result to stdout/file
+	if opts.Output != nil {
+		return printToOutput(opts.Output, bundle, scans)
+	}
+
+	h, data, err := helmvalues.ExtractValues(bundle)
+	if err != nil {
+		return err
+	}
+
+	// If values were found in the bundle the hash is not empty, we
+	// remove the values from the bundle. Also, delete any old
+	// secret if the values are empty.
+	if h != "" {
+		helmvalues.ClearValues(bundle)
+	} else if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
+		return err
+	}
+	bundle.Spec.ValuesHash = h
+
+	var ociOpts ocistorage.OCIOpts
+	secretOCIRegistryID := client.ObjectKey{Name: opts.OCIRegistrySecret, Namespace: bundle.Namespace}
+	useOCIRegistry, err := shouldStoreInOCIRegistry(ctx, c, secretOCIRegistryID, &ociOpts)
+	if err != nil {
+		return err
+	}
+	if useOCIRegistry {
+		if bundle, err = saveOCIBundle(ctx, c, bundle, ociOpts); err != nil {
+			return err
+		}
+	} else {
+		if bundle, err = save(ctx, c, bundle); err != nil {
+			return err
+		}
+	}
+
+	// Saves the Helm values as a secret. The secret is owned by
+	// the bundle. It will not create a secret if the values are
+	// empty.
+	if len(data) > 0 {
+		valuesSecret := newValuesSecret(bundle, data)
+		updated := valuesSecret.DeepCopy()
+		_, err = controllerutil.CreateOrUpdate(ctx, c, valuesSecret, func() error {
+			valuesSecret.Labels = updated.Labels
+			valuesSecret.Data = updated.Data
+			valuesSecret.Type = updated.Type
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return saveImageScans(ctx, c, bundle, scans)
+}
+
+func printToOutput(w io.Writer, bundle *fleet.Bundle, scans []*fleet.ImageScan) error {
 	objects := []runtime.Object{bundle}
 	for _, scan := range scans {
 		objects = append(objects, scan)
@@ -320,62 +381,7 @@ func Dir(ctx context.Context, c client.Client, name, baseDir string, opts *Optio
 		return err
 	}
 
-	if opts.Output == nil {
-		h, data, err := helmvalues.ExtractValues(bundle)
-		if err != nil {
-			return err
-		}
-
-		// If values were found in the bundle the hash is not empty, we
-		// remove the values from the bundle. Also, delete any old
-		// secret if the values are empty.
-		if h != "" {
-			helmvalues.ClearValues(bundle)
-		} else if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
-			return err
-		}
-		bundle.Spec.ValuesHash = h
-
-		var ociOpts ocistorage.OCIOpts
-		secretOCIRegistryID := client.ObjectKey{Name: opts.OCIRegistrySecret, Namespace: bundle.Namespace}
-		useOCIRegistry, err := shouldStoreInOCIRegistry(ctx, c, secretOCIRegistryID, &ociOpts)
-		if err != nil {
-			return err
-		}
-		if useOCIRegistry {
-			if bundle, err = saveOCIBundle(ctx, c, bundle, ociOpts); err != nil {
-				return err
-			}
-		} else {
-			if bundle, err = save(ctx, c, bundle); err != nil {
-				return err
-			}
-		}
-
-		// Saves the Helm values as a secret. The secret is owned by
-		// the bundle. It will not create a secret if the values are
-		// empty.
-		if len(data) > 0 {
-			valuesSecret := newValuesSecret(bundle, data)
-			updated := valuesSecret.DeepCopy()
-			_, err = controllerutil.CreateOrUpdate(ctx, c, valuesSecret, func() error {
-				valuesSecret.Labels = updated.Labels
-				valuesSecret.Data = updated.Data
-				valuesSecret.Type = updated.Type
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		if err := saveImageScans(ctx, c, bundle, scans); err != nil {
-			return err
-		}
-	} else {
-		_, err = opts.Output.Write(b)
-	}
-
+	_, err = w.Write(b)
 	return err
 }
 
