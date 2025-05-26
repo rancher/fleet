@@ -136,14 +136,17 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 				if auth, ok := opts.AuthByPath[path]; ok {
 					opts.Auth = auth
 				}
-				if err := Dir(ctx, client, repoName, path, &opts, gitRepoBundlesMap); err == ErrNoResources {
-					logrus.Warnf("%s: %v", path, err)
-					return nil
-				} else if err != nil {
+				bundle, scans, err := Dir(ctx, repoName, path, opts)
+				if err != nil {
+					if err == ErrNoResources {
+						logrus.Warnf("%s: %v", path, err)
+						return nil
+					}
 					return err
 				}
+				gitRepoBundlesMap[bundle.Name] = true
 
-				return nil
+				return writeBundle(ctx, client, bundle, scans, opts)
 			})
 			if err != nil {
 				return err
@@ -191,10 +194,17 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, repoName str
 		if auth, ok := opts.AuthByPath[baseDir]; ok {
 			opts.Auth = auth
 		}
-		if err := Dir(ctx, client, repoName, baseDir, &opts, gitRepoBundlesMap); err == ErrNoResources {
-			logrus.Warnf("%s: %v", baseDir, err)
-			return nil
-		} else if err != nil {
+		bundle, scans, err := Dir(ctx, repoName, baseDir, opts)
+		if err != nil {
+			if err == ErrNoResources {
+				logrus.Warnf("%s: %v", baseDir, err)
+				return nil
+			}
+			return err
+		}
+		gitRepoBundlesMap[bundle.Name] = true
+
+		if err := writeBundle(ctx, client, bundle, scans, opts); err != nil {
 			return err
 		}
 	}
@@ -248,7 +258,7 @@ func pruneBundlesNotFoundInRepo(ctx context.Context, c client.Client, repoName, 
 
 // newBundle reads bundle data from a source and returns a bundle with the
 // given name, or the name from the raw source file
-func newBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
+func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	var bundle *fleet.Bundle
 	var scans []*fleet.ImageScan
 	if opts.BundleReader != nil {
@@ -287,10 +297,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet
 //
 // name: the gitrepo name, passed to 'fleet apply' on the cli
 // basedir: the path from the walk func in Dir, []baseDirs
-func Dir(ctx context.Context, c client.Client, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
-	if opts == nil {
-		opts = &Options{}
-	}
+func Dir(ctx context.Context, name, baseDir string, opts Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	// The bundleID is a valid helm release name, it's used as a default if a release name is not specified in helm options.
 	// It's also used to create the bundle name.
 	bundleID := filepath.Join(name, baseDir)
@@ -301,16 +308,11 @@ func Dir(ctx context.Context, c client.Client, name, baseDir string, opts *Optio
 
 	bundle, scans, err := newBundle(ctx, bundleID, baseDir, opts)
 	if err != nil {
-		return err
+		return nil, nil, err
+	} else if len(bundle.Spec.Resources) == 0 {
+		return nil, nil, ErrNoResources
 	}
-
-	if len(bundle.Spec.Resources) == 0 {
-		return ErrNoResources
-	}
-
-	gitRepoBundlesMap[bundle.Name] = true
-
-	return writeBundle(ctx, c, bundle, scans, *opts)
+	return bundle, scans, nil
 }
 
 func writeBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, scans []*fleet.ImageScan, opts Options) error {
