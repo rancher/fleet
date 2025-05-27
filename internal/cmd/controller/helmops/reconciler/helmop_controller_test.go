@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"go.uber.org/mock/gomock"
@@ -146,6 +147,89 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 	if err.Error() != "this is a test error" {
 		t.Errorf("expecting error: [this is a test error], got %v", err.Error())
 	}
+	if res.Requeue {
+		t.Errorf("expecting Requeue set to false, it was true")
+	}
+}
+
+// Validates that the HelmOps reconciler will not create a bundle if another bundle exists with the same name, for
+// instance a gitOps bundle.
+func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
+	os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	scheme := runtime.NewScheme()
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+	helmop := fleet.HelmOp{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-workload",
+			Namespace: "default",
+		},
+	}
+	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+	client := mocks.NewMockClient(mockCtrl)
+	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
+			fh.Name = helmop.Name
+			fh.Namespace = helmop.Namespace
+			fh.Spec.Helm = &fleet.HelmOptions{
+				Chart: "chart",
+			}
+			controllerutil.AddFinalizer(fh, finalize.HelmOpFinalizer)
+			return nil
+		},
+	)
+
+	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), fleet.Bundle{}).AnyTimes().DoAndReturn(
+		func(ctx context.Context, req types.NamespacedName, bundle *fleet.Bundle, opts ...interface{}) error {
+			bundle.ObjectMeta = metav1.ObjectMeta{
+				Name:      "my-workload",
+				Namespace: "default",
+			}
+
+			return nil
+		},
+	)
+
+	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
+	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), fleet.HelmOp{}).AnyTimes().DoAndReturn(
+		func(ctx context.Context, req types.NamespacedName, bundle *fleet.HelmOp, opts ...interface{}) error {
+			return nil
+		},
+	)
+
+	expectedErrorMsg := "non-helmops bundle already exists"
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	client.EXPECT().Status().Return(statusClient).Times(1)
+	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, helmop *fleet.HelmOp, opts ...interface{}) {
+			c, found := getCondition(helmop, fleet.HelmOpAcceptedCondition)
+			if !found {
+				t.Errorf("expecting to find the %s condition and could not find it.", fleet.HelmOpAcceptedCondition)
+			}
+			if !strings.Contains(c.Message, expectedErrorMsg) {
+				t.Errorf("expecting message [%s] in condition, got [%s]", expectedErrorMsg, c.Message)
+			}
+		},
+	).Times(1)
+
+	r := HelmOpReconciler{
+		Client: client,
+		Scheme: scheme,
+	}
+
+	ctx := context.TODO()
+
+	res, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err == nil {
+		t.Errorf("expecting error, got nil")
+	}
+
+	if err != nil && !strings.Contains(err.Error(), expectedErrorMsg) {
+		t.Errorf("expecting error: [%s], got %v", expectedErrorMsg, err.Error())
+	}
+
 	if res.Requeue {
 		t.Errorf("expecting Requeue set to false, it was true")
 	}

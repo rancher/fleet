@@ -8,7 +8,4 @@ spec:
   branch: master
   paths:
   - simple-chart-oci
-  ociRegistry:
-    reference: {{.OCIReference}}
-    authSecretName: oci-secret
-    insecureSkipTLS: {{.OCIInsecureSkipTLS}}
+  ociRegistrySecret: {{.OCIRegistrySecret}}
