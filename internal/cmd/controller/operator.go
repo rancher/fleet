@@ -120,7 +120,10 @@ func start(
 		return err
 	}
 
-	sched := quartz.NewStdScheduler()
+	sched, err := quartz.NewStdScheduler()
+	if err != nil {
+		return fmt.Errorf("failed to create scheduler: %w", err)
+	}
 
 	// controllers that update status.display
 	if err = (&reconciler.ClusterGroupReconciler{
