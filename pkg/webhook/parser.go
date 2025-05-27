@@ -99,7 +99,7 @@ func parseGithub(r *http.Request, secret *corev1.Secret) (interface{}, error) {
 		}
 	}
 
-	return hook.Parse(r, github.PushEvent, github.PingEvent)
+	return hook.Parse(r, github.PushEvent)
 }
 
 func parseGitlab(r *http.Request, secret *corev1.Secret) (interface{}, error) {
