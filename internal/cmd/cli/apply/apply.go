@@ -103,7 +103,6 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 		baseDirs = []string{"."}
 	}
 
-	foundBundle := false
 	gitRepoBundlesMap := make(map[string]bool)
 	for i, baseDir := range baseDirs {
 		matches, err := globDirs(baseDir)
@@ -144,7 +143,6 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 				} else if err != nil {
 					return err
 				}
-				foundBundle = true
 
 				return nil
 			})
@@ -161,7 +159,7 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 		}
 	}
 
-	if !foundBundle {
+	if len(gitRepoBundlesMap) == 0 {
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
@@ -182,7 +180,6 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, repoName str
 		baseDirs = []string{"."}
 	}
 
-	foundBundle := false
 	gitRepoBundlesMap := make(map[string]bool)
 	for _, baseDir := range baseDirs {
 		opts := opts
@@ -201,7 +198,6 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, repoName str
 		} else if err != nil {
 			return err
 		}
-		foundBundle = true
 	}
 
 	if opts.Output == nil {
@@ -211,7 +207,7 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, repoName str
 		}
 	}
 
-	if !foundBundle {
+	if len(gitRepoBundlesMap) == 0 {
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
