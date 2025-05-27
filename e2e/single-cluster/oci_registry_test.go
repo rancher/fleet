@@ -17,11 +17,11 @@ import (
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -68,7 +68,7 @@ func createDefaultOCIRegistrySecret(
 	insecure,
 	basicHTTP bool) {
 	createOCIRegistrySecret(
-		ocistorage.DefaultSecretNameOCIStorage,
+		ocistorage.OCIStorageDefaultSecretName,
 		namespace,
 		secretType,
 		reference,
@@ -312,7 +312,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	AfterEach(func() {
 		if deployDefaultSecret {
 			var secret corev1.Secret
-			k8sclient.GetObjectShouldSucceed(clientUpstream, ocistorage.DefaultSecretNameOCIStorage, env.Namespace, &secret)
+			k8sclient.GetObjectShouldSucceed(clientUpstream, ocistorage.OCIStorageDefaultSecretName, env.Namespace, &secret)
 			k8sclient.DeleteObjectShouldSucceed(clientUpstream, &secret)
 		}
 		if deploySpecificSecretName != "" {
@@ -380,10 +380,10 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					}).Should(Succeed())
 				})
 				By("creating a bundle secret with the expected contents", func() {
-					verifySecretsAreEqual(ocistorage.DefaultSecretNameOCIStorage, env.Namespace, contentsID, env.Namespace)
+					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, env.Namespace)
 				})
 				By("creating a bundledeployment secret", func() {
-					verifySecretsAreEqual(ocistorage.DefaultSecretNameOCIStorage, env.Namespace, contentsID, downstreamNamespace)
+					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, downstreamNamespace)
 				})
 				By("not creating a contents resource for this chart", func() {
 					var content fleet.Content
@@ -619,10 +619,10 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					}).Should(Succeed())
 				})
 				By("creating a bundle secret with the expected contents", func() {
-					verifySecretsAreEqual(ocistorage.DefaultSecretNameOCIStorage, env.Namespace, contentsID, env.Namespace)
+					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, env.Namespace)
 				})
 				By("creating a bundledeployment secret", func() {
-					verifySecretsAreEqual(ocistorage.DefaultSecretNameOCIStorage, env.Namespace, contentsID, downstreamNamespace)
+					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, downstreamNamespace)
 				})
 				By("not creating a contents resource for this chart", func() {
 					var content fleet.Content
@@ -633,7 +633,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
 				})
 				By("changing the contents of the oci artifact", func() {
-					pushFakeOCIContents(ocistorage.DefaultSecretNameOCIStorage, contentsID)
+					pushFakeOCIContents(ocistorage.OCIStorageDefaultSecretName, contentsID)
 				})
 				By("forcing the bundle deployment to re-deploy and reject the oci contents", func() {
 					var bd fleet.BundleDeployment

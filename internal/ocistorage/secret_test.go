@@ -20,22 +20,20 @@ import (
 
 var _ = Describe("OCIOpts loaded from secret", func() {
 	var (
-		ctrl                          *gomock.Controller
-		secretGetErrorMessage         string
-		secretGetNotFoundError        bool
-		defaultSecretGetErrorMessage  string
-		defaultSecretGetNotFoundError bool
-		mockClient                    *mocks.MockClient
-		secretData                    map[string][]byte
-		defaultSecretData             map[string][]byte
-		secretType                    string
-		defaultSecretType             string
+		ctrl                   *gomock.Controller
+		secretGetErrorMessage  string
+		secretGetNotFoundError bool
+		mockClient             *mocks.MockClient
+
+		secretName string
+		secretData map[string][]byte
+		secretType string
 	)
 
 	JustBeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
 		mockClient = mocks.NewMockClient(ctrl)
-		ns := types.NamespacedName{Name: "test", Namespace: "test"}
+		ns := types.NamespacedName{Name: secretName, Namespace: "test"}
 		getSecretFromMockClient(
 			mockClient,
 			ns,
@@ -44,21 +42,11 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 			secretGetNotFoundError,
 			secretGetErrorMessage,
 		)
-		if secretGetNotFoundError {
-			ns = types.NamespacedName{Name: DefaultSecretNameOCIStorage, Namespace: "test"}
-			getSecretFromMockClient(
-				mockClient,
-				ns,
-				defaultSecretData,
-				defaultSecretType,
-				defaultSecretGetNotFoundError,
-				defaultSecretGetErrorMessage,
-			)
-		}
 	})
 
 	When("the given oci storage secret exists with all fields set", func() {
 		BeforeEach(func() {
+			secretName = "test"
 			secretData = map[string][]byte{
 				OCISecretUsername:      []byte("username"),
 				OCISecretPassword:      []byte("password"),
@@ -73,7 +61,37 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 			secretGetNotFoundError = false
 		})
 		It("returns the expected OCIOpts from the data in the secret", func() {
-			ns := types.NamespacedName{Name: "test", Namespace: "test"}
+			ns := types.NamespacedName{Name: secretName, Namespace: "test"}
+			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(opts.Reference).To(Equal(string(secretData[OCISecretReference])))
+			Expect(opts.Username).To(Equal(string(secretData[OCISecretUsername])))
+			Expect(opts.Password).To(Equal(string(secretData[OCISecretPassword])))
+			Expect(opts.AgentUsername).To(Equal(string(secretData[OCISecretAgentUsername])))
+			Expect(opts.AgentPassword).To(Equal(string(secretData[OCISecretAgentPassword])))
+			Expect(opts.BasicHTTP).To(BeTrue())
+			Expect(opts.InsecureSkipTLS).To(BeTrue())
+		})
+	})
+
+	When("the secret name is not set, but a default secret exists", func() {
+		BeforeEach(func() {
+			secretName = ""
+			secretData = map[string][]byte{
+				OCISecretUsername:      []byte("username"),
+				OCISecretPassword:      []byte("password"),
+				OCISecretAgentUsername: []byte("agentUsername"),
+				OCISecretAgentPassword: []byte("agentPassword"),
+				OCISecretReference:     []byte("reference"),
+				OCISecretBasicHTTP:     []byte("true"),
+				OCISecretInsecure:      []byte("true"),
+			}
+			secretType = fleet.SecretTypeOCIStorage
+			secretGetErrorMessage = ""
+			secretGetNotFoundError = false
+		})
+		It("returns the expected OCIOpts from the data in the secret", func() {
+			ns := types.NamespacedName{Name: secretName, Namespace: "test"}
 			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(opts.Reference).To(Equal(string(secretData[OCISecretReference])))
@@ -88,6 +106,7 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 
 	When("the given oci storage secret exists with all the non-required fields are not set", func() {
 		BeforeEach(func() {
+			secretName = "test"
 			secretData = map[string][]byte{
 				OCISecretReference: []byte("reference"),
 			}
@@ -97,7 +116,7 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 			secretGetNotFoundError = false
 		})
 		It("returns the expected OCIOpts from the data in the secret", func() {
-			ns := types.NamespacedName{Name: "test", Namespace: "test"}
+			ns := types.NamespacedName{Name: secretName, Namespace: "test"}
 			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(opts.Reference).To(Equal(string(secretData[OCISecretReference])))
@@ -112,6 +131,7 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 
 	When("the given oci storage secret exists and reference is not set", func() {
 		BeforeEach(func() {
+			secretName = "test"
 			secretData = map[string][]byte{
 				OCISecretUsername:      []byte("username"),
 				OCISecretPassword:      []byte("password"),
@@ -126,56 +146,21 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 			secretGetNotFoundError = false
 		})
 		It("returns an error complaining about reference not being set", func() {
-			ns := types.NamespacedName{Name: "test", Namespace: "test"}
+			ns := types.NamespacedName{Name: secretName, Namespace: "test"}
 			_, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("key \"reference\" not found in secret"))
 		})
 	})
 
-	When("the given oci storage secret does not exists but the default one does", func() {
+	When("the given oci storage secret does not exist", func() {
 		BeforeEach(func() {
-			defaultSecretData = map[string][]byte{
-				OCISecretReference:     []byte("defaultReference"),
-				OCISecretUsername:      []byte("defaultUsername"),
-				OCISecretPassword:      []byte("defaultPassword"),
-				OCISecretAgentUsername: []byte("defaultAgentUsername"),
-				OCISecretAgentPassword: []byte("defaultAgentPassword"),
-				OCISecretBasicHTTP:     []byte("true"),
-				OCISecretInsecure:      []byte("true"),
-			}
-
-			defaultSecretType = fleet.SecretTypeOCIStorage
+			secretName = "test"
 			secretGetNotFoundError = true
 			secretGetErrorMessage = ""
-
-			defaultSecretGetErrorMessage = ""
-			defaultSecretGetNotFoundError = false
 		})
-		It("returns an error complaining about reference not being set", func() {
-			ns := types.NamespacedName{Name: "test", Namespace: "test"}
-			opts, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(opts.Reference).To(Equal(string(defaultSecretData[OCISecretReference])))
-			Expect(opts.Username).To(Equal(string(defaultSecretData[OCISecretUsername])))
-			Expect(opts.Password).To(Equal(string(defaultSecretData[OCISecretPassword])))
-			Expect(opts.AgentUsername).To(Equal(string(defaultSecretData[OCISecretAgentUsername])))
-			Expect(opts.AgentPassword).To(Equal(string(defaultSecretData[OCISecretAgentPassword])))
-			Expect(opts.BasicHTTP).To(BeTrue())
-			Expect(opts.InsecureSkipTLS).To(BeTrue())
-		})
-	})
-
-	When("the given oci storage secret and the default one dont exist", func() {
-		BeforeEach(func() {
-			secretGetNotFoundError = true
-			secretGetErrorMessage = ""
-
-			defaultSecretGetErrorMessage = ""
-			defaultSecretGetNotFoundError = true
-		})
-		It("returns an error complaining about reference not being set", func() {
-			ns := types.NamespacedName{Name: "test", Namespace: "test"}
+		It("returns an error complaining about a secret not being found", func() {
+			ns := types.NamespacedName{Name: secretName, Namespace: "test"}
 			_, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
 			Expect(err).To(HaveOccurred())
 			Expect(apierrors.IsNotFound(err)).To(BeTrue())
@@ -184,61 +169,30 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 
 	When("the given oci storage secret exists but the type is not the expected one", func() {
 		BeforeEach(func() {
+			secretName = "test"
 			secretType = "party-like-its-1999"
 			secretGetNotFoundError = false
 			secretGetErrorMessage = ""
 		})
 		It("returns an error complaining about wrong type", func() {
-			ns := types.NamespacedName{Name: "test", Namespace: "test"}
+			ns := types.NamespacedName{Name: secretName, Namespace: "test"}
 			_, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal(fmt.Sprintf("unexpected secret type: got %q, want %q", secretType, fleet.SecretTypeOCIStorage)))
 		})
 	})
 
-	When("the given oci storage secret does not exist and the default one does, but with the wrong type", func() {
-		BeforeEach(func() {
-			defaultSecretType = "party-like-its-1999"
-			secretGetNotFoundError = true
-			secretGetErrorMessage = ""
-
-			defaultSecretGetErrorMessage = ""
-			defaultSecretGetNotFoundError = false
-		})
-		It("returns an error complaining about wrong type", func() {
-			ns := types.NamespacedName{Name: "test", Namespace: "test"}
-			_, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal(fmt.Sprintf("unexpected secret type: got %q, want %q", defaultSecretType, fleet.SecretTypeOCIStorage)))
-		})
-	})
-
 	When("there is an error when getting the secret", func() {
 		BeforeEach(func() {
+			secretName = "test"
 			secretGetNotFoundError = false
 			secretGetErrorMessage = "SOME ERROR"
 		})
 		It("returns the error", func() {
-			ns := types.NamespacedName{Name: "test", Namespace: "test"}
+			ns := types.NamespacedName{Name: secretName, Namespace: "test"}
 			_, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal(secretGetErrorMessage))
-		})
-	})
-
-	When("there is an error when getting the default secret", func() {
-		BeforeEach(func() {
-			secretGetNotFoundError = true
-			secretGetErrorMessage = ""
-
-			defaultSecretGetErrorMessage = "SOME ERROR GETTING THE DEFAULT SECRET"
-			defaultSecretGetNotFoundError = false
-		})
-		It("returns the error", func() {
-			ns := types.NamespacedName{Name: "test", Namespace: "test"}
-			_, err := ReadOptsFromSecret(context.TODO(), mockClient, ns)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Equal(defaultSecretGetErrorMessage))
 		})
 	})
 })
@@ -262,9 +216,20 @@ func getSecretFromMockClient(
 				return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
 			},
 		)
-	} else {
+	} else if ns.Name == "" {
+		// verify that when the name is not set it uses the default secret name.
 		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-			func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+				Expect(key.Name).To(Equal(OCIStorageDefaultSecretName))
+				secret.Data = data
+				secret.Type = corev1.SecretType(secretType)
+				return nil
+			},
+		)
+	} else if ns.Name != "" {
+		mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, key types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
+				Expect(ns.Name).To(Equal(key.Name))
 				secret.Data = data
 				secret.Type = corev1.SecretType(secretType)
 				return nil

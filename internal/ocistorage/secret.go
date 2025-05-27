@@ -6,11 +6,22 @@ import (
 	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+)
+
+const (
+	OCISecretUsername      = "username"
+	OCISecretPassword      = "password"
+	OCISecretAgentUsername = "agentUsername"
+	OCISecretAgentPassword = "agentPassword"
+	OCISecretReference     = "reference"
+	OCISecretBasicHTTP     = "basicHTTP"
+	OCISecretInsecure      = "insecure"
+
+	OCIStorageDefaultSecretName = "ocistorage"
 )
 
 // ReadOptsFromSecret reads the secret identified by the given NamespacedName and
@@ -18,24 +29,13 @@ import (
 func ReadOptsFromSecret(ctx context.Context, c client.Reader, ns types.NamespacedName) (OCIOpts, error) {
 	// if no secret was specified, fallback to the default one
 	if ns.Name == "" {
-		ns.Name = DefaultSecretNameOCIStorage
+		ns.Name = OCIStorageDefaultSecretName
 	}
 
 	opts := OCIOpts{}
 	var secret corev1.Secret
 	err := c.Get(ctx, ns, &secret)
-
 	if err != nil {
-		if apierrors.IsNotFound(err) && ns.Name != DefaultSecretNameOCIStorage {
-			// fallback to the default secret
-			defaultNs := types.NamespacedName{
-				Namespace: ns.Namespace,
-				Name:      DefaultSecretNameOCIStorage,
-			}
-
-			return ReadOptsFromSecret(ctx, c, defaultNs)
-		}
-
 		return OCIOpts{}, err
 	}
 

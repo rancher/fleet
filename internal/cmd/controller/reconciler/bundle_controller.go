@@ -538,7 +538,6 @@ func (r *BundleReconciler) cloneSecret(
 			Namespace: bd.Namespace,
 		},
 		Data: secret.Data,
-		Type: fleet.SecretTypeOCIStorage,
 	}
 
 	if secretType != "" {

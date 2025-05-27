@@ -379,25 +379,27 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 }
 
 func shouldStoreInOCIRegistry(ctx context.Context, c client.Reader, ociSecretKey types.NamespacedName, ociOpts *ocistorage.OCIOpts) (bool, error) {
-	useOCIRegistry := false
-	if ocistorage.ExperimentalOCIIsEnabled() {
-		opts, err := ocistorage.ReadOptsFromSecret(ctx, c, ociSecretKey)
-		if err != nil && !apierrors.IsNotFound(err) {
-			return false, err
-		}
-		useOCIRegistry = (err == nil)
-		if useOCIRegistry {
-			ociOpts.Reference = opts.Reference
-			ociOpts.Username = opts.Username
-			ociOpts.Password = opts.Password
-			ociOpts.AgentUsername = opts.AgentUsername
-			ociOpts.AgentPassword = opts.AgentPassword
-			ociOpts.BasicHTTP = opts.BasicHTTP
-			ociOpts.InsecureSkipTLS = opts.InsecureSkipTLS
-		}
+	if !ocistorage.ExperimentalOCIIsEnabled() {
+		return false, nil
 	}
 
-	return useOCIRegistry, nil
+	opts, err := ocistorage.ReadOptsFromSecret(ctx, c, ociSecretKey)
+	if err != nil {
+		if apierrors.IsNotFound(err) && ociSecretKey.Name == "" {
+			// don't return not found errors when no secret name was specified by the user
+			return false, nil
+		}
+		return false, err
+	}
+	ociOpts.Reference = opts.Reference
+	ociOpts.Username = opts.Username
+	ociOpts.Password = opts.Password
+	ociOpts.AgentUsername = opts.AgentUsername
+	ociOpts.AgentPassword = opts.AgentPassword
+	ociOpts.BasicHTTP = opts.BasicHTTP
+	ociOpts.InsecureSkipTLS = opts.InsecureSkipTLS
+
+	return true, nil
 }
 
 func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts ocistorage.OCIOpts) (string, error) {

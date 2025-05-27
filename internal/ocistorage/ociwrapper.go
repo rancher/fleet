@@ -28,16 +28,6 @@ const (
 	fileType     = "application/fleet.file"
 	artifactType = "application/fleet.manifest"
 
-	OCISecretUsername      = "username"
-	OCISecretPassword      = "password"
-	OCISecretAgentUsername = "agentUsername"
-	OCISecretAgentPassword = "agentPassword"
-	OCISecretReference     = "reference"
-	OCISecretBasicHTTP     = "basicHTTP"
-	OCISecretInsecure      = "insecure"
-
-	DefaultSecretNameOCIStorage = "ocistorage"
-
 	OCIStorageExperimentalFlag = "EXPERIMENTAL_OCI_STORAGE"
 )
 
