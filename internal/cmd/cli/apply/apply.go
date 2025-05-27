@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -116,18 +117,18 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 				}
 			}
 
-			err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+			err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
 				// needed as opts are mutated in this loop
 				opts := opts
 
 				if err != nil {
 					return fmt.Errorf("failed walking path %q: %w", path, err)
 				}
-				if info.IsDir() && info.Name() == ".git" {
+				if entry.IsDir() && entry.Name() == ".git" {
 					return filepath.SkipDir
 				}
 
-				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, info)
+				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, entry)
 				if e != nil {
 					return fmt.Errorf("checking for bundle in path %q: %w", path, err)
 				}
@@ -556,12 +557,12 @@ func newValuesSecret(bundle *fleet.Bundle, data map[string][]byte) *corev1.Secre
 // shouldCreateBundleForThisPath returns true if a bundle should be created for this path. This happens when:
 // 1) Root path contains resources in the root directory or any subdirectory without a fleet.yaml.
 // 2) Or it is a subdirectory with a fleet.yaml
-func shouldCreateBundleForThisPath(baseDir, path string, info os.FileInfo) (bool, error) {
+func shouldCreateBundleForThisPath(baseDir, path string, entry fs.DirEntry) (bool, error) {
 	isRootPath := baseDir == path
 	if isRootPath {
 		// always create a Bundle if fleet.yaml is found in the root path
 		if !fleetyaml.FoundFleetYamlInDirectory(path) {
-			// don't create a Bundle if any subdirectory with resources and witouth a fleet.yaml is found
+			// don't create a Bundle if any subdirectory with resources and without a fleet.yaml is found
 			createBundleForRoot, err := hasSubDirectoryWithResourcesAndWithoutFleetYaml(path)
 			if err != nil {
 				return false, err
@@ -569,7 +570,7 @@ func shouldCreateBundleForThisPath(baseDir, path string, info os.FileInfo) (bool
 			return createBundleForRoot, nil
 		}
 	} else {
-		if !info.IsDir() {
+		if !entry.IsDir() {
 			return false, nil
 		}
 		if !fleetyaml.FoundFleetYamlInDirectory(path) {

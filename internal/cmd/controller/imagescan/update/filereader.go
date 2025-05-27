@@ -19,6 +19,7 @@ package update
 import (
 	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -61,13 +62,13 @@ func (r *ScreeningLocalReader) Read() ([]*yaml.RNode, error) {
 
 	// For the filename annotation, I want a directory for filenames
 	// to be relative to; but I don't know whether path is a directory
-	// or file yet so this must wait until the body of the filepath.Walk.
+	// or file yet so this must wait until the body of the filepath.WalkDir.
 	var relativePath string
 
 	tokenbytes := []byte(r.Token)
 
 	var result []*yaml.RNode
-	err = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(root, func(p string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walking path for files: %w", err)
 		}
