@@ -117,7 +117,7 @@ func loadBundle(ctx context.Context, name, baseDir string, bundleSpecReader io.R
 		return nil, nil, err
 	}
 
-	bundle, scans, err := bundleFromDir(ctx, name, baseDir, bytes.NewBuffer(data), opts)
+	bundle, scans, err := bundleFromDir(ctx, name, baseDir, data, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -130,7 +130,7 @@ func loadBundle(ctx context.Context, name, baseDir string, bundleSpecReader io.R
 
 	newOpts := *opts
 	newOpts.Compress = true
-	return bundleFromDir(ctx, name, baseDir, bytes.NewBuffer(data), &newOpts)
+	return bundleFromDir(ctx, name, baseDir, data, &newOpts)
 }
 
 func size(bundle *fleet.Bundle) (int, error) {
@@ -141,8 +141,8 @@ func size(bundle *fleet.Bundle) (int, error) {
 	return len(marshalled), nil
 }
 
-// bundleFromDir reads the fleet.yaml from the bundleSpecReader and loads all resources
-func bundleFromDir(ctx context.Context, name, baseDir string, bundleSpecReader io.Reader, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
+// bundleFromDir reads the fleet.yaml from the bundleData and loads all resources
+func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -151,13 +151,8 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleSpecReader i
 		baseDir = "./"
 	}
 
-	bytes, err := io.ReadAll(bundleSpecReader)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	fy := &fleet.FleetYAML{}
-	if err := yaml.Unmarshal(bytes, fy); err != nil {
+	if err := yaml.Unmarshal(bundleData, fy); err != nil {
 		return nil, nil, fmt.Errorf("reading fleet.yaml: %w", err)
 	}
 
@@ -180,7 +175,7 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleSpecReader i
 
 	fy.Targets = append(fy.Targets, fy.TargetCustomizations...)
 
-	meta, err := readMetadata(bytes)
+	meta, err := readMetadata(bundleData)
 	if err != nil {
 		return nil, nil, err
 	}
