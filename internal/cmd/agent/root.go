@@ -25,7 +25,7 @@ import (
 )
 
 type UpstreamOptions struct {
-	Kubeconfig string `usage:"kubeconfig file for agent's cluster"`
+	Kubeconfig string `usage:"kubeconfig file for upstream cluster"`
 	Namespace  string `usage:"system namespace is the namespace, the agent runs in, e.g. cattle-fleet-system" env:"NAMESPACE"`
 }
 
@@ -156,16 +156,7 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 					workersOpts.Drift = w
 				}
 
-				clusterStatus := &ClusterStatus{
-					UpstreamOptions: UpstreamOptions{
-						Kubeconfig: a.Kubeconfig,
-						Namespace:  a.Namespace,
-					},
-					CheckinInterval: a.CheckinInterval,
-					AgentInfo:       agentInfo,
-				}
-
-				if err := start(ctx, localConfig, a.Namespace, a.AgentScope, workersOpts, clusterStatus, agentInfo); err != nil {
+				if err := start(ctx, localConfig, a.Namespace, a.AgentScope, a.CheckinInterval, workersOpts, agentInfo); err != nil {
 					setupLog.Error(err, "failed to start agent")
 				}
 			},

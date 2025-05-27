@@ -1,0 +1,44 @@
+name: Update known_hosts config map
+
+{{ range $id, $scm := .scms }}
+
+---
+name: 'Synchronise known-hosts for {{ $id }}'
+scms:
+  fleet:
+    kind: github
+    spec:
+      user: '{{ $scm.user }}'
+      email: '{{ $scm.email }}'
+      owner: '{{ $scm.owner }}'
+      repository: '{{ $scm.repository }}'
+      token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
+      username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
+      branch: '{{ $scm.branch }}'
+
+targets:
+  configMapWithUpdatedEntries:
+    name: 'synchronise config map from new entries'
+    kind: 'shell'
+    scmid: 'fleet'
+    disablesourceinput: true
+    spec:
+      changedif:
+        kind: 'file/checksum'
+        spec:
+          files:
+            - charts/fleet/templates/configmap_known_hosts.yaml
+      command: bash <(git show main:.github/scripts/update_known_hosts_configmap.sh)
+
+actions:
+  default:
+    name: "[{{ $id }}][updatecli] Update known-hosts config map with new entries"
+    kind: github/pullrequest
+    scmid: fleet
+    spec:
+      automerge: false
+      mergemethod: squash
+      labels:
+        - kind/known-hosts # /!\ label must exist in the repo!
+
+{{ end }}

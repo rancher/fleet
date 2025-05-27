@@ -14,7 +14,7 @@ import (
 	fleetcli "github.com/rancher/fleet/internal/cmd/cli"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
-	"github.com/rancher/fleet/internal/ociwrapper"
+	"github.com/rancher/fleet/internal/ocistorage"
 	ssh "github.com/rancher/fleet/internal/ssh"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/cert"
@@ -48,6 +48,7 @@ const (
 
 func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v1alpha1.GitRepo, logger logr.Logger) error {
 	logger.V(1).Info("Creating Git job resources")
+
 	if err := r.createJobRBAC(ctx, gitrepo); err != nil {
 		return fmt.Errorf("failed to create RBAC resources for git job: %w", err)
 	}
@@ -60,6 +61,7 @@ func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v
 	if err := r.createJob(ctx, gitrepo); err != nil {
 		return fmt.Errorf("error creating git job: %w", err)
 	}
+
 	r.Recorder.Event(gitrepo, fleetevent.Normal, "Created", "GitJob was created")
 	return nil
 }
@@ -384,20 +386,6 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		}
 	}
 
-	if ociwrapper.ExperimentalOCIIsEnabled() && gitrepo.Spec.OCIRegistry != nil && gitrepo.Spec.OCIRegistry.AuthSecretName != "" {
-		vol, volMnt, err := ociVolumeFromSecret(ctx, r.Client,
-			gitrepo.Namespace,
-			gitrepo.Spec.OCIRegistry.AuthSecretName,
-			ociRegistryAuthVolumeName,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		volumes = append(volumes, vol)
-		volumeMounts = append(volumeMounts, volMnt)
-	}
-
 	shardID := gitrepo.Labels[sharding.ShardingRefLabel]
 
 	nodeSelector := map[string]string{"kubernetes.io/os": "linux"}
@@ -712,31 +700,15 @@ func argsAndEnvs(
 		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 	}
 
-	if ociwrapper.ExperimentalOCIIsEnabled() && gitrepo.Spec.OCIRegistry != nil && gitrepo.Spec.OCIRegistry.Reference != "" {
-		args = append(args, "--oci-reference", gitrepo.Spec.OCIRegistry.Reference)
-		if gitrepo.Spec.OCIRegistry.AuthSecretName != "" {
-			args = append(args, "--oci-password-file", "/etc/fleet/oci/password")
-			env = append(env,
-				corev1.EnvVar{
-					Name: "OCI_USERNAME",
-					ValueFrom: &corev1.EnvVarSource{
-						SecretKeyRef: &corev1.SecretKeySelector{
-							Optional: &[]bool{true}[0],
-							Key:      "username",
-							LocalObjectReference: corev1.LocalObjectReference{
-								Name: gitrepo.Spec.OCIRegistry.AuthSecretName,
-							},
-						},
-					},
-				})
-		}
-		if gitrepo.Spec.OCIRegistry.BasicHTTP {
-			args = append(args, "--oci-basic-http")
-		}
-		if gitrepo.Spec.OCIRegistry.InsecureSkipTLS {
-			args = append(args, "--oci-insecure")
-		}
+	if ocistorage.ExperimentalOCIIsEnabled() {
+		env = append(env,
+			corev1.EnvVar{
+				Name:  "EXPERIMENTAL_OCI_STORAGE",
+				Value: "true",
+			})
+		args = append(args, "--oci-registry-secret", gitrepo.Spec.OCIRegistrySecret)
 	}
+
 	if len(gitrepo.Spec.Bundles) > 0 {
 		args = append(args, "--driven-scan")
 		if drivenScanSeparator != "" {
@@ -796,34 +768,6 @@ func volumes(targetsConfigName string) ([]corev1.Volume, []corev1.VolumeMount) {
 	}
 
 	return volumes, volumeMounts
-}
-
-// ociVolumeFromSecret generates a volume and volume mount from a basic-auth secret.
-func ociVolumeFromSecret(
-	ctx context.Context,
-	c client.Client,
-	namespace, secretName, volumeName string,
-) (corev1.Volume, corev1.VolumeMount, error) {
-	var secret corev1.Secret
-	if err := c.Get(ctx, types.NamespacedName{
-		Namespace: namespace,
-		Name:      secretName,
-	}, &secret); err != nil {
-		return corev1.Volume{}, corev1.VolumeMount{}, err
-	}
-	volume := corev1.Volume{
-		Name: volumeName,
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: secretName,
-			},
-		},
-	}
-	volumeMount := corev1.VolumeMount{
-		Name:      volumeName,
-		MountPath: "/etc/fleet/oci",
-	}
-	return volume, volumeMount, nil
 }
 
 // volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that that secret exists.

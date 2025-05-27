@@ -1,16 +1,16 @@
-title: Bump Fleet version in installation documentation
+name: Bump Fleet version in installation documentation
 
 scms:
   fleet:
     kind: github
     spec:
-      user: fleet-bot
-      email: fleet@suse.de
-      owner: rancher
-      repository: fleet
+      user: '{{ .scms.main.user }}'
+      email: '{{ .scms.main.email }}'
+      owner: '{{ .scms.main.owner }}'
+      repository: '{{ .scms.main.repository }}'
       token: '{{ requiredEnv "UPDATECLI_GITHUB_TOKEN" }}'
       username: '{{ requiredEnv "UPDATECLI_GITHUB_ACTOR" }}'
-      branch: main
+      branch: '{{ .scms.main.branch }}'
 
 sources:
   fleet:
@@ -54,7 +54,7 @@ targets:
 
 actions:
   default:
-    title: '[updatecli] Bump Fleet version used within installation documentation to {{ source "fleet" }}'
+    name: '[updatecli] Bump Fleet version used within installation documentation to {{ source "fleet" }}'
     kind: github/pullrequest
     scmid: fleet
     spec:

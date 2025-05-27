@@ -2,7 +2,7 @@ suite: extraLabels tests
 tests:
   - it: should set extraLabels variables in fleet-controller deployment
     set:
-      extraLabels:
+      extraLabels.fleetController:
         test-label-1: testvalue1
         test-label-2: testvalue2
     template: deployment.yaml
@@ -13,15 +13,15 @@ tests:
           of: Deployment
       - equal:
           path: spec.template.metadata.labels
-          value: 
+          value:
             app: fleet-controller
-            fleet.cattle.io/shard-default: "true" 
+            fleet.cattle.io/shard-default: "true"
             fleet.cattle.io/shard-id: ""
             test-label-1: testvalue1
             test-label-2: testvalue2
   - it: should set extraLabels variables in gitjob deployment
     set:
-      extraLabels:
+      extraLabels.gitjob:
         test-label-1: testvalue1
         test-label-2: testvalue2
       gitops:
@@ -34,15 +34,15 @@ tests:
           of: Deployment
       - equal:
           path: spec.template.metadata.labels
-          value: 
+          value:
             app: gitjob
-            fleet.cattle.io/shard-default: "true" 
+            fleet.cattle.io/shard-default: "true"
             fleet.cattle.io/shard-id: ""
             test-label-1: testvalue1
             test-label-2: testvalue2
   - it: should set extraLabels variables in helmops deployment
     set:
-      extraLabels:
+      extraLabels.helmops:
         test-label-1: testvalue1
         test-label-2: testvalue2
       extraEnv:
@@ -56,9 +56,9 @@ tests:
           of: Deployment
       - equal:
           path: spec.template.metadata.labels
-          value: 
+          value:
             app: helmops
-            fleet.cattle.io/shard-default: "true" 
+            fleet.cattle.io/shard-default: "true"
             fleet.cattle.io/shard-id: ""
             test-label-1: testvalue1
             test-label-2: testvalue2
@@ -72,13 +72,13 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
-      - isKind: 
+      - isKind:
           of: Deployment
       - equal:
           path: spec.template.metadata.labels
-          value: 
+          value:
             app: fleet-controller
-            fleet.cattle.io/shard-default: "true" 
+            fleet.cattle.io/shard-default: "true"
             fleet.cattle.io/shard-id: ""
 
   - it: should not set more labels in gitjob deployment when extraLabels is empty
@@ -91,13 +91,13 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
-      - isKind: 
+      - isKind:
           of: Deployment
       - equal:
           path: spec.template.metadata.labels
-          value: 
+          value:
             app: gitjob
-            fleet.cattle.io/shard-default: "true" 
+            fleet.cattle.io/shard-default: "true"
             fleet.cattle.io/shard-id: ""
 
   - it: should not set more labels in helmops deployment when extraLabels is empty
@@ -110,11 +110,11 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
-      - isKind: 
+      - isKind:
           of: Deployment
       - equal:
           path: spec.template.metadata.labels
-          value: 
+          value:
             app: helmops
-            fleet.cattle.io/shard-default: "true" 
+            fleet.cattle.io/shard-default: "true"
             fleet.cattle.io/shard-id: ""

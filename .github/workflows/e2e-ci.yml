@@ -14,7 +14,7 @@ env:
 
 jobs:
   e2e-fleet-test:
-    runs-on: runs-on,runner=16cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
@@ -124,16 +124,16 @@ jobs:
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo --github-output --label-filter='!infra-setup && !sharding' e2e/single-cluster e2e/keep-resources
+          ginkgo --github-output --trace --label-filter='!infra-setup && !sharding' e2e/single-cluster e2e/keep-resources
       -
         name: E2E Sharding/Metrics Tests
         if: ${{ matrix.test_type.name == 'sharding' }}
         env:
           FLEET_E2E_NS: fleet-local
         run: |
-          ginkgo --github-output --label-filter='sharding' e2e/single-cluster
-          ginkgo --github-output --label-filter='!oci-registry' e2e/metrics
-          SHARD=shard1 ginkgo --github-output --label-filter='!oci-registry' e2e/metrics
+          ginkgo --github-output --trace --label-filter='sharding' e2e/single-cluster
+          ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
+          SHARD=shard1 ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
       -
         name: Create Zot certificates for OCI tests
         if: ${{ matrix.test_type.name == 'infra-setup' }}
@@ -155,18 +155,18 @@ jobs:
 
           # Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
-          ginkgo --github-output --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
+          ginkgo --github-output --trace --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
 
           # Run tests requiring a Helm registry
           e2e/testenv/infra/infra setup --helm-registry=true
-          ginkgo --github-output --label-filter='helm-registry' e2e/single-cluster
+          ginkgo --github-output --trace --label-filter='helm-registry' e2e/single-cluster
 
           e2e/testenv/infra/infra teardown --helm-registry=true
 
           # Run tests requiring an OCI registry
           e2e/testenv/infra/infra setup --oci-registry=true
-          ginkgo --github-output --label-filter='oci-registry' e2e/single-cluster
-          ginkgo --github-output --label-filter='oci-registry' e2e/metrics
+          ginkgo --github-output --trace --label-filter='oci-registry' e2e/single-cluster
+          ginkgo --github-output --trace --label-filter='oci-registry' e2e/metrics
 
           e2e/testenv/infra/infra teardown
       -
@@ -191,7 +191,7 @@ jobs:
           echo "${{ secrets.CI_SSH_KEY }}" > "$GIT_SSH_KEY"
           echo "${{ secrets.CI_SSH_PUBKEY }}" > "$GIT_SSH_PUBKEY"
 
-          ginkgo --github-output e2e/require-secrets
+          ginkgo --github-output --trace e2e/require-secrets
       -
         name: Upload Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   updatecli:
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     if: github.ref == 'refs/heads/main'
     steps:
@@ -27,7 +27,7 @@ jobs:
         uses: updatecli/updatecli-action@v2
 
       - name: Apply
-        run: "updatecli apply --config ./updatecli/updatecli.d"
+        run: "updatecli apply --config ./updatecli/updatecli.d --values ./updatecli/values.d/scm.yaml"
         env:
           UPDATECLI_GITHUB_ACTOR: ${{ github.actor }}
           UPDATECLI_GITHUB_TOKEN: ${{ secrets.ADD_TO_PROJECT_PAT }}

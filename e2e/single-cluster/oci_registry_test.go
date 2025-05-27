@@ -1,36 +1,80 @@
 package singlecluster_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
+	"github.com/rancher/fleet/e2e/testenv/k8sclient"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	"github.com/rancher/fleet/internal/manifest"
+	"github.com/rancher/fleet/internal/ocistorage"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-const experimentalEnvVar = "EXPERIMENTAL_OCI_STORAGE"
-
-func getFailedPodNames(k kubectl.Command, namespace string) ([]string, error) {
-	return getPodNamesByFieldSelector(k, namespace, "status.phase=Failed")
+func createOCIRegistrySecret(
+	secretName,
+	namespace,
+	reference,
+	username,
+	password,
+	agentUsername,
+	agentPassword string,
+	insecure,
+	basicHTTP bool) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			ocistorage.OCISecretReference:     []byte(reference),
+			ocistorage.OCISecretUsername:      []byte(username),
+			ocistorage.OCISecretPassword:      []byte(password),
+			ocistorage.OCISecretAgentUsername: []byte(agentUsername),
+			ocistorage.OCISecretAgentPassword: []byte(agentPassword),
+			ocistorage.OCISecretInsecure:      []byte(strconv.FormatBool(insecure)),
+			ocistorage.OCISecretBasicHTTP:     []byte(strconv.FormatBool(basicHTTP)),
+		},
+		Type: corev1.SecretType(fleet.SecretTypeOCIStorage),
+	}
+	k8sclient.CreateObjectShouldSucceed(clientUpstream, secret)
 }
 
-func getPodNamesByFieldSelector(k kubectl.Command, namespace, selector string) ([]string, error) {
-	strSelector := fmt.Sprintf("--field-selector=%s", selector)
-	out, err := k.Namespace(namespace).Get("pods", strSelector, "-o", "custom-columns=NAME:metadata.name", "--no-headers")
-	if err != nil {
-		return []string{}, err
-	}
-	return strings.Split(out, "\n"), nil
+func createDefaultOCIRegistrySecret(
+	namespace,
+	reference,
+	username,
+	password,
+	agentUsername,
+	agentPassword string,
+	insecure,
+	basicHTTP bool) {
+	createOCIRegistrySecret(
+		ocistorage.OCIStorageDefaultSecretName,
+		namespace,
+		reference,
+		username,
+		password,
+		agentUsername,
+		agentPassword,
+		insecure,
+		basicHTTP)
 }
 
 // getActualEnvVariable returns the value of the given env variable
@@ -69,7 +113,7 @@ func checkEnvVariable(k kubectl.Command, component string, env string) (bool, er
 // fleet-controller and gitjob deployments to set the given one.
 // It waits until the pods related to both deployments are restarted.
 func updateExperimentalFlagValue(k kubectl.Command, value bool) {
-	actualEnvVal := getActualEnvVariable(k, experimentalEnvVar)
+	actualEnvVal := getActualEnvVariable(k, ocistorage.OCIStorageExperimentalFlag)
 	GinkgoWriter.Printf("Env variable value to be used in this test: %t\n", value)
 	if actualEnvVal == value {
 		return
@@ -93,7 +137,7 @@ func updateExperimentalFlagValue(k kubectl.Command, value bool) {
 	}).WithTimeout(time.Second * 60).Should(ContainSubstring("pod/gitjob-"))
 
 	// set the experimental env value to the deployments
-	strEnvValue := fmt.Sprintf("%s=%t", experimentalEnvVar, value)
+	strEnvValue := fmt.Sprintf("%s=%t", ocistorage.OCIStorageExperimentalFlag, value)
 	_, _ = k.Namespace(ns).Run("set", "env", "deployment/fleet-controller", strEnvValue)
 	_, _ = k.Namespace(ns).Run("set", "env", "deployment/gitjob", strEnvValue)
 
@@ -102,7 +146,7 @@ func updateExperimentalFlagValue(k kubectl.Command, value bool) {
 		out, err := k.Namespace(ns).Get(
 			"pod",
 			"-l", "app=fleet-controller,fleet.cattle.io/shard-default=true",
-			"-o", fmt.Sprintf(`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].env[?(@.name=="%s")].value}{end}`, experimentalEnvVar),
+			"-o", fmt.Sprintf(`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].env[?(@.name=="%s")].value}{end}`, ocistorage.OCIStorageExperimentalFlag),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
@@ -119,7 +163,7 @@ func updateExperimentalFlagValue(k kubectl.Command, value bool) {
 		out, err := k.Namespace(ns).Get(
 			"pod",
 			"-l", "app=gitjob,fleet.cattle.io/shard-default=true",
-			"-o", fmt.Sprintf(`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].env[?(@.name=="%s")].value}{end}`, experimentalEnvVar),
+			"-o", fmt.Sprintf(`jsonpath={range .items[*]}{.metadata.name}{"\t"}{.spec.containers[0].env[?(@.name=="%s")].value}{end}`, ocistorage.OCIStorageExperimentalFlag),
 		)
 		g.Expect(err).ToNot(HaveOccurred())
 
@@ -133,32 +177,74 @@ func updateExperimentalFlagValue(k kubectl.Command, value bool) {
 	}).WithTimeout(time.Second * 30).Should(Succeed())
 }
 
+func pushFakeOCIContents(secret, manifestID string) {
+	fakeManifest := &manifest.Manifest{
+		Commit: "some-bad-commit",
+		Resources: []fleet.BundleResource{
+			{
+				Name:    "test-resource",
+				Content: "some-test-content",
+			},
+		},
+	}
+	secretKey := types.NamespacedName{Name: secret, Namespace: env.Namespace}
+	opts, err := ocistorage.ReadOptsFromSecret(context.TODO(), clientUpstream, secretKey)
+	Expect(err).ToNot(HaveOccurred())
+	err = ocistorage.NewOCIWrapper().PushManifest(context.TODO(), opts, manifestID, fakeManifest)
+	Expect(err).ToNot(HaveOccurred())
+}
+
+func verifySecretsAreEqual(originalName, originalNamespace, name, namespace string) {
+	var originalSecret, secret corev1.Secret
+	k8sclient.GetObjectShouldSucceed(clientUpstream, originalName, originalNamespace, &originalSecret)
+	k8sclient.GetObjectShouldSucceed(clientUpstream, name, namespace, &secret)
+
+	Expect(originalSecret.Data).To(Equal(secret.Data))
+	Expect(originalSecret.Type).To(Equal(secret.Type))
+}
+
+func getOCIRegistryExternalIP(k kubectl.Command) string {
+	if v := os.Getenv("external_ip"); v != "" {
+		return v
+	}
+
+	externalIP, err := k.Namespace(cmd.InfraNamespace).Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+	Expect(err).ToNot(HaveOccurred(), externalIP)
+	return externalIP
+}
+
 var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-registry", "infra-setup"), func() {
 	var (
 		asset                  = "single-cluster/test-oci.yaml"
-		insecureSkipTLS        bool
-		forceGitRepoURL        string
 		k                      kubectl.Command
 		tempDir                string
 		contentsID             string
 		downstreamNamespace    string
+		defaultOCIRegistry     string
 		ociRegistry            string
 		experimentalFlagBefore bool
-		experimentalValue      bool
 		contentIDToPurge       string
+
+		// user-defined variables for defining the test behaviour
+		experimentalValue         bool
+		insecureSkipTLS           bool
+		deployDefaultSecret       bool
+		deploySpecificSecretName  string
+		forceDefaultReference     string
+		forceUserDefinedReference string
 	)
 
 	BeforeEach(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
 		tempDir = GinkgoT().TempDir()
-		externalIP, err := k.Namespace(cmd.InfraNamespace).Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
-		Expect(err).ToNot(HaveOccurred(), externalIP)
+		externalIP := getOCIRegistryExternalIP(k)
 		Expect(net.ParseIP(externalIP)).ShouldNot(BeNil())
-		ociRegistry = fmt.Sprintf("%s:8082", externalIP)
+		defaultOCIRegistry = fmt.Sprintf("%s:8082", externalIP)
+		ociRegistry = defaultOCIRegistry
 
 		// store the actual value of the experimental env value
 		// we'll restore in the AfterEach statement if needed
-		experimentalFlagBefore = getActualEnvVariable(k, experimentalEnvVar)
+		experimentalFlagBefore = getActualEnvVariable(k, ocistorage.OCIStorageExperimentalFlag)
 
 		// reset the value of the contents resource to purge
 		contentIDToPurge = ""
@@ -168,40 +254,70 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		updateExperimentalFlagValue(k, experimentalValue)
 		Expect(os.Getenv("CI_OCI_USERNAME")).NotTo(BeEmpty())
 		Expect(os.Getenv("CI_OCI_PASSWORD")).NotTo(BeEmpty())
-		out, err := k.Create(
-			"secret", "generic", "oci-secret",
-			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
-			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-		)
-		Expect(err).ToNot(HaveOccurred(), out)
 
 		gitrepo := path.Join(tempDir, "gitrepo.yaml")
-		if forceGitRepoURL != "" {
-			ociRegistry = forceGitRepoURL
+
+		if forceDefaultReference != "" {
+			defaultOCIRegistry = forceDefaultReference
+		}
+		if forceUserDefinedReference != "" {
+			ociRegistry = forceUserDefinedReference
 		}
 
-		err = testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
-			OCIReference       string
-			OCIInsecureSkipTLS bool
+		if deployDefaultSecret {
+			createDefaultOCIRegistrySecret(
+				env.Namespace,
+				defaultOCIRegistry,
+				os.Getenv("CI_OCI_USERNAME"),
+				os.Getenv("CI_OCI_PASSWORD"),
+				"",
+				"",
+				insecureSkipTLS,
+				false)
+		}
+
+		if deploySpecificSecretName != "" {
+			createOCIRegistrySecret(
+				deploySpecificSecretName,
+				env.Namespace,
+				ociRegistry,
+				os.Getenv("CI_OCI_USERNAME"),
+				os.Getenv("CI_OCI_PASSWORD"),
+				"",
+				"",
+				insecureSkipTLS,
+				false)
+		}
+
+		err := testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
+			OCIRegistrySecret string
 		}{
-			ociRegistry,
-			insecureSkipTLS,
+			deploySpecificSecretName,
 		})
 		Expect(err).ToNot(HaveOccurred())
 
-		out, err = k.Apply("-f", gitrepo)
+		out, err := k.Apply("-f", gitrepo)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		downstreamNamespace, err = k.Namespace("fleet-local").Get("cluster", "local", `-o=jsonpath={.status.namespace}`)
-		Expect(err).ToNot(HaveOccurred(), out)
+		var cluster fleet.Cluster
+		k8sclient.GetObjectShouldSucceed(clientUpstream, "local", env.Namespace, &cluster)
+		downstreamNamespace = cluster.Status.Namespace
 	})
 
 	AfterEach(func() {
-		out, err := k.Delete("secret", "oci-secret")
-		Expect(err).ToNot(HaveOccurred(), out)
+		if deployDefaultSecret {
+			var secret corev1.Secret
+			k8sclient.GetObjectShouldSucceed(clientUpstream, ocistorage.OCIStorageDefaultSecretName, env.Namespace, &secret)
+			k8sclient.DeleteObjectShouldSucceed(clientUpstream, &secret)
+		}
+		if deploySpecificSecretName != "" {
+			var secret corev1.Secret
+			k8sclient.GetObjectShouldSucceed(clientUpstream, deploySpecificSecretName, env.Namespace, &secret)
+			k8sclient.DeleteObjectShouldSucceed(clientUpstream, &secret)
+		}
 
 		gitrepo := path.Join(tempDir, "gitrepo.yaml")
-		out, err = k.Delete("-f", gitrepo)
+		out, err := k.Delete("-f", gitrepo)
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		// secrets for bundle and bundledeployment should be gone
@@ -224,123 +340,155 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 
 		// check that contents have been purged when deleting the gitrepo
 		if contentIDToPurge != "" {
-			out, err := k.Delete("contents", contentIDToPurge)
-			Expect(out).To(ContainSubstring("not found"))
-			Expect(err).To(HaveOccurred())
+			k8sclient.ObjectShouldNotExist(clientUpstream, contentIDToPurge, "", &fleet.Content{}, true)
 		}
 	})
 
-	When("creating a gitrepo resource with ociRegistry info", func() {
+	When("applying a gitrepo with the default ociSecret also deployed", func() {
 		Context("containing a valid helm chart", func() {
 			BeforeEach(func() {
-				insecureSkipTLS = true
-				forceGitRepoURL = ""
 				experimentalValue = true
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = ""
+				forceDefaultReference = ""
+				forceUserDefinedReference = ""
 			})
 
 			It("deploys the bundle", func() {
 				By("creating the bundle", func() {
-					Eventually(func() string {
-						out, _ := k.Namespace("fleet-local").Get("bundles")
-						return out
-					}).Should(ContainSubstring("sample-simple-chart-oci"))
+					var bundle fleet.Bundle
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
 				})
 				By("setting the ContentsID field in the bundle", func() {
-					Eventually(func() string {
-						contentsID, _ = k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.spec.contentsId}`)
-						return contentsID
-					}).Should(ContainSubstring("s-"))
+					var bundle fleet.Bundle
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
+					contentsID = bundle.Spec.ContentsID
 				})
 
 				By("setting the OCI reference status field key to the OCI path of the manifest", func() {
-					Eventually(func() bool {
-						out, _ := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.status.ociReference}`)
-						return out == fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)
-					}).Should(BeTrue())
+					Eventually(func(g Gomega) {
+						var bundle fleet.Bundle
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+						g.Expect(bundle.Status.OCIReference).To(Equal(fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)))
+					}).Should(Succeed())
 				})
-				By("creating a bundle secret", func() {
-					Eventually(func() string {
-						out, err := k.Namespace("fleet-local").Get("secret", contentsID)
-						if err != nil {
-							// return nothing in case of error
-							// This avoids false positives when kubectl returns "secrets "XXXXX" not found
-							return ""
-						}
-						return out
-					}).Should(ContainSubstring(contentsID))
+				By("creating a bundle secret with the expected contents", func() {
+					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, env.Namespace)
 				})
 				By("creating a bundledeployment secret", func() {
-					Eventually(func() string {
-						out, err := k.Namespace(downstreamNamespace).Get("secret", contentsID)
-						if err != nil {
-							// return nothing in case of error
-							// This avoids false positives when kubectl returns "secrets "XXXXX" not found
-							return ""
-						}
-						GinkgoWriter.Printf("BundleDeployment secret: %s\n", out)
-						return out
-					}).Should(ContainSubstring(contentsID))
+					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, downstreamNamespace)
 				})
 				By("not creating a contents resource for this chart", func() {
-					out, _ := k.Get("contents")
-					Expect(out).NotTo(ContainSubstring(contentsID))
+					var content fleet.Content
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
 				})
 				By("deploying the helm chart", func() {
-					Eventually(func() string {
-						out, _ := k.Namespace("fleet-local").Get("configmaps")
-						return out
-					}).Should(ContainSubstring("sample-config"))
+					var cm corev1.ConfigMap
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
 				})
 			})
 		})
 	})
 
-	When("creating a gitrepo resource with invalid ociRegistry info and experimental flag is false", func() {
+	When("applying a gitrepo with the default ociSecret with wrong reference and the user-defined secret also deployed with correct values", func() {
+		Context("containing a valid helm chart", func() {
+			BeforeEach(func() {
+				experimentalValue = true
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = "test-secret"
+				forceDefaultReference = "not-valid-oci-registry.com"
+				forceUserDefinedReference = ""
+			})
+
+			It("deploys the bundle", func() {
+				By("creating the bundle", func() {
+					var bundle fleet.Bundle
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+				})
+				By("setting the ContentsID field in the bundle", func() {
+					var bundle fleet.Bundle
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
+					contentsID = bundle.Spec.ContentsID
+				})
+
+				By("setting the OCI reference status field key to the OCI path of the manifest", func() {
+					Eventually(func(g Gomega) {
+						var bundle fleet.Bundle
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+						g.Expect(bundle.Status.OCIReference).To(Equal(fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)))
+					}).Should(Succeed())
+				})
+				By("creating a bundle secret with the expected contents from the user-defined secret", func() {
+					verifySecretsAreEqual(deploySpecificSecretName, env.Namespace, contentsID, env.Namespace)
+				})
+				By("creating a bundledeployment secret", func() {
+					verifySecretsAreEqual(deploySpecificSecretName, env.Namespace, contentsID, downstreamNamespace)
+				})
+				By("not creating a contents resource for this chart", func() {
+					var content fleet.Content
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
+				})
+				By("deploying the helm chart", func() {
+					var cm corev1.ConfigMap
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
+				})
+			})
+		})
+	})
+
+	When("applying a gitrepo with the default ociSecret also deployed with incorrect reference and experimental flag is not set", func() {
 		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
-				insecureSkipTLS = true
-				forceGitRepoURL = "not-valid-oci-registry.com"
 				experimentalValue = false
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = ""
+				forceDefaultReference = "not-valid-oci-registry.com"
+				forceUserDefinedReference = ""
 			})
 
 			It("creates the bundle with no OCI storage", func() {
-				Eventually(func(g Gomega) {
-					// check for the bundle
-					out, _ := k.Namespace("fleet-local").Get("bundles")
-					g.Expect(out).To(ContainSubstring("sample-simple-chart-oci"))
-
-					// check for contentsID
-					contentsID, err := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.spec.contentsId}`)
-					g.Expect(err).ToNot(HaveOccurred())
-					g.Expect(contentsID).To(BeEmpty())
-
-					GinkgoWriter.Printf("ContentsID: %s\n", contentsID)
-
-					// bundle secret should not be created
-					secrets, _ := k.Namespace("fleet-local").Get("secrets", "-o", "custom-columns=NAME:metadata.name", "--no-headers")
-					g.Expect(secrets).ToNot(ContainSubstring("s-"))
-
-					// gets the bundles sha256 for the resources
-					// We'll use that to identify the contents resource for this bundle
-					resourcesSha256, _ := k.Namespace("fleet-local").Get("bundle", "sample-simple-chart-oci", `-o=jsonpath={.status.resourcesSha256Sum}`)
-					g.Expect(resourcesSha256).ToNot(BeEmpty())
-
-					// delete the last 3 chars from the sha256 so it matches the contents ID
-					resourcesSha256 = resourcesSha256[:len(resourcesSha256)-3]
-
-					// check that it created a content resource with the above sha256
-					contents, _ := k.Get("contents")
-					g.Expect(contents).To(ContainSubstring(resourcesSha256))
-
+				By("creating the bundle", func() {
+					var bundle fleet.Bundle
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+				})
+				By("not setting the ContentsID field in the bundle", func() {
+					var bundle fleet.Bundle
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+					Expect(bundle.Spec.ContentsID).To(BeEmpty())
+				})
+				By("creating a bundle deployment", func() {
+					var bd fleet.BundleDeployment
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", downstreamNamespace, &bd)
+					Expect(bd.Spec.DeploymentID).ToNot(BeEmpty())
+					tokens := strings.Split(bd.Spec.DeploymentID, ":")
+					Expect(tokens).To(HaveLen(2))
+					contentsID = tokens[0]
 					// save the contents id to purge after the test
 					// this will prevent interference with the previous test
 					// as the resources sha256 is the same
-					contentIDToPurge = "s-" + resourcesSha256
-
-					// finally check that the helm chart was deployed
-					configmaps, _ := k.Namespace("fleet-local").Get("configmaps")
-					g.Expect(configmaps).To(ContainSubstring("sample-config"))
-				}).Should(Succeed())
+					contentIDToPurge = contentsID
+				})
+				By("creating a content resource with the expected ID", func() {
+					var content fleet.Content
+					k8sclient.GetObjectShouldSucceed(clientUpstream, contentsID, "", &content)
+				})
+				By("not creating a bundle secret", func() {
+					var secret corev1.Secret
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, env.Namespace, &secret, false)
+				})
+				By("not creating a bundle deployment secret", func() {
+					var secret corev1.Secret
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, downstreamNamespace, &secret, false)
+				})
+				By("deploying the helm chart", func() {
+					var cm corev1.ConfigMap
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
+				})
 			})
 		})
 	})
@@ -348,43 +496,44 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	When("creating a gitrepo resource with invalid ociRegistry info", func() {
 		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
-				insecureSkipTLS = true
-				forceGitRepoURL = "not-valid-oci-registry.com"
 				experimentalValue = true
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = ""
+				forceDefaultReference = "not-valid-oci-registry.com"
+				forceUserDefinedReference = ""
 			})
 
 			It("does not create the bundle", func() {
-				// look for failed pods with the name sample-xxxx-xxxx
-				r, _ := regexp.Compile("sample-([a-z0-9]+)-([a-z0-9]+)")
-				var failedJob string
-				Eventually(func(g Gomega) {
-					failedPods, err := getFailedPodNames(k, "fleet-local")
-					failedJob = ""
-
-					g.Expect(err).ToNot(HaveOccurred())
-					for _, pod := range failedPods {
-						if r.MatchString(pod) {
-							failedJob = pod
-							break
+				By("setting the right error message in the GitRepo", func() {
+					Eventually(func(g Gomega) {
+						var repo fleet.GitRepo
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample", env.Namespace, &repo)
+						stalledFound := false
+						stalledMessage := ""
+						for _, cond := range repo.Status.Conditions {
+							if cond.Type == "Stalled" {
+								stalledMessage = cond.Message
+								stalledFound = true
+								break
+							}
 						}
+						g.Expect(stalledFound).To(BeTrue())
+						g.Expect(stalledMessage).To(ContainSubstring("no such host"))
+					}).Should(Succeed())
+				})
+				By("not creating the bundle", func() {
+					var bundle fleet.Bundle
+					k8sclient.ObjectShouldNotExist(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle, true)
+				})
+				By("not creating the bundle secret", func() {
+					var secrets corev1.SecretList
+					err := clientUpstream.List(context.TODO(), &secrets, &client.ListOptions{Namespace: env.Namespace})
+					Expect(err).ToNot(HaveOccurred())
+					for _, s := range secrets.Items {
+						Expect(s.Name).ToNot(HavePrefix("s-"))
 					}
-					g.Expect(failedJob).ToNot(BeEmpty())
-				}).Should(Succeed())
-
-				Expect(failedJob).ShouldNot(BeEmpty())
-				// check that the logs of the job reflect the bad OCI registry
-				logs, err := k.Namespace("fleet-local").Logs(failedJob)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(logs).Should(ContainSubstring("no such host"))
-
-				// we don't fallback to content resources, so the bundle should not be created
-				// at this point
-				bundles, _ := k.Namespace("fleet-local").Get("bundles")
-				Expect(bundles).ShouldNot(ContainSubstring("sample-simple-chart"))
-
-				// bundle secret should not be created either
-				secrets, _ := k.Namespace("fleet-local").Get("secrets", "-o", "custom-columns=NAME:metadata.name", "--no-headers")
-				Expect(secrets).ShouldNot(ContainSubstring("s-"))
+				})
 			})
 		})
 	})
@@ -392,41 +541,116 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	When("creating a gitrepo resource with valid ociRegistry but not ignoring certs", func() {
 		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
-				insecureSkipTLS = false
-				forceGitRepoURL = ""
 				experimentalValue = true
+				insecureSkipTLS = false
+				deployDefaultSecret = true
+				deploySpecificSecretName = ""
+				forceDefaultReference = ""
+				forceUserDefinedReference = ""
 			})
 
 			It("does not create the bundle", func() {
-				// look for failed pods with the name sample-xxxx-xxxx
-				r, _ := regexp.Compile("sample-([a-z0-9]+)-([a-z0-9]+)")
-				var failedJob string
-				Eventually(func() bool {
-					failedPods, err := getFailedPodNames(k, "fleet-local")
-					Expect(err).ToNot(HaveOccurred())
-					for _, pod := range failedPods {
-						if r.MatchString(pod) {
-							failedJob = pod
-							return true
+				By("setting the right error message in the GitRepo", func() {
+					Eventually(func(g Gomega) {
+						var repo fleet.GitRepo
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample", env.Namespace, &repo)
+						stalledFound := false
+						stalledMessage := ""
+						for _, cond := range repo.Status.Conditions {
+							if cond.Type == "Stalled" {
+								stalledMessage = cond.Message
+								stalledFound = true
+								break
+							}
 						}
+						g.Expect(stalledFound).To(BeTrue())
+						g.Expect(stalledMessage).To(ContainSubstring("tls: failed to verify certificate: x509"))
+					}).Should(Succeed())
+				})
+				By("not creating the bundle", func() {
+					var bundle fleet.Bundle
+					k8sclient.ObjectShouldNotExist(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle, true)
+				})
+				By("not creating the bundle secret", func() {
+					var secrets corev1.SecretList
+					err := clientUpstream.List(context.TODO(), &secrets, &client.ListOptions{Namespace: env.Namespace})
+					Expect(err).ToNot(HaveOccurred())
+					for _, s := range secrets.Items {
+						Expect(s.Name).ToNot(HavePrefix("s-"))
 					}
-					return false
-				}).Should(BeTrue())
+				})
+			})
+		})
+	})
 
-				Expect(failedJob).ShouldNot(BeEmpty())
-				// check that the logs of the job reflect the bad OCI registry
-				logs, err := k.Namespace("fleet-local").Logs(failedJob)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(logs).Should(ContainSubstring("tls: failed to verify certificate: x509"))
+	When("applying a gitrepo and the OCI artifact is changed with invalid contents", func() {
+		Context("containing a valid helm chart", func() {
+			BeforeEach(func() {
+				experimentalValue = true
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = ""
+				forceDefaultReference = ""
+				forceUserDefinedReference = ""
+			})
 
-				// we don't fallback to content resources, so the bundle should not be created
-				// at this point
-				bundles, _ := k.Namespace("fleet-local").Get("bundles")
-				Expect(bundles).ShouldNot(ContainSubstring("sample-simple-chart"))
+			It("deploys the bundle and rejects the content as it's different from the expected", func() {
+				By("creating the bundle", func() {
+					var bundle fleet.Bundle
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+				})
+				By("setting the ContentsID field in the bundle", func() {
+					var bundle fleet.Bundle
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
+					contentsID = bundle.Spec.ContentsID
+				})
 
-				// bundle secret should not be created either
-				secrets, _ := k.Namespace("fleet-local").Get("secrets", "-o", "custom-columns=NAME:metadata.name", "--no-headers")
-				Expect(secrets).ShouldNot(ContainSubstring("s-"))
+				By("setting the OCI reference status field key to the OCI path of the manifest", func() {
+					Eventually(func(g Gomega) {
+						var bundle fleet.Bundle
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+						g.Expect(bundle.Status.OCIReference).To(Equal(fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)))
+					}).Should(Succeed())
+				})
+				By("creating a bundle secret with the expected contents", func() {
+					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, env.Namespace)
+				})
+				By("creating a bundledeployment secret", func() {
+					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, downstreamNamespace)
+				})
+				By("not creating a contents resource for this chart", func() {
+					var content fleet.Content
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
+				})
+				By("deploying the helm chart", func() {
+					var cm corev1.ConfigMap
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
+				})
+				By("changing the contents of the oci artifact", func() {
+					pushFakeOCIContents(ocistorage.OCIStorageDefaultSecretName, contentsID)
+				})
+				By("forcing the bundle deployment to re-deploy and reject the oci contents", func() {
+					var bd fleet.BundleDeployment
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", downstreamNamespace, &bd)
+					// force the bundledeployment to re-deploy by deleting it
+					k8sclient.DeleteObjectShouldSucceed(clientUpstream, &bd)
+					Eventually(func(g Gomega) {
+						var repo fleet.GitRepo
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample", env.Namespace, &repo)
+						conditionFound := false
+						message := ""
+						for _, cond := range repo.Status.Conditions {
+							if cond.Type == "Ready" {
+								message = cond.Message
+								conditionFound = true
+								break
+							}
+						}
+						g.Expect(conditionFound).To(BeTrue())
+						g.Expect(message).To(ContainSubstring("invalid or corrupt manifest"))
+					}).Should(Succeed())
+				})
 			})
 		})
 	})

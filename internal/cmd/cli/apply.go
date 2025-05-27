@@ -10,9 +10,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/rancher/fleet/internal/bundlereader"
-	"github.com/rancher/fleet/internal/client"
 	command "github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/cli/writer"
@@ -66,6 +67,7 @@ type Apply struct {
 	OCIPasswordFile             string            `usage:"Path of file containing basic auth password for OCI registry" name:"oci-password-file"`
 	OCIBasicHTTP                bool              `usage:"Use HTTP to access the OCI regustry" name:"oci-basic-http"`
 	OCIInsecure                 bool              `usage:"Allow connections to OCI registry without certs" name:"oci-insecure"`
+	OCIRegistrySecret           string            `usage:"OCI storage registry secret name" name:"oci-registry-secret"`
 	DrivenScan                  bool              `usage:"Use driven scan. Bundles are defined by the user" name:"driven-scan"`
 	DrivenScanSeparator         string            `usage:"Separator to use for bundle folder and options file" name:"driven-scan-sep" default:":"`
 }
@@ -74,7 +76,7 @@ func (r *Apply) PersistentPre(_ *cobra.Command, _ []string) error {
 	if err := r.SetupDebug(); err != nil {
 		return fmt.Errorf("failed to set up debug logging: %w", err)
 	}
-	Client = client.NewGetter(r.Kubeconfig, r.Context, r.Namespace)
+
 	return nil
 }
 
@@ -110,6 +112,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	name := ""
 	opts := apply.Options{
+		Namespace:                   a.Namespace,
 		BundleFile:                  a.BundleFile,
 		Output:                      writer.NewDefaultNone(a.Output),
 		Compress:                    a.Compress,
@@ -127,6 +130,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 		CorrectDriftKeepFailHistory: a.CorrectDriftKeepFailHistory,
 		DrivenScan:                  a.DrivenScan,
 		DrivenScanSeparator:         a.DrivenScanSeparator,
+		OCIRegistrySecret:           a.OCIRegistrySecret,
 	}
 
 	knownHostsPath, err := writeTmpKnownHosts()
@@ -138,9 +142,6 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	if err := a.addAuthToOpts(&opts, os.ReadFile); err != nil {
 		return fmt.Errorf("adding auth to opts: %w", err)
-	}
-	if err := a.addOCISpecToOpts(&opts, os.ReadFile); err != nil {
-		return fmt.Errorf("adding oci spec to opts: %w", err)
 	}
 
 	if a.File == "-" {
@@ -174,10 +175,16 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	defer restoreEnv() // nolint: errcheck // best-effort
 
-	if opts.DrivenScan {
-		return apply.CreateBundlesDriven(cmd.Context(), Client, name, args, opts)
+	ctx := cmd.Context()
+	cfg := ctrl.GetConfigOrDie()
+	client, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		return err
 	}
-	return apply.CreateBundles(cmd.Context(), Client, name, args, opts)
+	if opts.DrivenScan {
+		return apply.CreateBundlesDriven(ctx, client, name, args, opts)
+	}
+	return apply.CreateBundles(ctx, client, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
@@ -222,29 +229,6 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {
 		}
 		opts.Auth.SSHPrivateKey = privateKey
 	}
-
-	return nil
-}
-
-// addOCISpecToOpts adds the OCI registry specs (with auth if provided)
-func (a *Apply) addOCISpecToOpts(opts *apply.Options, readFile readFile) error {
-	// returning if the OCI registry reference is not defined
-	if a.OCIReference == "" {
-		return nil
-	}
-	opts.OCIRegistry.Reference = a.OCIReference
-
-	if a.OCIUsername != "" && a.OCIPasswordFile != "" {
-		password, err := readFile(a.OCIPasswordFile)
-		if err != nil {
-			return err
-		}
-
-		opts.OCIRegistry.Username = a.OCIUsername
-		opts.OCIRegistry.Password = string(password)
-	}
-	opts.OCIRegistry.BasicHTTP = a.OCIBasicHTTP
-	opts.OCIRegistry.InsecureSkipTLS = a.OCIInsecure
 
 	return nil
 }

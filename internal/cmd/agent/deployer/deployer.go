@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/helmdeployer"
 	"github.com/rancher/fleet/internal/manifest"
-	"github.com/rancher/fleet/internal/ociwrapper"
+	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -114,37 +113,25 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 		err error
 	)
 	if bd.Spec.OCIContents {
-		// First we need to access the secret where the OCI registry reference and credentials are located
-		var secret corev1.Secret
+		oci := ocistorage.NewOCIWrapper()
 		secretID := types.NamespacedName{Name: manifestID, Namespace: bd.Namespace}
-		if err := d.upstreamClient.Get(ctx, secretID, &secret); err != nil {
-			return "", err
-		}
-		ref, ok := secret.Data[ociwrapper.OCISecretReference]
-		if !ok {
-			return "", fmt.Errorf("expected data [reference] not found in secret: %s", manifestID)
-		}
-		username := string(secret.Data[ociwrapper.OCISecretUsername])
-		password := string(secret.Data[ociwrapper.OCISecretPassword])
-		basicHttp, err := strconv.ParseBool(string(secret.Data[ociwrapper.OCISecretBasicHTTP]))
-		if err != nil {
-			return "", fmt.Errorf("value for [ociRegistry.http] in secret %s cannot be parsed as boolean", manifestID)
-		}
-		insecure, err := strconv.ParseBool(string(secret.Data[ociwrapper.OCISecretInsecure]))
-		if err != nil {
-			return "", fmt.Errorf("value for [ociRegistry.insecure] in secret %s cannot be parsed as boolean", manifestID)
-		}
-		ociOpts := ociwrapper.OCIOpts{
-			Reference:       string(ref),
-			Username:        username,
-			Password:        password,
-			BasicHTTP:       basicHttp,
-			InsecureSkipTLS: insecure,
-		}
-		oci := ociwrapper.NewOCIWrapper()
-		m, err = oci.PullManifest(ctx, ociOpts, manifestID)
+		opts, err := ocistorage.ReadOptsFromSecret(ctx, d.upstreamClient, secretID)
 		if err != nil {
 			return "", err
+		}
+		m, err = oci.PullManifest(ctx, opts, manifestID)
+		if err != nil {
+			return "", err
+		}
+		// Verify that the calculated manifestID for the manifest
+		// we just downloaded matches the expected one.
+		// Otherwise, the manifest will be considered incorrect or corrupted.
+		actualID, err := m.ID()
+		if err != nil {
+			return "", err
+		}
+		if actualID != manifestID {
+			return "", fmt.Errorf("invalid or corrupt manifest. Expecting id: %q, got %q", manifestID, actualID)
 		}
 	} else if bd.Spec.HelmChartOptions != nil {
 		m, err = bundlereader.GetManifestFromHelmChart(ctx, d.client, bd)

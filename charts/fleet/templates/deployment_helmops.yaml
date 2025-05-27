@@ -28,12 +28,12 @@ spec:
         {{- if empty $shard.id }}
         fleet.cattle.io/shard-default: "true"
         {{- end }}
-{{- if $.Values.extraLabels }}
-{{ toYaml $.Values.extraLabels | indent 8 }}
+{{- if and $.Values.extraLabels $.Values.extraLabels.helmops }}
+{{ toYaml $.Values.extraLabels.helmops | indent 8 }}
 {{- end }}
-{{- if $.Values.extraAnnotations }}
+{{- if and $.Values.extraAnnotations $.Values.extraAnnotations.helmops }}
       annotations:
-{{ toYaml $.Values.extraAnnotations | indent 8 }}
+{{ toYaml $.Values.extraAnnotations.helmops | indent 8 }}
 {{- end }}
     spec:
       serviceAccountName: helmops

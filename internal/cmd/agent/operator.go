@@ -59,10 +59,10 @@ func init() {
 func start(
 	ctx context.Context,
 	localConfig *rest.Config,
-	systemNamespace,
+	systemNamespace string,
 	agentScope string,
+	checkinInterval string,
 	workersOpts AgentReconcilerWorkers,
-	clusterStatus *ClusterStatus,
 	agentInfo *register.AgentInfo,
 ) error {
 	upstreamConfig, err := agentInfo.ClientConfig.ClientConfig()
@@ -91,7 +91,7 @@ func start(
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         false,
-		// only watch resources in the fleet namespace
+		// only watch resources in the cluster namespace
 		Cache: cache.Options{
 			DefaultNamespaces: map[string]cache.Config{fleetNamespace: {}},
 		},
@@ -148,6 +148,12 @@ func start(
 		return err
 	}
 
+	clusterStatus := &ClusterStatusRunnable{
+		agentInfo:       agentInfo,
+		config:          upstreamConfig,
+		checkinInterval: checkinInterval,
+		namespace:       systemNamespace,
+	}
 	if err := mgr.Add(clusterStatus); err != nil {
 		setupLog.Error(err, "unable to add cluster status controller")
 		return err

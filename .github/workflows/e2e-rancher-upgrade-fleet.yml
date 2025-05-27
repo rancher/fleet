@@ -42,7 +42,7 @@ env:
 
 jobs:
   rancher-fleet-upgrade:
-    runs-on: runs-on,runner=8cpu-linux-x64,mem=16,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     steps:
       -
@@ -196,14 +196,14 @@ jobs:
           FLEET_AGENT_NAMESPACE: "cattle-fleet-system"
         run: |
           # this doesn't work with <0.10
-          ginkgo --github-output --label-filter='!single-cluster' e2e/installation
+          ginkgo --github-output --trace --label-filter='!single-cluster' e2e/installation
       -
         name: E2E tests for examples
         env:
           FLEET_E2E_NS: fleet-local
           FLEET_E2E_NS_DOWNSTREAM: fleet-local
         run: |
-          ginkgo --github-output e2e/multi-cluster
+          ginkgo --github-output --trace e2e/multi-cluster
       -
         name: Dump Failed Downstream Environment
         if: failure()

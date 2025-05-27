@@ -40,7 +40,7 @@ env:
 
 jobs:
   rancher-integration:
-    runs-on: runs-on,runner=4cpu-linux-x64,run-id=${{ github.run_id }}
+    runs-on: ubuntu-latest
 
     steps:
       -
@@ -244,11 +244,11 @@ jobs:
           FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
           kubectl config use-context k3d-upstream
-          ginkgo --github-output e2e/acceptance/single-cluster-examples
+          ginkgo --github-output --trace e2e/acceptance/single-cluster-examples
 
           export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{..name}')
 
-          ginkgo --github-output e2e/multi-cluster
+          ginkgo --github-output --trace e2e/multi-cluster
 
       -
         name: Dump Failed Downstream Environment

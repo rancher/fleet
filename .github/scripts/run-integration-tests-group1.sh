@@ -10,5 +10,9 @@ go install sigs.k8s.io/controller-runtime/tools/setup-envtest@"$SETUP_ENVTEST_VE
 KUBEBUILDER_ASSETS=$(setup-envtest use --use-env -p path "$ENVTEST_K8S_VERSION")
 export KUBEBUILDER_ASSETS
 
-# run integration tests
-ginkgo --github-output --trace ./integrationtests/...
+# Group 1: Run specific packages (adjust these based on execution time analysis)
+ginkgo --github-output --trace\
+  ./integrationtests/agent/... \
+  ./integrationtests/bundlereader/... \
+  ./integrationtests/cli/... \
+  ./integrationtests/controller/...

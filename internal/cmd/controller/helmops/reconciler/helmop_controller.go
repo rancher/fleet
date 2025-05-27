@@ -159,6 +159,11 @@ func (r *HelmOpReconciler) createUpdateBundle(ctx context.Context, helmop *fleet
 		return nil, err
 	}
 
+	if err == nil && b.Spec.HelmOpOptions == nil {
+		// A gitOps bundle with the same name exists; abort.
+		return nil, fmt.Errorf("a non-helmops bundle already exists with name %s; aborting", helmop.Name)
+	}
+
 	// calculate the new representation of the helmop resource
 	bundle := r.calculateBundle(helmop)
 
