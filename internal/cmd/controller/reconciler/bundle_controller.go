@@ -17,7 +17,7 @@ import (
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
-	"github.com/rancher/fleet/internal/ociwrapper"
+	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
@@ -181,7 +181,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if bundle.Spec.HelmOpOptions != nil && !experimentalHelmOpsEnabled() {
 		return ctrl.Result{}, fmt.Errorf("bundle contains data used by helm ops but env variable EXPERIMENTAL_HELM_OPS is not set to true")
 	}
-	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
+	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.ExperimentalOCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
 	manifestID := bundle.Spec.ContentsID
 	var resourcesManifest *manifest.Manifest
@@ -505,7 +505,7 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
 		return "", err
 	}
-	ref, ok := ociSecret.Data[ociwrapper.OCISecretReference]
+	ref, ok := ociSecret.Data[ocistorage.OCISecretReference]
 	if !ok {
 		return "", fmt.Errorf("expected data [reference] not found in secret: %s", bundle.Spec.ContentsID)
 	}
@@ -557,7 +557,7 @@ func (r *BundleReconciler) cloneSecret(
 }
 
 func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
-	contentsInOCI := bundle.Spec.ContentsID != "" && ociwrapper.ExperimentalOCIIsEnabled()
+	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.ExperimentalOCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil && experimentalHelmOpsEnabled()
 
 	if contentsInOCI {
