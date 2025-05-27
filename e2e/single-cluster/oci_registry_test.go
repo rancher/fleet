@@ -30,7 +30,6 @@ import (
 func createOCIRegistrySecret(
 	secretName,
 	namespace,
-	secretType,
 	reference,
 	username,
 	password,
@@ -52,14 +51,13 @@ func createOCIRegistrySecret(
 			ocistorage.OCISecretInsecure:      []byte(strconv.FormatBool(insecure)),
 			ocistorage.OCISecretBasicHTTP:     []byte(strconv.FormatBool(basicHTTP)),
 		},
-		Type: corev1.SecretType(secretType),
+		Type: corev1.SecretType(fleet.SecretTypeOCIStorage),
 	}
 	k8sclient.CreateObjectShouldSucceed(clientUpstream, secret)
 }
 
 func createDefaultOCIRegistrySecret(
 	namespace,
-	secretType,
 	reference,
 	username,
 	password,
@@ -70,7 +68,6 @@ func createDefaultOCIRegistrySecret(
 	createOCIRegistrySecret(
 		ocistorage.OCIStorageDefaultSecretName,
 		namespace,
-		secretType,
 		reference,
 		username,
 		password,
@@ -270,7 +267,6 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		if deployDefaultSecret {
 			createDefaultOCIRegistrySecret(
 				env.Namespace,
-				fleet.SecretTypeOCIStorage,
 				defaultOCIRegistry,
 				os.Getenv("CI_OCI_USERNAME"),
 				os.Getenv("CI_OCI_PASSWORD"),
@@ -284,7 +280,6 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			createOCIRegistrySecret(
 				deploySpecificSecretName,
 				env.Namespace,
-				fleet.SecretTypeOCIStorage,
 				ociRegistry,
 				os.Getenv("CI_OCI_USERNAME"),
 				os.Getenv("CI_OCI_PASSWORD"),
