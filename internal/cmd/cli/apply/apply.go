@@ -261,7 +261,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet
 		return bundle, nil, nil
 	}
 
-	return bundlereader.New(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
+	return bundlereader.NewBundle(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
 		Compress:         opts.Compress,
 		Labels:           opts.Labels,
 		ServiceAccount:   opts.ServiceAccount,
