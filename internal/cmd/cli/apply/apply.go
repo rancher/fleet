@@ -253,32 +253,38 @@ func pruneBundlesNotFoundInRepo(ctx context.Context, c client.Client, repoName, 
 // newBundle reads bundle data from a source and returns a bundle with the
 // given name, or the name from the raw source file
 func newBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
+	var bundle *fleet.Bundle
+	var scans []*fleet.ImageScan
 	if opts.BundleReader != nil {
-		var bundle *fleet.Bundle
 		if err := json.NewDecoder(opts.BundleReader).Decode(bundle); err != nil {
 			return nil, nil, fmt.Errorf("decoding bundle %s: %w", name, err)
 		}
-		return bundle, nil, nil
+	} else {
+		var err error
+		bundle, scans, err = bundlereader.NewBundle(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
+			Compress:         opts.Compress,
+			Labels:           opts.Labels,
+			ServiceAccount:   opts.ServiceAccount,
+			TargetsFile:      opts.TargetsFile,
+			TargetNamespace:  opts.TargetNamespace,
+			Paused:           opts.Paused,
+			SyncGeneration:   opts.SyncGeneration,
+			Auth:             opts.Auth,
+			HelmRepoURLRegex: opts.HelmRepoURLRegex,
+			KeepResources:    opts.KeepResources,
+			DeleteNamespace:  opts.DeleteNamespace,
+			CorrectDrift: &fleet.CorrectDrift{
+				Enabled:         opts.CorrectDrift,
+				Force:           opts.CorrectDriftForce,
+				KeepFailHistory: opts.CorrectDriftKeepFailHistory,
+			},
+		})
+		if err != nil {
+			return nil, nil, err
+		}
 	}
-
-	return bundlereader.NewBundle(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
-		Compress:         opts.Compress,
-		Labels:           opts.Labels,
-		ServiceAccount:   opts.ServiceAccount,
-		TargetsFile:      opts.TargetsFile,
-		TargetNamespace:  opts.TargetNamespace,
-		Paused:           opts.Paused,
-		SyncGeneration:   opts.SyncGeneration,
-		Auth:             opts.Auth,
-		HelmRepoURLRegex: opts.HelmRepoURLRegex,
-		KeepResources:    opts.KeepResources,
-		DeleteNamespace:  opts.DeleteNamespace,
-		CorrectDrift: &fleet.CorrectDrift{
-			Enabled:         opts.CorrectDrift,
-			Force:           opts.CorrectDriftForce,
-			KeepFailHistory: opts.CorrectDriftKeepFailHistory,
-		},
-	})
+	bundle.Namespace = opts.Namespace
+	return bundle, scans, nil
 }
 
 // Dir reads a bundle and image scans from a directory and writes runtime objects to the selected output.
@@ -301,8 +307,6 @@ func Dir(ctx context.Context, c client.Client, name, baseDir string, opts *Optio
 	if err != nil {
 		return err
 	}
-
-	bundle.Namespace = opts.Namespace
 
 	if len(bundle.Spec.Resources) == 0 {
 		return ErrNoResources
