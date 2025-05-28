@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -238,8 +239,8 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			Expect(bundles).To(HaveLen(4))
 
 			// helm bundle
-			helmBundle := bundles[0]
-			Expect(helmBundle.Name).To(Equal("assets-driven-helm"))
+			helmBundle := getBundleNamed("assets-driven-helm", bundles)
+			Expect(helmBundle).To(Not(BeNil()))
 			Expect(helmBundle.Spec.Resources).To(HaveLen(3))
 			// as files were unpacked from the downloaded chart we can't just
 			// list the files in the original folder and compare.
@@ -253,8 +254,8 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			Expect(helmBundle.Spec.Helm.Chart).To(Equal("http://localhost:3000/config-chart-0.1.0.tgz"))
 
 			// simple bundle
-			simpleBundle := bundles[1]
-			Expect(simpleBundle.Name).To(Equal("assets-driven-simple"))
+			simpleBundle := getBundleNamed("assets-driven-simple", bundles)
+			Expect(simpleBundle).ToNot(BeNil())
 			Expect(simpleBundle.Spec.Resources).To(HaveLen(2))
 			expectedResources := []string{
 				cli.AssetsPath + "driven/simple/deployment.yaml",
@@ -265,12 +266,12 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			}
 
 			// kustomize dev bundle
-			kDevBundle := bundles[2]
-			Expect(kDevBundle.Name).To(Equal("assets-driven-kustomize-dev"))
+			kDevBundle := getBundleNamed("assets-driven-kustomize-dev", bundles)
+			Expect(kDevBundle).ToNot(BeNil())
 
 			// kustomize prod bundle
-			kProdBundle := bundles[3]
-			Expect(kProdBundle.Name).To(Equal("assets-driven-kustomize-prod"))
+			kProdBundle := getBundleNamed("assets-driven-kustomize-prod", bundles)
+			Expect(kProdBundle).ToNot(BeNil())
 
 			// both kustomize bundles have the same resources, but different config fleet.yaml
 			kResources := []string{
@@ -313,12 +314,12 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			Expect(bundles).To(HaveLen(2))
 
 			// kustomize dev bundle
-			kDevBundle := bundles[0]
-			Expect(kDevBundle.Name).To(Equal("assets-driven2-kustomize-fleetdev-2946f474"))
+			kDevBundle := getBundleNamed("assets-driven2-kustomize-fleetdev-2946f474", bundles)
+			Expect(kDevBundle).NotTo(BeNil())
 
 			// kustomize prod bundle
-			kProdBundle := bundles[1]
-			Expect(kProdBundle.Name).To(Equal("assets-driven2-kustomize-fleetprod-99f597b0"))
+			kProdBundle := getBundleNamed("assets-driven2-kustomize-fleetprod-99f597b0", bundles)
+			Expect(kProdBundle).NotTo(BeNil())
 
 			// both kustomize bundles have the same resources, but different config fleet.yaml
 			kResources := []string{
@@ -689,4 +690,13 @@ func getAllFilesInDir(chartPath string) ([]string, error) {
 		return nil
 	})
 	return files, err
+}
+
+func getBundleNamed(name string, bundles []*v1alpha1.Bundle) *v1alpha1.Bundle {
+	if x := slices.IndexFunc(bundles, func(b *v1alpha1.Bundle) bool {
+		return b.Name == name
+	}); x >= 0 {
+		return bundles[x]
+	}
+	return nil
 }
