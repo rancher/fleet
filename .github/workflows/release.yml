@@ -92,6 +92,7 @@ jobs:
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials username | STAGE_REGISTRY_USERNAME ;
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials password | STAGE_REGISTRY_PASSWORD ;
             secret/data/github/repo/${{ github.repository }}/rancher-prime-stg-registry/credentials registry | STAGE_REGISTRY ;
+            secret/data/github/repo/${{ github.repository }}/rancher-prime-registry/credentials registry | PRIME_REGISTRY ;
 
       - name: Prepare Docker environment to support sbom/provenance parameters
         run: |
@@ -123,11 +124,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
+          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
 
       # Workaround until `docker manifest create` supports provenance meta data
       # Background: https://stackoverflow.com/questions/75521775/buildx-docker-image-claims-to-be-a-manifest-list
       - name: Create Docker manifest for Staging and sign it
         shell: bash
+        env:
+          STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
+          PRIME_REGISTRY: ${{ env.PRIME_REGISTRY }}
         run: |
           for IMAGE in fleet fleet-agent; do
             URL="${{ env.STAGE_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}"
@@ -135,7 +140,11 @@ jobs:
               "${URL}-linux-amd64" \
               "${URL}-linux-arm64"
 
-            cosign sign --oidc-provider=github-actions --yes "${URL}"
+            cosign sign \
+              --oidc-provider=github-actions \
+              --yes \
+              --sign-container-identity="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}" \
+              "${URL}"
           done
 
       - name: Attest provenance
