@@ -87,12 +87,26 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 
 		It("then 3 Bundles are created with the relevant resources", func() {
-			bundle, err := cli.GetBundleListFromOutput(buf)
+			bundles, err := cli.GetBundleListFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bundle).To(HaveLen(3))
-			deploymentA := bundle[0]
-			deploymentB := bundle[1]
-			deploymentC := bundle[2]
+			Expect(bundles).To(HaveLen(3))
+
+			deploymentA, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return strings.Contains(bundle.Name, "-deploymenta-")
+			})
+			Expect(ok).To(BeTrue())
+			bundles = append(bundles[:i], bundles[i+1:]...)
+
+			deploymentB, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return strings.Contains(bundle.Name, "-deploymentb-")
+			})
+			Expect(ok).To(BeTrue())
+			bundles = append(bundles[:i], bundles[i+1:]...)
+
+			deploymentC, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return strings.Contains(bundle.Name, "-deploymentc-")
+			})
+			Expect(ok).To(BeTrue())
 
 			Expect(deploymentA.Spec.Resources).To(HaveLen(1))
 			Expect(deploymentB.Spec.Resources).To(HaveLen(1))
@@ -111,12 +125,23 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 
 		It("then Bundles are created with all the resources", func() {
-			bundle, err := cli.GetBundleListFromOutput(buf)
+			bundles, err := cli.GetBundleListFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bundle).To(HaveLen(3))
-			root := bundle[0]
-			deploymentA := bundle[1]
-			deploymentC := bundle[2]
+			Expect(bundles).To(HaveLen(3))
+
+			deploymentA, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.TargetNamespace == "deploymenta"
+			})
+			Expect(ok).To(BeTrue())
+			bundles = append(bundles[:i], bundles[i+1:]...)
+
+			deploymentC, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.TargetNamespace == "deploymentc"
+			})
+			Expect(ok).To(BeTrue())
+			bundles = append(bundles[:i], bundles[i+1:]...)
+
+			root := bundles[0] // remaining
 
 			Expect(deploymentA.Spec.Resources).To(HaveLen(1))
 			Expect(deploymentC.Spec.Resources).To(HaveLen(1))
@@ -582,12 +607,22 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 		})
 
 		It("creates Bundles with the corresponding resources, depending if they should update dependencies", func() {
-			bundle, err := cli.GetBundleListFromOutput(buf)
+			bundles, err := cli.GetBundleListFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bundle).To(HaveLen(3))
-			remoteDepl := bundle[0]
-			simpleDepl := bundle[1]
-			noDepsDepl := bundle[2]
+			Expect(bundles).To(HaveLen(3))
+			remoteDepl, _, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.Helm.ReleaseName == "remote-chart-with-deps"
+			})
+			Expect(ok).To(BeTrue())
+			//remoteDepl := bundles[0]
+			simpleDepl, _, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.Helm.ReleaseName == "simple-with-fleet-yaml"
+			})
+			Expect(ok).To(BeTrue())
+			noDepsDepl, _, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.Helm.ReleaseName == "simple-with-fleet-yaml-no-deps"
+			})
+			Expect(ok).To(BeTrue())
 
 			// remoteDepl corresponds to multi-chart/remote-chart-with-deps
 			// expected files are:
@@ -692,11 +727,17 @@ func getAllFilesInDir(chartPath string) ([]string, error) {
 	return files, err
 }
 
-func getBundleNamed(name string, bundles []*v1alpha1.Bundle) *v1alpha1.Bundle {
-	if x := slices.IndexFunc(bundles, func(b *v1alpha1.Bundle) bool {
-		return b.Name == name
-	}); x >= 0 {
-		return bundles[x]
+func sliceFind[T any](s []T, f func(T) bool) (T, int, bool) {
+	if x := slices.IndexFunc(s, f); x >= 0 {
+		return s[x], x, true
 	}
-	return nil
+	var zero T
+	return zero, -1, false
+}
+
+func getBundleNamed(name string, bundles []*v1alpha1.Bundle) *v1alpha1.Bundle {
+	res, _, _ := sliceFind(bundles, func(b *v1alpha1.Bundle) bool {
+		return b.Name == name
+	})
+	return res
 }
