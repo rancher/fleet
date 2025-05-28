@@ -128,7 +128,8 @@ jobs:
 
       # Workaround until `docker manifest create` supports provenance meta data
       # Background: https://stackoverflow.com/questions/75521775/buildx-docker-image-claims-to-be-a-manifest-list
-      - name: Create Docker manifest for Staging and sign it
+      # Released images will eventually be moved into the Prime registry, hence their signatures must match that registry.
+      - name: Create Docker manifest for Staging and sign it for the Prime registry
         shell: bash
         env:
           STAGE_REGISTRY: ${{ env.STAGE_REGISTRY }}
