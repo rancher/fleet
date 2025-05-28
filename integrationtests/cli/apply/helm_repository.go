@@ -3,6 +3,7 @@ package apply
 import (
 	"crypto/subtle"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -48,7 +49,11 @@ func (r *repository) startRepository(authEnabled bool) {
 }
 
 func getHandler(authEnabled bool) http.Handler {
-	fs := http.FileServer(http.Dir(cli.AssetsPath + "helmrepository"))
+	dir := filepath.Join(cli.AssetsPath, "helmrepository")
+	if absDir, err := filepath.Abs(dir); err == nil {
+		dir = absDir
+	}
+	fs := http.FileServer(http.Dir(dir))
 	if !authEnabled {
 		return fs
 	}
