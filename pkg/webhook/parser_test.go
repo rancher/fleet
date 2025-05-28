@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/go-playground/webhooks/v6/azuredevops"
+	"github.com/go-playground/webhooks/v6/bitbucket"
+	bitbucketserver "github.com/go-playground/webhooks/v6/bitbucket-server"
+	"github.com/go-playground/webhooks/v6/github"
+	"github.com/go-playground/webhooks/v6/gitlab"
 	gogsclient "github.com/gogits/go-gogs-client"
-	"gopkg.in/go-playground/webhooks.v5/bitbucket"
-	bitbucketserver "gopkg.in/go-playground/webhooks.v5/bitbucket-server"
-	"gopkg.in/go-playground/webhooks.v5/github"
-	"gopkg.in/go-playground/webhooks.v5/gitlab"
 	"gotest.tools/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -214,8 +214,8 @@ func TestParseGithub(t *testing.T) {
 				}
 			}`),
 			headers: map[string]string{
-				"X-GitHub-Event":  "push",
-				"X-Hub-Signature": "sha1=dba820f85951e0f100549aa167ef67dcd989ca4a",
+				"X-GitHub-Event":      "push",
+				"X-Hub-Signature-256": "sha256=972ad6d669550ee03434bed5e7aae64b3c94dd9ce4c7eba04dad840ac7a8c6bd",
 			},
 			wantErr:      false,
 			wantNilEvent: false,
@@ -235,8 +235,8 @@ func TestParseGithub(t *testing.T) {
 				}
 			}`),
 			headers: map[string]string{
-				"X-GitHub-Event":  "push",
-				"X-Hub-Signature": "sha1=wrongsignature",
+				"X-GitHub-Event":      "push",
+				"X-Hub-Signature-256": "sha256=wrongsignature",
 			},
 			wantErr:      true,
 			wantErrMsg:   "HMAC verification failed",
@@ -1050,7 +1050,7 @@ func TestParseBitbucketServer(t *testing.T) {
 
 				if len(gotBB.Changes) > 0 {
 					if gotBB.Changes[0].Reference.ID != "refs/heads/"+tt.wantBranch && gotBB.Changes[0].Reference.ID != "refs/tags/"+tt.wantBranch {
-						t.Fatalf("parseBitbucketServer() got branch %s, want %s", gotBB.Changes[0].ReferenceId, tt.wantBranch)
+						t.Fatalf("parseBitbucketServer() got branch %s, want %s", gotBB.Changes[0].ReferenceID, tt.wantBranch)
 					}
 					if gotBB.Changes[0].ToHash != tt.wantRevision {
 						t.Fatalf("parseBitbucketServer() got revision %s, want %s", gotBB.Changes[0].ToHash, tt.wantRevision)
