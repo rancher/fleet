@@ -5,34 +5,28 @@ import (
 	"fmt"
 
 	"github.com/rancher/fleet/internal/cmd/agent/register"
-	"k8s.io/client-go/tools/clientcmd"
 
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 type Register struct {
-	UpstreamOptions
+	// system namespace is the namespace, the agent runs in, e.g. cattle-fleet-system
+	Namespace string
 }
 
-func (r *Register) RegisterAgent(ctx context.Context) (*register.AgentInfo, error) {
+func (r *Register) RegisterAgent(ctx context.Context, localConfig *rest.Config) (*register.AgentInfo, error) {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(zopts)))
 	ctx = log.IntoContext(ctx, ctrl.Log)
-
-	clientConfig, err := clientcmd.BuildConfigFromFlags("", r.Kubeconfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load kubeconfig: %w", err)
-	}
-
-	setupLog.Info("starting registration on upstream cluster", "namespace", r.Namespace)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// try to register with upstream fleet controller by obtaining
 	// a kubeconfig for the upstream cluster
-	agentInfo, err := register.Register(ctx, r.Namespace, clientConfig)
+	agentInfo, err := register.Register(ctx, r.Namespace, localConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register with upstream cluster: %w", err)
 	}
