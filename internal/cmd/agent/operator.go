@@ -84,8 +84,16 @@ func start(
 	setupLog.Info("listening for changes on upstream cluster", "cluster", agentInfo.ClusterName, "namespace", fleetNamespace)
 
 	metricsAddr := ":8080"
-	probeAddr := ":8081"
+	if d := os.Getenv("FLEET_AGENT_METRICS_BIND_ADDRESS"); d != "" {
+		metricsAddr = d
+	}
 
+	probeAddr := ":8081"
+	if d := os.Getenv("FLEET_AGENT_PROBE_BIND_ADDRESS"); d != "" {
+		probeAddr = d
+	}
+
+	setupLog.Info("Starting controller", "metricsAddr", metricsAddr, "probeAddr", probeAddr, "systemNamespace", systemNamespace)
 	mgr, err := ctrl.NewManager(upstreamConfig, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
