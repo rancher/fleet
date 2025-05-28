@@ -1,6 +1,6 @@
 namespace: test-deps-helm-yamls-with-fleet
 helm:
-  releaseName: simple-with-fleet-yaml
+  releaseName: remote-chart-with-deps
   chart: deps-chart
   repo: http://localhost:3000
   version: 1.0.0
