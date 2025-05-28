@@ -129,12 +129,10 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 			OnStartedLeading: func(ctx context.Context) {
 				// Handle agent registration.
 				r := &Register{
-					UpstreamOptions: UpstreamOptions{
-						Namespace: a.Namespace,
-					},
+					Namespace: a.Namespace,
 				}
 
-				agentInfo, err := r.RegisterAgent(ctx)
+				agentInfo, err := r.RegisterAgent(ctx, localConfig)
 				if err != nil {
 					setupLog.Error(err, "failed to register with upstream cluster")
 					return

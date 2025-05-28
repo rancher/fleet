@@ -257,6 +257,7 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		cluster.Status.CattleNamespaceMigrated = false
 	}
 
+	// cluster.spec.KubeConfigSecret is empty when agent-initiated registration is used
 	if cluster.Spec.KubeConfigSecret == "" ||
 		agentDeployed(cluster) ||
 		cluster.Spec.ClientID == "" {
