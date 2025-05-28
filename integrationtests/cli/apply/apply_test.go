@@ -103,7 +103,7 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			Expect(ok).To(BeTrue())
 			bundles = append(bundles[:i], bundles[i+1:]...)
 
-			deploymentC, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+			deploymentC, _, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
 				return strings.Contains(bundle.Name, "-deploymentc-")
 			})
 			Expect(ok).To(BeTrue())
