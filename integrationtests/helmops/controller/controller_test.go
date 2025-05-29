@@ -337,9 +337,8 @@ var _ = Describe("HelmOps controller", func() {
 					}
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
 				}).Should(Succeed())
-			})
 
-			It("adds the expected finalizer to the HelmOp resource", func() {
+				By("adding the expected finalizer to the HelmOp resource")
 				Eventually(func(g Gomega) {
 					fh := &fleet.HelmOp{}
 					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
