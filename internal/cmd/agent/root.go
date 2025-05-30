@@ -114,9 +114,11 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	go func() {
-		glog.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
-	}()
+	if os.Getenv("FLEET_AGENT_PPROF_DISABLED") != "true" {
+		go func() {
+			glog.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
+		}()
+	}
 
 	leaderElectionConfig := leaderelection.LeaderElectionConfig{
 		Lock:          &lock,
@@ -127,12 +129,10 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 			OnStartedLeading: func(ctx context.Context) {
 				// Handle agent registration.
 				r := &Register{
-					UpstreamOptions: UpstreamOptions{
-						Namespace: a.Namespace,
-					},
+					Namespace: a.Namespace,
 				}
 
-				agentInfo, err := r.RegisterAgent(ctx)
+				agentInfo, err := r.RegisterAgent(ctx, localConfig)
 				if err != nil {
 					setupLog.Error(err, "failed to register with upstream cluster")
 					return
