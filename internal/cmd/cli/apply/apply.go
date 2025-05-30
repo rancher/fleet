@@ -93,6 +93,8 @@ func globDirs(baseDir string) (result []string, err error) {
 	return
 }
 
+const bundleCreationMaxConcurrency = 4
+
 // CreateBundles creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
@@ -102,6 +104,7 @@ func CreateBundles(pctx context.Context, client client.Client, repoName string, 
 	}
 
 	eg, ctx := errgroup.WithContext(pctx)
+	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
 	bundlesChan := make(chan *fleet.Bundle)
 	eg.Go(func() error {
 		for _, baseDir := range baseDirs {
@@ -199,6 +202,7 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, repoName st
 	}
 
 	eg, ctx := errgroup.WithContext(pctx)
+	eg.SetLimit(bundleCreationMaxConcurrency)
 	bundlesChan := make(chan *fleet.Bundle)
 	for _, baseDir := range baseDirs {
 		opts := opts
