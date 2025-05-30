@@ -14,13 +14,13 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/k8sclient"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -30,13 +30,19 @@ import (
 func createOCIRegistrySecret(
 	secretName,
 	namespace,
-	reference,
-	username,
-	password,
-	agentUsername,
-	agentPassword string,
+	reference string,
 	insecure,
-	basicHTTP bool) {
+	useReaderAsWriter bool) {
+	username := os.Getenv("CI_OCI_USERNAME")
+	password := os.Getenv("CI_OCI_PASSWORD")
+	agentUsername := os.Getenv("CI_OCI_READER_USERNAME")
+	agentPassword := os.Getenv("CI_OCI_READER_PASSWORD")
+
+	if useReaderAsWriter {
+		username = agentUsername
+		password = agentPassword
+	}
+
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
@@ -49,7 +55,7 @@ func createOCIRegistrySecret(
 			ocistorage.OCISecretAgentUsername: []byte(agentUsername),
 			ocistorage.OCISecretAgentPassword: []byte(agentPassword),
 			ocistorage.OCISecretInsecure:      []byte(strconv.FormatBool(insecure)),
-			ocistorage.OCISecretBasicHTTP:     []byte(strconv.FormatBool(basicHTTP)),
+			ocistorage.OCISecretBasicHTTP:     []byte(strconv.FormatBool(false)),
 		},
 		Type: corev1.SecretType(fleet.SecretTypeOCIStorage),
 	}
@@ -58,23 +64,15 @@ func createOCIRegistrySecret(
 
 func createDefaultOCIRegistrySecret(
 	namespace,
-	reference,
-	username,
-	password,
-	agentUsername,
-	agentPassword string,
+	reference string,
 	insecure,
-	basicHTTP bool) {
+	useReaderAsWriter bool) {
 	createOCIRegistrySecret(
-		ocistorage.OCIStorageDefaultSecretName,
+		config.DefaultOCIStorageSecretName,
 		namespace,
 		reference,
-		username,
-		password,
-		agentUsername,
-		agentPassword,
 		insecure,
-		basicHTTP)
+		useReaderAsWriter)
 }
 
 // getActualEnvVariable returns the value of the given env variable
@@ -187,7 +185,7 @@ func pushFakeOCIContents(secret, manifestID string) {
 			},
 		},
 	}
-	secretKey := types.NamespacedName{Name: secret, Namespace: env.Namespace}
+	secretKey := client.ObjectKey{Name: secret, Namespace: env.Namespace}
 	opts, err := ocistorage.ReadOptsFromSecret(context.TODO(), clientUpstream, secretKey)
 	Expect(err).ToNot(HaveOccurred())
 	err = ocistorage.NewOCIWrapper().PushManifest(context.TODO(), opts, manifestID, fakeManifest)
@@ -214,8 +212,8 @@ func getOCIRegistryExternalIP(k kubectl.Command) string {
 }
 
 var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-registry", "infra-setup"), func() {
+	const asset = "single-cluster/test-oci.yaml"
 	var (
-		asset                  = "single-cluster/test-oci.yaml"
 		k                      kubectl.Command
 		tempDir                string
 		contentsID             string
@@ -232,6 +230,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		deploySpecificSecretName  string
 		forceDefaultReference     string
 		forceUserDefinedReference string
+		useReaderAsWriter         bool
 	)
 
 	BeforeEach(func() {
@@ -251,9 +250,15 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	})
 
 	JustBeforeEach(func() {
+		contentsID = ""
+		contentIDToPurge = ""
+
 		updateExperimentalFlagValue(k, experimentalValue)
+
 		Expect(os.Getenv("CI_OCI_USERNAME")).NotTo(BeEmpty())
 		Expect(os.Getenv("CI_OCI_PASSWORD")).NotTo(BeEmpty())
+		Expect(os.Getenv("CI_OCI_READER_USERNAME")).NotTo(BeEmpty())
+		Expect(os.Getenv("CI_OCI_READER_PASSWORD")).NotTo(BeEmpty())
 
 		gitrepo := path.Join(tempDir, "gitrepo.yaml")
 
@@ -268,12 +273,8 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			createDefaultOCIRegistrySecret(
 				env.Namespace,
 				defaultOCIRegistry,
-				os.Getenv("CI_OCI_USERNAME"),
-				os.Getenv("CI_OCI_PASSWORD"),
-				"",
-				"",
 				insecureSkipTLS,
-				false)
+				useReaderAsWriter)
 		}
 
 		if deploySpecificSecretName != "" {
@@ -281,18 +282,16 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				deploySpecificSecretName,
 				env.Namespace,
 				ociRegistry,
-				os.Getenv("CI_OCI_USERNAME"),
-				os.Getenv("CI_OCI_PASSWORD"),
-				"",
-				"",
 				insecureSkipTLS,
-				false)
+				useReaderAsWriter)
 		}
 
 		err := testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
 			OCIRegistrySecret string
+			Branch            string
 		}{
 			deploySpecificSecretName,
+			"master",
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -305,9 +304,18 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 	})
 
 	AfterEach(func() {
+		var ociOpts ocistorage.OCIOpts
+		var err error
+		// get the bundle oci secret for accessing later the registry
+		if contentsID != "" && contentIDToPurge == "" {
+			secretKey := client.ObjectKey{Name: contentsID, Namespace: env.Namespace}
+			ociOpts, err = ocistorage.ReadOptsFromSecret(context.TODO(), clientUpstream, secretKey)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
 		if deployDefaultSecret {
 			var secret corev1.Secret
-			k8sclient.GetObjectShouldSucceed(clientUpstream, ocistorage.OCIStorageDefaultSecretName, env.Namespace, &secret)
+			k8sclient.GetObjectShouldSucceed(clientUpstream, config.DefaultOCIStorageSecretName, env.Namespace, &secret)
 			k8sclient.DeleteObjectShouldSucceed(clientUpstream, &secret)
 		}
 		if deploySpecificSecretName != "" {
@@ -341,103 +349,12 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		// check that contents have been purged when deleting the gitrepo
 		if contentIDToPurge != "" {
 			k8sclient.ObjectShouldNotExist(clientUpstream, contentIDToPurge, "", &fleet.Content{}, true)
+		} else if contentsID != "" {
+			// check that the oci artifact was deleted
+			_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), ociOpts, contentsID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
 		}
-	})
-
-	When("applying a gitrepo with the default ociSecret also deployed", func() {
-		Context("containing a valid helm chart", func() {
-			BeforeEach(func() {
-				experimentalValue = true
-				insecureSkipTLS = true
-				deployDefaultSecret = true
-				deploySpecificSecretName = ""
-				forceDefaultReference = ""
-				forceUserDefinedReference = ""
-			})
-
-			It("deploys the bundle", func() {
-				By("creating the bundle", func() {
-					var bundle fleet.Bundle
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
-				})
-				By("setting the ContentsID field in the bundle", func() {
-					var bundle fleet.Bundle
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
-					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
-					contentsID = bundle.Spec.ContentsID
-				})
-
-				By("setting the OCI reference status field key to the OCI path of the manifest", func() {
-					Eventually(func(g Gomega) {
-						var bundle fleet.Bundle
-						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
-						g.Expect(bundle.Status.OCIReference).To(Equal(fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)))
-					}).Should(Succeed())
-				})
-				By("creating a bundle secret with the expected contents", func() {
-					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, env.Namespace)
-				})
-				By("creating a bundledeployment secret", func() {
-					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, downstreamNamespace)
-				})
-				By("not creating a contents resource for this chart", func() {
-					var content fleet.Content
-					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
-				})
-				By("deploying the helm chart", func() {
-					var cm corev1.ConfigMap
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
-				})
-			})
-		})
-	})
-
-	When("applying a gitrepo with the default ociSecret with wrong reference and the user-defined secret also deployed with correct values", func() {
-		Context("containing a valid helm chart", func() {
-			BeforeEach(func() {
-				experimentalValue = true
-				insecureSkipTLS = true
-				deployDefaultSecret = true
-				deploySpecificSecretName = "test-secret"
-				forceDefaultReference = "not-valid-oci-registry.com"
-				forceUserDefinedReference = ""
-			})
-
-			It("deploys the bundle", func() {
-				By("creating the bundle", func() {
-					var bundle fleet.Bundle
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
-				})
-				By("setting the ContentsID field in the bundle", func() {
-					var bundle fleet.Bundle
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
-					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
-					contentsID = bundle.Spec.ContentsID
-				})
-
-				By("setting the OCI reference status field key to the OCI path of the manifest", func() {
-					Eventually(func(g Gomega) {
-						var bundle fleet.Bundle
-						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
-						g.Expect(bundle.Status.OCIReference).To(Equal(fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)))
-					}).Should(Succeed())
-				})
-				By("creating a bundle secret with the expected contents from the user-defined secret", func() {
-					verifySecretsAreEqual(deploySpecificSecretName, env.Namespace, contentsID, env.Namespace)
-				})
-				By("creating a bundledeployment secret", func() {
-					verifySecretsAreEqual(deploySpecificSecretName, env.Namespace, contentsID, downstreamNamespace)
-				})
-				By("not creating a contents resource for this chart", func() {
-					var content fleet.Content
-					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
-				})
-				By("deploying the helm chart", func() {
-					var cm corev1.ConfigMap
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
-				})
-			})
-		})
 	})
 
 	When("applying a gitrepo with the default ociSecret also deployed with incorrect reference and experimental flag is not set", func() {
@@ -449,16 +366,15 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				deploySpecificSecretName = ""
 				forceDefaultReference = "not-valid-oci-registry.com"
 				forceUserDefinedReference = ""
+				useReaderAsWriter = false
 			})
 
 			It("creates the bundle with no OCI storage", func() {
+				var bundle fleet.Bundle
 				By("creating the bundle", func() {
-					var bundle fleet.Bundle
 					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
 				})
 				By("not setting the ContentsID field in the bundle", func() {
-					var bundle fleet.Bundle
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
 					Expect(bundle.Spec.ContentsID).To(BeEmpty())
 				})
 				By("creating a bundle deployment", func() {
@@ -493,6 +409,107 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		})
 	})
 
+	When("applying a gitrepo with the default ociSecret also deployed", func() {
+		Context("containing a valid helm chart", func() {
+			BeforeEach(func() {
+				experimentalValue = true
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = ""
+				forceDefaultReference = ""
+				forceUserDefinedReference = ""
+				useReaderAsWriter = false
+			})
+
+			It("deploys the bundle", func() {
+				var bundle fleet.Bundle
+				By("creating the bundle", func() {
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+				})
+				By("setting the ContentsID field in the bundle", func() {
+					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
+					contentsID = bundle.Spec.ContentsID
+				})
+
+				By("setting the OCI reference status field key to the OCI path of the manifest", func() {
+					Eventually(func(g Gomega) {
+						var bundle fleet.Bundle
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+						g.Expect(bundle.Status.OCIReference).To(Equal(fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)))
+					}).Should(Succeed())
+				})
+				By("creating a bundle secret with the expected contents", func() {
+					verifySecretsAreEqual(config.DefaultOCIStorageSecretName, env.Namespace, contentsID, env.Namespace)
+				})
+				By("creating a bundledeployment secret", func() {
+					verifySecretsAreEqual(config.DefaultOCIStorageSecretName, env.Namespace, contentsID, downstreamNamespace)
+				})
+				By("not creating a contents resource for this chart", func() {
+					var content fleet.Content
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
+				})
+				By("deploying the helm chart", func() {
+					var cm corev1.ConfigMap
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
+				})
+				By("creating an OCI artifact with the expected name", func() {
+					secretKey := client.ObjectKey{Name: contentsID, Namespace: env.Namespace}
+					opts, err := ocistorage.ReadOptsFromSecret(context.TODO(), clientUpstream, secretKey)
+					Expect(err).ToNot(HaveOccurred())
+					_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), opts, contentsID)
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+		})
+	})
+
+	When("applying a gitrepo with the default ociSecret with wrong reference and the user-defined secret also deployed with correct values", func() {
+		Context("containing a valid helm chart", func() {
+			BeforeEach(func() {
+				experimentalValue = true
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = "test-secret"
+				forceDefaultReference = "not-valid-oci-registry.com"
+				forceUserDefinedReference = ""
+				useReaderAsWriter = false
+			})
+
+			It("deploys the bundle", func() {
+				var bundle fleet.Bundle
+				By("creating the bundle", func() {
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+				})
+				By("setting the ContentsID field in the bundle", func() {
+					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
+					contentsID = bundle.Spec.ContentsID
+				})
+
+				By("setting the OCI reference status field key to the OCI path of the manifest", func() {
+					Eventually(func(g Gomega) {
+						var bundle fleet.Bundle
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+						g.Expect(bundle.Status.OCIReference).To(Equal(fmt.Sprintf("oci://%s/%s:latest", ociRegistry, contentsID)))
+					}).Should(Succeed())
+				})
+				By("creating a bundle secret with the expected contents from the user-defined secret", func() {
+					verifySecretsAreEqual(deploySpecificSecretName, env.Namespace, contentsID, env.Namespace)
+				})
+				By("creating a bundledeployment secret", func() {
+					verifySecretsAreEqual(deploySpecificSecretName, env.Namespace, contentsID, downstreamNamespace)
+				})
+				By("not creating a contents resource for this chart", func() {
+					var content fleet.Content
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
+				})
+				By("deploying the helm chart", func() {
+					var cm corev1.ConfigMap
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
+				})
+			})
+		})
+	})
+
 	When("creating a gitrepo resource with invalid ociRegistry info", func() {
 		Context("containing a public oci based helm chart", func() {
 			BeforeEach(func() {
@@ -502,6 +519,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				deploySpecificSecretName = ""
 				forceDefaultReference = "not-valid-oci-registry.com"
 				forceUserDefinedReference = ""
+				useReaderAsWriter = false
 			})
 
 			It("does not create the bundle", func() {
@@ -547,6 +565,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				deploySpecificSecretName = ""
 				forceDefaultReference = ""
 				forceUserDefinedReference = ""
+				useReaderAsWriter = false
 			})
 
 			It("does not create the bundle", func() {
@@ -592,18 +611,18 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				deploySpecificSecretName = ""
 				forceDefaultReference = ""
 				forceUserDefinedReference = ""
+				useReaderAsWriter = false
 			})
 
 			It("deploys the bundle and rejects the content as it's different from the expected", func() {
+				var bundle fleet.Bundle
 				By("creating the bundle", func() {
-					var bundle fleet.Bundle
 					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
 				})
 				By("setting the ContentsID field in the bundle", func() {
-					var bundle fleet.Bundle
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
 					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
 					contentsID = bundle.Spec.ContentsID
+					Expect(bundle.Spec.ValuesHash).To(BeEmpty())
 				})
 
 				By("setting the OCI reference status field key to the OCI path of the manifest", func() {
@@ -614,10 +633,10 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					}).Should(Succeed())
 				})
 				By("creating a bundle secret with the expected contents", func() {
-					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, env.Namespace)
+					verifySecretsAreEqual(config.DefaultOCIStorageSecretName, env.Namespace, contentsID, env.Namespace)
 				})
 				By("creating a bundledeployment secret", func() {
-					verifySecretsAreEqual(ocistorage.OCIStorageDefaultSecretName, env.Namespace, contentsID, downstreamNamespace)
+					verifySecretsAreEqual(config.DefaultOCIStorageSecretName, env.Namespace, contentsID, downstreamNamespace)
 				})
 				By("not creating a contents resource for this chart", func() {
 					var content fleet.Content
@@ -628,7 +647,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
 				})
 				By("changing the contents of the oci artifact", func() {
-					pushFakeOCIContents(ocistorage.OCIStorageDefaultSecretName, contentsID)
+					pushFakeOCIContents(config.DefaultOCIStorageSecretName, contentsID)
 				})
 				By("forcing the bundle deployment to re-deploy and reject the oci contents", func() {
 					var bd fleet.BundleDeployment
@@ -650,6 +669,131 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 						g.Expect(conditionFound).To(BeTrue())
 						g.Expect(message).To(ContainSubstring("invalid or corrupt manifest"))
 					}).Should(Succeed())
+				})
+			})
+		})
+	})
+
+	When("creating a gitrepo resource using an oci registry secret with a username that has no write permissions", func() {
+		Context("containing a public oci based helm chart", func() {
+			BeforeEach(func() {
+				experimentalValue = true
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = ""
+				forceDefaultReference = ""
+				forceUserDefinedReference = ""
+				useReaderAsWriter = true
+			})
+
+			It("does not create the bundle", func() {
+				By("setting the right error message in the GitRepo", func() {
+					Eventually(func(g Gomega) {
+						var repo fleet.GitRepo
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample", env.Namespace, &repo)
+						stalledFound := false
+						stalledMessage := ""
+						for _, cond := range repo.Status.Conditions {
+							if cond.Type == "Stalled" {
+								stalledMessage = cond.Message
+								stalledFound = true
+								break
+							}
+						}
+						g.Expect(stalledFound).To(BeTrue())
+						g.Expect(stalledMessage).To(ContainSubstring("requested access to the resource is denied"))
+					}).Should(Succeed())
+				})
+				By("not creating the bundle", func() {
+					var bundle fleet.Bundle
+					k8sclient.ObjectShouldNotExist(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle, true)
+				})
+				By("not creating the bundle secret", func() {
+					var secrets corev1.SecretList
+					err := clientUpstream.List(context.TODO(), &secrets, &client.ListOptions{Namespace: env.Namespace})
+					Expect(err).ToNot(HaveOccurred())
+					for _, s := range secrets.Items {
+						Expect(s.Name).ToNot(HavePrefix("s-"))
+					}
+				})
+			})
+		})
+	})
+
+	When("applying a gitrepo and then applying a new one with the same name", func() {
+		Context("containing a valid helm chart", func() {
+			BeforeEach(func() {
+				experimentalValue = true
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = ""
+				forceDefaultReference = ""
+				forceUserDefinedReference = ""
+				useReaderAsWriter = false
+			})
+
+			It("redeploys the gitrepo and only the last OCI artifact should remain", func() {
+				var bundle fleet.Bundle
+				By("creating the bundle", func() {
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+				})
+				By("setting the ContentsID field in the bundle", func() {
+					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
+					contentsID = bundle.Spec.ContentsID
+				})
+				By("deploying the helm chart", func() {
+					Eventually(func(g Gomega) {
+						var cm corev1.ConfigMap
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
+					}).Should(Succeed())
+				})
+				By("creating an OCI artifact with the expected name", func() {
+					secretKey := client.ObjectKey{Name: contentsID, Namespace: env.Namespace}
+					opts, err := ocistorage.ReadOptsFromSecret(context.TODO(), clientUpstream, secretKey)
+					Expect(err).ToNot(HaveOccurred())
+					_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), opts, contentsID)
+					Expect(err).ToNot(HaveOccurred())
+				})
+				By("deploying a gitrepo with the same same and different content", func() {
+					gitrepo := path.Join(tempDir, "gitrepo.yaml")
+					err := testenv.Template(gitrepo, testenv.AssetPath(asset), struct {
+						OCIRegistrySecret string
+						Branch            string
+					}{
+						deploySpecificSecretName,
+						"oci-storage-git-repo-changed",
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					out, err := k.Apply("-f", gitrepo)
+					Expect(err).ToNot(HaveOccurred(), out)
+				})
+				var bundle2 fleet.Bundle
+				previousContentsID := contentsID
+				By("updating the bundle, setting the ContentsID field in the bundle, being different to the previous one", func() {
+					Eventually(func(g Gomega) {
+						k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle2)
+						g.Expect(bundle2.Spec.ContentsID).To(ContainSubstring("s-"))
+						g.Expect(contentsID).ToNot(Equal((bundle2.Spec.ContentsID)))
+						contentsID = bundle2.Spec.ContentsID
+					}).Should(Succeed())
+				})
+				By("checking that the previous oci bundle key was deleted", func() {
+					var secret corev1.Secret
+					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, env.Namespace, &secret, false)
+				})
+				By("checking that the previous oci bundle deployment key was deleted", func() {
+					var secret corev1.Secret
+					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, downstreamNamespace, &secret, false)
+				})
+				By("checking that the previous oci artifact was deleted", func() {
+					// use the secret for the new contentID because it has the same contents.
+					secretKey := client.ObjectKey{Name: contentsID, Namespace: env.Namespace}
+					opts, err := ocistorage.ReadOptsFromSecret(context.TODO(), clientUpstream, secretKey)
+					Expect(err).ToNot(HaveOccurred())
+					_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), opts, previousContentsID)
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("not found"))
 				})
 			})
 		})
