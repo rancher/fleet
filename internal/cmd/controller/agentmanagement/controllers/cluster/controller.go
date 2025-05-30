@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetcontrollers "github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1"
@@ -61,6 +62,7 @@ func Register(ctx context.Context,
 	relatedresource.Watch(ctx, "managed-cluster", h.findClusters(namespaces.Cache()), clusters, bundleDeployment)
 }
 
+// ensureNSDeleted is a handler that enqueues the cluster registration namespace, when a cluster is deleted.
 func (h *handler) ensureNSDeleted(key string, obj *fleet.Cluster) (*fleet.Cluster, error) {
 	if obj == nil {
 		logrus.Debugf("Cluster %s deleted, enqueue cluster namespace deletion", key)
@@ -69,6 +71,7 @@ func (h *handler) ensureNSDeleted(key string, obj *fleet.Cluster) (*fleet.Cluste
 	return obj, nil
 }
 
+// findClusters enqueues the cluster when the bundledeployment changes. It uses the cluster namespace to determine the cluster.
 func (h *handler) findClusters(namespaces corecontrollers.NamespaceCache) relatedresource.Resolver {
 	return func(namespace, _ string, obj runtime.Object) ([]relatedresource.Key, error) {
 		if _, ok := obj.(*fleet.BundleDeployment); !ok {
@@ -105,7 +108,12 @@ func clusterNamespace(clusterNamespace, clusterName string) string {
 		names.KeyHash(clusterNamespace+"::"+clusterName))
 }
 
+// OnClusterChanged is a handler that creates the clusters namespace
 func (h *handler) OnClusterChanged(cluster *fleet.Cluster, status fleet.ClusterStatus) (fleet.ClusterStatus, error) {
+	if manageagent.SkipCluster(cluster) {
+		return status, nil
+	}
+
 	logrus.Debugf("OnClusterChanged for cluster status %s, updating namespace in status", cluster.Name)
 	if status.Namespace == "" {
 		status.Namespace = clusterNamespace(cluster.Namespace, cluster.Name)

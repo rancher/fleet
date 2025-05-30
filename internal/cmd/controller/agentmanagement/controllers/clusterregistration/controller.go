@@ -151,6 +151,19 @@ func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, err
 	return secret, nil
 }
 
+func skipClusterRegistration(cr *fleet.ClusterRegistration) bool {
+	if cr == nil {
+		return true
+	}
+	if cr.Labels == nil {
+		return false
+	}
+	if cr.Labels[fleet.ClusterManagementLabel] != "" {
+		return true
+	}
+	return false
+}
+
 // OnChange creates the service account and roles for a cluster registration.
 // The service account's token is deployed to the downstream cluster, via the
 // fleet-secret. It allows the downstream fleet-agent to list
@@ -160,6 +173,9 @@ func (h *handler) OnSecretChange(key string, secret *v1.Secret) (*v1.Secret, err
 func (h *handler) OnChange(request *fleet.ClusterRegistration, status fleet.ClusterRegistrationStatus) ([]runtime.Object, fleet.ClusterRegistrationStatus, error) {
 	if status.Granted {
 		// only create the cluster for the request once
+		return nil, status, generic.ErrSkip
+	}
+	if skipClusterRegistration(request) {
 		return nil, status, generic.ErrSkip
 	}
 

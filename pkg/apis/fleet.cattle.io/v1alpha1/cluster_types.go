@@ -42,6 +42,9 @@ var (
 	// ClusterLabel is used on a bundledeployment to refer to the targeted
 	// cluster
 	ClusterLabel = "fleet.cattle.io/cluster"
+
+	// ClusterManagementLabel can be used to specify a custom cluster manager
+	ClusterManagementLabel = "fleet.cattle.io/cluster-management"
 )
 
 // +genclient
