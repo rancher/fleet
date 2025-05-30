@@ -124,6 +124,8 @@ jobs:
           GIT_HTTP_PASSWORD: "foo"
           CI_OCI_USERNAME: "fleet-ci"
           CI_OCI_PASSWORD: "foo"
+          CI_OCI_READER_USERNAME: "fleet-ci-reader"
+          CI_OCI_READER_PASSWORD: "foo-reader"
         run: |
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
 
