@@ -5,7 +5,7 @@ metadata:
   namespace: fleet-local
 spec:
   repo: "https://github.com/rancher/fleet-test-data"
-  branch: master
+  branch: {{.Branch}}
   paths:
   - simple-chart-oci
   ociRegistrySecret: {{.OCIRegistrySecret}}

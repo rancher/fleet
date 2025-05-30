@@ -31,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 )
 
@@ -285,7 +284,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet
 //
 // name: the gitrepo name, passed to 'fleet apply' on the cli
 // basedir: the path from the walk func in Dir, []baseDirs
-func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
+func Dir(ctx context.Context, c client.Client, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -331,23 +330,23 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 		// secret if the values are empty.
 		if h != "" {
 			helmvalues.ClearValues(bundle)
-		} else if err := deleteSecretIfExists(ctx, client, bundle.Name, bundle.Namespace); err != nil {
+		} else if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
 			return err
 		}
 		bundle.Spec.ValuesHash = h
 
 		var ociOpts ocistorage.OCIOpts
-		secretOCIRegistryID := types.NamespacedName{Name: opts.OCIRegistrySecret, Namespace: bundle.Namespace}
-		useOCIRegistry, err := shouldStoreInOCIRegistry(ctx, client, secretOCIRegistryID, &ociOpts)
+		secretOCIRegistryID := client.ObjectKey{Name: opts.OCIRegistrySecret, Namespace: bundle.Namespace}
+		useOCIRegistry, err := shouldStoreInOCIRegistry(ctx, c, secretOCIRegistryID, &ociOpts)
 		if err != nil {
 			return err
 		}
 		if useOCIRegistry {
-			if bundle, err = saveOCIBundle(ctx, client, bundle, ociOpts); err != nil {
+			if bundle, err = saveOCIBundle(ctx, c, bundle, ociOpts); err != nil {
 				return err
 			}
 		} else {
-			if bundle, err = save(ctx, client, bundle); err != nil {
+			if bundle, err = save(ctx, c, bundle); err != nil {
 				return err
 			}
 		}
@@ -358,7 +357,7 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 		if len(data) > 0 {
 			valuesSecret := newValuesSecret(bundle, data)
 			updated := valuesSecret.DeepCopy()
-			_, err = controllerutil.CreateOrUpdate(ctx, client, valuesSecret, func() error {
+			_, err = controllerutil.CreateOrUpdate(ctx, c, valuesSecret, func() error {
 				valuesSecret.Labels = updated.Labels
 				valuesSecret.Data = updated.Data
 				valuesSecret.Type = updated.Type
@@ -369,7 +368,7 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 			}
 		}
 
-		if err := saveImageScans(ctx, client, bundle, scans); err != nil {
+		if err := saveImageScans(ctx, c, bundle, scans); err != nil {
 			return err
 		}
 	} else {
@@ -379,7 +378,7 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 	return err
 }
 
-func shouldStoreInOCIRegistry(ctx context.Context, c client.Reader, ociSecretKey types.NamespacedName, ociOpts *ocistorage.OCIOpts) (bool, error) {
+func shouldStoreInOCIRegistry(ctx context.Context, c client.Reader, ociSecretKey client.ObjectKey, ociOpts *ocistorage.OCIOpts) (bool, error) {
 	if !ocistorage.ExperimentalOCIIsEnabled() {
 		return false, nil
 	}
@@ -422,6 +421,18 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 	result, err := controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
 		if bundle != nil && bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
+		}
+
+		if bundle.Spec.ContentsID != "" {
+			// this bundle was previously deployed to an OCI registry.
+			// Delete the OCI artifact as it's no longer required.
+			if err := deleteOCIManifest(ctx, c, bundle, ocistorage.OCIOpts{}); err != nil {
+				// we log the error and continue, since the OCI registry is an entity to the the cluster
+				// we may encounter various types of transient errors (such as connection or access issues).
+				logrus.Warnf("deleting OCI artifact: %v", err)
+				return err
+
+			}
 		}
 
 		bundle.Spec = updated.Spec
@@ -469,6 +480,17 @@ func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, o
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
 		}
 
+		// If the actual manifestID is different from the previous one,
+		// delete the previous OCI artifact
+		if bundle.Spec.ContentsID != "" && bundle.Spec.ContentsID != manifestID {
+			if err := deleteOCIManifest(ctx, c, bundle, opts); err != nil {
+				// we log the error and continue, since the OCI registry is an entity to the the cluster
+				// we may encounter various types of transient errors (such as connection or access issues).
+				logrus.Warnf("deleting OCI artifact: %v", err)
+				return err
+			}
+		}
+
 		bundle.Spec = updated.Spec
 		bundle.Annotations = updated.Annotations
 		bundle.Labels = updated.Labels
@@ -495,6 +517,35 @@ func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, o
 	logrus.Infof("%s (oci secret): %s/%s", result, bundle.Namespace, bundle.Name)
 
 	return bundle, nil
+}
+
+func deleteOCIManifest(ctx context.Context, c client.Client, bundle *fleet.Bundle, opts ocistorage.OCIOpts) error {
+	if bundle.Spec.ContentsID == "" {
+		return nil
+	}
+	secretID := client.ObjectKey{Name: bundle.Spec.ContentsID, Namespace: bundle.Namespace}
+	if opts.Reference == "" {
+		// we don't have the reference details, get them from the bundle's secret
+		var err error
+		opts, err = ocistorage.ReadOptsFromSecret(ctx, c, secretID)
+		if err != nil {
+			return err
+		}
+	}
+	if err := ocistorage.NewOCIWrapper().DeleteManifest(ctx, opts, bundle.Spec.ContentsID); err != nil {
+		return err
+	}
+
+	// also delete the bundle secret as it's no longer needed
+	var secret corev1.Secret
+	if err := c.Get(ctx, secretID, &secret); err != nil {
+		return err
+	}
+	if err := c.Delete(ctx, &secret); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // when using the OCI registry manifestID won't be empty

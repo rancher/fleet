@@ -4,40 +4,4 @@ metadata:
   name: zot-config
 data:
   config.json: |
-    {
-        "storage": { "rootDirectory": "/var/lib/registry" },
-        "http": {
-            "auth": {
-                "htpasswd": { "path": "/secret/htpasswd" }
-            },
-            "tls": {
-              "cert": "/etc/zot/certs/tls.crt",
-              "key": "/etc/zot/certs/tls.key"
-            },
-            "accessControl": {
-                "repositories": {
-                  "**": {
-                      "policies": [{
-                          "users": ["admin"],
-                          "actions": ["read", "create", "update", "delete"]
-                      }],
-                      "defaultPolicy": ["read", "create"]
-                  }
-                }
-            },
-            "address": "0.0.0.0",
-            "port": "8082"
-        },
-        "log": { "level": "debug" },
-        "storage": {
-          "rootDirectory": "/tmp/zot"
-        },
-        "extensions": {
-          "ui": {
-            "enable": true
-          },
-           "search": {
-            "enable": true
-          }
-        }
-    }
+    {{.ZotConfig}}
