@@ -2141,8 +2141,8 @@ k8s.io/controller-manager v0.32.5 h1:XeFdbhnpvSMr4WI1xASgYj4Eqt9OTcPh4lmJV88NGAk
 k8s.io/controller-manager v0.32.5/go.mod h1:NDWmzWlHAUBLDwtavRsF5O48ZGuLJezT8m82ehI7s+Y=
 k8s.io/gengo v0.0.0-20250513215321-e3bc6f1e78b4 h1:aJXhPUD7zzEfeZHwJzoLvZAuiT296PU3+10P7Og27kM=
 k8s.io/gengo v0.0.0-20250513215321-e3bc6f1e78b4/go.mod h1:FiNAH4ZV3gBg2Kwh89tzAEV2be7d5xI0vBa/VySYy3E=
-k8s.io/gengo/v2 v2.0.0-20250513215321-e3bc6f1e78b4 h1:iicENHE63xPBlGQeany8LqrH40Wh/48QhMRI/mGVsqA=
-k8s.io/gengo/v2 v2.0.0-20250513215321-e3bc6f1e78b4/go.mod h1:EJykeLsmFC60UQbYJezXkEsG2FLrt0GPNkU5iK5GWxU=
+k8s.io/gengo/v2 v2.0.0-20250531010418-b22feca77200 h1:yMLTITd3CsU+qcFo2V7YrpeDeRzWRgi2A/Mx8qh0HWs=
+k8s.io/gengo/v2 v2.0.0-20250531010418-b22feca77200/go.mod h1:EJykeLsmFC60UQbYJezXkEsG2FLrt0GPNkU5iK5GWxU=
 k8s.io/helm v2.17.0+incompatible h1:Bpn6o1wKLYqKM3+Osh8e+1/K2g/GsQJ4F4yNF2+deao=
 k8s.io/helm v2.17.0+incompatible/go.mod h1:LZzlS4LQBHfciFOurYBFkCMTaZ0D1l+p0teMg7TSULI=
 k8s.io/klog/v2 v2.2.0/go.mod h1:Od+F08eJP+W3HUb4pSrPpgp9DGU4GzlpG/TmITuYh/Y=
