@@ -253,7 +253,7 @@ require (
 	k8s.io/component-helpers v0.32.5 // indirect
 	k8s.io/controller-manager v0.32.5 // indirect
 	k8s.io/gengo v0.0.0-20250513215321-e3bc6f1e78b4 // indirect
-	k8s.io/gengo/v2 v2.0.0-20250513215321-e3bc6f1e78b4 // indirect
+	k8s.io/gengo/v2 v2.0.0-20250531010418-b22feca77200 // indirect
 	k8s.io/helm v2.17.0+incompatible // indirect
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
