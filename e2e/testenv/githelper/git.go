@@ -307,7 +307,7 @@ func BuildGitHostname() string {
 // and repo name.
 func GetExternalRepoAddr(env *testenv.Env, port int, repoName string) (string, error) {
 	if v := os.Getenv("external_ip"); v != "" {
-		return fmt.Sprintf("http://%s:8080/%s", v, repoName), nil
+		return fmt.Sprintf("http://%s:%d/%s", v, port, repoName), nil
 	}
 
 	systemk := env.Kubectl.Namespace(cmd.InfraNamespace)
