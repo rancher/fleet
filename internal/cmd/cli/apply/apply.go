@@ -204,34 +204,39 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, repoName st
 	eg, ctx := errgroup.WithContext(pctx)
 	eg.SetLimit(bundleCreationMaxConcurrency)
 	bundlesChan := make(chan *fleet.Bundle)
-	for _, baseDir := range baseDirs {
-		opts := opts
-		eg.Go(func() error {
-			// verify if it also defines a fleetFile
-			var err error
-			baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
-			if err != nil {
-				return err
-			}
-			if auth, ok := opts.AuthByPath[baseDir]; ok {
-				opts.Auth = auth
-			}
-			bundle, scans, err := Dir(ctx, repoName, baseDir, opts)
-			if err != nil {
-				if err == ErrNoResources {
-					logrus.Warnf("%s: %v", baseDir, err)
-					return nil
+	eg, ctx := errgroup.WithContext(pctx)
+	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
+	eg.Go(func() error {
+		for _, baseDir := range baseDirs {
+			opts := opts
+			eg.Go(func() error {
+				// verify if it also defines a fleetFile
+				var err error
+				baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
+				if err != nil {
+					return err
 				}
-				return err
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case bundlesChan <- bundle:
-			}
-			return writeBundle(ctx, client, bundle, scans, opts)
-		})
-	}
+				if auth, ok := opts.AuthByPath[baseDir]; ok {
+					opts.Auth = auth
+				}
+				bundle, scans, err := Dir(ctx, repoName, baseDir, opts)
+				if err != nil {
+					if err == ErrNoResources {
+						logrus.Warnf("%s: %v", baseDir, err)
+						return nil
+					}
+					return err
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case bundlesChan <- bundle:
+				}
+				return writeBundle(ctx, client, bundle, scans, opts)
+			})
+		}
+		return nil
+	})
 	go func() {
 		_ = eg.Wait()
 		close(bundlesChan)
