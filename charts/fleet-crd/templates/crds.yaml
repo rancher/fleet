@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: bundledeployments.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -1133,7 +1133,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: bundlenamespacemappings.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -1313,7 +1313,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: bundles.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3281,7 +3281,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: clustergroups.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3708,7 +3708,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: clusterregistrations.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3812,7 +3812,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: clusterregistrationtokens.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -3891,7 +3891,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: clusters.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -4361,10 +4361,7 @@ spec:
                                       and labelSelector.
 
                                       Also, matchLabelKeys cannot be set when labelSelector
-                                      isn''t set.
-
-                                      This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                      feature gate (enabled by default).'
+                                      isn''t set.'
                                     items:
                                       type: string
                                     type: array
@@ -4393,10 +4390,7 @@ spec:
                                       and labelSelector.
 
                                       Also, mismatchLabelKeys cannot be set when labelSelector
-                                      isn''t set.
-
-                                      This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                      feature gate (enabled by default).'
+                                      isn''t set.'
                                     items:
                                       type: string
                                     type: array
@@ -4646,10 +4640,7 @@ spec:
                                   and labelSelector.
 
                                   Also, matchLabelKeys cannot be set when labelSelector
-                                  isn''t set.
-
-                                  This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                  feature gate (enabled by default).'
+                                  isn''t set.'
                                 items:
                                   type: string
                                 type: array
@@ -4677,10 +4668,7 @@ spec:
                                   and labelSelector.
 
                                   Also, mismatchLabelKeys cannot be set when labelSelector
-                                  isn''t set.
-
-                                  This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                  feature gate (enabled by default).'
+                                  isn''t set.'
                                 items:
                                   type: string
                                 type: array
@@ -4920,10 +4908,7 @@ spec:
                                       and labelSelector.
 
                                       Also, matchLabelKeys cannot be set when labelSelector
-                                      isn''t set.
-
-                                      This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                      feature gate (enabled by default).'
+                                      isn''t set.'
                                     items:
                                       type: string
                                     type: array
@@ -4952,10 +4937,7 @@ spec:
                                       and labelSelector.
 
                                       Also, mismatchLabelKeys cannot be set when labelSelector
-                                      isn''t set.
-
-                                      This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                      feature gate (enabled by default).'
+                                      isn''t set.'
                                     items:
                                       type: string
                                     type: array
@@ -5205,10 +5187,7 @@ spec:
                                   and labelSelector.
 
                                   Also, matchLabelKeys cannot be set when labelSelector
-                                  isn''t set.
-
-                                  This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                  feature gate (enabled by default).'
+                                  isn''t set.'
                                 items:
                                   type: string
                                 type: array
@@ -5236,10 +5215,7 @@ spec:
                                   and labelSelector.
 
                                   Also, mismatchLabelKeys cannot be set when labelSelector
-                                  isn''t set.
-
-                                  This is a beta field and requires enabling MatchLabelKeysInPodAffinity
-                                  feature gate (enabled by default).'
+                                  isn''t set.'
                                 items:
                                   type: string
                                 type: array
@@ -6101,7 +6077,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: contents.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6169,7 +6145,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: gitreporestrictions.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6275,7 +6251,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: gitrepos.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -6453,28 +6429,10 @@ spec:
                   description: KeepResources specifies if the resources created must
                     be kept after deleting the GitRepo.
                   type: boolean
-                ociRegistry:
-                  description: OCIRegistry specifies the OCI registry related parameters
-                  properties:
-                    authSecretName:
-                      description: AuthSecretName contains the auth secret where the
-                        OCI registry credentials are stored.
-                      nullable: true
-                      type: string
-                    basicHTTP:
-                      description: BasicHTTP uses HTTP connections to the OCI registry
-                        when enabled.
-                      nullable: true
-                      type: boolean
-                    insecureSkipTLS:
-                      description: InsecureSkipTLS allows connections to OCI registry
-                        without certs when enabled.
-                      nullable: true
-                      type: boolean
-                    reference:
-                      description: Reference of the OCI Registry
-                      type: string
-                  type: object
+                ociRegistrySecret:
+                  description: OCIRegistrySecret contains the name of the secret to
+                    be used for retrieving the OCI registry connection details.
+                  type: string
                 paths:
                   description: 'Paths is the directories relative to the git repo
                     root that contain resources to be applied.
@@ -7148,7 +7106,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: helmops.fleet.cattle.io
 spec:
   group: fleet.cattle.io
@@ -9048,7 +9006,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: imagescans.fleet.cattle.io
 spec:
   group: fleet.cattle.io
