@@ -224,6 +224,7 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 		newToken := newSecret.Data[Token]
 		clusterNamespace := newSecret.Data[ClusterNamespace]
 		clusterName := newSecret.Data[ClusterName]
+		// this is set to cluster.Status.Namespace
 		deploymentNamespace := newSecret.Data[DeploymentNamespace]
 
 		newKubeconfig, err := updateClientConfig(clientConfig, string(newToken), string(deploymentNamespace))
