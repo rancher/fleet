@@ -51,13 +51,20 @@ type HelmOpList struct {
 
 type HelmOpSpec struct {
 	BundleSpec `json:",inline"`
+
 	// Labels are copied to the bundle and can be used in a
 	// dependsOn.selector.
 	Labels map[string]string `json:"labels,omitempty"`
+
+	// PollingInterval is how often to check the Helm repository for new updates.
+	// +nullable
+	PollingInterval *metav1.Duration `json:"pollingInterval,omitempty"`
+
 	// HelmSecretName contains the auth secret with the credentials to access
 	// a private Helm repository.
 	// +nullable
 	HelmSecretName string `json:"helmSecretName,omitempty"`
+
 	// InsecureSkipTLSverify will use insecure HTTPS to clone the helm app resource.
 	InsecureSkipTLSverify bool `json:"insecureSkipTLSVerify,omitempty"`
 }

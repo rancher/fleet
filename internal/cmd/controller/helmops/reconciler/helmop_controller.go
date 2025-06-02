@@ -2,13 +2,14 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -25,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/go-logr/logr"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"github.com/reugn/go-quartz/quartz"
@@ -82,9 +84,9 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger := log.FromContext(ctx).WithName("HelmOp")
 	helmop := &fleet.HelmOp{}
 
-	if err := r.Get(ctx, req.NamespacedName, helmop); err != nil && !errors.IsNotFound(err) {
+	if err := r.Get(ctx, req.NamespacedName, helmop); err != nil && !k8serrors.IsNotFound(err) {
 		return ctrl.Result{}, err
-	} else if errors.IsNotFound(err) {
+	} else if k8serrors.IsNotFound(err) {
 		return ctrl.Result{}, nil
 	}
 
@@ -120,6 +122,10 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
 		return ctrl.Result{Requeue: true}, nil
+	}
+
+	if err := r.managePollingJob(logger, *helmop); err != nil {
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop.Status, err)
 	}
 
 	// Reconciling
@@ -158,7 +164,7 @@ func (r *HelmOpReconciler) createUpdateBundle(ctx context.Context, helmop *fleet
 	}
 
 	err := r.Get(ctx, nsName, b)
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !k8serrors.IsNotFound(err) {
 		return nil, err
 	}
 
@@ -333,6 +339,70 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 	bundle.Spec.Helm.Version = version
 
 	return nil
+}
+
+// managePollingJob creates, updates or deletes a polling job for the provided HelmOp.
+func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.HelmOp) error {
+	if r.Scheduler == nil {
+		logger.V(1).Info("Scheduler is not set; this should only happen in tests")
+		return nil
+	}
+
+	jobKey := quartz.NewJobKey(string(helmop.UID))
+	existingJob, err := r.Scheduler.GetScheduledJob(jobKey)
+
+	if shouldSetUpPolling(helmop) {
+		currentTrigger := quartz.NewSimpleTrigger(helmop.Spec.PollingInterval.Duration)
+		if errors.Is(err, quartz.ErrJobNotFound) {
+			err = r.Scheduler.ScheduleJob(
+				quartz.NewJobDetail(
+					newHelmPollingJob(r.Client, helmop.Namespace, helmop.Name),
+					jobKey,
+				),
+				currentTrigger,
+			)
+
+			if err != nil {
+				return fmt.Errorf("failed to schedule polling job: %w", err)
+			}
+		} else if existingJob.Trigger().Description() != currentTrigger.Description() {
+			// The polling interval has changed; replace the existing job if any.
+			err = r.Scheduler.ScheduleJob(
+				quartz.NewJobDetailWithOptions(
+					newHelmPollingJob(r.Client, helmop.Namespace, helmop.Name),
+					jobKey,
+					&quartz.JobDetailOptions{
+						Replace: true,
+					},
+				),
+				currentTrigger,
+			)
+
+			if err != nil {
+				return fmt.Errorf("failed to schedule polling job: %w", err)
+			}
+		}
+	} else if !errors.Is(err, quartz.ErrJobNotFound) {
+		// A job still exists, but is no longer needed; delete it.
+		if err = r.Scheduler.DeleteJob(jobKey); err != nil {
+			return fmt.Errorf("failed to delete polling job: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// shouldSetUpPolling returns a boolean indicating whether polling makes sense for the provided helmop.
+func shouldSetUpPolling(helmop fleet.HelmOp) bool {
+	if helmop.Spec.PollingInterval == nil || helmop.Spec.PollingInterval.Duration == 0 {
+		return false
+	}
+
+	// we only need to poll if the version is set to a constraint on versions, which may resolve to
+	// different available versions as the contents of the Helm repository evolves over time.
+	_, err := semver.StrictNewVersion(helmop.Spec.Helm.Version)
+
+	return err != nil
 }
 
 // updateStatus updates the status for the HelmOp resource. It retries on
