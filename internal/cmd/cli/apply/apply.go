@@ -139,7 +139,7 @@ func CreateBundles(pctx context.Context, client client.Client, repoName string, 
 							opts.Auth = auth
 						}
 
-						bundle, scans, err := Dir(ctx, repoName, path, opts)
+						bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
 						if err != nil {
 							if err == ErrNoResources {
 								logrus.Warnf("%s: %v", path, err)
@@ -225,7 +225,7 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, repoName st
 				if auth, ok := opts.AuthByPath[baseDir]; ok {
 					opts.Auth = auth
 				}
-				bundle, scans, err := Dir(ctx, repoName, baseDir, opts)
+				bundle, scans, err := bundleFromDir(ctx, repoName, baseDir, opts)
 				if err != nil {
 					if err == ErrNoResources {
 						logrus.Warnf("%s: %v", baseDir, err)
@@ -342,11 +342,11 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 	return bundle, scans, nil
 }
 
-// Dir reads a specific directory and produces a bundle and image scans.
+// bundleFromDir reads a specific directory and produces a bundle and image scans.
 //
 // name: the gitrepo name, passed to 'fleet apply' on the cli
-// basedir: the path from the walk func in Dir, []baseDirs
-func Dir(ctx context.Context, name, baseDir string, opts Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
+// basedir: a directory containing a Bundle, as observed by CreateBundles or CreateBundlesDriven
+func bundleFromDir(ctx context.Context, name, baseDir string, opts Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	// The bundleID is a valid helm release name, it's used as a default if a release name is not specified in helm options.
 	// It's also used to create the bundle name.
 	bundleID := filepath.Join(name, baseDir)
