@@ -144,7 +144,7 @@ jobs:
             cosign sign \
               --oidc-provider=github-actions \
               --yes \
-              --sign-container-identity="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}:${{ github.ref_name }}" \
+              --sign-container-identity="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}" \
               "${URL}"
           done
 
