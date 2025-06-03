@@ -29,7 +29,7 @@ var _ = Describe("Fleet apply helm release", Serial, func() {
 		testHelmRepo("helm_chart_url", port)
 	})
 
-	When("applying a folder that contains a sub folder with another fleet.yaml", func() {
+	When("applying a folder with fleet.yaml that contains a sub folder with another fleet.yaml", func() {
 		var repo = repository{
 			port: port,
 		}
@@ -55,11 +55,12 @@ var _ = Describe("Fleet apply helm release", Serial, func() {
 			})
 		})
 
-		When("path credentials are provided for sub folder", func() {
+		When("path credentials are provided for both root and sub folder", func() {
 			It("fleet apply works fine", func() {
 				Eventually(func() error {
 					return fleetApply("helm", []string{cli.AssetsPath + "helm_path_credentials"}, apply.Options{
 						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + "helm_path_credentials":           {Username: username, Password: password},
 							cli.AssetsPath + "helm_path_credentials/subfolder": {Username: username, Password: password},
 						},
 					})
