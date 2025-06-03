@@ -52,12 +52,14 @@ const (
 	gitPollingCondition        = "GitPolling"
 	generationLabel            = "fleet.cattle.io/gitrepo-generation"
 	forceSyncGenerationLabel   = "fleet.cattle.io/force-sync-generation"
+	// The TTL is the grace period for short-lived metrics to be kept alive to
+	// make sure Prometheus scrapes them.
+	ShortLivedMetricsTTL = 120 * time.Second
 )
 
 var (
 	zero = int32(0)
 
-	ShortLivedMetricsTTL  = 120 * time.Second
 	GitJobDurationBuckets = []float64{1, 2, 5, 10, 30, 60, 180, 300, 600, 1200, 1800, 3600}
 	gitjobsCreatedSuccess = metrics.ObjCounter(
 		"gitjobs_created_success_total",
@@ -160,7 +162,6 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	} else if apierrors.IsNotFound(err) {
 		gitjobsCreatedSuccess.Delete(gitrepo)
 		gitjobsCreatedFailure.Delete(gitrepo)
-		gitjobDurationGauge.Delete(gitrepo)
 		gitjobDuration.Delete(gitrepo)
 		fetchLatestCommitSuccess.Delete(gitrepo)
 		fetchLatestCommitFailure.Delete(gitrepo)

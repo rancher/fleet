@@ -141,8 +141,8 @@ var _ = Describe("GitOps Metrics", Label("gitops"), func() {
 			// Maker sure the metrics are gone.
 			metrics := append(gitOpsMetricNamesExist, gitOpsMetricNamesMissing...)
 			Eventually(func(g Gomega) {
+				allMetrics, err := etGitjob.Get()
 				for _, metricName := range metrics {
-					allMetrics, err := etGitjob.Get()
 					g.Expect(err).ToNot(HaveOccurred())
 					_, err = etGitjob.FindOneMetric(allMetrics, metricName, labels)
 					g.Expect(err).To(HaveOccurred(), fmt.Sprintf("metric found but expected not to: %q", metricName))
@@ -150,7 +150,7 @@ var _ = Describe("GitOps Metrics", Label("gitops"), func() {
 			})
 		})
 
-		It("should not keep short-lived metrics for longer their TTL", func() {
+		It("should not keep short-lived metrics for longer than their TTL", func() {
 			// Short-lived metrics are created when the git job is completed.
 			slMetrics := []string{
 				"fleet_gitjob_duration_seconds_gauge",
