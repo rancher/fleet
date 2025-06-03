@@ -141,6 +141,7 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
+	// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
 	if !res.Requeue {
 		t.Errorf("expecting Requeue set to true, it was false")
 	}
