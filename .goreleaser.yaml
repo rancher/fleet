@@ -370,7 +370,7 @@ docker_signs:
       - "sign"
       - "--oidc-provider=github-actions"
       - "--yes" # needed on cosign 2.0.0+
-      - "--sign-container-identity={{ .Env.PRIME_REGISTRY }}/rancher/fleet{{ if contains \"agent\" \"${artifact}\" }}-agent{{ end }}:{{ .Tag }}{{ if contains \"linux\" \"${artifact}\" }}-linux-{{ if contains \"amd64\" \"${artifact}\" }}amd64{{ else }}arm64{{ end }}{{ end }}"
+      - "--sign-container-identity={{ .Env.PRIME_REGISTRY }}/rancher/fleet{{ if contains \"agent\" \"${artifact}\" }}-agent{{ end }}"
       - "${artifact}@${digest}"
 
     # Which artifacts to sign.
