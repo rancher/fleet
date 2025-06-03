@@ -614,7 +614,6 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 				return bundle.Spec.Helm.ReleaseName == "remote-chart-with-deps"
 			})
 			Expect(ok).To(BeTrue())
-			//remoteDepl := bundles[0]
 			simpleDepl, _, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
 				return bundle.Spec.Helm.ReleaseName == "simple-with-fleet-yaml"
 			})
