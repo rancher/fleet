@@ -342,7 +342,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 	return bundle, scans, nil
 }
 
-// Dir reads a bundle and image scans from a directory and writes runtime objects to the selected output.
+// Dir reads a specific directory and produces a bundle and image scans.
 //
 // name: the gitrepo name, passed to 'fleet apply' on the cli
 // basedir: the path from the walk func in Dir, []baseDirs
