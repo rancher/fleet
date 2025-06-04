@@ -112,7 +112,7 @@ func randHelmOptions() *fleet.HelmOptions {
 		Chart:                   randString(),
 		Repo:                    randString(),
 		ReleaseName:             randString(),
-		Version:                 randString(), // return also semver version?
+		Version:                 fmt.Sprintf("%d.%d.%d", rand.Intn(100), rand.Intn(100), rand.Intn(100)),
 		TimeoutSeconds:          rand.Intn(3),
 		Values:                  &fleet.GenericMap{Data: randInterfaceMap()},
 		Force:                   randBool(),
@@ -337,9 +337,8 @@ var _ = Describe("HelmOps controller", func() {
 					}
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
 				}).Should(Succeed())
-			})
 
-			It("adds the expected finalizer to the HelmOp resource", func() {
+				By("adding the expected finalizer to the HelmOp resource")
 				Eventually(func(g Gomega) {
 					fh := &fleet.HelmOp{}
 					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
@@ -488,14 +487,11 @@ var _ = Describe("HelmOps controller", func() {
 			})
 		})
 
-		Context("version is not specified", func() {
-			var version string
+		Context("fetching a chart version", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-no-version", targets)
 
-				// version is empty
-				helmop.Spec.Helm.Version = version
 				// reset secret, no auth is required
 				helmop.Spec.HelmSecretName = ""
 
@@ -582,7 +578,7 @@ var _ = Describe("HelmOps controller", func() {
 
 			When("version is empty", func() {
 				BeforeEach(func() {
-					version = ""
+					helmop.Spec.Helm.Version = ""
 				})
 				It("creates a bundle with the latest version it got from the index", bundleCreatedWithLatestVersion)
 				It("uses the version specified if later the user sets it", usesVersionSpecified)
@@ -590,10 +586,98 @@ var _ = Describe("HelmOps controller", func() {
 
 			When("version is *", func() {
 				BeforeEach(func() {
-					version = "*"
+					helmop.Spec.Helm.Version = "*"
 				})
 				It("creates a bundle with the latest version it got from the index", bundleCreatedWithLatestVersion)
 				It("uses the version specified if later the user sets it", usesVersionSpecified)
+			})
+
+			When("version is a valid semver constraint with a matched version", func() {
+				BeforeEach(func() {
+					helmop.Spec.Helm.Version = "0.2.x"
+				})
+				It("creates a bundle with the latest version it got from the index", bundleCreatedWithLatestVersion)
+				It("uses the version specified if later the user sets it", usesVersionSpecified)
+			})
+
+			When("version is a valid comparison-based semver constraint with a matched version", func() {
+				BeforeEach(func() {
+					helmop.Spec.Helm.Version = "> 0.1"
+				})
+				It("creates a bundle with the latest version it got from the index", bundleCreatedWithLatestVersion)
+				It("uses the version specified if later the user sets it", usesVersionSpecified)
+			})
+
+			When("version is a valid semver constraint with multiple matched versions", func() {
+				BeforeEach(func() {
+					helmop.Spec.Helm.Version = "0.x.x"
+				})
+				It("creates a bundle with the latest version it got from the index", bundleCreatedWithLatestVersion)
+				It("uses the version specified if later the user sets it", usesVersionSpecified)
+			})
+
+			When("version is a valid semver constraint without any available matching version", func() {
+				BeforeEach(func() {
+					helmop.Spec.Helm.Version = "0.3.x"
+				})
+
+				It("does not create a bundle and returns and sets an error about no version being found", func() {
+					Consistently(func(g Gomega) {
+						bundle := &fleet.Bundle{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, bundle)
+						g.Expect(err).To(HaveOccurred())
+						g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
+					}, 5*time.Second, time.Second).Should(Succeed())
+
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, fh)
+						g.Expect(err).ToNot(HaveOccurred())
+						// check that the condition has the error
+						checkConditionContains(
+							g,
+							fh,
+							fleet.HelmOpAcceptedCondition,
+							v1.ConditionFalse,
+							"no chart version found for alpine-0.3.x",
+						)
+
+					}).Should(Succeed())
+				})
+			})
+
+			When("version is an invalid semver constraint", func() {
+				BeforeEach(func() {
+					helmop.Spec.Helm.Version = "foo"
+				})
+
+				It("does not create a bundle and returns and sets an error about the constraint being invalid", func() {
+					Consistently(func(g Gomega) {
+						bundle := &fleet.Bundle{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, bundle)
+						g.Expect(err).To(HaveOccurred())
+						g.Expect(errors.IsNotFound(err)).To(BeTrue(), err)
+					}, 5*time.Second, time.Second).Should(Succeed())
+
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, fh)
+						g.Expect(err).ToNot(HaveOccurred())
+						// check that the condition has the error
+						checkConditionContains(
+							g,
+							fh,
+							fleet.HelmOpAcceptedCondition,
+							v1.ConditionFalse,
+							"improper constraint: foo",
+						)
+
+					}).Should(Succeed())
+				})
 			})
 		})
 

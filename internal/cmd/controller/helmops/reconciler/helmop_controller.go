@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"github.com/reugn/go-quartz/quartz"
@@ -293,34 +294,41 @@ func deleteFinalizer[T client.Object](ctx context.Context, c client.Client, obj 
 	return nil
 }
 
-// handleVersion handles empty or * versions, downloading the current version from the registry.
+// handleVersion validates the version configured on the provided HelmOp.
+// In particular:
+//   - it returns an error in case that version represents an invalid semver constraint.
+//   - it handles empty or * versions, downloading the current version from the registry.
+//
 // This is calculated in the upstream cluster so all downstream bundle deployments have the same
-// version. (Potentially we could be gathering the version at very moment it is being updated, for example)
+// version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
 func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp) error {
-	if helmop.Spec.Helm.Version != "" && helmop.Spec.Helm.Version != "*" {
+	if _, err := semver.StrictNewVersion(helmop.Spec.Helm.Version); err == nil {
 		bundle.Spec.Helm.Version = helmop.Spec.Helm.Version
 		return nil
 	}
-	if helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmop.Status.Version) {
-		auth := bundlereader.Auth{}
-		if helmop.Spec.HelmSecretName != "" {
-			req := types.NamespacedName{Namespace: helmop.Namespace, Name: helmop.Spec.HelmSecretName}
-			var err error
-			auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, r.Client, req)
-			if err != nil {
-				return err
-			}
-		}
-		auth.InsecureSkipVerify = helmop.Spec.InsecureSkipTLSverify
 
-		version, err := bundlereader.ChartVersion(*bundle.Spec.Helm, auth)
+	if !helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmop.Status.Version) {
+		bundle.Spec.Helm.Version = helmop.Status.Version
+
+		return nil
+	}
+
+	auth := bundlereader.Auth{}
+	if helmop.Spec.HelmSecretName != "" {
+		req := types.NamespacedName{Namespace: helmop.Namespace, Name: helmop.Spec.HelmSecretName}
+		var err error
+		auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, r.Client, req)
 		if err != nil {
 			return err
 		}
-		bundle.Spec.Helm.Version = version
-	} else {
-		bundle.Spec.Helm.Version = helmop.Status.Version
 	}
+	auth.InsecureSkipVerify = helmop.Spec.InsecureSkipTLSverify
+
+	version, err := bundlereader.ChartVersion(*helmop.Spec.Helm, auth)
+	if err != nil {
+		return err
+	}
+	bundle.Spec.Helm.Version = version
 
 	return nil
 }
