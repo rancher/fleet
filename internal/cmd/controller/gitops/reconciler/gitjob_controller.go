@@ -52,11 +52,15 @@ const (
 	gitPollingCondition        = "GitPolling"
 	generationLabel            = "fleet.cattle.io/gitrepo-generation"
 	forceSyncGenerationLabel   = "fleet.cattle.io/force-sync-generation"
+	// The TTL is the grace period for short-lived metrics to be kept alive to
+	// make sure Prometheus scrapes them.
+	ShortLivedMetricsTTL = 120 * time.Second
 )
 
 var (
+	zero = int32(0)
+
 	GitJobDurationBuckets = []float64{1, 2, 5, 10, 30, 60, 180, 300, 600, 1200, 1800, 3600}
-	zero                  = int32(0)
 	gitjobsCreatedSuccess = metrics.ObjCounter(
 		"gitjobs_created_success_total",
 		"Total number of failed git job creations",
@@ -73,6 +77,19 @@ var (
 	gitjobDurationGauge = metrics.ObjGauge(
 		"gitjob_duration_seconds_gauge",
 		"Duration to complete a Git job in seconds. Includes the time to fetch the git repo and to create the bundle.",
+	)
+	fetchLatestCommitSuccess = metrics.ObjCounter(
+		"gitrepo_fetch_latest_commit_success_total",
+		"Total number of successful fetches of latest commit",
+	)
+	fetchLatestCommitFailure = metrics.ObjCounter(
+		"gitrepo_fetch_latest_commit_failure_total",
+		"Total number of failed attempts to retrieve the latest commit, for any reason",
+	)
+	timeToFetchLatestCommit = metrics.ObjHistogram(
+		"gitrepo_fetch_latest_commit_duration_seconds",
+		"Duration in seconds to fetch the latest commit",
+		metrics.BucketsLatency,
 	)
 )
 
@@ -143,7 +160,14 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !apierrors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if apierrors.IsNotFound(err) {
-		logger.V(1).Info("Gitrepo deleted, cleaning up poll jobs")
+		gitjobsCreatedSuccess.Delete(gitrepo)
+		gitjobsCreatedFailure.Delete(gitrepo)
+		gitjobDuration.Delete(gitrepo)
+		fetchLatestCommitSuccess.Delete(gitrepo)
+		fetchLatestCommitFailure.Delete(gitrepo)
+		timeToFetchLatestCommit.Delete(gitrepo)
+
+		logger.V(1).Info("Gitrepo deleted, cleaning up pull jobs")
 		return ctrl.Result{}, nil
 	}
 
@@ -219,6 +243,18 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return r.result(gitrepo), nil
 }
 
+func monitorLatestCommit(obj metav1.Object, fetch func() (string, error)) (string, error) {
+	start := time.Now()
+	commit, err := fetch()
+	if err != nil {
+		fetchLatestCommitFailure.Inc(obj)
+		return "", err
+	}
+	fetchLatestCommitSuccess.Inc(obj)
+	timeToFetchLatestCommit.Observe(obj, time.Since(start).Seconds())
+	return commit, nil
+}
+
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
 func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string, repoPolled bool) (reconcile.Result, error) {
 	name := types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}
@@ -235,7 +271,9 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 
 	if apierrors.IsNotFound(err) {
 		if gitrepo.Spec.DisablePolling {
-			commit, err := r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
+			commit, err := monitorLatestCommit(gitrepo, func() (string, error) {
+				return r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
+			})
 			condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "", err)
 			if err == nil && commit != "" {
 				gitrepo.Status.Commit = commit
@@ -419,6 +457,11 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 			duration := job.Status.CompletionTime.Sub(job.Status.StartTime.Time)
 			gitjobDuration.Observe(gitRepo, duration.Seconds())
 			gitjobDurationGauge.Set(gitRepo, duration.Seconds())
+
+			go func() {
+				time.Sleep(ShortLivedMetricsTTL)
+				gitjobDurationGauge.Delete(gitRepo)
+			}()
 		}
 		jobDeletedMessage := "job deletion triggered because job succeeded"
 		logger.Info(jobDeletedMessage)
@@ -438,7 +481,9 @@ func (r *GitJobReconciler) repoPolled(ctx context.Context, gitrepo *v1alpha1.Git
 	}
 	if r.shouldRunPollingTask(gitrepo) {
 		gitrepo.Status.LastPollingTime.Time = r.Clock.Now()
-		commit, err := r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
+		commit, err := monitorLatestCommit(gitrepo, func() (string, error) {
+			return r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
+		})
 		condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "", err)
 		if err != nil {
 			return true, err
