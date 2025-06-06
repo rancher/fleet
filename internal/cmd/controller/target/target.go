@@ -37,6 +37,9 @@ func BundleFromDeployment(labels map[string]string) (string, string) {
 		labels[fleet.BundleLabel]
 }
 
+// Target represents a bundle deployment target, encapsulating all relevant
+// information about the deployment, associated cluster groups, cluster,
+// bundle, deployment options, and deployment identifier.
 type Target struct {
 	Deployment    *fleet.BundleDeployment
 	ClusterGroups []*fleet.ClusterGroup
@@ -46,7 +49,7 @@ type Target struct {
 	DeploymentID  string
 }
 
-// BundleDeployment returns a new bd, it discards annotations, status, etc.
+// BundleDeployment returns a new BundleDeployment, it discards annotations, status, etc.
 // The labels are copied from the Bundle.
 func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 	bd := &fleet.BundleDeployment{

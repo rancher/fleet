@@ -157,7 +157,7 @@ type BundleResource struct {
 	Encoding string `json:"encoding,omitempty"`
 }
 
-// RolloverStrategy controls the rollout of the bundle across clusters.
+// RolloutStrategy controls the rollout of the bundle across clusters.
 type RolloutStrategy struct {
 	// A number or percentage of clusters that can be unavailable during an update
 	// of a bundle. This follows the same basic approach as a deployment rollout
