@@ -105,9 +105,14 @@ func start(
 		return err
 	}
 
+	var shardIDSuffix string
+	if shardID != "" {
+		shardIDSuffix = fmt.Sprintf("-%s", shardID)
+	}
 	if err = (&reconciler.BundleReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor(fmt.Sprintf("fleet-bundle-ctrl%s", shardIDSuffix)),
 
 		Builder: builder,
 		Store:   store,

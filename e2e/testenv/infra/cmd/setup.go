@@ -260,7 +260,14 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		if err != nil {
 			fail(fmt.Errorf("generate bcrypt password from env var: %v", err))
 		}
-		htpasswd += fmt.Sprintf("\n%s:%s", os.Getenv("CI_OCI_READER_USERNAME"), string(p))
+		htpasswd += fmt.Sprintf("\n%s:%s\n", os.Getenv("CI_OCI_READER_USERNAME"), string(p))
+	}
+	if os.Getenv("CI_OCI_NO_DELETER_USERNAME") != "" && os.Getenv("CI_OCI_NO_DELETER_PASSWORD") != "" {
+		p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_NO_DELETER_PASSWORD")), bcrypt.MinCost)
+		if err != nil {
+			fail(fmt.Errorf("generate bcrypt password from env var: %v", err))
+		}
+		htpasswd += fmt.Sprintf("\n%s:%s", os.Getenv("CI_OCI_NO_DELETER_USERNAME"), string(p))
 	}
 
 	err = testenv.ApplyTemplate(k, "helm/zot_secret.yaml", struct{ HTTPPasswd string }{htpasswd})
@@ -404,6 +411,15 @@ func getZotConfig() (string, error) {
                             "actions": [
                                 "read"
                             ]
+                        },
+                        {
+                            "users": [
+                                "%s"
+                            ],
+                            "actions": [
+                                "read",
+                                "create"
+                            ]
                         }
                     ],
                     "defaultPolicy": []
@@ -436,8 +452,12 @@ func getZotConfig() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	noDeleter, err := getEnvVarUser("CI_OCI_NO_DELETER_USERNAME")
+	if err != nil {
+		return "", err
+	}
 
-	return fmt.Sprintf(configTemplate, writer, reader), nil
+	return fmt.Sprintf(configTemplate, writer, reader, noDeleter), nil
 }
 
 func getEnvVarUser(username string) (string, error) {

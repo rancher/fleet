@@ -72,6 +72,11 @@ func (r *GitJobReconciler) createOrUpdateRole(ctx context.Context, gitRepo *v1al
 				APIGroups: []string{""},
 				Resources: []string{"secrets"},
 			},
+			{
+				Verbs:     []string{"create"},
+				APIGroups: []string{""},
+				Resources: []string{"events"},
+			},
 		}
 		return nil
 	}); err != nil {
