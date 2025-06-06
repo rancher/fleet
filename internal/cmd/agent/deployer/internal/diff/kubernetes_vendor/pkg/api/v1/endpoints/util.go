@@ -43,6 +43,7 @@ func LessEndpointAddress(a, b *v1.EndpointAddress) bool {
 
 // SortSubsets sorts an array of EndpointSubset objects in place.  For ease of
 // use it returns the input slice.
+// nolint: staticcheck // EndpointSubset is deprecated; see fleet#3760.
 func SortSubsets(subsets []v1.EndpointSubset) []v1.EndpointSubset {
 	for i := range subsets {
 		ss := &subsets[i]
@@ -59,6 +60,7 @@ func hashObject(hasher hash.Hash, obj interface{}) []byte {
 	return hasher.Sum(nil)
 }
 
+// nolint: staticcheck // EndpointSubset is deprecated; see fleet#3760.
 type subsetsByHash []v1.EndpointSubset
 
 func (sl subsetsByHash) Len() int      { return len(sl) }
