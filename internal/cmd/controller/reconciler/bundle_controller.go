@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
@@ -379,7 +380,11 @@ func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 
 	metrics.BundleCollector.Delete(req.Name, req.Namespace)
 	controllerutil.RemoveFinalizer(bundle, finalize.BundleFinalizer)
-	return ctrl.Result{}, r.Update(ctx, bundle)
+	if err := r.Update(ctx, bundle); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	return ctrl.Result{}, r.maybeDeleteOCIArtifact(ctx, bundle)
 }
 
 // ensureFinalizer adds a finalizer to a recently created bundle.
@@ -430,6 +435,11 @@ func (r *BundleReconciler) createBundleDeployment(
 			if err := finalize.PurgeContent(ctx, r.Client, bd.Name, bd.Spec.DeploymentID); err != nil {
 				logger.Error(err, "Reconcile failed to purge old content resource")
 			}
+		}
+
+		// check if there's any OCI secret that can be purged
+		if err := maybePurgeOCIReferenceSecret(ctx, r.Client, bd, updated); err != nil {
+			logger.Error(err, "Reconcile failed to purge old oci reference secret")
 		}
 
 		bd.Spec = updated.Spec
@@ -556,6 +566,29 @@ func (r *BundleReconciler) cloneSecret(
 	return nil
 }
 
+func maybePurgeOCIReferenceSecret(ctx context.Context, c client.Client, old, new *fleet.BundleDeployment) error {
+	if !old.Spec.OCIContents || old.Spec.DeploymentID == "" {
+		return nil
+	}
+
+	if !new.Spec.OCIContents || (old.Spec.DeploymentID != new.Spec.DeploymentID) {
+		id, _ := kv.Split(old.Spec.DeploymentID, ":")
+		var secret corev1.Secret
+		secretID := client.ObjectKey{Name: id, Namespace: old.Namespace}
+		if err := c.Get(ctx, secretID, &secret); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+		} else {
+			if err := c.Delete(ctx, &secret); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
 	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.ExperimentalOCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil && experimentalHelmOpsEnabled()
@@ -618,6 +651,20 @@ func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context,
 		return uidsToKeep.Has(bd.UID)
 	})
 	return batchDeleteBundleDeployments(ctx, r.Client, toDelete)
+}
+
+func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *fleet.Bundle) error {
+	if bundle.Spec.ContentsID == "" {
+		return nil
+	}
+
+	secretID := client.ObjectKey{Name: bundle.Spec.ContentsID, Namespace: bundle.Namespace}
+	opts, err := ocistorage.ReadOptsFromSecret(ctx, r.Client, secretID)
+	if err != nil {
+		return err
+	}
+	err = ocistorage.NewOCIWrapper().DeleteManifest(ctx, opts, bundle.Spec.ContentsID)
+	return err
 }
 
 func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {

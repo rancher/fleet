@@ -44,6 +44,10 @@ const (
 
 	// Default secret name for git credentials, used as a fallback if no secret is referenced by an app.
 	DefaultGitCredentialsSecretName = "gitcredential" //nolint:gosec // this is a resource name
+
+	// Default secret name for oci storage,
+	// used as a fallback if no secret is specified by the user in the GitRepo.
+	DefaultOCIStorageSecretName = "ocistorage"
 )
 
 var (

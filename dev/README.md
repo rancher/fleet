@@ -175,6 +175,8 @@ export GIT_HTTP_PASSWORD="foo"
 # needed for OCI tests, which are part of the single-cluster tests
 export CI_OCI_USERNAME="fleet-ci"
 export CI_OCI_PASSWORD="foo"
+export CI_OCI_READER_USERNAME="fleet-ci-reader"
+export CI_OCI_READER_PASSWORD="foo-reader"
 export CI_OCI_CERTS_DIR="../../FleetCI-RootCA"
 ```
 
