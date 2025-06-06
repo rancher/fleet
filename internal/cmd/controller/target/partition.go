@@ -53,7 +53,7 @@ func UpdatePartitions(status *fleet.BundleStatus, allTargets []*Target) (err err
 			updateTarget(currentTarget, status, &partition.Status)
 		}
 
-		if updateStatusUnavailable(&partition.Status, partition.Targets) {
+		if updateStatusAndCheckUnavailable(&partition.Status, partition.Targets) {
 			status.UnavailablePartitions++
 		}
 
