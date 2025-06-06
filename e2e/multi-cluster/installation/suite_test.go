@@ -73,27 +73,40 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	// Restore initial state of config map
-	out, err := ku.Patch(
-		"configmap",
-		"fleet-controller",
-		"-n",
-		"cattle-fleet-system",
-		"--type=merge",
-		"-p",
-		fmt.Sprintf(`{"data":{"config":"%s"}}`, config),
+	var (
+		out string
+		err error
 	)
-	Expect(err).ToNot(HaveOccurred(), string(out))
+	Eventually(func() error {
+		// Restore initial state of config map
+		out, err = ku.Patch(
+			"configmap",
+			"fleet-controller",
+			"-n",
+			"cattle-fleet-system",
+			"--type=merge",
+			"-p",
+			fmt.Sprintf(`{"data":{"config":"%s"}}`, config),
+		)
+		return err
+	}).ShouldNot(
+		HaveOccurred(),
+		out,
+	)
 
-	// Restore initial state of deployment
-	out, err = kd.Patch(
-		"deployment",
-		"fleet-agent",
-		"-n",
-		"cattle-fleet-system",
-		"--type=merge",
-		"-p",
-		fmt.Sprintf(`{"spec":{"strategy":%s}}`, strategy),
+	Eventually(func() error {
+		out, err = kd.Patch(
+			"deployment",
+			"fleet-agent",
+			"-n",
+			"cattle-fleet-system",
+			"--type=merge",
+			"-p",
+			fmt.Sprintf(`{"spec":{"strategy":%s}}`, strategy),
+		)
+		return err
+	}).ShouldNot(
+		HaveOccurred(),
+		fmt.Sprintf("Fleet controller config map should be restored: %s", out),
 	)
-	Expect(err).ToNot(HaveOccurred(), string(out))
 })
