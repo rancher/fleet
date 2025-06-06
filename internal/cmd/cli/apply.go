@@ -20,8 +20,13 @@ import (
 	ssh "github.com/rancher/fleet/internal/ssh"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/kubernetes"
+	typedv1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 )
 
 const (
@@ -176,10 +181,15 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if opts.DrivenScan {
-		return apply.CreateBundlesDriven(ctx, client, name, args, opts)
+	recorder, err := getEventRecorder(cfg, "fleet-apply")
+	if err != nil {
+		return err
 	}
-	return apply.CreateBundles(ctx, client, name, args, opts)
+
+	if opts.DrivenScan {
+		return apply.CreateBundlesDriven(ctx, client, recorder, name, args, opts)
+	}
+	return apply.CreateBundles(ctx, client, recorder, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
@@ -341,4 +351,19 @@ func setEnv(knownHostsPath string) (func() error, error) {
 	}
 
 	return restore, nil
+}
+
+func getEventRecorder(config *rest.Config, componentName string) (record.EventRecorder, error) {
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	broadcaster := record.NewBroadcaster()
+	broadcaster.StartStructuredLogging(0)
+	broadcaster.StartRecordingToSink(&typedv1core.EventSinkImpl{
+		Interface: clientset.CoreV1().Events(""),
+	})
+
+	return broadcaster.NewRecorder(scheme, corev1.EventSource{Component: componentName}), nil
 }

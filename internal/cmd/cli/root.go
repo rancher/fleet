@@ -9,7 +9,10 @@ import (
 	"github.com/rancher/fleet/pkg/version"
 )
 
-const JSONOutputEnvVar = "FLEET_JSON_OUTPUT"
+const (
+	JSONOutputEnvVar = "FLEET_JSON_OUTPUT"
+	JobNameEnvVar    = "JOB_NAME"
+)
 
 func App() *cobra.Command {
 	root := command.Command(&Fleet{}, cobra.Command{

@@ -20,15 +20,19 @@ import (
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetevent "github.com/rancher/fleet/pkg/event"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -98,7 +102,7 @@ const bundleCreationMaxConcurrency = 4
 // CreateBundles creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-func CreateBundles(pctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
+func CreateBundles(pctx context.Context, client client.Client, r record.EventRecorder, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
@@ -152,7 +156,7 @@ func CreateBundles(pctx context.Context, client client.Client, repoName string, 
 							return ctx.Err()
 						case bundlesChan <- bundle:
 						}
-						return writeBundle(ctx, client, bundle, scans, opts)
+						return writeBundle(ctx, client, r, bundle, scans, opts)
 					})
 					return nil
 				}); err != nil {
@@ -200,7 +204,7 @@ func CreateBundles(pctx context.Context, client client.Client, repoName string, 
 // separated by a character set in opts.
 // If no fleet file is provided it tries to load a fleet.yaml in the root of the dir, or will consider
 // the directory as a raw content folder.
-func CreateBundlesDriven(pctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
+func CreateBundlesDriven(pctx context.Context, client client.Client, r record.EventRecorder, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
@@ -238,7 +242,7 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, repoName st
 					return ctx.Err()
 				case bundlesChan <- bundle:
 				}
-				return writeBundle(ctx, client, bundle, scans, opts)
+				return writeBundle(ctx, client, r, bundle, scans, opts)
 			})
 		}
 		return nil
@@ -364,7 +368,7 @@ func bundleFromDir(ctx context.Context, name, baseDir string, opts Options) (*fl
 	return bundle, scans, nil
 }
 
-func writeBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, scans []*fleet.ImageScan, opts Options) error {
+func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, bundle *fleet.Bundle, scans []*fleet.ImageScan, opts Options) error {
 	// Early return for "offline" mode, only printing the result to stdout/file
 	if opts.Output != nil {
 		return printToOutput(opts.Output, bundle, scans)
@@ -392,7 +396,7 @@ func writeBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, sca
 		return err
 	}
 	if useOCIRegistry {
-		if bundle, err = saveOCIBundle(ctx, c, bundle, ociOpts); err != nil {
+		if bundle, err = saveOCIBundle(ctx, c, r, bundle, ociOpts); err != nil {
 			return err
 		}
 	} else {
@@ -525,7 +529,7 @@ func saveImageScans(ctx context.Context, c client.Client, bundle *fleet.Bundle, 
 	return nil
 }
 
-func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, opts ocistorage.OCIOpts) (*fleet.Bundle, error) {
+func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder, bundle *fleet.Bundle, opts ocistorage.OCIOpts) (*fleet.Bundle, error) {
 	manifestID, err := pushOCIManifest(ctx, bundle, opts)
 	if err != nil {
 		return bundle, err
@@ -545,7 +549,7 @@ func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, o
 				// we log the error and continue, since the OCI registry is an external entity to the the cluster
 				// we may encounter various types of transient errors (such as connection or access issues).
 				logrus.Warnf("deleting OCI artifact: %v", err)
-				return err
+				sendWarningEvent(r, bundle.Namespace, bundle.Spec.ContentsID, err)
 			}
 		}
 
@@ -617,6 +621,7 @@ func newOCISecret(manifestID string, bundle *fleet.Bundle, opts ocistorage.OCIOp
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      manifestID,
 			Namespace: bundle.Namespace,
+			Labels:    map[string]string{fleet.InternalSecretLabel: "true"},
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         fleet.SchemeGroupVersion.String(),
@@ -735,4 +740,19 @@ func deleteSecretIfExists(ctx context.Context, c client.Client, name, ns string)
 	}
 
 	return nil
+}
+
+func sendWarningEvent(r record.EventRecorder, namespace, artifactID string, errorToLog error) {
+	jobName := os.Getenv("JOB_NAME")
+	if jobName == "" {
+		logrus.Warn("JOB_NAME environment variable not set")
+		return
+	}
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName,
+			Namespace: namespace,
+		},
+	}
+	r.Event(job, fleetevent.Warning, "Failed", fmt.Sprintf("deleting OCI artifact: %q, error: %v", artifactID, errorToLog.Error()))
 }

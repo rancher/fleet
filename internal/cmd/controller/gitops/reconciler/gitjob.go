@@ -638,6 +638,10 @@ func argsAndEnvs(
 			Value: "true",
 		},
 		{
+			Name:  fleetcli.JobNameEnvVar,
+			Value: jobName(gitrepo),
+		},
+		{
 			Name:  fleetcli.FleetApplyConflictRetriesEnv,
 			Value: strconv.Itoa(fleetApplyRetries),
 		},
