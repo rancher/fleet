@@ -13,7 +13,7 @@ on:
         # k3d version list k3s | sed 's/+/-/' | sort -h
         description: "K3s version to use"
         required: true
-        default: "v1.32.1-k3s1"
+        default: "v1.33.1-k3s1"
       rancher_version:
         description: "Rancher version to install"
         required: true
