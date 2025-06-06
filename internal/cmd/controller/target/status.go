@@ -43,11 +43,12 @@ func Unavailable(targets []*Target) (count int) {
 	return
 }
 
-// updateStatusUnavailable recomputes and sets the status.Unavailable counter and returns true if the partition
-// is unavailable, eg. there are more unavailable targets than the maximum set (does not mutate targets)
-func updateStatusUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
+// updateStatusAndCheckUnavailable recomputes and sets the status.Unavailable counter
+// and returns true if the partition is unavailable, e.g. there are more
+// unavailable targets than the maximum set (does not mutate targets)
+func updateStatusAndCheckUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
 	// Unavailable for a partition is stricter than unavailable for a target.
-	// For a partition a target must be available and update to date.
+	// For a partition a target must be available and up-to-date.
 	status.Unavailable = 0
 	for _, target := range targets {
 		if !upToDate(target) || isUnavailable(target.Deployment) {
@@ -70,7 +71,8 @@ func upToDate(target *Target) bool {
 	return true
 }
 
-// isUnavailable checks if target is not available (pure function)
+// isUnavailable checks if target is available (pure function). If no target is
+// provided, it returns true, assuming that a nil target is always available.
 func isUnavailable(target *fleet.BundleDeployment) bool {
 	if target == nil {
 		return false
@@ -79,8 +81,15 @@ func isUnavailable(target *fleet.BundleDeployment) bool {
 		!target.Status.Ready
 }
 
+// limit calculates the maximum number of unavailable items. It uses the first
+// non-nil value from the provided values. If no value is provided, it defaults
+// to a predefined limit. If a percentage is provided, it calculates the
+// percentage of the total count of items. If the percentage is less than or
+// equal to zero, it defaults to 1.
+//
+// The resulting percentage is rounded down to the nearest integer.
 func limit(count int, val ...*intstr.IntOrString) (int, error) {
-	if count == 0 {
+	if count <= 0 {
 		return 1, nil
 	}
 
