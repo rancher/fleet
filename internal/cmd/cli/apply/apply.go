@@ -22,17 +22,19 @@ import (
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetevent "github.com/rancher/fleet/pkg/event"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 )
 
@@ -98,7 +100,7 @@ func globDirs(baseDir string) (result []string, err error) {
 // CreateBundles creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-func CreateBundles(ctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
+func CreateBundles(ctx context.Context, client client.Client, r record.EventRecorder, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
@@ -138,7 +140,7 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 				if auth, ok := opts.AuthByPath[path]; ok {
 					opts.Auth = auth
 				}
-				if err := Dir(ctx, client, repoName, path, &opts, gitRepoBundlesMap); err == ErrNoResources {
+				if err := Dir(ctx, client, r, repoName, path, &opts, gitRepoBundlesMap); err == ErrNoResources {
 					logrus.Warnf("%s: %v", path, err)
 					return nil
 				} else if err != nil {
@@ -177,7 +179,7 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 // separated by a character set in opts.
 // If no fleet file is provided it tries to load a fleet.yaml in the root of the dir, or will consider
 // the directory as a raw content folder.
-func CreateBundlesDriven(ctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
+func CreateBundlesDriven(ctx context.Context, client client.Client, r record.EventRecorder, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
@@ -195,7 +197,7 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, repoName str
 		if auth, ok := opts.AuthByPath[baseDir]; ok {
 			opts.Auth = auth
 		}
-		if err := Dir(ctx, client, repoName, baseDir, &opts, gitRepoBundlesMap); err == ErrNoResources {
+		if err := Dir(ctx, client, r, repoName, baseDir, &opts, gitRepoBundlesMap); err == ErrNoResources {
 			logrus.Warnf("%s: %v", baseDir, err)
 			return nil
 		} else if err != nil {
@@ -286,7 +288,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet
 //
 // name: the gitrepo name, passed to 'fleet apply' on the cli
 // basedir: the path from the walk func in Dir, []baseDirs
-func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
+func Dir(ctx context.Context, c client.Client, r record.EventRecorder, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
 	if opts == nil {
 		opts = &Options{}
 	}
@@ -332,23 +334,23 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 		// secret if the values are empty.
 		if h != "" {
 			helmvalues.ClearValues(bundle)
-		} else if err := deleteSecretIfExists(ctx, client, bundle.Name, bundle.Namespace); err != nil {
+		} else if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
 			return err
 		}
 		bundle.Spec.ValuesHash = h
 
 		var ociOpts ocistorage.OCIOpts
-		secretOCIRegistryID := types.NamespacedName{Name: opts.OCIRegistrySecret, Namespace: bundle.Namespace}
-		useOCIRegistry, err := shouldStoreInOCIRegistry(ctx, client, secretOCIRegistryID, &ociOpts)
+		secretOCIRegistryID := client.ObjectKey{Name: opts.OCIRegistrySecret, Namespace: bundle.Namespace}
+		useOCIRegistry, err := shouldStoreInOCIRegistry(ctx, c, secretOCIRegistryID, &ociOpts)
 		if err != nil {
 			return err
 		}
 		if useOCIRegistry {
-			if bundle, err = saveOCIBundle(ctx, client, bundle, ociOpts); err != nil {
+			if bundle, err = saveOCIBundle(ctx, c, r, bundle, ociOpts); err != nil {
 				return err
 			}
 		} else {
-			if bundle, err = save(ctx, client, bundle); err != nil {
+			if bundle, err = save(ctx, c, bundle); err != nil {
 				return err
 			}
 		}
@@ -359,7 +361,7 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 		if len(data) > 0 {
 			valuesSecret := newValuesSecret(bundle, data)
 			updated := valuesSecret.DeepCopy()
-			_, err = controllerutil.CreateOrUpdate(ctx, client, valuesSecret, func() error {
+			_, err = controllerutil.CreateOrUpdate(ctx, c, valuesSecret, func() error {
 				valuesSecret.Labels = updated.Labels
 				valuesSecret.Data = updated.Data
 				valuesSecret.Type = updated.Type
@@ -370,7 +372,7 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 			}
 		}
 
-		if err := saveImageScans(ctx, client, bundle, scans); err != nil {
+		if err := saveImageScans(ctx, c, bundle, scans); err != nil {
 			return err
 		}
 	} else {
@@ -380,7 +382,7 @@ func Dir(ctx context.Context, client client.Client, name, baseDir string, opts *
 	return err
 }
 
-func shouldStoreInOCIRegistry(ctx context.Context, c client.Reader, ociSecretKey types.NamespacedName, ociOpts *ocistorage.OCIOpts) (bool, error) {
+func shouldStoreInOCIRegistry(ctx context.Context, c client.Reader, ociSecretKey client.ObjectKey, ociOpts *ocistorage.OCIOpts) (bool, error) {
 	if !ocistorage.ExperimentalOCIIsEnabled() {
 		return false, nil
 	}
@@ -425,6 +427,18 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
 		}
 
+		if bundle.Spec.ContentsID != "" {
+			// this bundle was previously deployed to an OCI registry.
+			// Delete the OCI artifact as it's no longer required.
+			if err := deleteOCIManifest(ctx, c, bundle, ocistorage.OCIOpts{}); err != nil {
+				// we log the error and continue, since the OCI registry is an entity to the the cluster
+				// we may encounter various types of transient errors (such as connection or access issues).
+				logrus.Warnf("deleting OCI artifact: %v", err)
+				return err
+
+			}
+		}
+
 		bundle.Spec = updated.Spec
 		bundle.Annotations = updated.Annotations
 		bundle.Labels = updated.Labels
@@ -457,7 +471,7 @@ func saveImageScans(ctx context.Context, c client.Client, bundle *fleet.Bundle, 
 	return nil
 }
 
-func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, opts ocistorage.OCIOpts) (*fleet.Bundle, error) {
+func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder, bundle *fleet.Bundle, opts ocistorage.OCIOpts) (*fleet.Bundle, error) {
 	manifestID, err := pushOCIManifest(ctx, bundle, opts)
 	if err != nil {
 		return bundle, err
@@ -468,6 +482,17 @@ func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, o
 	_, err = controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
 		if bundle != nil && bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
+		}
+
+		// If the actual manifestID is different from the previous one,
+		// delete the previous OCI artifact
+		if bundle.Spec.ContentsID != "" && bundle.Spec.ContentsID != manifestID {
+			if err := deleteOCIManifest(ctx, c, bundle, opts); err != nil {
+				// we log the error and continue, since the OCI registry is an entity to the the cluster
+				// we may encounter various types of transient errors (such as connection or access issues).
+				logrus.Warnf("deleting OCI artifact: %v", err)
+				sendWarningEvent(r, bundle.Namespace, bundle.Spec.ContentsID, err)
+			}
 		}
 
 		bundle.Spec = updated.Spec
@@ -498,6 +523,35 @@ func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, o
 	return bundle, nil
 }
 
+func deleteOCIManifest(ctx context.Context, c client.Client, bundle *fleet.Bundle, opts ocistorage.OCIOpts) error {
+	if bundle.Spec.ContentsID == "" {
+		return nil
+	}
+	secretID := client.ObjectKey{Name: bundle.Spec.ContentsID, Namespace: bundle.Namespace}
+	if opts.Reference == "" {
+		// we don't have the reference details, get them from the bundle's secret
+		var err error
+		opts, err = ocistorage.ReadOptsFromSecret(ctx, c, secretID)
+		if err != nil {
+			return err
+		}
+	}
+	if err := ocistorage.NewOCIWrapper().DeleteManifest(ctx, opts, bundle.Spec.ContentsID); err != nil {
+		return err
+	}
+
+	// also delete the bundle secret as it's no longer needed
+	var secret corev1.Secret
+	if err := c.Get(ctx, secretID, &secret); err != nil {
+		return err
+	}
+	if err := c.Delete(ctx, &secret); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // when using the OCI registry manifestID won't be empty
 // In this case we need to create a secret to store the
 // OCI registry reference and credentials so the fleet controller is
@@ -507,6 +561,7 @@ func newOCISecret(manifestID string, bundle *fleet.Bundle, opts ocistorage.OCIOp
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      manifestID,
 			Namespace: bundle.Namespace,
+			Labels:    map[string]string{fleet.InternalSecretLabel: "true"},
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         fleet.SchemeGroupVersion.String(),
@@ -625,4 +680,19 @@ func deleteSecretIfExists(ctx context.Context, c client.Client, name, ns string)
 	}
 
 	return nil
+}
+
+func sendWarningEvent(r record.EventRecorder, namespace, artifactID string, errorToLog error) {
+	jobName := os.Getenv("JOB_NAME")
+	if jobName == "" {
+		logrus.Warn("JOB_NAME environment variable not set")
+		return
+	}
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      jobName,
+			Namespace: namespace,
+		},
+	}
+	r.Event(job, fleetevent.Warning, "Failed", fmt.Sprintf("deleting OCI artifact: %q, error: %v", artifactID, errorToLog.Error()))
 }

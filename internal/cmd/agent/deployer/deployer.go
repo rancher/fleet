@@ -114,7 +114,7 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 	)
 	if bd.Spec.OCIContents {
 		oci := ocistorage.NewOCIWrapper()
-		secretID := types.NamespacedName{Name: manifestID, Namespace: bd.Namespace}
+		secretID := client.ObjectKey{Name: manifestID, Namespace: bd.Namespace}
 		opts, err := ocistorage.ReadOptsFromSecret(ctx, d.upstreamClient, secretID)
 		if err != nil {
 			return "", err

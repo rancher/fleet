@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -33,6 +34,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

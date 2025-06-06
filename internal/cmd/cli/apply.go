@@ -20,8 +20,13 @@ import (
 	ssh "github.com/rancher/fleet/internal/ssh"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/kubernetes"
+	typedv1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 )
 
 const (
@@ -62,11 +67,6 @@ type Apply struct {
 	CorrectDrift                bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
 	CorrectDriftForce           bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
 	CorrectDriftKeepFailHistory bool              `usage:"Keep helm history for failed rollbacks" name:"correct-drift-keep-fail-history"`
-	OCIReference                string            `usage:"OCI registry reference" name:"oci-reference"`
-	OCIUsername                 string            `usage:"Basic auth username for OCI registry" env:"OCI_USERNAME"`
-	OCIPasswordFile             string            `usage:"Path of file containing basic auth password for OCI registry" name:"oci-password-file"`
-	OCIBasicHTTP                bool              `usage:"Use HTTP to access the OCI regustry" name:"oci-basic-http"`
-	OCIInsecure                 bool              `usage:"Allow connections to OCI registry without certs" name:"oci-insecure"`
 	OCIRegistrySecret           string            `usage:"OCI storage registry secret name" name:"oci-registry-secret"`
 	DrivenScan                  bool              `usage:"Use driven scan. Bundles are defined by the user" name:"driven-scan"`
 	DrivenScanSeparator         string            `usage:"Separator to use for bundle folder and options file" name:"driven-scan-sep" default:":"`
@@ -181,10 +181,15 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if opts.DrivenScan {
-		return apply.CreateBundlesDriven(ctx, client, name, args, opts)
+	recorder, err := getEventRecorder(cfg, "fleet-apply")
+	if err != nil {
+		return err
 	}
-	return apply.CreateBundles(ctx, client, name, args, opts)
+
+	if opts.DrivenScan {
+		return apply.CreateBundlesDriven(ctx, client, recorder, name, args, opts)
+	}
+	return apply.CreateBundles(ctx, client, recorder, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
@@ -346,4 +351,19 @@ func setEnv(knownHostsPath string) (func() error, error) {
 	}
 
 	return restore, nil
+}
+
+func getEventRecorder(config *rest.Config, componentName string) (record.EventRecorder, error) {
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	broadcaster := record.NewBroadcaster()
+	broadcaster.StartStructuredLogging(0)
+	broadcaster.StartRecordingToSink(&typedv1core.EventSinkImpl{
+		Interface: clientset.CoreV1().Events(""),
+	})
+
+	return broadcaster.NewRecorder(scheme, corev1.EventSource{Component: componentName}), nil
 }
