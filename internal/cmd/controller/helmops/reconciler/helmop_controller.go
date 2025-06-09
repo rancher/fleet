@@ -100,7 +100,6 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if !helmop.GetDeletionTimestamp().IsZero() {
-
 		metrics.HelmCollector.Delete(helmop.Name, helmop.Namespace)
 
 		if err := purgeBundlesFn(); err != nil {
@@ -112,7 +111,12 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
-		return ctrl.Result{}, nil
+		err := r.Scheduler.DeleteJob(jobKey(*helmop))
+		if errors.Is(err, quartz.ErrJobNotFound) { // ignore error in this case
+			err = nil
+		}
+
+		return ctrl.Result{}, err
 	}
 
 	if !controllerutil.ContainsFinalizer(helmop, finalize.HelmOpFinalizer) {
@@ -122,10 +126,6 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
 		return ctrl.Result{Requeue: true}, nil
-	}
-
-	if err := r.managePollingJob(logger, *helmop); err != nil {
-		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop.Status, err)
 	}
 
 	// Reconciling
@@ -140,6 +140,11 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	bundle, err := r.createUpdateBundle(ctx, helmop)
 	if err != nil {
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop.Status, err)
+	}
+
+	// Running this logic after creating/updating the bundle to avoid scheduling a job if the bundle has not been created.
+	if err := r.managePollingJob(logger, *helmop); err != nil {
 		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop.Status, err)
 	}
 
@@ -176,7 +181,7 @@ func (r *HelmOpReconciler) createUpdateBundle(ctx context.Context, helmop *fleet
 	// calculate the new representation of the helmop resource
 	bundle := r.calculateBundle(helmop)
 
-	if err := r.handleVersion(ctx, b, bundle, helmop); err != nil {
+	if err := r.handleVersion(ctx, b, bundle, *helmop); err != nil {
 		return nil, err
 	}
 
@@ -209,7 +214,9 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 			Namespace: helmop.Namespace,
 			Name:      helmop.Name,
 		},
-		Spec: spec,
+		// We ensure the bundle and HelmOp spec are independent. This prevents versions constraints from being overwritten
+		// in the HelmOp spec with actual versions resolved from Helm when the bundle version is updated.
+		Spec: *spec.DeepCopy(),
 	}
 	if len(bundle.Spec.Targets) == 0 {
 		bundle.Spec.Targets = []fleet.BundleTarget{
@@ -309,9 +316,15 @@ func deleteFinalizer[T client.Object](ctx context.Context, c client.Client, obj 
 //
 // This is calculated in the upstream cluster so all downstream bundle deployments have the same
 // version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
-func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp) error {
+func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop fleet.HelmOp) error {
 	if _, err := semver.StrictNewVersion(helmop.Spec.Helm.Version); err == nil {
 		bundle.Spec.Helm.Version = helmop.Spec.Helm.Version
+		return nil
+	}
+
+	// Prevent version computation from interfering with polling but, if polling applies, set the version when first
+	// creating the bundle, to avoid having to wait a full polling interval.
+	if oldBundle.Spec.Helm != nil && usesPolling(helmop) {
 		return nil
 	}
 
@@ -348,10 +361,10 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 		return nil
 	}
 
-	jobKey := quartz.NewJobKey(string(helmop.UID))
+	jobKey := jobKey(helmop)
 	existingJob, err := r.Scheduler.GetScheduledJob(jobKey)
 
-	if shouldSetUpPolling(helmop) {
+	if usesPolling(helmop) {
 		currentTrigger := quartz.NewSimpleTrigger(helmop.Spec.PollingInterval.Duration)
 		if errors.Is(err, quartz.ErrJobNotFound) {
 			err = r.Scheduler.ScheduleJob(
@@ -365,6 +378,7 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 			if err != nil {
 				return fmt.Errorf("failed to schedule polling job: %w", err)
 			}
+			logger.V(1).Info("Scheduled new polling job")
 		} else if existingJob.Trigger().Description() != currentTrigger.Description() {
 			// The polling interval has changed; replace the existing job if any.
 			err = r.Scheduler.ScheduleJob(
@@ -381,6 +395,8 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 			if err != nil {
 				return fmt.Errorf("failed to schedule polling job: %w", err)
 			}
+
+			logger.V(1).Info("Scheduled new polling job replacing the existing one")
 		}
 	} else if !errors.Is(err, quartz.ErrJobNotFound) {
 		// A job still exists, but is no longer needed; delete it.
@@ -392,8 +408,8 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 	return nil
 }
 
-// shouldSetUpPolling returns a boolean indicating whether polling makes sense for the provided helmop.
-func shouldSetUpPolling(helmop fleet.HelmOp) bool {
+// usesPolling returns a boolean indicating whether polling makes sense for the provided helmop.
+func usesPolling(helmop fleet.HelmOp) bool {
 	if helmop.Spec.PollingInterval == nil || helmop.Spec.PollingInterval.Duration == 0 {
 		return false
 	}
@@ -491,3 +507,9 @@ func experimentalHelmOpsEnabled() bool {
 	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_HELM_OPS"))
 	return err == nil && value
 }
+
+func jobKey(h fleet.HelmOp) *quartz.JobKey {
+	return quartz.NewJobKey(string(h.UID))
+}
+
+// TODO reorder methods vs functions

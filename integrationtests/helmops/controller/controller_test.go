@@ -171,6 +171,7 @@ func getRandomHelmOpWithTargets(name string, t []fleet.BundleTarget) fleet.HelmO
 			},
 			HelmSecretName:        randString(),
 			InsecureSkipTLSverify: randBool(),
+			PollingInterval:       &metav1.Duration{Duration: 1 * time.Second},
 		},
 	}
 
@@ -308,6 +309,7 @@ var _ = Describe("HelmOps controller", func() {
 			err := k8sClient.Create(ctx, nsSpec)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(k8sClient.Create(ctx, &helmop)).ToNot(HaveOccurred())
+
 			if doAfterNamespaceCreated != nil {
 				doAfterNamespaceCreated()
 			}
@@ -488,6 +490,8 @@ var _ = Describe("HelmOps controller", func() {
 		})
 
 		Context("fetching a chart version", func() {
+			var svr *httptest.Server
+
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-no-version", targets)
@@ -495,7 +499,7 @@ var _ = Describe("HelmOps controller", func() {
 				// reset secret, no auth is required
 				helmop.Spec.HelmSecretName = ""
 
-				svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				svr = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusOK)
 					fmt.Fprint(w, helmRepoIndex)
 				}))
@@ -525,8 +529,10 @@ var _ = Describe("HelmOps controller", func() {
 					// latest in the test helm index.html
 					// set it here so the check passes and confirms
 					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
 					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 			}
 
@@ -547,8 +553,10 @@ var _ = Describe("HelmOps controller", func() {
 					// latest in the test helm index.html
 					// set it here so the check passes and confirms
 					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
 					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 
 				// update the HelmOp spec to use version 0.1.0
@@ -676,6 +684,34 @@ var _ = Describe("HelmOps controller", func() {
 							"improper constraint: foo",
 						)
 
+					}).Should(Succeed())
+				})
+			})
+
+			When("polling for a new version fails", func() {
+				BeforeEach(func() {
+					helmop.Spec.Helm.Version = "0.x.x"
+				})
+
+				It("returns and sets an error including the reason for the polling failure", func() {
+					By("first creating a bundle with the latest available version at the time", bundleCreatedWithLatestVersion)
+
+					By("not being able to reach the Helm repository anymore")
+					svr.Close()
+
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, fh)
+						g.Expect(err).ToNot(HaveOccurred())
+						// check that the condition has the error
+						checkConditionContains(
+							g,
+							fh,
+							fleet.HelmOpPolledCondition,
+							v1.ConditionFalse,
+							"could not get a chart version",
+						)
 					}).Should(Succeed())
 				})
 			})

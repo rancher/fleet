@@ -161,6 +161,8 @@ func (g *HelmOperator) Run(cmd *cobra.Command, args []string) error {
 		return mgr.Start(ctx)
 	})
 
+	helmOpReconciler.Scheduler.Start(ctx)
+
 	return group.Wait()
 }
 

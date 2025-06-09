@@ -1,16 +1,21 @@
 package singlecluster_test
 
 import (
+	"crypto/tls"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	"github.com/rancher/fleet/e2e/testenv/zothelper"
 
+	"github.com/chartmuseum/helm-push/pkg/chartmuseum"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -19,15 +24,25 @@ const (
 	helmOpsSecretName = "secret-helmops"
 )
 
-var _ = Describe("HelmOp resource tests", Label("infra-setup", "helm-registry"), func() {
+var _ = Describe("HelmOp resource tests with polling", Label("infra-setup", "helm-registry"), Ordered, func() {
 	var (
-		namespace string
-		name      string
-		k         kubectl.Command
+		namespace    = "helmop-ns"
+		name         = "basic"
+		chartVersion string
+		k            kubectl.Command
 	)
-
-	BeforeEach(func() {
+	BeforeAll(func() {
 		k = env.Kubectl.Namespace(env.Namespace)
+		out, err := k.Create(
+			"secret", "generic", helmOpsSecretName,
+			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+		)
+		if strings.Contains(out, "already exists") {
+			err = nil
+		}
+
+		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
 	JustBeforeEach(func() {
@@ -36,18 +51,12 @@ var _ = Describe("HelmOp resource tests", Label("infra-setup", "helm-registry"),
 			rand.New(rand.NewSource(time.Now().UnixNano())),
 		)
 
-		out, err := k.Create(
-			"secret", "generic", helmOpsSecretName,
-			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
-			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
-		)
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
+		err := testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
 			Name                  string
 			Namespace             string
 			Repo                  string
 			Chart                 string
+			PollingInterval       time.Duration
 			HelmSecretName        string
 			InsecureSkipTLSVerify bool
 			Version               string
@@ -56,14 +65,15 @@ var _ = Describe("HelmOp resource tests", Label("infra-setup", "helm-registry"),
 			namespace,
 			getChartMuseumExternalAddr(),
 			"sleeper-chart",
+			5 * time.Second,
 			helmOpsSecretName,
 			true,
-			"",
+			chartVersion,
 		})
-		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
-	AfterEach(func() {
+	AfterAll(func() {
 		out, err := k.Delete("helmop", name)
 		Expect(err).ToNot(HaveOccurred(), out)
 		out, err = k.Delete("secret", helmOpsSecretName)
@@ -71,11 +81,10 @@ var _ = Describe("HelmOp resource tests", Label("infra-setup", "helm-registry"),
 	})
 
 	When("applying a helmop resource", func() {
+		BeforeEach(func() {
+			chartVersion = "0.1.0" // No polling
+		})
 		Context("containing a valid helmop description", func() {
-			BeforeEach(func() {
-				namespace = "helmop-ns"
-				name = "basic"
-			})
 			It("deploys the chart", func() {
 				Eventually(func() bool {
 					outPods, _ := k.Namespace(namespace).Get("pods")
@@ -86,6 +95,84 @@ var _ = Describe("HelmOp resource tests", Label("infra-setup", "helm-registry"),
 					return strings.Contains(outDeployments, "sleeper")
 				}).Should(BeTrue())
 			})
+		})
+	})
+
+	When("a new version of the referenced chart is available", func() {
+		BeforeEach(func() {
+			chartVersion = "< 1.0.0"
+		})
+
+		AfterEach(func() {
+			addr, err := getExternalHelmAddr(k)
+			Expect(err).ToNot(HaveOccurred())
+
+			url := fmt.Sprintf("https://%s:8081/api/charts/sleeper-chart/0.2.0", addr)
+			req, err := http.NewRequest(http.MethodDelete, url, nil)
+			Expect(err).ToNot(HaveOccurred())
+
+			req.SetBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD"))
+
+			tlsConf := &tls.Config{
+				InsecureSkipVerify: true,
+			}
+
+			cli := http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: tlsConf,
+				},
+			}
+
+			resp, err := cli.Do(req)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+		})
+
+		It("polls the registry and installs a newer version when available", func() {
+			By("installing the latest available version when the bundle is first created")
+			Eventually(func() bool {
+				outPods, _ := k.Namespace(namespace).Get("pods")
+				return strings.Contains(outPods, "sleeper-")
+			}).Should(BeTrue())
+			Eventually(func() bool {
+				outDeployments, _ := k.Namespace(namespace).Get("deployments")
+				return strings.Contains(outDeployments, "sleeper")
+			}).Should(BeTrue())
+
+			By("having a newer chart version available in the repository")
+			cmd := exec.Command("helm", "package", testenv.AssetPath("gitrepo/sleeper-chart2/"))
+			out, err := cmd.CombinedOutput()
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			externalIP, err := getExternalHelmAddr(k)
+			Expect(err).ToNot(HaveOccurred())
+
+			c, err := chartmuseum.NewClient(
+				chartmuseum.URL(fmt.Sprintf("https://%s:8081", externalIP)),
+				chartmuseum.Username(os.Getenv("CI_OCI_USERNAME")),
+				chartmuseum.Password(os.Getenv("CI_OCI_PASSWORD")),
+				chartmuseum.InsecureSkipVerify(true),
+			)
+			Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("failed to create chartmuseum client: %v", err))
+
+			resp, err := c.UploadChartPackage("sleeper-chart-0.2.0.tgz", true)
+			Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("failed to push new chart: %v", err))
+
+			defer resp.Body.Close()
+
+			Expect(resp.StatusCode).
+				To(Equal(http.StatusCreated), fmt.Sprintf("POST response status code from ChartMuseum: %d", resp.StatusCode))
+
+			By("installing the newer chart version")
+			Eventually(func() bool {
+				outPods, _ := k.Namespace(namespace).Get("pods")
+				return strings.Contains(outPods, "sleeper2-")
+			}).Should(BeTrue())
+			Eventually(func() bool {
+				outDeployments, _ := k.Namespace(namespace).Get("deployments")
+				return strings.Contains(outDeployments, "sleeper2")
+			}).Should(BeTrue())
 		})
 	})
 })
@@ -113,6 +200,9 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
 			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
 		)
+		if strings.Contains(out, "already exists") {
+			err = nil
+		}
 		Expect(err).ToNot(HaveOccurred(), out)
 
 		ociRef, err := zothelper.GetOCIReference(k)
@@ -123,6 +213,7 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 			Namespace             string
 			Repo                  string
 			Chart                 string
+			PollingInterval       time.Duration
 			HelmSecretName        string
 			InsecureSkipTLSVerify bool
 			Version               string
@@ -131,6 +222,7 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 			namespace,
 			"",
 			fmt.Sprintf("%s/sleeper-chart", ociRef),
+			0,
 			helmOpsSecretName,
 			insecure,
 			"0.1.0",
@@ -178,3 +270,9 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 		})
 	})
 })
+
+// getExternalHelmAddr retrieves the external URL where our local Helm registry can be reached, based on the provided
+// port.
+func getExternalHelmAddr(k kubectl.Command) (string, error) {
+	return k.Namespace(cmd.InfraNamespace).Get("service", "chartmuseum-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+}
