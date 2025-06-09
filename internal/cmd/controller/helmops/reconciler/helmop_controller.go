@@ -249,70 +249,11 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 	return bundle
 }
 
-// propagateHelmOpProperties propagates root Helm chart properties to the child targets.
-// This is necessary, so we can download the correct chart version for each target.
-func propagateHelmOpProperties(spec *fleet.BundleSpec) {
-	// Check if there is anything to propagate
-	if spec.Helm == nil {
-		return
-	}
-	for _, target := range spec.Targets {
-		if target.Helm == nil {
-			// This target has nothing to propagate to
-			continue
-		}
-		if target.Helm.Repo == "" {
-			target.Helm.Repo = spec.Helm.Repo
-		}
-		if target.Helm.Chart == "" {
-			target.Helm.Chart = spec.Helm.Chart
-		}
-		if target.Helm.Version == "" {
-			target.Helm.Version = spec.Helm.Version
-		}
-	}
-}
-
-func addFinalizer[T client.Object](ctx context.Context, c client.Client, obj T, finalizer string) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		nsName := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
-		if err := c.Get(ctx, nsName, obj); err != nil {
-			return err
-		}
-
-		controllerutil.AddFinalizer(obj, finalizer)
-
-		return c.Update(ctx, obj)
-	})
-
-	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	return nil
-}
-
-func deleteFinalizer[T client.Object](ctx context.Context, c client.Client, obj T, finalizer string) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		nsName := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
-		if err := c.Get(ctx, nsName, obj); err != nil {
-			return err
-		}
-
-		controllerutil.RemoveFinalizer(obj, finalizer)
-
-		return c.Update(ctx, obj)
-	})
-	if client.IgnoreNotFound(err) != nil {
-		return err
-	}
-	return nil
-}
-
 // handleVersion validates the version configured on the provided HelmOp.
 // In particular:
 //   - it returns an error in case that version represents an invalid semver constraint.
-//   - it handles empty or * versions, downloading the current version from the registry.
+//   - it handles empty or * versions, downloading the current version from the registry, with a caveat: if polling
+//     applies to the HelmOp, this will only run once, with subsequent version updates being done by polling jobs.
 //
 // This is calculated in the upstream cluster so all downstream bundle deployments have the same
 // version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
@@ -405,6 +346,66 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 		}
 	}
 
+	return nil
+}
+
+// propagateHelmOpProperties propagates root Helm chart properties to the child targets.
+// This is necessary, so we can download the correct chart version for each target.
+func propagateHelmOpProperties(spec *fleet.BundleSpec) {
+	// Check if there is anything to propagate
+	if spec.Helm == nil {
+		return
+	}
+	for _, target := range spec.Targets {
+		if target.Helm == nil {
+			// This target has nothing to propagate to
+			continue
+		}
+		if target.Helm.Repo == "" {
+			target.Helm.Repo = spec.Helm.Repo
+		}
+		if target.Helm.Chart == "" {
+			target.Helm.Chart = spec.Helm.Chart
+		}
+		if target.Helm.Version == "" {
+			target.Helm.Version = spec.Helm.Version
+		}
+	}
+}
+
+func addFinalizer[T client.Object](ctx context.Context, c client.Client, obj T, finalizer string) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		nsName := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
+		if err := c.Get(ctx, nsName, obj); err != nil {
+			return err
+		}
+
+		controllerutil.AddFinalizer(obj, finalizer)
+
+		return c.Update(ctx, obj)
+	})
+
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	return nil
+}
+
+func deleteFinalizer[T client.Object](ctx context.Context, c client.Client, obj T, finalizer string) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		nsName := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
+		if err := c.Get(ctx, nsName, obj); err != nil {
+			return err
+		}
+
+		controllerutil.RemoveFinalizer(obj, finalizer)
+
+		return c.Update(ctx, obj)
+	})
+	if client.IgnoreNotFound(err) != nil {
+		return err
+	}
 	return nil
 }
 
@@ -511,5 +512,3 @@ func experimentalHelmOpsEnabled() bool {
 func jobKey(h fleet.HelmOp) *quartz.JobKey {
 	return quartz.NewJobKey(string(h.UID))
 }
-
-// TODO reorder methods vs functions
