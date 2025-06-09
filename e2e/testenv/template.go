@@ -2,12 +2,12 @@ package testenv
 
 import (
 	"fmt"
-	"html/template"
 	"math/rand"
 	"os"
 	"path"
 	"strconv"
 	"strings"
+	"text/template"
 
 	ginkgo "github.com/onsi/ginkgo/v2"
 
