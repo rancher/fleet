@@ -310,7 +310,7 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 		if errors.Is(err, quartz.ErrJobNotFound) {
 			err = r.Scheduler.ScheduleJob(
 				quartz.NewJobDetail(
-					newHelmPollingJob(r.Client, helmop.Namespace, helmop.Name),
+					newHelmPollingJob(r.Client, r.Recorder, helmop.Namespace, helmop.Name),
 					jobKey,
 				),
 				currentTrigger,
@@ -324,7 +324,7 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 			// The polling interval has changed; replace the existing job if any.
 			err = r.Scheduler.ScheduleJob(
 				quartz.NewJobDetailWithOptions(
-					newHelmPollingJob(r.Client, helmop.Namespace, helmop.Name),
+					newHelmPollingJob(r.Client, r.Recorder, helmop.Namespace, helmop.Name),
 					jobKey,
 					&quartz.JobDetailOptions{
 						Replace: true,

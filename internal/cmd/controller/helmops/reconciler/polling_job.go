@@ -12,12 +12,14 @@ import (
 
 	"github.com/rancher/fleet/internal/bundlereader"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetevent "github.com/rancher/fleet/pkg/event"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
 
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -31,12 +33,15 @@ type helmPollingJob struct {
 
 	namespace string
 	name      string
+
+	recorder record.EventRecorder
 }
 
-func newHelmPollingJob(c client.Client, namespace string, name string) *helmPollingJob {
+func newHelmPollingJob(c client.Client, r record.EventRecorder, namespace string, name string) *helmPollingJob {
 	return &helmPollingJob{
-		sem:    semaphore.NewWeighted(1),
-		client: c,
+		sem:      semaphore.NewWeighted(1),
+		client:   c,
+		recorder: r,
 
 		namespace: namespace,
 		name:      name,
@@ -84,7 +89,11 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		return nil
 	}
 
-	fail := func(origErr error) error {
+	fail := func(origErr error, eventReason string) error {
+		if eventReason != "" {
+			j.recorder.Event(h, fleetevent.Warning, eventReason, origErr.Error())
+		}
+
 		return j.updateErrorStatus(ctx, h, origErr)
 	}
 
@@ -95,24 +104,26 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		var err error
 		auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, j.client, req)
 		if err != nil {
-			return fail(fmt.Errorf("could not read Helm auth from secret: %w", err))
+			return fail(fmt.Errorf("could not read Helm auth from secret: %w", err), "FailedToReadHelmAuth")
 		}
 	}
 	auth.InsecureSkipVerify = h.Spec.InsecureSkipTLSverify
 
 	version, err := bundlereader.ChartVersion(*h.Spec.Helm, auth)
 	if err != nil {
-		return fail(fmt.Errorf("could not get a chart version: %w", err))
+		return fail(fmt.Errorf("could not get a chart version: %w", err), "FailedToGetNewChartVersion")
 	}
 
 	b := &fleet.Bundle{}
 
 	if err := j.client.Get(ctx, nsName, b); err != nil {
-		return fail(fmt.Errorf("could not get bundle before patching its version: %w", err))
+		return fail(fmt.Errorf("could not get bundle before patching its version: %w", err), "FailedToGetBundle")
 	}
 
 	orig := b.DeepCopy()
 	b.Spec.Helm.Version = version
+
+	j.recorder.Event(h, fleetevent.Normal, "GotNewChartVersion", version)
 
 	patch := client.MergeFrom(orig)
 	if patchData, err := patch.Data(b); err == nil && string(patchData) == "{}" {
@@ -121,7 +132,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	}
 
 	if err := j.client.Patch(ctx, b, patch); err != nil {
-		return fail(fmt.Errorf("could not patch bundle to set the resolved version: %w", err))
+		return fail(fmt.Errorf("could not patch bundle to set the resolved version: %w", err), "FailedToPatchBundle")
 	}
 
 	return nil
