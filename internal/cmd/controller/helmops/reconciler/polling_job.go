@@ -5,6 +5,7 @@ package reconciler
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/reugn/go-quartz/quartz"
@@ -17,6 +18,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/record"
@@ -109,6 +111,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	}
 	auth.InsecureSkipVerify = h.Spec.InsecureSkipTLSverify
 
+	// XXX: do this only if bundle can be fetched? Save request if not.
 	version, err := bundlereader.ChartVersion(*h.Spec.Helm, auth)
 	if err != nil {
 		return fail(fmt.Errorf("could not get a chart version: %w", err), "FailedToGetNewChartVersion")
@@ -133,6 +136,39 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 
 	if err := j.client.Patch(ctx, b, patch); err != nil {
 		return fail(fmt.Errorf("could not patch bundle to set the resolved version: %w", err), "FailedToPatchBundle")
+	}
+
+	merr := []error{}
+	nsn := types.NamespacedName{Name: h.Name, Namespace: h.Namespace}
+
+	// XXX: Use defer() to run status update anyway, updating the polling timestamp if the registry could be polled,
+	// even if subsequent steps failed?
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		t := &fleet.HelmOp{}
+		if err := j.client.Get(ctx, nsn, t); err != nil {
+			return fmt.Errorf("could not get HelmOp to update its status: %w", err)
+		}
+
+		t.Status.LastPollingTime = metav1.Time{Time: time.Now().UTC()}
+		condition.Cond(fleet.HelmOpPolledCondition).SetStatusBool(&t.Status, true)
+
+		statusPatch := client.MergeFrom(h)
+		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
+			// skip update if patch is empty
+			return nil
+		}
+		return j.client.Status().Patch(ctx, t, statusPatch)
+	})
+	if err != nil {
+		merr = append(merr, err)
+
+		return fail(
+			fmt.Errorf(
+				"could not update HelmOp status with polling timestamp: %w",
+				errutil.NewAggregate(merr),
+			),
+			"FailedToUpdateHelmOpStatus",
+		)
 	}
 
 	return nil
