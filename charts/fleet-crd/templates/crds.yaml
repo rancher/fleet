@@ -8617,6 +8617,11 @@ spec:
                         BundleState according to StateRank.'
                       type: string
                   type: object
+                lastPollingTriggered:
+                  description: LastPollingTime is the last time the polling check
+                    was triggered
+                  format: date-time
+                  type: string
                 perClusterResourceCounts:
                   additionalProperties:
                     description: ResourceCounts contains the number of resources in

@@ -72,6 +72,10 @@ type HelmOpSpec struct {
 
 type HelmOpStatus struct {
 	StatusBase `json:",inline"`
+
+	// LastPollingTime is the last time the polling check was triggered
+	LastPollingTime metav1.Time `json:"lastPollingTriggered,omitempty"`
+
 	// Version installed for the helm chart.
 	// When using * or empty version in the spec we get the latest version from
 	// the helm repository when possible
