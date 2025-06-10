@@ -62,11 +62,6 @@ type Apply struct {
 	CorrectDrift                bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
 	CorrectDriftForce           bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
 	CorrectDriftKeepFailHistory bool              `usage:"Keep helm history for failed rollbacks" name:"correct-drift-keep-fail-history"`
-	OCIReference                string            `usage:"OCI registry reference" name:"oci-reference"`
-	OCIUsername                 string            `usage:"Basic auth username for OCI registry" env:"OCI_USERNAME"`
-	OCIPasswordFile             string            `usage:"Path of file containing basic auth password for OCI registry" name:"oci-password-file"`
-	OCIBasicHTTP                bool              `usage:"Use HTTP to access the OCI regustry" name:"oci-basic-http"`
-	OCIInsecure                 bool              `usage:"Allow connections to OCI registry without certs" name:"oci-insecure"`
 	OCIRegistrySecret           string            `usage:"OCI storage registry secret name" name:"oci-registry-secret"`
 	DrivenScan                  bool              `usage:"Use driven scan. Bundles are defined by the user" name:"driven-scan"`
 	DrivenScanSeparator         string            `usage:"Separator to use for bundle folder and options file" name:"driven-scan-sep" default:":"`

@@ -264,6 +264,22 @@ func (o *OCIWrapper) PullManifest(ctx context.Context, opts OCIOpts, id string) 
 	return manifest.FromJSON(data, "")
 }
 
+// DeleteManifest deletes the OCI manifest identified by the given id and "latest" tag from a remote OCI registry.
+func (o *OCIWrapper) DeleteManifest(ctx context.Context, opts OCIOpts, id string) error {
+	repo, err := newOCIRepository(id, opts)
+	if err != nil {
+		return fmt.Errorf("failed to create repository for %s: %w", id, err)
+	}
+
+	tag := "latest"
+	desc, err := repo.Resolve(ctx, tag)
+	if err != nil {
+		return fmt.Errorf("failed to resolve tag '%s' for artifact '%s': %w", tag, id, err)
+	}
+
+	return repo.Delete(ctx, desc)
+}
+
 // ExperimentalOCIIsEnabled returns true if the EXPERIMENTAL_OCI_STORAGE env variable is set to true
 // returns false otherwise
 func ExperimentalOCIIsEnabled() bool {

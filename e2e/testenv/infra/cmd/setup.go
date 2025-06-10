@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"html/template"
 	"net/http"
 	"os"
 	"os/exec"
@@ -53,8 +54,8 @@ var setupCmd = &cobra.Command{
 	Use:   "setup [--git-server=(true|false)|--helm-registry=(true|false)|--oci-registry=(true|false)]",
 	Short: "Set up an end-to-end test environment",
 	Long: `This sets up the git server, Helm registry, OCI registry and associated resources needed to run
-	end-to-end tests. If no argument is specified, then the whole infra is set up at once. Parallelism is used when
-	possible to save time.`,
+    end-to-end tests. If no argument is specified, then the whole infra is set up at once. Parallelism is used when
+    possible to save time.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Setting up test environment...")
 
@@ -252,7 +253,14 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		if err != nil {
 			fail(fmt.Errorf("generate bcrypt password from env var: %v", err))
 		}
-		htpasswd = fmt.Sprintf("%s:%s", os.Getenv("CI_OCI_USERNAME"), string(p))
+		htpasswd = fmt.Sprintf("%s:%s\n", os.Getenv("CI_OCI_USERNAME"), string(p))
+	}
+	if os.Getenv("CI_OCI_READER_USERNAME") != "" && os.Getenv("CI_OCI_READER_PASSWORD") != "" {
+		p, err := bcrypt.GenerateFromPassword([]byte(os.Getenv("CI_OCI_READER_PASSWORD")), bcrypt.MinCost)
+		if err != nil {
+			fail(fmt.Errorf("generate bcrypt password from env var: %v", err))
+		}
+		htpasswd += fmt.Sprintf("\n%s:%s", os.Getenv("CI_OCI_READER_USERNAME"), string(p))
 	}
 
 	err = testenv.ApplyTemplate(k, "helm/zot_secret.yaml", struct{ HTTPPasswd string }{htpasswd})
@@ -260,12 +268,17 @@ func spinUpOCIRegistry(k kubectl.Command, wg *sync.WaitGroup) {
 		failOCI(fmt.Errorf("create Zot htpasswd secret: %v", err))
 	}
 
-	out, err := k.Apply("-f", testenv.AssetPath("helm/zot_configmap.yaml"))
+	zotConfig, err := getZotConfig()
 	if err != nil {
-		failOCI(fmt.Errorf("apply Zot config map: %s with error %v", out, err))
+		failOCI(fmt.Errorf("getting Zot config: %v", err))
 	}
 
-	out, err = k.Apply("-f", testenv.AssetPath("helm/zot_deployment.yaml"))
+	err = testenv.ApplyTemplate(k, "helm/zot_configmap.yaml", struct{ ZotConfig template.HTML }{template.HTML(zotConfig)})
+	if err != nil {
+		failOCI(fmt.Errorf("apply Zot config map with error %v", err))
+	}
+
+	out, err := k.Apply("-f", testenv.AssetPath("helm/zot_deployment.yaml"))
 	if err != nil {
 		failOCI(fmt.Errorf("apply Zot deployment: %s with error %v", out, err))
 	}
@@ -355,4 +368,83 @@ func fail(err error) {
 	fmt.Println(err.Error())
 
 	os.Exit(1)
+}
+
+func getZotConfig() (string, error) {
+	configTemplate := `{
+    "http": {
+        "auth": {
+            "htpasswd": {
+                "path": "/secret/htpasswd"
+            }
+        },
+        "tls": {
+            "cert": "/etc/zot/certs/tls.crt",
+            "key": "/etc/zot/certs/tls.key"
+        },
+        "accessControl": {
+            "repositories": {
+                "**": {
+                    "policies": [
+                        {
+                            "users": [
+                                "%s"
+                            ],
+                            "actions": [
+                                "read",
+                                "create",
+                                "update",
+                                "delete"
+                            ]
+                        },
+                        {
+                            "users": [
+                                "%s"
+                            ],
+                            "actions": [
+                                "read"
+                            ]
+                        }
+                    ],
+                    "defaultPolicy": []
+                }
+            }
+        },
+        "address": "0.0.0.0",
+        "port": "8082"
+    },
+    "log": {
+        "level": "debug"
+    },
+    "storage": {
+        "rootDirectory": "/tmp/zot"
+    },
+    "extensions": {
+        "ui": {
+            "enable": true
+        },
+        "search": {
+            "enable": true
+        }
+    }
+    }`
+	reader, err := getEnvVarUser("CI_OCI_READER_USERNAME")
+	if err != nil {
+		return "", err
+	}
+	writer, err := getEnvVarUser("CI_OCI_USERNAME")
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf(configTemplate, writer, reader), nil
+}
+
+func getEnvVarUser(username string) (string, error) {
+	u, ok := os.LookupEnv(username)
+	if !ok {
+		return "", fmt.Errorf("%s is not set", username)
+	}
+
+	return u, nil
 }
