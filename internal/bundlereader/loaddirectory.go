@@ -441,6 +441,8 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
 		}
 		httpGetter.Client.Transport = transport
+	} else {
+		httpGetter.Client.Transport = http.DefaultTransport.(*http.Transport).Clone()
 	}
 
 	return httpGetter

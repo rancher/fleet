@@ -29,7 +29,29 @@ func TestGetContent(t *testing.T) {
 		name               string
 		directoryStructure fsNode
 		expectedFiles      map[string][]byte
+		source             string
+		auth               bundlereader.Auth
+		expectedErr        string
 	}{
+		{
+			name: "ensure panic doesn't occur when InsecureSkipVerify is set to false (#3782)",
+			directoryStructure: fsNode{
+				name: "fleet.yaml",
+				contents: `namespace: fleet-helm-oci-with-auth-example
+		 helm:
+		   chart: "oci://ghcr.io/fleetqa/fleet-qa-examples/fleet-test-configmap-chart"
+		   version: "0.1.0"
+		   values:
+		     replicas: 2`,
+			},
+			source: "oci://ghcr.io/fleetqa/fleet-qa-examples/fleet-test-configmap-chart",
+			auth: bundlereader.Auth{
+				Username: "foo",
+				Password: "bar",
+				//InsecureSkipVerify: true, // When commented out, the panic disappears
+			},
+			expectedErr: "response status code 403: denied",
+		},
 		{
 			name: "no .fleetignore",
 			directoryStructure: fsNode{
@@ -554,8 +576,15 @@ func TestGetContent(t *testing.T) {
 
 			root := createDirStruct(t, base, c.directoryStructure)
 
-			files, err := bundlereader.GetContent(context.Background(), root, root, "", bundlereader.Auth{}, false, ignoreApplyConfigs)
-			assert.NoError(t, err)
+			if c.source == "" {
+				c.source = root
+			}
+			files, err := bundlereader.GetContent(context.Background(), root, c.source, "", c.auth, false, ignoreApplyConfigs)
+			if c.expectedErr == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, c.expectedErr, c.name)
+			}
 
 			assert.Equal(t, len(c.expectedFiles), len(files))
 			for k, v := range c.expectedFiles {
