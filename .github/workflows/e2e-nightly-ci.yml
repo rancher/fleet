@@ -126,6 +126,8 @@ jobs:
           CI_OCI_PASSWORD: "foo"
           CI_OCI_READER_USERNAME: "fleet-ci-reader"
           CI_OCI_READER_PASSWORD: "foo-reader"
+          CI_OCI_NO_DELETER_USERNAME: "fleet-ci-no-deleter"
+          CI_OCI_NO_DELETER_PASSWORD: "foo-no-deleter"
         run: |
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
 
