@@ -439,7 +439,7 @@ func (r *BundleReconciler) createBundleDeployment(
 
 		// check if there's any OCI secret that can be purged
 		if err := maybePurgeOCIReferenceSecret(ctx, r.Client, bd, updated); err != nil {
-			logger.Error(err, "Reconcile failed to purge old oci reference secret")
+			logger.Error(err, "Reconcile failed to purge old OCI reference secret")
 		}
 
 		bd.Spec = updated.Spec

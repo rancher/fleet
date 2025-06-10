@@ -427,7 +427,7 @@ func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bu
 			// this bundle was previously deployed to an OCI registry.
 			// Delete the OCI artifact as it's no longer required.
 			if err := deleteOCIManifest(ctx, c, bundle, ocistorage.OCIOpts{}); err != nil {
-				// we log the error and continue, since the OCI registry is an entity to the the cluster
+				// we log the error and continue, since the OCI registry is an external entity to the the cluster
 				// we may encounter various types of transient errors (such as connection or access issues).
 				logrus.Warnf("deleting OCI artifact: %v", err)
 				return err
@@ -480,11 +480,11 @@ func saveOCIBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, o
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
 		}
 
-		// If the actual manifestID is different from the previous one,
+		// If the current manifestID is different from the previous one,
 		// delete the previous OCI artifact
 		if bundle.Spec.ContentsID != "" && bundle.Spec.ContentsID != manifestID {
 			if err := deleteOCIManifest(ctx, c, bundle, opts); err != nil {
-				// we log the error and continue, since the OCI registry is an entity to the the cluster
+				// we log the error and continue, since the OCI registry is an external entity to the the cluster
 				// we may encounter various types of transient errors (such as connection or access issues).
 				logrus.Warnf("deleting OCI artifact: %v", err)
 				return err
@@ -537,11 +537,13 @@ func deleteOCIManifest(ctx context.Context, c client.Client, bundle *fleet.Bundl
 	}
 
 	// also delete the bundle secret as it's no longer needed
-	var secret corev1.Secret
-	if err := c.Get(ctx, secretID, &secret); err != nil {
-		return err
+	secretToDelete := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      bundle.Spec.ContentsID,
+			Namespace: bundle.Namespace,
+		},
 	}
-	if err := c.Delete(ctx, &secret); err != nil {
+	if err := c.Delete(ctx, secretToDelete); err != nil {
 		return err
 	}
 

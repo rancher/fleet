@@ -389,8 +389,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					verifySecretsAreEqual(config.DefaultOCIStorageSecretName, env.Namespace, contentsID, downstreamNamespace)
 				})
 				By("not creating a contents resource for this chart", func() {
-					var content fleet.Content
-					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &fleet.Content{}, false)
 				})
 				By("deploying the helm chart", func() {
 					var cm corev1.ConfigMap
@@ -443,8 +442,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					verifySecretsAreEqual(deploySpecificSecretName, env.Namespace, contentsID, downstreamNamespace)
 				})
 				By("not creating a contents resource for this chart", func() {
-					var content fleet.Content
-					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &fleet.Content{}, false)
 				})
 				By("deploying the helm chart", func() {
 					var cm corev1.ConfigMap
@@ -491,12 +489,10 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					k8sclient.GetObjectShouldSucceed(clientUpstream, contentsID, "", &content)
 				})
 				By("not creating a bundle secret", func() {
-					var secret corev1.Secret
-					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, env.Namespace, &secret, false)
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, env.Namespace, &corev1.Secret{}, false)
 				})
 				By("not creating a bundle deployment secret", func() {
-					var secret corev1.Secret
-					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, downstreamNamespace, &secret, false)
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, downstreamNamespace, &corev1.Secret{}, false)
 				})
 				By("deploying the helm chart", func() {
 					var cm corev1.ConfigMap
@@ -537,8 +533,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					}).Should(Succeed())
 				})
 				By("not creating the bundle", func() {
-					var bundle fleet.Bundle
-					k8sclient.ObjectShouldNotExist(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle, true)
+					k8sclient.ObjectShouldNotExist(clientUpstream, "sample-simple-chart-oci", env.Namespace, &fleet.Bundle{}, true)
 				})
 				By("not creating the bundle secret", func() {
 					var secrets corev1.SecretList
@@ -583,8 +578,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					}).Should(Succeed())
 				})
 				By("not creating the bundle", func() {
-					var bundle fleet.Bundle
-					k8sclient.ObjectShouldNotExist(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle, true)
+					k8sclient.ObjectShouldNotExist(clientUpstream, "sample-simple-chart-oci", env.Namespace, &fleet.Bundle{}, true)
 				})
 				By("not creating the bundle secret", func() {
 					var secrets corev1.SecretList
@@ -635,8 +629,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					verifySecretsAreEqual(config.DefaultOCIStorageSecretName, env.Namespace, contentsID, downstreamNamespace)
 				})
 				By("not creating a contents resource for this chart", func() {
-					var content fleet.Content
-					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &content, false)
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &fleet.Content{}, false)
 				})
 				By("deploying the helm chart", func() {
 					var cm corev1.ConfigMap
@@ -701,8 +694,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					}).Should(Succeed())
 				})
 				By("not creating the bundle", func() {
-					var bundle fleet.Bundle
-					k8sclient.ObjectShouldNotExist(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle, true)
+					k8sclient.ObjectShouldNotExist(clientUpstream, "sample-simple-chart-oci", env.Namespace, &fleet.Bundle{}, true)
 				})
 				By("not creating the bundle secret", func() {
 					var secrets corev1.SecretList
@@ -775,12 +767,10 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					}).Should(Succeed())
 				})
 				By("checking that the previous oci bundle key was deleted", func() {
-					var secret corev1.Secret
-					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, env.Namespace, &secret, false)
+					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, env.Namespace, &corev1.Secret{}, false)
 				})
 				By("checking that the previous oci bundle deployment key was deleted", func() {
-					var secret corev1.Secret
-					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, downstreamNamespace, &secret, false)
+					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, downstreamNamespace, &corev1.Secret{}, false)
 				})
 				By("checking that the previous oci artifact was deleted", func() {
 					// use the secret for the new contentID because it has the same contents.
