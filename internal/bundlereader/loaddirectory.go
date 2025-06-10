@@ -424,26 +424,25 @@ func newHttpGetter(auth Auth) *getter.HttpGetter {
 		header.Add("Authorization", "Basic "+basicAuth(auth.Username, auth.Password))
 		httpGetter.Header = header
 	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if auth.CABundle != nil {
 		pool, err := x509.SystemCertPool()
 		if err != nil {
 			pool = x509.NewCertPool()
 		}
 		pool.AppendCertsFromPEM(auth.CABundle)
-		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = &tls.Config{
 			RootCAs:            pool,
 			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
 		}
-		httpGetter.Client.Transport = transport
 	} else if auth.InsecureSkipVerify {
-		transport := http.DefaultTransport.(*http.Transport).Clone()
 		transport.TLSClientConfig = &tls.Config{
 			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
 		}
-		httpGetter.Client.Transport = transport
 	}
+	httpGetter.Client.Transport = transport
 
 	return httpGetter
 }
