@@ -91,12 +91,14 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		return nil
 	}
 
+	var pollingTimestamp time.Time
+
 	fail := func(origErr error, eventReason string) error {
 		if eventReason != "" {
 			j.recorder.Event(h, fleetevent.Warning, eventReason, origErr.Error())
 		}
 
-		return j.updateErrorStatus(ctx, h, origErr)
+		return j.updateErrorStatus(ctx, h, pollingTimestamp, origErr)
 	}
 
 	auth := bundlereader.Auth{}
@@ -111,7 +113,10 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	}
 	auth.InsecureSkipVerify = h.Spec.InsecureSkipTLSverify
 
-	// XXX: do this only if bundle can be fetched? Save request if not.
+	// From here on, polling is considered to have been triggered.
+	// Even if it fails, this timestamp will be updated in the HelmOp status.
+	pollingTimestamp = time.Now().UTC()
+
 	version, err := bundlereader.ChartVersion(*h.Spec.Helm, auth)
 	if err != nil {
 		return fail(fmt.Errorf("could not get a chart version: %w", err), "FailedToGetNewChartVersion")
@@ -141,15 +146,13 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	merr := []error{}
 	nsn := types.NamespacedName{Name: h.Name, Namespace: h.Namespace}
 
-	// XXX: Use defer() to run status update anyway, updating the polling timestamp if the registry could be polled,
-	// even if subsequent steps failed?
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.HelmOp{}
 		if err := j.client.Get(ctx, nsn, t); err != nil {
 			return fmt.Errorf("could not get HelmOp to update its status: %w", err)
 		}
 
-		t.Status.LastPollingTime = metav1.Time{Time: time.Now().UTC()}
+		t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
 		condition.Cond(fleet.HelmOpPolledCondition).SetStatusBool(&t.Status, true)
 
 		statusPatch := client.MergeFrom(h)
@@ -175,19 +178,35 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 }
 
 // updateErrorStatus updates the provided helmOp's status to reflect the provided orgErr.
-func (j *helmPollingJob) updateErrorStatus(ctx context.Context, helmOp *fleet.HelmOp, orgErr error) error {
+// This includes updating the helmOp's polling timestamp, if provided.
+func (j *helmPollingJob) updateErrorStatus(
+	ctx context.Context,
+	helmOp *fleet.HelmOp,
+	pollingTimestamp time.Time,
+	orgErr error,
+) error {
 	nsn := types.NamespacedName{Name: helmOp.Name, Namespace: helmOp.Namespace}
 
-	condition.Cond(fleet.HelmOpPolledCondition).SetError(&helmOp.Status, "", orgErr)
-	kstatus.SetError(helmOp, orgErr.Error())
 	merr := []error{orgErr}
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.HelmOp{}
 		if err := j.client.Get(ctx, nsn, t); err != nil {
 			return fmt.Errorf("could not get HelmOp to update its status: %w", err)
 		}
-		t.Status = helmOp.Status
-		return j.client.Status().Update(ctx, t)
+
+		condition.Cond(fleet.HelmOpPolledCondition).SetError(&t.Status, "", orgErr)
+		kstatus.SetError(t, orgErr.Error())
+
+		if !pollingTimestamp.IsZero() {
+			t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
+		}
+
+		statusPatch := client.MergeFrom(helmOp)
+		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
+			// skip update if patch is empty
+			return nil
+		}
+		return j.client.Status().Patch(ctx, t, statusPatch)
 	})
 	if err != nil {
 		merr = append(merr, err)

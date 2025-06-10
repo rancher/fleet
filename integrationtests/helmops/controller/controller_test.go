@@ -697,6 +697,7 @@ var _ = Describe("HelmOps controller", func() {
 					By("first creating a bundle with the latest available version at the time", bundleCreatedWithLatestVersion)
 
 					By("not being able to reach the Helm repository anymore")
+					svrUnavailableTimestamp := time.Now().UTC()
 					svr.Close()
 
 					Eventually(func(g Gomega) {
@@ -712,6 +713,8 @@ var _ = Describe("HelmOps controller", func() {
 							v1.ConditionFalse,
 							"could not get a chart version",
 						)
+
+						g.Expect(fh.Status.LastPollingTime.Time).To(BeTemporally(">", svrUnavailableTimestamp))
 					}).Should(Succeed())
 				})
 			})
