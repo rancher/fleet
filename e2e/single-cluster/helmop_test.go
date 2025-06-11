@@ -141,7 +141,7 @@ var _ = Describe("HelmOp resource tests with polling", Label("infra-setup", "hel
 			}).Should(BeTrue())
 
 			By("having a newer chart version available in the repository")
-			cmd := exec.Command("helm", "package", testenv.AssetPath("gitrepo/sleeper-chart2/"))
+			cmd := exec.Command("helm", "package", testenv.AssetPath("helmop/sleeper-chart2/"))
 			out, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred(), out)
 
