@@ -271,8 +271,11 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 	})
 })
 
-// getExternalHelmAddr retrieves the external URL where our local Helm registry can be reached, based on the provided
-// port.
+// getExternalHelmAddr retrieves the external URL where our local Helm registry can be reached.
 func getExternalHelmAddr(k kubectl.Command) (string, error) {
+	if v := os.Getenv("external_ip"); v != "" {
+		return v, nil
+	}
+
 	return k.Namespace(cmd.InfraNamespace).Get("service", "chartmuseum-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 }
