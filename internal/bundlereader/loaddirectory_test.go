@@ -653,7 +653,7 @@ func TestGetContentOCI(t *testing.T) {
 			name:        "Non-existing OCI URL with valid semver",
 			source:      "oci://non-existing-hostname/charts/chart",
 			version:     "1.0",
-			expectedErr: "helm chart download: failed to do request",
+			expectedErr: "helm chart download: failed to resolve",
 		},
 	}
 
