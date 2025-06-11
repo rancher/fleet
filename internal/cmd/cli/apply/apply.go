@@ -106,7 +106,7 @@ func CreateBundles(pctx context.Context, client client.Client, repoName string, 
 	// Using an errgroup to manage concurrency
 	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
 	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
-	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundleChan`, finally unblocking the main function.
+	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
 	bundlesChan := make(chan *fleet.Bundle)
 	eg, ctx := errgroup.WithContext(pctx)
 	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
@@ -208,7 +208,7 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, repoName st
 	// Using an errgroup to manage concurrency
 	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
 	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
-	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundleChan`, finally unblocking the main function.
+	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
 	bundlesChan := make(chan *fleet.Bundle)
 	eg, ctx := errgroup.WithContext(pctx)
 	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
