@@ -60,7 +60,7 @@ require (
 	k8s.io/cli-runtime v0.30.13
 	k8s.io/client-go v0.30.13
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
+	k8s.io/kube-openapi v0.0.0-20250610211856-8b98d1ed966a
 	k8s.io/kubectl v0.30.13
 	k8s.io/kubernetes v1.30.10
 	k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
