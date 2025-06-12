@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -252,20 +253,13 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 // handleVersion validates the version configured on the provided HelmOp.
 // In particular:
 //   - it returns an error in case that version represents an invalid semver constraint.
-//   - it handles empty or * versions, downloading the current version from the registry, with a caveat: if polling
-//     applies to the HelmOp, this will only run once, with subsequent version updates being done by polling jobs.
+//   - it handles empty or * versions, downloading the current version from the registry
 //
 // This is calculated in the upstream cluster so all downstream bundle deployments have the same
 // version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
 func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop fleet.HelmOp) error {
 	if _, err := semver.StrictNewVersion(helmop.Spec.Helm.Version); err == nil {
 		bundle.Spec.Helm.Version = helmop.Spec.Helm.Version
-		return nil
-	}
-
-	// Prevent version computation from interfering with polling but, if polling applies, set the version when first
-	// creating the bundle, to avoid having to wait a full polling interval.
-	if oldBundle.Spec.Helm != nil && usesPolling(helmop) {
 		return nil
 	}
 
@@ -300,8 +294,12 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 	}
 
 	if usesPolling(helmop) {
-		currentTrigger := quartz.NewSimpleTrigger(helmop.Spec.PollingInterval.Duration)
-		// A changing trigger description would typically indicate that the polling interval has changed.
+		currentTrigger := newHelmOpTrigger(helmop.Spec.Helm, helmop.Spec.PollingInterval.Duration)
+		// A changing trigger description would indicate that one of the following fields has changed:
+		// * polling interval
+		// * Helm repo
+		// * Helm chart
+		// * Helm version constraint
 		if errors.Is(err, quartz.ErrJobNotFound) || existingJob.Trigger().Description() != currentTrigger.Description() {
 			err = r.Scheduler.ScheduleJob(
 				quartz.NewJobDetailWithOptions(
@@ -514,4 +512,47 @@ func getChartVersion(ctx context.Context, c client.Client, helmop fleet.HelmOp) 
 
 func jobKey(h fleet.HelmOp) *quartz.JobKey {
 	return quartz.NewJobKey(string(h.UID))
+}
+
+// helmOpTrigger is a custom trigger, implementing the quartz.Trigger interface. This trigger is
+// used to schedule jobs to be run both:
+// * periodically, after the first polling interval, as would happen with Quartz's `simpleTrigger`
+// * right away, without waiting for that first polling interval to elapse.
+type helmOpTrigger struct {
+	repo    string
+	chart   string
+	version string
+
+	isInitRunDone bool
+	simpleTrigger *quartz.SimpleTrigger
+}
+
+func (t helmOpTrigger) NextFireTime(prev int64) (int64, error) {
+	if !t.isInitRunDone {
+		t.isInitRunDone = true
+
+		return prev, nil
+	}
+
+	return t.simpleTrigger.NextFireTime(prev)
+}
+
+func (t helmOpTrigger) Description() string {
+	hasher := sha256.New()
+	hasher.Write([]byte(t.repo))
+	hasher.Write([]byte(t.chart))
+	hasher.Write([]byte(t.version))
+
+	chartRefHash := fmt.Sprintf("%x", hasher.Sum(nil))
+
+	return fmt.Sprintf("%s-%s", chartRefHash, t.simpleTrigger.Description())
+}
+
+func newHelmOpTrigger(o *fleet.HelmOptions, interval time.Duration) helmOpTrigger {
+	return helmOpTrigger{
+		repo:          o.Repo,
+		chart:         o.Chart,
+		version:       o.Version,
+		simpleTrigger: quartz.NewSimpleTrigger(interval),
+	}
 }
