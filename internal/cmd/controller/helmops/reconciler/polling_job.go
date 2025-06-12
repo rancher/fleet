@@ -145,7 +145,6 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		return fail(fmt.Errorf("could not patch bundle to set the resolved version: %w", err), "FailedToPatchBundle")
 	}
 
-	merr := []error{}
 	nsn := types.NamespacedName{Name: h.Name, Namespace: h.Namespace}
 
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -165,13 +164,8 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		return j.client.Status().Patch(ctx, t, statusPatch)
 	})
 	if err != nil {
-		merr = append(merr, err)
-
 		return fail(
-			fmt.Errorf(
-				"could not update HelmOp status with polling timestamp: %w",
-				errutil.NewAggregate(merr),
-			),
+			fmt.Errorf("could not update HelmOp status with polling timestamp: %w", err),
 			"FailedToUpdateHelmOpStatus",
 		)
 	}
