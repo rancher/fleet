@@ -4,6 +4,7 @@ package reconciler
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"time"
 
@@ -35,10 +36,20 @@ type helmPollingJob struct {
 	namespace string
 	name      string
 
+	repo    string
+	chart   string
+	version string
+
 	recorder record.EventRecorder
 }
 
-func newHelmPollingJob(c client.Client, r record.EventRecorder, namespace string, name string) *helmPollingJob {
+func newHelmPollingJob(
+	c client.Client,
+	r record.EventRecorder,
+	namespace,
+	name string,
+	helmRef fleet.HelmOptions,
+) *helmPollingJob {
 	return &helmPollingJob{
 		sem:      semaphore.NewWeighted(1),
 		client:   c,
@@ -46,6 +57,10 @@ func newHelmPollingJob(c client.Client, r record.EventRecorder, namespace string
 
 		namespace: namespace,
 		name:      name,
+
+		repo:    helmRef.Repo,
+		chart:   helmRef.Chart,
+		version: helmRef.Version,
 	}
 }
 
@@ -66,7 +81,14 @@ func (j *helmPollingJob) Execute(ctx context.Context) error {
 // Description returns a description for the job.
 // This is needed to implement the Quartz Job interface.
 func (j *helmPollingJob) Description() string {
-	return fmt.Sprintf("helmops-polling-%s-%s", j.namespace, j.name)
+	hasher := sha256.New()
+	hasher.Write([]byte(j.repo))
+	hasher.Write([]byte(j.chart))
+	hasher.Write([]byte(j.version))
+
+	chartRefHash := fmt.Sprintf("%x", hasher.Sum(nil))
+
+	return fmt.Sprintf("helmops-polling-%s-%s-%s", j.namespace, j.name, chartRefHash)
 }
 
 func (j *helmPollingJob) pollHelm(ctx context.Context) error {
