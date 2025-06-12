@@ -11,7 +11,6 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 	"golang.org/x/sync/semaphore"
 
-	"github.com/rancher/fleet/internal/bundlereader"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 
@@ -91,7 +90,9 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		return nil
 	}
 
-	var pollingTimestamp time.Time
+	// From here on, polling is considered to have been triggered.
+	// Even if it fails, this timestamp will be updated in the HelmOp status.
+	pollingTimestamp := time.Now().UTC()
 
 	fail := func(origErr error, eventReason string) error {
 		if eventReason != "" {
@@ -101,25 +102,9 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		return j.updateErrorStatus(ctx, h, pollingTimestamp, origErr)
 	}
 
-	auth := bundlereader.Auth{}
-	if h.Spec.HelmSecretName != "" {
-		req := types.NamespacedName{Namespace: h.Namespace, Name: h.Spec.HelmSecretName}
-
-		var err error
-		auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, j.client, req)
-		if err != nil {
-			return fail(fmt.Errorf("could not read Helm auth from secret: %w", err), "FailedToReadHelmAuth")
-		}
-	}
-	auth.InsecureSkipVerify = h.Spec.InsecureSkipTLSverify
-
-	// From here on, polling is considered to have been triggered.
-	// Even if it fails, this timestamp will be updated in the HelmOp status.
-	pollingTimestamp = time.Now().UTC()
-
-	version, err := bundlereader.ChartVersion(*h.Spec.Helm, auth)
+	version, err := getChartVersion(ctx, j.client, *h)
 	if err != nil {
-		return fail(fmt.Errorf("could not get a chart version: %w", err), "FailedToGetNewChartVersion")
+		return fail(err, "FailedToGetNewChartVersion")
 	}
 
 	b := &fleet.Bundle{}
