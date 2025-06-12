@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -316,6 +318,55 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 
 func TestReconcile_ManagePollingJobs(t *testing.T) {
 	os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
+
+	helmRepoIndex := `apiVersion: v1
+entries:
+  alpine:
+    - created: 2016-10-06T16:23:20.499814565-06:00
+      description: Deploy a basic Alpine Linux pod
+      digest: 99c76e403d752c84ead610644d4b1c2f2b453a74b921f422b9dcb8a7c8b559cd
+      home: https://helm.sh/helm
+      name: alpine
+      sources:
+      - https://github.com/helm/helm
+      urls:
+      - https://technosophos.github.io/tscharts/alpine-0.2.0.tgz
+      version: 0.2.0
+    - created: 2016-10-06T16:23:20.499543808-06:00
+      description: Deploy a basic Alpine Linux pod
+      digest: 515c58e5f79d8b2913a10cb400ebb6fa9c77fe813287afbacf1a0b897cd78727
+      home: https://helm.sh/helm
+      name: alpine
+      sources:
+      - https://github.com/helm/helm
+      urls:
+      - https://technosophos.github.io/tscharts/alpine-0.1.0.tgz
+      version: 0.1.0
+  nginx:
+    - created: 2016-10-06T16:23:20.499543808-06:00
+      description: Create a basic nginx HTTP server
+      digest: aaff4545f79d8b2913a10cb400ebb6fa9c77fe813287afbacf1a0b897cdffffff
+      home: https://helm.sh/helm
+      name: nginx
+      sources:
+      - https://github.com/helm/charts
+      urls:
+      - https://technosophos.github.io/tscharts/nginx-0.1.0.tgz
+      version: 0.1.0
+generated: 2016-10-06T16:23:20.499029981-06:00`
+
+	svr1 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, helmRepoIndex)
+	}))
+	defer svr1.Close()
+
+	svr2 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, helmRepoIndex)
+	}))
+	defer svr2.Close()
+
 	cases := []struct {
 		name                   string
 		helmOp                 fleet.HelmOp
@@ -583,19 +634,21 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: fleet.HelmOpSpec{
-					PollingInterval: &metav1.Duration{Duration: 1 * time.Minute},
+					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
+					InsecureSkipTLSverify: true,
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
-								Chart:   "chart",
-								Version: "1.x.x",
+								Repo:    svr1.URL,
+								Chart:   "alpine",
+								Version: "0.x.x",
 							},
 						},
 					},
 				},
 			},
 			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
-				trigger := quartz.NewSimpleTrigger(helmop.Spec.PollingInterval.Duration)
+				trigger := newHelmOpTrigger(helmop.Spec.Helm, helmop.Spec.PollingInterval.Duration)
 
 				job := mocks.NewMockScheduledJob(ctrl)
 				job.EXPECT().Trigger().Return(trigger)
@@ -604,31 +657,135 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			},
 		},
 		{
-			name: "creates a polling job even if a different one exists",
+			name: "creates a polling job if the version constraint has changed",
 			helmOp: fleet.HelmOp{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "helmop",
 					Namespace: "default",
 				},
 				Spec: fleet.HelmOpSpec{
-					PollingInterval: &metav1.Duration{Duration: 1 * time.Minute},
+					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
+					InsecureSkipTLSverify: true,
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
-								Chart:   "chart",
-								Version: "1.x.x",
+								Repo:    svr1.URL,
+								Chart:   "alpine",
+								Version: "0.2.x",
 							},
 						},
 					},
 				},
 			},
 			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
-				existingTrigger := quartz.NewSimpleTrigger(2 * helmop.Spec.PollingInterval.Duration)
+				oldHelmSpec := helmop.Spec.Helm.DeepCopy()
+				oldHelmSpec.Version = "0.1.x"
 
-				existingJob := mocks.NewMockScheduledJob(ctrl)
-				existingJob.EXPECT().Trigger().Return(existingTrigger)
+				trigger := newHelmOpTrigger(oldHelmSpec, helmop.Spec.PollingInterval.Duration)
 
-				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(existingJob, nil)
+				job := mocks.NewMockScheduledJob(ctrl)
+				job.EXPECT().Trigger().Return(trigger)
+
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
+			},
+		},
+		{
+			name: "creates a polling job if the Helm repo has changed",
+			helmOp: fleet.HelmOp{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "helmop",
+					Namespace: "default",
+				},
+				Spec: fleet.HelmOpSpec{
+					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
+					InsecureSkipTLSverify: true,
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{
+								Repo:    svr1.URL,
+								Chart:   "alpine",
+								Version: "0.2.x",
+							},
+						},
+					},
+				},
+			},
+			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
+				oldHelmSpec := helmop.Spec.Helm.DeepCopy()
+				oldHelmSpec.Repo = svr2.URL
+
+				trigger := newHelmOpTrigger(oldHelmSpec, helmop.Spec.PollingInterval.Duration)
+
+				job := mocks.NewMockScheduledJob(ctrl)
+				job.EXPECT().Trigger().Return(trigger)
+
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
+			},
+		},
+		{
+			name: "creates a polling job if the Helm chart has changed",
+			helmOp: fleet.HelmOp{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "helmop",
+					Namespace: "default",
+				},
+				Spec: fleet.HelmOpSpec{
+					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
+					InsecureSkipTLSverify: true,
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{
+								Repo:    svr1.URL,
+								Chart:   "nginx",
+								Version: "0.1.x",
+							},
+						},
+					},
+				},
+			},
+			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
+				oldHelmSpec := helmop.Spec.Helm.DeepCopy()
+				oldHelmSpec.Chart = "alpine"
+
+				trigger := newHelmOpTrigger(oldHelmSpec, helmop.Spec.PollingInterval.Duration)
+
+				job := mocks.NewMockScheduledJob(ctrl)
+				job.EXPECT().Trigger().Return(trigger)
+
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
+			},
+		},
+		{
+			name: "creates a polling job if the polling interval has changed",
+			helmOp: fleet.HelmOp{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "helmop",
+					Namespace: "default",
+				},
+				Spec: fleet.HelmOpSpec{
+					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
+					InsecureSkipTLSverify: true,
+					BundleSpec: fleet.BundleSpec{
+						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
+							Helm: &fleet.HelmOptions{
+								Repo:    svr1.URL,
+								Chart:   "alpine",
+								Version: "0.1.x",
+							},
+						},
+					},
+				},
+			},
+			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
+				trigger := newHelmOpTrigger(helmop.Spec.Helm, 2*helmop.Spec.PollingInterval.Duration)
+
+				job := mocks.NewMockScheduledJob(ctrl)
+				job.EXPECT().Trigger().Return(trigger)
+
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
 				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
 			},
 		},
