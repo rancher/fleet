@@ -131,7 +131,9 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	orig := b.DeepCopy()
 	b.Spec.Helm.Version = version
 
-	j.recorder.Event(h, fleetevent.Normal, "GotNewChartVersion", version)
+	if version != b.Spec.Helm.Version {
+		j.recorder.Event(h, fleetevent.Normal, "GotNewChartVersion", version)
+	}
 
 	patch := client.MergeFrom(orig)
 	if patchData, err := patch.Data(b); err == nil && string(patchData) == "{}" {
