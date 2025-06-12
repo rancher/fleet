@@ -2,7 +2,6 @@ package reconciler
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -287,23 +286,35 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 	}
 
 	jobKey := jobKey(helmop)
-	existingJob, err := r.Scheduler.GetScheduledJob(jobKey)
+	scheduled, err := r.Scheduler.GetScheduledJob(jobKey)
 
 	if err != nil && !errors.Is(err, quartz.ErrJobNotFound) {
 		return fmt.Errorf("an unknown error occurred when looking for a polling job: %w", err)
 	}
 
 	if usesPolling(helmop) {
-		currentTrigger := newHelmOpTrigger(helmop.Spec.Helm, helmop.Spec.PollingInterval.Duration)
-		// A changing trigger description would indicate that one of the following fields has changed:
-		// * polling interval
+		scheduledJobDescription := ""
+
+		if err == nil {
+			if detail := scheduled.JobDetail(); detail != nil {
+				scheduledJobDescription = detail.Job().Description()
+			}
+		}
+
+		newJob := newHelmPollingJob(r.Client, r.Recorder, helmop.Namespace, helmop.Name, *helmop.Spec.Helm)
+		currentTrigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+		// A changing trigger description would indicate the polling interval has changed.
+		// On the other hand, if the job description changes, this implies that one of the following fields has
+		// been updated:
 		// * Helm repo
 		// * Helm chart
 		// * Helm version constraint
-		if errors.Is(err, quartz.ErrJobNotFound) || existingJob.Trigger().Description() != currentTrigger.Description() {
+		if errors.Is(err, quartz.ErrJobNotFound) ||
+			scheduled.Trigger().Description() != currentTrigger.Description() ||
+			scheduledJobDescription != newJob.Description() {
 			err = r.Scheduler.ScheduleJob(
 				quartz.NewJobDetailWithOptions(
-					newHelmPollingJob(r.Client, r.Recorder, helmop.Namespace, helmop.Name),
+					newJob,
 					jobKey,
 					&quartz.JobDetailOptions{
 						Replace: true,
@@ -519,10 +530,6 @@ func jobKey(h fleet.HelmOp) *quartz.JobKey {
 // * periodically, after the first polling interval, as would happen with Quartz's `simpleTrigger`
 // * right away, without waiting for that first polling interval to elapse.
 type helmOpTrigger struct {
-	repo    string
-	chart   string
-	version string
-
 	isInitRunDone bool
 	simpleTrigger *quartz.SimpleTrigger
 }
@@ -538,21 +545,9 @@ func (t helmOpTrigger) NextFireTime(prev int64) (int64, error) {
 }
 
 func (t helmOpTrigger) Description() string {
-	hasher := sha256.New()
-	hasher.Write([]byte(t.repo))
-	hasher.Write([]byte(t.chart))
-	hasher.Write([]byte(t.version))
-
-	chartRefHash := fmt.Sprintf("%x", hasher.Sum(nil))
-
-	return fmt.Sprintf("%s-%s", chartRefHash, t.simpleTrigger.Description())
+	return t.simpleTrigger.Description()
 }
 
-func newHelmOpTrigger(o *fleet.HelmOptions, interval time.Duration) helmOpTrigger {
-	return helmOpTrigger{
-		repo:          o.Repo,
-		chart:         o.Chart,
-		version:       o.Version,
-		simpleTrigger: quartz.NewSimpleTrigger(interval),
-	}
+func newHelmOpTrigger(interval time.Duration) helmOpTrigger {
+	return helmOpTrigger{simpleTrigger: quartz.NewSimpleTrigger(interval)}
 }

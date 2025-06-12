@@ -571,6 +571,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 
 				job := mocks.NewMockScheduledJob(ctrl)
 				job.EXPECT().Trigger().Return(trigger)
+				job.EXPECT().JobDetail().Return(nil)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
 				scheduler.EXPECT().ScheduleJob(gomock.Any(), gomock.Any()).Return(errors.New("something happened!"))
@@ -648,12 +649,16 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				},
 			},
 			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
-				trigger := newHelmOpTrigger(helmop.Spec.Helm, helmop.Spec.PollingInterval.Duration)
+				trigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *helmop.Spec.Helm)
 
-				job := mocks.NewMockScheduledJob(ctrl)
-				job.EXPECT().Trigger().Return(trigger)
+				detail := quartz.NewJobDetail(job, nil)
 
-				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
+				scheduled := mocks.NewMockScheduledJob(ctrl)
+				scheduled.EXPECT().Trigger().Return(trigger)
+				scheduled.EXPECT().JobDetail().Return(detail)
+
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
 			},
 		},
 		{
@@ -681,12 +686,16 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				oldHelmSpec := helmop.Spec.Helm.DeepCopy()
 				oldHelmSpec.Version = "0.1.x"
 
-				trigger := newHelmOpTrigger(oldHelmSpec, helmop.Spec.PollingInterval.Duration)
+				trigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *oldHelmSpec)
 
-				job := mocks.NewMockScheduledJob(ctrl)
-				job.EXPECT().Trigger().Return(trigger)
+				detail := quartz.NewJobDetail(job, nil)
 
-				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
+				scheduled := mocks.NewMockScheduledJob(ctrl)
+				scheduled.EXPECT().Trigger().Return(trigger)
+				scheduled.EXPECT().JobDetail().Return(detail)
+
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
 				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
 			},
 		},
@@ -715,12 +724,16 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				oldHelmSpec := helmop.Spec.Helm.DeepCopy()
 				oldHelmSpec.Repo = svr2.URL
 
-				trigger := newHelmOpTrigger(oldHelmSpec, helmop.Spec.PollingInterval.Duration)
+				trigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *oldHelmSpec)
 
-				job := mocks.NewMockScheduledJob(ctrl)
-				job.EXPECT().Trigger().Return(trigger)
+				detail := quartz.NewJobDetail(job, nil)
 
-				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
+				scheduled := mocks.NewMockScheduledJob(ctrl)
+				scheduled.EXPECT().Trigger().Return(trigger)
+				scheduled.EXPECT().JobDetail().Return(detail)
+
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
 				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
 			},
 		},
@@ -749,12 +762,16 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				oldHelmSpec := helmop.Spec.Helm.DeepCopy()
 				oldHelmSpec.Chart = "alpine"
 
-				trigger := newHelmOpTrigger(oldHelmSpec, helmop.Spec.PollingInterval.Duration)
+				trigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *oldHelmSpec)
 
-				job := mocks.NewMockScheduledJob(ctrl)
-				job.EXPECT().Trigger().Return(trigger)
+				detail := quartz.NewJobDetail(job, nil)
 
-				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
+				scheduled := mocks.NewMockScheduledJob(ctrl)
+				scheduled.EXPECT().Trigger().Return(trigger)
+				scheduled.EXPECT().JobDetail().Return(detail)
+
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
 				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
 			},
 		},
@@ -780,12 +797,16 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				},
 			},
 			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
-				trigger := newHelmOpTrigger(helmop.Spec.Helm, 2*helmop.Spec.PollingInterval.Duration)
+				trigger := newHelmOpTrigger(2 * helmop.Spec.PollingInterval.Duration)
+				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *helmop.Spec.Helm)
 
-				job := mocks.NewMockScheduledJob(ctrl)
-				job.EXPECT().Trigger().Return(trigger)
+				detail := quartz.NewJobDetail(job, nil)
 
-				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
+				scheduled := mocks.NewMockScheduledJob(ctrl)
+				scheduled.EXPECT().Trigger().Return(trigger)
+				scheduled.EXPECT().JobDetail().Return(detail)
+
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
 				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
 			},
 		},
