@@ -629,7 +629,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				existingJob.EXPECT().Trigger().Return(existingTrigger)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(existingJob, nil)
-				scheduler.EXPECT().ScheduleJob(gomock.Any(), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
 			},
 		},
 	}
@@ -719,4 +719,25 @@ func (b *bundleMatcher) Matches(x interface{}) bool {
 
 func (b *bundleMatcher) String() string {
 	return fmt.Sprintf("matches namespace %q and name %q", b.namespace, b.name)
+}
+
+type scheduledJobMatcher struct {
+	replaceExisting bool
+}
+
+func matchesJobDetailReplace(replace bool) gomock.Matcher {
+	return &scheduledJobMatcher{replaceExisting: replace}
+}
+
+func (s *scheduledJobMatcher) Matches(x interface{}) bool {
+	jd, ok := x.(*quartz.JobDetail)
+	if !ok {
+		return false
+	}
+
+	return jd.Options() != nil && jd.Options().Replace == s.replaceExisting
+}
+
+func (s *scheduledJobMatcher) String() string {
+	return fmt.Sprintf("matches replace %t", s.replaceExisting)
 }
