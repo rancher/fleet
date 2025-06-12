@@ -275,21 +275,11 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 		return nil
 	}
 
-	auth := bundlereader.Auth{}
-	if helmop.Spec.HelmSecretName != "" {
-		req := types.NamespacedName{Namespace: helmop.Namespace, Name: helmop.Spec.HelmSecretName}
-		var err error
-		auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, r.Client, req)
-		if err != nil {
-			return err
-		}
-	}
-	auth.InsecureSkipVerify = helmop.Spec.InsecureSkipTLSverify
-
-	version, err := bundlereader.ChartVersion(*helmop.Spec.Helm, auth)
+	version, err := getChartVersion(ctx, r.Client, helmop)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get chart version: %w", err)
 	}
+
 	bundle.Spec.Helm.Version = version
 
 	return nil
@@ -498,6 +488,28 @@ func helmChartSpecChanged(o *fleet.HelmOptions, n *fleet.HelmOptions, statusVers
 func experimentalHelmOpsEnabled() bool {
 	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_HELM_OPS"))
 	return err == nil && value
+}
+
+// getChartVersion fetches the latest chart version from the Helm registry referenced by helmop, and returns it.
+// If this fails, it returns an empty version along with an error.
+func getChartVersion(ctx context.Context, c client.Client, helmop fleet.HelmOp) (string, error) {
+	auth := bundlereader.Auth{}
+	if helmop.Spec.HelmSecretName != "" {
+		req := types.NamespacedName{Namespace: helmop.Namespace, Name: helmop.Spec.HelmSecretName}
+		var err error
+		auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, c, req)
+		if err != nil {
+			return "", fmt.Errorf("could not read Helm auth from secret: %w", err)
+		}
+	}
+	auth.InsecureSkipVerify = helmop.Spec.InsecureSkipTLSverify
+
+	version, err := bundlereader.ChartVersion(*helmop.Spec.Helm, auth)
+	if err != nil {
+		return "", fmt.Errorf("could not get a chart version: %w", err)
+	}
+
+	return version, nil
 }
 
 func jobKey(h fleet.HelmOp) *quartz.JobKey {
