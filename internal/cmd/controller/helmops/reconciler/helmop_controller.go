@@ -305,6 +305,10 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 	jobKey := jobKey(helmop)
 	existingJob, err := r.Scheduler.GetScheduledJob(jobKey)
 
+	if err != nil && !errors.Is(err, quartz.ErrJobNotFound) {
+		return fmt.Errorf("an unknown error occurred when looking for a polling job: %w", err)
+	}
+
 	if usesPolling(helmop) {
 		currentTrigger := quartz.NewSimpleTrigger(helmop.Spec.PollingInterval.Duration)
 		// A changing trigger description would typically indicate that the polling interval has changed.
@@ -325,11 +329,8 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 			}
 
 			logger.V(1).Info("Scheduled new polling job")
-		} else if err != nil {
-			// This should never happen
-			return fmt.Errorf("an unknown error occurred when looking for a polling job: %w", err)
 		}
-	} else if !errors.Is(err, quartz.ErrJobNotFound) {
+	} else if err == nil {
 		// A job still exists, but is no longer needed; delete it.
 		if err = r.Scheduler.DeleteJob(jobKey); err != nil {
 			return fmt.Errorf("failed to delete polling job: %w", err)
