@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"os"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -39,10 +40,20 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 		bdLabels                          map[string]string
 		expectedNumberOfBundleDeployments int
 		helmOptions                       *v1alpha1.BundleHelmOptions
+		version                           string
 	)
 
 	JustBeforeEach(func() {
-		bundle, err := createHelmBundle(ctx, k8sClient, bundleName, namespace, targets, targetRestrictions, helmOptions)
+		bundle, err := createHelmBundle(
+			ctx,
+			k8sClient,
+			bundleName,
+			namespace,
+			targets,
+			targetRestrictions,
+			helmOptions,
+			version,
+		)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bundle).To(Not(BeNil()))
 
@@ -85,6 +96,7 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 			}
 			targetRestrictions = make([]v1alpha1.BundleTarget, len(targets))
 			copy(targetRestrictions, targets)
+			version = "1.2.3"
 		})
 
 		It("creates three BundleDeployments with the expected helm options information", func() {
@@ -116,6 +128,7 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 			}
 			targetRestrictions = make([]v1alpha1.BundleTarget, len(targets))
 			copy(targetRestrictions, targets)
+			version = "1.2.3"
 		})
 
 		It("creates three BundleDeployments with the expected helm options information", func() {
@@ -124,6 +137,50 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
 			}
+		})
+	})
+
+	When("helm options is NOT nil, and the version is a constraint", func() {
+		BeforeEach(func() {
+			helmOptions = &v1alpha1.BundleHelmOptions{
+				SecretName:            "supersecret",
+				InsecureSkipTLSverify: true,
+			}
+			bundleName = "helm-version-constraint"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": namespace,
+			}
+			version = "1.x.x"
+		})
+
+		It("does not create any BundleDeployment", func() {
+			Consistently(func(g Gomega) {
+				bdList := &v1alpha1.BundleDeploymentList{}
+
+				err := k8sClient.List(ctx, bdList, client.MatchingLabelsSelector{Selector: labels.SelectorFromSet(bdLabels)})
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(bdList.Items).To(BeEmpty())
+			}, 5*time.Second, time.Second).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				b := &v1alpha1.Bundle{}
+
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: bundleName}, b)
+				g.Expect(err).NotTo(HaveOccurred())
+
+				found := false
+
+				for _, c := range b.Status.Conditions {
+					if c.Type == "Ready" {
+						found = true
+						g.Expect(c.Message).To(ContainSubstring("version cannot be deployed"))
+					}
+				}
+
+				g.Expect(found).To(BeTrue())
+			}).To(Succeed())
+
 		})
 	})
 
@@ -144,6 +201,7 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 			}
 			targetRestrictions = make([]v1alpha1.BundleTarget, len(targets))
 			copy(targetRestrictions, targets)
+			version = ""
 		})
 
 		It("creates three BundleDeployments with no helm options information", func() {
@@ -277,7 +335,16 @@ func checkBundleDeploymentSecret(c client.Client, helmOptions *v1alpha1.BundleHe
 	Expect(controller.APIVersion).To(Equal("fleet.cattle.io/v1alpha1"))
 }
 
-func createHelmBundle(ctx context.Context, k8sClient client.Client, name, namespace string, targets []v1alpha1.BundleTarget, targetRestrictions []v1alpha1.BundleTarget, helmOptions *v1alpha1.BundleHelmOptions) (*v1alpha1.Bundle, error) {
+func createHelmBundle(
+	ctx context.Context,
+	k8sClient client.Client,
+	name,
+	namespace string,
+	targets []v1alpha1.BundleTarget,
+	targetRestrictions []v1alpha1.BundleTarget,
+	helmOptions *v1alpha1.BundleHelmOptions,
+	version string,
+) (*v1alpha1.Bundle, error) {
 	restrictions := []v1alpha1.BundleTargetRestriction{}
 	for _, r := range targetRestrictions {
 		restrictions = append(restrictions, v1alpha1.BundleTargetRestriction{
@@ -298,6 +365,11 @@ func createHelmBundle(ctx context.Context, k8sClient client.Client, name, namesp
 			Targets:            targets,
 			TargetRestrictions: restrictions,
 			HelmOpOptions:      helmOptions,
+			BundleDeploymentOptions: v1alpha1.BundleDeploymentOptions{
+				Helm: &v1alpha1.HelmOptions{
+					Version: version,
+				},
+			},
 		},
 	}
 
