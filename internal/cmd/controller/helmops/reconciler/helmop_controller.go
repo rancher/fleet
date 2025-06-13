@@ -534,7 +534,7 @@ type helmOpTrigger struct {
 	simpleTrigger *quartz.SimpleTrigger
 }
 
-func (t helmOpTrigger) NextFireTime(prev int64) (int64, error) {
+func (t *helmOpTrigger) NextFireTime(prev int64) (int64, error) {
 	if !t.isInitRunDone {
 		t.isInitRunDone = true
 
@@ -544,10 +544,10 @@ func (t helmOpTrigger) NextFireTime(prev int64) (int64, error) {
 	return t.simpleTrigger.NextFireTime(prev)
 }
 
-func (t helmOpTrigger) Description() string {
+func (t *helmOpTrigger) Description() string {
 	return t.simpleTrigger.Description()
 }
 
-func newHelmOpTrigger(interval time.Duration) helmOpTrigger {
-	return helmOpTrigger{simpleTrigger: quartz.NewSimpleTrigger(interval)}
+func newHelmOpTrigger(interval time.Duration) *helmOpTrigger {
+	return &helmOpTrigger{simpleTrigger: quartz.NewSimpleTrigger(interval)}
 }
