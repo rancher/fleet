@@ -192,15 +192,15 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Skip bundle deployment creation if the bundle is a HelmOps bundle and the configured Helm version is still a
 	// version constraint. That constraint should be resolved into a strict version by the HelmOps reconciler before bundle
 	// deployments can be created.
-	if contentsInHelmChart && bundle.Spec.BundleDeploymentOptions.Helm != nil {
-		version := bundle.Spec.BundleDeploymentOptions.Helm.Version
+	if contentsInHelmChart && bundle.Spec.Helm != nil {
+		version := bundle.Spec.Helm.Version
 
 		if _, err := semver.StrictNewVersion(version); err != nil {
 			bundle.Status.Conditions = []genericcondition.GenericCondition{
 				{
 					Type:           string(fleet.Ready),
 					Status:         corev1.ConditionFalse,
-					Message:        fmt.Sprintf("Chart version cannot be deployed; check HelmOp status for more details: %w", err),
+					Message:        fmt.Sprintf("Chart version cannot be deployed; check HelmOp status for more details: %v", err),
 					LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
 				},
 			}
