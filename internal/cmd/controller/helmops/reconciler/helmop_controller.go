@@ -2,13 +2,14 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -25,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/go-logr/logr"
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"github.com/reugn/go-quartz/quartz"
@@ -82,9 +84,9 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger := log.FromContext(ctx).WithName("HelmOp")
 	helmop := &fleet.HelmOp{}
 
-	if err := r.Get(ctx, req.NamespacedName, helmop); err != nil && !errors.IsNotFound(err) {
+	if err := r.Get(ctx, req.NamespacedName, helmop); err != nil && !k8serrors.IsNotFound(err) {
 		return ctrl.Result{}, err
-	} else if errors.IsNotFound(err) {
+	} else if k8serrors.IsNotFound(err) {
 		return ctrl.Result{}, nil
 	}
 
@@ -98,7 +100,6 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if !helmop.GetDeletionTimestamp().IsZero() {
-
 		metrics.HelmCollector.Delete(helmop.Name, helmop.Namespace)
 
 		if err := purgeBundlesFn(); err != nil {
@@ -110,7 +111,12 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
-		return ctrl.Result{}, nil
+		err := r.Scheduler.DeleteJob(jobKey(*helmop))
+		if errors.Is(err, quartz.ErrJobNotFound) { // ignore error in this case
+			err = nil
+		}
+
+		return ctrl.Result{}, err
 	}
 
 	if !controllerutil.ContainsFinalizer(helmop, finalize.HelmOpFinalizer) {
@@ -132,14 +138,16 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	bundle, err := r.createUpdateBundle(ctx, helmop)
-	if err != nil {
-		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop.Status, err)
+	if _, err := r.createUpdateBundle(ctx, helmop); err != nil {
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
 	}
 
-	helmop.Status.Version = bundle.Spec.Helm.Version
+	// Running this logic after creating/updating the bundle to avoid scheduling a job if the bundle has not been created.
+	if err := r.managePollingJob(logger, *helmop); err != nil {
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
+	}
 
-	err = updateStatus(ctx, r.Client, req.NamespacedName, helmop.Status)
+	err := updateStatus(ctx, r.Client, req.NamespacedName, helmop, nil)
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to HelmOp status", "status", helmop.Status)
 
@@ -158,7 +166,7 @@ func (r *HelmOpReconciler) createUpdateBundle(ctx context.Context, helmop *fleet
 	}
 
 	err := r.Get(ctx, nsName, b)
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !k8serrors.IsNotFound(err) {
 		return nil, err
 	}
 
@@ -203,7 +211,9 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 			Namespace: helmop.Namespace,
 			Name:      helmop.Name,
 		},
-		Spec: spec,
+		// We ensure the bundle and HelmOp spec are independent. This prevents versions constraints from being overwritten
+		// in the HelmOp spec with actual versions resolved from Helm when the bundle version is updated.
+		Spec: *spec.DeepCopy(),
 	}
 	if len(bundle.Spec.Targets) == 0 {
 		bundle.Spec.Targets = []fleet.BundleTarget{
@@ -234,6 +244,105 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 	}
 
 	return bundle
+}
+
+// handleVersion validates the version configured on the provided HelmOp.
+// In particular:
+//   - it returns an error in case that version represents an invalid semver constraint.
+//   - it handles empty or * versions, downloading the current version from the registry
+//
+// This is calculated in the upstream cluster so all downstream bundle deployments have the same
+// version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
+func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp) error {
+	if helmop == nil {
+		return fmt.Errorf("the provided HelmOp is nil; this should not happen")
+	}
+
+	if _, err := semver.StrictNewVersion(helmop.Spec.Helm.Version); err == nil {
+		bundle.Spec.Helm.Version = helmop.Spec.Helm.Version
+		return nil
+	}
+
+	if !helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmop.Status.Version) {
+		bundle.Spec.Helm.Version = helmop.Status.Version
+
+		return nil
+	}
+
+	version, err := getChartVersion(ctx, r.Client, *helmop)
+	if err != nil {
+		return fmt.Errorf("could not get chart version: %w", err)
+	}
+
+	if usesPolling(*helmop) {
+		return nil // Field updates will be run from the polling job, to prevent race conditions.
+	}
+
+	bundle.Spec.Helm.Version = version
+	helmop.Status.Version = bundle.Spec.Helm.Version
+
+	return nil
+}
+
+// managePollingJob creates, updates or deletes a polling job for the provided HelmOp.
+func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.HelmOp) error {
+	if r.Scheduler == nil {
+		logger.V(1).Info("Scheduler is not set; this should only happen in tests")
+		return nil
+	}
+
+	jobKey := jobKey(helmop)
+	scheduled, err := r.Scheduler.GetScheduledJob(jobKey)
+
+	if err != nil && !errors.Is(err, quartz.ErrJobNotFound) {
+		return fmt.Errorf("an unknown error occurred when looking for a polling job: %w", err)
+	}
+
+	if usesPolling(helmop) {
+		scheduledJobDescription := ""
+
+		if err == nil {
+			if detail := scheduled.JobDetail(); detail != nil {
+				scheduledJobDescription = detail.Job().Description()
+			}
+		}
+
+		newJob := newHelmPollingJob(r.Client, r.Recorder, helmop.Namespace, helmop.Name, *helmop.Spec.Helm)
+		currentTrigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+		// A changing trigger description would indicate the polling interval has changed.
+		// On the other hand, if the job description changes, this implies that one of the following fields has
+		// been updated:
+		// * Helm repo
+		// * Helm chart
+		// * Helm version constraint
+		if errors.Is(err, quartz.ErrJobNotFound) ||
+			scheduled.Trigger().Description() != currentTrigger.Description() ||
+			scheduledJobDescription != newJob.Description() {
+			err = r.Scheduler.ScheduleJob(
+				quartz.NewJobDetailWithOptions(
+					newJob,
+					jobKey,
+					&quartz.JobDetailOptions{
+						Replace: true,
+					},
+				),
+				currentTrigger,
+			)
+
+			if err != nil {
+				return fmt.Errorf("failed to schedule polling job: %w", err)
+			}
+
+			logger.V(1).Info("Scheduled new polling job")
+		}
+	} else if err == nil {
+		// A job still exists, but is no longer needed; delete it.
+		if err = r.Scheduler.DeleteJob(jobKey); err != nil {
+			return fmt.Errorf("failed to delete polling job: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // propagateHelmOpProperties propagates root Helm chart properties to the child targets.
@@ -296,58 +405,35 @@ func deleteFinalizer[T client.Object](ctx context.Context, c client.Client, obj 
 	return nil
 }
 
-// handleVersion validates the version configured on the provided HelmOp.
-// In particular:
-//   - it returns an error in case that version represents an invalid semver constraint.
-//   - it handles empty or * versions, downloading the current version from the registry.
-//
-// This is calculated in the upstream cluster so all downstream bundle deployments have the same
-// version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
-func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp) error {
-	if _, err := semver.StrictNewVersion(helmop.Spec.Helm.Version); err == nil {
-		bundle.Spec.Helm.Version = helmop.Spec.Helm.Version
-		return nil
+// usesPolling returns a boolean indicating whether polling makes sense for the provided helmop.
+func usesPolling(helmop fleet.HelmOp) bool {
+	if helmop.Spec.PollingInterval == nil || helmop.Spec.PollingInterval.Duration == 0 {
+		return false
 	}
 
-	if !helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmop.Status.Version) {
-		bundle.Spec.Helm.Version = helmop.Status.Version
+	// we only need to poll if the version is set to a constraint on versions, which may resolve to
+	// different available versions as the contents of the Helm repository evolves over time.
+	_, err := semver.StrictNewVersion(helmop.Spec.Helm.Version)
 
-		return nil
-	}
-
-	auth := bundlereader.Auth{}
-	if helmop.Spec.HelmSecretName != "" {
-		req := types.NamespacedName{Namespace: helmop.Namespace, Name: helmop.Spec.HelmSecretName}
-		var err error
-		auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, r.Client, req)
-		if err != nil {
-			return err
-		}
-	}
-	auth.InsecureSkipVerify = helmop.Spec.InsecureSkipTLSverify
-
-	version, err := bundlereader.ChartVersion(*helmop.Spec.Helm, auth)
-	if err != nil {
-		return err
-	}
-	bundle.Spec.Helm.Version = version
-
-	return nil
+	return err != nil
 }
 
 // updateStatus updates the status for the HelmOp resource. It retries on
 // conflict. If the status was updated successfully, it also collects (as in
 // updates) metrics for the HelmOp resource.
-func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.HelmOpStatus) error {
+func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, orig *fleet.HelmOp, orgErr error) error {
+	if orig == nil {
+		return fmt.Errorf("the HelmOp provided for a status update is nil; this should not happen")
+	}
+
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.HelmOp{}
-		err := c.Get(ctx, req, t)
-		if err != nil {
+		if err := c.Get(ctx, req, t); err != nil {
 			return err
 		}
 
 		// selectively update the status fields this reconciler is responsible for
-		t.Status.Version = status.Version
+		t.Status.Version = orig.Status.Version
 
 		// only keep the Ready condition from live status, it's calculated by the status reconciler
 		conds := []genericcondition.GenericCondition{}
@@ -357,7 +443,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 				break
 			}
 		}
-		for _, c := range status.Conditions {
+		for _, c := range orig.Status.Conditions {
 			if c.Type == "Ready" {
 				continue
 			}
@@ -365,8 +451,18 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 		}
 		t.Status.Conditions = conds
 
-		err = c.Status().Update(ctx, t)
-		if err != nil {
+		if orgErr != nil {
+			setAcceptedConditionHelm(&t.Status, orgErr)
+		}
+
+		statusPatch := client.MergeFrom(orig)
+		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
+			metrics.HelmCollector.Collect(ctx, t)
+			// skip update if patch is empty
+			return nil
+		}
+
+		if err := c.Status().Patch(ctx, t, statusPatch); err != nil {
 			return err
 		}
 
@@ -377,9 +473,8 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 }
 
 // updateErrorStatusHelm sets the condition in the status and tries to update the resource
-func updateErrorStatusHelm(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.HelmOpStatus, orgErr error) error {
-	setAcceptedConditionHelm(&status, orgErr)
-	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
+func updateErrorStatusHelm(ctx context.Context, c client.Client, req types.NamespacedName, helmOp *fleet.HelmOp, orgErr error) error {
+	if statusErr := updateStatus(ctx, c, req, helmOp, orgErr); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
 	}
@@ -420,4 +515,57 @@ func helmChartSpecChanged(o *fleet.HelmOptions, n *fleet.HelmOptions, statusVers
 func experimentalHelmOpsEnabled() bool {
 	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_HELM_OPS"))
 	return err == nil && value
+}
+
+// getChartVersion fetches the latest chart version from the Helm registry referenced by helmop, and returns it.
+// If this fails, it returns an empty version along with an error.
+func getChartVersion(ctx context.Context, c client.Client, helmop fleet.HelmOp) (string, error) {
+	auth := bundlereader.Auth{}
+	if helmop.Spec.HelmSecretName != "" {
+		req := types.NamespacedName{Namespace: helmop.Namespace, Name: helmop.Spec.HelmSecretName}
+		var err error
+		auth, err = bundlereader.ReadHelmAuthFromSecret(ctx, c, req)
+		if err != nil {
+			return "", fmt.Errorf("could not read Helm auth from secret: %w", err)
+		}
+	}
+	auth.InsecureSkipVerify = helmop.Spec.InsecureSkipTLSverify
+
+	version, err := bundlereader.ChartVersion(*helmop.Spec.Helm, auth)
+	if err != nil {
+		return "", fmt.Errorf("could not get a chart version: %w", err)
+	}
+
+	return version, nil
+}
+
+func jobKey(h fleet.HelmOp) *quartz.JobKey {
+	return quartz.NewJobKey(string(h.UID))
+}
+
+// helmOpTrigger is a custom trigger, implementing the quartz.Trigger interface. This trigger is
+// used to schedule jobs to be run both:
+// * periodically, after the first polling interval, as would happen with Quartz's `simpleTrigger`
+// * right away, without waiting for that first polling interval to elapse.
+type helmOpTrigger struct {
+	isInitRunDone bool
+	simpleTrigger *quartz.SimpleTrigger
+}
+
+func (t *helmOpTrigger) NextFireTime(prev int64) (int64, error) {
+	if !t.isInitRunDone {
+		t.isInitRunDone = true
+
+		return prev, nil
+	}
+
+	return t.simpleTrigger.NextFireTime(prev)
+}
+
+func (t *helmOpTrigger) Description() string {
+	return t.simpleTrigger.Description()
+}
+
+func newHelmOpTrigger(interval time.Duration) *helmOpTrigger {
+	return &helmOpTrigger{simpleTrigger: quartz.NewSimpleTrigger(interval)}
 }

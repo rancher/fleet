@@ -7604,6 +7604,11 @@ spec:
                   description: Paused if set to true, will stop any BundleDeployments
                     from being updated. It will be marked as out of sync.
                   type: boolean
+                pollingInterval:
+                  description: PollingInterval is how often to check the Helm repository
+                    for new updates.
+                  nullable: true
+                  type: string
                 resources:
                   description: 'Resources contains the resources that were read from
                     the bundle''s
@@ -8612,6 +8617,11 @@ spec:
                         BundleState according to StateRank.'
                       type: string
                   type: object
+                lastPollingTriggered:
+                  description: LastPollingTime is the last time the polling check
+                    was triggered
+                  format: date-time
+                  type: string
                 perClusterResourceCounts:
                   additionalProperties:
                     description: ResourceCounts contains the number of resources in
