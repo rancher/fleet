@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/fleetyaml"
 	"github.com/rancher/fleet/internal/helmvalues"
@@ -24,15 +22,16 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 var (
@@ -94,64 +93,89 @@ func globDirs(baseDir string) (result []string, err error) {
 	return
 }
 
+const bundleCreationMaxConcurrency = 4
+
 // CreateBundles creates bundles from the baseDirs, their names are prefixed with
 // repoName. Depending on opts.Output the bundles are created in the cluster or
 // printed to stdout, ...
-func CreateBundles(ctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
+func CreateBundles(pctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
 
-	foundBundle := false
-	gitRepoBundlesMap := make(map[string]bool)
-	for i, baseDir := range baseDirs {
-		matches, err := globDirs(baseDir)
-		if err != nil {
-			return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
-		}
-		for _, baseDir := range matches {
-			if i > 0 && opts.Output != nil {
-				if _, err := opts.Output.Write([]byte("\n---\n")); err != nil {
-					return fmt.Errorf("writing to bundle output: %w", err)
-				}
+	// Using an errgroup to manage concurrency
+	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
+	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
+	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
+	bundlesChan := make(chan *fleet.Bundle)
+	eg, ctx := errgroup.WithContext(pctx)
+	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
+	eg.Go(func() error {
+		for _, baseDir := range baseDirs {
+			matches, err := globDirs(baseDir)
+			if err != nil {
+				return fmt.Errorf("invalid path glob %s: %w", baseDir, err)
 			}
+			for _, baseDir := range matches {
+				if err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
+					if err != nil {
+						return fmt.Errorf("failed walking path %q: %w", path, err)
+					}
+					if entry.IsDir() && entry.Name() == ".git" {
+						return filepath.SkipDir
+					}
+					createBundle, e := shouldCreateBundleForThisPath(baseDir, path, entry)
+					if e != nil {
+						return fmt.Errorf("checking for bundle in path %q: %w", path, err)
+					}
+					if !createBundle {
+						return nil
+					}
 
-			err := filepath.WalkDir(baseDir, func(path string, entry fs.DirEntry, err error) error {
-				// needed as opts are mutated in this loop
-				opts := opts
+					// needed as opts are mutated in this loop
+					opts := opts
+					eg.Go(func() error {
+						if auth, ok := opts.AuthByPath[path]; ok {
+							opts.Auth = auth
+						}
 
-				if err != nil {
-					return fmt.Errorf("failed walking path %q: %w", path, err)
-				}
-				if entry.IsDir() && entry.Name() == ".git" {
-					return filepath.SkipDir
-				}
-
-				createBundle, e := shouldCreateBundleForThisPath(baseDir, path, entry)
-				if e != nil {
-					return fmt.Errorf("checking for bundle in path %q: %w", path, err)
-				}
-				if !createBundle {
+						bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
+						if err != nil {
+							if err == ErrNoResources {
+								logrus.Warnf("%s: %v", path, err)
+								return nil
+							}
+							return err
+						}
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case bundlesChan <- bundle:
+						}
+						return writeBundle(ctx, client, bundle, scans, opts)
+					})
 					return nil
-				}
-				if auth, ok := opts.AuthByPath[path]; ok {
-					opts.Auth = auth
-				}
-				if err := Dir(ctx, client, repoName, path, &opts, gitRepoBundlesMap); err == ErrNoResources {
-					logrus.Warnf("%s: %v", path, err)
-					return nil
-				} else if err != nil {
+				}); err != nil {
 					return err
 				}
-				foundBundle = true
-
-				return nil
-			})
-			if err != nil {
-				return err
 			}
 		}
+		return nil
+	})
+	go func() {
+		_ = eg.Wait()
+		close(bundlesChan)
+	}()
+
+	gitRepoBundlesMap := make(map[string]bool)
+	for b := range bundlesChan {
+		gitRepoBundlesMap[b.Name] = true
 	}
+	// Recovers any error that could happen in the errgroup, won't actually wait
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+	ctx = pctx // context from ErrorGroup is canceled after the first Wait() returns
 
 	if opts.Output == nil {
 		err := pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
@@ -160,7 +184,7 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 		}
 	}
 
-	if !foundBundle {
+	if len(gitRepoBundlesMap) == 0 {
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
@@ -176,32 +200,63 @@ func CreateBundles(ctx context.Context, client client.Client, repoName string, b
 // separated by a character set in opts.
 // If no fleet file is provided it tries to load a fleet.yaml in the root of the dir, or will consider
 // the directory as a raw content folder.
-func CreateBundlesDriven(ctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
+func CreateBundlesDriven(pctx context.Context, client client.Client, repoName string, baseDirs []string, opts Options) error {
 	if len(baseDirs) == 0 {
 		baseDirs = []string{"."}
 	}
 
-	foundBundle := false
+	// Using an errgroup to manage concurrency
+	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
+	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
+	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
+	bundlesChan := make(chan *fleet.Bundle)
+	eg, ctx := errgroup.WithContext(pctx)
+	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
+	eg.Go(func() error {
+		for _, baseDir := range baseDirs {
+			opts := opts
+			eg.Go(func() error {
+				// verify if it also defines a fleetFile
+				var err error
+				baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
+				if err != nil {
+					return err
+				}
+				if auth, ok := opts.AuthByPath[baseDir]; ok {
+					opts.Auth = auth
+				}
+				bundle, scans, err := bundleFromDir(ctx, repoName, baseDir, opts)
+				if err != nil {
+					if err == ErrNoResources {
+						logrus.Warnf("%s: %v", baseDir, err)
+						return nil
+					}
+					return err
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case bundlesChan <- bundle:
+				}
+				return writeBundle(ctx, client, bundle, scans, opts)
+			})
+		}
+		return nil
+	})
+	go func() {
+		_ = eg.Wait()
+		close(bundlesChan)
+	}()
+
 	gitRepoBundlesMap := make(map[string]bool)
-	for _, baseDir := range baseDirs {
-		opts := opts
-		// verify if it also defines a fleetFile
-		var err error
-		baseDir, opts.BundleFile, err = getPathAndFleetYaml(baseDir, opts.DrivenScanSeparator)
-		if err != nil {
-			return err
-		}
-		if auth, ok := opts.AuthByPath[baseDir]; ok {
-			opts.Auth = auth
-		}
-		if err := Dir(ctx, client, repoName, baseDir, &opts, gitRepoBundlesMap); err == ErrNoResources {
-			logrus.Warnf("%s: %v", baseDir, err)
-			return nil
-		} else if err != nil {
-			return err
-		}
-		foundBundle = true
+	for b := range bundlesChan {
+		gitRepoBundlesMap[b.Name] = true
 	}
+	// Recovers any error that could happen in the errgroup, won't actually wait
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+	ctx = pctx // context from ErrorGroup is canceled after the first Wait() returns
 
 	if opts.Output == nil {
 		err := pruneBundlesNotFoundInRepo(ctx, client, repoName, opts.Namespace, gitRepoBundlesMap)
@@ -210,7 +265,7 @@ func CreateBundlesDriven(ctx context.Context, client client.Client, repoName str
 		}
 	}
 
-	if !foundBundle {
+	if len(gitRepoBundlesMap) == 0 {
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
@@ -252,43 +307,46 @@ func pruneBundlesNotFoundInRepo(ctx context.Context, c client.Client, repoName, 
 
 // newBundle reads bundle data from a source and returns a bundle with the
 // given name, or the name from the raw source file
-func newBundle(ctx context.Context, name, baseDir string, opts *Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
+func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
+	var bundle *fleet.Bundle
+	var scans []*fleet.ImageScan
 	if opts.BundleReader != nil {
-		var bundle *fleet.Bundle
 		if err := json.NewDecoder(opts.BundleReader).Decode(bundle); err != nil {
 			return nil, nil, fmt.Errorf("decoding bundle %s: %w", name, err)
 		}
-		return bundle, nil, nil
+	} else {
+		var err error
+		bundle, scans, err = bundlereader.NewBundle(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
+			Compress:         opts.Compress,
+			Labels:           opts.Labels,
+			ServiceAccount:   opts.ServiceAccount,
+			TargetsFile:      opts.TargetsFile,
+			TargetNamespace:  opts.TargetNamespace,
+			Paused:           opts.Paused,
+			SyncGeneration:   opts.SyncGeneration,
+			Auth:             opts.Auth,
+			HelmRepoURLRegex: opts.HelmRepoURLRegex,
+			KeepResources:    opts.KeepResources,
+			DeleteNamespace:  opts.DeleteNamespace,
+			CorrectDrift: &fleet.CorrectDrift{
+				Enabled:         opts.CorrectDrift,
+				Force:           opts.CorrectDriftForce,
+				KeepFailHistory: opts.CorrectDriftKeepFailHistory,
+			},
+		})
+		if err != nil {
+			return nil, nil, err
+		}
 	}
-
-	return bundlereader.NewBundle(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
-		Compress:         opts.Compress,
-		Labels:           opts.Labels,
-		ServiceAccount:   opts.ServiceAccount,
-		TargetsFile:      opts.TargetsFile,
-		TargetNamespace:  opts.TargetNamespace,
-		Paused:           opts.Paused,
-		SyncGeneration:   opts.SyncGeneration,
-		Auth:             opts.Auth,
-		HelmRepoURLRegex: opts.HelmRepoURLRegex,
-		KeepResources:    opts.KeepResources,
-		DeleteNamespace:  opts.DeleteNamespace,
-		CorrectDrift: &fleet.CorrectDrift{
-			Enabled:         opts.CorrectDrift,
-			Force:           opts.CorrectDriftForce,
-			KeepFailHistory: opts.CorrectDriftKeepFailHistory,
-		},
-	})
+	bundle.Namespace = opts.Namespace
+	return bundle, scans, nil
 }
 
-// Dir reads a bundle and image scans from a directory and writes runtime objects to the selected output.
+// bundleFromDir reads a specific directory and produces a bundle and image scans.
 //
 // name: the gitrepo name, passed to 'fleet apply' on the cli
-// basedir: the path from the walk func in Dir, []baseDirs
-func Dir(ctx context.Context, c client.Client, name, baseDir string, opts *Options, gitRepoBundlesMap map[string]bool) error {
-	if opts == nil {
-		opts = &Options{}
-	}
+// basedir: a directory containing a Bundle, as observed by CreateBundles or CreateBundlesDriven
+func bundleFromDir(ctx context.Context, name, baseDir string, opts Options) (*fleet.Bundle, []*fleet.ImageScan, error) {
 	// The bundleID is a valid helm release name, it's used as a default if a release name is not specified in helm options.
 	// It's also used to create the bundle name.
 	bundleID := filepath.Join(name, baseDir)
@@ -299,17 +357,71 @@ func Dir(ctx context.Context, c client.Client, name, baseDir string, opts *Optio
 
 	bundle, scans, err := newBundle(ctx, bundleID, baseDir, opts)
 	if err != nil {
+		return nil, nil, err
+	} else if len(bundle.Spec.Resources) == 0 {
+		return nil, nil, ErrNoResources
+	}
+	return bundle, scans, nil
+}
+
+func writeBundle(ctx context.Context, c client.Client, bundle *fleet.Bundle, scans []*fleet.ImageScan, opts Options) error {
+	// Early return for "offline" mode, only printing the result to stdout/file
+	if opts.Output != nil {
+		return printToOutput(opts.Output, bundle, scans)
+	}
+
+	h, data, err := helmvalues.ExtractValues(bundle)
+	if err != nil {
 		return err
 	}
 
-	bundle.Namespace = opts.Namespace
+	// If values were found in the bundle the hash is not empty, we
+	// remove the values from the bundle. Also, delete any old
+	// secret if the values are empty.
+	if h != "" {
+		helmvalues.ClearValues(bundle)
+	} else if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
+		return err
+	}
+	bundle.Spec.ValuesHash = h
 
-	if len(bundle.Spec.Resources) == 0 {
-		return ErrNoResources
+	var ociOpts ocistorage.OCIOpts
+	secretOCIRegistryID := client.ObjectKey{Name: opts.OCIRegistrySecret, Namespace: bundle.Namespace}
+	useOCIRegistry, err := shouldStoreInOCIRegistry(ctx, c, secretOCIRegistryID, &ociOpts)
+	if err != nil {
+		return err
+	}
+	if useOCIRegistry {
+		if bundle, err = saveOCIBundle(ctx, c, bundle, ociOpts); err != nil {
+			return err
+		}
+	} else {
+		if bundle, err = save(ctx, c, bundle); err != nil {
+			return err
+		}
 	}
 
-	gitRepoBundlesMap[bundle.Name] = true
+	// Saves the Helm values as a secret. The secret is owned by
+	// the bundle. It will not create a secret if the values are
+	// empty.
+	if len(data) > 0 {
+		valuesSecret := newValuesSecret(bundle, data)
+		updated := valuesSecret.DeepCopy()
+		_, err = controllerutil.CreateOrUpdate(ctx, c, valuesSecret, func() error {
+			valuesSecret.Labels = updated.Labels
+			valuesSecret.Data = updated.Data
+			valuesSecret.Type = updated.Type
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
 
+	return saveImageScans(ctx, c, bundle, scans)
+}
+
+func printToOutput(w io.Writer, bundle *fleet.Bundle, scans []*fleet.ImageScan) error {
 	objects := []runtime.Object{bundle}
 	for _, scan := range scans {
 		objects = append(objects, scan)
@@ -320,62 +432,7 @@ func Dir(ctx context.Context, c client.Client, name, baseDir string, opts *Optio
 		return err
 	}
 
-	if opts.Output == nil {
-		h, data, err := helmvalues.ExtractValues(bundle)
-		if err != nil {
-			return err
-		}
-
-		// If values were found in the bundle the hash is not empty, we
-		// remove the values from the bundle. Also, delete any old
-		// secret if the values are empty.
-		if h != "" {
-			helmvalues.ClearValues(bundle)
-		} else if err := deleteSecretIfExists(ctx, c, bundle.Name, bundle.Namespace); err != nil {
-			return err
-		}
-		bundle.Spec.ValuesHash = h
-
-		var ociOpts ocistorage.OCIOpts
-		secretOCIRegistryID := client.ObjectKey{Name: opts.OCIRegistrySecret, Namespace: bundle.Namespace}
-		useOCIRegistry, err := shouldStoreInOCIRegistry(ctx, c, secretOCIRegistryID, &ociOpts)
-		if err != nil {
-			return err
-		}
-		if useOCIRegistry {
-			if bundle, err = saveOCIBundle(ctx, c, bundle, ociOpts); err != nil {
-				return err
-			}
-		} else {
-			if bundle, err = save(ctx, c, bundle); err != nil {
-				return err
-			}
-		}
-
-		// Saves the Helm values as a secret. The secret is owned by
-		// the bundle. It will not create a secret if the values are
-		// empty.
-		if len(data) > 0 {
-			valuesSecret := newValuesSecret(bundle, data)
-			updated := valuesSecret.DeepCopy()
-			_, err = controllerutil.CreateOrUpdate(ctx, c, valuesSecret, func() error {
-				valuesSecret.Labels = updated.Labels
-				valuesSecret.Data = updated.Data
-				valuesSecret.Type = updated.Type
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-		}
-
-		if err := saveImageScans(ctx, c, bundle, scans); err != nil {
-			return err
-		}
-	} else {
-		_, err = opts.Output.Write(b)
-	}
-
+	_, err = w.Write(b)
 	return err
 }
 
