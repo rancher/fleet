@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -127,8 +128,8 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, helmop *fleet.HelmOp, opts ...interface{}) {
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
 			c, found := getCondition(helmop, fleet.HelmOpAcceptedCondition)
 			if !found {
 				t.Errorf("expecting to find the %s condition and could not find it.", fleet.HelmOpAcceptedCondition)
@@ -209,8 +210,8 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 	expectedErrorMsg := "non-helmops bundle already exists"
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, helmop *fleet.HelmOp, opts ...interface{}) {
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
 			c, found := getCondition(helmop, fleet.HelmOpAcceptedCondition)
 			if !found {
 				t.Errorf("expecting to find the %s condition and could not find it.", fleet.HelmOpAcceptedCondition)
@@ -263,7 +264,7 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 			fh.Namespace = helmop.Namespace
 			fh.Spec.Helm = &fleet.HelmOptions{
 				Chart:   "chart",
-				Version: "1.1.2",
+				Version: "1.1.x",
 			}
 			controllerutil.AddFinalizer(fh, finalize.HelmOpFinalizer)
 			return nil
@@ -290,14 +291,17 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, helmop *fleet.HelmOp, opts ...interface{}) {
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, helmop *fleet.HelmOp, patch crclient.Patch, opts ...interface{}) {
 			// version in status should be the one in the spec
-			if helmop.Status.Version != "1.1.2" {
-				t.Errorf("expecting Status.Version == 1.1.2, got %s", helmop.Status.Version)
+			if helmop.Status.Version != "1.1.x" {
+				t.Errorf("expecting Status.Version == 1.1.x, got %q", helmop.Status.Version)
 			}
 		},
 	).Times(1)
+
+	// Note: this test case does not try to fetch the actual version from the Helm registry, because the repo field
+	// is empty.
 
 	r := HelmOpReconciler{
 		Client: client,
@@ -372,6 +376,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 		helmOp                 fleet.HelmOp
 		expectedSchedulerCalls func(*gomock.Controller, *mocks.MockScheduler, fleet.HelmOp)
 		expectedError          string
+		expectStatusUpdate     bool // True if the reconciler (not the polling job) is expected to run a status update
 	}{
 		{
 			name: "does not poll if the version is static",
@@ -545,7 +550,8 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
 				scheduler.EXPECT().DeleteJob(gomock.Any()).Return(errors.New("something happened!"))
 			},
-			expectedError: "something happened!",
+			expectedError:      "something happened!",
+			expectStatusUpdate: true,
 		},
 		{
 			name: "returns an error when failing to schedule a new job replacing an existing one",
@@ -576,7 +582,8 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
 				scheduler.EXPECT().ScheduleJob(gomock.Any(), gomock.Any()).Return(errors.New("something happened!"))
 			},
-			expectedError: "something happened!",
+			expectedError:      "something happened!",
+			expectStatusUpdate: true,
 		},
 		{
 			name: "returns an error when failing to schedule a new job with no existing one",
@@ -601,7 +608,8 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(nil, quartz.ErrJobNotFound)
 				scheduler.EXPECT().ScheduleJob(gomock.Any(), gomock.Any()).Return(errors.New("something happened!"))
 			},
-			expectedError: "something happened!",
+			expectedError:      "something happened!",
+			expectStatusUpdate: true,
 		},
 		{
 			name: "creates a polling job if all conditions are met",
@@ -860,10 +868,12 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 			// Only expected in happy cases. If errors happen, only status updates are expected.
 			client.EXPECT().Update(gomock.Any(), matchesBundle(c.helmOp.Name, c.helmOp.Namespace), gomock.Any()).Return(nil).AnyTimes()
 
-			statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-			statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+			if c.expectStatusUpdate {
+				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+				statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
-			client.EXPECT().Status().Return(statusClient).Times(1)
+				client.EXPECT().Status().Return(statusClient).Times(1)
+			}
 
 			c.expectedSchedulerCalls(mockCtrl, scheduler, c.helmOp)
 

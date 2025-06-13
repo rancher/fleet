@@ -249,7 +249,7 @@ func getCondition(fllethelm *fleet.HelmOp, condType string) (genericcondition.Ge
 
 func checkConditionContains(g Gomega, fllethelm *fleet.HelmOp, condType string, status v1.ConditionStatus, message string) {
 	cond, found := getCondition(fllethelm, condType)
-	g.Expect(found).To(BeTrue())
+	g.Expect(found).To(BeTrue(), fmt.Sprintf("condition %q not found in HelmOp status", condType))
 	g.Expect(cond.Type).To(Equal(condType))
 	g.Expect(cond.Status).To(Equal(status))
 	g.Expect(cond.Message).To(ContainSubstring(message))

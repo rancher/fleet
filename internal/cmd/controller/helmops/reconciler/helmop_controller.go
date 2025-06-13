@@ -138,19 +138,16 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	bundle, err := r.createUpdateBundle(ctx, helmop)
-	if err != nil {
-		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop.Status, err)
+	if _, err := r.createUpdateBundle(ctx, helmop); err != nil {
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
 	}
 
 	// Running this logic after creating/updating the bundle to avoid scheduling a job if the bundle has not been created.
 	if err := r.managePollingJob(logger, *helmop); err != nil {
-		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop.Status, err)
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
 	}
 
-	helmop.Status.Version = bundle.Spec.Helm.Version
-
-	err = updateStatus(ctx, r.Client, req.NamespacedName, helmop.Status)
+	err := updateStatus(ctx, r.Client, req.NamespacedName, helmop, nil)
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to HelmOp status", "status", helmop.Status)
 
@@ -181,7 +178,7 @@ func (r *HelmOpReconciler) createUpdateBundle(ctx context.Context, helmop *fleet
 	// calculate the new representation of the helmop resource
 	bundle := r.calculateBundle(helmop)
 
-	if err := r.handleVersion(ctx, b, bundle, *helmop); err != nil {
+	if err := r.handleVersion(ctx, b, bundle, helmop); err != nil {
 		return nil, err
 	}
 
@@ -256,7 +253,11 @@ func (r *HelmOpReconciler) calculateBundle(helmop *fleet.HelmOp) *fleet.Bundle {
 //
 // This is calculated in the upstream cluster so all downstream bundle deployments have the same
 // version. (Potentially we could be gathering the version at the very moment it is being updated, for example)
-func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop fleet.HelmOp) error {
+func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.Bundle, bundle *fleet.Bundle, helmop *fleet.HelmOp) error {
+	if helmop == nil {
+		return fmt.Errorf("the provided HelmOp is nil; this should not happen")
+	}
+
 	if _, err := semver.StrictNewVersion(helmop.Spec.Helm.Version); err == nil {
 		bundle.Spec.Helm.Version = helmop.Spec.Helm.Version
 		return nil
@@ -268,12 +269,17 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 		return nil
 	}
 
-	version, err := getChartVersion(ctx, r.Client, helmop)
+	version, err := getChartVersion(ctx, r.Client, *helmop)
 	if err != nil {
 		return fmt.Errorf("could not get chart version: %w", err)
 	}
 
+	if usesPolling(*helmop) {
+		return nil // Field updates will be run from the polling job, to prevent race conditions.
+	}
+
 	bundle.Spec.Helm.Version = version
+	helmop.Status.Version = bundle.Spec.Helm.Version
 
 	return nil
 }
@@ -415,16 +421,19 @@ func usesPolling(helmop fleet.HelmOp) bool {
 // updateStatus updates the status for the HelmOp resource. It retries on
 // conflict. If the status was updated successfully, it also collects (as in
 // updates) metrics for the HelmOp resource.
-func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.HelmOpStatus) error {
+func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, orig *fleet.HelmOp, orgErr error) error {
+	if orig == nil {
+		return fmt.Errorf("the HelmOp provided for a status update is nil; this should not happen")
+	}
+
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.HelmOp{}
-		err := c.Get(ctx, req, t)
-		if err != nil {
+		if err := c.Get(ctx, req, t); err != nil {
 			return err
 		}
 
 		// selectively update the status fields this reconciler is responsible for
-		t.Status.Version = status.Version
+		t.Status.Version = orig.Status.Version
 
 		// only keep the Ready condition from live status, it's calculated by the status reconciler
 		conds := []genericcondition.GenericCondition{}
@@ -434,7 +443,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 				break
 			}
 		}
-		for _, c := range status.Conditions {
+		for _, c := range orig.Status.Conditions {
 			if c.Type == "Ready" {
 				continue
 			}
@@ -442,8 +451,17 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 		}
 		t.Status.Conditions = conds
 
-		err = c.Status().Update(ctx, t)
-		if err != nil {
+		if orgErr != nil {
+			setAcceptedConditionHelm(&t.Status, orgErr)
+		}
+
+		statusPatch := client.MergeFrom(orig)
+		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
+			// skip update if patch is empty
+			return nil
+		}
+
+		if err := c.Status().Patch(ctx, t, statusPatch); err != nil {
 			return err
 		}
 
@@ -454,9 +472,8 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 }
 
 // updateErrorStatusHelm sets the condition in the status and tries to update the resource
-func updateErrorStatusHelm(ctx context.Context, c client.Client, req types.NamespacedName, status fleet.HelmOpStatus, orgErr error) error {
-	setAcceptedConditionHelm(&status, orgErr)
-	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
+func updateErrorStatusHelm(ctx context.Context, c client.Client, req types.NamespacedName, helmOp *fleet.HelmOp, orgErr error) error {
+	if statusErr := updateStatus(ctx, c, req, helmOp, orgErr); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
 	}

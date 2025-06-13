@@ -161,6 +161,8 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		}
 
 		t.Status.LastPollingTime = metav1.Time{Time: pollingTimestamp}
+		t.Status.Version = version
+
 		condition.Cond(fleet.HelmOpPolledCondition).SetStatusBool(&t.Status, true)
 
 		statusPatch := client.MergeFrom(h)
