@@ -11,8 +11,9 @@ import (
 )
 
 // createTargets creates a slice of targets with sequentially numbered clusters
-// and bundles. Both values start and stop are inclusive, meaning the targets
-// will be created from start to stop.
+// and bundles. Both values, start and stop, are inclusive, meaning the targets
+// will be created from start to stop and having that number in the deployment
+// id.
 func createTargets(start, stop int) []*Target {
 	targets := make([]*Target, stop-start+1)
 	for i := range stop - start + 1 {
@@ -321,6 +322,46 @@ func Test_manualPartition(t *testing.T) {
 			want: []partition{
 				{Targets: createTargets(1, 2), Status: fleet.PartitionStatus{MaxUnavailable: 2}},
 				{Targets: createTargets(3, 4), Status: fleet.PartitionStatus{MaxUnavailable: 2}},
+			},
+		},
+		{
+			name: "selectors that match more than once should lead to having targets in multiple partitions",
+			rollout: &fleet.RolloutStrategy{
+				Partitions: []fleet.Partition{
+					{ClusterSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"env": "testing"}}},
+					{ClusterSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"group": "a"}}},
+				},
+			},
+			targetsFn: func() []*Target {
+				targets := createTargets(1, 100)
+				withCluster(targets[0:40], &fleet.Cluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							"env": "testing",
+						},
+					},
+				})
+				withCluster(targets[40:60], &fleet.Cluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							"env":   "testing",
+							"group": "a",
+						},
+					},
+				})
+				withCluster(targets[60:100], &fleet.Cluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							"group": "a",
+						},
+					},
+				})
+				return targets
+			},
+			want: []partition{
+				{Targets: createTargets(1, 60), Status: fleet.PartitionStatus{MaxUnavailable: 60}},
+				{Targets: createTargets(41, 100), Status: fleet.PartitionStatus{MaxUnavailable: 60}},
+				// {Targets: createTargets(61, 100), Status: fleet.PartitionStatus{MaxUnavailable: 40}},
 			},
 		},
 	}
