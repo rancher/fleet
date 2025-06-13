@@ -40,7 +40,7 @@ var (
 	k8sClientSet *kubernetes.Clientset
 )
 
-func TestGitJobController(t *testing.T) {
+func TestHelmOpsController(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Helm Ops Controller Suite")
 }
