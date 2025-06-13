@@ -14,24 +14,25 @@ type partition struct {
 // UpdatePartitions recomputes status, including partitions, from data in allTargets.
 // It creates Deployments in allTargets if they are missing.
 // It updates Deployments in allTargets if they are out of sync (DeploymentID != StagedDeploymentID).
-func UpdatePartitions(status *fleet.BundleStatus, allTargets []*Target) (err error) {
+func UpdatePartitions(bdStatus *fleet.BundleStatus, allTargets []*Target) (err error) {
 	partitions, err := partitions(allTargets)
 	if err != nil {
 		return err
 	}
 
-	status.UnavailablePartitions = 0
-	status.MaxUnavailablePartitions, err = maxUnavailablePartitions(partitions, allTargets)
+	bdStatus.UnavailablePartitions = 0
+	bdStatus.MaxUnavailablePartitions, err = maxUnavailablePartitions(partitions, allTargets)
 	if err != nil {
 		return err
 	}
 
 	for _, partition := range partitions {
 		partition := partition // fix gosec warning regarding "Implicit memory aliasing in for loop"
+
 		for _, target := range partition.Targets {
 			// for a new bundledeployment, only stage the first maxNew (50) targets
-			if target.Deployment == nil && status.NewlyCreated < status.MaxNew {
-				status.NewlyCreated++
+			if target.Deployment == nil && bdStatus.NewlyCreated < bdStatus.MaxNew {
+				bdStatus.NewlyCreated++
 				target.Deployment = &fleet.BundleDeployment{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      target.Bundle.Name,
@@ -50,20 +51,20 @@ func UpdatePartitions(status *fleet.BundleStatus, allTargets []*Target) (err err
 
 		for _, currentTarget := range partition.Targets {
 			// NOTE this will propagate the staged, merged options to the current deployment
-			updateTarget(currentTarget, status, &partition.Status)
+			tryUpdateDeploymentFromStaged(currentTarget, bdStatus, &partition.Status)
 		}
 
-		if updateStatusAndCheckUnavailable(&partition.Status, partition.Targets) {
-			status.UnavailablePartitions++
+		if updatePartitionStatus(&partition.Status, partition.Targets) {
+			bdStatus.UnavailablePartitions++
 		}
 
-		if status.UnavailablePartitions > status.MaxUnavailablePartitions {
+		if bdStatus.UnavailablePartitions > bdStatus.MaxUnavailablePartitions {
 			break
 		}
 	}
 
 	for _, partition := range partitions {
-		status.PartitionStatus = append(status.PartitionStatus, partition.Status)
+		bdStatus.PartitionStatus = append(bdStatus.PartitionStatus, partition.Status)
 	}
 
 	return nil
@@ -75,9 +76,9 @@ func maxUnavailablePartitions(partitions []partition, targets []*Target) (int, e
 	return limit(len(partitions), rollout.MaxUnavailablePartitions, &defMaxUnavailablePartitions)
 }
 
-// updateTarget will update DeploymentID and Options for the target to the
+// tryUpdateDeploymentFromStaged will update DeploymentID and Options for the target to the
 // staging values, if it's in a deployable state
-func updateTarget(t *Target, status *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
+func tryUpdateDeploymentFromStaged(t *Target, bundleStatus *fleet.BundleStatus, partitionStatus *fleet.PartitionStatus) {
 	if t.Deployment != nil &&
 		// Not Paused
 		!t.IsPaused() &&
@@ -86,13 +87,13 @@ func updateTarget(t *Target, status *fleet.BundleStatus, partitionStatus *fleet.
 		// Is out of sync
 		t.Deployment.Spec.DeploymentID != t.Deployment.Spec.StagedDeploymentID &&
 		// Global max unavailable not reached
-		(status.Unavailable < status.MaxUnavailable || isUnavailable(t.Deployment)) &&
+		(bundleStatus.Unavailable < bundleStatus.MaxUnavailable || isUnavailable(t.Deployment)) &&
 		// Partition max unavailable not reached
 		(partitionStatus.Unavailable < partitionStatus.MaxUnavailable || isUnavailable(t.Deployment)) {
 
 		if !isUnavailable(t.Deployment) {
 			// If this was previously available, now increment unavailable count. "Upgrading" is treated as unavailable.
-			status.Unavailable++
+			bundleStatus.Unavailable++
 			partitionStatus.Unavailable++
 		}
 		t.Deployment.Spec.DeploymentID = t.Deployment.Spec.StagedDeploymentID

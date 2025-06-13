@@ -121,6 +121,15 @@ func partitionsEqual(got, want []partition) error {
 		if err := targetsEqual(got[i].Targets, want[i].Targets); err != nil {
 			return fmt.Errorf("partition %d has different targets: %v", i, err)
 		}
+
+		if got[i].Status.MaxUnavailable != want[i].Status.MaxUnavailable {
+			return fmt.Errorf(
+				"partition %d has different MaxUnavailable: got %d but want %d",
+				i,
+				got[i].Status.MaxUnavailable,
+				want[i].Status.MaxUnavailable,
+			)
+		}
 	}
 	return nil
 }
@@ -141,18 +150,18 @@ func Test_autoPartition(t *testing.T) {
 			},
 			targets: createTargets(1, 199),
 			want: []partition{
-				{Targets: createTargets(1, 199)},
+				{Targets: createTargets(1, 199), Status: fleet.PartitionStatus{MaxUnavailable: 1}},
 			},
 		},
 		{
 			name:    "with 200 targets and above, we expect 4 partitions with a default of 25% for partition size",
-			rollout: &fleet.RolloutStrategy{},
+			rollout: &fleet.RolloutStrategy{}, // MaxUnavailable defaults to 100%
 			targets: createTargets(1, 200),
 			want: []partition{
-				{Targets: createTargets(1, 50)},
-				{Targets: createTargets(51, 100)},
-				{Targets: createTargets(101, 150)},
-				{Targets: createTargets(151, 200)},
+				{Targets: createTargets(1, 50), Status: fleet.PartitionStatus{MaxUnavailable: 50}},
+				{Targets: createTargets(51, 100), Status: fleet.PartitionStatus{MaxUnavailable: 50}},
+				{Targets: createTargets(101, 150), Status: fleet.PartitionStatus{MaxUnavailable: 50}},
+				{Targets: createTargets(151, 200), Status: fleet.PartitionStatus{MaxUnavailable: 50}},
 			},
 		},
 		{
@@ -162,9 +171,29 @@ func Test_autoPartition(t *testing.T) {
 			},
 			targets: createTargets(1, 1000),
 			want: []partition{
-				{Targets: createTargets(1, 490)},
-				{Targets: createTargets(491, 980)},
-				{Targets: createTargets(981, 1000)},
+				{Targets: createTargets(1, 490), Status: fleet.PartitionStatus{MaxUnavailable: 490}},
+				{Targets: createTargets(491, 980), Status: fleet.PartitionStatus{MaxUnavailable: 490}},
+				{Targets: createTargets(981, 1000), Status: fleet.PartitionStatus{MaxUnavailable: 20}},
+			},
+		},
+		{
+			name: "MaxUnavailable from RolloutStrategy should be used in each partition",
+			rollout: &fleet.RolloutStrategy{
+				AutoPartitionSize: &intstr.IntOrString{Type: intstr.String, StrVal: "10%"},
+				MaxUnavailable:    &intstr.IntOrString{Type: intstr.String, StrVal: "10%"},
+			},
+			targets: createTargets(1, 1000),
+			want: []partition{
+				{Targets: createTargets(1, 100), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
+				{Targets: createTargets(101, 200), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
+				{Targets: createTargets(201, 300), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
+				{Targets: createTargets(301, 400), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
+				{Targets: createTargets(401, 500), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
+				{Targets: createTargets(501, 600), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
+				{Targets: createTargets(601, 700), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
+				{Targets: createTargets(701, 800), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
+				{Targets: createTargets(801, 900), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
+				{Targets: createTargets(901, 1000), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
 			},
 		},
 	}
@@ -231,9 +260,11 @@ func Test_manualPartition(t *testing.T) {
 			want: []partition{
 				{
 					Targets: createTargets(1, 2),
+					Status:  fleet.PartitionStatus{MaxUnavailable: 2},
 				},
 				{
 					Targets: createTargets(3, 4),
+					Status:  fleet.PartitionStatus{MaxUnavailable: 2},
 				},
 			},
 		},
@@ -288,8 +319,8 @@ func Test_manualPartition(t *testing.T) {
 				return targets
 			},
 			want: []partition{
-				{Targets: createTargets(1, 2)},
-				{Targets: createTargets(3, 4)},
+				{Targets: createTargets(1, 2), Status: fleet.PartitionStatus{MaxUnavailable: 2}},
+				{Targets: createTargets(3, 4), Status: fleet.PartitionStatus{MaxUnavailable: 2}},
 			},
 		},
 	}

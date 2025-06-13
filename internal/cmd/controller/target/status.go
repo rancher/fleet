@@ -43,20 +43,20 @@ func Unavailable(targets []*Target) (count int) {
 	return
 }
 
-// updateStatusAndCheckUnavailable recomputes and sets the status.Unavailable counter
+// updatePartitionStatus recomputes and sets the status.Unavailable counter
 // and returns true if the partition is unavailable, e.g. there are more
 // unavailable targets than the maximum set (does not mutate targets)
-func updateStatusAndCheckUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
+func updatePartitionStatus(partitionStatus *fleet.PartitionStatus, targets []*Target) bool {
 	// Unavailable for a partition is stricter than unavailable for a target.
 	// For a partition a target must be available and up-to-date.
-	status.Unavailable = 0
+	partitionStatus.Unavailable = 0
 	for _, target := range targets {
 		if !upToDate(target) || isUnavailable(target.Deployment) {
-			status.Unavailable++
+			partitionStatus.Unavailable++
 		}
 	}
 
-	return status.Unavailable > status.MaxUnavailable
+	return partitionStatus.Unavailable > partitionStatus.MaxUnavailable
 }
 
 // upToDate returns true if the target is up to date (pure function)
