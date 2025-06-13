@@ -457,6 +457,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 
 		statusPatch := client.MergeFrom(orig)
 		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
+			metrics.HelmCollector.Collect(ctx, t)
 			// skip update if patch is empty
 			return nil
 		}
