@@ -877,6 +877,28 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 	}
 }
 
+func TestHelmOpTrigger(t *testing.T) {
+	tr := newHelmOpTrigger(1 * time.Second)
+
+	if tr.isInitRunDone {
+		t.Errorf("unexpected %t value for isInitRunDone, expected %t", true, false)
+	}
+
+	now := time.Now().UnixNano()
+	ft, err := tr.NextFireTime(now)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	if !tr.isInitRunDone {
+		t.Errorf("unexpected %t value for isInitRunDone, expected %t", false, true)
+	}
+
+	if ft != now {
+		t.Errorf("unexpected fire time value for trigger, expected %d, got %d", now, ft)
+	}
+}
+
 type bundleMatcher struct {
 	name      string
 	namespace string
