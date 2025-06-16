@@ -159,6 +159,7 @@ func (i *importHandler) OnChange(key string, cluster *fleet.Cluster) (_ *fleet.C
 		return cluster, nil
 	}
 
+	// cluster.spec.KubeConfigSecret is empty when agent-initiated registration is used
 	if cluster.Spec.KubeConfigSecret == "" || agentDeployed(cluster) {
 		return cluster, nil
 	}
