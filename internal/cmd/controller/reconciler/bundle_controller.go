@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
 	"time"
@@ -38,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -125,11 +127,48 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return requests
 			}),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			builder.WithPredicates(clusterChangedPredicate()),
 		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
+}
+
+// clusterChangedPredicate filters cluster events that relate to bundldeployment creation.
+func clusterChangedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			n := e.ObjectNew.(*fleet.Cluster)
+			o := e.ObjectOld.(*fleet.Cluster)
+			// handle cluster deletion
+			if n == nil || n.DeletionTimestamp.IsZero() {
+				return true
+			}
+			// labels and annotations are used for templating and targeting
+			if !reflect.DeepEqual(n.Labels, o.Labels) {
+				return true
+			}
+			if !reflect.DeepEqual(n.Annotations, o.Annotations) {
+				return true
+			}
+			// spec templateValues is used in templating
+			if !reflect.DeepEqual(n.Spec, o.Spec) {
+				return true
+			}
+			// namespace contains the bundledeployments
+			if !reflect.DeepEqual(n.Status.Namespace, o.Status.Namespace) {
+				return true
+			}
+
+			return false
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+	}
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;watch;create;update;patch;delete
