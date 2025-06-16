@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -86,12 +87,26 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 
 		It("then 3 Bundles are created with the relevant resources", func() {
-			bundle, err := cli.GetBundleListFromOutput(buf)
+			bundles, err := cli.GetBundleListFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bundle).To(HaveLen(3))
-			deploymentA := bundle[0]
-			deploymentB := bundle[1]
-			deploymentC := bundle[2]
+			Expect(bundles).To(HaveLen(3))
+
+			deploymentA, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return strings.Contains(bundle.Name, "-deploymenta-")
+			})
+			Expect(ok).To(BeTrue())
+			bundles = append(bundles[:i], bundles[i+1:]...)
+
+			deploymentB, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return strings.Contains(bundle.Name, "-deploymentb-")
+			})
+			Expect(ok).To(BeTrue())
+			bundles = append(bundles[:i], bundles[i+1:]...)
+
+			deploymentC, _, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return strings.Contains(bundle.Name, "-deploymentc-")
+			})
+			Expect(ok).To(BeTrue())
 
 			Expect(deploymentA.Spec.Resources).To(HaveLen(1))
 			Expect(deploymentB.Spec.Resources).To(HaveLen(1))
@@ -110,12 +125,23 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 
 		It("then Bundles are created with all the resources", func() {
-			bundle, err := cli.GetBundleListFromOutput(buf)
+			bundles, err := cli.GetBundleListFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bundle).To(HaveLen(3))
-			root := bundle[0]
-			deploymentA := bundle[1]
-			deploymentC := bundle[2]
+			Expect(bundles).To(HaveLen(3))
+
+			deploymentA, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.TargetNamespace == "deploymenta"
+			})
+			Expect(ok).To(BeTrue())
+			bundles = append(bundles[:i], bundles[i+1:]...)
+
+			deploymentC, i, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.TargetNamespace == "deploymentc"
+			})
+			Expect(ok).To(BeTrue())
+			bundles = append(bundles[:i], bundles[i+1:]...)
+
+			root := bundles[0] // remaining
 
 			Expect(deploymentA.Spec.Resources).To(HaveLen(1))
 			Expect(deploymentC.Spec.Resources).To(HaveLen(1))
@@ -238,8 +264,8 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			Expect(bundles).To(HaveLen(4))
 
 			// helm bundle
-			helmBundle := bundles[0]
-			Expect(helmBundle.Name).To(Equal("assets-driven-helm"))
+			helmBundle := getBundleNamed("assets-driven-helm", bundles)
+			Expect(helmBundle).To(Not(BeNil()))
 			Expect(helmBundle.Spec.Resources).To(HaveLen(3))
 			// as files were unpacked from the downloaded chart we can't just
 			// list the files in the original folder and compare.
@@ -253,8 +279,8 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			Expect(helmBundle.Spec.Helm.Chart).To(Equal("http://localhost:3000/config-chart-0.1.0.tgz"))
 
 			// simple bundle
-			simpleBundle := bundles[1]
-			Expect(simpleBundle.Name).To(Equal("assets-driven-simple"))
+			simpleBundle := getBundleNamed("assets-driven-simple", bundles)
+			Expect(simpleBundle).ToNot(BeNil())
 			Expect(simpleBundle.Spec.Resources).To(HaveLen(2))
 			expectedResources := []string{
 				cli.AssetsPath + "driven/simple/deployment.yaml",
@@ -265,12 +291,12 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			}
 
 			// kustomize dev bundle
-			kDevBundle := bundles[2]
-			Expect(kDevBundle.Name).To(Equal("assets-driven-kustomize-dev"))
+			kDevBundle := getBundleNamed("assets-driven-kustomize-dev", bundles)
+			Expect(kDevBundle).ToNot(BeNil())
 
 			// kustomize prod bundle
-			kProdBundle := bundles[3]
-			Expect(kProdBundle.Name).To(Equal("assets-driven-kustomize-prod"))
+			kProdBundle := getBundleNamed("assets-driven-kustomize-prod", bundles)
+			Expect(kProdBundle).ToNot(BeNil())
 
 			// both kustomize bundles have the same resources, but different config fleet.yaml
 			kResources := []string{
@@ -313,12 +339,12 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			Expect(bundles).To(HaveLen(2))
 
 			// kustomize dev bundle
-			kDevBundle := bundles[0]
-			Expect(kDevBundle.Name).To(Equal("assets-driven2-kustomize-fleetdev-2946f474"))
+			kDevBundle := getBundleNamed("assets-driven2-kustomize-fleetdev-2946f474", bundles)
+			Expect(kDevBundle).NotTo(BeNil())
 
 			// kustomize prod bundle
-			kProdBundle := bundles[1]
-			Expect(kProdBundle.Name).To(Equal("assets-driven2-kustomize-fleetprod-99f597b0"))
+			kProdBundle := getBundleNamed("assets-driven2-kustomize-fleetprod-99f597b0", bundles)
+			Expect(kProdBundle).NotTo(BeNil())
 
 			// both kustomize bundles have the same resources, but different config fleet.yaml
 			kResources := []string{
@@ -581,12 +607,21 @@ var _ = Describe("Fleet apply with helm charts with dependencies", Ordered, func
 		})
 
 		It("creates Bundles with the corresponding resources, depending if they should update dependencies", func() {
-			bundle, err := cli.GetBundleListFromOutput(buf)
+			bundles, err := cli.GetBundleListFromOutput(buf)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(bundle).To(HaveLen(3))
-			remoteDepl := bundle[0]
-			simpleDepl := bundle[1]
-			noDepsDepl := bundle[2]
+			Expect(bundles).To(HaveLen(3))
+			remoteDepl, _, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.Helm.ReleaseName == "remote-chart-with-deps"
+			})
+			Expect(ok).To(BeTrue())
+			simpleDepl, _, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.Helm.ReleaseName == "simple-with-fleet-yaml"
+			})
+			Expect(ok).To(BeTrue())
+			noDepsDepl, _, ok := sliceFind(bundles, func(bundle *v1alpha1.Bundle) bool {
+				return bundle.Spec.Helm.ReleaseName == "simple-with-fleet-yaml-no-deps"
+			})
+			Expect(ok).To(BeTrue())
 
 			// remoteDepl corresponds to multi-chart/remote-chart-with-deps
 			// expected files are:
@@ -689,4 +724,19 @@ func getAllFilesInDir(chartPath string) ([]string, error) {
 		return nil
 	})
 	return files, err
+}
+
+func sliceFind[T any](s []T, f func(T) bool) (T, int, bool) {
+	if x := slices.IndexFunc(s, f); x >= 0 {
+		return s[x], x, true
+	}
+	var zero T
+	return zero, -1, false
+}
+
+func getBundleNamed(name string, bundles []*v1alpha1.Bundle) *v1alpha1.Bundle {
+	res, _, _ := sliceFind(bundles, func(b *v1alpha1.Bundle) bool {
+		return b.Name == name
+	})
+	return res
 }
