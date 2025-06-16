@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -20,13 +19,13 @@ import (
 	ssh "github.com/rancher/fleet/internal/ssh"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/yaml"
-)
-
-const (
-	FleetApplyConflictRetriesEnv = "FLEET_APPLY_CONFLICT_RETRIES"
-	defaultApplyConflictRetries  = 1
+	"k8s.io/client-go/kubernetes"
+	typedv1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 )
 
 type readFile func(name string) ([]byte, error)
@@ -79,9 +78,9 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	// Apply retries on conflict errors.
 	// We could have race conditions updating the Bundle in high load situations
 	var err error
-	retries, err := GetOnConflictRetries()
+	retries, err := apply.GetOnConflictRetries()
 	if err != nil {
-		logrus.Errorf("failed parsing env variable %s, using defaults, err: %v", FleetApplyConflictRetriesEnv, err)
+		logrus.Errorf("failed parsing env variable %s, using defaults, err: %v", apply.FleetApplyConflictRetriesEnv, err)
 	}
 	for range retries {
 		err = a.run(cmd, args)
@@ -176,10 +175,15 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	if opts.DrivenScan {
-		return apply.CreateBundlesDriven(ctx, client, name, args, opts)
+	recorder, err := getEventRecorder(cfg, "fleet-apply")
+	if err != nil {
+		return err
 	}
-	return apply.CreateBundles(ctx, client, name, args, opts)
+
+	if opts.DrivenScan {
+		return apply.CreateBundlesDriven(ctx, client, recorder, name, args, opts)
+	}
+	return apply.CreateBundles(ctx, client, recorder, name, args, opts)
 }
 
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
@@ -237,22 +241,6 @@ func currentCommit() string {
 		return strings.TrimSpace(buf.String())
 	}
 	return ""
-}
-
-func GetOnConflictRetries() (int, error) {
-	s := os.Getenv(FleetApplyConflictRetriesEnv)
-	if s != "" {
-		// check if we have a valid value
-		// it must be an integer
-		r, err := strconv.Atoi(s)
-		if err != nil {
-			return defaultApplyConflictRetries, err
-		} else {
-			return r, nil
-		}
-	}
-
-	return defaultApplyConflictRetries, nil
 }
 
 // writeTmpKnownHosts creates a temporary file and writes known_hosts data to it, if such data is available from
@@ -341,4 +329,19 @@ func setEnv(knownHostsPath string) (func() error, error) {
 	}
 
 	return restore, nil
+}
+
+func getEventRecorder(config *rest.Config, componentName string) (record.EventRecorder, error) {
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	broadcaster := record.NewBroadcaster()
+	broadcaster.StartStructuredLogging(0)
+	broadcaster.StartRecordingToSink(&typedv1core.EventSinkImpl{
+		Interface: clientset.CoreV1().Events(""),
+	})
+
+	return broadcaster.NewRecorder(scheme, corev1.EventSource{Component: componentName}), nil
 }

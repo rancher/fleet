@@ -42,7 +42,7 @@ func fleetApply(name string, dirs []string, options apply.Options) error {
 	options.Output = buf
 	ctrl := gomock.NewController(GinkgoT())
 	c := mocks.NewMockClient(ctrl)
-	return apply.CreateBundles(context.Background(), c, name, dirs, options)
+	return apply.CreateBundles(context.Background(), c, nil, name, dirs, options)
 }
 
 // simulates fleet cli execution in driven mode
@@ -53,10 +53,10 @@ func fleetApplyDriven(name string, dirs []string, options apply.Options) error {
 	options.DrivenScanSeparator = ":"
 	ctrl := gomock.NewController(GinkgoT())
 	c := mocks.NewMockClient(ctrl)
-	return apply.CreateBundlesDriven(context.Background(), c, name, dirs, options)
+	return apply.CreateBundlesDriven(context.Background(), c, nil, name, dirs, options)
 }
 
 // simulates fleet cli online execution, with mocked client
 func fleetApplyOnline(c client.Client, name string, dirs []string, options apply.Options) error {
-	return apply.CreateBundles(context.Background(), c, name, dirs, options)
+	return apply.CreateBundles(context.Background(), c, nil, name, dirs, options)
 }

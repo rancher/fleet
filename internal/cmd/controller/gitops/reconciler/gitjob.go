@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	fleetcli "github.com/rancher/fleet/internal/cmd/cli"
+	fleetapply "github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
 	"github.com/rancher/fleet/internal/ocistorage"
@@ -542,7 +542,7 @@ func (r *GitJobReconciler) newGitCloner(
 
 	env := []corev1.EnvVar{
 		{
-			Name:  fleetcli.JSONOutputEnvVar,
+			Name:  fleetapply.JSONOutputEnvVar,
 			Value: "true",
 		},
 	}
@@ -624,9 +624,9 @@ func argsAndEnvs(
 		}
 	}
 
-	fleetApplyRetries, err := fleetcli.GetOnConflictRetries()
+	fleetApplyRetries, err := fleetapply.GetOnConflictRetries()
 	if err != nil {
-		logger.Error(err, "failed parsing env variable, using defaults", "env_var_name", fleetcli.FleetApplyConflictRetriesEnv)
+		logger.Error(err, "failed parsing env variable, using defaults", "env_var_name", fleetapply.FleetApplyConflictRetriesEnv)
 	}
 	env := []corev1.EnvVar{
 		{
@@ -634,11 +634,15 @@ func argsAndEnvs(
 			Value: fleetHomeDir,
 		},
 		{
-			Name:  fleetcli.JSONOutputEnvVar,
+			Name:  fleetapply.JSONOutputEnvVar,
 			Value: "true",
 		},
 		{
-			Name:  fleetcli.FleetApplyConflictRetriesEnv,
+			Name:  fleetapply.JobNameEnvVar,
+			Value: jobName(gitrepo),
+		},
+		{
+			Name:  fleetapply.FleetApplyConflictRetriesEnv,
 			Value: strconv.Itoa(fleetApplyRetries),
 		},
 	}
