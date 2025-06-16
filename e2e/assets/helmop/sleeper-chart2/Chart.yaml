@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sleeper-chart
+description: A test chart
+type: application
+version: 0.2.0
+appVersion: "1.16.0"

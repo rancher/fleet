@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
@@ -187,6 +188,27 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.ExperimentalOCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
+
+	// Skip bundle deployment creation if the bundle is a HelmOps bundle and the configured Helm version is still a
+	// version constraint. That constraint should be resolved into a strict version by the HelmOps reconciler before bundle
+	// deployments can be created.
+	if contentsInHelmChart && bundle.Spec.Helm != nil {
+		version := bundle.Spec.Helm.Version
+
+		if _, err := semver.StrictNewVersion(version); err != nil {
+			bundle.Status.Conditions = []genericcondition.GenericCondition{
+				{
+					Type:           string(fleet.Ready),
+					Status:         corev1.ConditionFalse,
+					Message:        fmt.Sprintf("Chart version cannot be deployed; check HelmOp status for more details: %v", err),
+					LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
+				},
+			}
+			err := r.updateStatus(ctx, bundleOrig, bundle)
+			return ctrl.Result{}, err
+		}
+	}
+
 	manifestID := bundle.Spec.ContentsID
 	var resourcesManifest *manifest.Manifest
 	if !contentsInOCI && !contentsInHelmChart {
