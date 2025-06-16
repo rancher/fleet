@@ -88,6 +88,46 @@ func (m *ExporterTest) FindOneMetric(
 	return &Metric{Metric: metrics[0]}, nil
 }
 
+func (m *ExporterTest) MetricDoesNotExist(
+	allMetrics map[string]*dto.MetricFamily,
+	name string,
+	labels map[string]string,
+) error {
+	mf, ok := allMetrics[name]
+	if !ok {
+		return nil // If the metric family does not exist, we consider it as not found.
+	}
+
+	// If the metric family exists, we need to check if any of its metrics match the labels.
+	var metrics []*dto.Metric
+	for _, metric := range mf.Metric {
+		m := Metric{Metric: metric}
+
+		// Check that all labels match, if present.
+		match := true
+		for k, v := range labels {
+			if m.LabelValue(k) != v {
+				match = false
+				break
+			}
+		}
+		if match {
+			metrics = append(metrics, metric)
+		}
+	}
+
+	if len(metrics) > 0 {
+		return fmt.Errorf(
+			"expected to find 0 metrics for %s{%s}, got %d",
+			name,
+			promLabels(labels),
+			len(metrics),
+		)
+	}
+
+	return nil
+}
+
 type promLabels map[string]string
 
 func (l promLabels) String() string {

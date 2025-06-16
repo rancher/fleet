@@ -9,6 +9,7 @@ import (
 
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
@@ -250,8 +251,8 @@ func (m *ObjCounterVec) Inc(obj metav1.Object) {
 	m.counterVec.WithLabelValues(obj.GetName(), obj.GetNamespace()).Inc()
 }
 
-func (m *ObjCounterVec) Delete(obj metav1.Object) bool {
-	return m.counterVec.DeleteLabelValues(obj.GetName(), obj.GetNamespace())
+func (m *ObjCounterVec) DeleteByReq(req ctrl.Request) bool {
+	return m.counterVec.DeleteLabelValues(req.Name, req.Namespace)
 }
 
 var BucketsLatency = []float64{.1, .2, .5, 1, 2, 5, 10, 30}
@@ -284,8 +285,8 @@ func (m *ObjHistogramVec) Observe(obj metav1.Object, value float64) {
 	m.histogram.WithLabelValues(obj.GetName(), obj.GetNamespace()).Observe(value)
 }
 
-func (m *ObjHistogramVec) Delete(obj metav1.Object) bool {
-	return m.histogram.DeleteLabelValues(obj.GetName(), obj.GetNamespace())
+func (m *ObjHistogramVec) DeleteByReq(req ctrl.Request) bool {
+	return m.histogram.DeleteLabelValues(req.Name, req.Namespace)
 }
 
 func ObjGauge(name, help string) (g ObjGaugeVec) {

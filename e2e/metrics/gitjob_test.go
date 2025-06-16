@@ -132,22 +132,22 @@ var _ = Describe("GitOps Metrics", Label("gitops"), func() {
 				return nil
 			}).ShouldNot(HaveOccurred())
 
-			// Delete the	GitRepo.
+			// Delete the GitRepo.
 			Eventually(func() error {
 				_, err := kw.Delete("gitrepo", name)
 				return err
 			}).ShouldNot(HaveOccurred())
 
-			// Maker sure the metrics are gone.
+			// Make sure the metrics are gone.
 			metrics := append(gitOpsMetricNamesExist, gitOpsMetricNamesMissing...)
 			Eventually(func(g Gomega) {
 				allMetrics, err := etGitjob.Get()
+				g.Expect(err).NotTo(HaveOccurred())
 				for _, metricName := range metrics {
-					g.Expect(err).ToNot(HaveOccurred())
-					_, err = etGitjob.FindOneMetric(allMetrics, metricName, labels)
-					g.Expect(err).To(HaveOccurred(), fmt.Sprintf("metric found but expected not to: %q", metricName))
+					err := etGitjob.MetricDoesNotExist(allMetrics, metricName, labels)
+					g.Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("metric found but expected not to: %q", metricName))
 				}
-			})
+			}).Should(Succeed())
 		})
 
 		It("should not keep short-lived metrics for longer than their TTL", func() {
