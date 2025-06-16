@@ -580,7 +580,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				job.EXPECT().JobDetail().Return(nil)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
-				scheduler.EXPECT().ScheduleJob(gomock.Any(), gomock.Any()).Return(errors.New("something happened!"))
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(errors.New("something happened!"))
 			},
 			expectedError:      "something happened!",
 			expectStatusUpdate: true,
@@ -606,7 +606,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 			},
 			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(nil, quartz.ErrJobNotFound)
-				scheduler.EXPECT().ScheduleJob(gomock.Any(), gomock.Any()).Return(errors.New("something happened!"))
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(errors.New("something happened!"))
 			},
 			expectedError:      "something happened!",
 			expectStatusUpdate: true,
@@ -632,7 +632,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 			},
 			expectedSchedulerCalls: func(_ *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(nil, quartz.ErrJobNotFound)
-				scheduler.EXPECT().ScheduleJob(gomock.Any(), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
 			},
 		},
 		{
