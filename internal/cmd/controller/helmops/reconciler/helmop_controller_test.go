@@ -559,6 +559,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "helmop",
 					Namespace: "default",
+					UID:       "foo",
 				},
 				Spec: fleet.HelmOpSpec{
 					PollingInterval: &metav1.Duration{Duration: 1 * time.Minute},
@@ -580,7 +581,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				job.EXPECT().JobDetail().Return(nil)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(errors.New("something happened!"))
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(errors.New("something happened!"))
 			},
 			expectedError:      "something happened!",
 			expectStatusUpdate: true,
@@ -591,6 +592,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "helmop",
 					Namespace: "default",
+					UID:       "foo",
 				},
 				Spec: fleet.HelmOpSpec{
 					PollingInterval: &metav1.Duration{Duration: 1 * time.Minute},
@@ -606,7 +608,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 			},
 			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(nil, quartz.ErrJobNotFound)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(errors.New("something happened!"))
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(errors.New("something happened!"))
 			},
 			expectedError:      "something happened!",
 			expectStatusUpdate: true,
@@ -617,6 +619,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "helmop",
 					Namespace: "default",
+					UID:       "foo",
 				},
 				Spec: fleet.HelmOpSpec{
 					PollingInterval: &metav1.Duration{Duration: 1 * time.Minute},
@@ -632,7 +635,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 			},
 			expectedSchedulerCalls: func(_ *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(nil, quartz.ErrJobNotFound)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
 			},
 		},
 		{
@@ -675,6 +678,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "helmop",
 					Namespace: "default",
+					UID:       "foo",
 				},
 				Spec: fleet.HelmOpSpec{
 					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
@@ -704,7 +708,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduled.EXPECT().JobDetail().Return(detail)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
 			},
 		},
 		{
@@ -713,6 +717,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "helmop",
 					Namespace: "default",
+					UID:       "foo",
 				},
 				Spec: fleet.HelmOpSpec{
 					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
@@ -742,7 +747,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduled.EXPECT().JobDetail().Return(detail)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
 			},
 		},
 		{
@@ -751,6 +756,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "helmop",
 					Namespace: "default",
+					UID:       "foo",
 				},
 				Spec: fleet.HelmOpSpec{
 					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
@@ -780,7 +786,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduled.EXPECT().JobDetail().Return(detail)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
 			},
 		},
 		{
@@ -789,6 +795,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "helmop",
 					Namespace: "default",
+					UID:       "foo",
 				},
 				Spec: fleet.HelmOpSpec{
 					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
@@ -815,7 +822,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduled.EXPECT().JobDetail().Return(detail)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
 			},
 		},
 	}
@@ -843,6 +850,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
 					fh.Name = c.helmOp.Name
 					fh.Namespace = c.helmOp.Namespace
+					fh.UID = c.helmOp.UID
 					fh.Spec = c.helmOp.Spec
 					controllerutil.AddFinalizer(fh, finalize.HelmOpFinalizer)
 					return nil
@@ -933,10 +941,11 @@ func (b *bundleMatcher) String() string {
 
 type scheduledJobMatcher struct {
 	replaceExisting bool
+	key             *quartz.JobKey
 }
 
-func matchesJobDetailReplace(replace bool) gomock.Matcher {
-	return &scheduledJobMatcher{replaceExisting: replace}
+func matchesJobDetailReplace(replace bool, helmop fleet.HelmOp) gomock.Matcher {
+	return &scheduledJobMatcher{replaceExisting: replace, key: quartz.NewJobKey(string(helmop.UID))}
 }
 
 func (s *scheduledJobMatcher) Matches(x interface{}) bool {
@@ -945,9 +954,17 @@ func (s *scheduledJobMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	return jd.Options() != nil && jd.Options().Replace == s.replaceExisting
+	if jd.JobKey() == nil {
+		return false
+	}
+
+	if jd.Options() == nil {
+		return false
+	}
+
+	return jd.JobKey().Equals(s.key) && jd.Options().Replace == s.replaceExisting
 }
 
 func (s *scheduledJobMatcher) String() string {
-	return fmt.Sprintf("matches replace %t", s.replaceExisting)
+	return fmt.Sprintf("matches replace %t and job key %s", s.replaceExisting, s.key)
 }
