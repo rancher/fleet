@@ -42,6 +42,13 @@ var (
 	ErrNoResources = errors.New("no resources found to deploy")
 )
 
+const (
+	JSONOutputEnvVar             = "FLEET_JSON_OUTPUT"
+	JobNameEnvVar                = "JOB_NAME"
+	FleetApplyConflictRetriesEnv = "FLEET_APPLY_CONFLICT_RETRIES"
+	defaultApplyConflictRetries  = 1
+)
+
 type Getter interface {
 	Get() (*client.Client, error)
 	GetNamespace() string
@@ -79,6 +86,7 @@ type Options struct {
 	OCIRegistrySecret           string
 	DrivenScan                  bool
 	DrivenScanSeparator         string
+	JobNameEnvVar               string
 }
 
 func globDirs(baseDir string) (result []string, err error) {
@@ -743,9 +751,9 @@ func deleteSecretIfExists(ctx context.Context, c client.Client, name, ns string)
 }
 
 func sendWarningEvent(r record.EventRecorder, namespace, artifactID string, errorToLog error) {
-	jobName := os.Getenv("JOB_NAME")
+	jobName := os.Getenv(JobNameEnvVar)
 	if jobName == "" {
-		logrus.Warn("JOB_NAME environment variable not set")
+		logrus.Warnf("%q environment variable not set", JobNameEnvVar)
 		return
 	}
 	job := &batchv1.Job{
@@ -754,5 +762,21 @@ func sendWarningEvent(r record.EventRecorder, namespace, artifactID string, erro
 			Namespace: namespace,
 		},
 	}
-	r.Event(job, fleetevent.Warning, "Failed", fmt.Sprintf("deleting OCI artifact: %q, error: %v", artifactID, errorToLog.Error()))
+	r.Event(job, fleetevent.Warning, "FailedToDeleteOCIArtifact", fmt.Sprintf("deleting OCI artifact %q: %v", artifactID, errorToLog.Error()))
+}
+
+func GetOnConflictRetries() (int, error) {
+	s := os.Getenv(FleetApplyConflictRetriesEnv)
+	if s != "" {
+		// check if we have a valid value
+		// it must be an integer
+		r, err := strconv.Atoi(s)
+		if err != nil {
+			return defaultApplyConflictRetries, err
+		} else {
+			return r, nil
+		}
+	}
+
+	return defaultApplyConflictRetries, nil
 }

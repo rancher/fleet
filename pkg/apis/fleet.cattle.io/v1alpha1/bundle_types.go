@@ -41,7 +41,7 @@ const (
 	SecretTypeOCIStorage = "fleet.cattle.io/bundle-oci-storage/v1alpha1"
 
 	// InternalSecretLabel is a label added to any secret created by Fleet to propagate Bundle or
-	// BundleDeployment secrets storing credential details for OCI storage or HelmOps
+	// BundleDeployment secrets storing credential details for OCI storage or HelmOps.
 	InternalSecretLabel = "fleet.cattle.io/bundle-internal-secret"
 )
 

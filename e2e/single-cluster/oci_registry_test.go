@@ -20,6 +20,7 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -792,10 +793,16 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					}).Should(Succeed())
 				})
 				By("checking that the previous oci bundle key was deleted", func() {
-					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, env.Namespace, &corev1.Secret{}, false)
+					Eventually(func(g Gomega) {
+						err := clientUpstream.Get(context.TODO(), client.ObjectKey{Name: previousContentsID, Namespace: env.Namespace}, &corev1.Secret{})
+						g.Expect(errors.IsNotFound(err)).To(BeTrue())
+					}).Should(Succeed())
 				})
 				By("checking that the previous oci bundle deployment key was deleted", func() {
-					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, downstreamNamespace, &corev1.Secret{}, false)
+					Eventually(func(g Gomega) {
+						err := clientUpstream.Get(context.TODO(), client.ObjectKey{Name: previousContentsID, Namespace: downstreamNamespace}, &corev1.Secret{})
+						g.Expect(errors.IsNotFound(err)).To(BeTrue())
+					}).Should(Succeed())
 				})
 				By("checking that the previous oci artifact was deleted", func() {
 					// use the secret for the new contentID because it has the same contents.
@@ -923,7 +930,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					for _, event := range events.Items {
 						if strings.Contains(event.Message, previousContentsID) &&
 							strings.Contains(event.Message, "deleting OCI artifact") &&
-							event.Reason == "Failed" &&
+							event.Reason == "FailedToDeleteOCIArtifact" &&
 							event.Source.Component == "fleet-apply" {
 							ociEvents = append(ociEvents, event)
 						}

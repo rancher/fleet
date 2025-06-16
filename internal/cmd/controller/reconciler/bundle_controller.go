@@ -669,7 +669,7 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 	}
 	err = ocistorage.NewOCIWrapper().DeleteManifest(ctx, opts, bundle.Spec.ContentsID)
 	if err != nil {
-		r.Recorder.Event(bundle, fleetevent.Warning, "Failed", fmt.Sprintf("deleting OCI artifact: %q, error: %v", bundle.Spec.ContentsID, err.Error()))
+		r.Recorder.Event(bundle, fleetevent.Warning, "FailedToDeleteOCIArtifact", fmt.Sprintf("deleting OCI artifact %q: %v", bundle.Spec.ContentsID, err.Error()))
 	}
 
 	return err

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -27,11 +26,6 @@ import (
 	typedv1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-)
-
-const (
-	FleetApplyConflictRetriesEnv = "FLEET_APPLY_CONFLICT_RETRIES"
-	defaultApplyConflictRetries  = 1
 )
 
 type readFile func(name string) ([]byte, error)
@@ -84,9 +78,9 @@ func (a *Apply) Run(cmd *cobra.Command, args []string) error {
 	// Apply retries on conflict errors.
 	// We could have race conditions updating the Bundle in high load situations
 	var err error
-	retries, err := GetOnConflictRetries()
+	retries, err := apply.GetOnConflictRetries()
 	if err != nil {
-		logrus.Errorf("failed parsing env variable %s, using defaults, err: %v", FleetApplyConflictRetriesEnv, err)
+		logrus.Errorf("failed parsing env variable %s, using defaults, err: %v", apply.FleetApplyConflictRetriesEnv, err)
 	}
 	for range retries {
 		err = a.run(cmd, args)
@@ -247,22 +241,6 @@ func currentCommit() string {
 		return strings.TrimSpace(buf.String())
 	}
 	return ""
-}
-
-func GetOnConflictRetries() (int, error) {
-	s := os.Getenv(FleetApplyConflictRetriesEnv)
-	if s != "" {
-		// check if we have a valid value
-		// it must be an integer
-		r, err := strconv.Atoi(s)
-		if err != nil {
-			return defaultApplyConflictRetries, err
-		} else {
-			return r, nil
-		}
-	}
-
-	return defaultApplyConflictRetries, nil
 }
 
 // writeTmpKnownHosts creates a temporary file and writes known_hosts data to it, if such data is available from
