@@ -2,11 +2,15 @@ package git
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/ssh"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/cert"
+	"github.com/rancher/fleet/pkg/githubapp"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -21,7 +25,8 @@ type KnownHostsGetter interface {
 }
 
 type Fetch struct {
-	KnownHosts KnownHostsGetter
+	KnownHosts    KnownHostsGetter
+	TokenProvider func(ctx context.Context) (string, error)
 }
 
 func NewFetch() *Fetch {
@@ -75,9 +80,41 @@ func (f *Fetch) LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, cli
 		secret.Data["known_hosts"] = nil
 	}
 
+	var token string
+	if f.TokenProvider != nil {
+		t, err := f.TokenProvider(ctx)
+		if err != nil {
+			return "", err
+		}
+		token = t
+	}
+
+	if token == "" && secret.Data != nil {
+		_, hasID := secret.Data["github_app_id"]
+		_, hasIns := secret.Data["github_app_installation_id"]
+		pem, hasKey := secret.Data["github_app_private_key"]
+		if hasID && hasIns && hasKey {
+			appID, _ := strconv.ParseInt(string(secret.Data["github_app_id"]), 10, 64)
+			insID, _ := strconv.ParseInt(string(secret.Data["github_app_installation_id"]), 10, 64)
+
+			// write the PEM to a temp file owned by the controller
+			tmp := "/tmp/fleet_app_key.pem"
+			_ = os.WriteFile(tmp, pem, 0600)
+
+			prov := githubapp.New(appID, insID, tmp)
+			tkn, err := prov.GetToken(ctx)
+			if err != nil {
+				return "", fmt.Errorf("github-app token for %s/%s: %w",
+					gitrepo.Namespace, gitrepo.Name, err)
+			}
+			token = tkn
+		}
+	}
+
 	r, err := NewRemote(gitrepo.Spec.Repo, &options{
 		CABundle:          cabundle,
 		Credential:        &secret,
+		Token:             token,
 		InsecureTLSVerify: gitrepo.Spec.InsecureSkipTLSverify,
 		KnownHosts:        knownHosts,
 		Timeout:           config.Get().GitClientTimeout.Duration,

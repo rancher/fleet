@@ -63,15 +63,29 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		}
 		return nil, errors.New("file not found")
 	}
+	fileStat = func(name string) (os.FileInfo, error) {
+		if name == "githubKeyFile" {
+			return nil, nil
+		}
+		return nil, errors.New("file not found")
+	}
+	getGitHubAppToken = func(appID, instID int64, key string) (string, error) {
+		return "token", nil
+	}
+	origGitHubTokenFn := getGitHubAppToken
+
 	defer func() {
 		plainClone = git.PlainClone
 		readFile = os.ReadFile
+		fileStat = os.Stat
+		getGitHubAppToken = origGitHubTokenFn
 	}()
 
 	tests := map[string]struct {
 		opts              *GitCloner
 		expectedCloneOpts *git.CloneOptions
 		expectedErr       error
+		ghTokenFn         func(appID, instID int64, key string) (string, error)
 	}{
 		"branch no auth": {
 			opts: &GitCloner{
@@ -120,6 +134,53 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 			},
 		},
+		"branch github app auth": {
+			opts: &GitCloner{
+				Repo:                  "https://repo",
+				Path:                  "path",
+				Branch:                "master",
+				GitHubAppID:           123,
+				GitHubAppInstallation: 456,
+				GitHubAppKeyFile:      "githubKeyFile",
+			},
+			expectedCloneOpts: &git.CloneOptions{
+				URL:           "https://repo",
+				SingleBranch:  true,
+				ReferenceName: "master",
+				Auth: &httpgit.BasicAuth{
+					Username: "x-access-token",
+					Password: "token",
+				},
+				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+			},
+		},
+		"github app private key file does not exist": {
+			opts: &GitCloner{
+				Repo:                  "https://repo",
+				Branch:                "master",
+				Path:                  "path",
+				GitHubAppID:           123,
+				GitHubAppInstallation: 456,
+				GitHubAppKeyFile:      "doesntexist",
+			},
+			expectedCloneOpts: nil,
+			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="path": failed to read GitHub app private key from file: file not found`),
+		},
+		"github app token retrieval failed": {
+			opts: &GitCloner{
+				Repo:                  "https://repo",
+				Branch:                "master",
+				Path:                  "path",
+				GitHubAppID:           123,
+				GitHubAppInstallation: 456,
+				GitHubAppKeyFile:      "githubKeyFile",
+			},
+			expectedCloneOpts: nil,
+			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="path": token retrieval failed`),
+			ghTokenFn: func(appID, instID int64, key string) (string, error) {
+				return "", errors.New("token retrieval failed")
+			},
+		},
 		"password file does not exist": {
 			opts: &GitCloner{
 				Repo:         "https://repo",
@@ -157,6 +218,13 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 
 		t.Run(name, func(t *testing.T) {
 			c := Cloner{}
+
+			if test.ghTokenFn != nil {
+				prev := getGitHubAppToken
+				getGitHubAppToken = test.ghTokenFn
+				defer func() { getGitHubAppToken = prev }()
+			}
+
 			err := c.CloneRepo(test.opts)
 			if err == nil && test.expectedErr != nil {
 				t.Fatalf("err expected to be [%v], got [%v]", test.expectedErr, err)
@@ -168,16 +236,19 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				}
 			}
 
-			if pathCalled != test.opts.Path {
-				t.Fatalf("path expected to be %v, got %v", test.opts.Path, pathCalled)
-			}
+			// Only run clone-specific checks if the clone actually succeeded
+			if test.expectedCloneOpts != nil {
+				if pathCalled != test.opts.Path {
+					t.Fatalf("path expected to be %v, got %v", test.opts.Path, pathCalled)
+				}
 
-			if isBareCalled {
-				t.Fatalf("isBareCalled expected to be false, got %v", isBareCalled)
-			}
+				if isBareCalled {
+					t.Fatalf("isBareCalled expected to be false, got %v", isBareCalled)
+				}
 
-			if !cmp.Equal(cloneOptsCalled, test.expectedCloneOpts, sshKeyComparer) {
-				t.Fatalf("expected options %v, got %v", test.expectedCloneOpts, cloneOptsCalled)
+				if !cmp.Equal(cloneOptsCalled, test.expectedCloneOpts, sshKeyComparer) {
+					t.Fatalf("expected options %v, got %v", test.expectedCloneOpts, cloneOptsCalled)
+				}
 			}
 
 			if !cmp.Equal(transport.UnsupportedCapabilities, []capability.Capability{capability.ThinPack}) {

@@ -1763,6 +1763,183 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 				},
 			},
 		},
+		"github app credentials": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo:             "repo",
+					ClientSecretName: "github-app-secret",
+				},
+			},
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{"log.sh"},
+					Args: []string{
+						"fleet", "gitcloner", "repo", "/workspace",
+						"--branch", "master",
+						"--github-app-id", "123",
+						"--github-app-installation-id", "456",
+						"--github-app-key-file",
+						"/gitjob/githubapp/github_app_private_key",
+					},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{Name: gitClonerVolumeName, MountPath: "/workspace"},
+						{Name: emptyDirVolumeName, MountPath: "/tmp"},
+						{Name: gitCredentialVolumeName, MountPath: "/gitjob/githubapp"},
+					},
+					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{Name: fleetcli.JSONOutputEnvVar, Value: "true"},
+					},
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name:         gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+				},
+				{
+					Name:         emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+				},
+				{
+					Name: gitCredentialVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{SecretName: "github-app-secret"},
+					},
+				},
+			},
+			clientObjects: []runtime.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "github-app-secret",
+						Namespace: "default",
+					},
+					Data: map[string][]byte{
+						githubAppIDKey:             []byte("123"),
+						githubAppInstallationIDKey: []byte("456"),
+						githubAppPrivateKeyKey:     []byte("dummy-pem"),
+					},
+					Type: corev1.SecretTypeOpaque,
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{"known_hosts": ""},
+				},
+			},
+		},
+
+		"github app secret missing PEM": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{Name: "gitrepo", Namespace: "default"},
+				Spec: fleetv1.GitRepoSpec{
+					Repo:             "repo",
+					ClientSecretName: "gh-no-pem",
+				},
+			},
+			// job still built, just no GitHub-App flags
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{"log.sh"},
+					Args: []string{
+						"fleet", "gitcloner", "repo", "/workspace",
+						"--branch", "master",
+					},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{Name: gitClonerVolumeName, MountPath: "/workspace"},
+						{Name: emptyDirVolumeName, MountPath: "/tmp"},
+					},
+					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{Name: fleetcli.JSONOutputEnvVar, Value: "true"},
+					},
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{Name: gitClonerVolumeName, VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: emptyDirVolumeName, VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: gitCredentialVolumeName, VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{SecretName: "gh-no-pem"},
+				}},
+			},
+			clientObjects: []runtime.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: "gh-no-pem", Namespace: "default"},
+					Data: map[string][]byte{
+						githubAppIDKey:             []byte("123"),
+						githubAppInstallationIDKey: []byte("456"),
+						// deliberately no github_app_private_key
+					},
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{Name: "known-hosts", Namespace: "cattle-fleet-system"},
+					Data:       map[string]string{"known_hosts": ""},
+				},
+			},
+		},
+		"github app bad numeric ids": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{Name: "gitrepo", Namespace: "default"},
+				Spec: fleetv1.GitRepoSpec{
+					Repo:             "repo",
+					ClientSecretName: "gh-bad-ids",
+				},
+			},
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{"log.sh"},
+					Args: []string{
+						"fleet", "gitcloner", "repo", "/workspace",
+						"--branch", "master",
+						"--github-app-id", "abc",
+						"--github-app-installation-id", "xyz",
+						"--github-app-key-file", "/gitjob/githubapp/github_app_private_key",
+					},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{Name: gitClonerVolumeName, MountPath: "/workspace"},
+						{Name: emptyDirVolumeName, MountPath: "/tmp"},
+						{Name: gitCredentialVolumeName, MountPath: "/gitjob/githubapp"},
+					},
+					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{Name: fleetcli.JSONOutputEnvVar, Value: "true"},
+					},
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{Name: gitClonerVolumeName, VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: emptyDirVolumeName, VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				{Name: gitCredentialVolumeName, VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{SecretName: "gh-bad-ids"},
+				}},
+			},
+			clientObjects: []runtime.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: "gh-bad-ids", Namespace: "default"},
+					Data: map[string][]byte{
+						githubAppIDKey:             []byte("abc"),
+						githubAppInstallationIDKey: []byte("xyz"),
+						githubAppPrivateKeyKey:     []byte("dummy-pem"),
+					},
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{Name: "known-hosts", Namespace: "cattle-fleet-system"},
+					Data:       map[string]string{"known_hosts": ""},
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
