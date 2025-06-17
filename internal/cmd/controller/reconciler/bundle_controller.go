@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -83,7 +84,8 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&fleet.Bundle{}).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
 		Watches(
-			// Fan out from bundledeployment to bundle
+			// Fan out from bundledeployment to bundle, this is useful to update the
+			// bundle's status fields.
 			&fleet.BundleDeployment{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
 				bd := a.(*fleet.BundleDeployment)
@@ -107,7 +109,7 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(bundleDeploymentStatusChangedPredicate()),
 		).
 		Watches(
-			// Fan out from cluster to bundle
+			// Fan out from cluster to bundle, this is useful for targeting and templating.
 			&fleet.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
 				cluster := a.(*fleet.Cluster)
@@ -143,15 +145,15 @@ func clusterChangedPredicate() predicate.Funcs {
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			n := e.ObjectNew.(*fleet.Cluster)
 			o := e.ObjectOld.(*fleet.Cluster)
-			// handle cluster deletion
-			if n == nil || n.DeletionTimestamp.IsZero() {
+			// cluster deletion will eventually trigger a delete event
+			if n == nil || !n.DeletionTimestamp.IsZero() {
 				return true
 			}
 			// labels and annotations are used for templating and targeting
-			if !reflect.DeepEqual(n.Labels, o.Labels) {
+			if !maps.Equal(n.Labels, o.Labels) {
 				return true
 			}
-			if !reflect.DeepEqual(n.Annotations, o.Annotations) {
+			if !maps.Equal(n.Annotations, o.Annotations) {
 				return true
 			}
 			// spec templateValues is used in templating
@@ -342,8 +344,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			continue
 		}
 
-		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
-		// copy labels from Bundle as they might have changed
+		// NOTE we don't re-use the existing BundleDeployment, we discard annotations, status, etc.
+		// and copy labels from Bundle as they might have changed.
+		// However, matchedTargets target.Deployment contains existing BundleDeployments.
 		bd := target.BundleDeployment()
 
 		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
