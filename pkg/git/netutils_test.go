@@ -19,7 +19,8 @@ const gitClientTimeout = time.Second * 30
 
 var _ = Describe("git's GetAuthFromSecret tests", func() {
 	var (
-		secret *corev1.Secret
+		secret               *corev1.Secret
+		origGetGitHubAppAuth = git.GetGitHubAppAuth
 	)
 
 	Context("Nil secret", func() {
@@ -47,7 +48,7 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 		})
 	})
 
-	Context("Secret is not basic-auth nor ssh", func() {
+	Context("Secret is not basic-auth nor ssh, has no github app keys", func() {
 		BeforeEach(func() {
 			secret = &corev1.Secret{
 				Type: corev1.SecretTypeTLS,
@@ -58,6 +59,162 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(auth).To(BeNil())
+		})
+	})
+
+	Context("Secret is not basic-auth nor ssh, has some github app keys", func() {
+		var (
+			gitHubAppID             = []byte("123")
+			githubAppInstallationID = []byte("456")
+		)
+		BeforeEach(func() {
+			secret = &corev1.Secret{
+				Type: corev1.SecretTypeTLS,
+				Data: map[string][]byte{
+					git.GitHubAppAuthIDKey:             gitHubAppID,
+					git.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
+				},
+			}
+		})
+
+		It("returns no error and no auth", func() {
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(auth).To(BeNil())
+		})
+	})
+
+	Context("Github app auth with all expected keys", func() {
+		var (
+			gitHubAppID             = []byte("123")
+			githubAppInstallationID = []byte("456")
+			githubAppPrivateKey     = []byte(`-----BEGIN RSA PRIVATE KEY-----
+MIIEogIBAAKCAQEAmVh/5bCTwmFU+F7OWyYT6JFkG8V06AdesKSMyeJwT4kGs3Pm
+vKEzKd/CExhd25Tzk5CD8jj6x9usZOtnI0rmCJEgkviWbk6b0K0jPs2b4a6fSbvE
+GpSYheS89cQ7m8YrQr6MuqstjpS1Yz/uWwN0DCrNupyf0GkesqKLlgElPuwcfeQo
+OmyLhY2xViK2ctLzricbKqDMqCFd1WdaYEut6lh3z/Gy/tPk/CJVkP1VGC+KTaer
+vyRKnH9By1VsXUOzOT1NVFjOJfXIqtyTwnE+d24WR9mPcw7kPReiXyS6DoUfcmiq
+4irqaN1smp52iX7EbWsIhir74TrBP51q1M+QFQIDAQABAoIBACTmMNB6bvPFLAcf
++RPh08SQx8APAZSbwWNMFTy3KkNZO62O5CTbvU4EM9UYde1SqFIH4lg08dOJvrAC
+HS1W5oeFNItpGfmtHL1YDDUekLX7qQS7E/M5coI1imqxL47KXrqO05pPeoTmr8cU
+KSzpZdFPs3WGHsatpN9jUadk2yuKkVEjWxMLOtnvbxuhPSuJmhJ5oajCHhGcGD1k
+RMBsPrvRy9J5nEEfYA+KKpWDhIiS6fP5n0YvroIpcJVU5Fo/EZClNrEBkVl0bOms
+d103PWADAputJrTYpv1b/YsT3STM698DhXsTtvK3RvXouJA+P+JVIO5wnH3ySDhL
+L73FgcECgYEA3ee6oNybgMiL9dXAo4lD2BbKU/fbgXZXZLlxrex1x08u9EjOf2+h
+R7ZvJnmwbTtpwis0mCbkvS6SrMO4qmlTzF0KvWWu6dobBpDUIVBU0w4No9J4c7BS
+lYEGFzJH9VMugZMmstT0Yn9ugntShQjf+gQp6RSr4odssNFqqiOCB8kCgYEAsOgY
+5wHEvR+7v+6iaO+/ZGFgBcmt+B3aC+pwjsyVVpUuAAA3Dyb8T5CIMi44Ys/1C3TC
+b/cypuLFzgdccjqHdZ7z4Tmwo5skUmHTtEsb01mG2FxBBm4a81+FwoN+QRnZDpj6
+JQIfWWmbsP56XPOaqlMYfIhLqBkNwtuvhY4fA+0CgYBwrKJh3cKD0NDoYcHwB9nQ
+FjpkCn2Frg5QEa18T426RyWjWnin0onE/QhRNAb2X+2ibwfEnjMVMFm/qZ3RwauQ
+IEo8wy3ehiWk3tMnmz+G7yLT5SHONGCqkxoBm0FYewUpPAuxUFpKzUPSs0XCUTBR
+Jd4WAK4KVxNEcQFFJMR4qQKBgEc8TrrG1YgqfRneZ/vFftZW96mc+rbMnn7p2oVG
+EGSbEbjiXUl2s2b+ljlOr1nqz4vbamhXrEfTTT+Xazx8IQvWA/KPnndjA49A4VTa
+YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
+9UpJAoGAU4sGLwlAHGo+PXUi0PyLtQcxcbytkLAQsKMpuZDvNT/KAmu0kJ0p9InN
+5VKnu9SpmXPxjinS8Mg9QXLrfi5SArEllzfXrgW9OU7ht2xandDD+B8S1cmZF+Yz
+1salKM9mBBkl0sWraqtzQSEDjPeAz8P4TpQKn6kIMiZkMnrurvI=
+-----END RSA PRIVATE KEY-----`)
+		)
+		BeforeEach(func() {
+			git.GetGitHubAppAuth = func(appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
+				return &httpgit.BasicAuth{
+					Username: "x-access-token",
+					Password: "token",
+				}, nil
+			}
+
+			secret = &corev1.Secret{
+				Type: corev1.SecretTypeOpaque,
+				Data: map[string][]byte{
+					git.GitHubAppAuthIDKey:             gitHubAppID,
+					git.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
+					git.GitHubAppAuthPrivateKeyKey:     githubAppPrivateKey,
+				},
+			}
+		})
+		AfterEach(func() { git.GetGitHubAppAuth = origGetGitHubAppAuth })
+		It("returns the basic auth Auth and no error", func() {
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(auth).To(Equal(&httpgit.BasicAuth{
+				Username: "x-access-token",
+				Password: "token",
+			}))
+		})
+	})
+
+	Context("Github app auth with all expected key, invalid private key", func() {
+		var (
+			gitHubAppID             = []byte("123")
+			githubAppInstallationID = []byte("456")
+			githubAppPrivateKey     = []byte(`not a valid private key`)
+		)
+		BeforeEach(func() {
+			secret = &corev1.Secret{
+				Type: corev1.SecretTypeOpaque,
+				Data: map[string][]byte{
+					git.GitHubAppAuthIDKey:             gitHubAppID,
+					git.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
+					git.GitHubAppAuthPrivateKeyKey:     githubAppPrivateKey,
+				},
+			}
+		})
+		It("returns an error and no auth", func() {
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			Expect(err).To(HaveOccurred())
+			Expect(auth).To(BeNil())
+			Expect(err.Error()).To(ContainSubstring("pem decode failed for app"))
+		})
+	})
+
+	Context("Github app auth with all expected key, non-numeric app id", func() {
+		var (
+			gitHubAppID             = []byte("abc")
+			githubAppInstallationID = []byte("456")
+			githubAppPrivateKey     = []byte(`-----BEGIN RSA PRIVATE KEY-----
+MIIEogIBAAKCAQEAmVh/5bCTwmFU+F7OWyYT6JFkG8V06AdesKSMyeJwT4kGs3Pm
+vKEzKd/CExhd25Tzk5CD8jj6x9usZOtnI0rmCJEgkviWbk6b0K0jPs2b4a6fSbvE
+GpSYheS89cQ7m8YrQr6MuqstjpS1Yz/uWwN0DCrNupyf0GkesqKLlgElPuwcfeQo
+OmyLhY2xViK2ctLzricbKqDMqCFd1WdaYEut6lh3z/Gy/tPk/CJVkP1VGC+KTaer
+vyRKnH9By1VsXUOzOT1NVFjOJfXIqtyTwnE+d24WR9mPcw7kPReiXyS6DoUfcmiq
+4irqaN1smp52iX7EbWsIhir74TrBP51q1M+QFQIDAQABAoIBACTmMNB6bvPFLAcf
++RPh08SQx8APAZSbwWNMFTy3KkNZO62O5CTbvU4EM9UYde1SqFIH4lg08dOJvrAC
+HS1W5oeFNItpGfmtHL1YDDUekLX7qQS7E/M5coI1imqxL47KXrqO05pPeoTmr8cU
+KSzpZdFPs3WGHsatpN9jUadk2yuKkVEjWxMLOtnvbxuhPSuJmhJ5oajCHhGcGD1k
+RMBsPrvRy9J5nEEfYA+KKpWDhIiS6fP5n0YvroIpcJVU5Fo/EZClNrEBkVl0bOms
+d103PWADAputJrTYpv1b/YsT3STM698DhXsTtvK3RvXouJA+P+JVIO5wnH3ySDhL
+L73FgcECgYEA3ee6oNybgMiL9dXAo4lD2BbKU/fbgXZXZLlxrex1x08u9EjOf2+h
+R7ZvJnmwbTtpwis0mCbkvS6SrMO4qmlTzF0KvWWu6dobBpDUIVBU0w4No9J4c7BS
+lYEGFzJH9VMugZMmstT0Yn9ugntShQjf+gQp6RSr4odssNFqqiOCB8kCgYEAsOgY
+5wHEvR+7v+6iaO+/ZGFgBcmt+B3aC+pwjsyVVpUuAAA3Dyb8T5CIMi44Ys/1C3TC
+b/cypuLFzgdccjqHdZ7z4Tmwo5skUmHTtEsb01mG2FxBBm4a81+FwoN+QRnZDpj6
+JQIfWWmbsP56XPOaqlMYfIhLqBkNwtuvhY4fA+0CgYBwrKJh3cKD0NDoYcHwB9nQ
+FjpkCn2Frg5QEa18T426RyWjWnin0onE/QhRNAb2X+2ibwfEnjMVMFm/qZ3RwauQ
+IEo8wy3ehiWk3tMnmz+G7yLT5SHONGCqkxoBm0FYewUpPAuxUFpKzUPSs0XCUTBR
+Jd4WAK4KVxNEcQFFJMR4qQKBgEc8TrrG1YgqfRneZ/vFftZW96mc+rbMnn7p2oVG
+EGSbEbjiXUl2s2b+ljlOr1nqz4vbamhXrEfTTT+Xazx8IQvWA/KPnndjA49A4VTa
+YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
+9UpJAoGAU4sGLwlAHGo+PXUi0PyLtQcxcbytkLAQsKMpuZDvNT/KAmu0kJ0p9InN
+5VKnu9SpmXPxjinS8Mg9QXLrfi5SArEllzfXrgW9OU7ht2xandDD+B8S1cmZF+Yz
+1salKM9mBBkl0sWraqtzQSEDjPeAz8P4TpQKn6kIMiZkMnrurvI=
+-----END RSA PRIVATE KEY-----`)
+		)
+		BeforeEach(func() {
+			secret = &corev1.Secret{
+				Type: corev1.SecretTypeOpaque,
+				Data: map[string][]byte{
+					git.GitHubAppAuthIDKey:             gitHubAppID,
+					git.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
+					git.GitHubAppAuthPrivateKeyKey:     githubAppPrivateKey,
+				},
+			}
+		})
+		It("returns an error and no auth", func() {
+			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
+			Expect(err).To(HaveOccurred())
+			Expect(auth).To(BeNil())
+			Expect(err.Error()).To(ContainSubstring("parsing \"abc\": invalid syntax"))
 		})
 	})
 

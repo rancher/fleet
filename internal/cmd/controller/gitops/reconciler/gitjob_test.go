@@ -1375,6 +1375,106 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 				},
 			},
 		},
+		"github app credentials": {
+			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo:             "repo",
+					ClientSecretName: "secretName",
+				},
+			},
+			expectedInitContainers: []corev1.Container{
+				{
+					Command: []string{
+						"log.sh",
+					},
+					Args: []string{
+						"fleet",
+						"gitcloner",
+						"repo",
+						"/workspace",
+						"--branch",
+						"master",
+						"--github-app-id",
+						"123",
+						"--github-app-installation-id",
+						"456",
+						"--github-app-key-file",
+						"/gitjob/githubapp/github_app_private_key",
+					},
+					Image: "test",
+					Name:  "gitcloner-initializer",
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      gitClonerVolumeName,
+							MountPath: "/workspace",
+						},
+						{
+							Name:      emptyDirVolumeName,
+							MountPath: "/tmp",
+						},
+						{
+							Name:      gitCredentialVolumeName,
+							MountPath: "/gitjob/githubapp",
+						},
+					},
+					SecurityContext: securityContext,
+					Env: []corev1.EnvVar{
+						{
+							Name:  fleetcli.JSONOutputEnvVar,
+							Value: "true",
+						},
+					},
+				},
+			},
+			expectedVolumes: []corev1.Volume{
+				{
+					Name: gitClonerVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: emptyDirVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+				{
+					Name: gitCredentialVolumeName,
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: "secretName",
+						},
+					},
+				},
+			},
+			clientObjects: []runtime.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "secretName"},
+					Data: map[string][]byte{
+						"github_app_id":              []byte("123"),
+						"github_app_installation_id": []byte("456"),
+						"github_app_private_key":     []byte("private key"),
+					},
+					Type: corev1.SecretTypeOpaque,
+				},
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "known-hosts",
+						Namespace: "cattle-fleet-system",
+					},
+					Data: map[string]string{
+						// Prevent deployment error about config map not existing, but the data
+						// does not matter in this test case.
+						"known_hosts": "",
+					},
+				},
+			},
+		},
 		"custom CA": {
 			gitrepo: &fleetv1.GitRepo{
 				ObjectMeta: metav1.ObjectMeta{

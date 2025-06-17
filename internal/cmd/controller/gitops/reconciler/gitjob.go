@@ -44,6 +44,10 @@ const (
 	fleetHomeDir = "/fleet-home"
 
 	bundleOptionsSeparatorChars = ":,|?<>"
+
+	githubAppIDKey             = "github_app_id"
+	githubAppInstallationIDKey = "github_app_installation_id"
+	githubAppPrivateKeyKey     = "github_app_private_key"
 )
 
 type helmSecretOptions struct {
@@ -528,6 +532,18 @@ func (r *GitJobReconciler) newGitCloner(
 				MountPath: "/gitjob/ssh",
 			})
 			args = append(args, "--ssh-private-key-file", "/gitjob/ssh/"+corev1.SSHAuthPrivateKey)
+		default:
+			if hasGitHubAppKeys(&secret) {
+				volumeMounts = append(volumeMounts, corev1.VolumeMount{
+					Name:      gitCredentialVolumeName,
+					MountPath: "/gitjob/githubapp",
+				})
+				args = append(args,
+					"--github-app-id", string(secret.Data[githubAppIDKey]),
+					"--github-app-installation-id", string(secret.Data[githubAppInstallationIDKey]),
+					"--github-app-key-file", "/gitjob/githubapp/"+githubAppPrivateKeyKey,
+				)
+			}
 		}
 	}
 
@@ -950,4 +966,16 @@ func caBundleName(obj *v1alpha1.GitRepo) string {
 
 func rancherCABundleName(obj *v1alpha1.GitRepo) string {
 	return fmt.Sprintf("%s-rancher-cabundle", obj.Name)
+}
+
+func hasGitHubAppKeys(secret *corev1.Secret) bool {
+	if secret == nil {
+		return false
+	}
+
+	_, hasID := secret.Data[githubAppIDKey]
+	_, hasInstallationID := secret.Data[githubAppInstallationIDKey]
+	_, hasPrivateKey := secret.Data[githubAppPrivateKeyKey]
+
+	return hasID && hasInstallationID && hasPrivateKey
 }
