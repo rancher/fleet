@@ -1,19 +1,42 @@
 package git
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
+	"github.com/rancher/fleet/pkg/githubapp"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 
 	fleetssh "github.com/rancher/fleet/internal/ssh"
+)
+
+const (
+	GitHubAppAuthInstallationIDKey = "github_app_installation_id"
+	GitHubAppAuthIDKey             = "github_app_id"
+	GitHubAppAuthPrivateKeyKey     = "github_app_private_key"
+)
+
+var (
+	GetGitHubAppAuth = func(appID, insID int64, pem []byte) (*httpgit.BasicAuth, error) {
+		tok, err := githubapp.NewApp(appID, insID, pem).GetToken(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		return &httpgit.BasicAuth{
+			Username: "x-access-token",
+			Password: tok,
+		}, nil
+	}
 )
 
 // GetAuthFromSecret returns the AuthMethod calculated from the given secret, setting known hosts if needed.
@@ -60,6 +83,15 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 		}
 		return auth, nil
+	default:
+		if auth, keysArePresent, err := GetGithubAppAuthFromSecret(creds); keysArePresent {
+			if err != nil {
+				return nil, err
+			}
+			return auth, nil
+		} else if err != nil {
+			return nil, err
+		}
 	}
 	return nil, nil
 }
@@ -117,6 +149,37 @@ func GetHTTPClientFromSecret(creds *corev1.Secret, CABundle []byte, insecureTLSV
 	}
 
 	return client, nil
+}
+
+// GetGithubAppAuthFromSecret returns:
+//   - (auth, true,  nil) – the secret **has** all 3 GitHub-App keys and we
+//     successfully fetched a token.
+//   - (nil,      false, nil) – the three keys are **not** present (caller should
+//     keep looking for other credential styles).
+//   - (nil,      true,  err) – keys were present but something failed (bad IDs,
+//     PEM write error, network error, …).
+func GetGithubAppAuthFromSecret(creds *corev1.Secret) (*httpgit.BasicAuth, bool, error) {
+	idBytes, okID := creds.Data[GitHubAppAuthIDKey]
+	insBytes, okIns := creds.Data[GitHubAppAuthInstallationIDKey]
+	pemBytes, okPem := creds.Data[GitHubAppAuthPrivateKeyKey]
+	if !(okID && okIns && okPem) {
+		return nil, false, nil
+	}
+
+	appID, err := strconv.ParseInt(string(idBytes), 10, 64)
+	if err != nil {
+		return nil, true, fmt.Errorf("github-app id is not numeric: %w", err)
+	}
+	insID, err := strconv.ParseInt(string(insBytes), 10, 64)
+	if err != nil {
+		return nil, true, fmt.Errorf("github-app installation id is not numeric: %w", err)
+	}
+
+	auth, err := GetGitHubAppAuth(appID, insID, pemBytes)
+	if err != nil {
+		return nil, true, err
+	}
+	return auth, true, nil
 }
 
 type basicRoundTripper struct {
