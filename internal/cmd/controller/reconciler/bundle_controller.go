@@ -160,8 +160,8 @@ func clusterChangedPredicate() predicate.Funcs {
 			if !reflect.DeepEqual(n.Spec, o.Spec) {
 				return true
 			}
-			// namespace contains the bundledeployments
-			if !reflect.DeepEqual(n.Status.Namespace, o.Status.Namespace) {
+			// this namespace contains the bundledeployments
+			if n.Status.Namespace != o.Status.Namespace {
 				return true
 			}
 
