@@ -51,7 +51,7 @@ require (
 	golang.org/x/sync v0.15.0
 	gonum.org/v1/gonum v0.16.0
 	gotest.tools v2.2.0+incompatible
-	helm.sh/helm/v3 v3.18.2
+	helm.sh/helm/v3 v3.18.3
 	k8s.io/api v0.33.1
 	k8s.io/apiextensions-apiserver v0.33.1
 	k8s.io/apimachinery v0.33.1
