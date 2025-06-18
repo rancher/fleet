@@ -3,7 +3,6 @@ package installation_test
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -116,9 +115,7 @@ var _ = Describe("HelmOps installation with strict TLS mode", func() {
 			"app=fleet-agent",
 		)
 		Expect(err).NotTo(HaveOccurred())
-	})
 
-	JustBeforeEach(func() {
 		restoreConfig() // prevent interference with other test cases in the suite.
 		out, err := ku.Patch(
 			"configmap",
@@ -182,10 +179,11 @@ var _ = Describe("HelmOps installation with strict TLS mode", func() {
 		})
 
 		It("deploys the chart", func() {
-			Eventually(func() bool {
-				outPods, _ := kd.Get("configmaps")
-				return strings.Contains(outPods, "test-simple-chart-config")
-			}).Should(BeTrue())
+			Eventually(func(g Gomega) {
+				outPods, err := kd.Get("configmaps")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(outPods).To(ContainSubstring("test-simple-chart-config"))
+			}).Should(Succeed())
 		})
 
 		AfterEach(func() {
