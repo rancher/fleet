@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -115,12 +116,28 @@ func targetsEqual(got, want []*Target) error {
 // partitionsEqual compares two slices of partitions for equality. It ignores
 // the status of the partitions.
 func partitionsEqual(got, want []partition) error {
+	type targetStats struct {
+		length   int
+		min, max string
+	}
+	stats := func() []*targetStats {
+		stats := make([]*targetStats, len(got))
+		for i, p := range got {
+			stats[i] = &targetStats{
+				length: len(p.Targets),
+				// targets are sorted by Name
+				min: p.Targets[0].DeploymentID,
+				max: p.Targets[len(p.Targets)-1].DeploymentID,
+			}
+		}
+		return stats
+	}
 	if len(got) != len(want) {
-		return fmt.Errorf("partitions have different lengths: got %d but want %d", len(got), len(want))
+		return fmt.Errorf("partitions have different lengths: got %d but want %d\nstats of got: %s", len(got), len(want), spew.Sdump(stats()))
 	}
 	for i := range want {
 		if err := targetsEqual(got[i].Targets, want[i].Targets); err != nil {
-			return fmt.Errorf("partition %d has different targets: %v", i, err)
+			return fmt.Errorf("partition %d has different targets: %v\nstats of got: %s", i, err, spew.Sdump(stats()))
 		}
 
 		if got[i].Status.MaxUnavailable != want[i].Status.MaxUnavailable {
