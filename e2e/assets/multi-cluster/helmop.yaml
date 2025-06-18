@@ -1,0 +1,16 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: HelmOp
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  helm:
+    releaseName: testhelm
+    repo: {{.Repo}}
+    chart: {{.Chart}}
+    version: '{{.Version}}'
+  pollingInterval: {{.PollingInterval}}
+  helmSecretName: {{.HelmSecretName}}
+  insecureSkipTLSVerify: {{.InsecureSkipTLSVerify}}
+  targets:
+    - clusterSelector: {}
