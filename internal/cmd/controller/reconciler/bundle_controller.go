@@ -164,6 +164,10 @@ func clusterChangedPredicate() predicate.Funcs {
 			if n.Status.Namespace != o.Status.Namespace {
 				return true
 			}
+			// this namespace indicates the agent is running
+			if n.Status.Agent.Namespace != o.Status.Agent.Namespace {
+				return true
+			}
 
 			return false
 		},
