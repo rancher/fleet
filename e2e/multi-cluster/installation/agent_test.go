@@ -67,7 +67,7 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 					g.Expect(logs).To(MatchRegexp("Failed to register agent.*could not find the requested resource"))
 
 					return nil
-				}).ShouldNot(HaveOccurred())
+				}).Should(Succeed())
 			})
 		})
 	})
@@ -97,7 +97,7 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 					}
 
 					return nil
-				}).ShouldNot(HaveOccurred())
+				}).Should(Succeed())
 			})
 		})
 	})
@@ -139,14 +139,14 @@ var _ = Describe("HelmOps installation with strict TLS mode", func() {
 				"-o",
 				"jsonpath={.data.config}",
 			)
-			Expect(err).ToNot(HaveOccurred(), data)
+			g.Expect(err).ToNot(HaveOccurred(), data)
 
 			var c configWithTLSMode
 
 			err = json.Unmarshal([]byte(data), &c)
-			Expect(err).ToNot(HaveOccurred())
+			g.Expect(err).ToNot(HaveOccurred())
 
-			Expect(c.AgentTLSMode).To(Equal("strict"))
+			g.Expect(c.AgentTLSMode).To(Equal("strict"))
 		}).Should(Succeed())
 	})
 
