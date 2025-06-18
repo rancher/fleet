@@ -214,6 +214,18 @@ func Test_autoPartition(t *testing.T) {
 				{Targets: createTargets(901, 1000), Status: fleet.PartitionStatus{MaxUnavailable: 10}},
 			},
 		},
+		{
+			name:    "rounding with 230 clusters",
+			rollout: &fleet.RolloutStrategy{},
+			targets: createTargets(1, 230),
+			want: []partition{
+				{Targets: createTargets(1, 57), Status: fleet.PartitionStatus{MaxUnavailable: 57}},
+				{Targets: createTargets(58, 114), Status: fleet.PartitionStatus{MaxUnavailable: 57}},
+				{Targets: createTargets(115, 171), Status: fleet.PartitionStatus{MaxUnavailable: 57}},
+				{Targets: createTargets(172, 228), Status: fleet.PartitionStatus{MaxUnavailable: 57}},
+				{Targets: createTargets(229, 230), Status: fleet.PartitionStatus{MaxUnavailable: 2}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
