@@ -5,6 +5,7 @@ import (
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -47,6 +48,16 @@ func CreateCluster(ctx context.Context, k8sClient client.Client, name, controlle
 	if err != nil {
 		return nil, err
 	}
+
+	err = k8sClient.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: clusterNs,
+		},
+	})
+	if client.IgnoreAlreadyExists(err) != nil {
+		return nil, err
+	}
+
 	cluster.Status.Namespace = clusterNs
 	err = k8sClient.Status().Update(ctx, cluster)
 	return cluster, err
