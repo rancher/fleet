@@ -49,7 +49,11 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	// Restore initial state of config map
+	restoreConfig()
+})
+
+// restoreConfig restores the initial state of the `fleet-controller` config map.
+func restoreConfig() {
 	out, err := ku.Patch(
 		"configmap",
 		"fleet-controller",
@@ -60,4 +64,4 @@ var _ = AfterSuite(func() {
 		fmt.Sprintf(`{"data":{"config":"%s"}}`, config),
 	)
 	Expect(err).ToNot(HaveOccurred(), string(out))
-})
+}
