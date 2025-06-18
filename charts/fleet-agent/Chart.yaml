@@ -8,8 +8,8 @@ annotations:
   catalog.cattle.io/rancher-version: '>= 2.10.0-0 < 2.11.0-0'
   catalog.cattle.io/release-name: fleet-agent
 apiVersion: v2
-appVersion: 0.11.9-rc.2
+appVersion: 0.11.9
 description: Fleet Agent - GitOps at Scale
 icon: https://charts.rancher.io/assets/logos/fleet.svg
 name: fleet-agent
-version: 0.11.9-rc.2
+version: 0.11.9
