@@ -305,16 +305,15 @@ func readAuth(ctx context.Context, logger logr.Logger, c client.Client, gitrepo 
 		}
 		return publicKey, nil
 	default:
-		if token, keysArePresent, err := git.GetGithubAppTokenFromSecret(secret); keysArePresent {
-			if err != nil {
-				return nil, err
-			}
+		token, keysArePresent, err := git.GetGithubAppTokenFromSecret(secret)
+		if err != nil {
+			return nil, err
+		}
+		if keysArePresent {
 			return &http.BasicAuth{
 				Username: "x-access-token",
 				Password: token,
 			}, nil
-		} else if err != nil {
-			return nil, err
 		}
 	}
 	return nil, errors.New("invalid secret type")

@@ -4,11 +4,9 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 const testPEM = `-----BEGIN RSA PRIVATE KEY-----
@@ -45,55 +43,35 @@ func (f *fakeRT) RoundTrip(_ *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-func TestProvider_GetToken_CachingAndRefresh(t *testing.T) {
-	origRT := http.DefaultTransport
-	stubRT := &fakeRT{}
-	http.DefaultTransport = stubRT
-	t.Cleanup(func() { http.DefaultTransport = origRT })
+func TestGitHubApp_GetToken_Success(t *testing.T) {
+	orig := http.DefaultTransport
+	stub := &fakeRT{}
+	http.DefaultTransport = stub
+	t.Cleanup(func() { http.DefaultTransport = orig })
 
-	pemFile, err := os.CreateTemp(t.TempDir(), "ghapp*.pem")
+	app := NewApp(1, 2, []byte(testPEM))
+
+	token, err := app.GetToken(context.Background())
 	if err != nil {
-		t.Fatalf("create temp pem: %v", err)
+		t.Fatalf("GetToken returned error: %v", err)
 	}
-	if _, err := pemFile.WriteString(testPEM); err != nil {
-		t.Fatalf("write pem: %v", err)
+	if token != "abc123" {
+		t.Fatalf("unexpected token %q (want %q)", token, "abc123")
 	}
-	pemFile.Close()
+	if stub.calls != 1 {
+		t.Fatalf("expected exactly one outbound HTTP request, got %d", stub.calls)
+	}
+}
 
-	p := New(1, 2, pemFile.Name())
+func TestGitHubApp_GetToken_InvalidPEM(t *testing.T) {
+	app := NewApp(10, 20, []byte("definitely-not-a-PEM-block"))
 
-	ctx := context.Background()
-	tok1, err := p.GetToken(ctx)
-	if err != nil {
-		t.Fatalf("first GetToken: %v", err)
+	_, err := app.GetToken(context.Background())
+	if err == nil {
+		t.Fatalf("expected error for invalid PEM, got nil")
 	}
-	if tok1 != "abc123" {
-		t.Fatalf("unexpected token: %s", tok1)
-	}
-	if stubRT.calls != 1 {
-		t.Fatalf("expected 1 HTTP call, got %d", stubRT.calls)
-	}
-
-	tok2, err := p.GetToken(ctx)
-	if err != nil {
-		t.Fatalf("second GetToken: %v", err)
-	}
-	if tok2 != tok1 {
-		t.Fatalf("cached token mismatch: %s", tok2)
-	}
-	if stubRT.calls != 1 {
-		t.Fatalf("cache miss: HTTP calls = %d (want 1)", stubRT.calls)
-	}
-
-	// Force expiry and ensure provider refreshes the token
-	p.mu.Lock()
-	p.expiresAt = time.Now().Add(-time.Hour)
-	p.mu.Unlock()
-
-	if _, err := p.GetToken(ctx); err != nil {
-		t.Fatalf("GetToken after manual expiry: %v", err)
-	}
-	if stubRT.calls != 2 {
-		t.Fatalf("expected 2 HTTP calls after refresh, got %d", stubRT.calls)
+	const want = "does not have a valid private key"
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error %q does not contain %q", err, want)
 	}
 }
