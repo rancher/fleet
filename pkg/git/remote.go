@@ -8,7 +8,6 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/transport"
-	httpauth "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/go-logr/logr"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
@@ -17,7 +16,6 @@ import (
 
 type options struct {
 	Credential        *corev1.Secret
-	Token             string
 	CABundle          []byte
 	InsecureTLSVerify bool
 	KnownHosts        string
@@ -78,18 +76,6 @@ func NewRemote(url string, opts *options) (*Remote, error) {
 	auth, err := GetAuthFromSecret(url, opts.Credential, opts.KnownHosts)
 	if err != nil {
 		return nil, err
-	}
-
-	if opts.Token != "" && strings.HasPrefix(url, "https://") {
-		auth = &httpauth.BasicAuth{
-			Username: "x-access-token",
-			Password: opts.Token,
-		}
-
-		// if opts.Headers == nil {
-		//   opts.Headers = map[string]string{}
-		// }
-		// opts.Headers["Authorization"] = "token " + opts.Token
 	}
 
 	// parse the url to make sure it is valid and convert scp-like urls to ssh

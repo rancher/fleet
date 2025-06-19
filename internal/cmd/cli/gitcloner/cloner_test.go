@@ -69,7 +69,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		}
 		return nil, errors.New("file not found")
 	}
-	getGitHubAppToken = func(appID, instID int64, key string) (string, error) {
+	getGitHubAppToken = func(appID, instID int64, key []byte) (string, error) {
 		return "token", nil
 	}
 	origGitHubTokenFn := getGitHubAppToken
@@ -85,7 +85,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		opts              *GitCloner
 		expectedCloneOpts *git.CloneOptions
 		expectedErr       error
-		ghTokenFn         func(appID, instID int64, key string) (string, error)
+		ghTokenFn         func(appID, instID int64, key []byte) (string, error)
 	}{
 		"branch no auth": {
 			opts: &GitCloner{
@@ -177,7 +177,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: nil,
 			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="path": token retrieval failed`),
-			ghTokenFn: func(appID, instID int64, key string) (string, error) {
+			ghTokenFn: func(appID, instID int64, key []byte) (string, error) {
 				return "", errors.New("token retrieval failed")
 			},
 		},

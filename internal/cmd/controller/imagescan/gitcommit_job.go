@@ -28,6 +28,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan/update"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
+	"github.com/rancher/fleet/pkg/git"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
@@ -303,6 +304,18 @@ func readAuth(ctx context.Context, logger logr.Logger, c client.Client, gitrepo 
 			return nil, err
 		}
 		return publicKey, nil
+	default:
+		if token, keysArePresent, err := git.GetGithubAppTokenFromSecret(secret); keysArePresent {
+			if err != nil {
+				return nil, err
+			}
+			return &http.BasicAuth{
+				Username: "x-access-token",
+				Password: token,
+			}, nil
+		} else if err != nil {
+			return nil, err
+		}
 	}
 	return nil, errors.New("invalid secret type")
 }

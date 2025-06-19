@@ -29,7 +29,6 @@ import (
 	"github.com/rancher/fleet/internal/ssh"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/git"
-	"github.com/rancher/fleet/pkg/githubapp"
 	"github.com/rancher/fleet/pkg/version"
 	"github.com/rancher/fleet/pkg/webhook"
 )
@@ -58,9 +57,6 @@ type GitOperator struct {
 	ShardID              string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
 	ShardNodeSelector    string `usage:"node selector to apply to jobs based on the shard ID, if any" name:"shard-node-selector"`
 	SkipHostKeyChecks    bool   `name:"insecure-skip-host-key-checks" usage:"Enable SSH connections to succeed even without matching known_hosts entries. Enabling this will expose SSH operations to man-in-the-middle attacks."`
-	GitHubAppID          string `name:"github-app-id" usage:"GitHub App ID to use for GitHub authentication"`
-	GitHubAppInstallID   string `name:"github-app-installation" usage:"Installation ID to impersonate"`
-	GitHubAppKeyFile     string `name:"github-app-private-key" usage:"Path to the private key file for the GitHub App"`
 }
 
 func App(zo *zap.Options) *cobra.Command {
@@ -144,22 +140,6 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 
 	kh := ssh.KnownHosts{EnforceHostKeyChecks: !g.SkipHostKeyChecks}
 
-	var ghProvider *githubapp.Provider
-
-	if g.GitHubAppID != "" && g.GitHubAppKeyFile != "" && g.GitHubAppInstallID != "" {
-		appID, err := strconv.ParseInt(g.GitHubAppID, 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid --github-app-id: %w", err)
-		}
-
-		instID, err := strconv.ParseInt(g.GitHubAppInstallID, 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid --github-app-installation-id: %w", err)
-		}
-
-		ghProvider = githubapp.New(appID, instID, g.GitHubAppKeyFile)
-	}
-
 	gitJobReconciler := &reconciler.GitJobReconciler{
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),
@@ -168,15 +148,7 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		Workers:         workers,
 		ShardID:         g.ShardID,
 		JobNodeSelector: g.ShardNodeSelector,
-		GitFetcher: &git.Fetch{
-			KnownHosts: kh,
-			TokenProvider: func(ctx context.Context) (string, error) {
-				if ghProvider == nil {
-					return "", nil
-				}
-				return ghProvider.GetToken(ctx)
-			},
-		},
+		GitFetcher:      &git.Fetch{KnownHosts: kh},
 		Clock:           reconciler.RealClock{},
 		Recorder:        mgr.GetEventRecorderFor(fmt.Sprintf("fleet-gitops%s", shardIDSuffix)),
 		SystemNamespace: namespace,

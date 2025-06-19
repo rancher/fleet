@@ -27,8 +27,8 @@ var (
 	plainClone        = git.PlainClone
 	readFile          = os.ReadFile
 	fileStat          = os.Stat
-	getGitHubAppToken = func(appID, instID int64, key string) (string, error) {
-		return githubapp.New(appID, instID, key).GetToken(context.Background())
+	getGitHubAppToken = func(appID, instID int64, key []byte) (string, error) {
+		return githubapp.NewApp(appID, instID, key).GetToken(context.Background())
 	}
 )
 
@@ -182,7 +182,12 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
 		}
 
-		token, err := getGitHubAppToken(int64(opts.GitHubAppID), int64(opts.GitHubAppInstallation), opts.GitHubAppKeyFile)
+		key, err := readFile(opts.GitHubAppKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
+		}
+
+		token, err := getGitHubAppToken(int64(opts.GitHubAppID), int64(opts.GitHubAppInstallation), key)
 		if err != nil {
 			return nil, err
 		}
