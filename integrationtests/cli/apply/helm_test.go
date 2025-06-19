@@ -204,17 +204,22 @@ func testHelmRepo(path, port string) {
 		BeforeEach(func() {
 			authEnabled = true
 		})
-		It("uses credentials from HelmSecretNameForPaths", func() {
+		It("uses the first set of credentials matching the bundle path with patterns sorted in lexical order", func() {
 			Eventually(func() error {
 				return fleetApply(
 					"helm",
 					[]string{cli.AssetsPath + path},
 					apply.Options{
 						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + "*_url": { // these credentials also match the path, but should not be used.
+								Username: "wrong-" + username,
+								Password: "wrong-" + password,
+							},
 							cli.AssetsPath + "*": {
 								Username: username,
 								Password: password,
 							},
+							cli.AssetsPath + "no-match": {},
 						},
 					},
 				)
