@@ -3,6 +3,7 @@ package installation_test
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,8 +18,6 @@ var (
 
 var _ = Describe("Fleet installation with TLS agent modes", func() {
 	BeforeEach(func() {
-		kd = env.Kubectl.Context(env.Downstream)
-
 		_, err := kd.Delete(
 			"pod",
 			"-n",
@@ -105,18 +104,13 @@ var _ = Describe("Fleet installation with TLS agent modes", func() {
 
 var _ = Describe("HelmOps installation with strict TLS mode", func() {
 	BeforeEach(func() {
-		kd = env.Kubectl.Context(env.Downstream)
-
-		_, err := kd.Delete(
-			"pod",
-			"-n",
-			"cattle-fleet-system",
-			"-l",
-			"app=fleet-agent",
-		)
+		_, err := kd.Delete("pod", "-n", "cattle-fleet-system", "-l", "app=fleet-agent")
 		Expect(err).NotTo(HaveOccurred())
+	})
 
-		restoreConfig() // prevent interference with other test cases in the suite.
+	JustBeforeEach(func() {
+		strictCfg := strings.ReplaceAll(config, "system-store", "strict")
+
 		out, err := ku.Patch(
 			"configmap",
 			"fleet-controller",
@@ -124,7 +118,7 @@ var _ = Describe("HelmOps installation with strict TLS mode", func() {
 			"cattle-fleet-system",
 			"--type=merge",
 			"-p",
-			fmt.Sprintf(`{"data":{"config":"{\"agentTLSMode\": \"%s\"}"}}`, agentMode),
+			fmt.Sprintf(`{"data":{"config":"%s"}}`, strictCfg),
 		)
 		Expect(err).ToNot(HaveOccurred(), string(out))
 
@@ -133,12 +127,7 @@ var _ = Describe("HelmOps installation with strict TLS mode", func() {
 			AgentTLSMode string `json:"agentTLSMode"`
 		}
 		Eventually(func(g Gomega) {
-			data, err := kd.Namespace("cattle-fleet-system").Get(
-				"configmap",
-				"fleet-agent",
-				"-o",
-				"jsonpath={.data.config}",
-			)
+			data, err := kd.Namespace("cattle-fleet-system").Get("configmap", "fleet-agent", "-o", "jsonpath={.data.config}")
 			g.Expect(err).ToNot(HaveOccurred(), data)
 
 			var c configWithTLSMode
