@@ -149,6 +149,18 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 					eg.Go(func() error {
 						if auth, ok := opts.AuthByPath[path]; ok {
 							opts.Auth = auth
+						} else {
+							// No direct match; check for globs instead.
+							for pathKey, auth := range opts.AuthByPath {
+								isMatch, err := filepath.Match(pathKey, path)
+								if err != nil {
+									return fmt.Errorf("failed to check for matches in auth paths: %w", err)
+								}
+
+								if isMatch {
+									opts.Auth = auth
+								}
+							}
 						}
 
 						bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
