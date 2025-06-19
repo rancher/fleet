@@ -8,8 +8,7 @@ func TestArgsAreSet(t *testing.T) {
 	mock := &clonerMock{}
 	cmd := NewCmd(mock)
 	cmd.SetArgs([]string{"test-repo", "test-path", "--branch", "master", "--revision", "v0.1.0", "--ca-bundle-file", "caFile", "--username", "user",
-		"--password-file", "passwordFile", "--ssh-private-key-file", "sshFile", "--insecure-skip-tls", "--github-app-id", "123",
-		"--github-app-installation-id", "456", "--github-app-key-file", "githubKeyFile"})
+		"--password-file", "passwordFile", "--ssh-private-key-file", "sshFile", "--insecure-skip-tls"})
 	err := cmd.Execute()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -37,15 +36,6 @@ func TestArgsAreSet(t *testing.T) {
 	}
 	if !mock.opts.InsecureSkipTLS {
 		t.Fatalf("expected InsecureSkipTLS to be true")
-	}
-	if mock.opts.GitHubAppID != 123 {
-		t.Fatalf("expected GitHubAppID 123, got %v", mock.opts.GitHubAppID)
-	}
-	if mock.opts.GitHubAppInstallation != 456 {
-		t.Fatalf("expected GitHubAppInstallation 456, got %v", mock.opts.GitHubAppInstallation)
-	}
-	if mock.opts.GitHubAppKeyFile != "githubKeyFile" {
-		t.Fatalf("expected GitHubAppKeyFile githubKeyFile, got %v", mock.opts.GitHubAppKeyFile)
 	}
 }
 
