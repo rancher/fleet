@@ -1,6 +1,7 @@
 package gitcloner
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 
 	giturls "github.com/rancher/fleet/pkg/git-urls"
+	githubapp "github.com/rancher/fleet/pkg/githubapp"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -22,12 +24,17 @@ import (
 const defaultBranch = "master"
 
 var (
-	plainClone = git.PlainClone
-	readFile   = os.ReadFile
+	plainClone        = git.PlainClone
+	readFile          = os.ReadFile
+	fileStat          = os.Stat
+	getGitHubAppToken = func(appID, instID int64, key []byte) (string, error) {
+		return githubapp.NewApp(appID, instID, key).GetToken(context.Background())
+	}
 )
 
 type Cloner struct{}
 
+// Can this be removed?
 type Options struct {
 	Repo            string
 	Branch          string
@@ -168,6 +175,26 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 		}
 		return auth, nil
+	}
+
+	if opts.GitHubAppID != 0 && opts.GitHubAppInstallation != 0 && opts.GitHubAppKeyFile != "" {
+		if _, err := fileStat(opts.GitHubAppKeyFile); err != nil {
+			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
+		}
+
+		key, err := readFile(opts.GitHubAppKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
+		}
+
+		token, err := getGitHubAppToken(int64(opts.GitHubAppID), int64(opts.GitHubAppInstallation), key)
+		if err != nil {
+			return nil, err
+		}
+		return &httpgit.BasicAuth{
+			Username: "x-access-token",
+			Password: token,
+		}, nil
 	}
 
 	if opts.Username != "" && opts.PasswordFile != "" {
