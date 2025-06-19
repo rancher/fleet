@@ -704,12 +704,13 @@ func argsAndEnvs(
 		env = append(env, gitSSHCommandEnvVar(knownHosts.IsStrict()))
 	}
 
-	if ocistorage.ExperimentalOCIIsEnabled() {
+	if !ocistorage.OCIIsEnabled() {
 		env = append(env,
 			corev1.EnvVar{
-				Name:  "EXPERIMENTAL_OCI_STORAGE",
-				Value: "true",
+				Name:  ocistorage.OCIStorageFlag,
+				Value: "false",
 			})
+	} else {
 		args = append(args, "--oci-registry-secret", gitrepo.Spec.OCIRegistrySecret)
 	}
 

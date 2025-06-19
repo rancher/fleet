@@ -17,7 +17,10 @@ import (
 	"github.com/rancher/fleet/internal/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -37,7 +40,9 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 		//Setting up all the needed mocked interfaces for the test
 		ctrl = gomock.NewController(GinkgoT())
 		clientMock = mocks.NewMockClient(ctrl)
-		clientMock.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		clientMock.EXPECT().Get(
+			gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleet.Bundle{}),
+		).DoAndReturn(
 			func(_ context.Context, ns types.NamespacedName, bundle *fleet.Bundle, _ ...interface{}) error {
 				bundle.ObjectMeta = oldBundle.ObjectMeta
 				bundle.Name = ns.Name
@@ -48,6 +53,10 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 		)
 		clientMock.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		clientMock.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		// so it does not try to use OCI storage
+		clientMock.EXPECT().Get(
+			gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}),
+		).Return(errors.NewNotFound(schema.GroupResource{}, "")).AnyTimes()
 	})
 
 	When("We want to delete a label in the bundle from the cluster", func() {
