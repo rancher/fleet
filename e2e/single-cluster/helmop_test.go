@@ -275,8 +275,9 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 	var (
 		namespace string
 		name      string
-		insecure  bool
+		insecure  = true
 		k         kubectl.Command
+		version   string
 	)
 
 	BeforeEach(func() {
@@ -313,7 +314,7 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 			0,
 			helmOpsSecretName,
 			insecure,
-			"0.1.0",
+			version,
 		})
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
@@ -325,21 +326,39 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
-	When("applying a helmop resource", func() {
+	When("applying a helmop resource with a version", func() {
 		BeforeEach(func() {
-			namespace = "helmop-ns"
-			name = "basic-oci"
-			insecure = true
+			namespace = "helmop-tarball-ns"
+			name = "basic-helmop"
+			version = "0.42.0" // Will be ignored for a tarball; to be improved in the future.
 		})
 		It("deploys the chart", func() {
-			Eventually(func() bool {
-				outDeployments, _ := k.Namespace(namespace).Get("pods")
-				return strings.Contains(outDeployments, "sleeper-")
-			}).Should(BeTrue())
-			Eventually(func() bool {
+			Eventually(func(g Gomega) {
+				outPods, _ := k.Namespace(namespace).Get("pods")
+				g.Expect(outPods).To(ContainSubstring("sleeper-"))
+			}).Should(Succeed())
+			Eventually(func(g Gomega) {
 				outDeployments, _ := k.Namespace(namespace).Get("deployments")
-				return strings.Contains(outDeployments, "sleeper")
-			}).Should(BeTrue())
+				g.Expect(outDeployments).To(ContainSubstring("sleeper"))
+			}).Should(Succeed())
+		})
+	})
+
+	When("applying a helmop resource without a version", func() {
+		BeforeEach(func() {
+			namespace = "helmop-tarball-ns-no-version"
+			name = "basic-helmop"
+			version = ""
+		})
+		It("deploys the chart", func() {
+			Eventually(func(g Gomega) {
+				outPods, _ := k.Namespace(namespace).Get("pods")
+				g.Expect(outPods).To(ContainSubstring("sleeper-"))
+			}).Should(Succeed())
+			Eventually(func(g Gomega) {
+				outDeployments, _ := k.Namespace(namespace).Get("deployments")
+				g.Expect(outDeployments).To(ContainSubstring("sleeper"))
+			}).Should(Succeed())
 		})
 	})
 })
