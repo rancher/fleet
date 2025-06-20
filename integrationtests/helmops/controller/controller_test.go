@@ -683,8 +683,33 @@ var _ = Describe("HelmOps controller", func() {
 							v1.ConditionFalse,
 							"improper constraint: foo",
 						)
-
 					}).Should(Succeed())
+
+					By("then updating the status when the version constraint is edited")
+					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+					err := k8sClient.Get(ctx, ns, &helmop)
+					Expect(err).ShouldNot(HaveOccurred())
+
+					helmop.Spec.Helm.Version = "0.1.2"
+
+					err = k8sClient.Update(ctx, &helmop)
+					Expect(err).ShouldNot(HaveOccurred())
+
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, fh)
+						g.Expect(err).ToNot(HaveOccurred())
+						// check that the condition has the error
+						checkConditionContains(
+							g,
+							fh,
+							fleet.HelmOpAcceptedCondition,
+							v1.ConditionTrue,
+							"",
+						)
+					}).Should(Succeed())
+
 				})
 			})
 

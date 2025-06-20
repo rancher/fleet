@@ -376,7 +376,6 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 		helmOp                 fleet.HelmOp
 		expectedSchedulerCalls func(*gomock.Controller, *mocks.MockScheduler, fleet.HelmOp)
 		expectedError          string
-		expectStatusUpdate     bool // True if the reconciler (not the polling job) is expected to run a status update
 	}{
 		{
 			name: "does not poll if the version is static",
@@ -550,8 +549,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
 				scheduler.EXPECT().DeleteJob(gomock.Any()).Return(errors.New("something happened!"))
 			},
-			expectedError:      "something happened!",
-			expectStatusUpdate: true,
+			expectedError: "something happened!",
 		},
 		{
 			name: "returns an error when failing to schedule a new job replacing an existing one",
@@ -583,8 +581,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
 				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(errors.New("something happened!"))
 			},
-			expectedError:      "something happened!",
-			expectStatusUpdate: true,
+			expectedError: "something happened!",
 		},
 		{
 			name: "returns an error when failing to schedule a new job with no existing one",
@@ -610,8 +607,7 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(nil, quartz.ErrJobNotFound)
 				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(errors.New("something happened!"))
 			},
-			expectedError:      "something happened!",
-			expectStatusUpdate: true,
+			expectedError: "something happened!",
 		},
 		{
 			name: "creates a polling job if all conditions are met",
@@ -876,12 +872,10 @@ generated: 2016-10-06T16:23:20.499029981-06:00`
 			// Only expected in happy cases. If errors happen, only status updates are expected.
 			client.EXPECT().Update(gomock.Any(), matchesBundle(c.helmOp.Name, c.helmOp.Namespace), gomock.Any()).Return(nil).AnyTimes()
 
-			if c.expectStatusUpdate {
-				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-				statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+			statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
-				client.EXPECT().Status().Return(statusClient).Times(1)
-			}
+			client.EXPECT().Status().Return(statusClient).Times(1)
 
 			c.expectedSchedulerCalls(mockCtrl, scheduler, c.helmOp)
 
