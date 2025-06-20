@@ -200,13 +200,91 @@ func testHelmRepo(path, port string) {
 		})
 	})
 
+	When("Auth is required, and it is provided with globbing in HelmSecretNameForPaths", func() {
+		BeforeEach(func() {
+			authEnabled = true
+		})
+		It("uses the first set of credentials matching the bundle path with patterns sorted in lexical order", func() {
+			Eventually(func() error {
+				return fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + "*_url": { // these credentials also match the path, but should not be used.
+								Username: "wrong-" + username,
+								Password: "wrong-" + password,
+							},
+							cli.AssetsPath + "*": {
+								Username: username,
+								Password: password,
+							},
+							cli.AssetsPath + "no-match": {},
+						},
+					},
+				)
+			}).Should(Not(HaveOccurred()))
+			By("creating a Bundle with all the resources inside of the helm release", func() {
+				Eventually(verifyResourcesArePresent).Should(BeTrue())
+			})
+		})
+		It("errors if the pattern is invalid", func() {
+			Eventually(func(g Gomega) {
+				err := fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + "\\": { // invalid pattern
+								Username: username,
+								Password: password,
+							},
+						},
+					},
+				)
+
+				Expect(err.Error()).To(ContainSubstring("failed to check for matches"))
+				Expect(err).To(MatchError(filepath.ErrBadPattern))
+			}).Should(Succeed())
+		})
+		It("fails with 401 unauthorized if no glob matches the path", func() {
+			Eventually(func(g Gomega) {
+				err := fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + "/something-else": {
+								Username: username,
+								Password: password,
+							},
+						},
+					},
+				)
+
+				Expect(err.Error()).To(ContainSubstring("401"))
+			}).Should(Succeed())
+		})
+	})
+
 	When("Auth is required, and it is provided in HelmSecretNameForPaths", func() {
 		BeforeEach(func() {
 			authEnabled = true
 		})
 		It("fleet apply uses credentials from HelmSecretNameForPaths", func() {
 			Eventually(func() error {
-				return fleetApply("helm", []string{cli.AssetsPath + path}, apply.Options{AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
+				return fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + path: {
+								Username: username,
+								Password: password,
+							},
+						},
+					},
+				)
 			}).Should(Not(HaveOccurred()))
 			By("verify Bundle is created with all the resources inside of the helm release", func() {
 				Eventually(verifyResourcesArePresent).Should(BeTrue())
@@ -220,7 +298,14 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply uses credentials from HelmSecretNameForPaths", func() {
 			Eventually(func() error {
-				return fleetApply("helm", []string{cli.AssetsPath + path}, apply.Options{Auth: bundlereader.Auth{Username: "wrong", Password: "wrong"}, AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
+				return fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						Auth:       bundlereader.Auth{Username: "wrong", Password: "wrong"},
+						AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}},
+					},
+				)
 			}).Should(Not(HaveOccurred()))
 			By("verify Bundle is created with all the resources inside of the helm release", func() {
 				Eventually(verifyResourcesArePresent).Should(BeTrue())
