@@ -271,6 +271,98 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 	})
 })
 
+var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup", "helm-registry"), func() {
+	var (
+		namespace string
+		name      string
+		insecure  = true
+		k         kubectl.Command
+		version   string
+	)
+
+	BeforeEach(func() {
+		k = env.Kubectl.Namespace(env.Namespace)
+	})
+
+	JustBeforeEach(func() {
+		namespace = testenv.NewNamespaceName(
+			name,
+			rand.New(rand.NewSource(time.Now().UnixNano())),
+		)
+
+		out, err := k.Create(
+			"secret", "generic", helmOpsSecretName,
+			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+		)
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
+			Name                  string
+			Namespace             string
+			Repo                  string
+			Chart                 string
+			PollingInterval       time.Duration
+			HelmSecretName        string
+			InsecureSkipTLSVerify bool
+			Version               string
+		}{
+			name,
+			namespace,
+			"",
+			fmt.Sprintf("%s/charts/sleeper-chart-0.1.0.tgz", getChartMuseumExternalAddr()),
+			0,
+			helmOpsSecretName,
+			insecure,
+			version,
+		})
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	AfterEach(func() {
+		out, err := k.Delete("helmop", name)
+		Expect(err).ToNot(HaveOccurred(), out)
+		out, err = k.Delete("secret", helmOpsSecretName)
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	When("applying a helmop resource with a version", func() {
+		BeforeEach(func() {
+			namespace = "helmop-tarball-ns"
+			name = "basic-helmop"
+			version = "0.42.0" // Will be ignored for a tarball; to be improved in the future.
+		})
+		It("deploys the chart", func() {
+			Eventually(func(g Gomega) {
+				outPods, _ := k.Namespace(namespace).Get("pods")
+				g.Expect(outPods).To(ContainSubstring("sleeper-"))
+			}).Should(Succeed())
+			Eventually(func(g Gomega) {
+				outDeployments, _ := k.Namespace(namespace).Get("deployments")
+				g.Expect(outDeployments).To(ContainSubstring("sleeper"))
+			}).Should(Succeed())
+		})
+	})
+
+	When("applying a helmop resource without a version", func() {
+		BeforeEach(func() {
+			namespace = "helmop-tarball-ns-no-version"
+			name = "basic-helmop"
+			version = ""
+		})
+		It("deploys the chart", func() {
+			Eventually(func(g Gomega) {
+				outPods, _ := k.Namespace(namespace).Get("pods")
+				g.Expect(outPods).To(ContainSubstring("sleeper-"))
+			}).Should(Succeed())
+			Eventually(func(g Gomega) {
+				outDeployments, _ := k.Namespace(namespace).Get("deployments")
+				g.Expect(outDeployments).To(ContainSubstring("sleeper"))
+			}).Should(Succeed())
+		})
+	})
+})
+
 // getExternalHelmAddr retrieves the external URL where our local Helm registry can be reached.
 func getExternalHelmAddr(k kubectl.Command) (string, error) {
 	if v := os.Getenv("external_ip"); v != "" {
