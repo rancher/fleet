@@ -449,7 +449,7 @@ func printToOutput(w io.Writer, bundle *fleet.Bundle, scans []*fleet.ImageScan) 
 }
 
 func shouldStoreInOCIRegistry(ctx context.Context, c client.Reader, ociSecretKey client.ObjectKey, ociOpts *ocistorage.OCIOpts) (bool, error) {
-	if !ocistorage.ExperimentalOCIIsEnabled() {
+	if !ocistorage.OCIIsEnabled() {
 		return false, nil
 	}
 

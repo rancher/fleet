@@ -186,7 +186,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if bundle.Spec.HelmOpOptions != nil && !experimentalHelmOpsEnabled() {
 		return ctrl.Result{}, fmt.Errorf("bundle contains data used by helm ops but env variable EXPERIMENTAL_HELM_OPS is not set to true")
 	}
-	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.ExperimentalOCIIsEnabled()
+	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.OCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
 
 	// Skip bundle deployment creation if the bundle is a HelmOps bundle and the configured Helm version is still a
@@ -616,7 +616,7 @@ func maybePurgeOCIReferenceSecret(ctx context.Context, c client.Client, old, new
 }
 
 func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
-	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.ExperimentalOCIIsEnabled()
+	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.OCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil && experimentalHelmOpsEnabled()
 
 	if contentsInOCI {

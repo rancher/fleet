@@ -139,8 +139,8 @@ agent:
 
 # Extra environment variables passed to the fleet pods.
 # extraEnv:
-# - name: EXPERIMENTAL_OCI_STORAGE
-#   value: "true"
+# - name: OCI_STORAGE
+#   value: "false"
 # - name: EXPERIMENTAL_HELM_OPS
 #   value: "true"
 

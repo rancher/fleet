@@ -64,10 +64,8 @@ eventually helm upgrade --install fleet charts/fleet \
   --set apiServerCA="$ca" \
   --set apiServerURL="$server" \
   $shards_settings \
-  --set-string extraEnv[0].name=EXPERIMENTAL_OCI_STORAGE \
+  --set-string extraEnv[0].name=EXPERIMENTAL_HELM_OPS \
   --set-string extraEnv[0].value=true \
-  --set-string extraEnv[1].name=EXPERIMENTAL_HELM_OPS \
-  --set-string extraEnv[1].value=true \
   --set garbageCollectionInterval=1s \
   --set insecureSkipHostKeyChecks=false \
   --set debug=true --set debugLevel=1

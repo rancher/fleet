@@ -315,38 +315,38 @@ var _ = Describe("OCIUtils tests", func() {
 	})
 })
 
-var _ = Describe("OCIUtils Experimental flag tests", func() {
+var _ = Describe("OCIUtils flag tests", func() {
 	var envBeforeTest string
 
 	BeforeEach(func() {
-		envBeforeTest = os.Getenv(OCIStorageExperimentalFlag)
+		envBeforeTest = os.Getenv(OCIStorageFlag)
 	})
 
 	AfterEach(func() {
 		if envBeforeTest != "" {
 			// set the value it had before the test
-			Expect(os.Setenv(OCIStorageExperimentalFlag, envBeforeTest)).ToNot(HaveOccurred())
+			Expect(os.Setenv(OCIStorageFlag, envBeforeTest)).ToNot(HaveOccurred())
 		} else {
-			Expect(os.Unsetenv(OCIStorageExperimentalFlag)).ToNot(HaveOccurred())
+			Expect(os.Unsetenv(OCIStorageFlag)).ToNot(HaveOccurred())
 		}
 	})
 
 	DescribeTable("Check value returned is the expected one",
 		func(value string, expected bool) {
 			if value == "unset" {
-				Expect(os.Unsetenv(OCIStorageExperimentalFlag)).ToNot(HaveOccurred())
+				Expect(os.Unsetenv(OCIStorageFlag)).ToNot(HaveOccurred())
 			} else {
-				Expect(os.Setenv(OCIStorageExperimentalFlag, value)).ToNot(HaveOccurred())
+				Expect(os.Setenv(OCIStorageFlag, value)).ToNot(HaveOccurred())
 			}
-			result := ExperimentalOCIIsEnabled()
+			result := OCIIsEnabled()
 			Expect(result).To(Equal(expected))
 		},
 		Entry("When setting to True", "True", true),
 		Entry("When setting to true", "true", true),
 		Entry("When setting to TRUE", "TRUE", true),
-		Entry("When setting to tRue", "tRue", false),
+		Entry("When setting to tRue", "tRue", true), // true because OCI storage is enabled by default.
 		Entry("When setting to false", "false", false),
-		Entry("When setting to whatever", "whatever", false),
-		Entry("When not setting the value", "unset", false),
+		Entry("When setting to whatever", "whatever", true), // true because OCI storage is enabled by default.
+		Entry("When not setting the value", "unset", true),  // true because OCI storage is enabled by default.
 	)
 })
