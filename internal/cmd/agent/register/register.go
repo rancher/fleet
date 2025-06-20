@@ -140,7 +140,8 @@ func runRegistration(ctx context.Context, k8s coreInterface, namespace string) (
 		return nil, fmt.Errorf("failed to look up client config %s/%s: %w", secret.Namespace, config.AgentConfigName, err)
 	}
 
-	clientConfig := createClientConfigFromSecret(secret, cfg.AgentTLSMode == config.AgentTLSModeSystemStore)
+	clientConfig, undoBypass := createClientConfigFromSecret(secret, cfg.AgentTLSMode == config.AgentTLSModeSystemStore)
+	defer undoBypass()
 
 	ns, _, err := clientConfig.Namespace()
 	if err != nil {
@@ -287,12 +288,14 @@ func values(data map[string][]byte) map[string][]byte {
 
 // createClientConfigFromSecret reads the fleet-agent-bootstrap secret and
 // creates a clientConfig to access the upstream cluster
-func createClientConfigFromSecret(secret *corev1.Secret, trustSystemStoreCAs bool) clientcmd.ClientConfig {
+func createClientConfigFromSecret(secret *corev1.Secret, trustSystemStoreCAs bool) (clientcmd.ClientConfig, func()) {
 	data := values(secret.Data)
 	apiServerURL := string(data[config.APIServerURLKey])
 	apiServerCA := data[config.APIServerCAKey]
 	namespace := string(data[ClusterNamespace])
 	token := string(data[Token])
+
+	undoBypass := func() {}
 
 	if trustSystemStoreCAs { // Save a request to the API server URL if system CAs are not to be trusted.
 		// NOTE(manno): client-go will use the system trust store even if a CA is configured. So, why do this?
@@ -300,7 +303,7 @@ func createClientConfigFromSecret(secret *corev1.Secret, trustSystemStoreCAs boo
 			apiServerCA = nil
 		}
 	} else {
-		config.BypassSystemCAStore()
+		undoBypass = config.BypassSystemCAStore()
 	}
 
 	cfg := clientcmdapi.Config{
@@ -325,7 +328,7 @@ func createClientConfigFromSecret(secret *corev1.Secret, trustSystemStoreCAs boo
 		CurrentContext: "default",
 	}
 
-	return clientcmd.NewDefaultClientConfig(cfg, &clientcmd.ConfigOverrides{})
+	return clientcmd.NewDefaultClientConfig(cfg, &clientcmd.ConfigOverrides{}), undoBypass
 }
 
 func testClientConfig(cfg []byte) error {
