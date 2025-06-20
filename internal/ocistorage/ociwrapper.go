@@ -280,8 +280,8 @@ func (o *OCIWrapper) DeleteManifest(ctx context.Context, opts OCIOpts, id string
 	return repo.Delete(ctx, desc)
 }
 
-// OCIIsEnabled returns true if the OCI_STORAGE env variable is not set to true
-// returns false otherwise
+// OCIIsEnabled returns true if the OCI_STORAGE env variable is not set or
+// if it's set to true
 func OCIIsEnabled() bool {
 	if v, ok := os.LookupEnv(OCIStorageFlag); ok {
 		value, err := strconv.ParseBool(v)
