@@ -304,7 +304,6 @@ var _ = Describe("HelmOps controller", func() {
 		var targets []fleet.BundleTarget
 		var doAfterNamespaceCreated func()
 		JustBeforeEach(func() {
-			os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
 			nsSpec := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 			err := k8sClient.Create(ctx, nsSpec)
 			Expect(err).ToNot(HaveOccurred())

@@ -63,9 +63,6 @@ func (r *HelmOpStatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // computes status fields for the HelmOp. This status is used to
 // display information to the user.
 func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	if !experimentalHelmOpsEnabled() {
-		return ctrl.Result{}, nil
-	}
 	logger := log.FromContext(ctx).WithName("helmop-status")
 	helmop := &fleet.HelmOp{}
 

@@ -6,9 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -179,13 +177,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
-	// if the bundle has the helmops options set but the experimental flag is not
-	// set we don't deploy the bundle.
-	// This is to avoid intentional or accidental deployment of bundles with no
-	// resources or not well defined.
-	if bundle.Spec.HelmOpOptions != nil && !experimentalHelmOpsEnabled() {
-		return ctrl.Result{}, fmt.Errorf("bundle contains data used by helm ops but env variable EXPERIMENTAL_HELM_OPS is not set to true")
-	}
 	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.OCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
 
@@ -617,7 +608,7 @@ func maybePurgeOCIReferenceSecret(ctx context.Context, c client.Client, old, new
 
 func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
 	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.OCIIsEnabled()
-	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil && experimentalHelmOpsEnabled()
+	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
 
 	if contentsInOCI {
 		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, fleet.SecretTypeOCIStorage, bd)
@@ -626,13 +617,6 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmOpOptions.SecretName, fleet.SecretTypeHelmOpsAccess, bd)
 	}
 	return nil
-}
-
-// experimentalHelmOpsEnabled returns true if the EXPERIMENTAL_HELM_OPS env variable is set to true
-// returns false otherwise
-func experimentalHelmOpsEnabled() bool {
-	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_HELM_OPS"))
-	return err == nil && value
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of

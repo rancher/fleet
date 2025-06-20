@@ -45,9 +45,6 @@ tests:
       extraAnnotations.fleetController:
         test-annotation-1: testvalue1
         test-annotation-2: testvalue2
-      extraEnv:
-        - name: EXPERIMENTAL_HELM_OPS
-          value: "true"
     template: deployment_helmops.yaml
     asserts:
       - hasDocuments:
@@ -86,9 +83,6 @@ tests:
       extraAnnotations.helmops:
         test-annotation-1: testvalue1
         test-annotation-2: testvalue2
-      extraEnv:
-        - name: EXPERIMENTAL_HELM_OPS
-          value: "true"
     template: deployment_helmops.yaml
     asserts:
       - hasDocuments:
@@ -105,9 +99,6 @@ tests:
   - it: should not set extraAnnotations variables when empty
     set:
       extraAnnotations: {}
-      extraEnv:
-        - name: EXPERIMENTAL_HELM_OPS
-          value: "true"
     asserts:
       - hasDocuments:
           count: 1

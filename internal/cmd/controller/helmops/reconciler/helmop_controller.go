@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -78,9 +76,6 @@ func (r *HelmOpReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
 func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	if !experimentalHelmOpsEnabled() {
-		return ctrl.Result{}, fmt.Errorf("HelmOp resource was found but env variable EXPERIMENTAL_HELM_OPS is not set to true")
-	}
 	logger := log.FromContext(ctx).WithName("HelmOp")
 	helmop := &fleet.HelmOp{}
 
@@ -506,13 +501,6 @@ func helmChartSpecChanged(o *fleet.HelmOptions, n *fleet.HelmOptions, statusVers
 		return true
 	}
 	return false
-}
-
-// experimentalHelmOpsEnabled returns true if the EXPERIMENTAL_HELM_OPS env variable is set to true
-// returns false otherwise
-func experimentalHelmOpsEnabled() bool {
-	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_HELM_OPS"))
-	return err == nil && value
 }
 
 // getChartVersion fetches the latest chart version from the Helm registry referenced by helmop, and returns it.

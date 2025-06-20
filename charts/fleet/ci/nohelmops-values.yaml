@@ -6,7 +6,7 @@ global:
     systemDefaultRegistry: "ghcr.io"
 
 nodeSelector:
-  kubernetes.io/os: os2
+  kubernetes.io/os: winxp
 
 tolerations:
   - key: node.cloudprovider.kubernetes.io/uninitialized
@@ -20,15 +20,14 @@ gitops:
   enabled: true
 
 helmops:
-  enabled: true
+  enabled: false
 
 metrics:
   enabled: true
 
-debug: true
+debug: false
 debugLevel: 4
 propagateDebugSettingsToAgents: true
-disableSecurityContext: true
 
 cpuPprof:
   period: "60s"

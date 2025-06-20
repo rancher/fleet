@@ -3,7 +3,6 @@ package bundle
 import (
 	"context"
 	"crypto/rand"
-	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -23,7 +22,6 @@ import (
 var _ = Describe("Bundle with helm options", Ordered, func() {
 	BeforeAll(func() {
 		var err error
-		os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
 		namespace, err = utils.NewNamespaceName()
 		Expect(err).ToNot(HaveOccurred())
 
