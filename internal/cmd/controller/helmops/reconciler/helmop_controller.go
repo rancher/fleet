@@ -451,9 +451,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 		}
 		t.Status.Conditions = conds
 
-		if orgErr != nil {
-			setAcceptedConditionHelm(&t.Status, orgErr)
-		}
+		setAcceptedConditionHelm(&t.Status, orgErr)
 
 		statusPatch := client.MergeFrom(orig)
 		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
