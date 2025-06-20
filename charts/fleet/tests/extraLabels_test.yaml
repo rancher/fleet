@@ -45,9 +45,6 @@ tests:
       extraLabels.helmops:
         test-label-1: testvalue1
         test-label-2: testvalue2
-      extraEnv:
-        - name: EXPERIMENTAL_HELM_OPS
-          value: "true"
     template: deployment_helmops.yaml
     asserts:
       - hasDocuments:
@@ -65,9 +62,6 @@ tests:
   - it: should not set more labels in fleet-controller deployment when extraLabels is empty
     set:
       extraLabels: {}
-      extraEnv:
-        - name: EXPERIMENTAL_HELM_OPS
-          value: "true"
     template: deployment.yaml
     asserts:
       - hasDocuments:
@@ -84,9 +78,6 @@ tests:
   - it: should not set more labels in gitjob deployment when extraLabels is empty
     set:
       extraLabels: {}
-      extraEnv:
-        - name: EXPERIMENTAL_HELM_OPS
-          value: "true"
     template: deployment_gitjob.yaml
     asserts:
       - hasDocuments:
@@ -103,9 +94,6 @@ tests:
   - it: should not set more labels in helmops deployment when extraLabels is empty
     set:
       extraLabels: {}
-      extraEnv:
-        - name: EXPERIMENTAL_HELM_OPS
-          value: "true"
     template: deployment_helmops.yaml
     asserts:
       - hasDocuments:

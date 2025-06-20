@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -44,7 +43,6 @@ func getCondition(helmop *fleet.HelmOp, condType string) (genericcondition.Gener
 }
 
 func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
-	os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
@@ -89,7 +87,6 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 }
 
 func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
-	os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
@@ -163,7 +160,6 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 // Validates that the HelmOps reconciler will not create a bundle if another bundle exists with the same name, for
 // instance a gitOps bundle.
 func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
-	os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
@@ -245,7 +241,6 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 }
 
 func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
-	os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
@@ -321,8 +316,6 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 }
 
 func TestReconcile_ManagePollingJobs(t *testing.T) {
-	os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
-
 	helmRepoIndex := `apiVersion: v1
 entries:
   alpine:

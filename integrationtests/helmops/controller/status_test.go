@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"os"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -35,7 +33,6 @@ var _ = Describe("HelmOp Status Fields", func() {
 
 	When("Bundle changes", func() {
 		BeforeEach(func() {
-			os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
 			cluster, err := utils.CreateCluster(ctx, k8sClient, "cluster", namespace, nil, namespace)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cluster).To(Not(BeNil()))

@@ -120,6 +120,7 @@ gitjob:
   replicas: 1
 
 helmops:
+  enabled: true
   replicas: 1
 
 ## Fleet agent configuration
@@ -141,8 +142,6 @@ agent:
 # extraEnv:
 # - name: OCI_STORAGE
 #   value: "false"
-# - name: EXPERIMENTAL_HELM_OPS
-#   value: "true"
 
 # shards:
 #   - id: shard0

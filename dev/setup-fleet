@@ -44,8 +44,6 @@ helm -n cattle-fleet-system upgrade --install --create-namespace --wait --reset-
   --set agent.leaderElection.leaseDuration=10s \
   --set agent.leaderElection.retryPeriod=1s \
   --set agent.leaderElection.renewDeadline=5s \
-  --set-string extraEnv[0].name=EXPERIMENTAL_HELM_OPS \
-  --set-string extraEnv[0].value=true \
   --set garbageCollectionInterval=1s \
   --set insecureSkipHostKeyChecks=false \
   --set debug=true --set debugLevel=1 fleet charts/fleet
