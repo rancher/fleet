@@ -6,8 +6,8 @@ toolchain go1.23.10
 
 require (
 	github.com/rancher/wrangler/v3 v3.2.0
-	k8s.io/api v0.32.5
-	k8s.io/apimachinery v0.32.5
+	k8s.io/api v0.32.6
+	k8s.io/apimachinery v0.32.6
 )
 
 require (
