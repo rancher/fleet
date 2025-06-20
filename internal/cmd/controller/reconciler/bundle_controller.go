@@ -324,6 +324,15 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		helmvalues.ClearOptions(bd)
 
+		// bd namespace does not exist yet, we should continue. The bd
+		// will re-trigger because the cluster's agent namespace will
+		// be updated when the namespace exists and cluster changes
+		// trigger this reconciler.
+		if err := r.Get(ctx, types.NamespacedName{Name: bd.Name}, &corev1.Namespace{}); err != nil {
+			logger.Info("Bundledeployment namespace does not exist yet, skipping bundle deployment creation", "bdName", bd.Name, "bdNamespace", bd.Namespace)
+			continue
+		}
+
 		bd, err = r.createBundleDeployment(
 			ctx,
 			logger,
