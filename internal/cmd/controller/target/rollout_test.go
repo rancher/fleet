@@ -161,6 +161,17 @@ func Test_autoPartition(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "should partition according to fixed AutoPartitionSize (only >=200 clusters)",
+			rollout: &fleet.RolloutStrategy{
+				AutoPartitionSize: &intstr.IntOrString{Type: intstr.Int, IntVal: 100},
+			},
+			targets: createTargets(1, 200),
+			want: []partition{
+				{Targets: createTargets(1, 100), Status: fleet.PartitionStatus{MaxUnavailable: 100}},
+				{Targets: createTargets(101, 200), Status: fleet.PartitionStatus{MaxUnavailable: 100}},
+			},
+		},
+		{
 			name: "less than 200 targets should all be in one partition",
 			rollout: &fleet.RolloutStrategy{
 				AutoPartitionSize: &intstr.IntOrString{Type: intstr.String, StrVal: "25%"},
