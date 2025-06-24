@@ -326,24 +326,7 @@ var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 
-	When("applying a helmop resource with a version", func() {
-		BeforeEach(func() {
-			namespace = "helmop-tarball-ns"
-			name = "basic-helmop"
-			version = "0.42.0" // Will be ignored for a tarball; to be improved in the future.
-		})
-		It("deploys the chart", func() {
-			Eventually(func(g Gomega) {
-				outPods, _ := k.Namespace(namespace).Get("pods")
-				g.Expect(outPods).To(ContainSubstring("sleeper-"))
-			}).Should(Succeed())
-			Eventually(func(g Gomega) {
-				outDeployments, _ := k.Namespace(namespace).Get("deployments")
-				g.Expect(outDeployments).To(ContainSubstring("sleeper"))
-			}).Should(Succeed())
-		})
-	})
-
+	// Other version combinations are tested in HelmOps controller unit test
 	When("applying a helmop resource without a version", func() {
 		BeforeEach(func() {
 			namespace = "helmop-tarball-ns-no-version"

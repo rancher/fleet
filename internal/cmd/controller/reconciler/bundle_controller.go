@@ -9,7 +9,6 @@ import (
 	"maps"
 	"reflect"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -231,17 +230,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Skip bundle deployment creation if the bundle is a HelmOps bundle and the configured Helm version is still a
 	// version constraint. That constraint should be resolved into a strict version by the HelmOps reconciler before bundle
 	// deployments can be created.
-	if contentsInHelmChart && bundle.Spec.Helm != nil {
-		version := bundle.Spec.Helm.Version
-
-		// tarballs can be installed without specifying a version.
-		if strings.HasSuffix(strings.ToLower(bundle.Spec.Helm.Chart), ".tgz") {
-			logger.V(1).Info(
-				"Specified chart version or constraint will be ignored when installing a chart from a tarball",
-				"constraint",
-				version,
-			)
-		} else if _, err := semver.StrictNewVersion(version); err != nil {
+	if contentsInHelmChart && bundle.Spec.Helm != nil && len(bundle.Spec.Helm.Version) > 0 {
+		if _, err := semver.StrictNewVersion(bundle.Spec.Helm.Version); err != nil {
 			setReadyCondition(
 				&bundle.Status,
 				fmt.Errorf("chart version cannot be deployed; check HelmOp status for more details: %v", err),
