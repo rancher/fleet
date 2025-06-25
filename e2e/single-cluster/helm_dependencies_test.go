@@ -1,7 +1,6 @@
 package singlecluster_test
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -10,21 +9,12 @@ import (
 
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/githelper"
-	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	cp "github.com/otiai10/copy"
 )
-
-func getChartMuseumExternalAddr() string {
-	username := os.Getenv("GIT_HTTP_USER")
-	passwd := os.Getenv("GIT_HTTP_PASSWORD")
-	Expect(username).ToNot(Equal(""))
-	Expect(passwd).ToNot(Equal(""))
-	return fmt.Sprintf("https://%s:%s@chartmuseum-service.%s.svc.cluster.local:8081", username, passwd, cmd.InfraNamespace)
-}
 
 func setupChartDepsInTmpDir(chartDir string, tmpDir string, namespace string, disableDependencyUpdate bool) {
 	err := cp.Copy(chartDir, tmpDir)

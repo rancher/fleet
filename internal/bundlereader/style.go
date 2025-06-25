@@ -17,10 +17,16 @@ func joinAndClean(path, file string) string {
 }
 
 func chartPath(options fleet.BundleDeploymentOptions) (string, string) {
-	if options.Helm == nil || options.Helm.Chart == "" {
+	if options.Helm == nil {
 		return chartYAML, ""
 	}
-	return joinAndClean(options.Helm.Chart, chartYAML), checksum(options.Helm) + "/"
+
+	path := options.Helm.Chart
+	if len(path) == 0 {
+		path = options.Helm.Repo
+	}
+
+	return joinAndClean(path, chartYAML), checksum(options.Helm) + "/"
 }
 
 func kustomizePath(options fleet.BundleDeploymentOptions) string {
