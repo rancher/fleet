@@ -103,6 +103,10 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 		if cluster.Spec.KubeConfigSecret == "" {
 			continue
 		}
+		// Already marked for attempting to import
+		if cluster.Status.AgentConfigChanged {
+			continue
+		}
 
 		hasConfigChanged, err := i.hasAPIServerConfigChanged(cfg, cluster)
 		if err != nil {
