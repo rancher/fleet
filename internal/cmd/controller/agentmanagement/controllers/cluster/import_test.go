@@ -17,7 +17,7 @@ import (
 func TestOnConfig(t *testing.T) {
 	cases := map[string]struct {
 		cfg              config.Config
-		handlerWithMocks func() importHandler
+		handlerWithMocks func(t *testing.T) importHandler
 	}{
 		"no clusters, no import": {
 			cfg: config.Config{
@@ -25,7 +25,7 @@ func TestOnConfig(t *testing.T) {
 				APIServerURL: "https://hello.world",
 				AgentTLSMode: "system-store",
 			},
-			handlerWithMocks: func() importHandler {
+			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -46,7 +46,7 @@ func TestOnConfig(t *testing.T) {
 				AgentTLSMode:              "system-store",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
-			handlerWithMocks: func() importHandler {
+			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -89,7 +89,7 @@ func TestOnConfig(t *testing.T) {
 				AgentTLSMode:              "system-store",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
-			handlerWithMocks: func() importHandler {
+			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -131,7 +131,7 @@ func TestOnConfig(t *testing.T) {
 				AgentTLSMode:              "system-store",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
-			handlerWithMocks: func() importHandler {
+			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -174,7 +174,7 @@ func TestOnConfig(t *testing.T) {
 				AgentTLSMode:              "strict",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
-			handlerWithMocks: func() importHandler {
+			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -217,7 +217,7 @@ func TestOnConfig(t *testing.T) {
 				AgentTLSMode:              "system-store",
 				GarbageCollectionInterval: metav1.Duration{Duration: 5 * time.Minute},
 			},
-			handlerWithMocks: func() importHandler {
+			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
@@ -260,7 +260,7 @@ func TestOnConfig(t *testing.T) {
 				AgentTLSMode:              "system-store",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
-			handlerWithMocks: func() importHandler {
+			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
 				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
@@ -308,7 +308,7 @@ func TestOnConfig(t *testing.T) {
 				AgentTLSMode:              "strict",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
-			handlerWithMocks: func() importHandler {
+			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
 				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
@@ -353,7 +353,7 @@ func TestOnConfig(t *testing.T) {
 
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			ih := c.handlerWithMocks()
+			ih := c.handlerWithMocks(t)
 
 			err := ih.onConfig(&c.cfg)
 			if err != nil {
