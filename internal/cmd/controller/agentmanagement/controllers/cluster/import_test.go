@@ -6,6 +6,7 @@ import (
 
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
 	"go.uber.org/mock/gomock"
+	"k8s.io/apimachinery/pkg/labels"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,12 +31,12 @@ func TestOnConfig(t *testing.T) {
 
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().List("", metav1.ListOptions{}).Return(&fleet.ClusterList{}, nil)
+				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).Return(nil, nil)
 
 				return importHandler{
-					clusters: clustersController,
-					secrets:  secretsCache,
+					clustersCache: clustersCache,
+					secretsCache:  secretsCache,
 				}
 			},
 		},
@@ -52,33 +53,32 @@ func TestOnConfig(t *testing.T) {
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
 
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().List("", metav1.ListOptions{}).
-					Return(&fleet.ClusterList{
-						Items: []fleet.Cluster{
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Name:      "cluster",
-									Namespace: "fleet-default",
-								},
-								Spec: fleet.ClusterSpec{
-									KubeConfigSecret: "my-kubeconfig-secret",
-								},
-								Status: fleet.ClusterStatus{
-									APIServerURL:              "https://hello.world",
-									APIServerCAHash:           hashStatusField("foo"),
-									AgentTLSMode:              "system-store",
-									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-								},
+				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
+					Return([]*fleet.Cluster{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "cluster",
+								Namespace: "fleet-default",
+							},
+							Spec: fleet.ClusterSpec{
+								KubeConfigSecret: "my-kubeconfig-secret",
+							},
+							Status: fleet.ClusterStatus{
+								APIServerURL:              "https://hello.world",
+								APIServerCAHash:           hashStatusField("foo"),
+								AgentTLSMode:              "system-store",
+								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
 							},
 						},
 					}, nil)
-
+				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
 				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
 
 				return importHandler{
-					clusters: clustersController,
-					secrets:  secretsCache,
+					clusters:      clustersController,
+					clustersCache: clustersCache,
+					secretsCache:  secretsCache,
 				}
 			},
 		},
@@ -95,33 +95,32 @@ func TestOnConfig(t *testing.T) {
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
 
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().List("", metav1.ListOptions{}).
-					Return(&fleet.ClusterList{
-						Items: []fleet.Cluster{
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Name:      "cluster",
-									Namespace: "fleet-default",
-								},
-								Spec: fleet.ClusterSpec{
-									KubeConfigSecret: "my-kubeconfig-secret",
-								},
-								Status: fleet.ClusterStatus{
-									APIServerURL:              "https://hello.world",
-									APIServerCAHash:           hashStatusField("foo"),
-									AgentTLSMode:              "system-store",
-									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-								},
+				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
+					Return([]*fleet.Cluster{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "cluster",
+								Namespace: "fleet-default",
+							},
+							Spec: fleet.ClusterSpec{
+								KubeConfigSecret: "my-kubeconfig-secret",
+							},
+							Status: fleet.ClusterStatus{
+								APIServerURL:              "https://hello.world",
+								APIServerCAHash:           hashStatusField("foo"),
+								AgentTLSMode:              "system-store",
+								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
 							},
 						},
 					}, nil)
-
+				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
 				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
 
 				return importHandler{
-					clusters: clustersController,
-					secrets:  secretsCache,
+					clusters:      clustersController,
+					clustersCache: clustersCache,
+					secretsCache:  secretsCache,
 				}
 			},
 		},
@@ -137,33 +136,32 @@ func TestOnConfig(t *testing.T) {
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
 
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().List("", metav1.ListOptions{}).
-					Return(&fleet.ClusterList{
-						Items: []fleet.Cluster{
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Name:      "cluster",
-									Namespace: "fleet-default",
-								},
-								Spec: fleet.ClusterSpec{
-									KubeConfigSecret: "my-kubeconfig-secret",
-								},
-								Status: fleet.ClusterStatus{
-									APIServerURL:              "",
-									APIServerCAHash:           "",
-									AgentTLSMode:              "system-store",
-									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-								},
+				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
+					Return([]*fleet.Cluster{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "cluster",
+								Namespace: "fleet-default",
+							},
+							Spec: fleet.ClusterSpec{
+								KubeConfigSecret: "my-kubeconfig-secret",
+							},
+							Status: fleet.ClusterStatus{
+								APIServerURL:              "",
+								APIServerCAHash:           "",
+								AgentTLSMode:              "system-store",
+								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
 							},
 						},
 					}, nil)
-
+				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
 				clustersController.EXPECT().UpdateStatus(gomock.Any()).Times(0) // import not triggered
 
 				return importHandler{
-					clusters: clustersController,
-					secrets:  secretsCache,
+					clusters:      clustersController,
+					clustersCache: clustersCache,
+					secretsCache:  secretsCache,
 				}
 			},
 		},
@@ -180,33 +178,32 @@ func TestOnConfig(t *testing.T) {
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
 
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().List("", metav1.ListOptions{}).
-					Return(&fleet.ClusterList{
-						Items: []fleet.Cluster{
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Name:      "cluster",
-									Namespace: "fleet-default",
-								},
-								Spec: fleet.ClusterSpec{
-									KubeConfigSecret: "my-kubeconfig-secret",
-								},
-								Status: fleet.ClusterStatus{
-									APIServerURL:              "https://hello.world",
-									APIServerCAHash:           hashStatusField("foo"),
-									AgentTLSMode:              "system-store",
-									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-								},
+				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
+					Return([]*fleet.Cluster{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "cluster",
+								Namespace: "fleet-default",
+							},
+							Spec: fleet.ClusterSpec{
+								KubeConfigSecret: "my-kubeconfig-secret",
+							},
+							Status: fleet.ClusterStatus{
+								APIServerURL:              "https://hello.world",
+								APIServerCAHash:           hashStatusField("foo"),
+								AgentTLSMode:              "system-store",
+								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
 							},
 						},
 					}, nil)
-
+				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
 				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
 
 				return importHandler{
-					clusters: clustersController,
-					secrets:  secretsCache,
+					clusters:      clustersController,
+					clustersCache: clustersCache,
+					secretsCache:  secretsCache,
 				}
 			},
 		},
@@ -223,33 +220,32 @@ func TestOnConfig(t *testing.T) {
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
 
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().List("", metav1.ListOptions{}).
-					Return(&fleet.ClusterList{
-						Items: []fleet.Cluster{
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Name:      "cluster",
-									Namespace: "fleet-default",
-								},
-								Spec: fleet.ClusterSpec{
-									KubeConfigSecret: "my-kubeconfig-secret",
-								},
-								Status: fleet.ClusterStatus{
-									APIServerURL:              "https://hello.world",
-									APIServerCAHash:           hashStatusField("foo"),
-									AgentTLSMode:              "system-store",
-									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-								},
+				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
+					Return([]*fleet.Cluster{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "cluster",
+								Namespace: "fleet-default",
+							},
+							Spec: fleet.ClusterSpec{
+								KubeConfigSecret: "my-kubeconfig-secret",
+							},
+							Status: fleet.ClusterStatus{
+								APIServerURL:              "https://hello.world",
+								APIServerCAHash:           hashStatusField("foo"),
+								AgentTLSMode:              "system-store",
+								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
 							},
 						},
 					}, nil)
-
+				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
 				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
 
 				return importHandler{
-					clusters: clustersController,
-					secrets:  secretsCache,
+					clusters:      clustersController,
+					clustersCache: clustersCache,
+					secretsCache:  secretsCache,
 				}
 			},
 		},
@@ -263,28 +259,25 @@ func TestOnConfig(t *testing.T) {
 			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().List("", metav1.ListOptions{}).
-					Return(&fleet.ClusterList{
-						Items: []fleet.Cluster{
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Name:      "cluster",
-									Namespace: "fleet-default",
-								},
-								Spec: fleet.ClusterSpec{
-									KubeConfigSecret: "my-kubeconfig-secret",
-								},
-								Status: fleet.ClusterStatus{
-									APIServerURL:              "https://hello.secret.world",
-									APIServerCAHash:           hashStatusField("secret-foo"),
-									AgentTLSMode:              "system-store",
-									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-								},
+				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
+					Return([]*fleet.Cluster{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "cluster",
+								Namespace: "fleet-default",
+							},
+							Spec: fleet.ClusterSpec{
+								KubeConfigSecret: "my-kubeconfig-secret",
+							},
+							Status: fleet.ClusterStatus{
+								APIServerURL:              "https://hello.secret.world",
+								APIServerCAHash:           hashStatusField("secret-foo"),
+								AgentTLSMode:              "system-store",
+								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
 							},
 						},
 					}, nil)
-
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{
 					Data: map[string][]byte{
@@ -296,8 +289,8 @@ func TestOnConfig(t *testing.T) {
 				// No UpdateStatus expected
 
 				return importHandler{
-					clusters: clustersController,
-					secrets:  secretsCache,
+					clustersCache: clustersCache,
+					secretsCache:  secretsCache,
 				}
 			},
 		},
@@ -311,28 +304,25 @@ func TestOnConfig(t *testing.T) {
 			handlerWithMocks: func(t *testing.T) importHandler {
 				ctrl := gomock.NewController(t)
 
-				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
-				clustersController.EXPECT().List("", metav1.ListOptions{}).
-					Return(&fleet.ClusterList{
-						Items: []fleet.Cluster{
-							{
-								ObjectMeta: metav1.ObjectMeta{
-									Name:      "cluster",
-									Namespace: "fleet-default",
-								},
-								Spec: fleet.ClusterSpec{
-									KubeConfigSecret: "my-kubeconfig-secret",
-								},
-								Status: fleet.ClusterStatus{
-									APIServerURL:              "https://hello.secret.world",
-									APIServerCAHash:           hashStatusField("secret-foo"),
-									AgentTLSMode:              "system-store",
-									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
-								},
+				clustersCache := fake.NewMockCacheInterface[*fleet.Cluster](ctrl)
+				clustersCache.EXPECT().List("", gomock.Eq(labels.Everything())).
+					Return([]*fleet.Cluster{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "cluster",
+								Namespace: "fleet-default",
+							},
+							Spec: fleet.ClusterSpec{
+								KubeConfigSecret: "my-kubeconfig-secret",
+							},
+							Status: fleet.ClusterStatus{
+								APIServerURL:              "https://hello.secret.world",
+								APIServerCAHash:           hashStatusField("secret-foo"),
+								AgentTLSMode:              "system-store",
+								GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
 							},
 						},
 					}, nil)
-
 				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
 				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{
 					Data: map[string][]byte{
@@ -341,11 +331,13 @@ func TestOnConfig(t *testing.T) {
 					},
 				}, nil)
 
+				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
 				clustersController.EXPECT().UpdateStatus(gomock.Any()) // import triggered
 
 				return importHandler{
-					clusters: clustersController,
-					secrets:  secretsCache,
+					clusters:      clustersController,
+					clustersCache: clustersCache,
+					secretsCache:  secretsCache,
 				}
 			},
 		},

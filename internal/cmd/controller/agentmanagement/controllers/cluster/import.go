@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/rancher/fleet/internal/client"
 	"github.com/rancher/fleet/internal/cmd"
@@ -53,8 +54,9 @@ var (
 type importHandler struct {
 	ctx                 context.Context
 	systemNamespace     string
-	secrets             corecontrollers.SecretCache
 	clusters            fleetcontrollers.ClusterController
+	clustersCache       fleetcontrollers.ClusterCache
+	secretsCache        corecontrollers.SecretCache
 	tokens              fleetcontrollers.ClusterRegistrationTokenCache
 	tokenClient         fleetcontrollers.ClusterRegistrationTokenClient
 	bundleClient        fleetcontrollers.BundleClient
@@ -74,7 +76,8 @@ func RegisterImport(
 		ctx:                 ctx,
 		systemNamespace:     systemNamespace,
 		clusters:            clusters,
-		secrets:             secrets.Cache(),
+		clustersCache:       clusters.Cache(),
+		secretsCache:        secrets.Cache(),
 		tokens:              tokens.Cache(),
 		tokenClient:         tokens,
 		namespaceController: namespaceController,
@@ -90,7 +93,7 @@ func RegisterImport(
 		if cluster == nil || len(cluster.Spec.KubeConfigSecret) == 0 {
 			return []string{}, nil
 		}
-		secretKey := getKubeConfigSecretNS(*cluster) + "/" + cluster.Spec.KubeConfigSecret
+		secretKey := getKubeConfigSecretNS(cluster) + "/" + cluster.Spec.KubeConfigSecret
 		return []string{secretKey}, nil
 	})
 	secrets.OnChange(ctx, "kubeconfig-secrets-watch", func(key string, secret *corev1.Secret) (*corev1.Secret, error) {
@@ -100,7 +103,7 @@ func RegisterImport(
 		}
 		cfg := config.Get()
 		for _, cluster := range clusters {
-			if err := h.checkForConfigChange(cfg, *cluster, secret); err != nil {
+			if err := h.checkForConfigChange(cfg, cluster, secret); err != nil {
 				logrus.WithError(err).Errorf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name)
 			}
 		}
@@ -117,21 +120,21 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 		return errors.New("config is nil: this should never happen")
 	}
 
-	clusters, err := i.clusters.List("", metav1.ListOptions{})
+	clusters, err := i.clustersCache.List(metav1.NamespaceAll, labels.Everything())
 	if err != nil {
 		return err
 	}
 
-	if len(clusters.Items) == 0 {
+	if len(clusters) == 0 {
 		return nil
 	}
 
-	for _, cluster := range clusters.Items {
+	for _, cluster := range clusters {
 		if cluster.Spec.KubeConfigSecret == "" {
 			continue
 		}
 
-		secret, err := i.secrets.Get(getKubeConfigSecretNS(cluster), cluster.Spec.KubeConfigSecret)
+		secret, err := i.secretsCache.Get(getKubeConfigSecretNS(cluster), cluster.Spec.KubeConfigSecret)
 		if err != nil {
 			return fmt.Errorf("cluster %s/%s: could not check for config changes: %w", cluster.Namespace, cluster.Name, err)
 		}
@@ -148,7 +151,7 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 // server URL and CA are understood to be sourced from there, hence config changes for those fields will be skipped.
 // Returns a boolean indicating whether URL or CA config has changed, and any error that may have occurred (such as the
 // referenced secret not being found).
-func (i *importHandler) hasAPIServerConfigChanged(cfg *config.Config, secret *corev1.Secret, cluster fleet.Cluster) (bool, error) {
+func (i *importHandler) hasAPIServerConfigChanged(cfg *config.Config, secret *corev1.Secret, cluster *fleet.Cluster) (bool, error) {
 	var secretAPIServerCA, secretAPIServerURL []byte
 	if secret != nil {
 		secretAPIServerURL = secret.Data[config.APIServerURLKey]
@@ -287,11 +290,11 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 		return status, nil
 	}
 
-	kubeConfigSecretNamespace := getKubeConfigSecretNS(*cluster)
+	kubeConfigSecretNamespace := getKubeConfigSecretNS(cluster)
 
 	logrus.Debugf("Cluster import for '%s/%s'. Getting kubeconfig from secret in namespace %s", cluster.Namespace, cluster.Name, kubeConfigSecretNamespace)
 
-	secret, err := i.secrets.Get(kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
+	secret, err := i.secretsCache.Get(kubeConfigSecretNamespace, cluster.Spec.KubeConfigSecret)
 	if err != nil {
 		return status, err
 	}
@@ -508,7 +511,7 @@ func (i *importHandler) restConfigFromKubeConfig(data []byte, agentTLSMode strin
 	return clientcmd.NewDefaultClientConfig(raw, &clientcmd.ConfigOverrides{}).ClientConfig()
 }
 
-func (i *importHandler) checkForConfigChange(cfg *config.Config, cluster fleet.Cluster, secret *corev1.Secret) error {
+func (i *importHandler) checkForConfigChange(cfg *config.Config, cluster *fleet.Cluster, secret *corev1.Secret) error {
 	// Already marked for attempting to import
 	if cluster.Status.AgentConfigChanged {
 		return nil
@@ -538,7 +541,7 @@ func (i *importHandler) checkForConfigChange(cfg *config.Config, cluster fleet.C
 	return err
 }
 
-func getKubeConfigSecretNS(cluster fleet.Cluster) string {
+func getKubeConfigSecretNS(cluster *fleet.Cluster) string {
 	if cluster.Spec.KubeConfigSecretNamespace == "" {
 		return cluster.Namespace
 	}
@@ -546,7 +549,7 @@ func getKubeConfigSecretNS(cluster fleet.Cluster) string {
 	return cluster.Spec.KubeConfigSecretNamespace
 }
 
-func hasGarbageCollectionIntervalChanged(config *config.Config, cluster fleet.Cluster) bool {
+func hasGarbageCollectionIntervalChanged(config *config.Config, cluster *fleet.Cluster) bool {
 	return (config.GarbageCollectionInterval.Duration != 0 && cluster.Status.GarbageCollectionInterval == nil) ||
 		(cluster.Status.GarbageCollectionInterval != nil &&
 			config.GarbageCollectionInterval.Duration != cluster.Status.GarbageCollectionInterval.Duration)
