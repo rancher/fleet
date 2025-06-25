@@ -19,10 +19,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var (
-	hasOCIURL     = regexp.MustCompile(`^oci:\/\/`)
-	hasTarballURL = regexp.MustCompile(`.tgz$`)
-)
+var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
 
 // readResources reads and downloads all resources from the bundle. Resources
 // can be downloaded and are spread across multiple directories.
