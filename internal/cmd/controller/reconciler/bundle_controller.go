@@ -359,25 +359,25 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			bundle.Spec.HelmOpOptions != nil,
 			manifestID)
 		if err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, fmt.Errorf("failed to create bundle deployment: %w", err)
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
 
 		if bd.Spec.ValuesHash != "" {
 			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
-				return ctrl.Result{}, err
+				return ctrl.Result{}, fmt.Errorf("failed to create options secret: %w", err)
 			}
 		} else {
 			// No values to store, delete the secret if it exists
 			if err := r.Delete(ctx, &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
 			}); err != nil && !apierrors.IsNotFound(err) {
-				return ctrl.Result{}, err
+				return ctrl.Result{}, fmt.Errorf("failed to delete options secret: %w", err)
 			}
 		}
 
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, fmt.Errorf("failed to clone secrets downstream: %w", err)
 		}
 	}
 
