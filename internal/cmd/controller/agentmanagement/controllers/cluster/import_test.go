@@ -125,6 +125,48 @@ func TestOnConfig(t *testing.T) {
 				}
 			},
 		},
+		"non-ready config and no URL or CA in secret, do not trigger import when CA changes": {
+			cfg: config.Config{
+				APIServerURL:              "",
+				AgentTLSMode:              "system-store",
+				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
+			},
+			handlerWithMocks: func() importHandler {
+				ctrl := gomock.NewController(t)
+
+				secretsCache := fake.NewMockCacheInterface[*corev1.Secret](ctrl)
+				secretsCache.EXPECT().Get(gomock.Any(), "my-kubeconfig-secret").Return(&corev1.Secret{}, nil)
+
+				clustersController := fake.NewMockControllerInterface[*fleet.Cluster, *fleet.ClusterList](ctrl)
+				clustersController.EXPECT().List("", metav1.ListOptions{}).
+					Return(&fleet.ClusterList{
+						Items: []fleet.Cluster{
+							{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "cluster",
+									Namespace: "fleet-default",
+								},
+								Spec: fleet.ClusterSpec{
+									KubeConfigSecret: "my-kubeconfig-secret",
+								},
+								Status: fleet.ClusterStatus{
+									APIServerURL:              "",
+									APIServerCAHash:           "",
+									AgentTLSMode:              "system-store",
+									GarbageCollectionInterval: &metav1.Duration{Duration: 10 * time.Minute},
+								},
+							},
+						},
+					}, nil)
+
+				clustersController.EXPECT().UpdateStatus(gomock.Any()).Times(0) // import not triggered
+
+				return importHandler{
+					clusters: clustersController,
+					secrets:  secretsCache,
+				}
+			},
+		},
 		"no URL or CA in secret, trigger import when agent TLS mode changes": {
 			cfg: config.Config{
 				APIServerCA:               []byte("foo"),

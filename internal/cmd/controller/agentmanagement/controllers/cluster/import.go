@@ -41,6 +41,8 @@ import (
 
 var (
 	ImportTokenPrefix = "import-token-"
+
+	errUnavailableAPIServerURL = errors.New("missing apiServerURL in fleet config for cluster auto registration")
 )
 
 type importHandler struct {
@@ -104,7 +106,11 @@ func (i *importHandler) onConfig(cfg *config.Config) error {
 
 		hasConfigChanged, err := i.hasAPIServerConfigChanged(cfg, cluster)
 		if err != nil {
-			return fmt.Errorf("cluster %s/%s: could not check for config changes: %v", cluster.Namespace, cluster.Name, err)
+			if errors.Is(err, errUnavailableAPIServerURL) {
+				logrus.WithError(err).Warnf("cluster %s/%s: could not check for config changes", cluster.Namespace, cluster.Name)
+				continue
+			}
+			return fmt.Errorf("cluster %s/%s: could not check for config changes: %w", cluster.Namespace, cluster.Name, err)
 		}
 
 		hasConfigChanged = hasConfigChanged || cfg.AgentTLSMode != cluster.Status.AgentTLSMode ||
@@ -143,6 +149,10 @@ func (i *importHandler) hasAPIServerConfigChanged(cfg *config.Config, cluster fl
 
 		secretAPIServerURL = secret.Data[config.APIServerURLKey]
 		secretAPIServerCA = secret.Data[config.APIServerCAKey]
+	}
+
+	if len(secretAPIServerURL) == 0 && len(cfg.APIServerURL) == 0 {
+		return false, errUnavailableAPIServerURL
 	}
 
 	// if the API server URL is non-empty in the secret, then it is sourced from there; config changes for that field
@@ -291,7 +301,10 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 
 	if apiServerURL == "" {
 		if len(cfg.APIServerURL) == 0 {
-			return status, fmt.Errorf("missing apiServerURL in fleet config for cluster auto registration")
+			// Current config cannot be deployed, so remove the "config changed" mark
+			logrus.Warnf("cannot import cluster '%s/%s', missing apiServerURL in fleet config for cluster auto registration", cluster.Namespace, cluster.Name)
+			status.AgentConfigChanged = false
+			return status, nil
 		}
 		logrus.Debugf("Cluster import for '%s/%s'. Using apiServerURL from fleet-controller config", cluster.Namespace, cluster.Name)
 		apiServerURL = cfg.APIServerURL
