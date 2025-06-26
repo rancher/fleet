@@ -345,9 +345,5 @@ func getAgentConfig(ctx context.Context, namespace string, cfg *rest.Config) (ag
 		return nil, fmt.Errorf("failed to parse config from ConfigMap: %w", err)
 	}
 
-	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {
-		config.BypassSystemCAStore()
-	}
-
 	return agentConfig, nil
 }
