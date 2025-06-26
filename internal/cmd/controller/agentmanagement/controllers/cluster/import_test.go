@@ -127,7 +127,7 @@ func TestOnConfig(t *testing.T) {
 		"non-ready config and no URL or CA in secret, do not trigger import when CA changes": {
 			cfg: config.Config{
 				APIServerURL:              "",
-				AgentTLSMode:              "system-store",
+				AgentTLSMode:              "strict",
 				GarbageCollectionInterval: metav1.Duration{Duration: 10 * time.Minute},
 			},
 			handlerWithMocks: func(t *testing.T) importHandler {
