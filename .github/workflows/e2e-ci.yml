@@ -33,7 +33,8 @@ jobs:
           - name: sharded-metrics
             shards: '[{"id":"shard0"}]'
           - name: metrics
-          - name: infra-setup
+          - name: infra-setup-git-helm
+          - name: infra-setup-oci
     name: e2e-fleet-test-${{ matrix.k3s.name }}-${{ matrix.test_type.name }}
 
     steps:
@@ -95,7 +96,7 @@ jobs:
           ./.github/scripts/build-fleet-images.sh
       -
         name: Build Infra Tool
-        if: ${{ matrix.test_type.name == 'infra-setup' }}
+        if: ${{ matrix.test_type.name == 'infra-setup-git-helm' || matrix.test_type.name == 'infra-setup-oci' }}
         run: |
           pushd e2e/testenv/infra
           go build
@@ -153,24 +154,18 @@ jobs:
           ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
       -
         name: Create Zot certificates for OCI tests
-        if: ${{ matrix.test_type.name == 'infra-setup' }}
+        if: ${{ matrix.test_type.name == 'infra-setup-git-helm' || matrix.test_type.name == 'infra-setup-oci' }}
         run: |
           ./.github/scripts/create-zot-certs.sh "FleetCI-RootCA"
           ./.github/scripts/create-secrets.sh 'FleetCI-RootCA'
       -
-        name: E2E Infra Tests
-        if: ${{ matrix.test_type.name == 'infra-setup' }}
+        name: E2E Infra Tests - Git and Helm
+        if: ${{ matrix.test_type.name == 'infra-setup-git-helm' }}
         env:
           FLEET_E2E_NS: fleet-local
           # Git and OCI credentials are here used in a local, ephemeral environment. Leaks would be harmless.
           GIT_HTTP_USER: "fleet-ci"
           GIT_HTTP_PASSWORD: "foo"
-          CI_OCI_USERNAME: "fleet-ci"
-          CI_OCI_PASSWORD: "foo"
-          CI_OCI_READER_USERNAME: "fleet-ci-reader"
-          CI_OCI_READER_PASSWORD: "foo-reader"
-          CI_OCI_NO_DELETER_USERNAME: "fleet-ci-no-deleter"
-          CI_OCI_NO_DELETER_PASSWORD: "foo-no-deleter"
         run: |
           export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
 
@@ -182,10 +177,28 @@ jobs:
           e2e/testenv/infra/infra setup --helm-registry=true
           ginkgo --github-output --trace --label-filter='helm-registry' e2e/single-cluster
 
-          e2e/testenv/infra/infra teardown --helm-registry=true
+          e2e/testenv/infra/infra teardown
+      -
+        name: E2E Infra Tests - OCI
+        if: ${{ matrix.test_type.name == 'infra-setup-git-helm' || matrix.test_type.name == 'infra-setup-oci' }}
+        env:
+          # Git and OCI credentials are here used in a local, ephemeral environment. Leaks would be harmless.
+          GIT_HTTP_USER: "fleet-ci"
+          GIT_HTTP_PASSWORD: "foo"
+          FLEET_E2E_NS: fleet-local
+          CI_OCI_USERNAME: "fleet-ci"
+          CI_OCI_PASSWORD: "foo"
+          CI_OCI_READER_USERNAME: "fleet-ci-reader"
+          CI_OCI_READER_PASSWORD: "foo-reader"
+          CI_OCI_NO_DELETER_USERNAME: "fleet-ci-no-deleter"
+          CI_OCI_NO_DELETER_PASSWORD: "foo-no-deleter"
+        run: |
+          export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
 
-          # Run tests requiring an OCI registry
+          e2e/testenv/infra/infra setup --git-server=true
+          e2e/testenv/infra/infra setup --helm-registry=true
           e2e/testenv/infra/infra setup --oci-registry=true
+
           ginkgo --github-output --trace --label-filter='oci-registry' e2e/single-cluster
           ginkgo --github-output --trace --label-filter='oci-registry' e2e/metrics
 
