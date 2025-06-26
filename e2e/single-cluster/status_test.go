@@ -206,7 +206,7 @@ var _ = Describe("Checks that template errors are shown in bundles and gitrepos"
 		for _, condition := range conditions {
 			if condition.Type == string(fleet.Ready) {
 				g.Expect(condition.Status).To(Equal(corev1.ConditionFalse))
-				g.Expect(condition.Message).To(ContainSubstring("Targeting error"))
+				g.Expect(condition.Message).To(ContainSubstring("targeting error"))
 				g.Expect(condition.Message).To(
 					ContainSubstring(
 						"<.ClusterLabels.foo>: map has no entry for key \"foo\""))

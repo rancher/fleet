@@ -77,10 +77,6 @@ func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
-	if helmop.Spec.Helm.Chart == "" {
-		return ctrl.Result{}, nil
-	}
-
 	logger = logger.WithValues("generation", helmop.Generation, "chart", helmop.Spec.Helm.Chart).WithValues("conditions", helmop.Status.Conditions)
 	ctx = log.IntoContext(ctx, logger)
 
