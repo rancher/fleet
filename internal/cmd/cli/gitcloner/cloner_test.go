@@ -11,6 +11,8 @@ import (
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
+
+	fleetgit "github.com/rancher/fleet/pkg/git"
 )
 
 func TestCloneRepo(t *testing.T) {
@@ -34,6 +36,7 @@ silO6We5JggtPJICaCCpVawmIJIx3pWMjB+StXfJHoilknkb+ecQF+ofFsUqPb9r
 Rn4jGwVFnYAeVq4tj3ECQQCyeMeCprz5AQ8HSd16Asd3zhv7N7olpb4XMIP6YZXy
 udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 -----END RSA PRIVATE KEY-----`
+		githubAppKeyFile = "githubAppKeyFile"
 	)
 	var (
 		pathCalled      string
@@ -61,11 +64,29 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		if name == sshPrivateKeyFile {
 			return []byte(sshPrivateKeyFileContent), nil
 		}
+		if name == githubAppKeyFile {
+			return []byte(sshPrivateKeyFileContent), nil
+		}
 		return nil, errors.New("file not found")
+	}
+	fileStat = func(name string) (os.FileInfo, error) {
+		if name == githubAppKeyFile {
+			return nil, nil
+		}
+		return nil, errors.New("file not found")
+	}
+	origGetGitHubAppAuth := fleetgit.GetGitHubAppAuth
+	getGitHubAppAuth = func(appID, instID int64, key []byte) (*httpgit.BasicAuth, error) {
+		return &httpgit.BasicAuth{
+			Username: "x-access-token",
+			Password: "token",
+		}, nil
 	}
 	defer func() {
 		plainClone = git.PlainClone
 		readFile = os.ReadFile
+		fileStat = os.Stat
+		getGitHubAppAuth = origGetGitHubAppAuth
 	}()
 
 	tests := map[string]struct {
@@ -120,6 +141,26 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
 			},
 		},
+		"branch github app auth": {
+			opts: &GitCloner{
+				Repo:                  "https://repo",
+				Path:                  "path",
+				Branch:                "master",
+				GitHubAppID:           123,
+				GitHubAppInstallation: 456,
+				GitHubAppKeyFile:      githubAppKeyFile,
+			},
+			expectedCloneOpts: &git.CloneOptions{
+				URL:           "https://repo",
+				SingleBranch:  true,
+				ReferenceName: "master",
+				Auth: &httpgit.BasicAuth{
+					Username: "x-access-token",
+					Password: "token",
+				},
+				RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+			},
+		},
 		"password file does not exist": {
 			opts: &GitCloner{
 				Repo:         "https://repo",
@@ -147,6 +188,17 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 			},
 			expectedCloneOpts: nil,
 			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": file not found`),
+		},
+		"github app key file does not exist": {
+			opts: &GitCloner{
+				Repo:                  "https://repo",
+				Branch:                "master",
+				GitHubAppID:           123,
+				GitHubAppInstallation: 456,
+				GitHubAppKeyFile:      "doesntexist",
+			},
+			expectedCloneOpts: nil,
+			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": failed to read GitHub app private key from file: file not found`),
 		},
 	}
 
