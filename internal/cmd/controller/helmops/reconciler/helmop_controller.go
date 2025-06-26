@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -123,15 +124,15 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	if err := validate(ctx, *helmop); err != nil {
+		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
+	}
+
 	// Reconciling
 	logger = logger.WithValues("generation", helmop.Generation, "chart", helmop.Spec.Helm.Chart)
 	ctx = log.IntoContext(ctx, logger)
 
 	logger.V(1).Info("Reconciling HelmOp")
-
-	if helmop.Spec.Helm.Chart == "" {
-		return ctrl.Result{}, nil
-	}
 
 	if _, err := r.createUpdateBundle(ctx, helmop); err != nil {
 		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
@@ -527,6 +528,46 @@ func getChartVersion(ctx context.Context, c client.Client, helmop fleet.HelmOp) 
 
 func jobKey(h fleet.HelmOp) *quartz.JobKey {
 	return quartz.NewJobKey(string(h.UID))
+}
+
+// validate checks combinations of Chart, Repo and Version fields in h's Helm options.
+// It returns an error if those options are nil, or if they don't fall under any of these categories,
+// as per https://helm.sh/docs/helm/helm_install/ :
+// * tarball URL in Chart, empty Repo, empty Version
+// * OCI reference in the Repo field, empty Chart, optional Version
+// * non-empty Repo URL, non-empty Chart name, optional Version
+func validate(ctx context.Context, h fleet.HelmOp) error {
+	if h.Spec.Helm == nil {
+		return fmt.Errorf("helm options are empty in the HelmOp's spec")
+	}
+
+	fail := func(msg string) error {
+		return fmt.Errorf("helm options invalid: %s", msg)
+	}
+
+	if strings.HasSuffix(strings.ToLower(h.Spec.Helm.Chart), ".tgz") {
+		if len(h.Spec.Helm.Repo) > 0 {
+			return fail("tarball chart with a non-empty repo field")
+		}
+
+		if len(h.Spec.Helm.Version) > 0 {
+			return fail("tarball chart with a non-empty version field")
+		}
+	} else if strings.HasPrefix(strings.ToLower(h.Spec.Helm.Repo), "oci://") {
+		if len(h.Spec.Helm.Chart) > 0 {
+			return fail("OCI repository with a non-empty chart field")
+		}
+	} else { // Expecting full reference: chart + repo + optional version
+		if len(h.Spec.Helm.Chart) == 0 {
+			return fail("non-OCI repository with an empty chart field")
+		}
+
+		if len(h.Spec.Helm.Repo) == 0 {
+			return fail("non-tarball chart with an empty repo field")
+		}
+	}
+
+	return nil
 }
 
 // helmOpTrigger is a custom trigger, implementing the quartz.Trigger interface. This trigger is

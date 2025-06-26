@@ -2,6 +2,8 @@
 package singlecluster_test
 
 import (
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/rancher/fleet/e2e/testenv"
+	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -66,4 +69,16 @@ func getClientForContext(contextName string) client.Client {
 	Expect(err).ToNot(HaveOccurred())
 
 	return c
+}
+
+func getChartMuseumExternalAddr() string {
+	username := os.Getenv("GIT_HTTP_USER")
+	passwd := os.Getenv("GIT_HTTP_PASSWORD")
+	Expect(username).ToNot(Equal(""))
+	Expect(passwd).ToNot(Equal(""))
+	return fmt.Sprintf("https://%s:%s@chartmuseum-service.%s.svc.cluster.local:8081", username, passwd, cmd.InfraNamespace)
+}
+
+func getZotInternalRef() string {
+	return fmt.Sprintf("oci://zot-service.%s.svc.cluster.local:8082", cmd.InfraNamespace)
 }

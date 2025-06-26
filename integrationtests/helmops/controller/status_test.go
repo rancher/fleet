@@ -58,7 +58,7 @@ var _ = Describe("HelmOp Status Fields", func() {
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
-								Chart: "test",
+								Chart: "http://foo.bar/baz/test.tgz",
 							},
 						},
 					},
