@@ -30,6 +30,9 @@ jobs:
           - name: default
           - name: sharding
             shards: '[{"id":"shard0"},{"id":"shard1"},{"id":"shard2"}]'
+          - name: sharded-metrics
+            shards: '[{"id":"shard0"}]'
+          - name: metrics
           - name: infra-setup
     name: e2e-fleet-test-${{ matrix.k3s.name }}-${{ matrix.test_type.name }}
 
@@ -128,14 +131,26 @@ jobs:
         run: |
           ginkgo --github-output --trace --label-filter='!infra-setup && !sharding' e2e/single-cluster e2e/keep-resources
       -
-        name: E2E Sharding/Metrics Tests
+        name: E2E Sharding Tests
         if: ${{ matrix.test_type.name == 'sharding' }}
         env:
           FLEET_E2E_NS: fleet-local
         run: |
           ginkgo --github-output --trace --label-filter='sharding' e2e/single-cluster
+      -
+        name: E2E Sharded Metrics
+        if: ${{ matrix.test_type.name == 'sharded-metrics' }}
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
+          SHARD=shard0 ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
+      -
+        name: E2E Metrics Tests
+        if: ${{ matrix.test_type.name == 'metrics' }}
+        env:
+          FLEET_E2E_NS: fleet-local
+        run: |
           ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
-          SHARD=shard1 ginkgo --github-output --trace --label-filter='!oci-registry' e2e/metrics
       -
         name: Create Zot certificates for OCI tests
         if: ${{ matrix.test_type.name == 'infra-setup' }}
