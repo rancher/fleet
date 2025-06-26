@@ -159,7 +159,7 @@ jobs:
           ./.github/scripts/create-zot-certs.sh "FleetCI-RootCA"
           ./.github/scripts/create-secrets.sh 'FleetCI-RootCA'
       -
-        name: E2E Infra Tests
+        name: E2E Infra Tests - Git and Helm
         if: ${{ matrix.test_type.name == 'infra-setup-git-helm' }}
         env:
           FLEET_E2E_NS: fleet-local
@@ -167,6 +167,8 @@ jobs:
           GIT_HTTP_USER: "fleet-ci"
           GIT_HTTP_PASSWORD: "foo"
         run: |
+          export CI_OCI_CERTS_DIR="$(git rev-parse --show-toplevel)/FleetCI-RootCA"
+
           # Run tests requiring only the git server
           e2e/testenv/infra/infra setup --git-server=true
           ginkgo --github-output --trace --label-filter='infra-setup && !helm-registry && !oci-registry' e2e/single-cluster/
@@ -177,7 +179,7 @@ jobs:
 
           e2e/testenv/infra/infra teardown
       -
-        name: E2E Infra Tests
+        name: E2E Infra Tests - OCI
         if: ${{ matrix.test_type.name == 'infra-setup-git-helm' || matrix.test_type.name == 'infra-setup-oci' }}
         env:
           # Git and OCI credentials are here used in a local, ephemeral environment. Leaks would be harmless.
