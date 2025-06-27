@@ -174,7 +174,11 @@ func (in *BundleDeploymentOptions) DeepCopyInto(out *BundleDeploymentOptions) {
 		*out = new(DiffOptions)
 		(*in).DeepCopyInto(*out)
 	}
-	in.IgnoreOptions.DeepCopyInto(&out.IgnoreOptions)
+	if in.IgnoreOptions != nil {
+		in, out := &in.IgnoreOptions, &out.IgnoreOptions
+		*out = new(IgnoreOptions)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.CorrectDrift != nil {
 		in, out := &in.CorrectDrift, &out.CorrectDrift
 		*out = new(CorrectDrift)

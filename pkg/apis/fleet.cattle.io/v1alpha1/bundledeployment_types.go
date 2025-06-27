@@ -97,8 +97,8 @@ type BundleDeploymentOptions struct {
 	DeleteNamespace bool `json:"deleteNamespace,omitempty"`
 
 	//IgnoreOptions can be used to ignore fields when monitoring the bundle.
-	// +optional
-	IgnoreOptions `json:"ignore,omitempty"`
+	// +nullable
+	IgnoreOptions *IgnoreOptions `json:"ignore,omitempty"`
 
 	// CorrectDrift specifies how drift correction should work.
 	CorrectDrift *CorrectDrift `json:"correctDrift,omitempty"`
