@@ -11,7 +11,7 @@ replace (
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.3.1
+	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/chartmuseum/helm-push v0.10.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
