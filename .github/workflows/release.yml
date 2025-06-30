@@ -151,7 +151,11 @@ jobs:
       - name: Attest provenance
         shell: bash
         run: |
-          for IMG_NAME in $(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep STAGE_REGISTRY | sed "s/{{ .Env.STAGE_REGISTRY }}/${{ env.STAGE_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g"); do
+          ARCH_IMAGES=$(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep STAGE_REGISTRY | sed "s/{{ .Env.STAGE_REGISTRY }}/${{ env.STAGE_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g")
+
+          MANIFESTS=$(echo "$ARCH_IMAGES" | sed 's/-linux-[^[:space:]]*//' | sort -u)
+
+          for IMG_NAME in $ARCH_IMAGES $MANIFESTS; do
             # Extract Docker image reference plus digest from local image
             URL=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMG_NAME}")
 
