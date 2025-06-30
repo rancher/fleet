@@ -13,6 +13,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
+	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
@@ -23,10 +24,11 @@ import (
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
-	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	"github.com/rancher/wrangler/v3/pkg/condition"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -228,18 +230,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Skip bundle deployment creation if the bundle is a HelmOps bundle and the configured Helm version is still a
 	// version constraint. That constraint should be resolved into a strict version by the HelmOps reconciler before bundle
 	// deployments can be created.
-	if contentsInHelmChart && bundle.Spec.Helm != nil {
-		version := bundle.Spec.Helm.Version
+	if contentsInHelmChart && bundle.Spec.Helm != nil && len(bundle.Spec.Helm.Version) > 0 {
+		if _, err := semver.StrictNewVersion(bundle.Spec.Helm.Version); err != nil {
+			setReadyCondition(
+				&bundle.Status,
+				fmt.Errorf("chart version cannot be deployed; check HelmOp status for more details: %v", err),
+			)
 
-		if _, err := semver.StrictNewVersion(version); err != nil {
-			bundle.Status.Conditions = []genericcondition.GenericCondition{
-				{
-					Type:           string(fleet.Ready),
-					Status:         corev1.ConditionFalse,
-					Message:        fmt.Sprintf("Chart version cannot be deployed; check HelmOp status for more details: %v", err),
-					LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
-				},
-			}
 			err := r.updateStatus(ctx, bundleOrig, bundle)
 			return ctrl.Result{}, err
 		}
@@ -270,14 +267,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err != nil {
 		// When targeting fails, we don't want to continue and we make the error message visible in
 		// the UI. For that we use a status condition of type Ready.
-		bundle.Status.Conditions = []genericcondition.GenericCondition{
-			{
-				Type:           string(fleet.Ready),
-				Status:         corev1.ConditionFalse,
-				Message:        "Targeting error: " + err.Error(),
-				LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
-			},
-		}
+		setReadyCondition(&bundle.Status, fmt.Errorf("targeting error: %v", err))
 
 		err := r.updateStatus(ctx, bundleOrig, bundle)
 		return ctrl.Result{}, err
@@ -369,25 +359,25 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			bundle.Spec.HelmOpOptions != nil,
 			manifestID)
 		if err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, fmt.Errorf("failed to create bundle deployment: %w", err)
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
 
 		if bd.Spec.ValuesHash != "" {
 			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
-				return ctrl.Result{}, err
+				return ctrl.Result{}, fmt.Errorf("failed to create options secret: %w", err)
 			}
 		} else {
 			// No values to store, delete the secret if it exists
 			if err := r.Delete(ctx, &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
 			}); err != nil && !apierrors.IsNotFound(err) {
-				return ctrl.Result{}, err
+				return ctrl.Result{}, fmt.Errorf("failed to delete options secret: %w", err)
 			}
 		}
 
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, fmt.Errorf("failed to clone secrets downstream: %w", err)
 		}
 	}
 
@@ -741,4 +731,14 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 	}
 
 	return errors.Join(errs...)
+}
+
+// setCondition sets the condition and updates the timestamp, if the condition changed
+func setReadyCondition(status *fleet.BundleStatus, err error) {
+	cond := condition.Cond(fleet.Ready)
+	origStatus := status.DeepCopy()
+	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
+	if !equality.Semantic.DeepEqual(origStatus, status) {
+		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
+	}
 }

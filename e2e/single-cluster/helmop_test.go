@@ -2,6 +2,7 @@ package singlecluster_test
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -13,7 +14,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
-	"github.com/rancher/fleet/e2e/testenv/zothelper"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/chartmuseum/helm-push/pkg/chartmuseum"
 	. "github.com/onsi/ginkgo/v2"
@@ -177,11 +178,13 @@ var _ = Describe("HelmOp resource tests with polling", Label("infra-setup", "hel
 	})
 })
 
-var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup", "oci-registry"), func() {
+var _ = Describe("HelmOp resource tests with OCI registry", Label("infra-setup", "oci-registry"), func() {
 	var (
 		namespace string
 		name      string
+		repo      string
 		insecure  bool
+		ociRef    = getZotInternalRef()
 		k         kubectl.Command
 	)
 
@@ -205,9 +208,6 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 		}
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		ociRef, err := zothelper.GetOCIReference(k)
-		Expect(err).ToNot(HaveOccurred(), ociRef)
-
 		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
 			Name                  string
 			Namespace             string
@@ -220,8 +220,8 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 		}{
 			name,
 			namespace,
+			repo,
 			"",
-			fmt.Sprintf("%s/sleeper-chart", ociRef),
 			0,
 			helmOpsSecretName,
 			insecure,
@@ -243,16 +243,18 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 				namespace = "helmop-ns"
 				name = "basic-oci"
 				insecure = true
+
+				repo = fmt.Sprintf("%s/sleeper-chart", ociRef)
 			})
 			It("deploys the chart", func() {
-				Eventually(func() bool {
+				Eventually(func(g Gomega) {
 					outPods, _ := k.Namespace(namespace).Get("pods")
-					return strings.Contains(outPods, "sleeper-")
-				}).Should(BeTrue())
-				Eventually(func() bool {
+					g.Expect(outPods).To(ContainSubstring("sleeper-"))
+				}).Should(Succeed())
+				Eventually(func(g Gomega) {
 					outDeployments, _ := k.Namespace(namespace).Get("deployments")
-					return strings.Contains(outDeployments, "sleeper")
-				}).Should(BeTrue())
+					g.Expect(outDeployments).To(ContainSubstring("sleeper"))
+				}).Should(Succeed())
 			})
 		})
 		Context("containing a valid helmop description pointing to an oci registry and not TLS", func() {
@@ -260,6 +262,8 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 				namespace = "helmop-ns2"
 				name = "basic-oci-no-tls"
 				insecure = false
+
+				repo = fmt.Sprintf("%s/sleeper-chart", ociRef)
 			})
 			It("does not deploy the chart because of TLS", func() {
 				Consistently(func() string {
@@ -267,6 +271,133 @@ var _ = Describe("HelmOp resource tests with oci registry", Label("infra-setup",
 					return out
 				}, 5*time.Second, time.Second).ShouldNot(ContainSubstring("sleeper-"))
 			})
+		})
+	})
+
+	When("applying a helmop resource which cannot be deployed", func() {
+		Context("containing a helmop description pointing to an OCI registry using the wrong field", func() {
+			BeforeEach(func() {
+				namespace = "helmop-ns"
+				name = "basic-oci-invalid"
+				insecure = true
+
+				repo = fmt.Sprintf("%s/sleeper-chart-will-not-be-found", ociRef)
+			})
+			It("fails visibly", func() {
+				By("not deploying the chart")
+				Consistently(func(g Gomega) {
+					outPods, _ := k.Namespace(namespace).Get("pods")
+					g.Expect(outPods).NotTo(ContainSubstring("sleeper-"))
+
+					outDeployments, _ := k.Namespace(namespace).Get("deployments")
+					g.Expect(outDeployments).NotTo(ContainSubstring("sleeper"))
+				}, 5*time.Second, time.Second).Should(Succeed())
+
+				By("displaying the reason for the failure in the HelmOps' status")
+				Eventually(func(g Gomega) {
+					st, err := k.Get("helmop", name, "-o=jsonpath={.status}")
+					g.Expect(err).ToNot(HaveOccurred())
+
+					var status fleet.StatusBase
+					err = json.Unmarshal([]byte(st), &status)
+					g.Expect(err).ToNot(HaveOccurred())
+
+					g.Expect(status.Conditions).ToNot(BeEmpty())
+
+					var foundReady, foundAccepted bool
+					for _, cond := range status.Conditions {
+						if cond.Type == "Ready" {
+							foundReady = true
+
+							g.Expect(string(cond.Status)).To(Equal("False"))
+							g.Expect(cond.Message).To(ContainSubstring("ErrApplied"))
+							g.Expect(cond.Message).To(ContainSubstring("not found"))
+						}
+
+						if cond.Type == "Accepted" {
+							foundAccepted = true
+							g.Expect(string(cond.Status)).To(Equal("True"))
+						}
+					}
+					g.Expect(foundAccepted).To(BeTrue())
+					g.Expect(foundReady).To(BeTrue())
+				}).Should(Succeed())
+			})
+		})
+	})
+})
+
+var _ = Describe("HelmOp resource tests with tarball source", Label("infra-setup", "helm-registry"), func() {
+	var (
+		namespace string
+		name      string
+		insecure  = true
+		k         kubectl.Command
+		version   string
+	)
+
+	BeforeEach(func() {
+		k = env.Kubectl.Namespace(env.Namespace)
+	})
+
+	JustBeforeEach(func() {
+		namespace = testenv.NewNamespaceName(
+			name,
+			rand.New(rand.NewSource(time.Now().UnixNano())),
+		)
+
+		out, err := k.Create(
+			"secret", "generic", helmOpsSecretName,
+			"--from-literal=username="+os.Getenv("CI_OCI_USERNAME"),
+			"--from-literal=password="+os.Getenv("CI_OCI_PASSWORD"),
+		)
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		err = testenv.ApplyTemplate(k, testenv.AssetPath("helmop/helmop.yaml"), struct {
+			Name                  string
+			Namespace             string
+			Repo                  string
+			Chart                 string
+			PollingInterval       time.Duration
+			HelmSecretName        string
+			InsecureSkipTLSVerify bool
+			Version               string
+		}{
+			name,
+			namespace,
+			"",
+			fmt.Sprintf("%s/charts/sleeper-chart-0.1.0.tgz", getChartMuseumExternalAddr()),
+			0,
+			helmOpsSecretName,
+			insecure,
+			version,
+		})
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	AfterEach(func() {
+		out, err := k.Delete("helmop", name)
+		Expect(err).ToNot(HaveOccurred(), out)
+		out, err = k.Delete("secret", helmOpsSecretName)
+		Expect(err).ToNot(HaveOccurred(), out)
+	})
+
+	// Other version combinations are tested in HelmOps controller unit test
+	When("applying a helmop resource without a version", func() {
+		BeforeEach(func() {
+			namespace = "helmop-tarball-ns-no-version"
+			name = "basic-helmop"
+			version = ""
+		})
+		It("deploys the chart", func() {
+			Eventually(func(g Gomega) {
+				outPods, _ := k.Namespace(namespace).Get("pods")
+				g.Expect(outPods).To(ContainSubstring("sleeper-"))
+			}).Should(Succeed())
+			Eventually(func(g Gomega) {
+				outDeployments, _ := k.Namespace(namespace).Get("deployments")
+				g.Expect(outDeployments).To(ContainSubstring("sleeper"))
+			}).Should(Succeed())
 		})
 	})
 })

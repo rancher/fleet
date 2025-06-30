@@ -32,7 +32,7 @@ func GetManifestFromHelmChart(ctx context.Context, c client.Client, bd *fleet.Bu
 	}
 	auth.InsecureSkipVerify = bd.Spec.HelmChartOptions.InsecureSkipTLSverify
 
-	chartURL, err := chartURL(*helm, auth)
+	chartURL, err := chartURL(*helm, auth, true)
 	if err != nil {
 		return nil, err
 	}
