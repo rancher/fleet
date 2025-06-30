@@ -407,6 +407,16 @@ func usesPolling(helmop fleet.HelmOp) bool {
 		return false
 	}
 
+	// Polling does not apply to OCI and tarball charts, where no index.yaml file is available to check for new
+	// chart versions.
+	if strings.HasSuffix(strings.ToLower(helmop.Spec.Helm.Chart), ".tgz") {
+		return false
+	}
+
+	if strings.HasPrefix(strings.ToLower(helmop.Spec.Helm.Repo), "oci://") {
+		return false
+	}
+
 	// we only need to poll if the version is set to a constraint on versions, which may resolve to
 	// different available versions as the contents of the Helm repository evolves over time.
 	_, err := semver.StrictNewVersion(helmop.Spec.Helm.Version)
