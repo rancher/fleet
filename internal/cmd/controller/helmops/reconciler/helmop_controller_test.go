@@ -332,9 +332,18 @@ func TestReconcile_Validate(t *testing.T) {
 			client.EXPECT().Status().Return(statusClient)
 			statusClient.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
 
+			scheduler := mocks.NewMockScheduler(mockCtrl)
+
+			if len(c.err) > 0 {
+				job := mocks.NewMockScheduledJob(mockCtrl)
+				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
+				scheduler.EXPECT().DeleteJob(gomock.Any()).Return(nil)
+			}
+
 			r := HelmOpReconciler{
-				Client: client,
-				Scheme: scheme,
+				Client:    client,
+				Scheme:    scheme,
+				Scheduler: scheduler,
 			}
 
 			ctx := context.TODO()
