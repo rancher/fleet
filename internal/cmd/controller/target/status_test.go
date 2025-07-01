@@ -85,12 +85,12 @@ func Test_limit(t *testing.T) {
 			want: 5,
 		},
 		{
-			name:  "fixed value above count",
+			name:  "fixed value above count should result in count",
 			count: 10,
 			val: []*intstr.IntOrString{
 				{IntVal: 15},
 			},
-			want: 15,
+			want: 10,
 		},
 		{
 			name:  "with value with zero count",
@@ -122,9 +122,9 @@ func Test_limit(t *testing.T) {
 			count: 10,
 			val: []*intstr.IntOrString{
 				nil,
-				{IntVal: 15},
+				{IntVal: 10},
 			},
-			want: 15,
+			want: 10,
 		},
 		{
 			name:  "percent value 50",
@@ -133,6 +133,22 @@ func Test_limit(t *testing.T) {
 				{Type: intstr.String, StrVal: "50%"},
 			},
 			want: 5,
+		},
+		{
+			name:  "percent value 100",
+			count: 11,
+			val: []*intstr.IntOrString{
+				{Type: intstr.String, StrVal: "100%"},
+			},
+			want: 11,
+		},
+		{
+			name:  "percent value 150",
+			count: 10,
+			val: []*intstr.IntOrString{
+				{Type: intstr.String, StrVal: "150%"},
+			},
+			want: 10,
 		},
 		{
 			name:  "percent value 10",
@@ -163,14 +179,6 @@ func Test_limit(t *testing.T) {
 			count: 50,
 			val:   []*intstr.IntOrString{},
 			want:  50,
-		},
-		{
-			name:  "percentage below 1 should return 1",
-			count: 5,
-			val: []*intstr.IntOrString{
-				{Type: intstr.String, StrVal: "1%"},
-			},
-			want: 1,
 		},
 		{
 			name:  "percentages are always rounded down",
@@ -404,6 +412,25 @@ func TestUnavailable(t *testing.T) {
 				{}, // Deployment is nil
 			},
 			want: 2,
+		},
+		{
+			name: "all targets available should return 0",
+			targets: []*Target{
+				availableTarget(),
+				availableTarget(),
+				availableTarget(),
+			},
+			want: 0,
+		},
+		{
+			name: "all targets unavailable should return count",
+			targets: []*Target{
+				unavailableTargetMismatchedID(),
+				unavailableTargetNonReady(),
+				unavailableTargetMismatchedID(),
+				unavailableTargetNonReady(),
+			},
+			want: 4,
 		},
 	}
 	for _, tt := range tests {

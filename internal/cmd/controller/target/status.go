@@ -71,8 +71,9 @@ func upToDate(target *Target) bool {
 	return true
 }
 
-// isUnavailable checks if target is available (pure function). If no target is
-// provided, it returns true, assuming that a nil target is always available.
+// isUnavailable checks if target is unavailable (pure function). If no target
+// is provided, it returns false, assuming that a nil target is always
+// available.
 func isUnavailable(target *fleet.BundleDeployment) bool {
 	if target == nil {
 		return false
@@ -107,6 +108,13 @@ func limit(count int, val ...*intstr.IntOrString) (int, error) {
 	}
 
 	if maxUnavailable.Type == intstr.Int {
+		i := maxUnavailable.IntValue()
+		if i > count {
+			return count, nil
+		}
+		if i < 0 {
+			return 0, nil
+		}
 		return maxUnavailable.IntValue(), nil
 	}
 
@@ -131,6 +139,9 @@ func limit(count int, val ...*intstr.IntOrString) (int, error) {
 	i = int(float64(count)*percent) / 100
 	if i <= 0 {
 		return 1, nil
+	}
+	if i > count {
+		return count, nil
 	}
 
 	return i, nil

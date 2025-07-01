@@ -39,9 +39,6 @@ func createTargets(start, stop int) []*Target {
 		}
 		start++
 	}
-	if start != stop+1 {
-		panic(fmt.Sprintf("createTargets: start and stop values are not equal: start: %d, stop: %d", start, stop))
-	}
 	return targets
 }
 
@@ -65,10 +62,12 @@ func Test_createTargets(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		got := createTargets(tt.start, tt.stop)
-		if err := targetsEqual(got, tt.want); err != nil {
-			t.Errorf("createTargets(%d, %d): %v", tt.start, tt.stop, err)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			got := createTargets(tt.start, tt.stop)
+			if err := targetsEqual(got, tt.want); err != nil {
+				t.Errorf("createTargets(%d, %d): %v", tt.start, tt.stop, err)
+			}
+		})
 	}
 }
 
@@ -81,21 +80,6 @@ func withCluster(targets []*Target, cluster *fleet.Cluster) {
 func withClusterGroup(targets []*Target, clusterGroup *fleet.ClusterGroup) {
 	for _, target := range targets {
 		target.ClusterGroups = append(target.ClusterGroups, clusterGroup)
-	}
-}
-
-func Test_withClusterGroup(t *testing.T) {
-	clusterGroup := &fleet.ClusterGroup{}
-	target1 := &Target{}
-	target2 := &Target{}
-	targets := []*Target{target1, target2}
-
-	withClusterGroup(targets, clusterGroup)
-
-	for _, target := range targets {
-		if len(target.ClusterGroups) != 1 || target.ClusterGroups[0] != clusterGroup {
-			t.Errorf("expected cluster group to be appended to target, got %+v", target.ClusterGroups)
-		}
 	}
 }
 
@@ -118,7 +102,7 @@ func targetsEqual(got, want []*Target) error {
 func partitionsEqual(got, want []partition) error {
 	type targetStats struct {
 		length   int
-		min, max string
+		from, to string
 	}
 	stats := func() []*targetStats {
 		stats := make([]*targetStats, len(got))
@@ -126,8 +110,8 @@ func partitionsEqual(got, want []partition) error {
 			stats[i] = &targetStats{
 				length: len(p.Targets),
 				// targets are sorted by Name
-				min: p.Targets[0].DeploymentID,
-				max: p.Targets[len(p.Targets)-1].DeploymentID,
+				from: p.Targets[0].DeploymentID,
+				to:   p.Targets[len(p.Targets)-1].DeploymentID,
 			}
 		}
 		return stats
@@ -281,7 +265,6 @@ func Test_manualPartition(t *testing.T) {
 					},
 				},
 			},
-			// targets: createTargets(1, 4),
 			targetsFn: func() []*Target {
 				cluster1 := &fleet.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -401,7 +384,6 @@ func Test_manualPartition(t *testing.T) {
 			want: []partition{
 				{Targets: createTargets(1, 60), Status: fleet.PartitionStatus{MaxUnavailable: 60}},
 				{Targets: createTargets(41, 100), Status: fleet.PartitionStatus{MaxUnavailable: 60}},
-				// {Targets: createTargets(61, 100), Status: fleet.PartitionStatus{MaxUnavailable: 40}},
 			},
 		},
 		{

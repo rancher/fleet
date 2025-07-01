@@ -22,9 +22,9 @@ func partitions(targets []*Target) ([]partition, error) {
 // function).
 //
 // If targets contains several elements, the rollout strategy of the first
-// element is used. If no rollout strategy is found, an empty is created and
-// returned. This function therefore assumes that all bundles in targets have
-// the same rollout strategy.
+// element is used. If no rollout strategy is found, an empty one is created
+// and returned. This function therefore assumes that all bundles in targets
+// have the same rollout strategy.
 func getRollout(targets []*Target) *fleet.RolloutStrategy {
 	var rollout *fleet.RolloutStrategy
 	if len(targets) > 0 {
