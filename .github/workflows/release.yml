@@ -146,6 +146,9 @@ jobs:
               --yes \
               --sign-container-identity="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}" \
               "${URL}"
+
+            # Pull the manifest locally to make it available for inspection
+            docker pull "${URL}"
           done
 
       - name: Attest provenance
