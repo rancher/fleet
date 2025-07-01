@@ -107,10 +107,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
-		err := r.Scheduler.DeleteJob(jobKey(*helmop))
-		if errors.Is(err, quartz.ErrJobNotFound) { // ignore error in this case
-			err = nil
-		}
+		err := r.deletePollingJob(logger, *helmop)
 
 		return ctrl.Result{}, err
 	}
@@ -125,6 +122,9 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if err := validate(ctx, *helmop); err != nil {
+		if delErr := r.deletePollingJob(logger, *helmop); delErr != nil {
+			err = errutil.NewAggregate([]error{err, delErr})
+		}
 		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
 	}
 
@@ -276,6 +276,22 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 
 	bundle.Spec.Helm.Version = version
 	helmop.Status.Version = bundle.Spec.Helm.Version
+
+	return nil
+}
+
+// deletePollingJob deletes the polling job scheduled for the provided helmop, if any, and returns any error that may
+// have happened in the process.
+// Returns a nil error if the job could be deleted or if none existed.
+func (r *HelmOpReconciler) deletePollingJob(logger logr.Logger, helmop fleet.HelmOp) error {
+	jobKey := jobKey(helmop)
+	if _, err := r.Scheduler.GetScheduledJob(jobKey); err == nil {
+		if err = r.Scheduler.DeleteJob(jobKey); err != nil {
+			return fmt.Errorf("failed to delete outdated polling job: %w", err)
+		}
+	} else if !errors.Is(err, quartz.ErrJobNotFound) {
+		return fmt.Errorf("failed to get outdated polling job for deletion: %w", err)
+	}
 
 	return nil
 }
