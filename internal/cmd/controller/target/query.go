@@ -88,6 +88,7 @@ func (m *Manager) getBundlesInScopeForCluster(ctx context.Context, cluster *flee
 	return bundleSet.bundles(), nil
 }
 
+// clusterGroupsForCluster returns all cluster groups that match the given cluster.
 func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cluster) (result []*fleet.ClusterGroup, _ error) {
 	cgs := &fleet.ClusterGroupList{}
 	err := m.client.List(ctx, cgs, client.InNamespace(cluster.Namespace))
