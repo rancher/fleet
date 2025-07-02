@@ -159,7 +159,7 @@ var _ = Describe("HelmOps installation with strict TLS mode", func() {
 				ns,
 				"",
 				"https://github.com/rancher/fleet/raw/refs/heads/main/integrationtests/cli/assets/helmrepository/config-chart-0.1.0.tgz",
-				"0.1.0",
+				"",
 				0,
 				"",
 				false,
