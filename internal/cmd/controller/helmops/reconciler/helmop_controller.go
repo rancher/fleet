@@ -262,7 +262,7 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 
 	version, err := getChartVersion(ctx, r.Client, *helmop)
 	if err != nil {
-		return fmt.Errorf("could not get chart version: %w", err)
+		return err
 	}
 
 	if usesPolling(*helmop) {
