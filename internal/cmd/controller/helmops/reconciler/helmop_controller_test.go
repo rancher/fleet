@@ -620,12 +620,13 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: fleet.HelmOpSpec{
+					InsecureSkipTLSverify: true,
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
 								Repo:    svr1.URL,
-								Chart:   "chart",
-								Version: "1.1.2", // static version
+								Chart:   "alpine",
+								Version: "0.1.0", // static version
 							},
 						},
 					},
@@ -645,12 +646,13 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 					Namespace: "default",
 				},
 				Spec: fleet.HelmOpSpec{
+					InsecureSkipTLSverify: true,
 					BundleSpec: fleet.BundleSpec{
 						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
 							Helm: &fleet.HelmOptions{
 								Repo:    svr1.URL,
-								Chart:   "chart",
-								Version: "1.1.2", // static version
+								Chart:   "alpine",
+								Version: "0.1.0", // static version
 							},
 						},
 					},
