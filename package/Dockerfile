@@ -27,6 +27,7 @@ ONBUILD COPY fleetcontroller-linux-$ARCH /usr/bin/fleetcontroller
 ONBUILD COPY fleet-linux-$ARCH /usr/bin/fleet
 
 FROM copy_${BUILD_ENV}
+RUN useradd -u 1000 user
 USER 1000
 ENTRYPOINT ["tini", "--"]
 CMD ["fleetcontroller"]
