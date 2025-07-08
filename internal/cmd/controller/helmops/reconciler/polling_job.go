@@ -138,7 +138,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	orig := b.DeepCopy()
 	b.Spec.Helm.Version = version
 
-	if version != b.Spec.Helm.Version {
+	if version != h.Status.Version {
 		j.recorder.Event(h, fleetevent.Normal, "GotNewChartVersion", version)
 	}
 
