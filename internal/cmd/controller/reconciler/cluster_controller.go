@@ -167,9 +167,11 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return false
 	})
 
-	// Count the number of gitrepo, bundledeployemt and deployed resources for this cluster
+	// Count the number of gitrepos, helmOps, bundledeployment and deployed resources for this cluster
 	cluster.Status.DesiredReadyGitRepos = 0
 	cluster.Status.ReadyGitRepos = 0
+	cluster.Status.DesiredReadyHelmOps = 0
+	cluster.Status.ReadyHelmOps = 0
 	cluster.Status.ResourceCounts = fleet.ResourceCounts{}
 	cluster.Status.Summary = fleet.BundleSummary{}
 
@@ -179,28 +181,54 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	resourcestatus.SetClusterResources(bundleDeployments, cluster)
 
-	repos := map[types.NamespacedName]bool{}
+	gitRepos := map[types.NamespacedName]bool{}
+	helmOps := map[types.NamespacedName]bool{}
 	for _, bd := range bundleDeployments {
 		state := summary.GetDeploymentState(&bd)
 		summary.IncrementState(&cluster.Status.Summary, bd.Name, state, summary.MessageFromDeployment(&bd), bd.Status.ModifiedStatus, bd.Status.NonReadyStatus)
 		cluster.Status.Summary.DesiredReady++
 
-		repoNamespace, repoName := bd.Labels[fleet.BundleNamespaceLabel], bd.Labels[fleet.RepoLabel]
-		if repoNamespace != "" && repoName != "" {
+		ns := bd.Labels[fleet.BundleNamespaceLabel]
+
+		repoName := bd.Labels[fleet.RepoLabel]
+		helmOpName := bd.Labels[fleet.HelmOpLabel]
+
+		if ns == "" {
+			continue
+		}
+
+		switch { // if both labels are set (which should never happen), the bundle deployment will be counted as gitOps
+		case repoName != "":
 			// a gitrepo is ready if its bundledeployments are ready, take previous state into account
-			repoKey := types.NamespacedName{Namespace: repoNamespace, Name: repoName}
-			repos[repoKey] = (state == fleet.Ready) || repos[repoKey]
+			repoKey := types.NamespacedName{Namespace: ns, Name: repoName}
+			gitRepos[repoKey] = (state == fleet.Ready) || gitRepos[repoKey]
+		case helmOpName != "":
+			// a helmOp is ready if its bundledeployments are ready, take previous state into account
+			helmOpKey := types.NamespacedName{Namespace: ns, Name: helmOpName}
+			helmOps[helmOpKey] = (state == fleet.Ready) || helmOps[helmOpKey]
 		}
 	}
 
 	// a cluster is ready if all its gitrepos are ready and the resources are ready too
 	allReady := true
-	for repo, ready := range repos {
+	for repo, ready := range gitRepos {
 		gitrepo := &fleet.GitRepo{}
 		if err := r.Get(ctx, repo, gitrepo); err == nil {
 			cluster.Status.DesiredReadyGitRepos++
 			if ready {
 				cluster.Status.ReadyGitRepos++
+			} else {
+				allReady = false
+			}
+		}
+	}
+
+	for key, ready := range helmOps {
+		helmOp := &fleet.HelmOp{}
+		if err := r.Get(ctx, key, helmOp); err == nil {
+			cluster.Status.DesiredReadyHelmOps++
+			if ready {
+				cluster.Status.ReadyHelmOps++
 			} else {
 				allReady = false
 			}
@@ -236,7 +264,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	if allReady && cluster.Status.ResourceCounts.Ready != cluster.Status.ResourceCounts.DesiredReady {
-		logger.V(1).Info("Cluster is not ready, because not all gitrepos are ready",
+		logger.V(1).Info("Cluster is not ready, because not all gitrepos/helmOps are ready",
 			"namespace", cluster.Namespace,
 			"name", cluster.Name,
 			"ready", cluster.Status.ResourceCounts.Ready,

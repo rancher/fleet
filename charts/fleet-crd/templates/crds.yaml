@@ -5823,6 +5823,12 @@ spec:
 
                     are desired to be ready.'
                   type: integer
+                desiredReadyHelmOps:
+                  description: 'DesiredReadyHelmOps is the number of helmop resources
+                    for this cluster that
+
+                    are desired to be ready.'
+                  type: integer
                 display:
                   description: Display contains the number of ready bundles, nodes
                     and a summary state.
@@ -5857,6 +5863,10 @@ spec:
                 readyGitRepos:
                   description: ReadyGitRepos is the number of gitrepos for this cluster
                     that are ready.
+                  type: integer
+                readyHelmOps:
+                  description: ReadyHelmOps is the number of helmop resources for
+                    this cluster that are ready.
                   type: integer
                 resourceCounts:
                   description: ResourceCounts is an aggregate over the ResourceCounts.

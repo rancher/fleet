@@ -91,14 +91,16 @@ func setupLoadBalancer(shard string, app string) (metricsURL string) {
 	if ip := os.Getenv("external_ip"); ip != "" {
 		metricsURL = fmt.Sprintf("http://%s:%d/metrics", ip, port)
 	} else {
-		Eventually(func() (string, error) {
+		Eventually(func(g Gomega) {
 			ip, err := ks.Get(
 				"service", loadBalancerName,
 				"-o", "jsonpath={.status.loadBalancer.ingress[0].ip}",
 			)
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(ip).ToNot(BeEmpty())
+
 			metricsURL = fmt.Sprintf("http://%s:%d/metrics", ip, port)
-			return ip, err
-		}).ShouldNot(BeEmpty())
+		}).Should(Succeed())
 	}
 
 	DeferCleanup(func() {
