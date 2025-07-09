@@ -1,17 +1,21 @@
 package apply
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 
+	"github.com/docker/go-connections/nat"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/integrationtests/cli"
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/testcontainers/testcontainers-go"
 	"sigs.k8s.io/yaml"
 )
 
@@ -27,6 +31,10 @@ var _ = Describe("Fleet apply helm release", Serial, func() {
 
 	When("applying a folder with fleet.yaml that contains a helm release in the chart field", func() {
 		testHelmRepo("helm_chart_url", port)
+	})
+
+	When("applying a folder with fleet.yaml that contains a helm chart stored in an HTTP OCI registry", func() {
+		testHelmInOCIHTTPRegistry()
 	})
 
 	When("applying a folder with fleet.yaml that contains a sub folder with another fleet.yaml", func() {
@@ -229,6 +237,58 @@ func testHelmRepo(path, port string) {
 	})
 }
 
+func testHelmInOCIHTTPRegistry() {
+	var (
+		container testcontainers.Container
+		host      string
+		port      nat.Port
+	)
+
+	JustBeforeEach(func() {
+		var err error
+		container, err = startDockerRegistry(context.Background())
+		Expect(err).ToNot(HaveOccurred())
+
+		host, err = container.Host(context.Background())
+		Expect(err).ToNot(HaveOccurred())
+
+		port, err = container.MappedPort(context.Background(), nat.Port("5000"))
+		Expect(err).ToNot(HaveOccurred())
+
+		cmd := exec.Command("helm", "package", cli.AssetsPath+"config-chart/")
+		out, err := cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%d", host, port.Int()))
+		out, err = cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		err = createGitRepoDataForTest(cli.AssetsPath+"helm_chart_in_oci", host, port.Port(), "config-chart")
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		Expect(container.Terminate(context.Background())).NotTo(HaveOccurred())
+	})
+
+	It("fails when calling fleet apply not passing helm-basic-http", func() {
+		err := fleetApply("helm", []string{cli.AssetsPath + "helm_chart_in_oci"}, apply.Options{})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
+	})
+
+	It("fails when calling fleet apply not passing helm-basic-http=false", func() {
+		err := fleetApply("helm", []string{cli.AssetsPath + "helm_chart_in_oci"}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: false}})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
+	})
+
+	It("works fine when calling fleet apply passing helm-basic-http=true", func() {
+		err := fleetApply("helm", []string{cli.AssetsPath + "helm_chart_in_oci"}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: true}})
+		Expect(err).ToNot(HaveOccurred())
+	})
+}
+
 func verifyResourcesArePresent() bool {
 	bundle, err := cli.GetBundleFromOutput(buf)
 	Expect(err).NotTo(HaveOccurred())
@@ -260,4 +320,32 @@ func getAllResourcesPathFromTheHelmRelease() ([]string, error) {
 		return nil, err
 	}
 	return paths, nil
+}
+
+func createGitRepoDataForTest(baseDir, host, port, chart string) error {
+	filePath := filepath.Join(baseDir, "fleet.yaml")
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString("helm:\n")
+	if err != nil {
+		return err
+	}
+	_, err = file.WriteString("  releaseName: config-chart\n")
+	if err != nil {
+		return err
+	}
+
+	chartURL := fmt.Sprintf("oci://%s:%s/%s\n", host, port, chart)
+	_, err = file.WriteString("  chart: " + chartURL)
+	if err != nil {
+		return err
+	}
+
+	_, err = file.WriteString("  version: 0.1.0\n")
+
+	return err
 }
