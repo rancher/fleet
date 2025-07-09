@@ -327,9 +327,11 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	volumes, volumeMounts := volumes(configMap.Name)
 	var certVolCreated bool
+	var helmInsecure bool
+	var helmBasicHTTP bool
 
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
-		vols, volMnts, hasCertVol := volumesFromSecret(ctx, r.Client,
+		vols, volMnts, hasCertVol, _, _ := volumesFromSecret(ctx, r.Client,
 			gitrepo.Namespace,
 			gitrepo.Spec.HelmSecretNameForPaths,
 			"helm-secret-by-path",
@@ -342,7 +344,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		volumeMounts = append(volumeMounts, volMnts...)
 
 	} else if gitrepo.Spec.HelmSecretName != "" {
-		vols, volMnts, hasCertVol := volumesFromSecret(ctx, r.Client,
+		vols, volMnts, hasCertVol, insecure, basicHTTP := volumesFromSecret(ctx, r.Client,
 			gitrepo.Namespace,
 			gitrepo.Spec.HelmSecretName,
 			"helm-secret",
@@ -350,6 +352,8 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		)
 
 		certVolCreated = hasCertVol
+		helmInsecure = insecure
+		helmBasicHTTP = basicHTTP
 
 		volumes = append(volumes, vols...)
 		volumeMounts = append(volumeMounts, volMnts...)
@@ -372,7 +376,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 			// Override the volume name and mount path to prevent any conflict with an existing Helm secret
 			// providing username and password.
-			vols, volMnts, _ := volumesFromSecret(ctx, r.Client,
+			vols, volMnts, _, _, _ := volumesFromSecret(ctx, r.Client,
 				gitrepo.Namespace,
 				secretName,
 				"rancher-helm-secret",
@@ -402,7 +406,9 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
-	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride, r.KnownHosts, drivenScanSeparator)
+	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride, r.KnownHosts, drivenScanSeparator, helmInsecure, helmBasicHTTP)
+
+	zero := int32(0)
 
 	return &batchv1.JobSpec{
 		BackoffLimit: &zero,
@@ -582,6 +588,8 @@ func argsAndEnvs(
 	CACertsPathOverride string,
 	knownHosts KnownHostsGetter,
 	drivenScanSeparator string,
+	helmInsecureSkipTLS bool,
+	helmBasicHTTP bool,
 ) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
@@ -721,6 +729,13 @@ func argsAndEnvs(
 		}
 	}
 
+	if helmInsecureSkipTLS {
+		args = append(args, "--helm-insecure-skip-tls")
+	}
+	if helmBasicHTTP {
+		args = append(args, "--helm-basic-http")
+	}
+
 	return append(args, "--", gitrepo.Name), env
 }
 
@@ -777,12 +792,13 @@ func volumes(targetsConfigName string) ([]corev1.Volume, []corev1.VolumeMount) {
 
 // volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that that secret exists.
 // If the secret has a cacerts key, it will be mounted into /etc/ssl/certs, too.
+// It also returns the boolean values of the InsecureSkipTLS and BasicHTTP keys.
 func volumesFromSecret(
 	ctx context.Context,
 	c client.Client,
 	namespace string,
 	secretName, volumeName, mountPath string,
-) ([]corev1.Volume, []corev1.VolumeMount, bool) {
+) ([]corev1.Volume, []corev1.VolumeMount, bool, bool, bool) {
 	if mountPath == "" {
 		mountPath = "/etc/fleet/helm"
 	}
@@ -832,7 +848,26 @@ func volumesFromSecret(
 		certVolCreated = true
 	}
 
-	return volumes, volumeMounts, certVolCreated
+	// Get the values for skipping TLS and basic HTTP connections.
+	// In case of error reading the values they will be considered
+	// as set to false as those values are security related.
+	insecureSkipTLS := false
+	if value, ok := secret.Data["insecureSkipTLS"]; ok {
+		boolValue, err := strconv.ParseBool(string(value))
+		if err == nil {
+			insecureSkipTLS = boolValue
+		}
+	}
+
+	basicHTTP := false
+	if value, ok := secret.Data["basicHTTP"]; ok {
+		boolValue, err := strconv.ParseBool(string(value))
+		if err == nil {
+			basicHTTP = boolValue
+		}
+	}
+
+	return volumes, volumeMounts, certVolCreated, insecureSkipTLS, basicHTTP
 }
 
 func proxyEnvVars() []corev1.EnvVar {
