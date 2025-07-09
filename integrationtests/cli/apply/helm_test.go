@@ -242,9 +242,12 @@ func testHelmInOCIHTTPRegistry() {
 		container testcontainers.Container
 		host      string
 		port      nat.Port
+		tmpDir    string
+		relTmpDir string
 	)
 
 	JustBeforeEach(func() {
+		tmpDir = GinkgoT().TempDir()
 		var err error
 		container, err = startDockerRegistry(context.Background())
 		Expect(err).ToNot(HaveOccurred())
@@ -263,8 +266,13 @@ func testHelmInOCIHTTPRegistry() {
 		out, err = cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		err = createGitRepoDataForTest(cli.AssetsPath+"helm_chart_in_oci", host, port.Port(), "config-chart")
+		err = createGitRepoDataForTest(tmpDir, host, port.Port(), "config-chart")
 		Expect(err).ToNot(HaveOccurred())
+
+		pwd, err := os.Getwd()
+		Expect(err).NotTo(HaveOccurred())
+		relTmpDir, err = filepath.Rel(pwd, tmpDir)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -272,19 +280,19 @@ func testHelmInOCIHTTPRegistry() {
 	})
 
 	It("fails when calling fleet apply not passing helm-basic-http", func() {
-		err := fleetApply("helm", []string{cli.AssetsPath + "helm_chart_in_oci"}, apply.Options{})
+		err := fleetApply("helm", []string{relTmpDir}, apply.Options{})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
 	})
 
 	It("fails when calling fleet apply not passing helm-basic-http=false", func() {
-		err := fleetApply("helm", []string{cli.AssetsPath + "helm_chart_in_oci"}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: false}})
+		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: false}})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
 	})
 
 	It("works fine when calling fleet apply passing helm-basic-http=true", func() {
-		err := fleetApply("helm", []string{cli.AssetsPath + "helm_chart_in_oci"}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: true}})
+		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: true}})
 		Expect(err).ToNot(HaveOccurred())
 	})
 }
