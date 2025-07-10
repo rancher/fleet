@@ -95,6 +95,12 @@ var _ = Describe("HelmOp resource tests with polling", Label("infra-setup", "hel
 					outDeployments, _ := k.Namespace(namespace).Get("deployments")
 					return strings.Contains(outDeployments, "sleeper")
 				}).Should(BeTrue())
+
+				By("setting the expected version in the helmop Status")
+				Eventually(func() string {
+					out, _ := k.Get("helmop", name, "-o=jsonpath={.status.version}")
+					return out
+				}).Should(Equal(chartVersion))
 			})
 		})
 	})
@@ -174,6 +180,11 @@ var _ = Describe("HelmOp resource tests with polling", Label("infra-setup", "hel
 				outDeployments, _ := k.Namespace(namespace).Get("deployments")
 				return strings.Contains(outDeployments, "sleeper2")
 			}).Should(BeTrue())
+			By("setting the expected version in the helmop Status")
+			Eventually(func() string {
+				out, _ := k.Get("helmop", name, "-o=jsonpath={.status.version}")
+				return out
+			}).Should(Equal("0.2.0"))
 		})
 	})
 })
