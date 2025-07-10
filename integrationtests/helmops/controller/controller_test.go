@@ -303,6 +303,17 @@ var _ = Describe("HelmOps controller", func() {
 		var helmop fleet.HelmOp
 		var targets []fleet.BundleTarget
 		var doAfterNamespaceCreated func()
+		var svr *httptest.Server
+		BeforeEach(func() {
+			svr = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, helmRepoIndex)
+			}))
+			DeferCleanup(func() {
+				svr.Close()
+			})
+		})
+
 		JustBeforeEach(func() {
 			nsSpec := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 			err := k8sClient.Create(ctx, nsSpec)
@@ -322,6 +333,14 @@ var _ = Describe("HelmOps controller", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-empty", targets)
+
+				// set the url to the httptest server
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("creates a bundle with the expected spec and default target", func() {
@@ -336,7 +355,16 @@ var _ = Describe("HelmOps controller", func() {
 							ClusterGroup: "default",
 						},
 					}
+
+					// the original helmop has no version defined.
+					// it should download version 0.2.0 as it is the
+					// latest in the test helm index.html
+					// setting it here so the check passes and confirms
+					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
+					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 
 				By("adding the expected finalizer to the HelmOp resource")
@@ -354,6 +382,14 @@ var _ = Describe("HelmOps controller", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-updated", targets)
+
+				// set the url to the httptest server
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("updates the bundle with the expected content", func() {
@@ -368,11 +404,20 @@ var _ = Describe("HelmOps controller", func() {
 							ClusterGroup: "default",
 						},
 					}
+
+					// the original helmop has no version defined.
+					// it should download version 0.2.0 as it is the
+					// latest in the test helm index.html
+					// setting it here so the check passes and confirms
+					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
+					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 
 				// update the HelmOp spec
-				helmop.Spec.Helm.Chart = "superchart"
+				helmop.Spec.Helm.Version = "0.1.0"
 
 				err := updateHelmOp(helmop)
 				Expect(err).ToNot(HaveOccurred())
@@ -392,7 +437,7 @@ var _ = Describe("HelmOps controller", func() {
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
 
 					// make this check explicit
-					g.Expect(bundle.Spec.Helm.Chart).To(Equal("superchart"))
+					g.Expect(bundle.Spec.Helm.Version).To(Equal("0.1.0"))
 				}).Should(Succeed())
 			})
 		})
@@ -410,6 +455,14 @@ var _ = Describe("HelmOps controller", func() {
 					},
 				}
 				helmop = getRandomHelmOpWithTargets("test-not-empty", targets)
+
+				// set the url to the httptest server
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("creates a bundle with the expected spec and the original targets", func() {
@@ -418,17 +471,31 @@ var _ = Describe("HelmOps controller", func() {
 					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 					err := k8sClient.Get(ctx, ns, bundle)
 					g.Expect(err).ToNot(HaveOccurred())
+
+					// the original helmop has no version defined.
+					// it should download version 0.2.0 as it is the
+					// latest in the test helm index.html
+					// set it here so the check passes and confirms
+					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
+					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, targets)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 			})
 		})
 
-		When("helm chart is empty", func() {
+		When("helm chart and helm repo are empty", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-empty", targets)
 				// no chart is defined
 				helmop.Spec.Helm.Chart = ""
+				helmop.Spec.Helm.Repo = ""
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("does not create a bundle", func() {
@@ -446,6 +513,14 @@ var _ = Describe("HelmOps controller", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-add-delete", targets)
+
+				// set the url to the httptest server
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("creates and deletes the bundle", func() {
@@ -461,7 +536,16 @@ var _ = Describe("HelmOps controller", func() {
 							ClusterGroup: "default",
 						},
 					}
+
+					// the original helmop has no version defined.
+					// it should download version 0.2.0 as it is the
+					// latest in the test helm index.html
+					// set it here so the check passes and confirms
+					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
+					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 
 				// delete the helmop resource
@@ -489,8 +573,6 @@ var _ = Describe("HelmOps controller", func() {
 		})
 
 		Context("fetching a chart version", func() {
-			var svr *httptest.Server
-
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-no-version", targets)
@@ -498,17 +580,13 @@ var _ = Describe("HelmOps controller", func() {
 				// reset secret, no auth is required
 				helmop.Spec.HelmSecretName = ""
 
-				svr = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusOK)
-					fmt.Fprint(w, helmRepoIndex)
-				}))
-				DeferCleanup(func() {
-					svr.Close()
-				})
-
 				// set the url to the httptest server
 				helmop.Spec.Helm.Repo = svr.URL
 				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			bundleCreatedWithLatestVersion := func() {
@@ -689,7 +767,7 @@ var _ = Describe("HelmOps controller", func() {
 					err := k8sClient.Get(ctx, ns, &helmop)
 					Expect(err).ShouldNot(HaveOccurred())
 
-					helmop.Spec.Helm.Version = "0.1.2"
+					helmop.Spec.Helm.Version = "0.1.0"
 
 					err = k8sClient.Update(ctx, &helmop)
 					Expect(err).ShouldNot(HaveOccurred())

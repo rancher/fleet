@@ -254,11 +254,6 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 		return fmt.Errorf("the provided HelmOp is nil; this should not happen")
 	}
 
-	if _, err := semver.StrictNewVersion(helmop.Spec.Helm.Version); err == nil {
-		bundle.Spec.Helm.Version = helmop.Spec.Helm.Version
-		return nil
-	}
-
 	if !helmChartSpecChanged(oldBundle.Spec.Helm, bundle.Spec.Helm, helmop.Status.Version) {
 		bundle.Spec.Helm.Version = helmop.Status.Version
 
@@ -267,7 +262,7 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 
 	version, err := getChartVersion(ctx, r.Client, *helmop)
 	if err != nil {
-		return fmt.Errorf("could not get chart version: %w", err)
+		return err
 	}
 
 	if usesPolling(*helmop) {
@@ -524,7 +519,7 @@ func helmChartSpecChanged(o *fleet.HelmOptions, n *fleet.HelmOptions, statusVers
 	}
 	// check also against statusVersion in case that Reconcile is called
 	// before the status subresource has been fully updated in the cluster (and the cache)
-	if o.Version != n.Version && statusVersion != o.Version {
+	if o.Version != n.Version && statusVersion == o.Version {
 		return true
 	}
 	return false
