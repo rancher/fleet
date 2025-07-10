@@ -25,8 +25,6 @@ func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap b
 
 	// try to claim leadership lease without rate limiting
 	localConfig := rest.CopyConfig(kc)
-	localConfig.QPS = -1
-	localConfig.RateLimiter = nil
 	k8s, err := kubernetes.NewForConfig(localConfig)
 	if err != nil {
 		return err

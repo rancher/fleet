@@ -15,7 +15,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/chartmuseum/helm-push v0.10.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/docker/docker v28.3.1+incompatible
+	github.com/docker/docker v28.3.2+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/go-git/go-billy/v5 v5.6.2
@@ -39,8 +39,8 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.65.0
 	github.com/rancher/fleet/pkg/apis v0.12.3
-	github.com/rancher/lasso v0.2.2
-	github.com/rancher/wrangler/v3 v3.2.1
+	github.com/rancher/lasso v0.2.3
+	github.com/rancher/wrangler/v3 v3.2.2
 	github.com/reugn/go-quartz v0.14.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
@@ -49,7 +49,7 @@ require (
 	go.uber.org/mock v0.5.2
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.39.0
-	golang.org/x/sync v0.15.0
+	golang.org/x/sync v0.16.0
 	gonum.org/v1/gonum v0.16.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.18.4
