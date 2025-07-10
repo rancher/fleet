@@ -438,12 +438,12 @@ func usesPolling(helmop fleet.HelmOp) bool {
 // updateStatus updates the status for the HelmOp resource. It retries on
 // conflict. If the status was updated successfully, it also collects (as in
 // updates) metrics for the HelmOp resource.
-func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, orig *fleet.HelmOp, orgErr error) error {
-	if orig == nil {
+func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, helmop *fleet.HelmOp, orgErr error) error {
+	if helmop == nil {
 		return fmt.Errorf("the HelmOp provided for a status update is nil; this should not happen")
 	}
 
-	objToPatchFrom := orig.DeepCopy()
+	objToPatchFrom := helmop.DeepCopy()
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.HelmOp{}
