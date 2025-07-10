@@ -154,8 +154,6 @@ func NewAppContext(cfg clientcmd.ClientConfig) (*AppContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.QPS = -1
-	client.RateLimiter = nil
 
 	scf, err := controllerFactory(client)
 	if err != nil {
