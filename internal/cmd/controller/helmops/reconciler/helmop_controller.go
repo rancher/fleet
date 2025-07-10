@@ -438,10 +438,12 @@ func usesPolling(helmop fleet.HelmOp) bool {
 // updateStatus updates the status for the HelmOp resource. It retries on
 // conflict. If the status was updated successfully, it also collects (as in
 // updates) metrics for the HelmOp resource.
-func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, orig *fleet.HelmOp, orgErr error) error {
-	if orig == nil {
+func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName, helmop *fleet.HelmOp, orgErr error) error {
+	if helmop == nil {
 		return fmt.Errorf("the HelmOp provided for a status update is nil; this should not happen")
 	}
+
+	objToPatchFrom := helmop.DeepCopy()
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		t := &fleet.HelmOp{}
@@ -450,7 +452,17 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 		}
 
 		// selectively update the status fields this reconciler is responsible for
-		t.Status.Version = orig.Status.Version
+		if t.Status.Version != objToPatchFrom.Status.Version && objToPatchFrom.Status.Version != "" {
+			t.Status.Version = objToPatchFrom.Status.Version
+			// (#3883)
+			// If orig.Status.Version is, for example, equal to 1.0.0, when
+			// assigning the Version to t.Status.Version both will be 1.0.0.
+			// When calculating the Patch data, Status.Version will be ignored because
+			// both objects have the same value.
+			// The following cleanup prevents that so Status.Version is taken into
+			// account when calculating the patch data.
+			objToPatchFrom.Status.Version = ""
+		}
 
 		// only keep the Ready condition from live status, it's calculated by the status reconciler
 		conds := []genericcondition.GenericCondition{}
@@ -460,7 +472,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 				break
 			}
 		}
-		for _, c := range orig.Status.Conditions {
+		for _, c := range objToPatchFrom.Status.Conditions {
 			if c.Type == "Ready" {
 				continue
 			}
@@ -470,7 +482,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 
 		setAcceptedConditionHelm(&t.Status, orgErr)
 
-		statusPatch := client.MergeFrom(orig)
+		statusPatch := client.MergeFrom(objToPatchFrom)
 		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
 			metrics.HelmCollector.Collect(ctx, t)
 			// skip update if patch is empty
