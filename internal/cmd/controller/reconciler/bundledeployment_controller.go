@@ -4,12 +4,14 @@ package reconciler
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
@@ -79,7 +81,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 				return r.Update(ctx, bd)
 			})
 			if err != nil {
-				return ctrl.Result{}, err
+				return ctrl.Result{}, fmt.Errorf("failed to remove finalizer from bundledeployment %s: %w", bd.Name, err)
 			}
 		}
 
@@ -88,6 +90,8 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// increased log level, this triggers a lot
 	logger.V(4).Info("Reconciling bundledeployment, updating display status field", "oldDisplay", bd.Status.Display)
+
+	orig := bd.DeepCopy()
 
 	var (
 		deployed, monitored string
@@ -108,10 +112,15 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		State:     string(summary.GetDeploymentState(bd)),
 	}
 
-	err = r.Status().Update(ctx, bd)
-	if err != nil {
-		logger.V(1).Info("Reconcile failed update to bundle deployment status, requeuing", "status", bd.Status, "error", err)
-		return ctrl.Result{Requeue: true}, nil
+	// final update to bd
+	statusPatch := client.MergeFrom(orig)
+	if patchData, err := statusPatch.Data(bd); err == nil && string(patchData) == "{}" {
+		// skip update if patch is empty
+		return ctrl.Result{}, nil
+	}
+	if err := r.Status().Patch(ctx, bd, statusPatch); client.IgnoreNotFound(err) != nil {
+		logger.V(1).Info("Reconcile failed update to bundledeployment status, requeuing", "status", bd.Status, "error", err)
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
 	metrics.BundleDeploymentCollector.Collect(ctx, bd)
