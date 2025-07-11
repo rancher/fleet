@@ -240,6 +240,21 @@ jobs:
           ./.github/scripts/label-downstream-cluster.sh
 
       -
+        name: Checkout rancher/rancher
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: rancher/rancher
+          ref: main
+          path: rancher
+
+      -
+        name: Rancher Provisioning Tests
+        run: |
+          cd rancher
+          go test ./tests/v2prov/tests/fleet
+
+      -
         name: E2E tests for examples
         env:
           FLEET_E2E_NS: fleet-local
