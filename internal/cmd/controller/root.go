@@ -26,10 +26,11 @@ import (
 
 type FleetController struct {
 	command.DebugConfig
-	Kubeconfig     string `usage:"Kubeconfig file"`
-	Namespace      string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
-	DisableMetrics bool   `usage:"disable metrics" name:"disable-metrics"`
-	ShardID        string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
+	Kubeconfig           string `usage:"Kubeconfig file"`
+	Namespace            string `usage:"namespace to watch" default:"cattle-fleet-system" env:"NAMESPACE"`
+	DisableMetrics       bool   `usage:"disable metrics" name:"disable-metrics"`
+	ShardID              string `usage:"only manage resources labeled with a specific shard ID" name:"shard-id"`
+	EnableLeaderElection bool   `name:"leader-elect" default:"true" usage:"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager."`
 }
 
 type ControllerReconcilerWorkers struct {
@@ -131,6 +132,7 @@ func (f *FleetController) Run(cmd *cobra.Command, args []string) error {
 		ctx,
 		f.Namespace,
 		kubeconfig,
+		f.EnableLeaderElection,
 		leaderOpts,
 		workersOpts,
 		bindAddresses,
