@@ -11,13 +11,12 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
-
-	fleetgit "github.com/rancher/fleet/pkg/git"
-	giturls "github.com/rancher/fleet/pkg/git-urls"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	fleetssh "github.com/rancher/fleet/internal/ssh"
+	giturls "github.com/rancher/fleet/pkg/git-urls"
+	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 const defaultBranch = "master"
@@ -26,7 +25,7 @@ var (
 	plainClone       = git.PlainClone
 	readFile         = os.ReadFile
 	fileStat         = os.Stat
-	getGitHubAppAuth = fleetgit.GetGitHubAppAuth
+	getGitHubAppAuth = fleetgithub.GetGitHubAppAuth
 )
 
 type Cloner struct{}

@@ -1,4 +1,4 @@
-package githubapp
+package github
 
 import (
 	"context"

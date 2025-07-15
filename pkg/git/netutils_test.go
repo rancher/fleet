@@ -10,9 +10,11 @@ import (
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/rancher/fleet/pkg/git"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/rancher/fleet/pkg/git"
+	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 const gitClientTimeout = time.Second * 30
@@ -20,7 +22,7 @@ const gitClientTimeout = time.Second * 30
 var _ = Describe("git's GetAuthFromSecret tests", func() {
 	var (
 		secret               *corev1.Secret
-		origGetGitHubAppAuth = git.GetGitHubAppAuth
+		origGetGitHubAppAuth = fleetgithub.GetGitHubAppAuth
 	)
 
 	Context("Nil secret", func() {
@@ -71,8 +73,8 @@ var _ = Describe("git's GetAuthFromSecret tests", func() {
 			secret = &corev1.Secret{
 				Type: corev1.SecretTypeTLS,
 				Data: map[string][]byte{
-					git.GitHubAppAuthIDKey:             gitHubAppID,
-					git.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
+					fleetgithub.GitHubAppAuthIDKey:             gitHubAppID,
+					fleetgithub.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
 				},
 			}
 		})
@@ -117,7 +119,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 -----END RSA PRIVATE KEY-----`)
 		)
 		BeforeEach(func() {
-			git.GetGitHubAppAuth = func(appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
+			fleetgithub.GetGitHubAppAuth = func(appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
 				return &httpgit.BasicAuth{
 					Username: "x-access-token",
 					Password: "token",
@@ -127,13 +129,13 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			secret = &corev1.Secret{
 				Type: corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
-					git.GitHubAppAuthIDKey:             gitHubAppID,
-					git.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
-					git.GitHubAppAuthPrivateKeyKey:     githubAppPrivateKey,
+					fleetgithub.GitHubAppAuthIDKey:             gitHubAppID,
+					fleetgithub.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
+					fleetgithub.GitHubAppAuthPrivateKeyKey:     githubAppPrivateKey,
 				},
 			}
 		})
-		AfterEach(func() { git.GetGitHubAppAuth = origGetGitHubAppAuth })
+		AfterEach(func() { fleetgithub.GetGitHubAppAuth = origGetGitHubAppAuth })
 		It("returns the basic auth Auth and no error", func() {
 			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
 			Expect(err).ToNot(HaveOccurred())
@@ -154,9 +156,9 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			secret = &corev1.Secret{
 				Type: corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
-					git.GitHubAppAuthIDKey:             gitHubAppID,
-					git.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
-					git.GitHubAppAuthPrivateKeyKey:     githubAppPrivateKey,
+					fleetgithub.GitHubAppAuthIDKey:             gitHubAppID,
+					fleetgithub.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
+					fleetgithub.GitHubAppAuthPrivateKeyKey:     githubAppPrivateKey,
 				},
 			}
 		})
@@ -204,9 +206,9 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 			secret = &corev1.Secret{
 				Type: corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
-					git.GitHubAppAuthIDKey:             gitHubAppID,
-					git.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
-					git.GitHubAppAuthPrivateKeyKey:     githubAppPrivateKey,
+					fleetgithub.GitHubAppAuthIDKey:             gitHubAppID,
+					fleetgithub.GitHubAppAuthInstallationIDKey: githubAppInstallationID,
+					fleetgithub.GitHubAppAuthPrivateKeyKey:     githubAppPrivateKey,
 				},
 			}
 		})

@@ -28,7 +28,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan/update"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
-	"github.com/rancher/fleet/pkg/git"
+	fleetgithub "github.com/rancher/fleet/pkg/github"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"
@@ -305,7 +305,7 @@ func readAuth(ctx context.Context, logger logr.Logger, c client.Client, gitrepo 
 		}
 		return publicKey, nil
 	default:
-		auth, keysArePresent, err := git.GetGithubAppAuthFromSecret(secret)
+		auth, keysArePresent, err := fleetgithub.GetGithubAppAuthFromSecret(secret)
 		if err != nil {
 			return nil, err
 		}
