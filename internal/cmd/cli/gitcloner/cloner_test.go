@@ -12,7 +12,7 @@ import (
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
 
-	fleetgit "github.com/rancher/fleet/pkg/git"
+	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 func TestCloneRepo(t *testing.T) {
@@ -75,7 +75,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		}
 		return nil, errors.New("file not found")
 	}
-	origGetGitHubAppAuth := fleetgit.GetGitHubAppAuth
+	origGetGitHubAppAuth := fleetgithub.GetGitHubAppAuth
 	getGitHubAppAuth = func(appID, instID int64, key []byte) (*httpgit.BasicAuth, error) {
 		return &httpgit.BasicAuth{
 			Username: "x-access-token",
