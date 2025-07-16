@@ -24,6 +24,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	"github.com/rancher/wrangler/v3/pkg/kstatus"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -253,6 +254,14 @@ func checkConditionContains(g Gomega, fllethelm *fleet.HelmOp, condType string, 
 	g.Expect(cond.Type).To(Equal(condType))
 	g.Expect(cond.Status).To(Equal(status))
 	g.Expect(cond.Message).To(ContainSubstring(message))
+}
+
+func checkConditionIs(g Gomega, fllethelm *fleet.HelmOp, condType string, status v1.ConditionStatus, message string) {
+	cond, found := getCondition(fllethelm, condType)
+	g.Expect(found).To(BeTrue(), fmt.Sprintf("condition %q not found in HelmOp status", condType))
+	g.Expect(cond.Type).To(Equal(condType))
+	g.Expect(cond.Status).To(Equal(status))
+	g.Expect(cond.Message).To(Equal(message))
 }
 
 func newTLSServerWithAuth() *httptest.Server {
@@ -815,8 +824,53 @@ var _ = Describe("HelmOps controller", func() {
 							v1.ConditionFalse,
 							"could not get a chart version",
 						)
+						checkConditionContains(
+							g,
+							fh,
+							string(kstatus.Stalled),
+							v1.ConditionTrue,
+							"could not get a chart version",
+						)
 
 						g.Expect(fh.Status.LastPollingTime.Time).To(BeTemporally(">", svrUnavailableTimestamp))
+					}).Should(Succeed())
+
+					By("enabling the server again")
+					svr = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						fmt.Fprint(w, helmRepoIndex)
+					}))
+
+					By("updating the server URL in the existing helmop spec")
+					fh := &fleet.HelmOp{}
+					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+					err := k8sClient.Get(ctx, ns, fh)
+					Expect(err).ToNot(HaveOccurred())
+					fh.Spec.Helm.Repo = svr.URL
+					err = k8sClient.Update(ctx, fh)
+					Expect(err).ToNot(HaveOccurred())
+
+					By("checking that the conditions no longer have the error and have the expected state")
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, fh)
+						g.Expect(err).ToNot(HaveOccurred())
+
+						checkConditionIs(
+							g,
+							fh,
+							fleet.HelmOpPolledCondition,
+							v1.ConditionTrue,
+							"",
+						)
+						checkConditionIs(
+							g,
+							fh,
+							string(kstatus.Stalled),
+							v1.ConditionFalse,
+							"",
+						)
 					}).Should(Succeed())
 				})
 			})
