@@ -165,6 +165,8 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 
 		condition.Cond(fleet.HelmOpAcceptedCondition).SetStatusBool(&t.Status, true)
 		condition.Cond(fleet.HelmOpPolledCondition).SetStatusBool(&t.Status, true)
+		condition.Cond(fleet.HelmOpPolledCondition).Message(&t.Status, "")
+		kstatus.SetActive(&t.Status)
 
 		statusPatch := client.MergeFrom(h)
 		if patchData, err := statusPatch.Data(t); err == nil && string(patchData) == "{}" {
