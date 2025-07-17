@@ -143,7 +143,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 	}
 
 	patch := client.MergeFrom(orig)
-	if patchData, err := patch.Data(b); err == nil && string(patchData) == "{}" {
+	if patchData, err := patch.Data(b); err == nil && string(patchData) == "{}" && !isInErrorState(h.Status) {
 		// skip update if patch is empty
 		return nil
 	}
@@ -166,6 +166,7 @@ func (j *helmPollingJob) pollHelm(ctx context.Context) error {
 		condition.Cond(fleet.HelmOpAcceptedCondition).SetStatusBool(&t.Status, true)
 		condition.Cond(fleet.HelmOpPolledCondition).SetStatusBool(&t.Status, true)
 		condition.Cond(fleet.HelmOpPolledCondition).Message(&t.Status, "")
+		condition.Cond(fleet.HelmOpPolledCondition).Reason(&t.Status, "")
 		kstatus.SetActive(&t.Status)
 
 		statusPatch := client.MergeFrom(h)
@@ -220,4 +221,16 @@ func (j *helmPollingJob) updateErrorStatus(
 		merr = append(merr, err)
 	}
 	return errutil.NewAggregate(merr)
+}
+
+func isInErrorState(status fleet.HelmOpStatus) bool {
+	for _, cond := range status.Conditions {
+		// When an error is found we set the Reason to either Error or Stalled
+		// and the Message field has the error message.
+		if cond.Reason != "" && cond.Message != "" {
+			return true
+		}
+	}
+
+	return false
 }
