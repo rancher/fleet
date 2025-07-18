@@ -64,6 +64,7 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 		}
 		for _, cluster := range clusters.Items {
 			cluster := cluster
+			// it is possible that agentmanagement did not create the cluster namespace yet
 			logger.V(4).Info("Cluster has namespace?", "cluster", cluster.Name, "namespace", cluster.Status.Namespace)
 			clusterGroups, err := m.clusterGroupsForCluster(ctx, &cluster)
 			if err != nil {
