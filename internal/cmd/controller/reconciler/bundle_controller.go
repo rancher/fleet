@@ -341,13 +341,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		bd.Spec.OCIContents = contentsInOCI
 		bd.Spec.HelmChartOptions = bundle.Spec.HelmOpOptions
 
-		h, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
+		valuesHash, optionsSecret, err := r.initializeOptionsSecrets(ctx, bd)
 		if err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, fmt.Errorf("failed initializing options secret: %w", err)
 		}
-		// We need a checksum to trigger on value change, rely on later code in
-		// the reconciler to update the status
-		bd.Spec.ValuesHash = h
+
+		// Changes in the hash will trigger a BundleDeployment reconciliation
+		bd.Spec.ValuesHash = valuesHash
 
 		helmvalues.ClearOptions(bd)
 
@@ -363,17 +363,8 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
 
-		if bd.Spec.ValuesHash != "" {
-			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to create options secret: %w", err)
-			}
-		} else {
-			// No values to store, delete the secret if it exists
-			if err := r.Delete(ctx, &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
-			}); err != nil && !apierrors.IsNotFound(err) {
-				return ctrl.Result{}, fmt.Errorf("failed to delete options secret: %w", err)
-			}
+		if err := r.ensureOwnerReferences(ctx, bd, optionsSecret); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to ensure owner references are set in options secret: %w", err)
 		}
 
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
@@ -529,30 +520,51 @@ func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle
 	return nil
 }
 
-func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.BundleDeployment, options []byte, stagedOptions []byte) error {
-	secret := &corev1.Secret{
+func (r *BundleReconciler) initializeOptionsSecrets(ctx context.Context, bd *fleet.BundleDeployment) (string, *corev1.Secret, error) {
+	hash, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if hash == "" {
+		// No values to store, delete the secret if it exists
+		var secret corev1.Secret
+		if err := r.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, &secret); err != nil {
+			return "", nil, client.IgnoreNotFound(err)
+		}
+		if err := r.Delete(ctx, &secret); client.IgnoreNotFound(err) != nil {
+			return "", nil, fmt.Errorf("failed to delete options secret: %w", err)
+		}
+		return "", nil, nil
+	}
+
+	// Ensure contents are up-to-date
+	secret := corev1.Secret{
 		Type: fleet.SecretTypeBundleDeploymentOptions,
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      bd.Name,
 			Namespace: bd.Namespace,
 		},
 	}
-
-	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
-		return err
-	}
-
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, &secret, func() error {
 		secret.Data = map[string][]byte{
 			helmvalues.ValuesKey:       options,
 			helmvalues.StagedValuesKey: stagedOptions,
 		}
 		return nil
-	}); err != nil {
-		return err
-	}
+	})
+	return hash, &secret, err
+}
 
-	return nil
+func (r *BundleReconciler) ensureOwnerReferences(ctx context.Context, bd *fleet.BundleDeployment, obj client.Object) error {
+	if obj != nil {
+		return nil
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, obj, func() error {
+		return controllerutil.SetControllerReference(bd, obj, r.Scheme)
+	})
+	return err
+
 }
 
 func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bundle) (string, error) {
