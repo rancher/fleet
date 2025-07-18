@@ -8,6 +8,6 @@ annotations:
 apiVersion: v2
 appVersion: 0.0.0
 description: Fleet CustomResourceDefinitions
-icon: https://charts.rancher.io/assets/logos/fleet.svg
+icon: file://assets/logos/fleet.svg
 name: fleet-crd
 version: 0.0.0
