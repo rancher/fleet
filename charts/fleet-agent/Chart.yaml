@@ -10,6 +10,6 @@ annotations:
 apiVersion: v2
 appVersion: 0.0.0
 description: Fleet Agent - GitOps at Scale
-icon: file://assets/logos/fleet.svg
+icon: https://charts.rancher.io/assets/logos/fleet.svg
 name: fleet-agent
 version: 0.0.0
