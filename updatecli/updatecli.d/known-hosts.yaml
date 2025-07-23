@@ -28,7 +28,10 @@ targets:
         spec:
           files:
             - charts/fleet/templates/configmap_known_hosts.yaml
-      command: bash <(git show main:.github/scripts/update_known_hosts_configmap.sh)
+      command: |
+        git show main:.github/scripts/update_known_hosts_configmap.sh > /tmp/script
+        chmod +x /tmp/script
+        bash /tmp/script
 
 actions:
   default:
