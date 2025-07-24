@@ -8,7 +8,8 @@ fi
 
 base=$1
 
-git diff --quiet $base HEAD -- charts/fleet/templates/configmap_known_hosts.yaml
+git fetch origin $base
+git diff --quiet origin/$base HEAD -- charts/fleet/templates/configmap_known_hosts.yaml
 if [ $? -eq 1 ]; then # The PR contains changes to the config map
     .github/scripts/update_known_hosts_configmap.sh
 
