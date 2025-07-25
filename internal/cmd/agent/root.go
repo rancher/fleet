@@ -33,7 +33,8 @@ type FleetAgent struct {
 	command.DebugConfig
 	AgentScope string `usage:"An identifier used to scope the agent bundleID names, typically the same as namespace" env:"AGENT_SCOPE"`
 	UpstreamOptions
-	CheckinInterval string `usage:"How often to post cluster status" env:"CHECKIN_INTERVAL"`
+	CheckinInterval      string `usage:"How often to post cluster status" env:"CHECKIN_INTERVAL"`
+	EnableLeaderElection bool   `name:"leader-elect" default:"true" usage:"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager."`
 }
 
 type AgentReconcilerWorkers struct {
@@ -109,72 +110,80 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	leaderOpts, err := command.NewLeaderElectionOptions()
-	if err != nil {
-		return err
+	run := func(ctx context.Context) {
+		// Handle agent registration.
+		r := &Register{
+			Namespace: a.Namespace,
+		}
+
+		agentInfo, err := r.RegisterAgent(ctx, localConfig)
+		if err != nil {
+			setupLog.Error(err, "failed to register with upstream cluster")
+			return
+		}
+
+		workersOpts := AgentReconcilerWorkers{}
+
+		if d := os.Getenv("BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
+			w, err := strconv.Atoi(d)
+			if err != nil {
+				setupLog.Error(err, "failed to parse BUNDLEDEPLOYMENT_RECONCILER_WORKERS", "value", d)
+			}
+			workersOpts.BundleDeployment = w
+		}
+
+		if d := os.Getenv("DRIFT_RECONCILER_WORKERS"); d != "" {
+			w, err := strconv.Atoi(d)
+			if err != nil {
+				setupLog.Error(err, "failed to parse DRIFT_RECONCILER_WORKERS", "value", d)
+			}
+			workersOpts.Drift = w
+		}
+
+		if err := start(ctx, localConfig, a.Namespace, a.AgentScope, a.CheckinInterval, workersOpts, agentInfo); err != nil {
+			setupLog.Error(err, "failed to start agent")
+		}
 	}
 
-	if os.Getenv("FLEET_AGENT_PPROF_DISABLED") != "true" {
-		go func() {
-			glog.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
-		}()
-	}
+	if a.EnableLeaderElection {
+		leaderOpts, err := command.NewLeaderElectionOptions()
+		if err != nil {
+			return err
+		}
 
-	leaderElectionConfig := leaderelection.LeaderElectionConfig{
-		Lock:          &lock,
-		LeaseDuration: leaderOpts.LeaseDuration,
-		RetryPeriod:   leaderOpts.RetryPeriod,
-		RenewDeadline: leaderOpts.RenewDeadline,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(ctx context.Context) {
-				// Handle agent registration.
-				r := &Register{
-					Namespace: a.Namespace,
-				}
+		if os.Getenv("FLEET_AGENT_PPROF_DISABLED") != "true" {
+			go func() {
+				glog.Println(http.ListenAndServe("localhost:6060", nil)) // nolint:gosec // Debugging only
+			}()
+		}
 
-				agentInfo, err := r.RegisterAgent(ctx, localConfig)
-				if err != nil {
-					setupLog.Error(err, "failed to register with upstream cluster")
-					return
-				}
-
-				workersOpts := AgentReconcilerWorkers{}
-
-				if d := os.Getenv("BUNDLEDEPLOYMENT_RECONCILER_WORKERS"); d != "" {
-					w, err := strconv.Atoi(d)
-					if err != nil {
-						setupLog.Error(err, "failed to parse BUNDLEDEPLOYMENT_RECONCILER_WORKERS", "value", d)
+		leaderElectionConfig := leaderelection.LeaderElectionConfig{
+			Lock:          &lock,
+			LeaseDuration: leaderOpts.LeaseDuration,
+			RetryPeriod:   leaderOpts.RetryPeriod,
+			RenewDeadline: leaderOpts.RenewDeadline,
+			Callbacks: leaderelection.LeaderCallbacks{
+				OnStartedLeading: run,
+				OnStoppedLeading: func() {
+					setupLog.Info("stopped leading")
+					os.Exit(1)
+				},
+				OnNewLeader: func(identity string) {
+					if identity == identifier {
+						setupLog.Info("renewed leader", "identity", identity)
+					} else {
+						setupLog.Info("new leader", "identity", identity)
 					}
-					workersOpts.BundleDeployment = w
-				}
+				},
+			},
+		}
 
-				if d := os.Getenv("DRIFT_RECONCILER_WORKERS"); d != "" {
-					w, err := strconv.Atoi(d)
-					if err != nil {
-						setupLog.Error(err, "failed to parse DRIFT_RECONCILER_WORKERS", "value", d)
-					}
-					workersOpts.Drift = w
-				}
+		leaderelection.RunOrDie(ctx, leaderElectionConfig)
 
-				if err := start(ctx, localConfig, a.Namespace, a.AgentScope, a.CheckinInterval, workersOpts, agentInfo); err != nil {
-					setupLog.Error(err, "failed to start agent")
-				}
-			},
-			OnStoppedLeading: func() {
-				setupLog.Info("stopped leading")
-				os.Exit(1)
-			},
-			OnNewLeader: func(identity string) {
-				if identity == identifier {
-					setupLog.Info("renewed leader", "identity", identity)
-				} else {
-					setupLog.Info("new leader", "identity", identity)
-				}
-			},
-		},
+		return nil
 	}
 
-	leaderelection.RunOrDie(ctx, leaderElectionConfig)
+	run(ctx)
 
 	return nil
 }

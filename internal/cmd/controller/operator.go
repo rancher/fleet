@@ -36,6 +36,7 @@ func start(
 	ctx context.Context,
 	systemNamespace string,
 	config *rest.Config,
+	leaderElection bool,
 	leaderOpts cmd.LeaderElectionOptions,
 	workersOpts ControllerReconcilerWorkers,
 	bindAddresses BindAddresses,
@@ -64,7 +65,7 @@ func start(
 		Metrics:                metricServerOptions,
 		HealthProbeBindAddress: bindAddresses.HealthProbe,
 
-		LeaderElection:          true,
+		LeaderElection:          leaderElection,
 		LeaderElectionID:        fmt.Sprintf("fleet-controller-leader-election-shard%s", leaderElectionSuffix),
 		LeaderElectionNamespace: systemNamespace,
 		LeaseDuration:           &leaderOpts.LeaseDuration,
