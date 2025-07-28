@@ -35,14 +35,13 @@ func FromBundle(bundle *fleet.Bundle) *Manifest {
 }
 
 func FromJSON(data []byte, expectedSHAsum string) (*Manifest, error) {
-	h := sha256.New()
-	r := io.TeeReader(bytes.NewReader(data), h)
-
 	var m Manifest
-	if err := json.NewDecoder(r).Decode(&m); err != nil {
+	if err := json.NewDecoder(bytes.NewBuffer(data)).Decode(&m); err != nil {
 		return nil, err
 	}
 	m.raw = data
+	h := sha256.New()
+	h.Write(data)
 	m.shasum = hex.EncodeToString(h.Sum(nil))
 
 	if expectedSHAsum != "" && expectedSHAsum != m.shasum {
