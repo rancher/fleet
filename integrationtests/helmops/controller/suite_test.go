@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/reugn/go-quartz/quartz"
 	"go.uber.org/mock/gomock"
 
 	"github.com/rancher/fleet/integrationtests/utils"
@@ -39,7 +40,7 @@ var (
 	k8sClientSet *kubernetes.Clientset
 )
 
-func TestGitJobController(t *testing.T) {
+func TestHelmOpsController(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Helm Ops Controller Suite")
 }
@@ -73,13 +74,19 @@ var _ = BeforeSuite(func() {
 
 	config.Set(&config.Config{})
 
+	sched, err := quartz.NewStdScheduler()
+	Expect(err).ToNot(HaveOccurred())
+
 	err = (&reconciler.HelmOpReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("helmops-controller"),
-		Workers:  50,
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  mgr.GetEventRecorderFor("helmops-controller"),
+		Scheduler: sched,
+		Workers:   50,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
+
+	sched.Start(ctx)
 
 	err = (&reconciler.HelmOpStatusReconciler{
 		Client:  mgr.GetClient(),

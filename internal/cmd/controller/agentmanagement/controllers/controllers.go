@@ -102,7 +102,7 @@ func Register(ctx context.Context, appCtx *AppContext, systemNamespace string, d
 
 	cluster.RegisterImport(ctx,
 		systemNamespace,
-		appCtx.Core.Secret().Cache(),
+		appCtx.Core.Secret(),
 		appCtx.Cluster(),
 		appCtx.ClusterRegistrationToken(),
 		appCtx.Bundle(),
@@ -154,8 +154,6 @@ func NewAppContext(cfg clientcmd.ClientConfig) (*AppContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.QPS = -1
-	client.RateLimiter = nil
 
 	scf, err := controllerFactory(client)
 	if err != nil {

@@ -160,12 +160,12 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, req.NamespacedName, gitrepo); err != nil && !apierrors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	} else if apierrors.IsNotFound(err) {
-		gitjobsCreatedSuccess.Delete(gitrepo)
-		gitjobsCreatedFailure.Delete(gitrepo)
-		gitjobDuration.Delete(gitrepo)
-		fetchLatestCommitSuccess.Delete(gitrepo)
-		fetchLatestCommitFailure.Delete(gitrepo)
-		timeToFetchLatestCommit.Delete(gitrepo)
+		gitjobsCreatedSuccess.DeleteByReq(req)
+		gitjobsCreatedFailure.DeleteByReq(req)
+		gitjobDuration.DeleteByReq(req)
+		fetchLatestCommitSuccess.DeleteByReq(req)
+		fetchLatestCommitFailure.DeleteByReq(req)
+		timeToFetchLatestCommit.DeleteByReq(req)
 
 		logger.V(1).Info("Gitrepo deleted, cleaning up pull jobs")
 		return ctrl.Result{}, nil

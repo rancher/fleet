@@ -1,4 +1,4 @@
-{{- if has (dict "name" "EXPERIMENTAL_HELM_OPS" "value" "true") .Values.extraEnv }}
+{{- if $.Values.helmops.enabled }}
 {{- $shards := list (dict "id" "" "nodeSelector" dict) -}}
 {{- $uniqueShards := list -}}
 {{- if .Values.shards -}}

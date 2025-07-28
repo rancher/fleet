@@ -1,4 +1,4 @@
-{{- if has (dict "name" "EXPERIMENTAL_HELM_OPS" "value" "true") .Values.extraEnv }}
+{{- if $.Values.helmops.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -11,6 +11,7 @@ rules:
     verbs:
       - "create"
       - "list"
+      - "watch"
   - apiGroups:
       - ""
     resources:
@@ -35,6 +36,7 @@ rules:
       - get
       - watch
       - update
+      - patch
       - create
   - apiGroups:
       - ""
@@ -42,6 +44,7 @@ rules:
       - 'events'
     verbs:
       - "create"
+      - "patch"
   - apiGroups:
       - ""
     resources:

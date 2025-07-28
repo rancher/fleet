@@ -77,10 +77,10 @@ jobs:
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
+        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
       - uses: rancherlabs/slsactl/actions/install-slsactl@43385ab2deb538998c480617f2939c5ddc7067ab # v0.0.14
 
       - name: "Read Vault Secrets"
@@ -146,12 +146,17 @@ jobs:
               --yes \
               --sign-container-identity="${{ env.PRIME_REGISTRY }}/rancher/${IMAGE}" \
               "${URL}"
+
+            # Pull the manifest locally to make it available for inspection
+            docker pull "${URL}"
           done
 
       - name: Attest provenance
         shell: bash
         run: |
-          for IMG_NAME in $(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep STAGE_REGISTRY | sed "s/{{ .Env.STAGE_REGISTRY }}/${{ env.STAGE_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g"); do
+          IMAGES=$(yq e '.dockers[].image_templates[0]' .goreleaser.yaml | grep STAGE_REGISTRY | sed "s/{{ .Env.STAGE_REGISTRY }}/${{ env.STAGE_REGISTRY }}/g" | sed "s/{{ .Tag }}/${{ github.ref_name }}/g")
+
+          for IMG_NAME in $IMAGES; do
             # Extract Docker image reference plus digest from local image
             URL=$(docker inspect --format='{{index .RepoDigests 0}}' "${IMG_NAME}")
 
@@ -159,7 +164,13 @@ jobs:
             retry_delay=5
 
             for ((i=0; i<max_retries; i++)); do
-              if slsactl download provenance --format=slsav1 "${URL}" > provenance-slsav1.json; then
+              if [[ "${IMG_NAME}" =~ -linux-([^-]+)$ ]]; then
+                PLATFORM="linux/${BASH_REMATCH[1]}"
+              else
+                PLATFORM="linux/amd64"
+              fi
+
+              if slsactl download provenance --format=slsav1 --platform="${PLATFORM}" "${URL}" > provenance-slsav1.json; then
                 break
               fi
               if [ "${i}" -eq "$(( max_retries - 1 ))" ]; then

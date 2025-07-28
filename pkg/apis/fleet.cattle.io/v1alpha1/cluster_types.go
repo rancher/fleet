@@ -148,13 +148,24 @@ type ClusterStatus struct {
 	Summary BundleSummary `json:"summary,omitempty"`
 	// ResourceCounts is an aggregate over the ResourceCounts.
 	ResourceCounts ResourceCounts `json:"resourceCounts,omitempty"`
+
 	// ReadyGitRepos is the number of gitrepos for this cluster that are ready.
 	// +optional
 	ReadyGitRepos int `json:"readyGitRepos"`
+
 	// DesiredReadyGitRepos is the number of gitrepos for this cluster that
 	// are desired to be ready.
 	// +optional
 	DesiredReadyGitRepos int `json:"desiredReadyGitRepos"`
+
+	// ReadyHelmOps is the number of helmop resources for this cluster that are ready.
+	// +optional
+	ReadyHelmOps int `json:"readyHelmOps"`
+
+	// DesiredReadyHelmOps is the number of helmop resources for this cluster that
+	// are desired to be ready.
+	// +optional
+	DesiredReadyHelmOps int `json:"desiredReadyHelmOps"`
 
 	// AgentEnvVarsHash is a hash of the agent's env vars, used to detect changes.
 	// +nullable

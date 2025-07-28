@@ -452,6 +452,7 @@ spec:
                     ignore:
                       description: IgnoreOptions can be used to ignore fields when
                         monitoring the bundle.
+                      nullable: true
                       properties:
                         conditions:
                           description: Conditions is a list of conditions to be ignored
@@ -821,6 +822,7 @@ spec:
                     ignore:
                       description: IgnoreOptions can be used to ignore fields when
                         monitoring the bundle.
+                      nullable: true
                       properties:
                         conditions:
                           description: Conditions is a list of conditions to be ignored
@@ -1741,6 +1743,7 @@ spec:
                 ignore:
                   description: IgnoreOptions can be used to ignore fields when monitoring
                     the bundle.
+                  nullable: true
                   properties:
                     conditions:
                       description: Conditions is a list of conditions to be ignored
@@ -2611,6 +2614,7 @@ spec:
                       ignore:
                         description: IgnoreOptions can be used to ignore fields when
                           monitoring the bundle.
+                        nullable: true
                         properties:
                           conditions:
                             description: Conditions is a list of conditions to be
@@ -5819,6 +5823,12 @@ spec:
 
                     are desired to be ready.'
                   type: integer
+                desiredReadyHelmOps:
+                  description: 'DesiredReadyHelmOps is the number of helmop resources
+                    for this cluster that
+
+                    are desired to be ready.'
+                  type: integer
                 display:
                   description: Display contains the number of ready bundles, nodes
                     and a summary state.
@@ -5853,6 +5863,10 @@ spec:
                 readyGitRepos:
                   description: ReadyGitRepos is the number of gitrepos for this cluster
                     that are ready.
+                  type: integer
+                readyHelmOps:
+                  description: ReadyHelmOps is the number of helmop resources for
+                    this cluster that are ready.
                   type: integer
                 resourceCounts:
                   description: ResourceCounts is an aggregate over the ResourceCounts.
@@ -7535,6 +7549,7 @@ spec:
                 ignore:
                   description: IgnoreOptions can be used to ignore fields when monitoring
                     the bundle.
+                  nullable: true
                   properties:
                     conditions:
                       description: Conditions is a list of conditions to be ignored
@@ -7604,6 +7619,11 @@ spec:
                   description: Paused if set to true, will stop any BundleDeployments
                     from being updated. It will be marked as out of sync.
                   type: boolean
+                pollingInterval:
+                  description: PollingInterval is how often to check the Helm repository
+                    for new updates.
+                  nullable: true
+                  type: string
                 resources:
                   description: 'Resources contains the resources that were read from
                     the bundle''s
@@ -8417,6 +8437,7 @@ spec:
                       ignore:
                         description: IgnoreOptions can be used to ignore fields when
                           monitoring the bundle.
+                        nullable: true
                         properties:
                           conditions:
                             description: Conditions is a list of conditions to be
@@ -8612,6 +8633,11 @@ spec:
                         BundleState according to StateRank.'
                       type: string
                   type: object
+                lastPollingTriggered:
+                  description: LastPollingTime is the last time the polling check
+                    was triggered
+                  format: date-time
+                  type: string
                 perClusterResourceCounts:
                   additionalProperties:
                     description: ResourceCounts contains the number of resources in

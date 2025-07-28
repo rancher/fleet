@@ -63,9 +63,6 @@ func (r *HelmOpStatusReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // computes status fields for the HelmOp. This status is used to
 // display information to the user.
 func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	if !experimentalHelmOpsEnabled() {
-		return ctrl.Result{}, nil
-	}
 	logger := log.FromContext(ctx).WithName("helmop-status")
 	helmop := &fleet.HelmOp{}
 
@@ -77,10 +74,6 @@ func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if !helmop.DeletionTimestamp.IsZero() {
 		// the HelmOp controller will handle deletion
-		return ctrl.Result{}, nil
-	}
-
-	if helmop.Spec.Helm.Chart == "" {
 		return ctrl.Result{}, nil
 	}
 
@@ -98,15 +91,20 @@ func (r *HelmOpStatusReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
+	orig := helmop.DeepCopy()
+
 	err = setStatusHelm(bdList, helmop)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
-	err = r.Client.Status().Update(ctx, helmop)
-	if err != nil {
-		logger.Error(err, "Reconcile failed update to HelmOp status", "status", helmop.Status)
-		return ctrl.Result{RequeueAfter: durations.HelmOpStatusDelay}, nil
+	statusPatch := client.MergeFrom(orig)
+	if patchData, err := statusPatch.Data(helmop); err == nil && string(patchData) != "{}" {
+		// skip update if patch is empty
+		if err := r.Status().Patch(ctx, helmop, statusPatch); err != nil {
+			logger.Error(err, "Reconcile failed update to HelmOp status", "status", helmop.Status)
+			return ctrl.Result{RequeueAfter: durations.HelmOpStatusDelay}, nil
+		}
 	}
 
 	return ctrl.Result{}, nil

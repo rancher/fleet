@@ -6,12 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"maps"
+	"reflect"
 	"slices"
-	"strconv"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
+	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
@@ -20,21 +22,25 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
-	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	"github.com/rancher/wrangler/v3/pkg/condition"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -61,7 +67,8 @@ type TargetBuilder interface {
 // BundleReconciler reconciles a Bundle object
 type BundleReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 
 	Builder TargetBuilder
 	Store   Store
@@ -77,7 +84,8 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&fleet.Bundle{}).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
 		Watches(
-			// Fan out from bundledeployment to bundle
+			// Fan out from bundledeployment to bundle, this is useful to update the
+			// bundle's status fields.
 			&fleet.BundleDeployment{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
 				bd := a.(*fleet.BundleDeployment)
@@ -101,7 +109,7 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(bundleDeploymentStatusChangedPredicate()),
 		).
 		Watches(
-			// Fan out from cluster to bundle
+			// Fan out from cluster to bundle, this is useful for targeting and templating.
 			&fleet.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []ctrl.Request {
 				cluster := a.(*fleet.Cluster)
@@ -121,11 +129,52 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 				return requests
 			}),
-			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+			builder.WithPredicates(clusterChangedPredicate()),
 		).
 		WithEventFilter(sharding.FilterByShardID(r.ShardID)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.Workers}).
 		Complete(r)
+}
+
+// clusterChangedPredicate filters cluster events that relate to bundldeployment creation.
+func clusterChangedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			n := e.ObjectNew.(*fleet.Cluster)
+			o := e.ObjectOld.(*fleet.Cluster)
+			// cluster deletion will eventually trigger a delete event
+			if n == nil || !n.DeletionTimestamp.IsZero() {
+				return true
+			}
+			// labels and annotations are used for templating and targeting
+			if !maps.Equal(n.Labels, o.Labels) {
+				return true
+			}
+			if !maps.Equal(n.Annotations, o.Annotations) {
+				return true
+			}
+			// spec templateValues is used in templating
+			if !reflect.DeepEqual(n.Spec, o.Spec) {
+				return true
+			}
+			// this namespace contains the bundledeployments
+			if n.Status.Namespace != o.Status.Namespace {
+				return true
+			}
+			// this namespace indicates the agent is running
+			if n.Status.Agent.Namespace != o.Status.Agent.Namespace {
+				return true
+			}
+
+			return false
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+	}
 }
 
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;watch;create;update;patch;delete
@@ -175,15 +224,24 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}
 
-	// if the bundle has the helmops options set but the experimental flag is not
-	// set we don't deploy the bundle.
-	// This is to avoid intentional or accidental deployment of bundles with no
-	// resources or not well defined.
-	if bundle.Spec.HelmOpOptions != nil && !experimentalHelmOpsEnabled() {
-		return ctrl.Result{}, fmt.Errorf("bundle contains data used by helm ops but env variable EXPERIMENTAL_HELM_OPS is not set to true")
-	}
-	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.ExperimentalOCIIsEnabled()
+	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.OCIIsEnabled()
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
+
+	// Skip bundle deployment creation if the bundle is a HelmOps bundle and the configured Helm version is still a
+	// version constraint. That constraint should be resolved into a strict version by the HelmOps reconciler before bundle
+	// deployments can be created.
+	if contentsInHelmChart && bundle.Spec.Helm != nil && len(bundle.Spec.Helm.Version) > 0 {
+		if _, err := semver.StrictNewVersion(bundle.Spec.Helm.Version); err != nil {
+			setReadyCondition(
+				&bundle.Status,
+				fmt.Errorf("chart version cannot be deployed; check HelmOp status for more details: %v", err),
+			)
+
+			err := r.updateStatus(ctx, bundleOrig, bundle)
+			return ctrl.Result{}, err
+		}
+	}
+
 	manifestID := bundle.Spec.ContentsID
 	var resourcesManifest *manifest.Manifest
 	if !contentsInOCI && !contentsInHelmChart {
@@ -209,14 +267,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err != nil {
 		// When targeting fails, we don't want to continue and we make the error message visible in
 		// the UI. For that we use a status condition of type Ready.
-		bundle.Status.Conditions = []genericcondition.GenericCondition{
-			{
-				Type:           string(fleet.Ready),
-				Status:         corev1.ConditionFalse,
-				Message:        "Targeting error: " + err.Error(),
-				LastUpdateTime: metav1.Now().UTC().Format(time.RFC3339),
-			},
-		}
+		setReadyCondition(&bundle.Status, fmt.Errorf("targeting error: %v", err))
 
 		err := r.updateStatus(ctx, bundleOrig, bundle)
 		return ctrl.Result{}, err
@@ -278,8 +329,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			continue
 		}
 
-		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
-		// copy labels from Bundle as they might have changed
+		// NOTE we don't re-use the existing BundleDeployment, we discard annotations, status, etc.
+		// and copy labels from Bundle as they might have changed.
+		// However, matchedTargets target.Deployment contains existing BundleDeployments.
 		bd := target.BundleDeployment()
 
 		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
@@ -307,25 +359,25 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			bundle.Spec.HelmOpOptions != nil,
 			manifestID)
 		if err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, fmt.Errorf("failed to create bundle deployment: %w", err)
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
 
 		if bd.Spec.ValuesHash != "" {
 			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
-				return ctrl.Result{}, err
+				return ctrl.Result{}, fmt.Errorf("failed to create options secret: %w", err)
 			}
 		} else {
 			// No values to store, delete the secret if it exists
 			if err := r.Delete(ctx, &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
 			}); err != nil && !apierrors.IsNotFound(err) {
-				return ctrl.Result{}, err
+				return ctrl.Result{}, fmt.Errorf("failed to delete options secret: %w", err)
 			}
 		}
 
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, fmt.Errorf("failed to clone secrets downstream: %w", err)
 		}
 	}
 
@@ -546,6 +598,7 @@ func (r *BundleReconciler) cloneSecret(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secret.Name,
 			Namespace: bd.Namespace,
+			Labels:    map[string]string{fleet.InternalSecretLabel: "true"},
 		},
 		Data: secret.Data,
 	}
@@ -590,8 +643,8 @@ func maybePurgeOCIReferenceSecret(ctx context.Context, c client.Client, old, new
 }
 
 func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
-	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.ExperimentalOCIIsEnabled()
-	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil && experimentalHelmOpsEnabled()
+	contentsInOCI := bundle.Spec.ContentsID != "" && ocistorage.OCIIsEnabled()
+	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
 
 	if contentsInOCI {
 		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, fleet.SecretTypeOCIStorage, bd)
@@ -600,13 +653,6 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmOpOptions.SecretName, fleet.SecretTypeHelmOpsAccess, bd)
 	}
 	return nil
-}
-
-// experimentalHelmOpsEnabled returns true if the EXPERIMENTAL_HELM_OPS env variable is set to true
-// returns false otherwise
-func experimentalHelmOpsEnabled() bool {
-	value, err := strconv.ParseBool(os.Getenv("EXPERIMENTAL_HELM_OPS"))
-	return err == nil && value
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of
@@ -664,6 +710,10 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 		return err
 	}
 	err = ocistorage.NewOCIWrapper().DeleteManifest(ctx, opts, bundle.Spec.ContentsID)
+	if err != nil {
+		r.Recorder.Event(bundle, fleetevent.Warning, "FailedToDeleteOCIArtifact", fmt.Sprintf("deleting OCI artifact %q: %v", bundle.Spec.ContentsID, err.Error()))
+	}
+
 	return err
 }
 
@@ -681,4 +731,14 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 	}
 
 	return errors.Join(errs...)
+}
+
+// setCondition sets the condition and updates the timestamp, if the condition changed
+func setReadyCondition(status *fleet.BundleStatus, err error) {
+	cond := condition.Cond(fleet.Ready)
+	origStatus := status.DeepCopy()
+	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
+	if !equality.Semantic.DeepEqual(origStatus, status) {
+		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
+	}
 }

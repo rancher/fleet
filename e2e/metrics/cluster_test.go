@@ -18,6 +18,8 @@ var (
 	expectedMetrics = MetricsSelector{
 		"fleet_cluster_desired_ready_git_repos":      {},
 		"fleet_cluster_ready_git_repos":              {},
+		"fleet_cluster_desired_ready_helm_ops":       {},
+		"fleet_cluster_ready_helm_ops":               {},
 		"fleet_cluster_resources_count_desiredready": {},
 		"fleet_cluster_resources_count_missing":      {},
 		"fleet_cluster_resources_count_modified":     {},

@@ -19,6 +19,9 @@ priorityClassName: "prio1"
 gitops:
   enabled: true
 
+helmops:
+  enabled: true
+
 metrics:
   enabled: true
 
@@ -48,12 +51,6 @@ controller:
       gitrepo: "1"
       bundle: "1"
       bundledeployment: "1"
-
-extraEnv:
-  - name: EXPERIMENTAL_OCI_STORAGE
-    value: "true"
-  - name: EXPERIMENTAL_HELM_OPS
-    value: "true"
 
 shards:
   - id: shard0

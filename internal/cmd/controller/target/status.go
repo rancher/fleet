@@ -43,19 +43,20 @@ func Unavailable(targets []*Target) (count int) {
 	return
 }
 
-// updateStatusUnavailable recomputes and sets the status.Unavailable counter and returns true if the partition
-// is unavailable, eg. there are more unavailable targets than the maximum set (does not mutate targets)
-func updateStatusUnavailable(status *fleet.PartitionStatus, targets []*Target) bool {
+// updatePartitionStatus recomputes and sets the status.Unavailable counter
+// and returns true if the partition is unavailable, e.g. there are more
+// unavailable targets than the maximum set (does not mutate targets)
+func updatePartitionStatus(partitionStatus *fleet.PartitionStatus, targets []*Target) bool {
 	// Unavailable for a partition is stricter than unavailable for a target.
-	// For a partition a target must be available and update to date.
-	status.Unavailable = 0
+	// For a partition a target must be available and up-to-date.
+	partitionStatus.Unavailable = 0
 	for _, target := range targets {
 		if !upToDate(target) || isUnavailable(target.Deployment) {
-			status.Unavailable++
+			partitionStatus.Unavailable++
 		}
 	}
 
-	return status.Unavailable > status.MaxUnavailable
+	return partitionStatus.Unavailable > partitionStatus.MaxUnavailable
 }
 
 // upToDate returns true if the target is up to date (pure function)
@@ -70,7 +71,9 @@ func upToDate(target *Target) bool {
 	return true
 }
 
-// isUnavailable checks if target is not available (pure function)
+// isUnavailable checks if target is unavailable (pure function). If no target
+// is provided, it returns false, assuming that a nil target is always
+// available.
 func isUnavailable(target *fleet.BundleDeployment) bool {
 	if target == nil {
 		return false
@@ -79,8 +82,15 @@ func isUnavailable(target *fleet.BundleDeployment) bool {
 		!target.Status.Ready
 }
 
+// limit calculates the maximum number of unavailable items. It uses the first
+// non-nil value from the provided values. If no value is provided, it defaults
+// to a predefined limit. If a percentage is provided, it calculates the
+// percentage of the total count of items. If the percentage is less than or
+// equal to zero, it defaults to 1.
+//
+// The resulting percentage is rounded down to the nearest integer.
 func limit(count int, val ...*intstr.IntOrString) (int, error) {
-	if count == 0 {
+	if count <= 0 {
 		return 1, nil
 	}
 
@@ -98,6 +108,13 @@ func limit(count int, val ...*intstr.IntOrString) (int, error) {
 	}
 
 	if maxUnavailable.Type == intstr.Int {
+		i := maxUnavailable.IntValue()
+		if i > count {
+			return count, nil
+		}
+		if i < 0 {
+			return 0, nil
+		}
 		return maxUnavailable.IntValue(), nil
 	}
 
@@ -122,6 +139,9 @@ func limit(count int, val ...*intstr.IntOrString) (int, error) {
 	i = int(float64(count)*percent) / 100
 	if i <= 0 {
 		return 1, nil
+	}
+	if i > count {
+		return count, nil
 	}
 
 	return i, nil

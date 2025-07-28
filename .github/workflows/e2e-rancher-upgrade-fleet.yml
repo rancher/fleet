@@ -85,7 +85,9 @@ jobs:
             mkdir -p ~/.local/bin
             if curl -sSfL https://github.com/crust-gather/crust-gather/raw/main/install.sh | sh -s -- --yes; then
               # Cache the binary for future runs
-              which crust-gather && cp $(which crust-gather) ~/.local/bin/
+              if [ ! -f ~/.local/bin/crust-gather ]; then
+                which crust-gather && cp $(which crust-gather) ~/.local/bin/
+              fi
             else
               echo "Failed to download crust-gather"
               exit 1

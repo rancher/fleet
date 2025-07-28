@@ -24,6 +24,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
+	"github.com/rancher/wrangler/v3/pkg/kstatus"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -171,6 +172,7 @@ func getRandomHelmOpWithTargets(name string, t []fleet.BundleTarget) fleet.HelmO
 			},
 			HelmSecretName:        randString(),
 			InsecureSkipTLSverify: randBool(),
+			PollingInterval:       &metav1.Duration{Duration: 1 * time.Second},
 		},
 	}
 
@@ -246,12 +248,22 @@ func getCondition(fllethelm *fleet.HelmOp, condType string) (genericcondition.Ge
 	return genericcondition.GenericCondition{}, false
 }
 
-func checkConditionContains(g Gomega, fllethelm *fleet.HelmOp, condType string, status v1.ConditionStatus, message string) {
+func checkConditionContains(g Gomega, fllethelm *fleet.HelmOp, condType string, status v1.ConditionStatus, reason, message string) {
 	cond, found := getCondition(fllethelm, condType)
-	g.Expect(found).To(BeTrue())
+	g.Expect(found).To(BeTrue(), fmt.Sprintf("condition %q not found in HelmOp status", condType))
 	g.Expect(cond.Type).To(Equal(condType))
 	g.Expect(cond.Status).To(Equal(status))
+	g.Expect(cond.Reason).To(Equal(reason))
 	g.Expect(cond.Message).To(ContainSubstring(message))
+}
+
+func checkConditionIs(g Gomega, fllethelm *fleet.HelmOp, condType string, status v1.ConditionStatus, reason, message string) {
+	cond, found := getCondition(fllethelm, condType)
+	g.Expect(found).To(BeTrue(), fmt.Sprintf("condition %q not found in HelmOp status", condType))
+	g.Expect(cond.Type).To(Equal(condType))
+	g.Expect(cond.Status).To(Equal(status))
+	g.Expect(cond.Reason).To(Equal(reason))
+	g.Expect(cond.Message).To(Equal(message))
 }
 
 func newTLSServerWithAuth() *httptest.Server {
@@ -302,12 +314,23 @@ var _ = Describe("HelmOps controller", func() {
 		var helmop fleet.HelmOp
 		var targets []fleet.BundleTarget
 		var doAfterNamespaceCreated func()
+		var svr *httptest.Server
+		BeforeEach(func() {
+			svr = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprint(w, helmRepoIndex)
+			}))
+			DeferCleanup(func() {
+				svr.Close()
+			})
+		})
+
 		JustBeforeEach(func() {
-			os.Setenv("EXPERIMENTAL_HELM_OPS", "true")
 			nsSpec := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 			err := k8sClient.Create(ctx, nsSpec)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(k8sClient.Create(ctx, &helmop)).ToNot(HaveOccurred())
+
 			if doAfterNamespaceCreated != nil {
 				doAfterNamespaceCreated()
 			}
@@ -321,6 +344,14 @@ var _ = Describe("HelmOps controller", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-empty", targets)
+
+				// set the url to the httptest server
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("creates a bundle with the expected spec and default target", func() {
@@ -335,7 +366,16 @@ var _ = Describe("HelmOps controller", func() {
 							ClusterGroup: "default",
 						},
 					}
+
+					// the original helmop has no version defined.
+					// it should download version 0.2.0 as it is the
+					// latest in the test helm index.html
+					// setting it here so the check passes and confirms
+					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
+					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 
 				By("adding the expected finalizer to the HelmOp resource")
@@ -353,6 +393,14 @@ var _ = Describe("HelmOps controller", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-updated", targets)
+
+				// set the url to the httptest server
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("updates the bundle with the expected content", func() {
@@ -367,11 +415,20 @@ var _ = Describe("HelmOps controller", func() {
 							ClusterGroup: "default",
 						},
 					}
+
+					// the original helmop has no version defined.
+					// it should download version 0.2.0 as it is the
+					// latest in the test helm index.html
+					// setting it here so the check passes and confirms
+					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
+					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 
 				// update the HelmOp spec
-				helmop.Spec.Helm.Chart = "superchart"
+				helmop.Spec.Helm.Version = "0.1.0"
 
 				err := updateHelmOp(helmop)
 				Expect(err).ToNot(HaveOccurred())
@@ -391,7 +448,7 @@ var _ = Describe("HelmOps controller", func() {
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
 
 					// make this check explicit
-					g.Expect(bundle.Spec.Helm.Chart).To(Equal("superchart"))
+					g.Expect(bundle.Spec.Helm.Version).To(Equal("0.1.0"))
 				}).Should(Succeed())
 			})
 		})
@@ -409,6 +466,14 @@ var _ = Describe("HelmOps controller", func() {
 					},
 				}
 				helmop = getRandomHelmOpWithTargets("test-not-empty", targets)
+
+				// set the url to the httptest server
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("creates a bundle with the expected spec and the original targets", func() {
@@ -417,17 +482,31 @@ var _ = Describe("HelmOps controller", func() {
 					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
 					err := k8sClient.Get(ctx, ns, bundle)
 					g.Expect(err).ToNot(HaveOccurred())
+
+					// the original helmop has no version defined.
+					// it should download version 0.2.0 as it is the
+					// latest in the test helm index.html
+					// set it here so the check passes and confirms
+					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
+					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, targets)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 			})
 		})
 
-		When("helm chart is empty", func() {
+		When("helm chart and helm repo are empty", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-empty", targets)
 				// no chart is defined
 				helmop.Spec.Helm.Chart = ""
+				helmop.Spec.Helm.Repo = ""
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("does not create a bundle", func() {
@@ -445,6 +524,14 @@ var _ = Describe("HelmOps controller", func() {
 			BeforeEach(func() {
 				targets = []fleet.BundleTarget{}
 				helmop = getRandomHelmOpWithTargets("test-add-delete", targets)
+
+				// set the url to the httptest server
+				helmop.Spec.Helm.Repo = svr.URL
+				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			It("creates and deletes the bundle", func() {
@@ -460,7 +547,16 @@ var _ = Describe("HelmOps controller", func() {
 							ClusterGroup: "default",
 						},
 					}
+
+					// the original helmop has no version defined.
+					// it should download version 0.2.0 as it is the
+					// latest in the test helm index.html
+					// set it here so the check passes and confirms
+					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
+					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 
 				// delete the helmop resource
@@ -495,17 +591,13 @@ var _ = Describe("HelmOps controller", func() {
 				// reset secret, no auth is required
 				helmop.Spec.HelmSecretName = ""
 
-				svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusOK)
-					fmt.Fprint(w, helmRepoIndex)
-				}))
-				DeferCleanup(func() {
-					svr.Close()
-				})
-
 				// set the url to the httptest server
 				helmop.Spec.Helm.Repo = svr.URL
 				helmop.Spec.Helm.Chart = "alpine"
+				helmop.Spec.Helm.Version = ""
+
+				// reset secret, no auth is required
+				helmop.Spec.HelmSecretName = ""
 			})
 
 			bundleCreatedWithLatestVersion := func() {
@@ -525,8 +617,10 @@ var _ = Describe("HelmOps controller", func() {
 					// latest in the test helm index.html
 					// set it here so the check passes and confirms
 					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
 					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 			}
 
@@ -547,8 +641,10 @@ var _ = Describe("HelmOps controller", func() {
 					// latest in the test helm index.html
 					// set it here so the check passes and confirms
 					// the version obtained was 0.2.0
+					versionBkp := helmop.Spec.Helm.Version
 					helmop.Spec.Helm.Version = "0.2.0"
 					checkBundleIsAsExpected(g, *bundle, helmop, t)
+					helmop.Spec.Helm.Version = versionBkp
 				}).Should(Succeed())
 
 				// update the HelmOp spec to use version 0.1.0
@@ -641,6 +737,7 @@ var _ = Describe("HelmOps controller", func() {
 							fh,
 							fleet.HelmOpAcceptedCondition,
 							v1.ConditionFalse,
+							"Error",
 							"no chart version found for alpine-0.3.x",
 						)
 
@@ -673,9 +770,116 @@ var _ = Describe("HelmOps controller", func() {
 							fh,
 							fleet.HelmOpAcceptedCondition,
 							v1.ConditionFalse,
+							"Error",
 							"improper constraint: foo",
 						)
+					}).Should(Succeed())
 
+					By("then updating the status when the version constraint is edited")
+					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+					err := k8sClient.Get(ctx, ns, &helmop)
+					Expect(err).ShouldNot(HaveOccurred())
+
+					helmop.Spec.Helm.Version = "0.1.0"
+
+					err = k8sClient.Update(ctx, &helmop)
+					Expect(err).ShouldNot(HaveOccurred())
+
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, fh)
+						g.Expect(err).ToNot(HaveOccurred())
+						// check that the condition has the error
+						checkConditionIs(
+							g,
+							fh,
+							fleet.HelmOpAcceptedCondition,
+							v1.ConditionTrue,
+							"",
+							"",
+						)
+					}).Should(Succeed())
+
+				})
+			})
+
+			When("polling for a new version fails", func() {
+				BeforeEach(func() {
+					helmop.Spec.Helm.Version = "0.x.x"
+				})
+
+				It("returns and sets an error including the reason for the polling failure", func() {
+					By("first creating a bundle with the latest available version at the time", bundleCreatedWithLatestVersion)
+
+					By("not being able to reach the Helm repository anymore")
+					svrUnavailableTimestamp := time.Now().UTC()
+					svr.Close()
+
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, fh)
+						g.Expect(err).ToNot(HaveOccurred())
+						// check that the condition has the error
+						checkConditionContains(
+							g,
+							fh,
+							fleet.HelmOpPolledCondition,
+							v1.ConditionFalse,
+							"Error",
+							"could not get a chart version",
+						)
+						checkConditionContains(
+							g,
+							fh,
+							string(kstatus.Stalled),
+							v1.ConditionTrue,
+							"Stalled",
+							"could not get a chart version",
+						)
+
+						g.Expect(fh.Status.LastPollingTime.Time).To(BeTemporally(">", svrUnavailableTimestamp))
+					}).Should(Succeed())
+
+					By("enabling the server again")
+					svr = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						fmt.Fprint(w, helmRepoIndex)
+					}))
+
+					By("updating the server URL in the existing helmop spec")
+					fh := &fleet.HelmOp{}
+					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+					err := k8sClient.Get(ctx, ns, fh)
+					Expect(err).ToNot(HaveOccurred())
+					fh.Spec.Helm.Repo = svr.URL
+					err = k8sClient.Update(ctx, fh)
+					Expect(err).ToNot(HaveOccurred())
+
+					By("checking that the conditions no longer have the error and have the expected state")
+					Eventually(func(g Gomega) {
+						fh := &fleet.HelmOp{}
+						ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
+						err := k8sClient.Get(ctx, ns, fh)
+						g.Expect(err).ToNot(HaveOccurred())
+
+						checkConditionIs(
+							g,
+							fh,
+							fleet.HelmOpPolledCondition,
+							v1.ConditionTrue,
+							"",
+							"",
+						)
+						checkConditionIs(
+							g,
+							fh,
+							string(kstatus.Stalled),
+							v1.ConditionFalse,
+							"",
+							"",
+						)
 					}).Should(Succeed())
 				})
 			})
@@ -725,6 +929,7 @@ var _ = Describe("HelmOps controller", func() {
 						fh,
 						fleet.HelmOpAcceptedCondition,
 						v1.ConditionFalse,
+						"Error",
 						"tls: failed to verify certificate: x509: certificate signed by unknown authority",
 					)
 
@@ -820,6 +1025,7 @@ var _ = Describe("HelmOps controller", func() {
 						fh,
 						fleet.HelmOpAcceptedCondition,
 						v1.ConditionFalse,
+						"Error",
 						"error code: 401, response body: Unauthorized",
 					)
 
@@ -885,6 +1091,7 @@ var _ = Describe("HelmOps controller", func() {
 						fh,
 						fleet.HelmOpAcceptedCondition,
 						v1.ConditionFalse,
+						"Error",
 						"error code: 401, response body: Unauthorized",
 					)
 

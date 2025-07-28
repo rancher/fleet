@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	fleetcli "github.com/rancher/fleet/internal/cmd/cli"
+	fleetapply "github.com/rancher/fleet/internal/cmd/cli/apply"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/mocks"
@@ -744,7 +744,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
@@ -817,7 +817,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
@@ -890,7 +890,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
@@ -971,7 +971,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
@@ -1070,7 +1070,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
@@ -1137,7 +1137,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 						{
@@ -1229,7 +1229,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 						{
@@ -1326,7 +1326,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					},
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 						{
@@ -1520,7 +1520,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
@@ -1616,7 +1616,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
@@ -1745,7 +1745,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
@@ -1815,7 +1815,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
@@ -1990,8 +1990,13 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 	}{
 		"Helm secret name": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					HelmSecretName: "foo",
+					Repo:           "https://github.com/rancher/fleet-examples",
 				},
 				Status: fleetv1.GitRepoStatus{
 					Commit: "commit",
@@ -2003,8 +2008,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
+				},
+				{
+					Name:  fleetapply.JobNameEnvVar,
+					Value: "gitrepo-b7eaf",
 				},
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
@@ -2033,15 +2042,20 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			},
 			expectedInitContainerEnvVars: []corev1.EnvVar{
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
 				},
 			},
 		},
 		"Helm secret name with strict host key checks": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					HelmSecretName: "foo",
+					Repo:           "https://github.com/rancher/fleet-examples",
 				},
 				Status: fleetv1.GitRepoStatus{
 					Commit: "commit",
@@ -2050,7 +2064,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			strictSSHHostKeyChecks: true,
 			expectedInitContainerEnvVars: []corev1.EnvVar{
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
 				},
 				{
@@ -2063,8 +2077,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
+				},
+				{
+					Name:  fleetapply.JobNameEnvVar,
+					Value: "gitrepo-b7eaf",
 				},
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
@@ -2094,8 +2112,13 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 		},
 		"Helm secret name for paths": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					HelmSecretNameForPaths: "foo",
+					Repo:                   "https://github.com/rancher/fleet-examples",
 				},
 				Status: fleetv1.GitRepoStatus{
 					Commit: "commit",
@@ -2107,8 +2130,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
+				},
+				{
+					Name:  fleetapply.JobNameEnvVar,
+					Value: "gitrepo-b7eaf",
 				},
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
@@ -2125,15 +2152,20 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			},
 			expectedInitContainerEnvVars: []corev1.EnvVar{
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
 				},
 			},
 		},
 		"Helm secret name for paths with strict host key checks": {
 			gitrepo: &fleetv1.GitRepo{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
 				Spec: fleetv1.GitRepoSpec{
 					HelmSecretNameForPaths: "foo",
+					Repo:                   "https://github.com/rancher/fleet-examples",
 				},
 				Status: fleetv1.GitRepoStatus{
 					Commit: "commit",
@@ -2142,7 +2174,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			strictSSHHostKeyChecks: true,
 			expectedInitContainerEnvVars: []corev1.EnvVar{
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
 				},
 				{
@@ -2155,8 +2187,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
+				},
+				{
+					Name:  fleetapply.JobNameEnvVar,
+					Value: "gitrepo-b7eaf",
 				},
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
@@ -2174,7 +2210,13 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 		},
 		"proxy": {
 			gitrepo: &fleetv1.GitRepo{
-				Spec: fleetv1.GitRepoSpec{},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "https://github.com/rancher/fleet-examples",
+				},
 				Status: fleetv1.GitRepoStatus{
 					Commit: "commit",
 				},
@@ -2185,8 +2227,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
+				},
+				{
+					Name:  fleetapply.JobNameEnvVar,
+					Value: "gitrepo-b7eaf",
 				},
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
@@ -2207,7 +2253,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			},
 			expectedInitContainerEnvVars: []corev1.EnvVar{
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
 				},
 				{
@@ -2223,7 +2269,13 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 		},
 		"retries_valid": {
 			gitrepo: &fleetv1.GitRepo{
-				Spec: fleetv1.GitRepoSpec{},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "https://github.com/rancher/fleet-examples",
+				},
 				Status: fleetv1.GitRepoStatus{
 					Commit: "commit",
 				},
@@ -2234,8 +2286,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
+				},
+				{
+					Name:  fleetapply.JobNameEnvVar,
+					Value: "gitrepo-b7eaf",
 				},
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
@@ -2249,14 +2305,20 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			osEnv: map[string]string{"FLEET_APPLY_CONFLICT_RETRIES": "3"},
 			expectedInitContainerEnvVars: []corev1.EnvVar{
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
 				},
 			},
 		},
 		"retries_not_valid": {
 			gitrepo: &fleetv1.GitRepo{
-				Spec: fleetv1.GitRepoSpec{},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gitrepo",
+					Namespace: "default",
+				},
+				Spec: fleetv1.GitRepoSpec{
+					Repo: "https://github.com/rancher/fleet-examples",
+				},
 				Status: fleetv1.GitRepoStatus{
 					Commit: "commit",
 				},
@@ -2267,8 +2329,12 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 					Value: "/fleet-home",
 				},
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
+				},
+				{
+					Name:  fleetapply.JobNameEnvVar,
+					Value: "gitrepo-b7eaf",
 				},
 				{
 					Name:  "FLEET_APPLY_CONFLICT_RETRIES",
@@ -2282,7 +2348,7 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 			osEnv: map[string]string{"FLEET_APPLY_CONFLICT_RETRIES": "this_is_not_an_int"},
 			expectedInitContainerEnvVars: []corev1.EnvVar{
 				{
-					Name:  fleetcli.JSONOutputEnvVar,
+					Name:  fleetapply.JSONOutputEnvVar,
 					Value: "true",
 				},
 			},

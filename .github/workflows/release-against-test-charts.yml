@@ -8,7 +8,7 @@ on:
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
         required: true
-        default: "dev-v2.11"
+        default: "dev-v2.12"
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
         required: true
@@ -34,7 +34,7 @@ jobs:
         id: compute_env
         run: |
           tmp=${{github.event.inputs.charts_base_branch}}
-          charts_base_branch=${tmp:-'dev-v2.11'}
+          charts_base_branch=${tmp:-'dev-v2.12'}
 
           tmp=${{github.event.inputs.charts_repo}}
           charts_repo=${tmp:-fleetrepoci/charts}

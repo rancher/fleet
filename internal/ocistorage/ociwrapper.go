@@ -28,7 +28,7 @@ const (
 	fileType     = "application/fleet.file"
 	artifactType = "application/fleet.manifest"
 
-	OCIStorageExperimentalFlag = "EXPERIMENTAL_OCI_STORAGE"
+	OCIStorageFlag = "OCI_STORAGE"
 )
 
 type OCIOpts struct {
@@ -280,9 +280,19 @@ func (o *OCIWrapper) DeleteManifest(ctx context.Context, opts OCIOpts, id string
 	return repo.Delete(ctx, desc)
 }
 
-// ExperimentalOCIIsEnabled returns true if the EXPERIMENTAL_OCI_STORAGE env variable is set to true
-// returns false otherwise
-func ExperimentalOCIIsEnabled() bool {
-	value, err := strconv.ParseBool(os.Getenv(OCIStorageExperimentalFlag))
-	return err == nil && value
+// OCIIsEnabled returns true if the OCI_STORAGE env variable is not set or
+// if it's set to true
+func OCIIsEnabled() bool {
+	if v, ok := os.LookupEnv(OCIStorageFlag); ok {
+		value, err := strconv.ParseBool(v)
+		if err != nil {
+			// if the env variable is set to a non valid value, return true
+			// as OCI Storage is enabled by default.
+			return true
+		}
+		return value
+	}
+	// if not defined, return true.
+	// OCI Storage is enabled by default.
+	return true
 }

@@ -322,9 +322,6 @@ func newCluster(ctx context.Context, config *rest.Config, options manager.Option
 
 func getAgentConfig(ctx context.Context, namespace string, cfg *rest.Config) (agentConfig *config.Config, err error) {
 	cfg = rest.CopyConfig(cfg)
-	// disable the rate limiter
-	cfg.QPS = -1
-	cfg.RateLimiter = nil
 
 	client, err := client.New(cfg, client.Options{})
 	if err != nil {
@@ -343,10 +340,6 @@ func getAgentConfig(ctx context.Context, namespace string, cfg *rest.Config) (ag
 	agentConfig, err = config.ReadConfig(configMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse config from ConfigMap: %w", err)
-	}
-
-	if agentConfig.AgentTLSMode == config.AgentTLSModeStrict {
-		config.BypassSystemCAStore()
 	}
 
 	return agentConfig, nil

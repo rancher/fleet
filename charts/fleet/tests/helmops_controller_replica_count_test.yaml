@@ -5,9 +5,7 @@ tests:
   - it: should set spec.replicas to the number of replicas specified in the controller's replicas field
     set:
       helmops.replicas: 3
-      extraEnv:
-        - name: 'EXPERIMENTAL_HELM_OPS'
-          value: 'true'
+      helmops.enabled: true
     asserts:
       - isKind:
           of: Deployment
@@ -15,12 +13,10 @@ tests:
           path: spec.replicas
           value: 3
 
-  - it: should not render a document at all when 'EXPERIMENTAL_HELM_OPS' is false
+  - it: should not render a document at all when helmops.enabled is false
     set:
       helmops.replicas: 3
-      extraEnv:
-        - name: 'EXPERIMENTAL_HELM_OPS'
-          value: 'false'
+      helmops.enabled: false
     asserts:
       - hasDocuments:
           count: 0

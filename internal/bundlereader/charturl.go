@@ -17,7 +17,7 @@ import (
 // ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
 func ChartVersion(location fleet.HelmOptions, auth Auth) (string, error) {
-	if hasOCIURL.MatchString(location.Chart) {
+	if hasOCIURL.MatchString(location.Repo) {
 		return location.Version, nil
 	}
 
@@ -43,9 +43,14 @@ func ChartVersion(location fleet.HelmOptions, auth Auth) (string, error) {
 
 // chartURL returns the URL to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func chartURL(location fleet.HelmOptions, auth Auth) (string, error) {
-	if hasOCIURL.MatchString(location.Chart) {
-		return location.Chart, nil
+func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
+	OCIField := location.Chart
+	if isHelmOps {
+		OCIField = location.Repo
+	}
+
+	if hasOCIURL.MatchString(OCIField) {
+		return OCIField, nil
 	}
 
 	if location.Repo == "" {

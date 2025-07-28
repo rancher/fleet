@@ -8,6 +8,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // GetObjectShouldSucceed gets the object identified by name and namespace and ensures it succeeds
@@ -48,4 +50,33 @@ func ObjectShouldNotExist(c client.Client, name, namespace string, obj client.Ob
 		err := c.Get(context.TODO(), client.ObjectKey{Name: name, Namespace: namespace}, obj)
 		Expect(errors.IsNotFound(err)).To(BeTrue())
 	}
+}
+
+// GetPodEnvVariable returns the value of the given env variable in the first container of the first pod
+// that matches the given labelSelector.
+// Returns the pod name, the value of the env variable and error (if any).
+// Returns a NotFound error in case of not finding any matching pod or if the first pod has no containers.
+// Returns the value of the env variable or "unset" if it was not found in the container.
+func GetPodEnvVariable(c client.Client, envVarName string, labelSelector client.MatchingLabels) (string, string, error) {
+	podList := &corev1.PodList{}
+	err := c.List(context.TODO(), podList, labelSelector)
+	if err != nil {
+		return "", "", err
+	}
+	if len(podList.Items) == 0 {
+		return "", "", errors.NewNotFound(corev1.Resource("pods"), "no pods found")
+	}
+
+	pod := podList.Items[0]
+	if len(pod.Spec.Containers) == 0 {
+		return "", "", errors.NewNotFound(corev1.Resource("containers"), "no containers found")
+	}
+
+	envVars := pod.Spec.Containers[0].Env
+	for _, env := range envVars {
+		if env.Name == envVarName {
+			return env.Value, pod.Name, nil
+		}
+	}
+	return "unset", pod.Name, nil
 }
