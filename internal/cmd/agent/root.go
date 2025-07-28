@@ -161,8 +161,19 @@ func (a *FleetAgent) Run(cmd *cobra.Command, args []string) error {
 				}
 			},
 			OnStoppedLeading: func() {
-				setupLog.Info("stopped leading")
-				os.Exit(1)
+				select {
+				case <-ctx.Done():
+					// Request to terminate.
+					// This must be handled gracefully to prevent Kubernetes from recording the
+					// container as exiting in error when termination was requested.
+					// This situation matches SIGTERM being sent, which happens when a node is shut
+					// down.
+					setupLog.Info("termination requested, exiting")
+					os.Exit(0)
+				default:
+					setupLog.Info("stopped leading")
+					os.Exit(1)
+				}
 			},
 			OnNewLeader: func(identity string) {
 				if identity == identifier {
