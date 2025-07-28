@@ -40,6 +40,8 @@ func FromJSON(data []byte, expectedSHAsum string) (*Manifest, error) {
 		return nil, err
 	}
 	m.raw = data
+	// #3807 Writing all the data to the hasher to avoid unprocessed data issues.
+	// See full details in #3807
 	h := sha256.New()
 	h.Write(data)
 	m.shasum = hex.EncodeToString(h.Sum(nil))
