@@ -16,8 +16,9 @@ type containerLastTerminatedState struct {
 
 var _ = Describe("Shuts down gracefully", func() {
 	var (
-		k  kubectl.Command
-		ns string
+		k      kubectl.Command
+		ns     string
+		labels string
 	)
 
 	When("the agent receives SIGTERM", func() {
@@ -46,25 +47,37 @@ var _ = Describe("Shuts down gracefully", func() {
 		})
 	})
 
+	// Note: when dealing with sharded deployments, running `kubectl exec <deployment_name>` does not resolve to the
+	// right deployment, as if name resolution were prefix-based. This causes checks against pods' container states
+	// to fail, because changes would have been applied to a different deployment.
+	// Therefore, we explicitly compute pod names based on labels.
 	When("the fleet-controller deployment receives SIGTERM", func() {
 		BeforeEach(func() {
 			ns = "cattle-fleet-system"
 			k = env.Kubectl.Namespace(ns)
+			labels = "app=fleet-controller,fleet.cattle.io/shard-default=true"
 		})
 
 		JustBeforeEach(func() {
-			out, err := k.Run("exec", "deploy/fleet-controller", "--", "kill", "1")
+			pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
+			Expect(err).ToNot(HaveOccurred(), pod)
+
+			out, err := k.Run("exec", pod, "--", "kill", "1")
 			Expect(err).ToNot(HaveOccurred(), out)
 		})
 
 		It("exits gracefully", func() {
 			Eventually(func(g Gomega) {
-				out, err := k.Get("pod", "-l", "app=fleet-controller", "-o", "jsonpath={.items[0].status.containerStatuses[?(@.name=='fleet-controller')].lastState.terminated}")
+				out, err := k.Get(
+					"pod",
+					"-l", labels,
+					"-o", `jsonpath={.items[0].status.containerStatuses[?(@.name=="fleet-controller")].lastState.terminated}`,
+				)
 				g.Expect(err).ToNot(HaveOccurred())
 
 				var state containerLastTerminatedState
 				err = json.Unmarshal([]byte(out), &state)
-				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(err).ToNot(HaveOccurred(), out)
 
 				g.Expect(state.ExitCode).To(Equal(0))
 				g.Expect(state.Reason).To(Equal("Completed"))
@@ -76,16 +89,24 @@ var _ = Describe("Shuts down gracefully", func() {
 		BeforeEach(func() {
 			ns = "cattle-fleet-system"
 			k = env.Kubectl.Namespace(ns)
+			labels = "app=gitjob,fleet.cattle.io/shard-default=true"
 		})
 
 		JustBeforeEach(func() {
-			out, err := k.Run("exec", "deploy/gitjob", "--", "kill", "1")
+			pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
+			Expect(err).ToNot(HaveOccurred(), pod)
+
+			out, err := k.Run("exec", pod, "--", "kill", "1")
 			Expect(err).ToNot(HaveOccurred(), out)
 		})
 
 		It("exits gracefully", func() {
 			Eventually(func(g Gomega) {
-				out, err := k.Get("pod", "-l", "app=gitjob", "-o", "jsonpath={.items[0].status.containerStatuses[0].lastState.terminated}")
+				out, err := k.Get(
+					"pod",
+					"-l", labels,
+					"-o", "jsonpath={.items[0].status.containerStatuses[0].lastState.terminated}",
+				)
 				g.Expect(err).ToNot(HaveOccurred())
 
 				var state containerLastTerminatedState
@@ -102,16 +123,24 @@ var _ = Describe("Shuts down gracefully", func() {
 		BeforeEach(func() {
 			ns = "cattle-fleet-system"
 			k = env.Kubectl.Namespace(ns)
+			labels = "app=helmops,fleet.cattle.io/shard-default=true"
 		})
 
 		JustBeforeEach(func() {
-			out, err := k.Run("exec", "deploy/helmops", "--", "kill", "1")
+			pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
+			Expect(err).ToNot(HaveOccurred(), pod)
+
+			out, err := k.Run("exec", pod, "--", "kill", "1")
 			Expect(err).ToNot(HaveOccurred(), out)
 		})
 
 		It("exits gracefully", func() {
 			Eventually(func(g Gomega) {
-				out, err := k.Get("pod", "-l", "app=helmops", "-o", "jsonpath={.items[0].status.containerStatuses[0].lastState.terminated}")
+				out, err := k.Get(
+					"pod",
+					"-l", labels,
+					"-o", "jsonpath={.items[0].status.containerStatuses[0].lastState.terminated}",
+				)
 				g.Expect(err).ToNot(HaveOccurred())
 
 				var state containerLastTerminatedState
