@@ -33,10 +33,6 @@ var _ = Describe("Fleet apply helm release", Serial, func() {
 		testHelmRepo("helm_chart_url", port)
 	})
 
-	When("applying a folder with fleet.yaml that contains a helm chart stored in an HTTP OCI registry", func() {
-		testHelmInOCIHTTPRegistry()
-	})
-
 	When("applying a folder with fleet.yaml that contains a sub folder with another fleet.yaml", func() {
 		var repo = repository{
 			port: port,
@@ -78,6 +74,66 @@ var _ = Describe("Fleet apply helm release", Serial, func() {
 				})
 			})
 		})
+	})
+})
+
+var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, func() {
+	var (
+		container testcontainers.Container
+		host      string
+		port      nat.Port
+		tmpDir    string
+		relTmpDir string
+	)
+
+	BeforeAll(func() {
+		tmpDir = GinkgoT().TempDir()
+		var err error
+		container, err = startDockerRegistry(context.Background())
+		Expect(err).ToNot(HaveOccurred())
+
+		host, err = container.Host(context.Background())
+		Expect(err).ToNot(HaveOccurred())
+
+		port, err = container.MappedPort(context.Background(), nat.Port("5000"))
+		Expect(err).ToNot(HaveOccurred())
+
+		cmd := exec.Command("helm", "package", cli.AssetsPath+"config-chart/")
+		out, err := cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%d", host, port.Int()))
+		out, err = cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		err = createGitRepoDataForTest(tmpDir, host, port.Port(), "config-chart")
+		Expect(err).ToNot(HaveOccurred())
+
+		pwd, err := os.Getwd()
+		Expect(err).NotTo(HaveOccurred())
+		relTmpDir, err = filepath.Rel(pwd, tmpDir)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("fails when calling fleet apply not passing helm-basic-http", func() {
+		err := fleetApply("helm", []string{relTmpDir}, apply.Options{})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
+	})
+
+	It("fails when calling fleet apply not passing helm-basic-http=false", func() {
+		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: false}})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
+	})
+
+	It("works fine when calling fleet apply passing helm-basic-http=true", func() {
+		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: true}})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterAll(func() {
+		Expect(container.Terminate(context.Background())).NotTo(HaveOccurred())
 	})
 })
 
@@ -234,66 +290,6 @@ func testHelmRepo(path, port string) {
 				Eventually(verifyResourcesArePresent).Should(BeTrue())
 			})
 		})
-	})
-}
-
-func testHelmInOCIHTTPRegistry() {
-	var (
-		container testcontainers.Container
-		host      string
-		port      nat.Port
-		tmpDir    string
-		relTmpDir string
-	)
-
-	JustBeforeEach(func() {
-		tmpDir = GinkgoT().TempDir()
-		var err error
-		container, err = startDockerRegistry(context.Background())
-		Expect(err).ToNot(HaveOccurred())
-
-		host, err = container.Host(context.Background())
-		Expect(err).ToNot(HaveOccurred())
-
-		port, err = container.MappedPort(context.Background(), nat.Port("5000"))
-		Expect(err).ToNot(HaveOccurred())
-
-		cmd := exec.Command("helm", "package", cli.AssetsPath+"config-chart/")
-		out, err := cmd.CombinedOutput()
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%d", host, port.Int()))
-		out, err = cmd.CombinedOutput()
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		err = createGitRepoDataForTest(tmpDir, host, port.Port(), "config-chart")
-		Expect(err).ToNot(HaveOccurred())
-
-		pwd, err := os.Getwd()
-		Expect(err).NotTo(HaveOccurred())
-		relTmpDir, err = filepath.Rel(pwd, tmpDir)
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		Expect(container.Terminate(context.Background())).NotTo(HaveOccurred())
-	})
-
-	It("fails when calling fleet apply not passing helm-basic-http", func() {
-		err := fleetApply("helm", []string{relTmpDir}, apply.Options{})
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
-	})
-
-	It("fails when calling fleet apply not passing helm-basic-http=false", func() {
-		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: false}})
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
-	})
-
-	It("works fine when calling fleet apply passing helm-basic-http=true", func() {
-		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: true}})
-		Expect(err).ToNot(HaveOccurred())
 	})
 }
 
