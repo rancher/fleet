@@ -61,6 +61,7 @@ eventually helm upgrade --install fleet charts/fleet \
   --set agentImage.repository="$agentRepo" \
   --set agentImage.tag="$agentTag" \
   --set agentImage.imagePullPolicy=IfNotPresent \
+  --set bootstrap.agentNamespace=cattle-fleet-local-system \
   --set apiServerCA="$ca" \
   --set apiServerURL="$server" \
   $shards_settings \
@@ -71,7 +72,7 @@ eventually helm upgrade --install fleet charts/fleet \
 # wait for controller and agent rollout
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
 { grep -E -q -m 1 "fleet-agent-local.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-local -w)
-kubectl -n cattle-fleet-system rollout status deployment/fleet-agent
+kubectl -n cattle-fleet-local-system rollout status deployment/fleet-agent
 
 # label local cluster
 kubectl patch clusters.fleet.cattle.io -n fleet-local local --type=json -p '[{"op": "add", "path": "/metadata/labels/management.cattle.io~1cluster-display-name", "value": "local" }]'
