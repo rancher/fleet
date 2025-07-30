@@ -46,6 +46,12 @@ const (
 	bundleOptionsSeparatorChars = ":,|?<>"
 )
 
+type helmSecretOptions struct {
+	HasCACerts      bool
+	InsecureSkipTLS bool
+	BasicHTTP       bool
+}
+
 func (r *GitJobReconciler) createJobAndResources(ctx context.Context, gitrepo *v1alpha1.GitRepo, logger logr.Logger) error {
 	logger.V(1).Info("Creating Git job resources")
 
@@ -331,29 +337,29 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 	var helmBasicHTTP bool
 
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
-		vols, volMnts, hasCertVol, _, _ := volumesFromSecret(ctx, r.Client,
+		vols, volMnts, helmSecretOpts := volumesFromSecret(ctx, r.Client,
 			gitrepo.Namespace,
 			gitrepo.Spec.HelmSecretNameForPaths,
 			"helm-secret-by-path",
 			"",
 		)
 
-		certVolCreated = hasCertVol
+		certVolCreated = helmSecretOpts.HasCACerts
 
 		volumes = append(volumes, vols...)
 		volumeMounts = append(volumeMounts, volMnts...)
 
 	} else if gitrepo.Spec.HelmSecretName != "" {
-		vols, volMnts, hasCertVol, insecure, basicHTTP := volumesFromSecret(ctx, r.Client,
+		vols, volMnts, helmSecretOpts := volumesFromSecret(ctx, r.Client,
 			gitrepo.Namespace,
 			gitrepo.Spec.HelmSecretName,
 			"helm-secret",
 			"",
 		)
 
-		certVolCreated = hasCertVol
-		helmInsecure = insecure
-		helmBasicHTTP = basicHTTP
+		certVolCreated = helmSecretOpts.HasCACerts
+		helmInsecure = helmSecretOpts.InsecureSkipTLS
+		helmBasicHTTP = helmSecretOpts.BasicHTTP
 
 		volumes = append(volumes, vols...)
 		volumeMounts = append(volumeMounts, volMnts...)
@@ -376,7 +382,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 			// Override the volume name and mount path to prevent any conflict with an existing Helm secret
 			// providing username and password.
-			vols, volMnts, _, _, _ := volumesFromSecret(ctx, r.Client,
+			vols, volMnts, _ := volumesFromSecret(ctx, r.Client,
 				gitrepo.Namespace,
 				secretName,
 				"rancher-helm-secret",
@@ -798,7 +804,7 @@ func volumesFromSecret(
 	c client.Client,
 	namespace string,
 	secretName, volumeName, mountPath string,
-) ([]corev1.Volume, []corev1.VolumeMount, bool, bool, bool) {
+) ([]corev1.Volume, []corev1.VolumeMount, helmSecretOptions) {
 	if mountPath == "" {
 		mountPath = "/etc/fleet/helm"
 	}
@@ -851,11 +857,11 @@ func volumesFromSecret(
 	// Get the values for skipping TLS and basic HTTP connections.
 	// In case of error reading the values they will be considered
 	// as set to false as those values are security related.
-	insecureSkipTLS := false
-	if value, ok := secret.Data["insecureSkipTLS"]; ok {
+	insecureSkipVerify := false
+	if value, ok := secret.Data["insecureSkipVerify"]; ok {
 		boolValue, err := strconv.ParseBool(string(value))
 		if err == nil {
-			insecureSkipTLS = boolValue
+			insecureSkipVerify = boolValue
 		}
 	}
 
@@ -867,7 +873,13 @@ func volumesFromSecret(
 		}
 	}
 
-	return volumes, volumeMounts, certVolCreated, insecureSkipTLS, basicHTTP
+	secretOpts := helmSecretOptions{
+		InsecureSkipTLS: insecureSkipVerify,
+		BasicHTTP:       basicHTTP,
+		HasCACerts:      certVolCreated,
+	}
+
+	return volumes, volumeMounts, secretOpts
 }
 
 func proxyEnvVars() []corev1.EnvVar {
