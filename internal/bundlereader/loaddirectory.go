@@ -391,7 +391,7 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	if auth.Username != "" && auth.Password != "" {
 		getterOptions = append(getterOptions, helmgetter.WithBasicAuth(auth.Username, auth.Password))
 	}
-	getterOptions = append(getterOptions, helmgetter.WithInsecureSkipVerifyTLS(true))
+	getterOptions = append(getterOptions, helmgetter.WithInsecureSkipVerifyTLS(auth.InsecureSkipVerify))
 
 	c := downloader.ChartDownloader{
 		Verify:         downloader.VerifyNever,
