@@ -58,7 +58,7 @@ type Apply struct {
 	KeepResources               bool              `usage:"Keep resources created after the GitRepo or Bundle is deleted" name:"keep-resources"`
 	DeleteNamespace             bool              `usage:"Delete GitRepo target namespace after the GitRepo or Bundle is deleted" name:"delete-namespace"`
 	HelmCredentialsByPathFile   string            `usage:"Path of file containing helm credentials for paths" name:"helm-credentials-by-path-file"`
-	HelmBasicHTTP               bool              `usage:"Uses plai HTTP connections when downloading from helm repositories" name:"helm-basic-http"`
+	HelmBasicHTTP               bool              `usage:"Uses plain HTTP connections when downloading from helm repositories" name:"helm-basic-http"`
 	HelmInsecureSkipTLS         bool              `usage:"Skip TLS verification when downloading from helm repositories" name:"helm-insecure-skip-tls"`
 	CorrectDrift                bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
 	CorrectDriftForce           bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
