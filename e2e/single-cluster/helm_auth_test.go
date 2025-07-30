@@ -78,7 +78,7 @@ var _ = Describe("GitRepo using Helm chart with auth", Label("infra-setup"), fun
 					out, _ := k.Get("pods", "--field-selector=status.phase==Failed")
 					return out
 				}).Should(ContainSubstring("helm-"))
-				By("cheking that the gitrepo reflects the expected errror")
+				By("checking that the gitrepo reflects the expected error")
 				Eventually(func(g Gomega) {
 					status := getGitRepoStatus(g, k, "helm")
 					stalledMessage := ""
