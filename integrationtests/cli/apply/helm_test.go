@@ -121,7 +121,7 @@ var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, fun
 		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
 	})
 
-	It("fails when calling fleet apply not passing helm-basic-http=false", func() {
+	It("fails when calling fleet apply passing helm-basic-http=false", func() {
 		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: false}})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))

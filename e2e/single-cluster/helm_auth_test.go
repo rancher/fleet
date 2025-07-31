@@ -249,7 +249,7 @@ func setupGitRepo(basePath, repoPath, repo string, port int) (tmpdir string, gh 
 
 	gh = githelper.NewHTTP(addr)
 
-	tmpdir, _ = os.MkdirTemp("", "fleet-")
+	tmpdir = GinkgoT().TempDir()
 	clonedir := path.Join(tmpdir, "clone")
 
 	_, err = gh.Create(clonedir, path.Join(basePath, repoPath), repoPath)
