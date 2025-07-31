@@ -40,7 +40,7 @@ require (
 	github.com/rancher/fleet/pkg/apis v0.13.0
 	github.com/rancher/lasso v0.2.3
 	github.com/rancher/wrangler/v3 v3.2.2
-	github.com/reugn/go-quartz v0.15.0
+	github.com/reugn/go-quartz v0.15.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
