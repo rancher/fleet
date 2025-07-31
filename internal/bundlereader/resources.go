@@ -98,15 +98,25 @@ type loadOpts struct {
 // * spec.Targets[].Helm.ValuesFiles
 func ignoreApplyConfigs(spec *fleet.HelmOptions, targets ...fleet.BundleTarget) []string {
 	ignore := []string{"fleet.yaml"}
+
+	// Values files must be ignored, but they may be referenced from `fleet.yaml` files either with their file name
+	// alone, or with a directory prefix.
+	// Values files must be ignored in both cases, which using the base path here (file name) achieves, as when bundle
+	// directories are searched for resources to deploy, files are checked against ignored config files based on their
+	// file names.
 	if spec != nil {
-		ignore = append(ignore, spec.ValuesFiles...)
+		for _, vf := range spec.ValuesFiles {
+			ignore = append(ignore, filepath.Base(vf))
+		}
 	}
 
 	for _, target := range targets {
 		if target.Helm == nil {
 			continue
 		}
-		ignore = append(ignore, target.Helm.ValuesFiles...)
+		for _, vf := range target.Helm.ValuesFiles {
+			ignore = append(ignore, filepath.Base(vf))
+		}
 	}
 
 	return ignore

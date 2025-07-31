@@ -1,0 +1,3 @@
+helm:
+  valuesFiles:
+    - config-chart/values.yaml # resolves to `values.yaml` inside the same directory, but looks like an out-of-tree file
