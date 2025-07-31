@@ -26,23 +26,6 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 )
 
-var (
-	registryClient *registry.Client
-
-	fleetOciProvider = helmgetter.Provider{
-		Schemes: []string{registry.OCIScheme},
-		New:     NewFleetOCIProvider,
-	}
-)
-
-func NewFleetOCIProvider(options ...helmgetter.Option) (helmgetter.Getter, error) {
-	if registryClient == nil {
-		return nil, fmt.Errorf("oci registry client is nil")
-	}
-
-	return helmgetter.NewOCIGetter(helmgetter.WithRegistryClient(registryClient))
-}
-
 // ignoreTree represents a tree of ignored paths (read from .fleetignore files), each node being a directory.
 // It provides a means for ignored paths to be propagated down the tree, but not between subdirectories of a same
 // directory.
@@ -356,7 +339,7 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	defer os.RemoveAll(temp)
 
 	tmpGetter := newHttpGetter(auth)
-	registryClient, err = registry.NewClient(
+	registryClient, err := registry.NewClient(
 		registry.ClientOptCredentialsFile(filepath.Join(temp, "creds.json")),
 		registry.ClientOptHTTPClient(tmpGetter.Client),
 	)
@@ -390,8 +373,15 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	getterOptions = append(getterOptions, helmgetter.WithInsecureSkipVerifyTLS(true))
 
 	c := downloader.ChartDownloader{
-		Verify:         downloader.VerifyNever,
-		Getters:        helmgetter.Providers{fleetOciProvider},
+		Verify: downloader.VerifyNever,
+		Getters: helmgetter.Providers{
+			helmgetter.Provider{
+				Schemes: []string{registry.OCIScheme},
+				New: func(options ...helmgetter.Option) (helmgetter.Getter, error) {
+					return helmgetter.NewOCIGetter(helmgetter.WithRegistryClient(registryClient))
+				},
+			},
+		},
 		RegistryClient: registryClient,
 		Options:        getterOptions,
 	}
