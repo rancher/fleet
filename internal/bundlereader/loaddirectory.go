@@ -356,10 +356,14 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	defer os.RemoveAll(temp)
 
 	tmpGetter := newHttpGetter(auth)
-	registryClient, err = registry.NewClient(
+	clientOptions := []registry.ClientOption{
 		registry.ClientOptCredentialsFile(filepath.Join(temp, "creds.json")),
 		registry.ClientOptHTTPClient(tmpGetter.Client),
-	)
+	}
+	if auth.BasicHTTP {
+		clientOptions = append(clientOptions, registry.ClientOptPlainHTTP())
+	}
+	registryClient, err = registry.NewClient(clientOptions...)
 	if err != nil {
 		return "", err
 	}
@@ -387,7 +391,7 @@ func downloadOCIChart(name, version, path string, auth Auth) (string, error) {
 	if auth.Username != "" && auth.Password != "" {
 		getterOptions = append(getterOptions, helmgetter.WithBasicAuth(auth.Username, auth.Password))
 	}
-	getterOptions = append(getterOptions, helmgetter.WithInsecureSkipVerifyTLS(true))
+	getterOptions = append(getterOptions, helmgetter.WithInsecureSkipVerifyTLS(auth.InsecureSkipVerify))
 
 	c := downloader.ChartDownloader{
 		Verify:         downloader.VerifyNever,
