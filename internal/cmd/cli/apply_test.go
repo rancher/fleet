@@ -195,7 +195,7 @@ func TestAddAuthToOpts(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			opts := &apply.Options{}
-			err := test.apply.addAuthToOpts(opts, mockReadFile)
+			err := test.apply.addAuthToOpts(opts, mockReadFile, false, false)
 			if !cmp.Equal(opts, test.expectedOpts) {
 				t.Errorf("opts don't match: expected %v, got %v", test.expectedOpts, opts)
 			}
