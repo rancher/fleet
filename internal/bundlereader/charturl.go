@@ -1,6 +1,7 @@
 package bundlereader
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -9,16 +10,32 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
+
+	"oras.land/oras-go/v2/registry"
+	"oras.land/oras-go/v2/registry/remote"
+	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
 // ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
 func ChartVersion(location fleet.HelmOptions, auth Auth) (string, error) {
 	if hasOCIURL.MatchString(location.Repo) {
-		return location.Version, nil
+		tag, err := getOCITag(location, auth)
+
+		if err != nil {
+			return "", fmt.Errorf(
+				"could not find tag matching constraint %q in registry %s: %v",
+				location.Version,
+				location.Repo,
+				err,
+			)
+		}
+
+		return tag, nil
 	}
 
 	if location.Repo == "" {
@@ -98,29 +115,8 @@ func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVers
 	if auth.Username != "" && auth.Password != "" {
 		request.SetBasicAuth(auth.Username, auth.Password)
 	}
-	client := &http.Client{}
-	if auth.CABundle != nil {
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			pool = x509.NewCertPool()
-		}
-		pool.AppendCertsFromPEM(auth.CABundle)
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.TLSClientConfig = &tls.Config{
-			RootCAs:            pool,
-			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
-		}
-		client.Transport = transport
-	} else {
-		if auth.InsecureSkipVerify {
-			transport := http.DefaultTransport.(*http.Transport).Clone()
-			transport.TLSClientConfig = &tls.Config{
-				InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
-			}
-			client.Transport = transport
-		}
-	}
+
+	client := getHTTPClient(auth)
 
 	resp, err := client.Do(request)
 	if err != nil {
@@ -150,4 +146,94 @@ func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVers
 	}
 
 	return chart, nil
+}
+
+func getOCITag(location fleet.HelmOptions, a Auth) (string, error) {
+	repo := strings.TrimPrefix(location.Repo, "oci://")
+
+	r, err := remote.NewRepository(repo)
+	if err != nil {
+		return "", fmt.Errorf("failed to create OCI client: %w", err)
+	}
+
+	authCli := &auth.Client{
+		Client: getHTTPClient(a),
+		Cache:  auth.NewCache(),
+	}
+	if a.Username != "" {
+		cred := auth.Credential{
+			Username: a.Username,
+			Password: a.Password,
+		}
+		authCli.Credential = func(ctx context.Context, s string) (auth.Credential, error) {
+			return cred, nil
+		}
+	}
+
+	r.Client = authCli
+
+	availableTags, err := registry.Tags(context.TODO(), r)
+	if err != nil {
+		if strings.Contains(err.Error(), "status code 404") {
+			err = fmt.Errorf("repository %q not found", repo)
+		}
+
+		return "", fmt.Errorf("failed to get available tags for version %q: %w", location.Version, err)
+	}
+
+	// TODO sort tags: https://github.com/Masterminds/semver?tab=readme-ov-file#sorting-semantic-versions
+
+	constraint, err := semver.NewConstraint(location.Version)
+	if err != nil {
+		return "", fmt.Errorf("failed to compute version constraint from version %q: %w", location.Version, err)
+	}
+
+	var tagToResolve string
+
+	for _, tag := range availableTags {
+		// check for exact match before trying something more involved.
+		if len(location.Version) > 0 && location.Version == tag {
+			tagToResolve = tag
+		}
+
+		test, err := semver.NewVersion(tag)
+		if err != nil {
+			continue
+		}
+
+		if constraint.Check(test) {
+			tagToResolve = tag
+		}
+	}
+
+	_, err = r.Resolve(context.TODO(), tagToResolve)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve tag %q", tagToResolve)
+	}
+
+	return tagToResolve, nil
+}
+
+func getHTTPClient(auth Auth) *http.Client {
+	client := &http.Client{}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: auth.InsecureSkipVerify, // nolint:gosec
+	}
+
+	if auth.CABundle != nil {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			pool = x509.NewCertPool()
+		}
+		pool.AppendCertsFromPEM(auth.CABundle)
+
+		transport.TLSClientConfig.RootCAs = pool
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
+	}
+
+	client.Transport = transport
+
+	return client
 }

@@ -236,7 +236,7 @@ var _ = Describe("HelmOp resource tests with OCI registry", Label("infra-setup",
 			0,
 			helmOpsSecretName,
 			insecure,
-			"0.1.0",
+			"0.*.0",
 		})
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
@@ -320,14 +320,13 @@ var _ = Describe("HelmOp resource tests with OCI registry", Label("infra-setup",
 						if cond.Type == "Ready" {
 							foundReady = true
 
-							g.Expect(string(cond.Status)).To(Equal("False"))
-							g.Expect(cond.Message).To(ContainSubstring("ErrApplied"))
-							g.Expect(cond.Message).To(ContainSubstring("not found"))
+							g.Expect(string(cond.Status)).To(Equal("True"))
 						}
 
 						if cond.Type == "Accepted" {
 							foundAccepted = true
-							g.Expect(string(cond.Status)).To(Equal("True"))
+							g.Expect(string(cond.Status)).To(Equal("False"))
+							g.Expect(cond.Message).To(ContainSubstring("not found"))
 						}
 					}
 					g.Expect(foundAccepted).To(BeTrue())
