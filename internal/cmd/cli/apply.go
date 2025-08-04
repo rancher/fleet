@@ -58,6 +58,8 @@ type Apply struct {
 	KeepResources               bool              `usage:"Keep resources created after the GitRepo or Bundle is deleted" name:"keep-resources"`
 	DeleteNamespace             bool              `usage:"Delete GitRepo target namespace after the GitRepo or Bundle is deleted" name:"delete-namespace"`
 	HelmCredentialsByPathFile   string            `usage:"Path of file containing helm credentials for paths" name:"helm-credentials-by-path-file"`
+	HelmBasicHTTP               bool              `usage:"Uses plain HTTP connections when downloading from helm repositories" name:"helm-basic-http"`
+	HelmInsecureSkipTLS         bool              `usage:"Skip TLS verification when downloading from helm repositories" name:"helm-insecure-skip-tls"`
 	CorrectDrift                bool              `usage:"Rollback any change made from outside of Fleet" name:"correct-drift"`
 	CorrectDriftForce           bool              `usage:"Use --force when correcting drift. Resources can be deleted and recreated" name:"correct-drift-force"`
 	CorrectDriftKeepFailHistory bool              `usage:"Keep helm history for failed rollbacks" name:"correct-drift-keep-fail-history"`
@@ -132,7 +134,7 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 
 	defer os.RemoveAll(knownHostsPath)
 
-	if err := a.addAuthToOpts(&opts, os.ReadFile); err != nil {
+	if err := a.addAuthToOpts(&opts, os.ReadFile, a.HelmBasicHTTP, a.HelmInsecureSkipTLS); err != nil {
 		return fmt.Errorf("adding auth to opts: %w", err)
 	}
 	if err := a.addOCISpecToOpts(&opts, os.ReadFile); err != nil {
@@ -176,7 +178,8 @@ func (a *Apply) run(cmd *cobra.Command, args []string) error {
 // addAuthToOpts adds auth if provided as arguments. It will look first for HelmCredentialsByPathFile. If HelmCredentialsByPathFile
 // is not provided it means that the same helm secret should be used for all helm repositories, then it will look for
 // Username, PasswordFile, CACertsFile and SSHPrivateKeyFile.
-func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {
+// It will also set the values for using basic HTTP connections and skipping TLS.
+func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile, helmBasicHTTP, helmInsecureSkipTLS bool) error {
 	if a.HelmCredentialsByPathFile != "" {
 		file, err := readFile(a.HelmCredentialsByPathFile)
 		if err != nil && !os.IsNotExist(err) {
@@ -215,6 +218,9 @@ func (a *Apply) addAuthToOpts(opts *apply.Options, readFile readFile) error {
 		}
 		opts.Auth.SSHPrivateKey = privateKey
 	}
+
+	opts.Auth.BasicHTTP = helmBasicHTTP
+	opts.Auth.InsecureSkipVerify = helmInsecureSkipTLS
 
 	return nil
 }

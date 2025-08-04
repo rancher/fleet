@@ -77,6 +77,12 @@ const (
 
 var zero = int32(0)
 
+type helmSecretOptions struct {
+	HasCACerts      bool
+	InsecureSkipTLS bool
+	BasicHTTP       bool
+}
+
 type GitFetcher interface {
 	LatestCommit(ctx context.Context, gitrepo *v1alpha1.GitRepo, client client.Client) (string, error)
 }
@@ -730,29 +736,33 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	volumes, volumeMounts := volumes(configMap.Name)
 	var certVolCreated bool
+	var helmInsecure bool
+	var helmBasicHTTP bool
 
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
-		vols, volMnts, hasCertVol := volumesFromSecret(ctx, r.Client,
+		vols, volMnts, helmSecretOpts := volumesFromSecret(ctx, r.Client,
 			gitrepo.Namespace,
 			gitrepo.Spec.HelmSecretNameForPaths,
 			"helm-secret-by-path",
 			"",
 		)
 
-		certVolCreated = hasCertVol
+		certVolCreated = helmSecretOpts.HasCACerts
 
 		volumes = append(volumes, vols...)
 		volumeMounts = append(volumeMounts, volMnts...)
 
 	} else if gitrepo.Spec.HelmSecretName != "" {
-		vols, volMnts, hasCertVol := volumesFromSecret(ctx, r.Client,
+		vols, volMnts, helmSecretOpts := volumesFromSecret(ctx, r.Client,
 			gitrepo.Namespace,
 			gitrepo.Spec.HelmSecretName,
 			"helm-secret",
 			"",
 		)
 
-		certVolCreated = hasCertVol
+		certVolCreated = helmSecretOpts.HasCACerts
+		helmInsecure = helmSecretOpts.InsecureSkipTLS
+		helmBasicHTTP = helmSecretOpts.BasicHTTP
 
 		volumes = append(volumes, vols...)
 		volumeMounts = append(volumeMounts, volMnts...)
@@ -819,7 +829,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 	saName := names.SafeConcatName("git", gitrepo.Name)
 	logger := log.FromContext(ctx)
-	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride, r.KnownHosts)
+	args, envs := argsAndEnvs(gitrepo, logger, CACertsFilePathOverride, r.KnownHosts, helmInsecure, helmBasicHTTP)
 
 	return &batchv1.JobSpec{
 		BackoffLimit: &zero,
@@ -880,6 +890,8 @@ func argsAndEnvs(
 	logger logr.Logger,
 	CACertsPathOverride string,
 	knownHosts KnownHostsGetter,
+	helmInsecureSkipTLS bool,
+	helmBasicHTTP bool,
 ) ([]string, []corev1.EnvVar) {
 	args := []string{
 		"fleet",
@@ -1020,6 +1032,13 @@ func argsAndEnvs(
 		}
 	}
 
+	if helmInsecureSkipTLS {
+		args = append(args, "--helm-insecure-skip-tls")
+	}
+	if helmBasicHTTP {
+		args = append(args, "--helm-basic-http")
+	}
+
 	return append(args, "--", gitrepo.Name), env
 }
 
@@ -1104,12 +1123,15 @@ func ociVolumeFromSecret(
 
 // volumesFromSecret generates volumes and volume mounts from a Helm secret, assuming that that secret exists.
 // If the secret has a cacerts key, it will be mounted into /etc/ssl/certs, too.
+// It also returns a struct containing boolean values indicating if a volume has
+// been created for CA bundles, along with values (defaulting to false) of the
+// `insecureSkipVerify` and `basicHTTP` keys of the secret.
 func volumesFromSecret(
 	ctx context.Context,
 	c client.Client,
 	namespace string,
 	secretName, volumeName, mountPath string,
-) ([]corev1.Volume, []corev1.VolumeMount, bool) {
+) ([]corev1.Volume, []corev1.VolumeMount, helmSecretOptions) {
 	if mountPath == "" {
 		mountPath = "/etc/fleet/helm"
 	}
@@ -1159,7 +1181,32 @@ func volumesFromSecret(
 		certVolCreated = true
 	}
 
-	return volumes, volumeMounts, certVolCreated
+	// Get the values for skipping TLS and basic HTTP connections.
+	// In case of error reading the values they will be considered
+	// as set to false as those values are security related.
+	insecureSkipVerify := false
+	if value, ok := secret.Data["insecureSkipVerify"]; ok {
+		boolValue, err := strconv.ParseBool(string(value))
+		if err == nil {
+			insecureSkipVerify = boolValue
+		}
+	}
+
+	basicHTTP := false
+	if value, ok := secret.Data["basicHTTP"]; ok {
+		boolValue, err := strconv.ParseBool(string(value))
+		if err == nil {
+			basicHTTP = boolValue
+		}
+	}
+
+	secretOpts := helmSecretOptions{
+		InsecureSkipTLS: insecureSkipVerify,
+		BasicHTTP:       basicHTTP,
+		HasCACerts:      certVolCreated,
+	}
+
+	return volumes, volumeMounts, secretOpts
 }
 
 func (r *GitJobReconciler) newGitCloner(
