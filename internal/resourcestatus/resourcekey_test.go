@@ -214,3 +214,94 @@ func TestSetResources(t *testing.T) {
 	}, status.PerClusterResourceCounts)
 
 }
+
+func TestPerClusterState(t *testing.T) {
+	bundleDeploymentWithState := func(state string) fleet.BundleDeployment {
+		return fleet.BundleDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bd1",
+				Namespace: "ns1-cluster1",
+				Labels: map[string]string{
+					fleet.ClusterLabel:          "cluster",
+					fleet.ClusterNamespaceLabel: "namespace",
+				},
+			},
+			Spec: fleet.BundleDeploymentSpec{
+				DeploymentID: "bd1",
+			},
+			Status: fleet.BundleDeploymentStatus{
+				AppliedDeploymentID: "bd1",
+				NonReadyStatus: []fleet.NonReadyStatus{
+					{
+						Kind:       "Deployment",
+						APIVersion: "v1",
+						Namespace:  "default",
+						Name:       "web",
+						Summary: summary.Summary{
+							State: state,
+						},
+					},
+				},
+			},
+		}
+	}
+	tests := []struct {
+		name              string
+		bundleDeployments []fleet.BundleDeployment
+		expectedStatus    fleet.StatusBase
+	}{
+		{
+			name:              "if the state of the NonReadyStatus resource is updating, then it should report it as NotReady",
+			bundleDeployments: []fleet.BundleDeployment{bundleDeploymentWithState("updating")},
+			expectedStatus: fleet.StatusBase{
+				Resources: []fleet.Resource{
+					{
+						Namespace: "default",
+						Name:      "web",
+						PerClusterState: fleet.PerClusterState{
+							NotReady: []string{"namespace/cluster"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:              "if the state of the NonReadyStatus resource is unknown, then it should ignore the state",
+			bundleDeployments: []fleet.BundleDeployment{bundleDeploymentWithState("")},
+			expectedStatus: fleet.StatusBase{
+				Resources: []fleet.Resource{
+					{
+						Namespace:       "default",
+						Name:            "web",
+						PerClusterState: fleet.PerClusterState{},
+					},
+				},
+			},
+		},
+		{
+			name:              "if the state of the NonReadyStatus resource is NotReady, then it should report it as NotReady",
+			bundleDeployments: []fleet.BundleDeployment{bundleDeploymentWithState("NotReady")},
+			expectedStatus: fleet.StatusBase{
+				Resources: []fleet.Resource{
+					{
+						Namespace: "default",
+						Name:      "web",
+						PerClusterState: fleet.PerClusterState{
+							NotReady: []string{"namespace/cluster"},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var status fleet.GitRepoStatus
+			SetResources(test.bundleDeployments, &status.StatusBase)
+
+			assert.Equal(t, test.expectedStatus.Resources[0].PerClusterState, status.StatusBase.Resources[0].PerClusterState,
+				"Expected resources to match for bundle deployments: %v", test.bundleDeployments,
+			)
+		})
+	}
+}

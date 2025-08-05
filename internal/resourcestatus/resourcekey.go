@@ -200,7 +200,11 @@ func appendToPerClusterState(states *fleet.PerClusterState, state, clusterID str
 		states.Pending = append(states.Pending, clusterID)
 	case "Modified":
 		states.Modified = append(states.Modified, clusterID)
-	case "NotReady":
+	case "NotReady", "updating":
+		// `updating` comes from checkTransitioning summarizer in the
+		// fleet-agent. When the `Available` condition is set to false, the
+		// state is set to `updating`, but we treat it as nonReady for per
+		// cluster states.
 		states.NotReady = append(states.NotReady, clusterID)
 	case "Orphaned":
 		states.Orphaned = append(states.Orphaned, clusterID)
