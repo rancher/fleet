@@ -102,6 +102,37 @@ var _ = Describe("Bundle with helm options", Ordered, func() {
 			By("not propagating helm values to BundleDeployments")
 			for _, bd := range bdList.Items {
 				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
+				Expect(bd.Spec.Options.Helm.Version).To(Equal(version))
+			}
+		})
+	})
+
+	When("helm options is NOT nil, version has v prefix, and has no values", func() {
+		BeforeEach(func() {
+			helmOptions = &v1alpha1.BundleHelmOptions{}
+			bundleName = "helm-not-nil-vprefix-and-no-values"
+			bdLabels = map[string]string{
+				"fleet.cattle.io/bundle-name":      bundleName,
+				"fleet.cattle.io/bundle-namespace": namespace,
+			}
+			expectedNumberOfBundleDeployments = 3
+			// simulate targets. All targets are also added to targetRestrictions, which acts as a white list
+			targets = []v1alpha1.BundleTarget{
+				{
+					ClusterGroup: "all",
+				},
+			}
+			targetRestrictions = make([]v1alpha1.BundleTarget, len(targets))
+			copy(targetRestrictions, targets)
+			version = "v1.2.3"
+		})
+
+		It("creates three BundleDeployments with the expected helm options information", func() {
+			var bdList = verifyHelmBundlesDeploymentsAreCreated(expectedNumberOfBundleDeployments, bdLabels, bundleName, helmOptions)
+			By("not propagating helm values to BundleDeployments")
+			for _, bd := range bdList.Items {
+				Expect(bd.Spec.Options.Helm.Values).To(BeNil())
+				Expect(bd.Spec.Options.Helm.Version).To(Equal(version))
 			}
 		})
 	})

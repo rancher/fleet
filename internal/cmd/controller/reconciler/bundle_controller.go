@@ -9,6 +9,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -231,7 +232,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// version constraint. That constraint should be resolved into a strict version by the HelmOps reconciler before bundle
 	// deployments can be created.
 	if contentsInHelmChart && bundle.Spec.Helm != nil && len(bundle.Spec.Helm.Version) > 0 {
-		if _, err := semver.StrictNewVersion(bundle.Spec.Helm.Version); err != nil {
+		// #3953
+		// There are helm repositories that list their version with the "v" prefix.
+		// That's not recommended by Helm as the version with the prefix is not semver compliant,
+		// but those repositories are still valid.
+		// Delete the "v" prefix (if found) before checking for a valid semver.
+		versionToCheck := strings.TrimPrefix(bundle.Spec.Helm.Version, "v")
+		if _, err := semver.StrictNewVersion(versionToCheck); err != nil {
 			setReadyCondition(
 				&bundle.Status,
 				fmt.Errorf("chart version cannot be deployed; check HelmOp status for more details: %v", err),
