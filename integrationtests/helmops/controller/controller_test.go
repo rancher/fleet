@@ -248,19 +248,21 @@ func getCondition(fllethelm *fleet.HelmOp, condType string) (genericcondition.Ge
 	return genericcondition.GenericCondition{}, false
 }
 
-func checkConditionContains(g Gomega, fllethelm *fleet.HelmOp, condType string, status v1.ConditionStatus, message string) {
+func checkConditionContains(g Gomega, fllethelm *fleet.HelmOp, condType string, status v1.ConditionStatus, reason, message string) {
 	cond, found := getCondition(fllethelm, condType)
 	g.Expect(found).To(BeTrue(), fmt.Sprintf("condition %q not found in HelmOp status", condType))
 	g.Expect(cond.Type).To(Equal(condType))
 	g.Expect(cond.Status).To(Equal(status))
+	g.Expect(cond.Reason).To(Equal(reason))
 	g.Expect(cond.Message).To(ContainSubstring(message))
 }
 
-func checkConditionIs(g Gomega, fllethelm *fleet.HelmOp, condType string, status v1.ConditionStatus, message string) {
+func checkConditionIs(g Gomega, fllethelm *fleet.HelmOp, condType string, status v1.ConditionStatus, reason, message string) {
 	cond, found := getCondition(fllethelm, condType)
 	g.Expect(found).To(BeTrue(), fmt.Sprintf("condition %q not found in HelmOp status", condType))
 	g.Expect(cond.Type).To(Equal(condType))
 	g.Expect(cond.Status).To(Equal(status))
+	g.Expect(cond.Reason).To(Equal(reason))
 	g.Expect(cond.Message).To(Equal(message))
 }
 
@@ -735,6 +737,7 @@ var _ = Describe("HelmOps controller", func() {
 							fh,
 							fleet.HelmOpAcceptedCondition,
 							v1.ConditionFalse,
+							"Error",
 							"no chart version found for alpine-0.3.x",
 						)
 
@@ -767,6 +770,7 @@ var _ = Describe("HelmOps controller", func() {
 							fh,
 							fleet.HelmOpAcceptedCondition,
 							v1.ConditionFalse,
+							"Error",
 							"improper constraint: foo",
 						)
 					}).Should(Succeed())
@@ -787,11 +791,12 @@ var _ = Describe("HelmOps controller", func() {
 						err := k8sClient.Get(ctx, ns, fh)
 						g.Expect(err).ToNot(HaveOccurred())
 						// check that the condition has the error
-						checkConditionContains(
+						checkConditionIs(
 							g,
 							fh,
 							fleet.HelmOpAcceptedCondition,
 							v1.ConditionTrue,
+							"",
 							"",
 						)
 					}).Should(Succeed())
@@ -822,6 +827,7 @@ var _ = Describe("HelmOps controller", func() {
 							fh,
 							fleet.HelmOpPolledCondition,
 							v1.ConditionFalse,
+							"Error",
 							"could not get a chart version",
 						)
 						checkConditionContains(
@@ -829,6 +835,7 @@ var _ = Describe("HelmOps controller", func() {
 							fh,
 							string(kstatus.Stalled),
 							v1.ConditionTrue,
+							"Stalled",
 							"could not get a chart version",
 						)
 
@@ -863,12 +870,14 @@ var _ = Describe("HelmOps controller", func() {
 							fleet.HelmOpPolledCondition,
 							v1.ConditionTrue,
 							"",
+							"",
 						)
 						checkConditionIs(
 							g,
 							fh,
 							string(kstatus.Stalled),
 							v1.ConditionFalse,
+							"",
 							"",
 						)
 					}).Should(Succeed())
@@ -920,6 +929,7 @@ var _ = Describe("HelmOps controller", func() {
 						fh,
 						fleet.HelmOpAcceptedCondition,
 						v1.ConditionFalse,
+						"Error",
 						"tls: failed to verify certificate: x509: certificate signed by unknown authority",
 					)
 
@@ -1015,6 +1025,7 @@ var _ = Describe("HelmOps controller", func() {
 						fh,
 						fleet.HelmOpAcceptedCondition,
 						v1.ConditionFalse,
+						"Error",
 						"error code: 401, response body: Unauthorized",
 					)
 
@@ -1080,6 +1091,7 @@ var _ = Describe("HelmOps controller", func() {
 						fh,
 						fleet.HelmOpAcceptedCondition,
 						v1.ConditionFalse,
+						"Error",
 						"error code: 401, response body: Unauthorized",
 					)
 

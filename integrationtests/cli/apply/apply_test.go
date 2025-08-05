@@ -49,6 +49,23 @@ var _ = Describe("Fleet apply", Ordered, func() {
 		})
 	})
 
+	When("folder contains simple resources and a fleet.yaml specifying a bundle name", func() {
+		BeforeEach(func() {
+			name = "simple"
+			dirs = []string{cli.AssetsPath + "simple-fleet-yaml"}
+		})
+
+		It("creates a bundle with that name, containing all the resources, and keepResources is false", func() {
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.Resources).To(HaveLen(2))
+			Expect(bundle.Name).To(Equal("my-great-bundle"))
+			Expect(dirs[0] + "/svc.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
+			Expect(dirs[0] + "/deployment.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
+			Expect(bundle.Spec.KeepResources).Should(BeFalse())
+		})
+	})
+
 	When("simple resources in a nested folder", func() {
 		BeforeEach(func() {
 			name = "nested_simple"

@@ -1,17 +1,21 @@
 package apply
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 
+	"github.com/docker/go-connections/nat"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/rancher/fleet/integrationtests/cli"
 	"github.com/rancher/fleet/internal/bundlereader"
 	"github.com/rancher/fleet/internal/cmd/cli/apply"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/testcontainers/testcontainers-go"
 	"sigs.k8s.io/yaml"
 )
 
@@ -70,6 +74,66 @@ var _ = Describe("Fleet apply helm release", Serial, func() {
 				})
 			})
 		})
+	})
+})
+
+var _ = Describe("Fleet apply helm release with HTTP OCI registry", Ordered, func() {
+	var (
+		container testcontainers.Container
+		host      string
+		port      nat.Port
+		tmpDir    string
+		relTmpDir string
+	)
+
+	BeforeAll(func() {
+		tmpDir = GinkgoT().TempDir()
+		var err error
+		container, err = startDockerRegistry(context.Background())
+		Expect(err).ToNot(HaveOccurred())
+
+		host, err = container.Host(context.Background())
+		Expect(err).ToNot(HaveOccurred())
+
+		port, err = container.MappedPort(context.Background(), nat.Port("5000"))
+		Expect(err).ToNot(HaveOccurred())
+
+		cmd := exec.Command("helm", "package", cli.AssetsPath+"config-chart/")
+		out, err := cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		cmd = exec.Command("helm", "push", "config-chart-0.1.0.tgz", fmt.Sprintf("oci://%s:%d", host, port.Int()))
+		out, err = cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		err = createGitRepoDataForTest(tmpDir, host, port.Port(), "config-chart")
+		Expect(err).ToNot(HaveOccurred())
+
+		pwd, err := os.Getwd()
+		Expect(err).NotTo(HaveOccurred())
+		relTmpDir, err = filepath.Rel(pwd, tmpDir)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("fails when calling fleet apply not passing helm-basic-http", func() {
+		err := fleetApply("helm", []string{relTmpDir}, apply.Options{})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
+	})
+
+	It("fails when calling fleet apply passing helm-basic-http=false", func() {
+		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: false}})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("http: server gave HTTP response to HTTPS client"))
+	})
+
+	It("works fine when calling fleet apply passing helm-basic-http=true", func() {
+		err := fleetApply("helm", []string{relTmpDir}, apply.Options{Auth: bundlereader.Auth{BasicHTTP: true}})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterAll(func() {
+		Expect(container.Terminate(context.Background())).NotTo(HaveOccurred())
 	})
 })
 
@@ -200,13 +264,91 @@ func testHelmRepo(path, port string) {
 		})
 	})
 
+	When("Auth is required, and it is provided with globbing in HelmSecretNameForPaths", func() {
+		BeforeEach(func() {
+			authEnabled = true
+		})
+		It("uses the first set of credentials matching the bundle path with patterns sorted in lexical order", func() {
+			Eventually(func() error {
+				return fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + "*_url": { // these credentials also match the path, but should not be used.
+								Username: "wrong-" + username,
+								Password: "wrong-" + password,
+							},
+							cli.AssetsPath + "*": {
+								Username: username,
+								Password: password,
+							},
+							cli.AssetsPath + "no-match": {},
+						},
+					},
+				)
+			}).Should(Not(HaveOccurred()))
+			By("creating a Bundle with all the resources inside of the helm release", func() {
+				Eventually(verifyResourcesArePresent).Should(BeTrue())
+			})
+		})
+		It("errors if the pattern is invalid", func() {
+			Eventually(func(g Gomega) {
+				err := fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + "\\": { // invalid pattern
+								Username: username,
+								Password: password,
+							},
+						},
+					},
+				)
+
+				Expect(err.Error()).To(ContainSubstring("failed to check for matches"))
+				Expect(err).To(MatchError(filepath.ErrBadPattern))
+			}).Should(Succeed())
+		})
+		It("fails with 401 unauthorized if no glob matches the path", func() {
+			Eventually(func(g Gomega) {
+				err := fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + "/something-else": {
+								Username: username,
+								Password: password,
+							},
+						},
+					},
+				)
+
+				Expect(err.Error()).To(ContainSubstring("401"))
+			}).Should(Succeed())
+		})
+	})
+
 	When("Auth is required, and it is provided in HelmSecretNameForPaths", func() {
 		BeforeEach(func() {
 			authEnabled = true
 		})
 		It("fleet apply uses credentials from HelmSecretNameForPaths", func() {
 			Eventually(func() error {
-				return fleetApply("helm", []string{cli.AssetsPath + path}, apply.Options{AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
+				return fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						AuthByPath: map[string]bundlereader.Auth{
+							cli.AssetsPath + path: {
+								Username: username,
+								Password: password,
+							},
+						},
+					},
+				)
 			}).Should(Not(HaveOccurred()))
 			By("verify Bundle is created with all the resources inside of the helm release", func() {
 				Eventually(verifyResourcesArePresent).Should(BeTrue())
@@ -220,7 +362,14 @@ func testHelmRepo(path, port string) {
 		})
 		It("fleet apply uses credentials from HelmSecretNameForPaths", func() {
 			Eventually(func() error {
-				return fleetApply("helm", []string{cli.AssetsPath + path}, apply.Options{Auth: bundlereader.Auth{Username: "wrong", Password: "wrong"}, AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}}})
+				return fleetApply(
+					"helm",
+					[]string{cli.AssetsPath + path},
+					apply.Options{
+						Auth:       bundlereader.Auth{Username: "wrong", Password: "wrong"},
+						AuthByPath: map[string]bundlereader.Auth{cli.AssetsPath + path: {Username: username, Password: password}},
+					},
+				)
 			}).Should(Not(HaveOccurred()))
 			By("verify Bundle is created with all the resources inside of the helm release", func() {
 				Eventually(verifyResourcesArePresent).Should(BeTrue())
@@ -260,4 +409,32 @@ func getAllResourcesPathFromTheHelmRelease() ([]string, error) {
 		return nil, err
 	}
 	return paths, nil
+}
+
+func createGitRepoDataForTest(baseDir, host, port, chart string) error {
+	filePath := filepath.Join(baseDir, "fleet.yaml")
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString("helm:\n")
+	if err != nil {
+		return err
+	}
+	_, err = file.WriteString("  releaseName: config-chart\n")
+	if err != nil {
+		return err
+	}
+
+	chartURL := fmt.Sprintf("oci://%s:%s/%s\n", host, port, chart)
+	_, err = file.WriteString("  chart: " + chartURL)
+	if err != nil {
+		return err
+	}
+
+	_, err = file.WriteString("  version: 0.1.0\n")
+
+	return err
 }

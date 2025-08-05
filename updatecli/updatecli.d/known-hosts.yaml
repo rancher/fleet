@@ -28,7 +28,10 @@ targets:
         spec:
           files:
             - charts/fleet/templates/configmap_known_hosts.yaml
-      command: bash <(git show main:.github/scripts/update_known_hosts_configmap.sh)
+      command: |
+        git show main:.github/scripts/update_known_hosts_configmap.sh > /tmp/script
+        chmod +x /tmp/script
+        bash /tmp/script
 
 actions:
   default:
@@ -40,5 +43,15 @@ actions:
       mergemethod: squash
       labels:
         - kind/known-hosts # /!\ label must exist in the repo!
+      description: |
+        Before approving this PR, please do one of the following:
+          - [ ] Check new fingerprints against the following URLs:
+            - Bitbucket: [here](https://support.atlassian.com/bitbucket-cloud/docs/configure-ssh-and-two-step-verification/) or using `curl https://bitbucket.org/site/ssh`
+            - Github: [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)
+            - Gitlab: [here](https://docs.gitlab.com/ee/user/gitlab_com/index.html#ssh-known_hosts-entries)
+            - Azure DevOps: [here](https://learn.microsoft.com/en-us/azure/devops/repos/git/use-ssh-keys-to-authenticate?view=azure-devops)
+          - [ ] Check out the PR's branch locally (for instance running `gh pr checkout <url>`) and:
+            1. Run the [update script](https://github.com/rancher/fleet/blob/main/.github/scripts/update_known_hosts_configmap.sh) again
+            2. Check that `charts/fleet/templates/configmap_known_hosts.yaml` is left unchanged as a result.
 
 {{ end }}
