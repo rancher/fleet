@@ -15,6 +15,7 @@ type Auth struct {
 	CABundle           []byte `json:"caBundle,omitempty"`
 	SSHPrivateKey      []byte `json:"sshPrivateKey,omitempty"`
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"`
+	BasicHTTP          bool   `json:"basicHTTP,omitempty"`
 }
 
 func ReadHelmAuthFromSecret(ctx context.Context, c client.Client, req types.NamespacedName) (Auth, error) {

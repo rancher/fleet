@@ -19,7 +19,7 @@ var _ = Describe("Fleet Installation", func() {
 		k       kubectl.Command
 		version = "dev"
 		// this is the default for fleet standalone
-		localAgentNamespace = "cattle-fleet-system"
+		localAgentNamespace = "cattle-fleet-local-system"
 		agentNamespace      = "cattle-fleet-system"
 	)
 
