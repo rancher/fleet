@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,15 +19,39 @@ import (
 	"oras.land/oras-go/v2/registry"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
+	"oras.land/oras-go/v2/registry/remote/errcode"
 )
 
 // ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
-func ChartVersion(location fleet.HelmOptions, auth Auth) (string, error) {
+func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
 	if hasOCIURL.MatchString(location.Repo) {
-		tag, err := getOCITag(location, auth)
+		repo := strings.TrimPrefix(location.Repo, "oci://")
 
+		r, err := remote.NewRepository(repo)
 		if err != nil {
+			return "", fmt.Errorf("failed to create OCI client: %w", err)
+		}
+
+		authCli := &auth.Client{
+			Client: getHTTPClient(a),
+			Cache:  auth.NewCache(),
+		}
+		if a.Username != "" {
+			cred := auth.Credential{
+				Username: a.Username,
+				Password: a.Password,
+			}
+			authCli.Credential = func(ctx context.Context, s string) (auth.Credential, error) {
+				return cred, nil
+			}
+		}
+
+		r.Client = authCli
+
+		tag, err := GetOCITag(r, location.Version)
+
+		if len(tag) == 0 || err != nil {
 			return "", fmt.Errorf(
 				"could not find tag matching constraint %q in registry %s: %v",
 				location.Version,
@@ -46,7 +71,7 @@ func ChartVersion(location fleet.HelmOptions, auth Auth) (string, error) {
 		location.Repo = location.Repo + "/"
 	}
 
-	chart, err := getHelmChartVersion(location, auth)
+	chart, err := getHelmChartVersion(location, a)
 	if err != nil {
 		return "", err
 	}
@@ -148,67 +173,53 @@ func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVers
 	return chart, nil
 }
 
-func getOCITag(location fleet.HelmOptions, a Auth) (string, error) {
-	repo := strings.TrimPrefix(location.Repo, "oci://")
-
-	r, err := remote.NewRepository(repo)
+// GetOCITag fetches the highest available tag matching version v in repository r.
+// Returns an error if the remote repository itself returns an error, for instance if the OCI repository is not found.
+// If no error is returned, it is the caller's responsibility to check that the returned tag is non-empty.
+func GetOCITag(r *remote.Repository, v string) (string, error) {
+	constraint, err := semver.NewConstraint(v)
 	if err != nil {
-		return "", fmt.Errorf("failed to create OCI client: %w", err)
+		return "", fmt.Errorf("failed to compute version constraint from version %q: %w", v, err)
 	}
-
-	authCli := &auth.Client{
-		Client: getHTTPClient(a),
-		Cache:  auth.NewCache(),
-	}
-	if a.Username != "" {
-		cred := auth.Credential{
-			Username: a.Username,
-			Password: a.Password,
-		}
-		authCli.Credential = func(ctx context.Context, s string) (auth.Credential, error) {
-			return cred, nil
-		}
-	}
-
-	r.Client = authCli
 
 	availableTags, err := registry.Tags(context.TODO(), r)
 	if err != nil {
-		if strings.Contains(err.Error(), "status code 404") {
-			err = fmt.Errorf("repository %q not found", repo)
+		var regErr errcode.Error
+		if errors.As(err, &regErr) {
+			err = regErr
 		}
 
-		return "", fmt.Errorf("failed to get available tags for version %q: %w", location.Version, err)
-	}
-
-	// TODO sort tags: https://github.com/Masterminds/semver?tab=readme-ov-file#sorting-semantic-versions
-
-	constraint, err := semver.NewConstraint(location.Version)
-	if err != nil {
-		return "", fmt.Errorf("failed to compute version constraint from version %q: %w", location.Version, err)
+		return "", fmt.Errorf("failed to get available tags for version %q: %w", v, err)
 	}
 
 	var tagToResolve string
+	var resolvedVersion *semver.Version
 
+	_, err = semver.StrictNewVersion(v)
+	isExactVersion := err == nil
+
+	// As per https://github.com/opencontainers/distribution-spec/blob/v1.1.1/spec.md#listing-tags, available tags
+	// are sorted in lexical order. However, the spec does not specify anything about ascending or descending order.
 	for _, tag := range availableTags {
 		// check for exact match before trying something more involved.
-		if len(location.Version) > 0 && location.Version == tag {
+		if isExactVersion && v == tag {
 			tagToResolve = tag
+			break
 		}
 
-		test, err := semver.NewVersion(tag)
+		sv, err := semver.NewVersion(tag)
 		if err != nil {
 			continue
 		}
 
-		if constraint.Check(test) {
-			tagToResolve = tag
+		if !constraint.Check(sv) {
+			continue
 		}
-	}
 
-	_, err = r.Resolve(context.TODO(), tagToResolve)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve tag %q", tagToResolve)
+		if len(tagToResolve) == 0 || sv.GreaterThan(resolvedVersion) {
+			tagToResolve = tag
+			resolvedVersion = sv
+		}
 	}
 
 	return tagToResolve, nil
