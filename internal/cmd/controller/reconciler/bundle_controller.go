@@ -233,7 +233,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// deployments can be created.
 	if contentsInHelmChart && bundle.Spec.Helm != nil && len(bundle.Spec.Helm.Version) > 0 {
 		// #3953
-		// There are helm repositories that list their version with the "v" prefix.
+		// There are helm repositories that list chart versions with the "v" prefix.
 		// That's not recommended by Helm as the version with the prefix is not semver compliant,
 		// but those repositories are still valid.
 		// Delete the "v" prefix (if found) before checking for a valid semver.
