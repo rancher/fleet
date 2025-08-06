@@ -418,13 +418,9 @@ func usesPolling(helmop fleet.HelmOp) bool {
 		return false
 	}
 
-	// Polling does not apply to OCI and tarball charts, where no index.yaml file is available to check for new
+	// Polling does not apply to tarball charts, where no index.yaml file nor set of tags is available to check for new
 	// chart versions.
 	if strings.HasSuffix(strings.ToLower(helmop.Spec.Helm.Chart), ".tgz") {
-		return false
-	}
-
-	if strings.HasPrefix(strings.ToLower(helmop.Spec.Helm.Repo), "oci://") {
 		return false
 	}
 
