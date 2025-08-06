@@ -773,58 +773,6 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			},
 		},
 		{
-			name: "does not poll when referencing an OCI chart",
-			helmOp: fleet.HelmOp{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "helmop",
-					Namespace: "default",
-				},
-				Spec: fleet.HelmOpSpec{
-					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
-					InsecureSkipTLSverify: true,
-					BundleSpec: fleet.BundleSpec{
-						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
-							Helm: &fleet.HelmOptions{
-								Repo:    "oci://chart",
-								Version: "0.x.x",
-							},
-						},
-					},
-				},
-			},
-			expectedSchedulerCalls: func(_ *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
-				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(nil, quartz.ErrJobNotFound)
-
-				// No job expected to be created nor deleted
-			},
-		},
-		{
-			name: "deletes existing polling job when referencing an OCI chart",
-			helmOp: fleet.HelmOp{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "helmop",
-					Namespace: "default",
-				},
-				Spec: fleet.HelmOpSpec{
-					PollingInterval:       &metav1.Duration{Duration: 1 * time.Minute},
-					InsecureSkipTLSverify: true,
-					BundleSpec: fleet.BundleSpec{
-						BundleDeploymentOptions: fleet.BundleDeploymentOptions{
-							Helm: &fleet.HelmOptions{
-								Repo:    "oci://chart",
-								Version: "0.x.x",
-							},
-						},
-					},
-				},
-			},
-			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
-				job := mocks.NewMockScheduledJob(ctrl)
-				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
-				scheduler.EXPECT().DeleteJob(gomock.Any()).Return(nil)
-			},
-		},
-		{
 			name: "does not poll when referencing a tarball chart",
 			helmOp: fleet.HelmOp{
 				ObjectMeta: metav1.ObjectMeta{

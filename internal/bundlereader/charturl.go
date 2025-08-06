@@ -187,6 +187,10 @@ func GetOCITag(r *remote.Repository, v string) (string, error) {
 		var regErr errcode.Error
 		if errors.As(err, &regErr) {
 			err = regErr
+
+			if regErr.Code == errcode.ErrorCodeNameUnknown {
+				return "", fmt.Errorf("repository %q not found in the registry", r.Reference.Repository)
+			}
 		}
 
 		return "", fmt.Errorf("failed to get available tags for version %q: %w", v, err)

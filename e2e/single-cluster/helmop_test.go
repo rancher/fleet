@@ -15,6 +15,7 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/infra/cmd"
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"helm.sh/helm/v3/pkg/registry"
 
 	"github.com/chartmuseum/helm-push/pkg/chartmuseum"
 	. "github.com/onsi/ginkgo/v2"
@@ -25,7 +26,7 @@ const (
 	helmOpsSecretName = "secret-helmops"
 )
 
-var _ = Describe("HelmOp resource tests with polling", Label("infra-setup", "helm-registry"), Ordered, func() {
+var _ = Describe("HelmOp resource with polling of repo index", Label("infra-setup", "helm-registry"), Ordered, func() {
 	var (
 		namespace    = "helmop-ns"
 		name         = "basic"
@@ -189,14 +190,15 @@ var _ = Describe("HelmOp resource tests with polling", Label("infra-setup", "hel
 	})
 })
 
-var _ = Describe("HelmOp resource tests with OCI registry", Label("infra-setup", "oci-registry"), func() {
+var _ = Describe("HelmOp resource with polling of OCI registry", Label("infra-setup", "oci-registry"), func() {
 	var (
-		namespace string
-		name      string
-		repo      string
-		insecure  bool
-		ociRef    = getZotInternalRef()
-		k         kubectl.Command
+		namespace    string
+		name         string
+		repo         string
+		chartVersion string
+		insecure     bool
+		ociRef       = getZotInternalRef()
+		k            kubectl.Command
 	)
 
 	BeforeEach(func() {
@@ -233,10 +235,10 @@ var _ = Describe("HelmOp resource tests with OCI registry", Label("infra-setup",
 			namespace,
 			repo,
 			"",
-			0,
+			5 * time.Second,
 			helmOpsSecretName,
 			insecure,
-			"0.*.0",
+			chartVersion,
 		})
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
@@ -256,6 +258,7 @@ var _ = Describe("HelmOp resource tests with OCI registry", Label("infra-setup",
 				insecure = true
 
 				repo = fmt.Sprintf("%s/sleeper-chart", ociRef)
+				chartVersion = "0.1.0" // no polling
 			})
 			It("deploys the chart", func() {
 				Eventually(func(g Gomega) {
@@ -266,8 +269,106 @@ var _ = Describe("HelmOp resource tests with OCI registry", Label("infra-setup",
 					outDeployments, _ := k.Namespace(namespace).Get("deployments")
 					g.Expect(outDeployments).To(ContainSubstring("sleeper"))
 				}).Should(Succeed())
+
+				By("setting the expected version in the helmop Status")
+				Eventually(func() string {
+					out, _ := k.Get("helmop", name, "-o=jsonpath={.status.version}")
+					return out
+				}).Should(Equal(chartVersion))
 			})
 		})
+
+		Context("a new version of the referenced chart is available", func() {
+			BeforeEach(func() {
+				chartVersion = "< 1.0.0"
+			})
+
+			AfterEach(func() {
+				addr, err := getExternalOCIAddr(k)
+				Expect(err).ToNot(HaveOccurred())
+
+				url := fmt.Sprintf("https://%s:8082/v2/sleeper-chart/manifests/0.2.0", addr)
+				req, err := http.NewRequest(http.MethodDelete, url, nil)
+				Expect(err).ToNot(HaveOccurred())
+
+				req.SetBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD"))
+
+				cli := http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{
+							InsecureSkipVerify: true,
+						},
+					},
+				}
+
+				resp, err := cli.Do(req)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(resp.StatusCode).To(Equal(http.StatusAccepted))
+			})
+
+			It("polls the registry and installs a newer version when available", func() {
+				By("installing the latest available version when the bundle is first created")
+				Eventually(func() bool {
+					outPods, _ := k.Namespace(namespace).Get("pods")
+					return strings.Contains(outPods, "sleeper-")
+				}).Should(BeTrue())
+				Eventually(func() bool {
+					outDeployments, _ := k.Namespace(namespace).Get("deployments")
+					return strings.Contains(outDeployments, "sleeper")
+				}).Should(BeTrue())
+				Eventually(func() string {
+					out, _ := k.Get("helmop", name, "-o=jsonpath={.status.version}")
+					return out
+				}).Should(Equal("0.1.0"))
+
+				By("having a newer chart version available in the repository")
+				cmd := exec.Command("helm", "package", testenv.AssetPath("helmop/sleeper-chart2/"))
+				out, err := cmd.CombinedOutput()
+				Expect(err).ToNot(HaveOccurred(), out)
+
+				externalIP, err := getExternalOCIAddr(k)
+				Expect(err).ToNot(HaveOccurred())
+
+				chartArchive, err := os.ReadFile("sleeper-chart-0.2.0.tgz")
+				Expect(err).ToNot(HaveOccurred())
+
+				// Login and push a Helm chart to our local OCI registry
+				tlsConf := &tls.Config{
+					InsecureSkipVerify: true,
+				}
+				OCIClient, err := registry.NewClient(
+					registry.ClientOptHTTPClient(&http.Client{
+						Transport: &http.Transport{
+							TLSClientConfig: tlsConf,
+							Proxy:           http.ProxyFromEnvironment,
+						},
+					}),
+					registry.ClientOptBasicAuth(os.Getenv("CI_OCI_USERNAME"), os.Getenv("CI_OCI_PASSWORD")),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				OCIHost := fmt.Sprintf("%s:8082", externalIP)
+				_, err = OCIClient.Push(chartArchive, fmt.Sprintf("%s/sleeper-chart:0.2.0", OCIHost))
+				Expect(err).ToNot(HaveOccurred())
+
+				By("installing the newer chart version")
+				Eventually(func() bool {
+					outPods, _ := k.Namespace(namespace).Get("pods")
+					return strings.Contains(outPods, "sleeper2-")
+				}).Should(BeTrue())
+				Eventually(func() bool {
+					outDeployments, _ := k.Namespace(namespace).Get("deployments")
+					return strings.Contains(outDeployments, "sleeper2")
+				}).Should(BeTrue())
+				By("setting the expected version in the helmop Status")
+				Eventually(func() string {
+					out, _ := k.Get("helmop", name, "-o=jsonpath={.status.version}")
+					return out
+				}).Should(Equal("0.2.0"))
+			})
+		})
+
 		Context("containing a valid helmop description pointing to an oci registry and not TLS", func() {
 			BeforeEach(func() {
 				namespace = "helmop-ns2"
@@ -419,4 +520,13 @@ func getExternalHelmAddr(k kubectl.Command) (string, error) {
 	}
 
 	return k.Namespace(cmd.InfraNamespace).Get("service", "chartmuseum-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
+}
+
+// getExternalOCIAddr retrieves the external URL where our local OCI registry can be reached.
+func getExternalOCIAddr(k kubectl.Command) (string, error) {
+	if v := os.Getenv("external_ip"); v != "" {
+		return v, nil
+	}
+
+	return k.Namespace(cmd.InfraNamespace).Get("service", "zot-service", "-o", "jsonpath={.status.loadBalancer.ingress[0].ip}")
 }
