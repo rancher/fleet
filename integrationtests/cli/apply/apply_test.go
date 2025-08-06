@@ -219,6 +219,38 @@ var _ = Describe("Fleet apply", Ordered, func() {
 			})
 		})
 	})
+
+	When("a fleet.yaml located beside a local chart dir references a values file prefixed by its directory", func() {
+		BeforeEach(func() {
+			name = "helm-values-ignore"
+			dirs = []string{cli.AssetsPath + name}
+		})
+
+		It("creates a bundle without the values file", func() {
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.Resources).To(HaveLen(2))
+
+			Expect(cli.AssetsPath + "helm-values-ignore/config-chart/templates/configmap.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
+			Expect(cli.AssetsPath + "helm-values-ignore/config-chart/Chart.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
+		})
+	})
+
+	When("a fleet.yaml located within a local chart dir references a values file prefixed by its directory", func() {
+		BeforeEach(func() {
+			name = "helm-in-chart-fleetyaml-values-ignore"
+			dirs = []string{cli.AssetsPath + name}
+		})
+
+		It("creates a bundle without the values file", func() {
+			bundle, err := cli.GetBundleFromOutput(buf)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(bundle.Spec.Resources).To(HaveLen(2))
+
+			Expect(cli.AssetsPath + "helm-in-chart-fleetyaml-values-ignore/config-chart/templates/configmap.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
+			Expect(cli.AssetsPath + "helm-in-chart-fleetyaml-values-ignore/config-chart/Chart.yaml").To(bePresentInBundleResources(bundle.Spec.Resources))
+		})
+	})
 })
 
 var _ = Describe("Fleet apply driven", Ordered, func() {
