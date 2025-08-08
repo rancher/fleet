@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	fleetssh "github.com/rancher/fleet/internal/ssh"
+	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 // GetAuthFromSecret returns the AuthMethod calculated from the given secret, setting known hosts if needed.
@@ -60,6 +61,15 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 		}
 		return auth, nil
+	default:
+		if auth, keysArePresent, err := fleetgithub.GetGithubAppAuthFromSecret(creds); keysArePresent {
+			if err != nil {
+				return nil, err
+			}
+			return auth, nil
+		} else if err != nil {
+			return nil, err
+		}
 	}
 	return nil, nil
 }
