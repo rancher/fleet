@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.6
 
 replace (
-	github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
+	github.com/imdario/mergo => github.com/imdario/mergo v1.0.2
 	github.com/rancher/fleet/pkg/apis => ./pkg/apis
 	gopkg.in/go-playground/webhooks.v6 => github.com/go-playground/webhooks/v6 v6.4.0
 )
