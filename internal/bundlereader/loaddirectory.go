@@ -17,7 +17,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/hashicorp/go-getter"
+	"github.com/hashicorp/go-getter/v2"
 	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/helmupdater"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
