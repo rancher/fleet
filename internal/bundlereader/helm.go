@@ -13,7 +13,7 @@ import (
 
 // GetManifestFromHelmChart downloads the given helm chart and creates a
 // manifest with its contents. This is used by the agent to deploy HelmOps.
-func GetManifestFromHelmChart(ctx context.Context, c client.Client, bd *fleet.BundleDeployment) (*manifest.Manifest, error) {
+func GetManifestFromHelmChart(ctx context.Context, c client.Reader, bd *fleet.BundleDeployment) (*manifest.Manifest, error) {
 	helm := bd.Spec.Options.Helm
 
 	if helm == nil {
