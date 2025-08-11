@@ -231,26 +231,30 @@ func GetContent(ctx context.Context, base, source, version string, auth Auth, di
 		source += fmt.Sprintf("sshkey=%s", base64.StdEncoding.EncodeToString(auth.SSHPrivateKey))
 	}
 
-	// copy getter.Getters before changing
-	getters := map[string]getter.Getter{}
-	for k, v := range getter.Getters {
-		getters[k] = v
+	customGetters := []getter.Getter{}
+	for _, g := range getter.Getters {
+		// Replace default HTTP(S) getter with our customized one
+		if _, ok := g.(*getter.HttpGetter); ok {
+			continue
+		}
+		customGetters = append(customGetters, g)
 	}
 
 	httpGetter := newHttpGetter(auth)
-	getters["http"] = httpGetter
-	getters["https"] = httpGetter
+	customGetters = append(customGetters, httpGetter)
 
-	c := getter.Client{
-		Ctx:     ctx,
+	client := &getter.Client{
+		Getters: customGetters,
+	}
+
+	req := &getter.Request{
 		Src:     source,
 		Dst:     temp,
 		Pwd:     base,
-		Mode:    getter.ClientModeDir,
-		Getters: getters,
+		GetMode: getter.ModeDir,
 	}
 
-	if err := c.Get(); err != nil {
+	if _, err := client.Get(ctx, req); err != nil {
 		return nil, err
 	}
 
