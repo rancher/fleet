@@ -134,7 +134,7 @@ func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet
 			return "", fmt.Errorf("invalid or corrupt manifest. Expecting id: %q, got %q", manifestID, actualID)
 		}
 	} else if bd.Spec.HelmChartOptions != nil {
-		m, err = bundlereader.GetManifestFromHelmChart(ctx, d.client, bd)
+		m, err = bundlereader.GetManifestFromHelmChart(ctx, d.upstreamClient, bd)
 		if err != nil {
 			return "", err
 		}

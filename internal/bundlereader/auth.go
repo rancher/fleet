@@ -18,7 +18,7 @@ type Auth struct {
 	BasicHTTP          bool   `json:"basicHTTP,omitempty"`
 }
 
-func ReadHelmAuthFromSecret(ctx context.Context, c client.Client, req types.NamespacedName) (Auth, error) {
+func ReadHelmAuthFromSecret(ctx context.Context, c client.Reader, req types.NamespacedName) (Auth, error) {
 	if req.Name == "" {
 		return Auth{}, nil
 	}
