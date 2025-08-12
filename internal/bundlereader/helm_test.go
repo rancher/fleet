@@ -249,7 +249,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 	cases := []struct {
 		name                string
 		bd                  fleet.BundleDeployment
-		clientCalls         func(*mocks.MockClient)
+		readerCalls         func(*mocks.MockReader)
 		requiresAuth        bool
 		expectedNilManifest bool
 		expectedResources   []fleet.BundleResource
@@ -265,7 +265,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 					},
 				},
 			},
-			clientCalls:         func(c *mocks.MockClient) {},
+			readerCalls:         func(c *mocks.MockReader) {},
 			requiresAuth:        false,
 			expectedNilManifest: true,
 			expectedResources:   []fleet.BundleResource{},
@@ -284,7 +284,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 					},
 				},
 			},
-			clientCalls: func(c *mocks.MockClient) {
+			readerCalls: func(c *mocks.MockReader) {
 				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(fmt.Errorf("secret not found"))
 			},
 			requiresAuth:        false,
@@ -308,7 +308,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 					},
 				},
 			},
-			clientCalls: func(c *mocks.MockClient) {
+			readerCalls: func(c *mocks.MockReader) {
 				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ types.NamespacedName, secret *corev1.Secret, _ ...interface{}) error {
 						secret.Data = make(map[string][]byte)
@@ -339,7 +339,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 					},
 				},
 			},
-			clientCalls: func(c *mocks.MockClient) {
+			readerCalls: func(c *mocks.MockReader) {
 				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 			},
 			requiresAuth:        false,
@@ -363,7 +363,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 					},
 				},
 			},
-			clientCalls:         func(c *mocks.MockClient) {},
+			readerCalls:         func(c *mocks.MockReader) {},
 			requiresAuth:        false,
 			expectedNilManifest: false,
 			expectedResources: []fleet.BundleResource{
@@ -387,12 +387,12 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockClient := mocks.NewMockClient(mockCtrl)
+	mockUpstreamReader := mocks.NewMockReader(mockCtrl)
 
 	assert := assert.New(t)
 	for _, c := range cases {
 		// set expected calls to client mock
-		c.clientCalls(mockClient)
+		c.readerCalls(mockUpstreamReader)
 
 		// start mock server for test
 		srv := newTLSServer(helmRepoIndex, c.requiresAuth)
@@ -407,7 +407,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 		// change the url in the error in case it is present
 		c.expectedError = strings.ReplaceAll(c.expectedError, "##URL##", srv.URL)
 
-		manifest, err := bundlereader.GetManifestFromHelmChart(context.TODO(), mockClient, &c.bd)
+		manifest, err := bundlereader.GetManifestFromHelmChart(context.TODO(), mockUpstreamReader, &c.bd)
 
 		assert.Equal(c.expectedNilManifest, manifest == nil)
 		assert.Equal(c.expectedErrNotNil, err != nil)
