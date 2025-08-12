@@ -3,6 +3,7 @@ package bundlereader
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -50,6 +51,28 @@ func ReadHelmAuthFromSecret(ctx context.Context, c client.Client, req types.Name
 	if ok {
 		auth.CABundle = caBundle
 	}
+
+	// Get the values for skipping TLS and basic HTTP connections.
+	// In case of error reading the values they will be considered
+	// as set to false as those values are security related.
+	insecureSkipVerify := false
+	if value, ok := secret.Data["insecureSkipVerify"]; ok {
+		boolValue, err := strconv.ParseBool(string(value))
+		if err == nil {
+			insecureSkipVerify = boolValue
+		}
+	}
+
+	basicHTTP := false
+	if value, ok := secret.Data["basicHTTP"]; ok {
+		boolValue, err := strconv.ParseBool(string(value))
+		if err == nil {
+			basicHTTP = boolValue
+		}
+	}
+
+	auth.InsecureSkipVerify = insecureSkipVerify
+	auth.BasicHTTP = basicHTTP
 
 	return auth, nil
 }
