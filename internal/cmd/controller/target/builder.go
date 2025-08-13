@@ -12,6 +12,7 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/go-logr/logr"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/rancher/fleet/internal/cmd/controller/options"
 	"github.com/rancher/fleet/internal/cmd/controller/target/matcher"
@@ -122,11 +123,18 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 
 	byNamespace := map[string]*fleet.BundleDeployment{}
 	for _, bd := range bundleDeployments.Items {
+		bd := bd.DeepCopy()
+		byNamespace[bd.Namespace] = bd
+
 		// and set their options
 		if bd.Spec.ValuesHash != "" {
 			secret := &corev1.Secret{}
 			if err := m.reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: bd.Name}, secret); err != nil {
-				return nil, fmt.Errorf("failed to get options secret for bundledeployment %s/%s, this is likely temporary: %w", bd.Namespace, bd.Name, err)
+				if apierrors.IsNotFound(err) {
+					logger.V(1).Info("failed to get options secret for bundledeployment %s/%s, this is likely temporary", bd.Namespace, bd.Name)
+					continue
+				}
+				return nil, err
 			}
 
 			h := helmvalues.HashOptions(secret.Data[helmvalues.ValuesKey], secret.Data[helmvalues.StagedValuesKey])
@@ -134,12 +142,11 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 				return nil, fmt.Errorf("retrying, hash mismatch between secret and bundledeployment: actual %s != expected %s", h, bd.Spec.ValuesHash)
 			}
 
-			if err := helmvalues.SetOptions(&bd, secret.Data); err != nil {
+			if err := helmvalues.SetOptions(bd, secret.Data); err != nil {
 				return nil, err
 			}
 		}
 
-		byNamespace[bd.Namespace] = &bd
 	}
 
 	for _, target := range targets {
