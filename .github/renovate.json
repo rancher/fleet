@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>rancher/renovate-config//rancher-main#fix_bumping_of_kubernetes"
+    "github>rancher/renovate-config//rancher-main#actually_allow_security_bumps"
   ],
   "baseBranchPatterns": [
     "main",
@@ -19,7 +19,7 @@
         "release/v0.13"
       ],
       "extends": [
-        "github>rancher/renovate-config//rancher-2.12#fix_bumping_of_kubernetes"
+        "github>rancher/renovate-config//rancher-2.12#actually_allow_security_bumps"
       ]
     },
     {
@@ -27,7 +27,7 @@
         "release/v0.12"
       ],
       "extends": [
-        "github>rancher/renovate-config//rancher-2.11#fix_bumping_of_kubernetes"
+        "github>rancher/renovate-config//rancher-2.11#actually_allow_security_bumps"
       ]
     },
     {
@@ -35,7 +35,7 @@
         "release/v0.11"
       ],
       "extends": [
-        "github>rancher/renovate-config//rancher-2.10#fix_bumping_of_kubernetes"
+        "github>rancher/renovate-config//rancher-2.10#actually_allow_security_bumps"
       ]
     },
     {
@@ -43,7 +43,7 @@
         "release/v0.10"
       ],
       "extends": [
-        "github>rancher/renovate-config//rancher-2.9#fix_bumping_of_kubernetes"
+        "github>rancher/renovate-config//rancher-2.9#actually_allow_security_bumps"
       ]
     }
   ]
