@@ -6,6 +6,14 @@ set -euxo pipefail
 public_hostname="${public_hostname-172.28.0.2.sslip.io}"
 cluster_downstream="${cluster_downstream-k3d-downstream}"
 ctx=$(kubectl config current-context)
+if command -v rancher-cli &> /dev/null; then
+  rancher_cli="rancher-cli"
+elif command -v rancher &> /dev/null; then
+  rancher_cli="rancher"
+else
+  echo "Neither rancher-cli nor rancher found in PATH"
+  exit 1
+fi
 
 # hardcoded token, cluster is ephemeral and private
 token="token-ci:zfllcbdr4677rkj4hmlr8rsmljg87l7874882928khlfs2pmmcq7l5"
@@ -36,17 +44,17 @@ userPrincipal:
 EOF
 
 # Log into the 4th project listed by `rancher login`, which should be the local cluster's default project.
-echo -e "4\n" | rancher login "https://$public_hostname" --token "$token" --skip-verify
+echo -e "4\n" | $rancher_cli login "https://$public_hostname" --token "$token" --skip-verify
 
-rancher clusters create second --import
-until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' | grep -Eq "c-[a-z0-9]" ; do sleep 1; done
-id=$( rancher cluster ls --format json | jq -r 'select(.Name=="second") | .ID' )
+$rancher_cli clusters create second --import
+until $rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .ID' | grep -Eq "c-[a-z0-9]" ; do sleep 1; done
+id=$( $rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .ID' )
 
-until rancher cluster import "$id" | grep -q curl; do sleep 1; done
+until $rancher_cli cluster import "$id" | grep -q curl; do sleep 1; done
 kubectl config use-context "$cluster_downstream"
-rancher cluster import "$id" | grep curl | sh
+$rancher_cli cluster import "$id" | grep curl | sh
 
-until rancher cluster ls --format json | jq -r 'select(.Name=="second") | .Cluster.state' | grep -q active; do
+until $rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .Cluster.state' | grep -q active; do
   echo waiting for cluster registration
   sleep 5
 done
