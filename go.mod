@@ -29,7 +29,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-getter/v2 v2.2.3
 	github.com/jpillora/backoff v1.0.0
-	github.com/onsi/ginkgo/v2 v2.23.4
+	github.com/onsi/ginkgo/v2 v2.24.0
 	github.com/onsi/gomega v1.38.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
