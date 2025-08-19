@@ -7,10 +7,16 @@ if [ ! -d ./.github/scripts ]; then
   exit 1
 fi
 
-public_hostname="${public_hostname-172.18.0.1.sslip.io}"
 upstream_ctx="${FLEET_E2E_CLUSTER-k3d-upstream}"
 downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream1}"
 rancherpassword="${RANCHER_PASSWORD-rancherpassword}"
+
+public_hostname="${public_hostname:-}"
+if [ -z "${public_hostname}" ]; then
+  until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
+  ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  public_hostname="$ip.sslip.io"
+fi
 
 version="${1-}"
 channel="${2-latest}" # latest or alpha
@@ -51,7 +57,8 @@ kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
 ./.github/scripts/wait-for-loadbalancer.sh
 
 export cluster_downstream="$downstream_ctx"
-./.github/scripts/register-downstream-clusters.sh "$public_hostname"
+export public_hostname="$public_hostname"
+./.github/scripts/register-downstream-clusters.sh
 
 # register-downstream-clusters.sh only supports fleet-default
 export FLEET_E2E_NS_DOWNSTREAM=fleet-default
