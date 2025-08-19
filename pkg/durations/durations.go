@@ -17,7 +17,7 @@ const (
 	CreateClusterSecretTimeout     = time.Minute * 30
 	DefaultClusterCheckInterval    = time.Minute * 15
 	DefaultImageInterval           = time.Minute * 15
-	DefaultRequeueueAfter          = time.Second * 5
+	DefaultRequeueAfter            = time.Second * 5
 	DefaultResyncAgent             = time.Minute * 30
 	FailureRateLimiterBase         = time.Millisecond * 5
 	FailureRateLimiterMax          = time.Second * 60
