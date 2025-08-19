@@ -30,13 +30,13 @@ jobs:
     steps:
       -
         name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         with:
           submodules: recursive
           fetch-depth: 0
       -
         name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -50,7 +50,7 @@ jobs:
       #   --scopes /subscriptions/{id}/resourceGroups/fleetCI
       -
         name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
         with:
           creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
       -
@@ -79,23 +79,23 @@ jobs:
           ./.github/scripts/build-fleet-binaries.sh
       -
         name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
       -
         name: Get UUID
         id: uuid
         run: echo "uuid=$(uuidgen)" >> $GITHUB_OUTPUT
       -
         id: meta-fleet
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
         with:
           images: |
             ttl.sh/rancher/fleet-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
       -
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
         with:
           context: .
           file: package/Dockerfile
@@ -106,13 +106,13 @@ jobs:
           labels: ${{ steps.meta-fleet.outputs.labels }}
       -
         id: meta-fleet-agent
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
         with:
           images: |
             ttl.sh/rancher/fleet-agent-${{ steps.uuid.outputs.uuid }}
           tags: type=raw,value=1h
       -
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
         with:
           context: .
           file: package/Dockerfile.agent
