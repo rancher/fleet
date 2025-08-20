@@ -36,19 +36,19 @@ jobs:
   create-rancher-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         with:
           fetch-depth: 0
           ref: ${{github.event.inputs.ref}}
           path: fleet
       - name: Checkout rancher/rancher
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
         with:
           fetch-depth: 0
           repository: rancher/rancher
           ref: ${{github.event.inputs.rancher_ref}}
           path: rancher
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
         with:
           go-version: ${{ env.SETUP_GO_VERSION }}
       - name: Run release script
@@ -56,7 +56,7 @@ jobs:
           export CHARTS_DIR="${GITHUB_WORKSPACE}/rancher"
           ./fleet/.github/scripts/release-against-rancher.sh ${{github.event.inputs.new_fleet}} ${{github.event.inputs.new_chart}} ${{github.event.inputs.should_bump_api}}
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
         with:
           token: ${{secrets.PUSH_TO_FORKS_SUBMIT_PRS}}
           push-to-fork: rancherbot/rancher
