@@ -21,6 +21,7 @@ var (
 		if err != nil {
 			return nil, err
 		}
+		// See https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation#about-authentication-as-a-github-app-installation for reference
 		return &httpgit.BasicAuth{
 			Username: "x-access-token",
 			Password: tok,
