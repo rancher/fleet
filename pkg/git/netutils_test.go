@@ -17,12 +17,20 @@ import (
 	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
+type fakeGetter struct {
+	auth *httpgit.BasicAuth
+	err  error
+}
+
+func (f fakeGetter) Get(appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
+	return f.auth, f.err
+}
+
 const gitClientTimeout = time.Second * 30
 
 var _ = Describe("git's GetAuthFromSecret tests", func() {
 	var (
-		secret               *corev1.Secret
-		origGetGitHubAppAuth = fleetgithub.GetGitHubAppAuth
+		secret *corev1.Secret
 	)
 
 	Context("Nil secret", func() {
@@ -117,15 +125,12 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 5VKnu9SpmXPxjinS8Mg9QXLrfi5SArEllzfXrgW9OU7ht2xandDD+B8S1cmZF+Yz
 1salKM9mBBkl0sWraqtzQSEDjPeAz8P4TpQKn6kIMiZkMnrurvI=
 -----END RSA PRIVATE KEY-----`)
+			origGetter = git.GitHubAppGetter
 		)
 		BeforeEach(func() {
-			fleetgithub.GetGitHubAppAuth = func(appID, instID int64, pem []byte) (*httpgit.BasicAuth, error) {
-				return &httpgit.BasicAuth{
-					Username: "x-access-token",
-					Password: "token",
-				}, nil
+			git.GitHubAppGetter = fakeGetter{
+				auth: &httpgit.BasicAuth{Username: "x-access-token", Password: "token"},
 			}
-
 			secret = &corev1.Secret{
 				Type: corev1.SecretTypeOpaque,
 				Data: map[string][]byte{
@@ -135,7 +140,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 				},
 			}
 		})
-		AfterEach(func() { fleetgithub.GetGitHubAppAuth = origGetGitHubAppAuth })
+		AfterEach(func() { git.GitHubAppGetter = origGetter })
 		It("returns the basic auth Auth and no error", func() {
 			auth, err := git.GetAuthFromSecret("test-url.com", secret, "")
 			Expect(err).ToNot(HaveOccurred())

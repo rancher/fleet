@@ -17,6 +17,8 @@ import (
 	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
+var GitHubAppGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
+
 // GetAuthFromSecret returns the AuthMethod calculated from the given secret, setting known hosts if needed.
 // Known hosts are sourced from the creds, if provided there. Otherwise, they will be sourced from the provided
 // knownHosts if non-empty.
@@ -62,7 +64,7 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 		}
 		return auth, nil
 	default:
-		if auth, keysArePresent, err := fleetgithub.GetGithubAppAuthFromSecret(creds); keysArePresent {
+		if auth, keysArePresent, err := fleetgithub.GetGithubAppAuthFromSecret(creds, GitHubAppGetter); keysArePresent {
 			if err != nil {
 				return nil, err
 			}
