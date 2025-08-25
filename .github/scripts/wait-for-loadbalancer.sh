@@ -8,6 +8,9 @@ while ! kubectl get ingress -n cattle-system rancher; do
 done
 
 # wait for loadBalancer IPs
-{ grep -q -m 1 -e ".*"; kill $!; } < <(kubectl get ingress -n cattle-system rancher -o 'go-template={{range .status.loadBalancer.ingress}}{{.ip}}{{"\n"}}{{end}}' -w)
+echo "Waiting for loadbalancer IP to be assigned..."
+timeout 300 bash -c 'until kubectl get ingress -n cattle-system rancher -o "go-template={{range .status.loadBalancer.ingress}}{{.ip}}{{\"\\n\"}}{{end}}" 2>/dev/null | grep -q ".*"; do sleep 2; done'
+
 # wait for certificate
-{ grep -q -m 1 -e "tls-rancher-ingress.*True"; kill $!; } < <(kubectl get certs -n cattle-system -w)
+echo "Waiting for TLS certificate to be ready..."
+timeout 300 bash -c 'until kubectl get certs -n cattle-system 2>/dev/null | grep -q "tls-rancher-ingress.*True"; do sleep 2; done'
