@@ -128,6 +128,7 @@ func (h *Helm) install(ctx context.Context, bundleID string, manifest *manifest.
 		u.TakeOwnership = options.Helm.TakeOwnership
 		u.EnableDNS = !options.Helm.DisableDNS
 		u.Replace = true
+		u.Atomic = options.Helm.Atomic
 		u.ReleaseName = releaseName
 		u.CreateNamespace = true
 		u.Namespace = defaultNamespace
@@ -191,7 +192,7 @@ func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (boo
 	if err != nil {
 		return false, nil
 	}
-	return r.Info.Status == release.StatusUninstalling, err
+	return r.Info.Status == release.StatusUninstalling || r.Info.Status == release.StatusPendingInstall, err
 }
 
 func (h *Helm) mustInstall(cfg *action.Configuration, releaseName string) (bool, error) {
