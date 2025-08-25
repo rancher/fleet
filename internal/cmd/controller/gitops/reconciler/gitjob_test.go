@@ -1424,7 +1424,7 @@ func TestNewJob(t *testing.T) { // nolint:funlen
 					SecurityContext: securityContext,
 					Env: []corev1.EnvVar{
 						{
-							Name:  fleetcli.JSONOutputEnvVar,
+							Name:  fleetapply.JSONOutputEnvVar,
 							Value: "true",
 						},
 					},
