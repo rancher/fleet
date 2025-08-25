@@ -175,7 +175,7 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 
 	if opts.GitHubAppID != 0 && opts.GitHubAppInstallation != 0 && opts.GitHubAppKeyFile != "" {
 		if _, err := fileStat(opts.GitHubAppKeyFile); err != nil {
-			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
+			return nil, fmt.Errorf("failed to resolve GitHub app private key from path: %w", err)
 		}
 
 		key, err := readFile(opts.GitHubAppKeyFile)
