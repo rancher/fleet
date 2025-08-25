@@ -52,6 +52,50 @@ func TestHasGitHubAppKeys(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			name: "all keys present but app id empty",
+			secret: &corev1.Secret{
+				Data: map[string][]byte{
+					GithubAppIDKey:             []byte(""),
+					GithubAppInstallationIDKey: []byte("123"),
+					GithubAppPrivateKeyKey:     []byte("priv"),
+				},
+			},
+			want: false,
+		},
+		{
+			name: "all keys present but installation id empty",
+			secret: &corev1.Secret{
+				Data: map[string][]byte{
+					GithubAppIDKey:             []byte("1"),
+					GithubAppInstallationIDKey: []byte(""),
+					GithubAppPrivateKeyKey:     []byte("priv"),
+				},
+			},
+			want: false,
+		},
+		{
+			name: "all keys present but private key empty",
+			secret: &corev1.Secret{
+				Data: map[string][]byte{
+					GithubAppIDKey:             []byte("1"),
+					GithubAppInstallationIDKey: []byte("123"),
+					GithubAppPrivateKeyKey:     []byte(""),
+				},
+			},
+			want: false,
+		},
+		{
+			name: "all keys present and non-empty",
+			secret: &corev1.Secret{
+				Data: map[string][]byte{
+					GithubAppIDKey:             []byte("1"),
+					GithubAppInstallationIDKey: []byte("123"),
+					GithubAppPrivateKeyKey:     []byte("priv"),
+				},
+			},
+			want: true,
+		},
 	}
 
 	for _, tc := range tests {

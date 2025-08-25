@@ -17,9 +17,11 @@ func HasGitHubAppKeys(secret *corev1.Secret) bool {
 		return false
 	}
 
-	_, hasID := secret.Data[GithubAppIDKey]
-	_, hasInstallationID := secret.Data[GithubAppInstallationIDKey]
-	_, hasPrivateKey := secret.Data[GithubAppPrivateKeyKey]
+	id, hasID := secret.Data[GithubAppIDKey]
+	installationID, hasInstallationID := secret.Data[GithubAppInstallationIDKey]
+	privateKey, hasPrivateKey := secret.Data[GithubAppPrivateKeyKey]
 
-	return hasID && hasInstallationID && hasPrivateKey
+	return hasID && len(id) > 0 &&
+		hasInstallationID && len(installationID) > 0 &&
+		hasPrivateKey && len(privateKey) > 0
 }
