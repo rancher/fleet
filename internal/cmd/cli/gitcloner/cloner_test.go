@@ -11,9 +11,16 @@ import (
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/google/go-cmp/cmp"
-
-	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
+
+type fakeGetter struct{}
+
+func (fakeGetter) Get(appID, instID int64, key []byte) (*httpgit.BasicAuth, error) {
+	return &httpgit.BasicAuth{
+		Username: "x-access-token",
+		Password: "token",
+	}, nil
+}
 
 func TestCloneRepo(t *testing.T) {
 	const (
@@ -75,18 +82,13 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 		}
 		return nil, errors.New("file not found")
 	}
-	origGetGitHubAppAuth := fleetgithub.GetGitHubAppAuth
-	getGitHubAppAuth = func(appID, instID int64, key []byte) (*httpgit.BasicAuth, error) {
-		return &httpgit.BasicAuth{
-			Username: "x-access-token",
-			Password: "token",
-		}, nil
-	}
+	origGetter := appAuthGetter
+	appAuthGetter = fakeGetter{}
 	defer func() {
 		plainClone = git.PlainClone
 		readFile = os.ReadFile
 		fileStat = os.Stat
-		getGitHubAppAuth = origGetGitHubAppAuth
+		appAuthGetter = origGetter
 	}()
 
 	tests := map[string]struct {
@@ -198,7 +200,7 @@ udiSlDctMM/X3ZM2JN5M1rtAJ2WR3ZQtmWbOjZAbG2Eq
 				GitHubAppKeyFile:      "doesntexist",
 			},
 			expectedCloneOpts: nil,
-			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": failed to read GitHub app private key from file: file not found`),
+			expectedErr:       errors.New(`failed to create auth from options for repo="https://repo" branch="master" revision="" path="": failed to resolve GitHub app private key from path: file not found`),
 		},
 	}
 

@@ -22,10 +22,10 @@ import (
 const defaultBranch = "master"
 
 var (
-	plainClone       = git.PlainClone
-	readFile         = os.ReadFile
-	fileStat         = os.Stat
-	getGitHubAppAuth = fleetgithub.GetGitHubAppAuth
+	plainClone                              = git.PlainClone
+	readFile                                = os.ReadFile
+	fileStat                                = os.Stat
+	appAuthGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
 )
 
 type Cloner struct{}
@@ -183,7 +183,7 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
 		}
 
-		auth, err := getGitHubAppAuth(int64(opts.GitHubAppID), int64(opts.GitHubAppInstallation), key)
+		auth, err := appAuthGetter.Get(int64(opts.GitHubAppID), int64(opts.GitHubAppInstallation), key)
 		if err != nil {
 			return nil, err
 		}
