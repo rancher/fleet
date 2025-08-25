@@ -128,6 +128,54 @@ func TestReadHelmAuthFromSecret(t *testing.T) {
 			expectedErrNotNil: true,
 			expectedError:     "error getting secret",
 		},
+		{
+			name: "insecureSkipVerify is set to true",
+			secretData: map[string][]byte{
+				"insecureSkipVerify": []byte("true"),
+			},
+			getError: "",
+			expectedAuth: bundlereader.Auth{
+				InsecureSkipVerify: true,
+			},
+			expectedErrNotNil: false,
+			expectedError:     "",
+		},
+		{
+			name: "insecureSkipVerify is set to an invalid value",
+			secretData: map[string][]byte{
+				"insecureSkipVerify": []byte("THIS_IS_NOT_A_VALID_VALUE"),
+			},
+			getError: "",
+			expectedAuth: bundlereader.Auth{
+				InsecureSkipVerify: false,
+			},
+			expectedErrNotNil: false,
+			expectedError:     "",
+		},
+		{
+			name: "basicHTTP is set to true",
+			secretData: map[string][]byte{
+				"basicHTTP": []byte("true"),
+			},
+			getError: "",
+			expectedAuth: bundlereader.Auth{
+				BasicHTTP: true,
+			},
+			expectedErrNotNil: false,
+			expectedError:     "",
+		},
+		{
+			name: "basicHTTP is set to an invalid value",
+			secretData: map[string][]byte{
+				"basicHTTP": []byte("THIS_IS_NOT_A_VALID_VALUE"),
+			},
+			getError: "",
+			expectedAuth: bundlereader.Auth{
+				BasicHTTP: false,
+			},
+			expectedErrNotNil: false,
+			expectedError:     "",
+		},
 	}
 
 	mockCtrl := gomock.NewController(t)
