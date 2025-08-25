@@ -146,7 +146,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 		})
 	})
 
-	Context("Github app auth with all expected key, invalid private key", func() {
+	Context("Github app auth with all expected keys, invalid private key", func() {
 		var (
 			gitHubAppID             = []byte("123")
 			githubAppInstallationID = []byte("456")
@@ -170,7 +170,7 @@ YcwLYudAztZeA/A4aM5Y0MA6PlNIeoHohuMkSZNOBcvkNEWdzGBpKb34yLfMarNm
 		})
 	})
 
-	Context("Github app auth with all expected key, non-numeric app id", func() {
+	Context("Github app auth with all expected keys, non-numeric app id", func() {
 		var (
 			gitHubAppID             = []byte("abc")
 			githubAppInstallationID = []byte("456")
