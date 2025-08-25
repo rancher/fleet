@@ -47,10 +47,10 @@ EOF
 echo -e "4\n" | $rancher_cli login "https://$public_hostname" --token "$token" --skip-verify
 
 $rancher_cli clusters create second --import
-until $rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .ID' | grep -Eq "c-[a-z0-9]" ; do sleep 1; done
+until $rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .ID' | grep -Eq "c-[a-z0-9]" ; do sleep 5; done
 id=$( $rancher_cli cluster ls --format json | jq -r 'select(.Name=="second") | .ID' )
 
-until $rancher_cli cluster import "$id" | grep -q curl; do sleep 1; done
+until $rancher_cli cluster import "$id" | grep -q curl; do sleep 5; done
 kubectl config use-context "$cluster_downstream"
 $rancher_cli cluster import "$id" | grep curl | sh
 
@@ -62,4 +62,4 @@ done
 kubectl config use-context "$ctx"
 
 # Wait for Fleet agent to be ready on downstream cluster
-until kubectl get bundles -n fleet-default | grep -q "fleet-agent-$id.*1/1"; do sleep 3; done
+until kubectl get bundles -n fleet-default | grep -q "fleet-agent-$id.*1/1"; do sleep 5; done
