@@ -1,98 +1,118 @@
 {
-  "run": {
-    "timeout": "20s"
-  },
-  "linters-settings": {
-    "revive": {
-      "rules": [
-        {
-          "name": "blank-imports",
-          "severity": "warning"
-        },
-        {
-          "name": "unexported-return",
-          "severity": "warning"
-        }
+  "formatters": {
+    "enable": [
+      "goimports"
+    ],
+    "exclusions": {
+      "generated": "lax",
+      "paths": [
+        "third_party$",
+        "builtin$",
+        "examples$"
       ]
-    },
-    "funlen": {
-      "lines": 270,
-      "statements": 110
     }
   },
   "linters": {
-    "disable-all": true,
+    "default": "none",
     "enable": [
-      "misspell",
-      "govet",
-      "staticcheck",
-      "errcheck",
-      "unparam",
-      "ineffassign",
-      "nakedret",
-      "gocyclo",
       "dupl",
-      "goimports",
-      "revive",
-      "gosec",
-      "gosimple",
-      "typecheck",
-      "unused",
+      "errcheck",
       "funlen",
-      "ginkgolinter"
-    ]
-  },
-  "issues": {
-    "exclude-rules": [
-      {
-        "path": "cmd/fleetcontroller/main.go",
-        "text": "G108: Profiling endpoint is automatically exposed on /debug/pprof"
+      "ginkgolinter",
+      "gocyclo",
+      "gosec",
+      "govet",
+      "ineffassign",
+      "misspell",
+      "nakedret",
+      "revive",
+      "staticcheck",
+      "unparam",
+      "unused"
+    ],
+    "exclusions": {
+      "generated": "lax",
+      "paths": [
+        "third_party$",
+        "builtin$",
+        "examples$"
+      ],
+      "presets": [
+        "comments",
+        "common-false-positives",
+        "legacy",
+        "std-error-handling"
+      ],
+      "rules": [
+        {
+          "path": "cmd/fleetcontroller/main.go",
+          "text": "G108: Profiling endpoint is automatically exposed on /debug/pprof"
+        },
+        {
+          "path": "cmd/fleetagent/main.go",
+          "text": "G108: Profiling endpoint is automatically exposed on /debug/pprof"
+        },
+        {
+          "path": "internal/cmd/agent/register/register.go",
+          "text": "G107: Potential HTTP request made with variable url"
+        },
+        {
+          "path": "internal/cmd",
+          "text": "SA1019: workqueue.RateLimiter is deprecated"
+        },
+        {
+          "linters": [
+            "revive"
+          ],
+          "path": "internal/cmd/agent/deployer/internal/"
+        },
+        {
+          "linters": [
+            "dupl",
+            "funlen",
+            "gocyclo",
+            "gosec"
+          ],
+          "path": "_test.go"
+        },
+        {
+          "linters": [
+            "gosec"
+          ],
+          "path": "e2e"
+        },
+        {
+          "linters": [
+            "gosec"
+          ],
+          "path": "integrationtests"
+        },
+        {
+          "linters": [
+            "gosec"
+          ],
+          "path": "benchmarks"
+        }
+      ]
+    },
+    "settings": {
+      "funlen": {
+        "lines": 270,
+        "statements": 110
       },
-      {
-        "path": "cmd/fleetagent/main.go",
-        "text": "G108: Profiling endpoint is automatically exposed on /debug/pprof"
-      },
-      {
-        "path": "internal/cmd/agent/register/register.go",
-        "text": "G107: Potential HTTP request made with variable url"
-      },
-      {
-        "path": "internal/cmd",
-        "text": "SA1019: workqueue.RateLimiter is deprecated"
-      },
-      {
-        "path": "internal/cmd/agent/deployer/internal/",
-        "linters": [
-          "revive"
-        ]
-      },
-      {
-        "path": "_test.go",
-        "linters": [
-          "gocyclo",
-          "dupl",
-          "funlen",
-          "gosec"
-        ]
-      },
-      {
-        "path": "e2e",
-        "linters": [
-          "gosec"
-        ]
-      },
-      {
-        "path": "integrationtests",
-        "linters": [
-          "gosec"
-        ]
-      },
-      {
-        "path": "benchmarks",
-        "linters": [
-          "gosec"
+      "revive": {
+        "rules": [
+          {
+            "name": "blank-imports",
+            "severity": "warning"
+          },
+          {
+            "name": "unexported-return",
+            "severity": "warning"
+          }
         ]
       }
-    ]
-  }
+    }
+  },
+  "version": "2"
 }
