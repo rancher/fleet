@@ -540,6 +540,8 @@ func (r *GitJobReconciler) newGitCloner(
 					"--github-app-installation-id", string(secret.Data[fleetgithub.GithubAppInstallationIDKey]),
 					"--github-app-key-file", "/gitjob/githubapp/"+fleetgithub.GithubAppPrivateKeyKey,
 				)
+			} else {
+				return corev1.Container{}, fmt.Errorf("missing Github App keys in secret %s/%s", secret.Namespace, secret.Name)
 			}
 		}
 	}
