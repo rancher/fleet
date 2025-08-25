@@ -147,6 +147,49 @@ var _ = Describe("Fleet CLI Deploy", func() {
 		})
 	})
 
+	When("deploying on top of a release in `pending-install` status", func() {
+		BeforeEach(func() {
+			releaseSecret := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "sh.helm.release.v1.testbundle-simple-chart.v1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"name":    "testbundle-simple-chart",
+						"owner":   "helm",
+						"status":  "pending-install",
+						"version": "1",
+					},
+				},
+				Type: "helm.sh/release.v1",
+				Data: map[string][]byte{
+					"release": []byte("H4sIAAAAAAAAA51V23LiOBD9FZdfF4htAgFXzUNgA8vkMpUbBG9SKVlu2wqypLJkByeVfx/JhpBkZpLafTJq+pzuPupWP9sMZWD7tgKpwoJFFNqSZEJ/cIpyZbdswmJu+892THKp7iMQlFcQaYjneL22M2h7vSu35ztDf/+g47ruwO0O+4O/HM93HA2n6P+gIqCgav/6IHFOhCKcacOMSYUotTA3aSrQDtqgCqn/E8AiwpI2aXzsl5bdlKHzz0ChCClkfm+KxpzFJHmttIRcNjGcjttxfol8aBmVrNrdUilSlkaQmIC0iJJWw6ZRSJD5K1Xp1Raxs7gdt1+zI8a4zlxbZS0wBVAdjJSi0CF8DyXAVNukKgXC0Gjx0WlzZyT69A4/olYAop2D5EWOwQgXIyrhN44S8pJgaCOMecGUyUFrqiph0tFVUYLrAoyVcryyfVZQqj1Ax0fKcP/7vOuxjXGvkSpDolOhjBqh64uxlzcjMc/mFfZoGT7wJHo4OkYeLYK/eXLuDYsgo+xqMXkcZy6NppPV8uYi/ZHwZDbtpeHiuj/754Li7rnSeIWna3qyOOPLm++O/pZhFojgUewwjW9/Nv7uLRdrN7g6qk6r2fFsPCqWC5f+IKMDqA6LeTaR0WL+dJLVMZL4xjnW5f6mqo1YG63+Q2nX3ryKMvoQXE8elt7QDdn5cbiYO8vFRRpNj/pjcpgsF70i7JqzxrPT2qZT5cFirU7YGT/x0jL0pJZgVAWXrgjZmcav5cl49IizaxXdjBjOJqvg3Mi1TpfZXOInrsvVPNOgDJ94sswmleENs4kKrniCvaHSXCWezistW4mTb9/slzs9KYgWIN9MUgQxKmjTraYXJE4hQ9tuiAk13uZgJrKZkx0Y1qju1prVoDPESKybue6x7Sz5VuneMqOmf8ssy2B96x3UmM0MaE9zdL3uLVsRFvnWuA55isQt2z4DNcmbCazPlsXDB8BK6iHICX8zCESzbIv8w5wZAopCoF9xpUimvtXFqDtEUdRznGEY9feH+14Y457rDcIDFEM4QIOugz20K9bEfRex3Uh5y3SbpZyv3k2b5Bm0uYAcKZ5rB6OENl82TXq4GeiWLZBKP7yFe1/19CcX1Aj+PsqXqqdAs45M90wRviVy2L7grfpQiCRHEfwicMy5b4Uo30n0sWgo9RtqZLHfkJqid6z23WZJ5QUzTaldcr167pH6w7bq9p39QW/gdV+31XYVfQoa9txufzB8BQndBuaeLguMASK97F62e+9ecP2wkvr1tEOIuc7WSNPGOTTP7V09hduV4rbst2ti06f2y09Y3Y4W3gcAAA=="),
+				},
+			}
+			Expect(k8sClient.Create(ctx, &releaseSecret)).ToNot(HaveOccurred())
+			args = []string{
+				"--input-file", clihelper.AssetsPath + "bundledeployment/bd.yaml",
+				"--namespace", "default",
+			}
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(ctx, &releaseSecret)).ToNot(HaveOccurred())
+			})
+		})
+
+		It("installs the release successfully", func() {
+			buf, err := act(args)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating resources")
+			Expect(buf).To(gbytes.Say("- apiVersion: v1"))
+			Expect(buf).To(gbytes.Say("  data:"))
+			Expect(buf).To(gbytes.Say("    name: example-value"))
+
+			cm := &corev1.ConfigMap{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-simple-chart-config"}, cm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
 	When("Printing results with --dry-run", func() {
 		BeforeEach(func() {
 			args = []string{
