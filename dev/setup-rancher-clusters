@@ -39,7 +39,6 @@ helm upgrade rancher "https://releases.rancher.com/server-charts/${channel}/ranc
   --set "extraEnv[0].value=https://$public_hostname" \
   --set replicas=1 \
   --set hostname="$public_hostname" \
-  --set agentTLSMode=system-store \
   --set bootstrapPassword="$rancherpassword"
 
 # wait for deployment of rancher
