@@ -15,33 +15,16 @@ else
   exit 1
 fi
 
-# hardcoded token, cluster is ephemeral and private
-token="token-ci:zfllcbdr4677rkj4hmlr8rsmljg87l7874882928khlfs2pmmcq7l5"
-
-user=$(kubectl get users -l authz.management.cattle.io/bootstrapping=admin-user -o go-template='{{range .items }}{{.metadata.name}}{{"\n"}}{{end}}' | tail -1)
-sed "s/user-zvnsr/$user/" <<'EOF' | kubectl apply -f -
-apiVersion: management.cattle.io/v3
-kind: Token
-authProvider: local
-metadata:
-  labels:
-    authn.management.cattle.io/kind: kubeconfig
-    authn.management.cattle.io/token-userId: user-zvnsr
-    cattle.io/creator: norman
-  name: token-ci
-ttl: 0
-token: zfllcbdr4677rkj4hmlr8rsmljg87l7874882928khlfs2pmmcq7l5
-userId: user-zvnsr
-userPrincipal:
-  displayName: Default Admin
-  loginName: admin
-  me: true
-  metadata:
-    creationTimestamp: null
-    name: local://user-zvnsr
-  principalType: user
-  provider: local
-EOF
+# Get Rancher token
+rancherpassword=$(kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{.data.bootstrapPassword|base64decode}}')
+login_response=$(curl -k -s -X POST "https://${public_hostname}/v3-public/localProviders/local?action=login" \
+  -H 'Content-Type: application/json' \
+  -d "{\"username\":\"admin\",\"password\":\"${rancherpassword}\"}")
+token=$(echo "$login_response" | jq -r '.token')
+if [ "$token" = "null" ] || [ -z "$token" ]; then
+  echo "Failed to get authentication token"
+  exit 1
+fi
 
 # Log into the 4th project listed by `rancher login`, which should be the local cluster's default project.
 echo -e "4\n" | $rancher_cli login "https://$public_hostname" --token "$token" --skip-verify
