@@ -49,6 +49,10 @@ func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
 
 		r.Client = authCli
 
+		if a.BasicHTTP {
+			r.PlainHTTP = true
+		}
+
 		tag, err := GetOCITag(r, location.Version)
 
 		if len(tag) == 0 || err != nil {
