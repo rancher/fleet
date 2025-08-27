@@ -17,15 +17,15 @@ on:
       rancher_version:
         description: "Rancher version to install"
         required: true
-        default: "2.10.3"
+        default: "2.12.0"
       fleet_crd_url:
         description: "Fleet CRD chart URL from rancher/charts"
         required: true
-        default: https://github.com/rancher/charts/raw/dev-v2.9/assets/fleet-crd/fleet-crd-104.0.0+up0.10.0-rc.4.tgz
+        default: https://github.com/rancher/charts/raw/dev-v2.12/assets/fleet-crd/fleet-crd-107.0.1+up0.13.1.tgz
       fleet_url:
         description: "Fleet chart URL from rancher/charts"
         required: true
-        default: https://github.com/rancher/charts/raw/dev-v2.9/assets/fleet/fleet-104.0.0+up0.10.0-rc.4.tgz
+        default: https://github.com/rancher/charts/raw/dev-v2.12/assets/fleet/fleet-107.0.1+up0.13.1.tgz
       image_repo:
         description: "Fleet image repo, the image name fleet/fleet-agent is to be appended later"
         required: true
@@ -33,7 +33,7 @@ on:
       image_tag:
         description: "Fleet image tag"
         required: true
-        default: "v0.10.0-rc.4"
+        default: "v0.13.1"
 
 env:
   GOARCH: amd64
@@ -109,8 +109,8 @@ jobs:
         run: |
           # download an older CLI to avoid https://github.com/rancher/rancher/issues/37574
           mkdir -p /home/runner/.local/bin
-          wget -q https://github.com/rancher/cli/releases/download/v2.6.0/rancher-linux-amd64-v2.6.0.tar.gz
-          tar -xz --strip-components=2 -f rancher-linux-amd64-v2.6.0.tar.gz -C /home/runner/.local/bin
+          wget -q https://github.com/rancher/cli/releases/download/v2.12.0/rancher-linux-amd64-v2.12.0.tar.gz
+          tar -xz --strip-components=2 -f rancher-linux-amd64-v2.12.0.tar.gz -C /home/runner/.local/bin
           rancher --version
       -
         name: Install k3d
