@@ -107,7 +107,6 @@ jobs:
         name: Install Rancher CLI
         if: steps.rancher-cli-cache.outputs.cache-hit != 'true'
         run: |
-          # download an older CLI to avoid https://github.com/rancher/rancher/issues/37574
           mkdir -p /home/runner/.local/bin
           wget -q https://github.com/rancher/cli/releases/download/v2.12.0/rancher-linux-amd64-v2.12.0.tar.gz
           tar -xz --strip-components=2 -f rancher-linux-amd64-v2.12.0.tar.gz -C /home/runner/.local/bin
@@ -203,8 +202,12 @@ jobs:
         name: E2E tests for examples
         env:
           FLEET_E2E_NS: fleet-local
-          FLEET_E2E_NS_DOWNSTREAM: fleet-local
+          FLEET_E2E_NS_DOWNSTREAM: fleet-default
         run: |
+          # Force use of non-managed downstream cluster for portability
+          export CI_REGISTERED_CLUSTER=$(kubectl get clusters.fleet.cattle.io -n $FLEET_E2E_NS_DOWNSTREAM -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}' | grep -v second)
+
+          kubectl config use-context k3d-upstream
           ginkgo --github-output --trace e2e/multi-cluster
       -
         name: Dump Failed Downstream Environment
