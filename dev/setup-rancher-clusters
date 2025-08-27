@@ -44,10 +44,13 @@ helm upgrade rancher "https://releases.rancher.com/server-charts/${channel}/ranc
 # wait for deployment of rancher
 kubectl -n cattle-system rollout status deploy/rancher
 
-# wait for rancher to create fleet namespace, deployment and controller
-{ grep -q -m 1 "fleet"; kill $!; } < <(kubectl get deployments -n cattle-fleet-system -w)
+echo "Waiting for fleet deployment to appear..."
+timeout 300 bash -c 'until kubectl get deployments -n cattle-fleet-system 2>/dev/null | grep -q fleet; do sleep 2; done'
+
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
-{ grep -E -q -m 1 "fleet-agent-local.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-local -w)
+
+echo "Waiting for fleet-agent-local bundle to be ready..."
+timeout 300 bash -c 'until kubectl get bundles -n fleet-local 2>/dev/null | grep -E -q "fleet-agent-local.*1/1"; do sleep 2; done'
 
 ./.github/scripts/wait-for-loadbalancer.sh
 
