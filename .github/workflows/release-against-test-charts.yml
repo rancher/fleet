@@ -31,6 +31,11 @@ on:
       charts_target_branch:
         description: "Use the following branch as a destination when pushing to the charts repo"
         type: string
+    outputs:
+      target_branch:
+        value: ${{ jobs.push-test-rancher-charts.outputs.target_branch }}
+      charts_repo:
+        value: ${{ jobs.push-test-rancher-charts.outputs.charts_repo }}
 
 env:
   GOARCH: amd64
