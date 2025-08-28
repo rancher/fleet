@@ -2,6 +2,9 @@
 name: Test Fleet in Rancher
 
 on:
+  schedule:
+    # Run everyday at 1:00 PM
+    - cron:  '0 13 * * *'
   workflow_dispatch:
     inputs:
       charts_repo:
@@ -39,8 +42,18 @@ env:
   SETUP_K3S_VERSION: 'v1.31.1-k3s1'
 
 jobs:
+  release-against-test-charts:
+    uses: ./.github/workflows/release-against-test-charts.yml
+    # using default input values
+
   rancher-integration:
     runs-on: ubuntu-latest
+    needs: release-against-test-charts
+
+    with:
+      charts_repo: ${{ needs.release-against-test-charts.outputs.charts_repo }}
+      charts_branch: ${{ needs.release-against-test-charts.outputs.target_branch }}
+      fleet_version: 999.9.9+up9.9.9
 
     steps:
       -
