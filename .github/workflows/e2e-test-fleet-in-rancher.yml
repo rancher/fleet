@@ -50,11 +50,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: release-against-test-charts
 
-    with:
-      charts_repo: ${{ needs.release-against-test-charts.outputs.charts_repo }}
-      charts_branch: ${{ needs.release-against-test-charts.outputs.target_branch }}
-      fleet_version: 999.9.9+up9.9.9
-
     steps:
       -
         name: Add paths into PATH
@@ -187,6 +182,10 @@ jobs:
         run: |
           set -x
 
+          charts_repo=${{ needs.release-against-test-charts.outputs.charts_repo }}
+          charts_branch=${{ needs.release-against-test-charts.outputs.target_branch }}
+          fleet_version=999.9.9+up9.9.9
+
           kubectl config use-context k3d-upstream
 
           until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
@@ -213,11 +212,11 @@ jobs:
             --set bootstrapPassword=admin \
             --set agentTLSMode=system-store \
             --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
-            --set "extraEnv[0].value=https://github.com/${{ inputs.charts_repo }}" \
+            --set "extraEnv[0].value=https://github.com/${charts_repo}" \
             --set "extraEnv[1].name=CATTLE_CHART_DEFAULT_BRANCH" \
-            --set "extraEnv[1].value=${{ inputs.charts_branch }}" \
+            --set "extraEnv[1].value=${charts_branch}" \
             --set "extraEnv[2].name=CATTLE_FLEET_VERSION" \
-            --set "extraEnv[2].value=${{ inputs.fleet_version }}" \
+            --set "extraEnv[2].value=${fleet_version}" \
             --set "extraEnv[3].name=CATTLE_SERVER_URL" \
             --set "extraEnv[3].value=https://$ip.sslip.io" \
 
