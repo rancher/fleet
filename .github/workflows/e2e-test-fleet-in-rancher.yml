@@ -9,26 +9,13 @@ on:
     inputs:
       charts_repo:
         description: Repository from which to source Fleet charts
+        required: true
         default: "fleetrepoci/charts"
         type: string
       charts_branch:
         description: Branch from which to source Fleet charts
-        type: string
-      fleet_version:
-        description: Fleet version to install in Rancher
-        type: string
-  workflow_call:
-    # Variables to set when calling this reusable workflow
-    inputs:
-      charts_repo:
-        description: Repository from which to source Fleet charts
-        default: "fleetrepoci/charts"
-        type: string
-      charts_branch:
-        description: Branch from which to source Fleet charts
-        type: string
-      fleet_version:
-        description: Fleet version to install in Rancher
+        required: true
+        default: "dev-v2.12"
         type: string
   push:
     tags: [ 'v*' ]
@@ -44,7 +31,9 @@ env:
 jobs:
   release-against-test-charts:
     uses: ./.github/workflows/release-against-test-charts.yml
-    # using default input values
+    with:
+      charts_repo: ${{ github.event.inputs.charts_repo }}
+      charts_base_branch: ${{ github.event.inputs.charts_branch }}
 
   rancher-integration:
     runs-on: ubuntu-latest
