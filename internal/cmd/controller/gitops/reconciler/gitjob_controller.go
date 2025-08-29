@@ -193,7 +193,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		// requeue as adding the finalizer changes the spec
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
 	logger = logger.WithValues("generation", gitrepo.Generation, "commit", gitrepo.Status.Commit).WithValues("conditions", gitrepo.Status.Conditions)
@@ -225,8 +225,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// If so, we need to return a Result with EnqueueAfter set.
 
 	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled)
-	// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
-	if err != nil || res.Requeue {
+	if err != nil {
 		return res, err
 	}
 
@@ -306,7 +305,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 		// job was deleted and we need to recreate it
 		// Requeue so the reconciler creates the job again
 		if recreateGitJob {
-			return reconcile.Result{Requeue: true}, nil
+			return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 		}
 	}
 
@@ -536,7 +535,7 @@ func (r *GitJobReconciler) result(gitrepo *v1alpha1.GitRepo) reconcile.Result {
 		// In those cases controller-runtime does not call AddAfter for this object and
 		// the RequeueAfter cycle is lost.
 		// To ensure that this cycle is not broken we force the object to be requeued.
-		return reconcile.Result{Requeue: true}
+		return reconcile.Result{RequeueAfter: time.Second}
 	}
 	requeueAfter = addJitter(requeueAfter)
 	return reconcile.Result{RequeueAfter: requeueAfter}
