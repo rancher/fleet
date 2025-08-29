@@ -125,9 +125,8 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
-	if !res.Requeue {
-		t.Errorf("expecting Requeue set to true, it was false")
+	if res.RequeueAfter != time.Second {
+		t.Errorf("expecting RequeueAfter set to 1 second, it was %v", res.RequeueAfter)
 	}
 }
 
@@ -424,9 +423,8 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 	if err.Error() != "this is a test error" {
 		t.Errorf("expecting error: [this is a test error], got %v", err.Error())
 	}
-	// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
-	if res.Requeue {
-		t.Errorf("expecting Requeue set to false, it was true")
+	if res.RequeueAfter != 0 {
+		t.Errorf("expecting no requeue when there's an error, but got RequeueAfter: %v", res.RequeueAfter)
 	}
 }
 
@@ -509,9 +507,8 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 		t.Errorf("expecting error: [%s], got %v", expectedErrorMsg, err.Error())
 	}
 
-	// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
-	if res.Requeue {
-		t.Errorf("expecting Requeue set to false, it was true")
+	if res.RequeueAfter != 0 {
+		t.Errorf("expecting no requeue when there's an error, but got RequeueAfter: %v", res.RequeueAfter)
 	}
 }
 
@@ -593,9 +590,8 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 	if err != nil {
 		t.Errorf("found unexpected error %v", err)
 	}
-	// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
-	if res.Requeue {
-		t.Errorf("expecting Requeue set to false, it was true")
+	if res.RequeueAfter != 0 {
+		t.Errorf("expecting no requeue on successful reconciliation, but got RequeueAfter: %v", res.RequeueAfter)
 	}
 }
 
