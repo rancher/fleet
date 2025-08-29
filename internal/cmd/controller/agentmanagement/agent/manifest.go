@@ -44,6 +44,7 @@ type ManifestOptions struct {
 	BundleDeploymentWorkers string
 	DriftWorkers            string
 	cmd.LeaderElectionOptions
+	PriorityClassName string
 }
 
 // Manifest builds and returns a deployment manifest for the fleet-agent with a
@@ -165,6 +166,7 @@ func agentApp(namespace string, agentScope string, opts ManifestOptions) *appsv1
 					},
 				},
 				Spec: corev1.PodSpec{
+					PriorityClassName:  opts.PriorityClassName,
 					ServiceAccountName: serviceAccount,
 					Containers: []corev1.Container{
 						{

@@ -76,6 +76,21 @@ type ClusterList struct {
 	Items           []Cluster `json:"items"`
 }
 
+type AgentSchedulingCustomization struct {
+	PriorityClass       *PriorityClassSpec       `json:"priorityClass,omitempty"`
+	PodDisruptionBudget *PodDisruptionBudgetSpec `json:"podDisruptionBudget,omitempty"`
+}
+
+type PriorityClassSpec struct {
+	Value            int                      `json:"value,omitempty"`
+	PreemptionPolicy *corev1.PreemptionPolicy `json:"preemptionPolicy,omitempty"`
+}
+
+type PodDisruptionBudgetSpec struct {
+	MinAvailable   string `json:"minAvailable,omitempty"`
+	MaxUnavailable string `json:"maxUnavailable,omitempty"`
+}
+
 type ClusterSpec struct {
 	// Paused if set to true, will stop any BundleDeployments from being updated.
 	Paused bool `json:"paused,omitempty"`
@@ -134,6 +149,8 @@ type ClusterSpec struct {
 	// HostNetwork sets the agent Deployment to use hostNetwork: true setting.
 	// Allows for provisioning of network related bundles (CNI configuration).
 	HostNetwork *bool `json:"hostNetwork,omitempty"`
+
+	AgentSchedulingCustomization *AgentSchedulingCustomization `json:"agentSchedulingCustomization,omitempty"`
 }
 
 type ClusterStatus struct {
@@ -230,6 +247,8 @@ type ClusterStatus struct {
 
 	// GarbageCollectionInterval determines how often agents clean up obsolete Helm releases.
 	GarbageCollectionInterval *metav1.Duration `json:"garbageCollectionInterval,omitempty"`
+
+	AgentSchedulingCustomizationHash string `json:"agentSchedulingCustomizationHash,omitempty"`
 }
 
 type ClusterDisplay struct {

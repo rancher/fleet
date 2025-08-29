@@ -5561,6 +5561,25 @@ spec:
                         More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                       type: object
                   type: object
+                agentSchedulingCustomization:
+                  properties:
+                    podDisruptionBudget:
+                      properties:
+                        maxUnavailable:
+                          type: string
+                        minAvailable:
+                          type: string
+                      type: object
+                    priorityClass:
+                      properties:
+                        preemptionPolicy:
+                          description: PreemptionPolicy describes a policy for if/when
+                            to preempt a pod.
+                          type: string
+                        value:
+                          type: integer
+                      type: object
+                  type: object
                 agentTolerations:
                   description: AgentTolerations defines an extra set of Tolerations
                     to be added to the Agent deployment.
@@ -5747,6 +5766,8 @@ spec:
 
                     used to detect changes.'
                   nullable: true
+                  type: string
+                agentSchedulingCustomizationHash:
                   type: string
                 agentTLSMode:
                   description: 'AgentTLSMode supports two values: `system-store` and
