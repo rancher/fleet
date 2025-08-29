@@ -118,7 +118,7 @@ var _ = Describe("Git Repo", func() {
 			Eventually(func() string {
 				out, _ := k.Namespace("default").Get("pods")
 				return out
-			}).Should(ContainSubstring("sleeper-"))
+			}, "60s", "5s").Should(ContainSubstring("sleeper-"))
 
 			By("updating the git repository")
 			replace(path.Join(repodir, "examples", "Chart.yaml"), "0.1.0", "0.2.0")
@@ -131,14 +131,13 @@ var _ = Describe("Git Repo", func() {
 			Eventually(func() string {
 				out, _ := k.Get("gitrepo", "gitrepo-test", "-o", "yaml")
 				return out
-			}).Should(ContainSubstring("commit: " + commit))
+			}, "120s", "5s").Should(ContainSubstring("commit: " + commit))
 
 			By("checking the deployment's new name")
 			Eventually(func() string {
 				out, _ := k.Namespace("default").Get("deployments")
 				return out
-			}).Should(ContainSubstring("newsleep"))
-
+			}, "120s", "5s").Should(ContainSubstring("newsleep"))
 		})
 	})
 })

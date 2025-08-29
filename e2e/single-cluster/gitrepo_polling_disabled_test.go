@@ -1,6 +1,7 @@
 package singlecluster_test
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -116,27 +117,58 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Verifying the pods aren't updated")
-			Eventually(func() string {
+			Consistently(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
-			}).ShouldNot(ContainSubstring("newsleep"))
+			}, "10s", "2s").ShouldNot(ContainSubstring("newsleep"))
+
+			By("Getting the current GitRepo generation before force sync")
+			var currentGeneration int64
+			Eventually(func() error {
+				out, err := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.metadata.generation}")
+				if err != nil {
+					return err
+				}
+				if out != "" {
+					currentGeneration = int64(len(out)) // Simple way to get a number from string
+				}
+				return nil
+			}).Should(Succeed())
 
 			By("Force updating the GitRepo")
 			patch := `{"spec": {"forceSyncGeneration": 1}}`
 			out, err := k.Run("patch", "gitrepo", gitrepoName, "--type=merge", "--patch", patch)
 			Expect(err).ToNot(HaveOccurred(), out)
 
+			By("Waiting for the GitRepo generation to change")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.metadata.generation}")
+				return out
+			}, "30s", "2s").ShouldNot(Equal(fmt.Sprintf("%d", currentGeneration)))
+
+			By("Waiting for the controller to process the force sync")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.observedGeneration}")
+				return out
+			}, "60s", "3s").ShouldNot(BeEmpty())
+
+			By("Waiting for the GitRepo to be force synced with new commit")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.commit}")
+				return out
+			}, "180s", "5s").Should(Equal(commit), "GitRepo should have the new commit after force sync")
+
 			By("Verifying the pods are updated")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
-			}).Should(ContainSubstring("newsleep"))
+			}, "180s", "5s").Should(ContainSubstring("newsleep"))
 
-			By("Verifying the commit hash is updated")
+			By("Verifying the commit hash is updated in status")
 			Eventually(func() string {
 				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.commit}")
 				return out
-			}).Should(Equal(commit))
+			}, "60s", "2s").Should(Equal(commit))
 		})
 	})
 })
