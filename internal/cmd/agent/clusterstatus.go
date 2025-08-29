@@ -28,7 +28,6 @@ import (
 	"github.com/rancher/lasso/pkg/mapper"
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
-	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 	"github.com/rancher/wrangler/v3/pkg/ticker"
 )
 
@@ -60,7 +59,6 @@ func (cs *ClusterStatus) Start(ctx context.Context) error {
 
 	// without rate limiting
 	localConfig := rest.CopyConfig(kc)
-	localConfig.RateLimiter = ratelimit.None
 
 	// cannot start without kubeconfig for upstream cluster
 	setupLog.Info("Fetching kubeconfig for upstream cluster from registration", "namespace", cs.Namespace)
@@ -166,7 +164,6 @@ func newMappers(ctx context.Context, fleetRESTConfig *rest.Config, clientconfig 
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	client.RateLimiter = ratelimit.None
 
 	d, err := discovery.NewDiscoveryClientForConfig(client)
 	if err != nil {
