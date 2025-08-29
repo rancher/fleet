@@ -117,8 +117,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 
-		// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
 	if err := validate(ctx, *helmop); err != nil {
@@ -147,8 +146,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to HelmOp status", "status", helmop.Status)
 
-		// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
-		return ctrl.Result{Requeue: true}, err
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 	}
 
 	return ctrl.Result{}, err
