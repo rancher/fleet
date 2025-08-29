@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -308,6 +309,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
+	merr := []error{}
 	bundleDeploymentUIDs := make(sets.Set[types.UID])
 	for _, target := range matchedTargets {
 		if target.Deployment == nil {
@@ -325,6 +327,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// and copy labels from Bundle as they might have changed.
 		// However, matchedTargets target.Deployment contains existing BundleDeployments.
 		bd := target.BundleDeployment()
+		logger = logger.WithValues("bundledeployment", bd.Name)
 
 		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
 		// been created.
@@ -351,7 +354,15 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			bundle.Spec.HelmAppOptions != nil,
 			manifestID)
 		if err != nil {
-			return ctrl.Result{}, err
+			// We could end up here, because we cannot add a
+			// finalizer to a content resource, which has a
+			// deletion timestamp.
+			// Log the problem and keep trying to create the other
+			// bundledeployments, but retry the whole reconcile
+			// afterwards.
+			merr = append(merr, fmt.Errorf("failed to create bundle deployment: %w", err))
+			logger.Info("failed to create bundledeployment")
+			continue
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
 
@@ -380,10 +391,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	updateDisplay(&bundle.Status)
 	if err := r.updateStatus(ctx, bundleOrig, bundle); err != nil {
-		return ctrl.Result{}, err
+		merr = append(merr, err)
+		return ctrl.Result{}, errutil.NewAggregate(merr)
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, errutil.NewAggregate(merr)
 }
 
 func upper(op controllerutil.OperationResult) string {
@@ -445,7 +457,7 @@ func (r *BundleReconciler) createBundleDeployment(
 	contentsInHelmChart bool,
 	manifestID string,
 ) (*fleet.BundleDeployment, error) {
-	logger = logger.WithValues("bundledeployment", bd, "deploymentID", bd.Spec.DeploymentID)
+	logger = logger.WithValues("deploymentID", bd.Spec.DeploymentID)
 
 	// When content resources are stored in etcd, we need to add finalizers.
 	if !contentsInOCI && !contentsInHelmChart {
@@ -456,7 +468,7 @@ func (r *BundleReconciler) createBundleDeployment(
 
 		if added := controllerutil.AddFinalizer(content, bd.Name); added {
 			if err := r.Update(ctx, content); err != nil {
-				return nil, fmt.Errorf("could not add finalizer to content resource: %w", err)
+				return nil, fmt.Errorf("could not add finalizer to content resource, thus cannot create/update bundledeployment: %w", err)
 			}
 		}
 	}
