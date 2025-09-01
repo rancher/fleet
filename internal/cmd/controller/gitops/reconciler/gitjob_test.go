@@ -18,6 +18,7 @@ import (
 	"github.com/rancher/fleet/internal/mocks"
 	"github.com/rancher/fleet/internal/ssh"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"go.uber.org/mock/gomock"
 
@@ -141,8 +142,8 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	if res.RequeueAfter != time.Second {
-		t.Errorf("expecting RequeueAfter set to 1 second, it was %v", res.RequeueAfter)
+	if res.RequeueAfter != durations.DefaultRequeueAfter {
+		t.Errorf("expecting RequeueAfter set to default of 5 seconds, it was %v", res.RequeueAfter)
 	}
 }
 

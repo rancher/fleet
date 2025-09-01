@@ -17,6 +17,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/metrics"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 
@@ -193,7 +194,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		// requeue as adding the finalizer changes the spec
-		return ctrl.Result{RequeueAfter: time.Second}, nil
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
 	logger = logger.WithValues("generation", gitrepo.Generation, "commit", gitrepo.Status.Commit).WithValues("conditions", gitrepo.Status.Conditions)
@@ -305,7 +306,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 		// job was deleted and we need to recreate it
 		// Requeue so the reconciler creates the job again
 		if recreateGitJob {
-			return reconcile.Result{RequeueAfter: 2 * time.Second}, nil
+			return reconcile.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 		}
 	}
 
@@ -535,7 +536,7 @@ func (r *GitJobReconciler) result(gitrepo *v1alpha1.GitRepo) reconcile.Result {
 		// In those cases controller-runtime does not call AddAfter for this object and
 		// the RequeueAfter cycle is lost.
 		// To ensure that this cycle is not broken we force the object to be requeued.
-		return reconcile.Result{RequeueAfter: time.Second}
+		return reconcile.Result{RequeueAfter: durations.DefaultRequeueAfter}
 	}
 	requeueAfter = addJitter(requeueAfter)
 	return reconcile.Result{RequeueAfter: requeueAfter}
