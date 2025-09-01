@@ -120,7 +120,7 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			Consistently(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
-			}, "10s", "2s").ShouldNot(ContainSubstring("newsleep"))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).ShouldNot(ContainSubstring("newsleep"))
 
 			By("Getting the current GitRepo generation before force sync")
 			var currentGeneration int64
@@ -144,31 +144,31 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			Eventually(func() string {
 				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.metadata.generation}")
 				return out
-			}, "30s", "2s").ShouldNot(Equal(fmt.Sprintf("%d", currentGeneration)))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).ShouldNot(Equal(fmt.Sprintf("%d", currentGeneration)))
 
 			By("Waiting for the controller to process the force sync")
 			Eventually(func() string {
 				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.observedGeneration}")
 				return out
-			}, "60s", "3s").ShouldNot(BeEmpty())
+			}, testenv.MediumTimeout, testenv.ShortTimeout).ShouldNot(BeEmpty())
 
 			By("Waiting for the GitRepo to be force synced with new commit")
 			Eventually(func() string {
 				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.commit}")
 				return out
-			}, "180s", "5s").Should(Equal(commit), "GitRepo should have the new commit after force sync")
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Equal(commit), "GitRepo should have the new commit after force sync")
 
 			By("Verifying the pods are updated")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
-			}, "180s", "5s").Should(ContainSubstring("newsleep"))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(ContainSubstring("newsleep"))
 
 			By("Verifying the commit hash is updated in status")
 			Eventually(func() string {
 				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.commit}")
 				return out
-			}, "60s", "2s").Should(Equal(commit))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Equal(commit))
 		})
 	})
 })

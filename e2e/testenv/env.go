@@ -11,7 +11,11 @@ import (
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 )
 
-const Timeout = 5 * time.Minute
+const (
+	Timeout       = 5 * time.Minute
+	ShortTimeout  = "5s"
+	MediumTimeout = "120s"
+)
 
 type Env struct {
 	Kubectl kubectl.Command
