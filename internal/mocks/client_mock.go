@@ -17,7 +17,6 @@ import (
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
-	types "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -25,6 +24,7 @@ import (
 type MockClient struct {
 	ctrl     *gomock.Controller
 	recorder *MockClientMockRecorder
+	isgomock struct{}
 }
 
 // MockClientMockRecorder is the mock recorder for MockClient.
@@ -44,11 +44,30 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
-// Create mocks base method.
-func (m *MockClient) Create(arg0 context.Context, arg1 client.Object, arg2 ...client.CreateOption) error {
+// Apply mocks base method.
+func (m *MockClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
+	varargs := []any{ctx, obj}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Apply", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Apply indicates an expected call of Apply.
+func (mr *MockClientMockRecorder) Apply(ctx, obj any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, obj}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Apply", reflect.TypeOf((*MockClient)(nil).Apply), varargs...)
+}
+
+// Create mocks base method.
+func (m *MockClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, obj}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Create", varargs...)
@@ -57,17 +76,17 @@ func (m *MockClient) Create(arg0 context.Context, arg1 client.Object, arg2 ...cl
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockClientMockRecorder) Create(arg0, arg1 any, arg2 ...any) *gomock.Call {
+func (mr *MockClientMockRecorder) Create(ctx, obj any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
+	varargs := append([]any{ctx, obj}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockClient)(nil).Create), varargs...)
 }
 
 // Delete mocks base method.
-func (m *MockClient) Delete(arg0 context.Context, arg1 client.Object, arg2 ...client.DeleteOption) error {
+func (m *MockClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
+	varargs := []any{ctx, obj}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Delete", varargs...)
@@ -76,17 +95,17 @@ func (m *MockClient) Delete(arg0 context.Context, arg1 client.Object, arg2 ...cl
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockClientMockRecorder) Delete(arg0, arg1 any, arg2 ...any) *gomock.Call {
+func (mr *MockClientMockRecorder) Delete(ctx, obj any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
+	varargs := append([]any{ctx, obj}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockClient)(nil).Delete), varargs...)
 }
 
 // DeleteAllOf mocks base method.
-func (m *MockClient) DeleteAllOf(arg0 context.Context, arg1 client.Object, arg2 ...client.DeleteAllOfOption) error {
+func (m *MockClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
+	varargs := []any{ctx, obj}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "DeleteAllOf", varargs...)
@@ -95,17 +114,17 @@ func (m *MockClient) DeleteAllOf(arg0 context.Context, arg1 client.Object, arg2 
 }
 
 // DeleteAllOf indicates an expected call of DeleteAllOf.
-func (mr *MockClientMockRecorder) DeleteAllOf(arg0, arg1 any, arg2 ...any) *gomock.Call {
+func (mr *MockClientMockRecorder) DeleteAllOf(ctx, obj any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
+	varargs := append([]any{ctx, obj}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllOf", reflect.TypeOf((*MockClient)(nil).DeleteAllOf), varargs...)
 }
 
 // Get mocks base method.
-func (m *MockClient) Get(arg0 context.Context, arg1 types.NamespacedName, arg2 client.Object, arg3 ...client.GetOption) error {
+func (m *MockClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1, arg2}
-	for _, a := range arg3 {
+	varargs := []any{ctx, key, obj}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Get", varargs...)
@@ -114,47 +133,47 @@ func (m *MockClient) Get(arg0 context.Context, arg1 types.NamespacedName, arg2 c
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockClientMockRecorder) Get(arg0, arg1, arg2 any, arg3 ...any) *gomock.Call {
+func (mr *MockClientMockRecorder) Get(ctx, key, obj any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1, arg2}, arg3...)
+	varargs := append([]any{ctx, key, obj}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockClient)(nil).Get), varargs...)
 }
 
 // GroupVersionKindFor mocks base method.
-func (m *MockClient) GroupVersionKindFor(arg0 runtime.Object) (schema.GroupVersionKind, error) {
+func (m *MockClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GroupVersionKindFor", arg0)
+	ret := m.ctrl.Call(m, "GroupVersionKindFor", obj)
 	ret0, _ := ret[0].(schema.GroupVersionKind)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GroupVersionKindFor indicates an expected call of GroupVersionKindFor.
-func (mr *MockClientMockRecorder) GroupVersionKindFor(arg0 any) *gomock.Call {
+func (mr *MockClientMockRecorder) GroupVersionKindFor(obj any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GroupVersionKindFor", reflect.TypeOf((*MockClient)(nil).GroupVersionKindFor), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GroupVersionKindFor", reflect.TypeOf((*MockClient)(nil).GroupVersionKindFor), obj)
 }
 
 // IsObjectNamespaced mocks base method.
-func (m *MockClient) IsObjectNamespaced(arg0 runtime.Object) (bool, error) {
+func (m *MockClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsObjectNamespaced", arg0)
+	ret := m.ctrl.Call(m, "IsObjectNamespaced", obj)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IsObjectNamespaced indicates an expected call of IsObjectNamespaced.
-func (mr *MockClientMockRecorder) IsObjectNamespaced(arg0 any) *gomock.Call {
+func (mr *MockClientMockRecorder) IsObjectNamespaced(obj any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsObjectNamespaced", reflect.TypeOf((*MockClient)(nil).IsObjectNamespaced), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsObjectNamespaced", reflect.TypeOf((*MockClient)(nil).IsObjectNamespaced), obj)
 }
 
 // List mocks base method.
-func (m *MockClient) List(arg0 context.Context, arg1 client.ObjectList, arg2 ...client.ListOption) error {
+func (m *MockClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
+	varargs := []any{ctx, list}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "List", varargs...)
@@ -163,17 +182,17 @@ func (m *MockClient) List(arg0 context.Context, arg1 client.ObjectList, arg2 ...
 }
 
 // List indicates an expected call of List.
-func (mr *MockClientMockRecorder) List(arg0, arg1 any, arg2 ...any) *gomock.Call {
+func (mr *MockClientMockRecorder) List(ctx, list any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
+	varargs := append([]any{ctx, list}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockClient)(nil).List), varargs...)
 }
 
 // Patch mocks base method.
-func (m *MockClient) Patch(arg0 context.Context, arg1 client.Object, arg2 client.Patch, arg3 ...client.PatchOption) error {
+func (m *MockClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1, arg2}
-	for _, a := range arg3 {
+	varargs := []any{ctx, obj, patch}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Patch", varargs...)
@@ -182,9 +201,9 @@ func (m *MockClient) Patch(arg0 context.Context, arg1 client.Object, arg2 client
 }
 
 // Patch indicates an expected call of Patch.
-func (mr *MockClientMockRecorder) Patch(arg0, arg1, arg2 any, arg3 ...any) *gomock.Call {
+func (mr *MockClientMockRecorder) Patch(ctx, obj, patch any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1, arg2}, arg3...)
+	varargs := append([]any{ctx, obj, patch}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Patch", reflect.TypeOf((*MockClient)(nil).Patch), varargs...)
 }
 
@@ -231,24 +250,24 @@ func (mr *MockClientMockRecorder) Status() *gomock.Call {
 }
 
 // SubResource mocks base method.
-func (m *MockClient) SubResource(arg0 string) client.SubResourceClient {
+func (m *MockClient) SubResource(subResource string) client.SubResourceClient {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SubResource", arg0)
+	ret := m.ctrl.Call(m, "SubResource", subResource)
 	ret0, _ := ret[0].(client.SubResourceClient)
 	return ret0
 }
 
 // SubResource indicates an expected call of SubResource.
-func (mr *MockClientMockRecorder) SubResource(arg0 any) *gomock.Call {
+func (mr *MockClientMockRecorder) SubResource(subResource any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubResource", reflect.TypeOf((*MockClient)(nil).SubResource), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubResource", reflect.TypeOf((*MockClient)(nil).SubResource), subResource)
 }
 
 // Update mocks base method.
-func (m *MockClient) Update(arg0 context.Context, arg1 client.Object, arg2 ...client.UpdateOption) error {
+func (m *MockClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
+	varargs := []any{ctx, obj}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Update", varargs...)
@@ -257,9 +276,9 @@ func (m *MockClient) Update(arg0 context.Context, arg1 client.Object, arg2 ...cl
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockClientMockRecorder) Update(arg0, arg1 any, arg2 ...any) *gomock.Call {
+func (mr *MockClientMockRecorder) Update(ctx, obj any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
+	varargs := append([]any{ctx, obj}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockClient)(nil).Update), varargs...)
 }
 
@@ -267,6 +286,7 @@ func (mr *MockClientMockRecorder) Update(arg0, arg1 any, arg2 ...any) *gomock.Ca
 type MockSubResourceWriter struct {
 	ctrl     *gomock.Controller
 	recorder *MockSubResourceWriterMockRecorder
+	isgomock struct{}
 }
 
 // MockSubResourceWriterMockRecorder is the mock recorder for MockSubResourceWriter.
@@ -287,10 +307,10 @@ func (m *MockSubResourceWriter) EXPECT() *MockSubResourceWriterMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockSubResourceWriter) Create(arg0 context.Context, arg1, arg2 client.Object, arg3 ...client.SubResourceCreateOption) error {
+func (m *MockSubResourceWriter) Create(ctx context.Context, obj, subResource client.Object, opts ...client.SubResourceCreateOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1, arg2}
-	for _, a := range arg3 {
+	varargs := []any{ctx, obj, subResource}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Create", varargs...)
@@ -299,17 +319,17 @@ func (m *MockSubResourceWriter) Create(arg0 context.Context, arg1, arg2 client.O
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockSubResourceWriterMockRecorder) Create(arg0, arg1, arg2 any, arg3 ...any) *gomock.Call {
+func (mr *MockSubResourceWriterMockRecorder) Create(ctx, obj, subResource any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1, arg2}, arg3...)
+	varargs := append([]any{ctx, obj, subResource}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockSubResourceWriter)(nil).Create), varargs...)
 }
 
 // Patch mocks base method.
-func (m *MockSubResourceWriter) Patch(arg0 context.Context, arg1 client.Object, arg2 client.Patch, arg3 ...client.SubResourcePatchOption) error {
+func (m *MockSubResourceWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1, arg2}
-	for _, a := range arg3 {
+	varargs := []any{ctx, obj, patch}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Patch", varargs...)
@@ -318,17 +338,17 @@ func (m *MockSubResourceWriter) Patch(arg0 context.Context, arg1 client.Object, 
 }
 
 // Patch indicates an expected call of Patch.
-func (mr *MockSubResourceWriterMockRecorder) Patch(arg0, arg1, arg2 any, arg3 ...any) *gomock.Call {
+func (mr *MockSubResourceWriterMockRecorder) Patch(ctx, obj, patch any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1, arg2}, arg3...)
+	varargs := append([]any{ctx, obj, patch}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Patch", reflect.TypeOf((*MockSubResourceWriter)(nil).Patch), varargs...)
 }
 
 // Update mocks base method.
-func (m *MockSubResourceWriter) Update(arg0 context.Context, arg1 client.Object, arg2 ...client.SubResourceUpdateOption) error {
+func (m *MockSubResourceWriter) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
+	varargs := []any{ctx, obj}
+	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Update", varargs...)
@@ -337,8 +357,8 @@ func (m *MockSubResourceWriter) Update(arg0 context.Context, arg1 client.Object,
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockSubResourceWriterMockRecorder) Update(arg0, arg1 any, arg2 ...any) *gomock.Call {
+func (mr *MockSubResourceWriterMockRecorder) Update(ctx, obj any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
+	varargs := append([]any{ctx, obj}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockSubResourceWriter)(nil).Update), varargs...)
 }
