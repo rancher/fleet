@@ -437,9 +437,6 @@ var _ = Describe("HelmOps controller", func() {
 				// update the HelmOp spec
 				helmop.Spec.Helm.Version = "0.1.0"
 
-				// Add a small delay to reduce race conditions with the controller
-				time.Sleep(100 * time.Millisecond)
-
 				err := updateHelmOp(helmop)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -659,9 +656,6 @@ var _ = Describe("HelmOps controller", func() {
 
 				// update the HelmOp spec to use version 0.1.0
 				helmop.Spec.Helm.Version = "0.1.0"
-
-				// Add a small delay to reduce race conditions with the controller
-				time.Sleep(100 * time.Millisecond)
 
 				err := updateHelmOp(helmop)
 				Expect(err).ToNot(HaveOccurred())
