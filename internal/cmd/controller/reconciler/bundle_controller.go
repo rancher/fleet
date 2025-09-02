@@ -23,6 +23,7 @@ import (
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/ocistorage"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
 	"github.com/rancher/wrangler/v3/pkg/condition"
@@ -222,6 +223,10 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// This sets the values on the bundle, which is safe as we don't update bundle, just its status
 	if bundle.Spec.ValuesHash != "" {
 		if err := loadBundleValues(ctx, r.Client, bundle); err != nil {
+			if errors.Is(err, fleetutil.ErrRetryable) {
+				logger.Info(err.Error())
+				return ctrl.Result{RequeueAfter: durations.DefaultRequeueueAfter}, nil
+			}
 			return ctrl.Result{}, err
 		}
 	}
@@ -530,19 +535,23 @@ func (r *BundleReconciler) createBundleDeployment(
 // loadBundleValues loads the values from the secret and sets them in the bundle spec
 func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
 	secret := &corev1.Secret{}
-	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); err != nil {
-		return fmt.Errorf("failed to get values secret for bundle %q, this is likely temporary: %w", bundle.Name, err)
+	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); apierrors.IsNotFound(err) {
+		return fmt.Errorf("%w, retrying to get values secret for bundle: %w", fleetutil.ErrRetryable, err)
+	} else if err != nil {
+		return fmt.Errorf("failed to get values secret for bundle: %w", err)
 	}
+
 	hash, err := helmvalues.HashValuesSecret(secret.Data)
 	if err != nil {
 		return fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
 	}
+
 	if bundle.Spec.ValuesHash != hash {
-		return fmt.Errorf("bundle values secret has changed, requeuing")
+		return fmt.Errorf("%w, retrying since bundle values secret has changed, expected hash %q, calculated %q", fleetutil.ErrRetryable, bundle.Spec.ValuesHash, hash)
 	}
 
 	if err := helmvalues.SetValues(bundle, secret.Data); err != nil {
-		return fmt.Errorf("failed load values secret %q: %w", secret.Name, err)
+		return fmt.Errorf("failed to set values from secret %q: %w", secret.Name, err)
 	}
 
 	return nil
