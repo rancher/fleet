@@ -226,7 +226,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// If so, we need to return a Result with EnqueueAfter set.
 
 	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled)
-	if err != nil {
+	if err != nil || res.RequeueAfter > 0 {
 		return res, err
 	}
 
