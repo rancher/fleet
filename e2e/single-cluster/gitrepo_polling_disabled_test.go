@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"strconv"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
@@ -130,7 +132,11 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 					return err
 				}
 				if out != "" {
-					currentGeneration = int64(len(out)) // Simple way to get a number from string
+					generation, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+					if err != nil {
+						return fmt.Errorf("failed to parse generation: %w", err)
+					}
+					currentGeneration = generation
 				}
 				return nil
 			}).Should(Succeed())
