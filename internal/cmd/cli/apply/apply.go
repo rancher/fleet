@@ -403,6 +403,14 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 		return printToOutput(opts.Output, bundle, scans)
 	}
 
+	// We need to exit early if the bundle is being deleted
+	tmp := &fleet.Bundle{}
+	if err := c.Get(ctx, client.ObjectKey{Name: bundle.Name, Namespace: bundle.Namespace}, tmp); err == nil {
+		if tmp.DeletionTimestamp != nil {
+			return fmt.Errorf("the bundle %q is being deleted, cannot create during a delete operation", bundle.Name)
+		}
+	}
+
 	h, data, err := helmvalues.ExtractValues(bundle)
 	if err != nil {
 		return err
