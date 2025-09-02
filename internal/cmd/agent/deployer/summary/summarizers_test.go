@@ -1,7 +1,6 @@
 package summary
 
 import (
-	"os"
 	"testing"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/data"
@@ -49,8 +48,8 @@ func TestCheckErrors(t *testing.T) {
 			name: "gvk not found - summary remains the same",
 			input: input{
 				data: data.Object{
-					"APIVersion": "sample.cattle.io/v1",
-					"Kind":       "Sample",
+					"apiVersion": "sample.cattle.io/v1",
+					"kind":       "Sample",
 				},
 				summary: fleet.Summary{
 					State: "testing",
@@ -68,8 +67,8 @@ func TestCheckErrors(t *testing.T) {
 			name: "gvk found, no conditions provided",
 			input: input{
 				data: data.Object{
-					"APIVersion": "helm.cattle.io/v1",
-					"Kind":       "HelmChart",
+					"apiVersion": "helm.cattle.io/v1",
+					"kind":       "HelmChart",
 				},
 				summary: fleet.Summary{
 					State: "testing",
@@ -87,8 +86,8 @@ func TestCheckErrors(t *testing.T) {
 			name: "gvk found, condition not found",
 			input: input{
 				data: data.Object{
-					"APIVersion": "helm.cattle.io/v1",
-					"Kind":       "HelmChart",
+					"apiVersion": "helm.cattle.io/v1",
+					"kind":       "HelmChart",
 				},
 				conditions: []Condition{
 					newCondition("JobFailed", "True", "", ""),
@@ -109,8 +108,8 @@ func TestCheckErrors(t *testing.T) {
 			name: "gvk found, condition is error",
 			input: input{
 				data: data.Object{
-					"APIVersion": "helm.cattle.io/v1",
-					"Kind":       "HelmChart",
+					"apiVersion": "helm.cattle.io/v1",
+					"kind":       "HelmChart",
 				},
 				conditions: []Condition{
 					newCondition("Failed", "True", "", "Helm Install Error"),
@@ -134,8 +133,8 @@ func TestCheckErrors(t *testing.T) {
 			name: "gvk found, condition is not an error",
 			input: input{
 				data: data.Object{
-					"APIVersion": "helm.cattle.io/v1",
-					"Kind":       "HelmChart",
+					"apiVersion": "helm.cattle.io/v1",
+					"kind":       "HelmChart",
 				},
 				conditions: []Condition{
 					newCondition("Failed", "False", "", ""),
@@ -156,8 +155,8 @@ func TestCheckErrors(t *testing.T) {
 			name: "load conditions - gvk not found",
 			input: input{
 				data: data.Object{
-					"APIVersion": "helm.cattle.io/v1",
-					"Kind":       "HelmChart",
+					"apiVersion": "helm.cattle.io/v1",
+					"kind":       "HelmChart",
 				},
 				conditions: []Condition{
 					newCondition("Failed", "False", "", ""),
@@ -173,28 +172,13 @@ func TestCheckErrors(t *testing.T) {
 					Error: false,
 				},
 			},
-			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
-					[
-						{
-							"gvk": "sample.cattle.io/v1, Kind=Sample",
-							"conditionMappings": [
-								{
-									"type": "Failed",
-									"status": ["True"]
-								}
-							]
-						}
-					]
-				`)
-			},
 		},
 		{
 			name: "load conditions - gvk found - condition is only informational",
 			input: input{
 				data: data.Object{
-					"APIVersion": "sample.cattle.io/v1",
-					"Kind":       "Sample",
+					"apiVersion": "sample.cattle.io/v1",
+					"kind":       "Sample",
 				},
 				conditions: []Condition{
 					newCondition("Created", "True", "", ""),
@@ -210,28 +194,13 @@ func TestCheckErrors(t *testing.T) {
 					Error: false,
 				},
 			},
-			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
-					[
-						{
-							"gvk": "sample.cattle.io/v1, Kind=Sample",
-							"conditionMappings": [
-								{
-									"type": "Created",
-									"status": []
-								}
-							]
-						}
-					]
-				`)
-			},
 		},
 		{
 			name: "load conditions - gvk found - is not an error",
 			input: input{
 				data: data.Object{
-					"APIVersion": "sample.cattle.io/v1",
-					"Kind":       "Sample",
+					"apiVersion": "sample.cattle.io/v1",
+					"kind":       "Sample",
 				},
 				conditions: []Condition{
 					newCondition("Failed", "False", "", ""),
@@ -247,28 +216,13 @@ func TestCheckErrors(t *testing.T) {
 					Error: false,
 				},
 			},
-			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
-					[
-						{
-							"gvk": "sample.cattle.io/v1, Kind=Sample",
-							"conditionMappings": [
-								{
-									"type": "Failed",
-									"status": ["True"]
-								}
-							]
-						}
-					]
-				`)
-			},
 		},
 		{
 			name: "load conditions - gvk found - is error",
 			input: input{
 				data: data.Object{
-					"APIVersion": "sample.cattle.io/v1",
-					"Kind":       "Sample",
+					"apiVersion": "sample.cattle.io/v1",
+					"kind":       "Sample",
 				},
 				conditions: []Condition{
 					newCondition("Failed", "True", "", "Sample Failure"),
@@ -287,28 +241,13 @@ func TestCheckErrors(t *testing.T) {
 					},
 				},
 			},
-			loadConditions: func() {
-				os.Setenv(checkGVKErrorMappingEnvVar, `
-					[
-						{
-							"gvk": "sample.cattle.io/v1, Kind=Sample",
-							"conditionMappings": [
-								{
-									"type": "Failed",
-									"status": ["True"]
-								}
-							]
-						}
-					]
-				`)
-			},
 		},
 		{
 			name: "fallback conditions",
 			input: input{
 				data: data.Object{
-					"APIVersion": "fallback.cattle.io/v1",
-					"Kind":       "Fallback",
+					"apiVersion": "fallback.cattle.io/v1",
+					"kind":       "Fallback",
 				},
 				conditions: []Condition{
 					newCondition("Failed", "True", "", "Sample Failure"),
@@ -332,8 +271,8 @@ func TestCheckErrors(t *testing.T) {
 			name: "condition has error at reason field",
 			input: input{
 				data: data.Object{
-					"APIVersion": "sample.cattle.io/v1",
-					"Kind":       "Sample",
+					"apiVersion": "sample.cattle.io/v1",
+					"kind":       "Sample",
 				},
 				conditions: []Condition{
 					newCondition("SampleFailed", "True", "Error", "Error in Reason"),
