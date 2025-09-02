@@ -221,11 +221,12 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// The values secret is optional, e.g. for non-helm type bundles.
 	// This sets the values on the bundle, which is safe as we don't update bundle, just its status
 	if bundle.Spec.ValuesHash != "" {
-		if msg, err := loadBundleValues(ctx, r.Client, bundle); err != nil {
+		if err := loadBundleValues(ctx, r.Client, bundle); err != nil {
+			if errors.Is(err, fleetutil.ErrRetryable) {
+				logger.Info(err.Error())
+				return ctrl.Result{RequeueAfter: durations.DefaultRequeueueAfter}, nil
+			}
 			return ctrl.Result{}, err
-		} else if msg != "" {
-			logger.Info(msg)
-			return ctrl.Result{RequeueAfter: durations.DefaultRequeueueAfter}, nil
 		}
 	}
 
@@ -520,28 +521,28 @@ func (r *BundleReconciler) createBundleDeployment(
 }
 
 // loadBundleValues loads the values from the secret and sets them in the bundle spec
-func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) (string, error) {
+func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
 	secret := &corev1.Secret{}
 	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); apierrors.IsNotFound(err) {
-		return "retrying to get values secret for bundle", nil
+		return fmt.Errorf("%w, retrying to get values secret for bundle: %w", fleetutil.ErrRetryable, err)
 	} else if err != nil {
-		return "", fmt.Errorf("failed to get values secret for bundle: %w", err)
+		return fmt.Errorf("failed to get values secret for bundle: %w", err)
 	}
 
 	hash, err := helmvalues.HashValuesSecret(secret.Data)
 	if err != nil {
-		return "", fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
+		return fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
 	}
 
 	if bundle.Spec.ValuesHash != hash {
-		return fmt.Sprintf("requeuing since bundle values secret has changed, expected hash %q, calculated %q", bundle.Spec.ValuesHash, hash), nil
+		return fmt.Errorf("%w, retrying since bundle values secret has changed, expected hash %q, calculated %q", fleetutil.ErrRetryable, bundle.Spec.ValuesHash, hash)
 	}
 
 	if err := helmvalues.SetValues(bundle, secret.Data); err != nil {
-		return "", fmt.Errorf("failed to set values from secret %q: %w", secret.Name, err)
+		return fmt.Errorf("failed to set values from secret %q: %w", secret.Name, err)
 	}
 
-	return "", nil
+	return nil
 }
 
 func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.BundleDeployment, options []byte, stagedOptions []byte) error {
