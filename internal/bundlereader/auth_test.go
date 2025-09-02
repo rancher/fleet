@@ -180,7 +180,7 @@ func TestReadHelmAuthFromSecret(t *testing.T) {
 
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
-	mockClient := mocks.NewMockClient(mockCtrl)
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
 
 	assert := assert.New(t)
 	for _, c := range cases {

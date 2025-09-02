@@ -25,7 +25,7 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 		ctrl                   *gomock.Controller
 		secretGetErrorMessage  string
 		secretGetNotFoundError bool
-		mockClient             *mocks.MockClient
+		mockClient             *mocks.MockK8sClient
 
 		secretName string
 		secretData map[string][]byte
@@ -34,9 +34,9 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 
 	JustBeforeEach(func() {
 		ctrl = gomock.NewController(GinkgoT())
-		mockClient = mocks.NewMockClient(ctrl)
+		mockClient = mocks.NewMockK8sClient(ctrl)
 		ns := types.NamespacedName{Name: secretName, Namespace: "test"}
-		getSecretFromMockClient(
+		getSecretFromMockK8sClient(
 			mockClient,
 			ns,
 			secretData,
@@ -199,8 +199,8 @@ var _ = Describe("OCIOpts loaded from secret", func() {
 	})
 })
 
-func getSecretFromMockClient(
-	mockClient *mocks.MockClient,
+func getSecretFromMockK8sClient(
+	mockClient *mocks.MockK8sClient,
 	ns types.NamespacedName,
 	data map[string][]byte,
 	secretType string,

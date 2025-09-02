@@ -99,7 +99,7 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
-	client := mocks.NewMockClient(mockCtrl)
+	client := mocks.NewMockK8sClient(mockCtrl)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
 			fh.Name = helmop.Name
@@ -297,7 +297,7 @@ func TestReconcile_Validate(t *testing.T) {
 			utilruntime.Must(batchv1.AddToScheme(scheme))
 
 			namespacedName := types.NamespacedName{Name: c.helmop.Name, Namespace: c.helmop.Namespace}
-			client := mocks.NewMockClient(mockCtrl)
+			client := mocks.NewMockK8sClient(mockCtrl)
 			client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 				func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
 					fh.Name = c.helmop.Name
@@ -369,7 +369,7 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
-	client := mocks.NewMockClient(mockCtrl)
+	client := mocks.NewMockK8sClient(mockCtrl)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
 			fh.Name = helmop.Name
@@ -444,7 +444,7 @@ func TestReconcile_ErrorCreatingBundleIfBundleWithSameNameExists(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
-	client := mocks.NewMockClient(mockCtrl)
+	client := mocks.NewMockK8sClient(mockCtrl)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
 			fh.Name = helmop.Name
@@ -530,7 +530,7 @@ func TestReconcile_CreatesBundleAndUpdatesStatus(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
-	client := mocks.NewMockClient(mockCtrl)
+	client := mocks.NewMockK8sClient(mockCtrl)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, fh *fleet.HelmOp, opts ...interface{}) error {
 			fh.Name = helmop.Name
@@ -1134,7 +1134,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 			namespacedName := types.NamespacedName{Name: c.helmOp.Name, Namespace: c.helmOp.Namespace}
-			client := mocks.NewMockClient(mockCtrl)
+			client := mocks.NewMockK8sClient(mockCtrl)
 			scheme := runtime.NewScheme()
 			scheduler := mocks.NewMockScheduler(mockCtrl)
 

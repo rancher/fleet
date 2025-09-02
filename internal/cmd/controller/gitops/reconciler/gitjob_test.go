@@ -105,7 +105,7 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockClient(mockCtrl)
+	client := mocks.NewMockK8sClient(mockCtrl)
 	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
@@ -159,7 +159,7 @@ func TestReconcile_LatestCommitErrorIsSetInConditions(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockClient(mockCtrl)
+	client := mocks.NewMockK8sClient(mockCtrl)
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
@@ -230,7 +230,7 @@ func TestReconcile_LatestCommitIsOkay(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockClient(mockCtrl)
+	client := mocks.NewMockK8sClient(mockCtrl)
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
@@ -307,7 +307,7 @@ func TestReconcile_LatestCommitNotCalledYet(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockClient(mockCtrl)
+	client := mocks.NewMockK8sClient(mockCtrl)
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
@@ -367,7 +367,7 @@ func TestReconcile_LatestCommitShouldBeCalled(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockClient(mockCtrl)
+	client := mocks.NewMockK8sClient(mockCtrl)
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 	fetcher := gitmocks.NewMockGitFetcher(mockCtrl)
@@ -450,7 +450,7 @@ func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	mockClient := mocks.NewMockClient(mockCtrl)
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
 		func(ctx context.Context, restrictions *fleetv1.GitRepoRestrictionList, ns client.InNamespace) error {
 			// fill the restrictions with a couple of allowed namespaces.
@@ -519,7 +519,7 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	mockClient := mocks.NewMockClient(mockCtrl)
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
@@ -587,7 +587,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 		},
 	}
 	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	mockClient := mocks.NewMockClient(mockCtrl)
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(2).DoAndReturn(
