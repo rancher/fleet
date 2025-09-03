@@ -274,6 +274,81 @@ func TestCheckErrors(t *testing.T) {
 			},
 		},
 		{
+			name: "load conditions - gvk found - is error but should be ignored",
+			input: input{
+				data: data.Object{
+					"apiVersion": "sample.cattle.io/v1",
+					"kind":       "Sample",
+				},
+				conditions: []Condition{
+					newCondition("Failed", "True", "", ""),
+				},
+				summary: fleet.Summary{
+					State: "testing",
+					Error: false,
+				},
+			},
+			expected: output{
+				summary: fleet.Summary{
+					State: "testing",
+					Error: false,
+				},
+			},
+			loadConditions: func() {
+				os.Setenv(checkGVKErrorMappingEnvVar, `
+					[
+						{
+							"gvk": "sample.cattle.io/v1, Kind=Sample",
+							"conditionMappings": [
+								{
+									"type": "Failed",
+                                    "status": []
+								}
+							]
+						}
+					]
+				`)
+			},
+		},
+		{
+			name: "load conditions - gvk found - is not error but should be treated as error",
+			input: input{
+				data: data.Object{
+					"apiVersion": "sample.cattle.io/v1",
+					"kind":       "Sample",
+				},
+				conditions: []Condition{
+					newCondition("Foo", "True", "", ""),
+				},
+				summary: fleet.Summary{
+					State: "testing",
+					Error: false,
+				},
+			},
+			expected: output{
+				summary: fleet.Summary{
+					State:   "testing",
+					Error:   true,
+					Message: []string{""},
+				},
+			},
+			loadConditions: func() {
+				os.Setenv(checkGVKErrorMappingEnvVar, `
+					[
+						{
+							"gvk": "sample.cattle.io/v1, Kind=Sample",
+							"conditionMappings": [
+								{
+									"type": "Foo",
+                                    "status": ["True"]
+								}
+							]
+						}
+					]
+				`)
+			},
+		},
+		{
 			name: "fallback conditions",
 			input: input{
 				data: data.Object{
