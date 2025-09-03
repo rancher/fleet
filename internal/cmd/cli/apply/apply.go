@@ -247,6 +247,13 @@ func Dir(ctx context.Context, client Getter, name, baseDir string, opts *Options
 			return err
 		}
 
+		// We need to exit early if the bundle is being deleted
+		if tmp, err := c.Fleet.Bundle().Get(bundle.Namespace, bundle.Name, metav1.GetOptions{}); err == nil {
+			if tmp.DeletionTimestamp != nil {
+				return fmt.Errorf("the bundle %q is being deleted, cannot create during a delete operation", bundle.Name)
+			}
+		}
+
 		h, data, err := helmvalues.ExtractValues(bundle)
 		if err != nil {
 			return err
@@ -324,6 +331,11 @@ func save(c *client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
 		}
 		logrus.Infof("created (bundle): %s/%s", bundle.Namespace, bundle.Name)
 	} else {
+		// We cannot update a bundle that is going to be deleted, our update would be lost
+		if obj.DeletionTimestamp != nil {
+			return bundle, fmt.Errorf("the bundle %q is being deleted", bundle.Name)
+		}
+
 		obj.Spec = bundle.Spec
 		obj.Annotations = bundle.Annotations
 		obj.Labels = bundle.Labels
@@ -391,6 +403,10 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 		}
 		logrus.Infof("createOrUpdate (oci secret): %s/%s", obj.Namespace, obj.Name)
 	} else {
+		if obj.DeletionTimestamp != nil {
+			return bundle, fmt.Errorf("the bundle %q is being deleted", bundle.Name)
+		}
+
 		obj.Spec = bundle.Spec
 		obj.Annotations = bundle.Annotations
 		obj.Labels = bundle.Labels
