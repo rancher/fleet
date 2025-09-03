@@ -50,7 +50,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 				bundle.Spec = oldBundle.Spec
 				return nil
 			},
-		)
+		).AnyTimes()
 		clientMock.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		clientMock.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		// so it does not try to use OCI storage
