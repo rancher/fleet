@@ -12,4 +12,4 @@ extend-exclude = [
 "passin" = "passin"
 "ANDed" = "ANDed"
 "HoTWPQxTJ5dIY31" = "HoTWPQxTJ5dIY31"
-"wre" = "wre" # warning regular expression, not 'were'
+"wre" = "wre"                         # warning regular expression, not 'were'
