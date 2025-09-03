@@ -382,6 +382,14 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 		return printToOutput(opts.Output, bundle, scans)
 	}
 
+	// We need to exit early if the bundle is being deleted
+	tmp := &fleet.Bundle{}
+	if err := c.Get(ctx, client.ObjectKey{Name: bundle.Name, Namespace: bundle.Namespace}, tmp); err == nil {
+		if tmp.DeletionTimestamp != nil {
+			return fmt.Errorf("the bundle %q is being deleted, cannot create during a delete operation", bundle.Name)
+		}
+	}
+
 	h, data, err := helmvalues.ExtractValues(bundle)
 	if err != nil {
 		return err
@@ -489,8 +497,12 @@ func pushOCIManifest(ctx context.Context, bundle *fleet.Bundle, opts ocistorage.
 func save(ctx context.Context, c client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
 	updated := bundle.DeepCopy()
 	result, err := controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
-		if bundle != nil && bundle.Spec.HelmOpOptions != nil {
+		if bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
+		}
+		// We cannot update a bundle that is going to be deleted, our update would be lost
+		if bundle.DeletionTimestamp != nil {
+			return fmt.Errorf("the bundle %q is being deleted", bundle.Name)
 		}
 
 		if bundle.Spec.ContentsID != "" {
@@ -546,7 +558,11 @@ func saveOCIBundle(ctx context.Context, c client.Client, r record.EventRecorder,
 
 	updated := bundle.DeepCopy()
 	_, err = controllerutil.CreateOrUpdate(ctx, c, bundle, func() error {
-		if bundle != nil && bundle.Spec.HelmOpOptions != nil {
+		if bundle.DeletionTimestamp != nil {
+			return fmt.Errorf("the bundle %q is being deleted", bundle.Name)
+		}
+
+		if bundle.Spec.HelmOpOptions != nil {
 			return fmt.Errorf("a helmOps bundle with name %q already exists", bundle.Name)
 		}
 
