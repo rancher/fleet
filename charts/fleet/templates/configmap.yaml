@@ -24,6 +24,7 @@ data:
         "paths": "{{.Values.bootstrap.paths}}",
         "repo": "{{.Values.bootstrap.repo}}",
         "secret": "{{.Values.bootstrap.secret}}",
+        "clusterLabels": "{{.Values.boostrap.clusterLabels}}",
         "branch":  "{{.Values.bootstrap.branch}}",
         "namespace": "{{.Values.bootstrap.namespace}}",
         "agentNamespace": "{{.Values.bootstrap.agentNamespace}}"
