@@ -1,0 +1,106 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeout:
+        description: Per-experiment timeout (e.g., 2m, 5m)
+        required: false
+        default: 5m
+      namespace:
+        description: Fleet workspace namespace
+        required: false
+        default: fleet-local
+  schedule:
+    - cron: "0 15 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+  SETUP_K3D_VERSION: 'v5.8.3'
+  # Defaults for both manual and scheduled runs
+  BENCH_TIMEOUT: ${{ github.event.inputs.timeout || '5m' }}
+  BENCH_NAMESPACE: ${{ github.event.inputs.namespace || 'fleet-local' }}
+
+jobs:
+  benchmark:
+    name: Run Fleet Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+
+      # No extra host dependencies required
+
+      # Rely on kubectl and helm preinstalled in GitHub runner image
+
+      - name: Install k3d
+        run: curl --silent --fail https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=${{ env.SETUP_K3D_VERSION }} bash
+
+      - name: Create k3d cluster
+        run: |
+          # Use default settings; no custom Docker network required
+          k3d_args="" ./dev/setup-k3d upstream
+
+      - name: Build Fleet images
+        run: |
+          ./dev/build-fleet
+
+      - name: Import images to k3d
+        env:
+          FLEET_E2E_CLUSTER: k3d-upstream
+          # Set downstream same as upstream to skip jq usage in script
+          FLEET_E2E_CLUSTER_DOWNSTREAM: k3d-upstream
+        run: |
+          ./dev/import-images-k3d
+
+      - name: Install Fleet to cluster
+        run: |
+          ./dev/setup-fleet upstream
+
+      - name: Label local cluster for benchmarks
+        run: |
+          kubectl -n "$BENCH_NAMESPACE" label clusters.fleet.cattle.io local fleet.cattle.io/benchmark=true --overwrite
+
+      - name: Run Benchmarks
+        env:
+          FLEET_BENCH_TIMEOUT: ${{ env.BENCH_TIMEOUT }}
+          FLEET_BENCH_NAMESPACE: ${{ env.BENCH_NAMESPACE }}
+        run: |
+          go run ./benchmarks/cmd run -d benchmarks/db -t "$FLEET_BENCH_TIMEOUT" -n "$FLEET_BENCH_NAMESPACE"
+
+      - name: Collect benchmark report filename
+        id: report
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=$(ls -1t b-*.json | head -n1)
+          # Replace characters that cause issues in artifact uploads (e.g., ':')
+          safe_file="${file//:/-}"
+          if [ "$file" != "$safe_file" ]; then
+            mv "$file" "$safe_file"
+          fi
+          echo "report=$safe_file" >> "$GITHUB_OUTPUT"
+          echo "Found report: $safe_file"
+
+      - name: Upload benchmark JSON
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-report
+          path: ${{ steps.report.outputs.report }}
