@@ -20,6 +20,7 @@ import (
 
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 
+	"github.com/rancher/fleet/e2e/testenv"
 	"github.com/rancher/fleet/internal/names"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
@@ -841,7 +842,7 @@ var _ = Describe("GitJob controller", func() {
 				Eventually(func() string {
 					Expect(k8sClient.Get(ctx, types.NamespacedName{Name: gitRepoName, Namespace: gitRepoNamespace}, &gitRepo)).To(Succeed())
 					return gitRepo.Status.Commit
-				}, "30s", "1s").Should(Equal(stableCommit))
+				}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Equal(stableCommit))
 			})
 		})
 

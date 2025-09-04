@@ -120,7 +120,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 	if err := r.Status().Patch(ctx, bd, statusPatch); client.IgnoreNotFound(err) != nil {
 		logger.V(1).Info("Reconcile failed update to bundledeployment status, requeuing", "status", bd.Status, "error", err)
-		return ctrl.Result{RequeueAfter: durations.DefaultRequeueueAfter}, nil
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
 	metrics.BundleDeploymentCollector.Collect(ctx, bd)
