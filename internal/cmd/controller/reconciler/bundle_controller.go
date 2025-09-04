@@ -225,7 +225,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err := loadBundleValues(ctx, r.Client, bundle); err != nil {
 			if errors.Is(err, fleetutil.ErrRetryable) {
 				logger.Info(err.Error())
-				return ctrl.Result{RequeueAfter: durations.DefaultRequeueueAfter}, nil
+				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 			}
 			return ctrl.Result{}, err
 		}
