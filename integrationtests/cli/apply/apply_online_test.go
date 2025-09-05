@@ -28,7 +28,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 
 	var (
 		ctrl       *gomock.Controller
-		clientMock *mocks.MockClient
+		clientMock *mocks.MockK8sClient
 		name       string
 		dirs       []string
 		options    apply.Options
@@ -39,7 +39,7 @@ var _ = Describe("Fleet apply online", Label("online"), func() {
 	JustBeforeEach(func() {
 		//Setting up all the needed mocked interfaces for the test
 		ctrl = gomock.NewController(GinkgoT())
-		clientMock = mocks.NewMockClient(ctrl)
+		clientMock = mocks.NewMockK8sClient(ctrl)
 		clientMock.EXPECT().Get(
 			gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleet.Bundle{}),
 		).DoAndReturn(

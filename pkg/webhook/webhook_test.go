@@ -533,7 +533,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 	}
 	for _, tt := range tests {
 		ctlr := gomock.NewController(t)
-		mockClient := mocks.NewMockClient(ctlr)
+		mockClient := mocks.NewMockK8sClient(ctlr)
 
 		gitRepo := &v1alpha1.GitRepo{
 			ObjectMeta: metav1.ObjectMeta{
@@ -666,7 +666,7 @@ func TestGitHubSecretAndCommitUpdated(t *testing.T) {
 
 func TestErrorReadingRequest(t *testing.T) {
 	ctlr := gomock.NewController(t)
-	mockClient := mocks.NewMockClient(ctlr)
+	mockClient := mocks.NewMockK8sClient(ctlr)
 	w := &Webhook{
 		client:    mockClient,
 		namespace: "default",

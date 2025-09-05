@@ -38,7 +38,7 @@ func TestCleanupReleases(t *testing.T) {
 		},
 	}
 
-	mockClient := mocks.NewMockClient(mockCtrl)
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	bd := &fleet.BundleDeployment{}
 	mockClient.EXPECT().Get(gomock.Any(), types.NamespacedName{Namespace: fleetNS, Name: "ID1"}, bd).DoAndReturn(
 		func(_ context.Context, _ types.NamespacedName, bd *fleet.BundleDeployment, _ ...interface{}) error {

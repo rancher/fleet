@@ -41,7 +41,7 @@ func fleetApply(name string, dirs []string, options apply.Options) error {
 	buf = gbytes.NewBuffer()
 	options.Output = buf
 	ctrl := gomock.NewController(GinkgoT())
-	c := mocks.NewMockClient(ctrl)
+	c := mocks.NewMockK8sClient(ctrl)
 	return apply.CreateBundles(context.Background(), c, nil, name, dirs, options)
 }
 
@@ -52,7 +52,7 @@ func fleetApplyDriven(name string, dirs []string, options apply.Options) error {
 	options.Output = buf
 	options.DrivenScanSeparator = ":"
 	ctrl := gomock.NewController(GinkgoT())
-	c := mocks.NewMockClient(ctrl)
+	c := mocks.NewMockK8sClient(ctrl)
 	return apply.CreateBundlesDriven(context.Background(), c, nil, name, dirs, options)
 }
 
