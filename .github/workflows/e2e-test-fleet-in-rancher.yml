@@ -226,6 +226,22 @@ jobs:
           helm list -A
 
       -
+        name: Checkout rancher/rancher
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: rancher/rancher
+          ref: main
+          path: rancher
+
+      -
+        name: Rancher Provisioning Tests
+        run: |
+          cd rancher
+          export SOME_K8S_VERSION=v1.33.4+k3s1 # TODO automate setting of this to an appropriate version (KDM branch?)
+          go test ./tests/v2prov/tests/fleet
+
+      -
         name: Register Rancher's downstream clusters
         run: |
           ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
@@ -240,21 +256,6 @@ jobs:
           sleep 30
 
           ./.github/scripts/label-downstream-cluster.sh
-
-      -
-        name: Checkout rancher/rancher
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          repository: rancher/rancher
-          ref: main
-          path: rancher
-
-      -
-        name: Rancher Provisioning Tests
-        run: |
-          cd rancher
-          go test ./tests/v2prov/tests/fleet
 
       -
         name: E2E tests for examples
