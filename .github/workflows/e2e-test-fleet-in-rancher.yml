@@ -240,7 +240,7 @@ jobs:
           cd rancher
           k8s_version=${{ env.SETUP_K3S_VERSION }}
           export SOME_K8S_VERSION=${k8s_version/-/+}
-          go test ./tests/v2prov/tests/fleet
+          go test -v -count=1 ./tests/v2prov/tests/fleet
 
       -
         name: Register Rancher's downstream clusters
