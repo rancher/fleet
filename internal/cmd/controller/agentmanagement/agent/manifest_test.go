@@ -302,3 +302,30 @@ func TestManifestAgentResources(t *testing.T) {
 		})
 	}
 }
+
+func TestPriorityClassName(t *testing.T) {
+	tests := []struct {
+		name              string
+		priorityClassName string
+	}{
+		{
+			name:              "empty priorityClassName",
+			priorityClassName: "",
+		},
+		{
+			name:              "priorityClassName specified",
+			priorityClassName: "foo",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			d := getAgentFromManifests("test-scope", agent.ManifestOptions{
+				PriorityClassName: test.priorityClassName,
+			})
+			if d.Spec.Template.Spec.PriorityClassName != test.priorityClassName {
+				t.Fatalf("expected PriorityClassName to be %s, got %s", test.priorityClassName, d.Spec.Template.Spec.PriorityClassName)
+			}
+		})
+	}
+}
