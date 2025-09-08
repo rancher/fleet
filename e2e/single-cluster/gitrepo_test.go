@@ -137,13 +137,13 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			Eventually(func(g Gomega) {
 				status := getGitRepoStatus(g, k, gitrepoName)
 				g.Expect(status).To(matchGitRepoStatus(expectedStatus(commit, "")))
-			}).Should(Succeed())
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Succeed())
 
 			By("checking the deployment's new name")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("deployments")
 				return out
-			}).Should(ContainSubstring("newsleep"))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(ContainSubstring("newsleep"))
 		})
 	})
 
@@ -194,13 +194,13 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			Eventually(func(g Gomega) {
 				status := getGitRepoStatus(g, k, gitrepoName)
 				g.Expect(status).To(matchGitRepoStatus(expectedStatus(commit, "")))
-			}).Should(Succeed())
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Succeed())
 
 			By("checking the deployment's new name")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("deployments")
 				return out
-			}).Should(ContainSubstring("newsleep"))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(ContainSubstring("newsleep"))
 		})
 	})
 
@@ -304,14 +304,13 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			Eventually(func(g Gomega) {
 				status := getGitRepoStatus(g, k, gitrepoName)
 				g.Expect(status).To(matchGitRepoStatus(expectedStatus(commit, commit)))
-
-			}).Should(Succeed())
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Succeed())
 
 			By("checking the deployment's new name")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("deployments")
 				return out
-			}).Should(ContainSubstring("newsleep"))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(ContainSubstring("newsleep"))
 		}, Label("webhook"))
 	})
 })
