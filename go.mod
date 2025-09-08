@@ -47,7 +47,7 @@ require (
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.41.0
-	golang.org/x/sync v0.16.0
+	golang.org/x/sync v0.17.0
 	gonum.org/v1/gonum v0.16.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.18.6
