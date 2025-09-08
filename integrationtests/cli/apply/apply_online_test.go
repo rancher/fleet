@@ -1,7 +1,3 @@
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/getter_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/cli/apply Getter
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/fleet_controller_mock.go -package=mocks -mock_names=Interface=FleetInterface github.com/rancher/fleet/pkg/generated/controllers/fleet.cattle.io/v1alpha1 Interface
-//go:generate mockgen --build_flags=--mod=mod -destination=../../mocks/core_controller_mock.go -package=mocks -mock_names=Interface=CoreInterface github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1 Interface
-
 package apply
 
 import (
