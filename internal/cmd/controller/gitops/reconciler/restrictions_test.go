@@ -217,7 +217,7 @@ func TestAuthorizeAndAssignDefaults(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 
-			client := mocks.NewMockClient(mockCtrl)
+			client := mocks.NewMockK8sClient(mockCtrl)
 
 			client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(
 				func(_ context.Context, rl *fleet.GitRepoRestrictionList, ns crclient.InNamespace) error {

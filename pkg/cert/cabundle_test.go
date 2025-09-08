@@ -20,13 +20,13 @@ func TestGetRancherCABundle(t *testing.T) {
 	notFoundErr := &k8serrors.StatusError{ErrStatus: metav1.Status{Reason: metav1.StatusReasonNotFound}}
 	testCases := []struct {
 		name           string
-		secretGets     func(c *mocks.MockClient)
+		secretGets     func(c *mocks.MockK8sClient)
 		expectedBundle []byte
 		expectedErr    error
 	}{
 		{
 			name: "no secrets found",
-			secretGets: func(c *mocks.MockClient) {
+			secretGets: func(c *mocks.MockK8sClient) {
 				c.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 					func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 						// nothing done: object stays nil
@@ -38,7 +38,7 @@ func TestGetRancherCABundle(t *testing.T) {
 		},
 		{
 			name: "tls-ca exists but tls-ca-additional does not",
-			secretGets: func(c *mocks.MockClient) {
+			secretGets: func(c *mocks.MockK8sClient) {
 				c.EXPECT().Get(
 					gomock.Any(),
 					types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
@@ -63,7 +63,7 @@ func TestGetRancherCABundle(t *testing.T) {
 		},
 		{
 			name: "tls-ca does not exist but tls-ca-additional does",
-			secretGets: func(c *mocks.MockClient) {
+			secretGets: func(c *mocks.MockK8sClient) {
 				c.EXPECT().Get(
 					gomock.Any(),
 					types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
@@ -88,7 +88,7 @@ func TestGetRancherCABundle(t *testing.T) {
 		},
 		{
 			name: "tls-ca and tls-ca-additional both exist",
-			secretGets: func(c *mocks.MockClient) {
+			secretGets: func(c *mocks.MockK8sClient) {
 				c.EXPECT().Get(
 					gomock.Any(),
 					types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
@@ -114,7 +114,7 @@ func TestGetRancherCABundle(t *testing.T) {
 		},
 		{
 			name: "tls-ca is malformed",
-			secretGets: func(c *mocks.MockClient) {
+			secretGets: func(c *mocks.MockK8sClient) {
 				c.EXPECT().Get(
 					gomock.Any(),
 					types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
@@ -130,7 +130,7 @@ func TestGetRancherCABundle(t *testing.T) {
 		},
 		{
 			name: "tls-ca and tls-ca-additional both exist, but tls-ca-additional is malformed",
-			secretGets: func(c *mocks.MockClient) {
+			secretGets: func(c *mocks.MockK8sClient) {
 				c.EXPECT().Get(
 					gomock.Any(),
 					types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
@@ -156,7 +156,7 @@ func TestGetRancherCABundle(t *testing.T) {
 		},
 		{
 			name: "client fails to get tls-ca secret",
-			secretGets: func(c *mocks.MockClient) {
+			secretGets: func(c *mocks.MockK8sClient) {
 				c.EXPECT().Get(
 					gomock.Any(),
 					types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
@@ -171,7 +171,7 @@ func TestGetRancherCABundle(t *testing.T) {
 		},
 		{
 			name: "client fails to get tls-ca-additional secret",
-			secretGets: func(c *mocks.MockClient) {
+			secretGets: func(c *mocks.MockK8sClient) {
 				c.EXPECT().Get(
 					gomock.Any(),
 					types.NamespacedName{Namespace: "cattle-system", Name: "tls-ca"},
@@ -200,7 +200,7 @@ func TestGetRancherCABundle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			ctlr := gomock.NewController(t)
-			mockClient := mocks.NewMockClient(ctlr)
+			mockClient := mocks.NewMockK8sClient(ctlr)
 
 			tc.secretGets(mockClient)
 

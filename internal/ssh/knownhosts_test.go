@@ -268,7 +268,7 @@ func TestGetKnownHosts(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 
-			client := mocks.NewMockClient(mockCtrl)
+			client := mocks.NewMockK8sClient(mockCtrl)
 
 			nsn := types.NamespacedName{
 				Namespace: test.ns,
