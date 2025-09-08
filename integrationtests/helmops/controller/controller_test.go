@@ -228,13 +228,20 @@ func checkBundleIsAsExpected(g Gomega, bundle fleet.Bundle, helmop fleet.HelmOp,
 }
 
 func updateHelmOp(helmop fleet.HelmOp) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	backoff := retry.DefaultBackoff
+	backoff.Steps = 10
+	backoff.Duration = 200 * time.Millisecond
+
+	return retry.RetryOnConflict(backoff, func() error {
 		var helmOpFromCluster fleet.HelmOp
 		err := k8sClient.Get(ctx, types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}, &helmOpFromCluster)
 		if err != nil {
 			return err
 		}
+
+		// Preserve all existing metadata and status, only update spec
 		helmOpFromCluster.Spec = helmop.Spec
+
 		return k8sClient.Update(ctx, &helmOpFromCluster)
 	})
 }
@@ -777,12 +784,16 @@ var _ = Describe("HelmOps controller", func() {
 
 					By("then updating the status when the version constraint is edited")
 					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
-					err := k8sClient.Get(ctx, ns, &helmop)
-					Expect(err).ShouldNot(HaveOccurred())
 
-					helmop.Spec.Helm.Version = "0.1.0"
-
-					err = k8sClient.Update(ctx, &helmop)
+					// Use retry logic to handle conflicts when updating the HelmOp
+					err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+						err := k8sClient.Get(ctx, ns, &helmop)
+						if err != nil {
+							return err
+						}
+						helmop.Spec.Helm.Version = "0.1.0"
+						return k8sClient.Update(ctx, &helmop)
+					})
 					Expect(err).ShouldNot(HaveOccurred())
 
 					Eventually(func(g Gomega) {
@@ -851,10 +862,16 @@ var _ = Describe("HelmOps controller", func() {
 					By("updating the server URL in the existing helmop spec")
 					fh := &fleet.HelmOp{}
 					ns := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
-					err := k8sClient.Get(ctx, ns, fh)
-					Expect(err).ToNot(HaveOccurred())
-					fh.Spec.Helm.Repo = svr.URL
-					err = k8sClient.Update(ctx, fh)
+
+					// Use retry logic to handle conflicts when updating the HelmOp
+					err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+						err := k8sClient.Get(ctx, ns, fh)
+						if err != nil {
+							return err
+						}
+						fh.Spec.Helm.Repo = svr.URL
+						return k8sClient.Update(ctx, fh)
+					})
 					Expect(err).ToNot(HaveOccurred())
 
 					By("checking that the conditions no longer have the error and have the expected state")

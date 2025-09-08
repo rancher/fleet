@@ -1,9 +1,12 @@
 package singlecluster_test
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"path"
+	"strconv"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
@@ -116,27 +119,62 @@ var _ = Describe("GitRepoPollingDisabled", Label("infra-setup"), func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Verifying the pods aren't updated")
-			Eventually(func() string {
+			Consistently(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
-			}).ShouldNot(ContainSubstring("newsleep"))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).ShouldNot(ContainSubstring("newsleep"))
+
+			By("Getting the current GitRepo generation before force sync")
+			var currentGeneration int64
+			Eventually(func() error {
+				out, err := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.metadata.generation}")
+				if err != nil {
+					return err
+				}
+				if out != "" {
+					generation, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+					if err != nil {
+						return fmt.Errorf("failed to parse generation: %w", err)
+					}
+					currentGeneration = generation
+				}
+				return nil
+			}).Should(Succeed())
 
 			By("Force updating the GitRepo")
 			patch := `{"spec": {"forceSyncGeneration": 1}}`
 			out, err := k.Run("patch", "gitrepo", gitrepoName, "--type=merge", "--patch", patch)
 			Expect(err).ToNot(HaveOccurred(), out)
 
+			By("Waiting for the GitRepo generation to change")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.metadata.generation}")
+				return out
+			}, testenv.MediumTimeout, testenv.ShortTimeout).ShouldNot(Equal(fmt.Sprintf("%d", currentGeneration)))
+
+			By("Waiting for the controller to process the force sync")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.observedGeneration}")
+				return out
+			}, testenv.MediumTimeout, testenv.ShortTimeout).ShouldNot(BeEmpty())
+
+			By("Waiting for the GitRepo to be force synced with new commit")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.commit}")
+				return out
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Equal(commit), "GitRepo should have the new commit after force sync")
+
 			By("Verifying the pods are updated")
 			Eventually(func() string {
 				out, _ := k.Namespace(targetNamespace).Get("pods")
 				return out
-			}).Should(ContainSubstring("newsleep"))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(ContainSubstring("newsleep"))
 
-			By("Verifying the commit hash is updated")
+			By("Verifying the commit hash is updated in status")
 			Eventually(func() string {
 				out, _ := k.Get("gitrepo", gitrepoName, "-o", "jsonpath={.status.commit}")
 				return out
-			}).Should(Equal(commit))
+			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(Equal(commit))
 		})
 	})
 })

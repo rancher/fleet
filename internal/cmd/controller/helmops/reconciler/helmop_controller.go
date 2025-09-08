@@ -35,6 +35,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/fleet/pkg/sharding"
 )
 
@@ -117,8 +118,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, err
 		}
 
-		// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
 	if err := validate(ctx, *helmop); err != nil {
@@ -147,8 +147,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to HelmOp status", "status", helmop.Status)
 
-		// nolint: staticcheck // Requeue is deprecated; see fleet#3746.
-		return ctrl.Result{Requeue: true}, err
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, err
 	}
 
 	return ctrl.Result{}, err
