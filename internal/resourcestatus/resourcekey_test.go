@@ -251,7 +251,22 @@ func TestPerClusterState(t *testing.T) {
 		expectedStatus    fleet.StatusBase
 	}{
 		{
-			name:              "if the state of the NonReadyStatus resource is updating, then it should report it as NotReady",
+			name:              "if the state of the resource is error, then it should report it as NotReady",
+			bundleDeployments: []fleet.BundleDeployment{bundleDeploymentWithState("error")},
+			expectedStatus: fleet.StatusBase{
+				Resources: []fleet.Resource{
+					{
+						Namespace: "default",
+						Name:      "web",
+						PerClusterState: fleet.PerClusterState{
+							NotReady: []string{"namespace/cluster"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:              "if the state of the resource is updating, then it should report it as NotReady",
 			bundleDeployments: []fleet.BundleDeployment{bundleDeploymentWithState("updating")},
 			expectedStatus: fleet.StatusBase{
 				Resources: []fleet.Resource{
@@ -266,7 +281,7 @@ func TestPerClusterState(t *testing.T) {
 			},
 		},
 		{
-			name:              "if the state of the NonReadyStatus resource is unknown, then it should ignore the state",
+			name:              "if the state of the resource is unknown, then it should ignore the state",
 			bundleDeployments: []fleet.BundleDeployment{bundleDeploymentWithState("")},
 			expectedStatus: fleet.StatusBase{
 				Resources: []fleet.Resource{
@@ -279,7 +294,7 @@ func TestPerClusterState(t *testing.T) {
 			},
 		},
 		{
-			name:              "if the state of the NonReadyStatus resource is NotReady, then it should report it as NotReady",
+			name:              "if the state of the resource is NotReady, then it should report it as NotReady",
 			bundleDeployments: []fleet.BundleDeployment{bundleDeploymentWithState("NotReady")},
 			expectedStatus: fleet.StatusBase{
 				Resources: []fleet.Resource{
