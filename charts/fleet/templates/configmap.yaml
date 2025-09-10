@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fleet-controller
+data:
+  config: |
+    {
+      "systemDefaultRegistry": "{{ template "system_default_registry" . }}",
+      "agentImage": "{{ template "system_default_registry" . }}{{.Values.agentImage.repository}}:{{.Values.agentImage.tag}}",
+      "agentImagePullPolicy": "{{ .Values.agentImage.imagePullPolicy }}",
+      "apiServerURL": "{{.Values.apiServerURL}}",
+      "apiServerCA": "{{b64enc .Values.apiServerCA}}",
+      "agentCheckinInterval": "{{.Values.agentCheckinInterval}}",
+      "agentTLSMode": "{{.Values.agentTLSMode}}",
+      "agentWorkers": {
+            "bundledeployment": "{{.Values.agent.reconciler.workers.bundledeployment}}",
+            "drift": "{{.Values.agent.reconciler.workers.drift}}"
+      },
+      {{ if .Values.garbageCollectionInterval }}
+      "garbageCollectionInterval": "{{.Values.garbageCollectionInterval}}",
+      {{ end }}
+      "ignoreClusterRegistrationLabels": {{.Values.ignoreClusterRegistrationLabels}},
+      "bootstrap": {
+        "paths": "{{.Values.bootstrap.paths}}",
+        "repo": "{{.Values.bootstrap.repo}}",
+        "secret": "{{.Values.bootstrap.secret}}",
+        "branch":  "{{.Values.bootstrap.branch}}",
+        "namespace": "{{.Values.bootstrap.namespace}}",
+        "agentNamespace": "{{.Values.bootstrap.agentNamespace}}"
+      },
+      "webhookReceiverURL": "{{.Values.webhookReceiverURL}}",
+      "githubURLPrefix": "{{.Values.githubURLPrefix}}",
+      "gitClientTimeout": "{{.Values.gitClientTimeout}}"
+    }

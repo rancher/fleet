@@ -1,0 +1,87 @@
+image:
+  os: "windows,linux"
+  repository: rancher/fleet-agent
+  tag: v0.14.0-alpha.1
+
+# The public URL of the Kubernetes API server running the Fleet Controller must be set here
+# Example: https://example.com:6443
+apiServerURL: ""
+
+# The pem encoded value of the CA of the Kubernetes API server running the Fleet Controller.
+# If left empty it is assumed this Kubernetes API TLS is signed by a well known CA.
+apiServerCA: ""
+
+# Determines whether the agent should trust CA bundles from the operating system's trust store when connecting to a
+# management cluster. True in `system-store` mode, false in `strict` mode.
+agentTLSMode: "system-store"
+
+# The amount of time that agents will wait before they clean up old Helm releases.
+# A non-existent value or 0 will result in an interval of 15 minutes.
+garbageCollectionInterval: "15m"
+
+# The cluster registration value
+token: ""
+
+# Labels to add to the cluster upon registration only. They are not added after the fact.
+# labels:
+#   foo: bar
+
+# The client ID of the cluster to associate with
+clientID: ""
+
+# The namespace of the cluster we are register with
+clusterNamespace: ""
+
+# The namespace containing the clusters registration secrets
+systemRegistrationNamespace: cattle-fleet-clusters-system
+
+# Please do not change the below setting unless you really know what you are doing
+internal:
+  systemNamespace: cattle-fleet-system
+  managedReleaseName: fleet-agent
+
+# The nodeSelector and tolerations for the agent deployment
+fleetAgent:
+  ## Node labels for pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+  ## List of node taints to tolerate (requires Kubernetes >= 1.6)
+  tolerations: []
+  ## HostNetwork setting for the agent deployment.
+  ## When set allows for provisioning of network related bundles (CNI configuration) in a cluster without CNI.
+  hostNetwork: false
+kubectl:
+  ## Node labels for pod assignment
+  ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ##
+  nodeSelector: {}
+  ## List of node taints to tolerate (requires Kubernetes >= 1.6)
+  tolerations:
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    operator: "Equal"
+    value: "true"
+    effect: NoSchedule
+
+global:
+  cattle:
+    systemDefaultRegistry: ""
+
+debug: false
+debugLevel: 0
+disableSecurityContext: false
+
+## Fleet agent configuration
+agent:
+  replicas: 1
+  reconciler:
+    # The number of workers that are allowed for each type of reconciler
+    workers:
+      bundledeployment: "50"
+      drift: "50"
+
+## Leader election configuration
+leaderElection:
+  leaseDuration: 30s
+  retryPeriod: 10s
+  renewDeadline: 25s
