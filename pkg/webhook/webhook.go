@@ -341,7 +341,9 @@ func parsePayload(payload interface{}) (revision, branch, tag string, repoURLs [
 			if strings.HasSuffix(parsed.Hostname(), ".visualstudio.com") {
 				org := strings.SplitN(parsed.Hostname(), ".", 2)[0]
 				parsed.Host = "dev.azure.com"
-				parsed.Path = fmt.Sprintf("/%s/%s", org, parsed.Path)
+				// parsed.Path is prefixed with a slash, hence no need to add it to the formatting
+				// string.
+				parsed.Path = fmt.Sprintf("/%s%s", org, parsed.Path)
 				repoURLs[i] = parsed.String()
 			}
 		}
