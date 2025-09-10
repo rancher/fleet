@@ -12,6 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	v1 "k8s.io/api/apps/v1"
+	policyv1 "k8s.io/api/policy/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -30,8 +32,15 @@ func start(ctx context.Context, kubeConfig, namespace string, disableBootstrap b
 		return err
 	}
 
+	// Register all Kinds we apply dynamically so their GVKs resolve
 	err = schemes.Register(v1.AddToScheme)
 	if err != nil {
+		return err
+	}
+	if err = schemes.Register(policyv1.AddToScheme); err != nil {
+		return err
+	}
+	if err = schemes.Register(schedulingv1.AddToScheme); err != nil {
 		return err
 	}
 

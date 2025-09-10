@@ -19,6 +19,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/connection"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/controllers/manageagent"
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/scheduling"
 	fleetns "github.com/rancher/fleet/internal/cmd/controller/namespace"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
@@ -34,6 +35,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -266,6 +268,12 @@ func (i *importHandler) deleteOldAgent(cluster *fleet.Cluster, kc kubernetes.Int
 	if err := kc.AppsV1().Deployments(namespace).Delete(i.ctx, config.AgentConfigName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
+	if err := kc.SchedulingV1().PriorityClasses().Delete(i.ctx, scheduling.FleetAgentPriorityClassName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+	if err := kc.PolicyV1().PodDisruptionBudgets(namespace).Delete(i.ctx, scheduling.FleetAgentPodDisruptionBudgetName, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
 
 	logrus.Infof("Deleted old agent for cluster (%s/%s) in namespace %s", cluster.Namespace, cluster.Name, namespace)
 
@@ -378,9 +386,28 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 	clusterLabels := yaml.CleanAnnotationsForExport(cluster.Labels)
 	agentReplicas := cmd.ParseEnvAgentReplicaCount()
 
+	var (
+		objs              []runtime.Object
+		priorityClassName string
+	)
+	if sc := cluster.Spec.AgentSchedulingCustomization; sc != nil {
+		if sc.PriorityClass != nil {
+			priorityClassName = scheduling.FleetAgentPriorityClassName
+			objs = append(objs, scheduling.PriorityClass(sc.PriorityClass))
+		}
+
+		if sc.PodDisruptionBudget != nil {
+			pdb, err := scheduling.PodDisruptionBudget(agentNamespace, sc.PodDisruptionBudget)
+			if err != nil {
+				return status, err
+			}
+			objs = append(objs, pdb)
+		}
+	}
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
-	objs, err := agent.AgentWithConfig(
+	agentObjs, err := agent.AgentWithConfig(
 		i.ctx, agentNamespace, i.systemNamespace,
 		cluster.Spec.AgentNamespace,
 		&client.Getter{Namespace: cluster.Namespace},
@@ -396,15 +423,17 @@ func (i *importHandler) importCluster(cluster *fleet.Cluster, status fleet.Clust
 			},
 			// keep in sync with manageagent.go
 			ManifestOptions: agent.ManifestOptions{
-				AgentEnvVars:     cluster.Spec.AgentEnvVars,
-				AgentTolerations: cluster.Spec.AgentTolerations,
-				PrivateRepoURL:   cluster.Spec.PrivateRepoURL,
-				AgentAffinity:    cluster.Spec.AgentAffinity,
-				AgentResources:   cluster.Spec.AgentResources,
-				HostNetwork:      *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
-				AgentReplicas:    agentReplicas,
+				AgentEnvVars:      cluster.Spec.AgentEnvVars,
+				AgentTolerations:  cluster.Spec.AgentTolerations,
+				PrivateRepoURL:    cluster.Spec.PrivateRepoURL,
+				AgentAffinity:     cluster.Spec.AgentAffinity,
+				AgentResources:    cluster.Spec.AgentResources,
+				HostNetwork:       *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)),
+				AgentReplicas:     agentReplicas,
+				PriorityClassName: priorityClassName,
 			},
 		})
+	objs = append(objs, agentObjs...)
 	if err != nil {
 		return status, err
 	}
