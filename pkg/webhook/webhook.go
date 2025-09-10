@@ -108,11 +108,6 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 		path := strings.Replace(u.EscapedPath()[1:], "/_git/", "(/_git)?/", 1)
 
-		// URLs for Azure DevOps are allowed to contain spaces
-		if u.Hostname() == "dev.azure.com" {
-			path = strings.ReplaceAll(path, "%20", "(?:%20| )")
-		}
-
 		regexpStr := `(?i)(http://|https://|\w+@|ssh://(\w+@)?|git@(ssh\.)?)` + u.Hostname() +
 			"(:[0-9]+|)[:/](v\\d/)?" + path + "(\\.git)?"
 		repoRegexp, err := regexp.Compile(regexpStr)
