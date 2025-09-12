@@ -80,26 +80,26 @@ var (
 	GVKConditionErrorMapping = ConditionTypeStatusErrorMapping{
 		{Group: "helm.cattle.io", Version: "v1", Kind: "HelmChart"}: {
 			"JobCreated": sets.New[metav1.ConditionStatus](),
-			"Failed":     sets.New[metav1.ConditionStatus](metav1.ConditionTrue),
+			"Failed":     sets.New(metav1.ConditionTrue),
 		},
 		{Group: "", Version: "v1", Kind: "Node"}: {
-			"OutOfDisk":          sets.New[metav1.ConditionStatus](metav1.ConditionTrue),
-			"MemoryPressure":     sets.New[metav1.ConditionStatus](metav1.ConditionTrue),
-			"DiskPressure":       sets.New[metav1.ConditionStatus](metav1.ConditionTrue),
-			"NetworkUnavailable": sets.New[metav1.ConditionStatus](metav1.ConditionTrue),
+			"OutOfDisk":          sets.New(metav1.ConditionTrue),
+			"MemoryPressure":     sets.New(metav1.ConditionTrue),
+			"DiskPressure":       sets.New(metav1.ConditionTrue),
+			"NetworkUnavailable": sets.New(metav1.ConditionTrue),
 		},
 		{Group: "apps", Version: "v1", Kind: "Deployment"}: {
-			"ReplicaFailure": sets.New[metav1.ConditionStatus](metav1.ConditionTrue),
-			"Progressing":    sets.New[metav1.ConditionStatus](metav1.ConditionFalse),
+			"ReplicaFailure": sets.New(metav1.ConditionTrue),
+			"Progressing":    sets.New(metav1.ConditionFalse),
 		},
 		{Group: "apps", Version: "v1", Kind: "ReplicaSet"}: {
-			"ReplicaFailure": sets.New[metav1.ConditionStatus](metav1.ConditionTrue),
+			"ReplicaFailure": sets.New(metav1.ConditionTrue),
 		},
 
 		// FALLBACK: In case we cannot match any Groups, Versions and Kinds then we fallback to this mapping.
 		{Group: "", Version: "", Kind: ""}: {
-			"Stalled": sets.New[metav1.ConditionStatus](metav1.ConditionTrue),
-			"Failed":  sets.New[metav1.ConditionStatus](metav1.ConditionTrue),
+			"Stalled": sets.New(metav1.ConditionTrue),
+			"Failed":  sets.New(metav1.ConditionTrue),
 		},
 	}
 
