@@ -1,20 +1,41 @@
 name: Release Fleet against test Rancher charts repo
 on:
-  schedule:
-    # Run everyday at 1:00 PM
-    - cron:  '0 13 * * *'
   workflow_dispatch:
     inputs:
       charts_base_branch:
         description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
         required: true
         default: "dev-v2.12"
+        type: string
       charts_repo:
         description: "Push to the following Rancher charts repo (which must exist)"
         required: true
         default: "fleetrepoci/charts"
+        type: string
       charts_target_branch:
         description: "Use the following branch as a destination when pushing to the charts repo"
+        type: string
+  workflow_call:
+    # Variables to set when calling this reusable workflow
+    inputs:
+      charts_base_branch:
+        description: "Use the following rancher/charts branch as a base (e.g. dev-v2.7)"
+        required: true
+        default: "dev-v2.12"
+        type: string
+      charts_repo:
+        description: "Push to the following Rancher charts repo (which must exist)"
+        required: true
+        default: "fleetrepoci/charts"
+        type: string
+      charts_target_branch:
+        description: "Use the following branch as a destination when pushing to the charts repo"
+        type: string
+    outputs:
+      target_branch:
+        value: ${{ jobs.push-test-rancher-charts.outputs.target_branch }}
+      charts_repo:
+        value: ${{ jobs.push-test-rancher-charts.outputs.charts_repo }}
 
 env:
   GOARCH: amd64
@@ -168,11 +189,3 @@ jobs:
         run: |
           cd charts
           git push -u origin ${{ steps.compute_target_branch.outputs.target_branch }}
-
-  test-fleet-in-rancher:
-    uses: ./.github/workflows/e2e-test-fleet-in-rancher.yml
-    needs: push-test-rancher-charts
-    with:
-      charts_repo: ${{ needs.push-test-rancher-charts.outputs.charts_repo }}
-      charts_branch: ${{ needs.push-test-rancher-charts.outputs.target_branch }}
-      fleet_version: 999.9.9+up9.9.9
