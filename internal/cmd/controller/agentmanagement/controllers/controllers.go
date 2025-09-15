@@ -26,6 +26,7 @@ import (
 	corecontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac"
 	rbaccontrollers "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac/v1"
+	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 	"github.com/rancher/wrangler/v3/pkg/start"
 
 	"github.com/sirupsen/logrus"
@@ -154,6 +155,7 @@ func NewAppContext(cfg clientcmd.ClientConfig) (*AppContext, error) {
 	if err != nil {
 		return nil, err
 	}
+	client.RateLimiter = ratelimit.None
 
 	scf, err := controllerFactory(client)
 	if err != nil {

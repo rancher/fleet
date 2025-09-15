@@ -22,6 +22,7 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 
 	"github.com/rancher/wrangler/v3/pkg/generated/controllers/core"
+	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -307,7 +308,8 @@ func newCluster(ctx context.Context, config *rest.Config, options manager.Option
 
 func getAgentConfig(ctx context.Context, namespace string, cfg *rest.Config) (agentConfig *config.Config, err error) {
 	cfg = rest.CopyConfig(cfg)
-
+	// disable the rate limiter
+	cfg.RateLimiter = ratelimit.None
 	k8s, err := core.NewFactoryFromConfig(cfg)
 	if err != nil {
 		return nil, err
