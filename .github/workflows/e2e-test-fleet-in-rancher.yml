@@ -2,30 +2,20 @@
 name: Test Fleet in Rancher
 
 on:
+  schedule:
+    # Run everyday at 1:00 PM
+    - cron:  '0 13 * * *'
   workflow_dispatch:
     inputs:
       charts_repo:
         description: Repository from which to source Fleet charts
+        required: true
         default: "fleetrepoci/charts"
         type: string
       charts_branch:
         description: Branch from which to source Fleet charts
-        type: string
-      fleet_version:
-        description: Fleet version to install in Rancher
-        type: string
-  workflow_call:
-    # Variables to set when calling this reusable workflow
-    inputs:
-      charts_repo:
-        description: Repository from which to source Fleet charts
-        default: "fleetrepoci/charts"
-        type: string
-      charts_branch:
-        description: Branch from which to source Fleet charts
-        type: string
-      fleet_version:
-        description: Fleet version to install in Rancher
+        required: true
+        default: "dev-v2.12"
         type: string
   push:
     tags: [ 'v*' ]
@@ -36,11 +26,19 @@ env:
   GOARCH: amd64
   CGO_ENABLED: 0
   SETUP_K3D_VERSION: 'v5.8.3'
-  SETUP_K3S_VERSION: 'v1.31.1-k3s1'
+  SETUP_K3S_VERSION: 'v1.33.4-k3s1'
 
 jobs:
+  release-against-test-charts:
+    uses: ./.github/workflows/release-against-test-charts.yml
+    with:
+      charts_repo: ${{ github.event.inputs.charts_repo }}
+      charts_base_branch: ${{ github.event.inputs.charts_branch }}
+    secrets: inherit # needed to enable access to repo secrets from the called workflow
+
   rancher-integration:
-    runs-on: ubuntu-latest
+    runs-on: runs-on,runner=16cpu-linux-x64,run-id=${{ github.run_id }}
+    needs: release-against-test-charts
 
     steps:
       -
@@ -174,6 +172,10 @@ jobs:
         run: |
           set -x
 
+          charts_repo=${{ needs.release-against-test-charts.outputs.charts_repo }}
+          charts_branch=${{ needs.release-against-test-charts.outputs.target_branch }}
+          fleet_version=999.9.9+up9.9.9
+
           kubectl config use-context k3d-upstream
 
           until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
@@ -200,11 +202,11 @@ jobs:
             --set bootstrapPassword=admin \
             --set agentTLSMode=system-store \
             --set "extraEnv[0].name=CATTLE_CHART_DEFAULT_URL" \
-            --set "extraEnv[0].value=https://github.com/${{ inputs.charts_repo }}" \
+            --set "extraEnv[0].value=https://github.com/${charts_repo}" \
             --set "extraEnv[1].name=CATTLE_CHART_DEFAULT_BRANCH" \
-            --set "extraEnv[1].value=${{ inputs.charts_branch }}" \
+            --set "extraEnv[1].value=${charts_branch}" \
             --set "extraEnv[2].name=CATTLE_FLEET_VERSION" \
-            --set "extraEnv[2].value=${{ inputs.fleet_version }}" \
+            --set "extraEnv[2].value=${fleet_version}" \
             --set "extraEnv[3].name=CATTLE_SERVER_URL" \
             --set "extraEnv[3].value=https://$ip.sslip.io" \
 
@@ -222,6 +224,23 @@ jobs:
           kubectl -n cattle-system rollout status deploy/rancher-webhook
 
           helm list -A
+
+      -
+        name: Checkout rancher/rancher
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: rancher/rancher
+          ref: main
+          path: rancher
+
+      -
+        name: Rancher Provisioning Tests
+        run: |
+          cd rancher
+          k8s_version=${{ env.SETUP_K3S_VERSION }}
+          export SOME_K8S_VERSION=${k8s_version/-/+}
+          go test -v -count=1 ./tests/v2prov/tests/fleet
 
       -
         name: Register Rancher's downstream clusters
