@@ -117,7 +117,7 @@ func TestLatestCommit_NoAuth(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			f := git.Fetch{}
-			client := mocks.NewMockClient(ctlr)
+			client := mocks.NewMockK8sClient(ctlr)
 			// May be called multiple times, including calls to get Rancher CA bundle secrets
 			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
 				Return(apierrors.NewNotFound(schema.GroupResource{}, "notfound")).AnyTimes()
@@ -351,7 +351,7 @@ func TestLatestCommit_Revision(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			f := git.Fetch{}
-			client := mocks.NewMockClient(ctlr)
+			client := mocks.NewMockK8sClient(ctlr)
 			// May be called multiple times, including calls to get Rancher CA bundle secrets
 			client.EXPECT().Get(ctx, gomock.Any(), gomock.Any()).
 				Return(apierrors.NewNotFound(schema.GroupResource{}, "notfound")).AnyTimes()

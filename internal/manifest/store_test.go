@@ -63,7 +63,7 @@ func Test_contentStore_Store(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			client := mocks.NewMockClient(ctrl)
+			client := mocks.NewMockK8sClient(ctrl)
 
 			store := &manifest.ContentStore{client}
 			ctx := context.TODO()

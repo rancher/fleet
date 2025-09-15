@@ -2,6 +2,12 @@
 
 set -eux
 
+# Check availability of Rancher CLI
+if ! command -v rancher &>/dev/null && ! command -v rancher-cli &>/dev/null; then
+  echo "Error: Either 'rancher' or 'rancher-cli' binary must be installed and available in PATH."
+  exit 1
+fi
+
 if [ ! -d ./.github/scripts ]; then
   echo "please change the current directory to the fleet repo checkout"
   exit 1
@@ -29,7 +35,6 @@ kubectl config use-context "$upstream_ctx"
 kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.13.1/cert-manager.yaml
 kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
 
-# set CATTLE_SERVER_URL and CATTLE_BOOTSTRAP_PASSWORD to get rancher out of "bootstrap" mode
 helm upgrade rancher "https://releases.rancher.com/server-charts/${channel}/rancher-${version#v}.tgz" \
   --devel \
   --install --wait \

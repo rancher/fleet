@@ -16,6 +16,7 @@ import (
 
 	"github.com/rancher/fleet/internal/cmd"
 	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/agent"
+	"github.com/rancher/fleet/internal/cmd/controller/agentmanagement/scheduling"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/names"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -113,6 +114,8 @@ func hashStatusField(field any) (string, error) {
 func hashChanged(field any, statusHash string) (bool, string, error) {
 	isNil := func(field any) bool {
 		switch field := field.(type) {
+		case *fleet.AgentSchedulingCustomization:
+			return field == nil
 		case *corev1.Affinity:
 			return field == nil
 		case *corev1.ResourceRequirements:
@@ -179,6 +182,13 @@ func (h *handler) updateClusterStatus(cluster *fleet.Cluster, status fleet.Clust
 	if hostNetwork := *cmp.Or(cluster.Spec.HostNetwork, ptr.To(false)); status.AgentHostNetwork != hostNetwork {
 		status.AgentHostNetwork = hostNetwork
 		changed = true
+	}
+
+	if c, hash, err := hashChanged(cluster.Spec.AgentSchedulingCustomization, status.AgentSchedulingCustomizationHash); err != nil {
+		return status, changed, err
+	} else if c {
+		status.AgentSchedulingCustomizationHash = hash
+		changed = c
 	}
 
 	if c, hash, err := hashChanged(cluster.Spec.AgentAffinity, status.AgentAffinityHash); err != nil {
@@ -271,6 +281,11 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 		return nil, err
 	}
 
+	priorityClassName := ""
+	if cluster.Spec.AgentSchedulingCustomization != nil && cluster.Spec.AgentSchedulingCustomization.PriorityClass != nil {
+		priorityClassName = scheduling.FleetAgentPriorityClassName
+	}
+
 	// Notice we only set the agentScope when it's a non-default agentNamespace. This is for backwards compatibility
 	// for when we didn't have agent scope before
 	objs := agent.Manifest(
@@ -293,6 +308,7 @@ func (h *handler) newAgentBundle(ns string, cluster *fleet.Cluster) (runtime.Obj
 			DriftWorkers:            cfg.AgentWorkers.Drift,
 			AgentReplicas:           agentReplicas,
 			LeaderElectionOptions:   leaderElectionOptions,
+			PriorityClassName:       priorityClassName,
 		},
 	)
 	agentYAML, err := yaml.Export(objs...)
