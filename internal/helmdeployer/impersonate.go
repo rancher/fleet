@@ -57,6 +57,8 @@ func newImpersonatingGetter(namespace, name string, getter genericclioptions.RES
 	if err != nil {
 		return nil, err
 	}
+	restConfig.QPS = -1
+	restConfig.RateLimiter = nil
 
 	return &impersonatingGetter{
 		RESTClientGetter: getter,
