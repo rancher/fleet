@@ -69,6 +69,9 @@ func Register(ctx context.Context, namespace string, config *rest.Config) (*Agen
 // populated and the contained kubeconfig is working
 func tryRegister(ctx context.Context, namespace string, cfg *rest.Config) (*AgentInfo, error) {
 	cfg = rest.CopyConfig(cfg)
+	// disable the rate limiter
+	cfg.QPS = -1
+	cfg.RateLimiter = nil
 
 	k8s, err := core.NewFactoryFromConfig(cfg)
 	if err != nil {
