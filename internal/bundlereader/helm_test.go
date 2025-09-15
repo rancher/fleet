@@ -322,7 +322,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 			expectedNilManifest: true,
 			expectedResources:   []fleet.BundleResource{},
 			expectedErrNotNil:   true,
-			expectedError:       "failed to read helm repo from ##URL##/index.yaml, error code: 401, response body: Unauthorized\n",
+			expectedError:       "failed to read helm repo from ##URL##/index.yaml, error code: 401",
 		},
 		{
 			name: "tls error",
