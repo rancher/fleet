@@ -33,8 +33,14 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 	switch creds.Type {
 	case corev1.SecretTypeBasicAuth:
 		username, password := creds.Data[corev1.BasicAuthUsernameKey], creds.Data[corev1.BasicAuthPasswordKey]
-		if len(password) == 0 && len(username) == 0 {
-			return nil, nil
+		if len(username) == 0 {
+			if len(password) == 0 {
+				return nil, nil
+			}
+
+			return &httpgit.BasicAuth{
+				Username: string(password),
+			}, nil
 		}
 		return &httpgit.BasicAuth{
 			Username: string(username),
