@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -517,11 +518,14 @@ func TestReconcile_ErrorCreatingBundleIsShownInStatus(t *testing.T) {
 		if err == nil {
 			t.Errorf("expecting error, got nil")
 		}
-		if !strings.Contains(err.Error(), "404") {
-			t.Errorf("expecting error containing: [404], got %v", err.Error())
+
+		errRegex := "could not get a chart version.*error code: 404"
+		match, rErr := regexp.Match(errRegex, []byte(err.Error()))
+		if rErr != nil {
+			t.Errorf("something went wrong when compiling the regex: %v", rErr)
 		}
-		if strings.Contains(err.Error(), "<html>") {
-			t.Errorf("expecting error not containing HTML body, got %v", err.Error())
+		if !match {
+			t.Errorf("expecting error matching %q, got %v", errRegex, err)
 		}
 		if res.RequeueAfter != 0 {
 			t.Errorf("expecting no requeue when there's an error, but got RequeueAfter: %v", res.RequeueAfter)
