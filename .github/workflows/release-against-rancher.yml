@@ -7,15 +7,15 @@ on:
         required: true
         default: "main"
       rancher_ref:
-        description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.7)"
+        description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.9)"
         required: true
         default: "release/v2.9"
       new_fleet:
-        description: "New Fleet version (e.g. 0.8.0-rc.3)"
+        description: "New Fleet version (e.g. 0.10.0-rc.1)"
         required: true
         default: ""
       new_chart:
-        description: "New Rancher Chart version (e.g. 103.1.0)"
+        description: "New Rancher Chart version (e.g. 104.2.0)"
         required: true
         default: ""
       should_bump_api:
@@ -25,7 +25,7 @@ on:
       go_version:
         description: "Go version used for bumping the api. This should be the same version as in the go.mod file of the project."
         required: true
-        default: '1.21.*'
+        default: '1.24.*'
 
 env:
   GOARCH: amd64

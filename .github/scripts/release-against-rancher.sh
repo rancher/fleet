@@ -11,13 +11,13 @@ BUMP_API="$3"             # bump api if `true`
 bump_fleet_api() {
     COMMIT=$1
 
-    go get -u "github.com/rancher/fleet/pkg/apis@${COMMIT}"
+    go get -u "github.com/rancher/fleet/pkg/apis@v${NEW_FLEET_VERSION}" || go get -u "github.com/rancher/fleet/pkg/apis@${COMMIT}"
     go mod tidy
 }
 
-CHARTS_DIR=${CHARTS_DIR-"$(dirname -- "$0")/../../../rancher"}
+RANCHER_DIR=${RANCHER_DIR-"$(dirname -- "$0")/../../../rancher"}
 
-pushd "${CHARTS_DIR}" > /dev/null
+pushd "${RANCHER_DIR}" > /dev/null
 
 if [ ! -e ~/.gitconfig ]; then
     git config --global user.name "fleet-bot"
@@ -25,9 +25,9 @@ if [ ! -e ~/.gitconfig ]; then
 fi
 
 # Check if version is available online
-CURRENT_RANCHER_VERSION=$(git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2)
-if ! curl -s --head --fail "https://github.com/rancher/charts/raw/dev-${CURRENT_RANCHER_VERSION}/assets/fleet/fleet-${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}.tgz" > /dev/null; then
-    echo "Version ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION} does not exist in the branch dev-${CURRENT_RANCHER_VERSION} in rancher/charts"
+CHART_DEFAULT_BRANCH=$(grep "ARG CHART_DEFAULT_BRANCH=" package/Dockerfile | cut -d'=' -f2)
+if ! curl -s --head --fail "https://github.com/rancher/charts/raw/${CHART_DEFAULT_BRANCH}/assets/fleet/fleet-${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}.tgz" > /dev/null; then
+    echo "Version ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION} does not exist in the branch ${CHART_DEFAULT_BRANCH} in rancher/charts"
     exit 1
 fi
 
