@@ -5,7 +5,7 @@ on:
       rancher_ref:
         description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.12)"
         required: true
-        default: "release/v2.11"
+        default: "release/v2.12"
       new_fleet:
         description: "New Fleet version (e.g. 0.13.0-rc.1)"
         required: true
