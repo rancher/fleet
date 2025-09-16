@@ -3,15 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       rancher_ref:
-        description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.7)"
+        description: "Submit PR against the following rancher/rancher branch (e.g. release/v2.11)"
         required: true
-        default: "release/v2.10"
+        default: "release/v2.11"
       new_fleet:
-        description: "New Fleet version (e.g. 0.8.0-rc.3)"
+        description: "New Fleet version (e.g. 0.12.0-rc.3)"
         required: true
         default: ""
       new_chart:
-        description: "New Rancher Chart version (e.g. 103.1.0)"
+        description: "New Rancher Chart version (e.g. 106.1.0)"
         required: true
         default: ""
       should_bump_api:
@@ -21,7 +21,7 @@ on:
       go_version:
         description: "Go version used for bumping the api. This should be the same version as in the go.mod file of the project."
         required: true
-        default: '1.23.*'
+        default: '1.24.*'
 
 env:
   GOARCH: amd64
