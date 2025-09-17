@@ -251,6 +251,10 @@ spec:
 {{- if $.Values.tolerations }}
 {{ toYaml $.Values.tolerations | indent 8 }}
 {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if $.Values.priorityClassName }}
       priorityClassName: "{{$.Values.priorityClassName}}"
       {{- end }}
