@@ -1043,7 +1043,7 @@ var _ = Describe("HelmOps controller", func() {
 						fleet.HelmOpAcceptedCondition,
 						v1.ConditionFalse,
 						"Error",
-						"error code: 401, response body: Unauthorized",
+						"error code: 401",
 					)
 
 				}).Should(Succeed())
@@ -1109,7 +1109,7 @@ var _ = Describe("HelmOps controller", func() {
 						fleet.HelmOpAcceptedCondition,
 						v1.ConditionFalse,
 						"Error",
-						"error code: 401, response body: Unauthorized",
+						"error code: 401",
 					)
 
 				}).Should(Succeed())
