@@ -460,6 +460,11 @@ func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 		return ctrl.Result{}, err
 	}
 
+	// pro-actively delete the bundle's secret. k8s owner garbage collection will handle remaining orphans.
+	if err := r.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: bundle.Name, Namespace: bundle.Namespace}}); err != nil && !apierrors.IsNotFound(err) {
+		logger.V(1).Info("Cannot delete bundle's values secret, owner garbage collection will remove it")
+	}
+
 	return ctrl.Result{}, r.maybeDeleteOCIArtifact(ctx, bundle)
 }
 
@@ -756,6 +761,10 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 		if err := c.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
 			errs = append(errs, err)
 		}
+
+		// k8s ownership garbage collection can take a long time, so we explicitly delete the secrets here.
+		// GC will delete any remaining orphaned secrets, no need to add an error.
+		_ = c.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace}})
 	}
 
 	return errors.Join(errs...)
