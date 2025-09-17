@@ -69,8 +69,12 @@ global:
 ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
 ##
 nodeSelector: {}
+
 ## List of node taints to tolerate (requires Kubernetes >= 1.6)
 tolerations: []
+
+## Pod affinity for the controllers.
+affinity: {}
 
 ## PriorityClassName assigned to deployment.
 priorityClassName: ""
