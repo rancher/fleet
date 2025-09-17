@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 
@@ -18,7 +19,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Git Repo", func() {
+var _ = Describe("Git Repo with SSH auth", func() {
 	var (
 		tmpdir  string
 		repodir string
@@ -138,6 +139,48 @@ var _ = Describe("Git Repo", func() {
 				out, _ := k.Namespace("default").Get("deployments")
 				return out
 			}, testenv.MediumTimeout, testenv.ShortTimeout).Should(ContainSubstring("newsleep"))
+		})
+	})
+})
+
+var _ = Describe("Git Repo with personal access token auth", func() {
+	var k kubectl.Command
+
+	When("using a personal access token for auth", func() {
+		BeforeEach(func() {
+			k = env.Kubectl.Namespace(env.Namespace)
+
+			out, err := k.Create(
+				"secret", "generic", "git-auth", "--type", "kubernetes.io/basic-auth",
+				"--from-literal=password="+os.Getenv("GITHUB_PAT_TOKEN"),
+			)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			url := strings.Replace(os.Getenv("GIT_REPO_URL"), "git@github.com:", "https://github.com/", 1)
+
+			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo_with_auth.yaml"), struct {
+				Repo            string
+				Branch          string
+				PollingInterval string
+			}{
+				url,
+				"main",
+				"15s", // default
+			})
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			DeferCleanup(func() {
+				_, _ = k.Delete("gitrepo", "gitrepo-test")
+				_, _ = k.Delete("secret", "git-auth")
+			})
+		})
+
+		It("clones the repo", func() {
+			By("checking just the clone was attempted and successful")
+			Eventually(func() string {
+				out, _ := k.Get("gitrepo", "gitrepo-test", `-o=jsonpath={.status.conditions[?(@.type=="Stalled")].message}`)
+				return out
+			}).Should(ContainSubstring("no resource found at the following paths to deploy"))
 		})
 	})
 })
