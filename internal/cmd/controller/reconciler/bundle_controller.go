@@ -571,11 +571,11 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 		},
 	}
 
-	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
-		return err
-	}
-
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
+			return err
+		}
+
 		secret.Data = map[string][]byte{
 			helmvalues.ValuesKey:       options,
 			helmvalues.StagedValuesKey: stagedOptions,
