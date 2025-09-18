@@ -38,6 +38,7 @@ import (
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -570,12 +571,19 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 			Namespace: bd.Namespace,
 		},
 	}
-
-	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
-		return err
+	owners := []metav1.OwnerReference{
+		{
+			APIVersion:         fleet.SchemeGroupVersion.String(),
+			Kind:               "BundleDeployment",
+			Name:               bd.GetName(),
+			UID:                bd.GetUID(),
+			BlockOwnerDeletion: ptr.To(true),
+			Controller:         ptr.To(true),
+		},
 	}
 
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.OwnerReferences = owners
 		secret.Data = map[string][]byte{
 			helmvalues.ValuesKey:       options,
 			helmvalues.StagedValuesKey: stagedOptions,
