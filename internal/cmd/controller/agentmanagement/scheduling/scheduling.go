@@ -29,25 +29,25 @@ func PriorityClass(priorityClass *fleet.PriorityClassSpec) *schedulingv1.Priorit
 	}
 }
 
-func PodDisruptionBudget(agentNamespace string, podDisruptionBudgetSpec *fleet.PodDisruptionBudgetSpec) (*policyv1.PodDisruptionBudget, error) {
+func PodDisruptionBudget(agentNamespace string, pdbs *fleet.PodDisruptionBudgetSpec) (*policyv1.PodDisruptionBudget, error) {
 	pdbSpec := policyv1.PodDisruptionBudgetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{"app": "fleet-agent"},
 		},
 	}
 
-	if podDisruptionBudgetSpec.MaxUnavailable == "" && podDisruptionBudgetSpec.MinAvailable == "" {
+	if pdbs.MaxUnavailable == "" && pdbs.MinAvailable == "" {
 		logrus.Warnf("Neither MaxUnavailable nor MinAvailable is set, defaulting to 0 for MaxUnavailable")
 		pdbSpec.MaxUnavailable = &intstr.IntOrString{IntVal: 0}
-	} else if podDisruptionBudgetSpec.MaxUnavailable != "" && podDisruptionBudgetSpec.MinAvailable != "" {
-		return &policyv1.PodDisruptionBudget{},
-			fmt.Errorf("both MaxUnavailable (%s) and MinAvailable (%s) are set, not creating PDB", podDisruptionBudgetSpec.MaxUnavailable, podDisruptionBudgetSpec.MinAvailable)
-	} else if podDisruptionBudgetSpec.MaxUnavailable != "" {
-		mu := intstr.Parse(podDisruptionBudgetSpec.MaxUnavailable)
+	} else if pdbs.MaxUnavailable != "" && (pdbs.MinAvailable == "" || pdbs.MinAvailable == "0") {
+		mu := intstr.Parse(pdbs.MaxUnavailable)
 		pdbSpec.MaxUnavailable = &mu
-	} else if podDisruptionBudgetSpec.MinAvailable != "" {
-		mu := intstr.Parse(podDisruptionBudgetSpec.MinAvailable)
-		pdbSpec.MinAvailable = &mu
+	} else if pdbs.MinAvailable != "" && (pdbs.MaxUnavailable == "" || pdbs.MaxUnavailable == "0") {
+		ma := intstr.Parse(pdbs.MinAvailable)
+		pdbSpec.MinAvailable = &ma
+	} else if pdbs.MaxUnavailable != "" && pdbs.MinAvailable != "" {
+		return &policyv1.PodDisruptionBudget{},
+			fmt.Errorf("both MaxUnavailable (%s) and MinAvailable (%s) are set, not creating PDB", pdbs.MaxUnavailable, pdbs.MinAvailable)
 	}
 
 	return &policyv1.PodDisruptionBudget{
