@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -493,8 +494,15 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 		},
 	}
 
-	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
-		return err
+	owners := []metav1.OwnerReference{
+		{
+			APIVersion:         fleet.SchemeGroupVersion.String(),
+			Kind:               "BundleDeployment",
+			Name:               bd.GetName(),
+			UID:                bd.GetUID(),
+			BlockOwnerDeletion: ptr.To(true),
+			Controller:         ptr.To(true),
+		},
 	}
 
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
@@ -502,6 +510,7 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 			helmvalues.ValuesKey:       options,
 			helmvalues.StagedValuesKey: stagedOptions,
 		}
+		secret.OwnerReferences = owners
 		return nil
 	}); err != nil {
 		return err
