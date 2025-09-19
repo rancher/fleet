@@ -29,7 +29,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -267,6 +269,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// build BundleDeployments out of targets discarding Status, replacing DependsOn with the
 	// bundle's DependsOn (pure function) and replacing the labels with the bundle's labels
+	merr := []error{}
 	bundleDeploymentUIDs := make(sets.Set[types.UID])
 	for _, target := range matchedTargets {
 		if target.Deployment == nil {
@@ -283,6 +286,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// NOTE we don't use the existing BundleDeployment, we discard annotations, status, etc
 		// copy labels from Bundle as they might have changed
 		bd := target.BundleDeployment()
+		logger = logger.WithValues("bundledeployment", bd.Name)
 
 		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
 		// been created.
@@ -309,7 +313,15 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			bundle.Spec.HelmAppOptions != nil,
 			manifestID)
 		if err != nil {
-			return ctrl.Result{}, err
+			// We could end up here, because we cannot add a
+			// finalizer to a content resource, which has a
+			// deletion timestamp.
+			// Log the problem and keep trying to create the other
+			// bundledeployments, but retry the whole reconcile
+			// afterwards.
+			merr = append(merr, fmt.Errorf("failed to create bundle deployment: %w", err))
+			logger.Info("failed to create bundledeployment")
+			continue
 		}
 		bundleDeploymentUIDs.Insert(bd.UID)
 
@@ -338,10 +350,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	updateDisplay(&bundle.Status)
 	if err := r.updateStatus(ctx, bundleOrig, bundle); err != nil {
-		return ctrl.Result{}, err
+		merr = append(merr, err)
+		return ctrl.Result{}, errutil.NewAggregate(merr)
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, errutil.NewAggregate(merr)
 }
 
 func upper(op controllerutil.OperationResult) string {
@@ -382,7 +395,17 @@ func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 
 	metrics.BundleCollector.Delete(req.Name, req.Namespace)
 	controllerutil.RemoveFinalizer(bundle, finalize.BundleFinalizer)
-	return ctrl.Result{}, r.Update(ctx, bundle)
+
+	if err := r.Update(ctx, bundle); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// pro-actively delete the bundle's secret. k8s owner garbage collection will handle remaining orphans.
+	if err := r.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: bundle.Name, Namespace: bundle.Namespace}}); err != nil && !apierrors.IsNotFound(err) {
+		logger.V(1).Info("Cannot delete bundle's values secret, owner garbage collection will remove it")
+	}
+
+	return ctrl.Result{}, nil
 }
 
 // ensureFinalizer adds a finalizer to a recently created bundle.
@@ -403,7 +426,7 @@ func (r *BundleReconciler) createBundleDeployment(
 	contentsInHelmChart bool,
 	manifestID string,
 ) (*fleet.BundleDeployment, error) {
-	logger = logger.WithValues("bundledeployment", bd, "deploymentID", bd.Spec.DeploymentID)
+	logger = logger.WithValues("deploymentID", bd.Spec.DeploymentID)
 
 	// When content resources are stored in etcd, we need to add finalizers.
 	if !contentsInOCI && !contentsInHelmChart {
@@ -414,7 +437,7 @@ func (r *BundleReconciler) createBundleDeployment(
 
 		if added := controllerutil.AddFinalizer(content, bd.Name); added {
 			if err := r.Update(ctx, content); err != nil {
-				return nil, fmt.Errorf("could not add finalizer to content resource: %w", err)
+				return nil, fmt.Errorf("could not add finalizer to content resource, thus cannot create/update bundledeployment: %w", err)
 			}
 		}
 	}
@@ -483,8 +506,15 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 		},
 	}
 
-	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
-		return err
+	owners := []metav1.OwnerReference{
+		{
+			APIVersion:         fleet.SchemeGroupVersion.String(),
+			Kind:               "BundleDeployment",
+			Name:               bd.GetName(),
+			UID:                bd.GetUID(),
+			BlockOwnerDeletion: ptr.To(true),
+			Controller:         ptr.To(true),
+		},
 	}
 
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
@@ -492,6 +522,7 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 			helmvalues.ValuesKey:       options,
 			helmvalues.StagedValuesKey: stagedOptions,
 		}
+		secret.OwnerReferences = owners
 		return nil
 	}); err != nil {
 		return err
@@ -628,6 +659,10 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 		if err := c.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
 			errs = append(errs, err)
 		}
+
+		// k8s ownership garbage collection can take a long time, so we explicitly delete the secrets here.
+		// GC will delete any remaining orphaned secrets, no need to add an error.
+		_ = c.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace}})
 	}
 
 	return errors.Join(errs...)

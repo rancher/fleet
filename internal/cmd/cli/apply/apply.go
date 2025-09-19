@@ -323,16 +323,22 @@ func save(c *client.Client, bundle *fleet.Bundle) (*fleet.Bundle, error) {
 			return bundle, err
 		}
 		logrus.Infof("created (bundle): %s/%s", bundle.Namespace, bundle.Name)
-	} else {
-		obj.Spec = bundle.Spec
-		obj.Annotations = bundle.Annotations
-		obj.Labels = bundle.Labels
-
-		if obj, err = c.Fleet.Bundle().Update(obj); err != nil {
-			return bundle, err
-		}
-		logrus.Infof("updated (bundle): %s/%s", obj.Namespace, obj.Name)
+		return obj, nil
 	}
+
+	// We cannot update a bundle that is going to be deleted, our update would be lost
+	if bundle.DeletionTimestamp != nil {
+		return bundle, fmt.Errorf("the bundle %q is being deleted", bundle.Name)
+	}
+
+	obj.Spec = bundle.Spec
+	obj.Annotations = bundle.Annotations
+	obj.Labels = bundle.Labels
+
+	if obj, err = c.Fleet.Bundle().Update(obj); err != nil {
+		return bundle, err
+	}
+	logrus.Infof("updated (bundle): %s/%s", obj.Namespace, obj.Name)
 
 	return obj, nil
 }
@@ -390,22 +396,27 @@ func saveOCIBundle(ctx context.Context, c *client.Client, bundle *fleet.Bundle, 
 			return bundle, err
 		}
 		logrus.Infof("createOrUpdate (oci secret): %s/%s", obj.Namespace, obj.Name)
-	} else {
-		obj.Spec = bundle.Spec
-		obj.Annotations = bundle.Annotations
-		obj.Labels = bundle.Labels
-		obj.Spec.Resources = nil
-		obj.Spec.ContentsID = manifestID
-		obj, err = c.Fleet.Bundle().Update(obj)
-		if err != nil {
-			return bundle, err
-		}
-
-		if err := createOrUpdate(c, newOCISecret(manifestID, obj, opts)); err != nil {
-			return bundle, err
-		}
-		logrus.Infof("createOrUpdate (oci secret): %s/%s", obj.Namespace, obj.Name)
+		return obj, nil
 	}
+
+	if bundle.DeletionTimestamp != nil {
+		return bundle, fmt.Errorf("the bundle %q is being deleted", bundle.Name)
+	}
+
+	obj.Spec = bundle.Spec
+	obj.Annotations = bundle.Annotations
+	obj.Labels = bundle.Labels
+	obj.Spec.Resources = nil
+	obj.Spec.ContentsID = manifestID
+	obj, err = c.Fleet.Bundle().Update(obj)
+	if err != nil {
+		return bundle, err
+	}
+
+	if err := createOrUpdate(c, newOCISecret(manifestID, obj, opts)); err != nil {
+		return bundle, err
+	}
+	logrus.Infof("createOrUpdate (oci secret): %s/%s", obj.Namespace, obj.Name)
 
 	return obj, nil
 }

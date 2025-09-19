@@ -1,6 +1,11 @@
 package deploy_test
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
+	"encoding/json"
+
 	"github.com/onsi/gomega/gbytes"
 
 	clihelper "github.com/rancher/fleet/integrationtests/cli"
@@ -137,6 +142,71 @@ var _ = Describe("Fleet CLI Deploy", func() {
 		It("creates resources", func() {
 			buf, err := act(args)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(buf).To(gbytes.Say("- apiVersion: v1"))
+			Expect(buf).To(gbytes.Say("  data:"))
+			Expect(buf).To(gbytes.Say("    name: example-value"))
+
+			cm := &corev1.ConfigMap{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-simple-chart-config"}, cm)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	When("deploying on top of a release in `pending-install` status", func() {
+		BeforeEach(func() {
+			release := map[string]interface{}{
+				"name": "testbundle-simple-chart",
+				"info": map[string]string{
+					"status": "pending-install",
+				},
+				// Other release fields (e.g. chart, manifests) omitted for simplicity, not needed to
+				// check for a `pending-install` release.
+			}
+			releaseJSON, err := json.Marshal(release)
+			Expect(err).ToNot(HaveOccurred())
+
+			var gzBuf bytes.Buffer
+			gzWriter := gzip.NewWriter(&gzBuf)
+			_, err = gzWriter.Write(releaseJSON)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(gzWriter.Close()).ToNot(HaveOccurred())
+
+			rel := make([]byte, base64.StdEncoding.EncodedLen(gzBuf.Len()))
+			base64.StdEncoding.Encode(rel, gzBuf.Bytes())
+
+			releaseSecret := corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "sh.helm.release.v1.testbundle-simple-chart.v1",
+					Namespace: "default",
+					Labels: map[string]string{
+						"name":    "testbundle-simple-chart",
+						"owner":   "helm",
+						"status":  "pending-install",
+						"version": "1",
+					},
+				},
+				Type: "helm.sh/release.v1",
+				Data: map[string][]byte{"release": rel},
+			}
+			// Fleet creates release secrets into the default namespace, therefore a cleanup is needed here
+			// to prevent conflicts with other test cases.
+			_ = k8sClient.Delete(ctx, &releaseSecret)
+			Expect(k8sClient.Create(ctx, &releaseSecret)).ToNot(HaveOccurred())
+			args = []string{
+				"--input-file", clihelper.AssetsPath + "bundledeployment/bd.yaml",
+				"--namespace", namespace,
+			}
+			DeferCleanup(func() {
+				Expect(k8sClient.Delete(ctx, &releaseSecret)).ToNot(HaveOccurred())
+			})
+		})
+
+		It("installs the release successfully", func() {
+			buf, err := act(args)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("creating resources")
 			Expect(buf).To(gbytes.Say("- apiVersion: v1"))
 			Expect(buf).To(gbytes.Say("  data:"))
 			Expect(buf).To(gbytes.Say("    name: example-value"))
