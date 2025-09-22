@@ -50,6 +50,31 @@ func TestPodDisruptionBudget(t *testing.T) {
 			spec:    &fleet.PodDisruptionBudgetSpec{MinAvailable: "1", MaxUnavailable: "1"},
 			wantErr: true,
 		},
+		{
+			name:   "having both values, MinAvailable as zero, should disable the zero value",
+			spec:   &fleet.PodDisruptionBudgetSpec{MinAvailable: "0", MaxUnavailable: "1"},
+			wantMU: ptr(intstr.FromInt(1)),
+		},
+		{
+			name:   "having both values, MaxUnavailable as zero, should disable the zero value",
+			spec:   &fleet.PodDisruptionBudgetSpec{MinAvailable: "1", MaxUnavailable: "0"},
+			wantMA: ptr(intstr.FromInt(1)),
+		},
+		{
+			name:   "having a percent value while MinAvailable is zero should disable the zero value",
+			spec:   &fleet.PodDisruptionBudgetSpec{MinAvailable: "0", MaxUnavailable: "10%"},
+			wantMU: ptr(intstr.FromString("10%")),
+		},
+		{
+			name:   "having a percent value while MaxUnavailable is zero should disable the zero value",
+			spec:   &fleet.PodDisruptionBudgetSpec{MinAvailable: "10%", MaxUnavailable: "0"},
+			wantMA: ptr(intstr.FromString("10%")),
+		},
+		{
+			name:    "two non-zero values shouldn't work",
+			spec:    &fleet.PodDisruptionBudgetSpec{MinAvailable: "1", MaxUnavailable: "1"},
+			wantErr: true,
+		},
 	}
 
 	for _, test := range tests {
