@@ -156,6 +156,7 @@ func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey]
 
 func aggregateResourceStatesClustersMap(resourceKeyStates resourceStatesByResourceKey) []fleet.Resource {
 	result := make([]fleet.Resource, 0, len(resourceKeyStates))
+	size := 0
 	for resourceKey, entries := range resourceKeyStates {
 		resource := &fleet.Resource{
 			Kind:       resourceKey.Kind,
@@ -172,7 +173,10 @@ func aggregateResourceStatesClustersMap(resourceKeyStates resourceStatesByResour
 				resource.IncompleteState = true
 			}
 
-			appendToPerClusterState(&resource.PerClusterState, entry.state, entry.clusterID)
+			if size < 1024*1024 { // 1mb
+				appendToPerClusterState(&resource.PerClusterState, entry.state, entry.clusterID)
+				size += len(entry.clusterID)
+			}
 
 			// top-level state is set from first non "Ready" per-cluster state
 			if resource.State == "Ready" {
