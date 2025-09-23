@@ -212,7 +212,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	bundleOrig := bundle.DeepCopy()
 
-	logger.V(1).Info(
+	logger.Info(
 		"Reconciling bundle, checking targets, calculating changes, building objects",
 		"generation",
 		bundle.Generation,
@@ -337,7 +337,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			continue
 		}
 		if target.Deployment.Namespace == "" {
-			logger.V(1).Info(
+			logger.Info(
 				"Skipping bundledeployment with empty namespace, waiting for agentmanagement to set cluster.status.namespace",
 				"bundledeployment", target.Deployment,
 			)
@@ -407,7 +407,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// the targets configuration may have changed, leaving behind some BundleDeployments that are no longer needed
 	if err := r.cleanupOrphanedBundleDeployments(ctx, bundle, bundleDeploymentUIDs); err != nil {
-		logger.V(1).Error(err, "deleting orphaned bundle deployments", "bundle", bundle.GetName())
+		logger.Error(err, "deleting orphaned bundle deployments", "bundle", bundle.GetName())
 	}
 
 	updateDisplay(&bundle.Status)
