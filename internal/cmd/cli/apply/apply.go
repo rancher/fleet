@@ -148,28 +148,8 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 					// needed as opts are mutated in this loop
 					opts := opts
 					eg.Go(func() error {
-						if auth, ok := opts.AuthByPath[path]; ok {
-							opts.Auth = auth
-						} else { // No direct match; check for globs instead.
-							var patternKeys []string
-							for k := range opts.AuthByPath {
-								patternKeys = append(patternKeys, k)
-							}
-							// Sort patterns in lexical order to work around
-							// non-deterministic iteration order for Go maps.
-							slices.Sort(patternKeys)
-
-							for _, pattern := range patternKeys {
-								isMatch, err := filepath.Match(pattern, path)
-								if err != nil {
-									return fmt.Errorf("failed to check for matches in auth paths: %w", err)
-								}
-
-								if isMatch {
-									opts.Auth = opts.AuthByPath[pattern]
-									break
-								}
-							}
+						if err := setAuthByPath(&opts, path); err != nil {
+							return err
 						}
 
 						bundle, scans, err := bundleFromDir(ctx, repoName, path, opts)
@@ -255,9 +235,11 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 				if err != nil {
 					return err
 				}
-				if auth, ok := opts.AuthByPath[baseDir]; ok {
-					opts.Auth = auth
+
+				if err := setAuthByPath(&opts, baseDir); err != nil {
+					return err
 				}
+
 				bundle, scans, err := bundleFromDir(ctx, repoName, baseDir, opts)
 				if err != nil {
 					if err == ErrNoResources {
@@ -800,6 +782,37 @@ func sendWarningEvent(r record.EventRecorder, namespace, artifactID string, erro
 		},
 	}
 	r.Event(job, fleetevent.Warning, "FailedToDeleteOCIArtifact", fmt.Sprintf("deleting OCI artifact %q: %v", artifactID, errorToLog.Error()))
+}
+
+func setAuthByPath(opts *Options, path string) error {
+	if auth, ok := opts.AuthByPath[path]; ok {
+		opts.Auth = auth
+
+		return nil
+	}
+
+	// No direct match; check for globs instead.
+	var patternKeys []string
+	for k := range opts.AuthByPath {
+		patternKeys = append(patternKeys, k)
+	}
+	// Sort patterns in lexical order to work around
+	// non-deterministic iteration order for Go maps.
+	slices.Sort(patternKeys)
+
+	for _, pattern := range patternKeys {
+		isMatch, err := filepath.Match(pattern, path)
+		if err != nil {
+			return fmt.Errorf("failed to check for matches in auth paths: %w", err)
+		}
+
+		if isMatch {
+			opts.Auth = opts.AuthByPath[pattern]
+			break
+		}
+	}
+
+	return nil
 }
 
 func GetOnConflictRetries() (int, error) {
