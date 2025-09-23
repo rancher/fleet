@@ -90,6 +90,12 @@ type Options struct {
 	JobNameEnvVar               string
 }
 
+type bundleWithOpts struct {
+	bundle *fleet.Bundle
+	scans  []*fleet.ImageScan
+	opts   *Options
+}
+
 func globDirs(baseDir string) (result []string, err error) {
 	for strings.HasPrefix(baseDir, "/") {
 		baseDir = baseDir[1:]
@@ -120,7 +126,8 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
 	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
 	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
-	bundlesChan := make(chan *fleet.Bundle)
+
+	bundlesChan := make(chan *bundleWithOpts)
 	eg, ctx := errgroup.WithContext(pctx)
 	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
 	eg.Go(func() error {
@@ -163,9 +170,9 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 						select {
 						case <-ctx.Done():
 							return ctx.Err()
-						case bundlesChan <- bundle:
+						case bundlesChan <- &bundleWithOpts{bundle: bundle, scans: scans, opts: &opts}:
 						}
-						return writeBundle(ctx, client, r, bundle, scans, opts)
+						return nil
 					})
 					return nil
 				}); err != nil {
@@ -181,8 +188,10 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 	}()
 
 	gitRepoBundlesMap := make(map[string]bool)
+	var bundlesToWrite []*bundleWithOpts
 	for b := range bundlesChan {
-		gitRepoBundlesMap[b.Name] = true
+		gitRepoBundlesMap[b.bundle.Name] = true
+		bundlesToWrite = append(bundlesToWrite, b)
 	}
 	// Recovers any error that could happen in the errgroup, won't actually wait
 	if err := eg.Wait(); err != nil {
@@ -201,7 +210,15 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
-	return nil
+	egWrite, ctx := errgroup.WithContext(pctx)
+	egWrite.SetLimit(bundleCreationMaxConcurrency)
+	for _, b := range bundlesToWrite {
+		egWrite.Go(func() error {
+			return writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+		})
+	}
+
+	return egWrite.Wait()
 }
 
 // CreateBundlesDriven creates bundles from the given baseDirs. Those bundles' names will be prefixed with
@@ -222,7 +239,7 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 	// 1. Goroutines will be launched, honouring the concurrency limit, and eventually block trying to write to `bundlesChan`.
 	// 2. The main function will read from `bundlesChan`, hence unblocking the goroutines. This will continue to read from `bundlesChan` until it is closed.
 	// 3. We use another goroutine to wait for all goroutines to finish, then close `bundlesChan`, finally unblocking the main function.
-	bundlesChan := make(chan *fleet.Bundle)
+	bundlesChan := make(chan *bundleWithOpts)
 	eg, ctx := errgroup.WithContext(pctx)
 	eg.SetLimit(bundleCreationMaxConcurrency + 1) // extra goroutine for WalkDir loop
 	eg.Go(func() error {
@@ -251,9 +268,9 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
-				case bundlesChan <- bundle:
+				case bundlesChan <- &bundleWithOpts{bundle: bundle, scans: scans, opts: &opts}:
 				}
-				return writeBundle(ctx, client, r, bundle, scans, opts)
+				return nil
 			})
 		}
 		return nil
@@ -264,8 +281,10 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 	}()
 
 	gitRepoBundlesMap := make(map[string]bool)
+	var bundlesToWrite []*bundleWithOpts
 	for b := range bundlesChan {
-		gitRepoBundlesMap[b.Name] = true
+		gitRepoBundlesMap[b.bundle.Name] = true
+		bundlesToWrite = append(bundlesToWrite, b)
 	}
 	// Recovers any error that could happen in the errgroup, won't actually wait
 	if err := eg.Wait(); err != nil {
@@ -284,7 +303,15 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 		return fmt.Errorf("no resource found at the following paths to deploy: %v", baseDirs)
 	}
 
-	return nil
+	egWrite, ctx := errgroup.WithContext(pctx)
+	egWrite.SetLimit(bundleCreationMaxConcurrency)
+	for _, b := range bundlesToWrite {
+		egWrite.Go(func() error {
+			return writeBundle(ctx, client, r, b.bundle, b.scans, *b.opts)
+		})
+	}
+
+	return egWrite.Wait()
 }
 
 // getPathAndFleetYaml returns the path and options file from a given path.
