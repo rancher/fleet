@@ -348,7 +348,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// and copy labels from Bundle as they might have changed.
 		// However, matchedTargets target.Deployment contains existing BundleDeployments.
 		bd := target.BundleDeployment()
-		logger = logger.WithValues("bundledeployment", bd.Name)
+		logger := logger.WithValues("bundledeployment", bd.Name)
 
 		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
 		// been created.
@@ -481,13 +481,13 @@ func (r *BundleReconciler) ensureFinalizer(ctx context.Context, bundle *fleet.Bu
 
 func (r *BundleReconciler) createBundleDeployment(
 	ctx context.Context,
-	logger logr.Logger,
+	toplog logr.Logger,
 	bd *fleet.BundleDeployment,
 	contentsInOCI bool,
 	contentsInHelmChart bool,
 	manifestID string,
 ) (*fleet.BundleDeployment, error) {
-	logger = logger.WithValues("deploymentID", bd.Spec.DeploymentID)
+	logger := toplog.WithValues("deploymentID", bd.Spec.DeploymentID)
 
 	// When content resources are stored in etcd, we need to add finalizers.
 	if !contentsInOCI && !contentsInHelmChart {
