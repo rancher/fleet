@@ -1,0 +1,9 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: bundle-replace-driven-test
+  namespace: fleet-local
+spec:
+  repo: "https://github.com/rancher/fleet-test-data"
+  bundles:
+  - base: qa-test-apps/ignore-missing-resources/without-diff
