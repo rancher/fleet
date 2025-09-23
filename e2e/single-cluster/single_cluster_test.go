@@ -250,6 +250,68 @@ var _ = Describe("Single Cluster Deployments", func() {
 				}, 5*time.Second, 1*time.Second).Should(Succeed())
 			})
 		})
+
+		Context("containing a bundle", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/without-diff.yaml"
+			})
+
+			It("deploys the resources", func() {
+				By("deploying the initial version of the bundle")
+				Eventually(func() string {
+					out, _ := k.Namespace("default").Get("configmaps")
+					return out
+				}).Should(ContainSubstring("test-simple-chart-config"))
+
+				Eventually(func(g Gomega) {
+					out, err := k.Get("gitrepo", "bundle-replace-test", "-o", `jsonpath='{.status.conditions[?(@.type=="Ready")].message}'`)
+					g.Expect(err).ToNot(HaveOccurred(), out)
+					g.Expect(out).To(ContainSubstring("job.batch default/alpine-wait-job missing"))
+				}).Should(Succeed())
+
+				By("updating the path of the gitrepo to another one with the same resources")
+
+				out, err := k.Patch("gitrepo", "bundle-replace-test", "--type=merge", "-p", `{"spec":{"paths":["qa-test-apps/ignore-missing-resources/with-diff"]}}`)
+				Expect(err).ToNot(HaveOccurred(), out)
+
+				Eventually(func(g Gomega) {
+					out, err := k.Get("gitrepo", "bundle-replace-test", "-o", `jsonpath={.status.conditions[?(@.type=="Ready")].status}`)
+					g.Expect(err).ToNot(HaveOccurred(), out)
+					g.Expect(string(out)).To(Equal("True"), out)
+				}).Should(Succeed())
+			})
+		})
+
+		Context("containing a bundle scanned in user-driven mode", func() {
+			BeforeEach(func() {
+				asset = "single-cluster/without-diff_driven.yaml"
+			})
+
+			It("deploys the resources", func() {
+				By("deploying the initial version of the bundle")
+				Eventually(func() string {
+					out, _ := k.Namespace("default").Get("configmaps")
+					return out
+				}).Should(ContainSubstring("test-simple-chart-config"))
+
+				Eventually(func(g Gomega) {
+					out, err := k.Get("gitrepo", "bundle-replace-driven-test", "-o", `jsonpath='{.status.conditions[?(@.type=="Ready")].message}'`)
+					g.Expect(err).ToNot(HaveOccurred(), out)
+					g.Expect(out).To(ContainSubstring("job.batch default/alpine-wait-job missing"))
+				}).Should(Succeed())
+
+				By("updating the path of the gitrepo to another one with the same resources")
+
+				out, err := k.Patch("gitrepo", "bundle-replace-driven-test", "--type=merge", "-p", `{"spec":{"bundles":[{"base":"qa-test-apps/ignore-missing-resources/with-diff"}]}}`)
+				Expect(err).ToNot(HaveOccurred(), out)
+
+				Eventually(func(g Gomega) {
+					out, err := k.Get("gitrepo", "bundle-replace-driven-test", "-o", `jsonpath={.status.conditions[?(@.type=="Ready")].status}`)
+					g.Expect(err).ToNot(HaveOccurred(), out)
+					g.Expect(string(out)).To(Equal("True"), out)
+				}).Should(Succeed())
+			})
+		})
 	})
 })
 
