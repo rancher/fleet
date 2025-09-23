@@ -192,7 +192,7 @@ func (h *Helm) mustUninstall(cfg *action.Configuration, releaseName string) (boo
 	if err != nil {
 		return false, nil
 	}
-	return r.Info.Status == release.StatusUninstalling || r.Info.Status == release.StatusPendingInstall, err
+	return r.Info.Status == release.StatusUninstalling || r.Info.Status == release.StatusPendingInstall || r.Info.Status == release.StatusPendingUpgrade, err
 }
 
 func (h *Helm) mustInstall(cfg *action.Configuration, releaseName string) (bool, error) {
