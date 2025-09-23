@@ -170,10 +170,16 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 		return auth, nil
 	}
 
-	if opts.Username != "" && opts.PasswordFile != "" {
+	if opts.PasswordFile != "" {
 		password, err := readFile(opts.PasswordFile)
 		if err != nil {
 			return nil, err
+		}
+
+		if len(opts.Username) == 0 {
+			return &httpgit.BasicAuth{
+				Username: string(password),
+			}, nil
 		}
 
 		return &httpgit.BasicAuth{
