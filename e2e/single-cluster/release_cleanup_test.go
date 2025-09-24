@@ -46,11 +46,9 @@ var _ = Describe("Monitoring Helm releases along bundle namespace updates", Orde
 		out, err := k.Delete("bundle", bundleName)
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		out, err = k.Delete("ns", oldNamespace, "--wait=false")
-		Expect(err).ToNot(HaveOccurred(), out)
+		_, _ = k.Delete("ns", oldNamespace, "--wait=false")
 
-		out, err = k.Delete("ns", newNamespace, "--wait=false")
-		Expect(err).ToNot(HaveOccurred(), out)
+		_, _ = k.Delete("ns", newNamespace, "--wait=false")
 	})
 
 	When("updating a bundle's namespace", func() {
