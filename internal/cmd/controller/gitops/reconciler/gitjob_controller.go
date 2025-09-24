@@ -233,7 +233,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled)
 	if err != nil || res.RequeueAfter > 0 {
-		return res, err
+		return res, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
 	setAcceptedCondition(&gitrepo.Status, nil)
@@ -262,7 +262,6 @@ func monitorLatestCommit(obj metav1.Object, fetch func() (string, error)) (strin
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
 func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string, repoPolled bool) (reconcile.Result, error) {
-	name := types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}
 	var job batchv1.Job
 	err := r.Get(ctx, types.NamespacedName{
 		Namespace: gitrepo.Namespace,
@@ -296,7 +295,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
-				return r.result(gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+				return r.result(gitrepo), fmt.Errorf("error validating external secrets: %w", err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
 				gitjobsCreatedFailure.Inc(gitrepo)
@@ -319,7 +318,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
 	if err = setStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
-		return r.result(gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+		return r.result(gitrepo), fmt.Errorf("error setting GitRepo status from git job: %w", err)
 	}
 
 	return reconcile.Result{}, nil
