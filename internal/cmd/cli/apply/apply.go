@@ -449,6 +449,7 @@ func writeBundle(ctx context.Context, c client.Client, r record.EventRecorder, b
 		valuesSecret := newValuesSecret(bundle, data)
 		updated := valuesSecret.DeepCopy()
 		_, err = controllerutil.CreateOrUpdate(ctx, c, valuesSecret, func() error {
+			valuesSecret.OwnerReferences = updated.OwnerReferences
 			valuesSecret.Labels = updated.Labels
 			valuesSecret.Data = updated.Data
 			valuesSecret.Type = updated.Type
