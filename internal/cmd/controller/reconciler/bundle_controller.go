@@ -150,55 +150,6 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// clusterChangedPredicate filters cluster events that relate to bundldeployment creation.
-func clusterChangedPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return true
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			n := e.ObjectNew.(*fleet.Cluster)
-			o := e.ObjectOld.(*fleet.Cluster)
-			// cluster deletion will eventually trigger a delete event
-			if n == nil || !n.DeletionTimestamp.IsZero() {
-				return true
-			}
-			// labels and annotations are used for templating and targeting
-			if !maps.Equal(n.Labels, o.Labels) {
-				return true
-			}
-			if !maps.Equal(n.Annotations, o.Annotations) {
-				return true
-			}
-			// spec templateValues is used in templating
-			if !reflect.DeepEqual(n.Spec, o.Spec) {
-				return true
-			}
-			// this namespace contains the bundledeployments
-			if n.Status.Namespace != o.Status.Namespace {
-				return true
-			}
-			// this namespace indicates the agent is running
-			if n.Status.Agent.Namespace != o.Status.Agent.Namespace {
-				return true
-			}
-
-			if n.Status.Scheduled != o.Status.Scheduled {
-				return true
-			}
-
-			if n.Status.ActiveSchedule != o.Status.ActiveSchedule {
-				return true
-			}
-
-			return false
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return true
-		},
-	}
-}
-
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/finalizers,verbs=update
@@ -441,23 +392,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, errutil.NewAggregate(merr)
 }
 
-func upper(op controllerutil.OperationResult) string {
-	switch op {
-	case controllerutil.OperationResultNone:
-		return "Unchanged"
-	case controllerutil.OperationResultCreated:
-		return "Created"
-	case controllerutil.OperationResultUpdated:
-		return "Updated"
-	case controllerutil.OperationResultUpdatedStatus:
-		return "Updated"
-	case controllerutil.OperationResultUpdatedStatusOnly:
-		return "Updated"
-	default:
-		return "Unknown"
-	}
-}
-
 // handleDelete runs cleanup for resources associated to a Bundle, finally removing the finalizer to unblock the deletion of the object from kubernetes.
 func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger, req ctrl.Request, bundle *fleet.Bundle) (ctrl.Result, error) {
 	if !controllerutil.ContainsFinalizer(bundle, finalize.BundleFinalizer) {
@@ -564,31 +498,6 @@ func (r *BundleReconciler) createBundleDeployment(
 	return bd, nil
 }
 
-// loadBundleValues loads the values from the secret and sets them in the bundle spec
-func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
-	secret := &corev1.Secret{}
-	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); apierrors.IsNotFound(err) {
-		return fmt.Errorf("%w, retrying to get values secret for bundle: %w", fleetutil.ErrRetryable, err)
-	} else if err != nil {
-		return fmt.Errorf("failed to get values secret for bundle: %w", err)
-	}
-
-	hash, err := helmvalues.HashValuesSecret(secret.Data)
-	if err != nil {
-		return fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
-	}
-
-	if bundle.Spec.ValuesHash != hash {
-		return fmt.Errorf("%w, retrying since bundle values secret has changed, expected hash %q, calculated %q", fleetutil.ErrRetryable, bundle.Spec.ValuesHash, hash)
-	}
-
-	if err := helmvalues.SetValues(bundle, secret.Data); err != nil {
-		return fmt.Errorf("failed to set values from secret %q: %w", secret.Name, err)
-	}
-
-	return nil
-}
-
 func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.BundleDeployment, options []byte, stagedOptions []byte) error {
 	secret := &corev1.Secret{
 		Type: fleet.SecretTypeBundleDeploymentOptions,
@@ -680,29 +589,6 @@ func (r *BundleReconciler) cloneSecret(
 	if err := r.Create(ctx, targetSecret); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return err
-		}
-	}
-
-	return nil
-}
-
-func maybePurgeOCIReferenceSecret(ctx context.Context, c client.Client, old, new *fleet.BundleDeployment) error {
-	if !old.Spec.OCIContents || old.Spec.DeploymentID == "" {
-		return nil
-	}
-
-	if !new.Spec.OCIContents || (old.Spec.DeploymentID != new.Spec.DeploymentID) {
-		id, _ := kv.Split(old.Spec.DeploymentID, ":")
-		var secret corev1.Secret
-		secretID := client.ObjectKey{Name: id, Namespace: old.Namespace}
-		if err := c.Get(ctx, secretID, &secret); err != nil {
-			if !apierrors.IsNotFound(err) {
-				return err
-			}
-		} else {
-			if err := c.Delete(ctx, &secret); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -810,6 +696,107 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 	return errors.Join(errs...)
 }
 
+// clusterChangedPredicate filters cluster events that relate to bundldeployment creation.
+func clusterChangedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			n := e.ObjectNew.(*fleet.Cluster)
+			o := e.ObjectOld.(*fleet.Cluster)
+			// cluster deletion will eventually trigger a delete event
+			if n == nil || !n.DeletionTimestamp.IsZero() {
+				return true
+			}
+			// labels and annotations are used for templating and targeting
+			if !maps.Equal(n.Labels, o.Labels) {
+				return true
+			}
+			if !maps.Equal(n.Annotations, o.Annotations) {
+				return true
+			}
+			// spec templateValues is used in templating
+			if !reflect.DeepEqual(n.Spec, o.Spec) {
+				return true
+			}
+			// this namespace contains the bundledeployments
+			if n.Status.Namespace != o.Status.Namespace {
+				return true
+			}
+			// this namespace indicates the agent is running
+			if n.Status.Agent.Namespace != o.Status.Agent.Namespace {
+				return true
+			}
+
+			if n.Status.Scheduled != o.Status.Scheduled {
+				return true
+			}
+
+			if n.Status.ActiveSchedule != o.Status.ActiveSchedule {
+				return true
+			}
+
+			return false
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+	}
+}
+
+// loadBundleValues loads the values from the secret and sets them in the bundle spec
+func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
+	secret := &corev1.Secret{}
+	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); apierrors.IsNotFound(err) {
+		return fmt.Errorf("%w, retrying to get values secret for bundle: %w", fleetutil.ErrRetryable, err)
+	} else if err != nil {
+		return fmt.Errorf("failed to get values secret for bundle: %w", err)
+	}
+
+	hash, err := helmvalues.HashValuesSecret(secret.Data)
+	if err != nil {
+		return fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
+	}
+
+	if bundle.Spec.ValuesHash != hash {
+		return fmt.Errorf("%w, retrying since bundle values secret has changed, expected hash %q, calculated %q", fleetutil.ErrRetryable, bundle.Spec.ValuesHash, hash)
+	}
+
+	if err := helmvalues.SetValues(bundle, secret.Data); err != nil {
+		return fmt.Errorf("failed to set values from secret %q: %w", secret.Name, err)
+	}
+
+	return nil
+}
+
+// maybePurgeOCIReferenceSecret deletes an outdated OCI reference secret if necessary, i.e. if a bundle has been updated
+// and either of the following applies:
+// * the old bundle used OCI storage while the new one does not anymore
+// * both old and new bundles use OCI storage, but the deployment ID has changed between the old bundles and the new one.
+func maybePurgeOCIReferenceSecret(ctx context.Context, c client.Client, old, new *fleet.BundleDeployment) error {
+	if !old.Spec.OCIContents || old.Spec.DeploymentID == "" {
+		return nil
+	}
+
+	if !new.Spec.OCIContents || (old.Spec.DeploymentID != new.Spec.DeploymentID) {
+		id, _ := kv.Split(old.Spec.DeploymentID, ":")
+		var secret corev1.Secret
+		secretID := client.ObjectKey{Name: id, Namespace: old.Namespace}
+		if err := c.Get(ctx, secretID, &secret); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+		} else {
+			if err := c.Delete(ctx, &secret); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // setCondition sets the condition and updates the timestamp, if the condition changed
 func setReadyCondition(status *fleet.BundleStatus, err error) {
 	cond := condition.Cond(fleet.Ready)
@@ -817,5 +804,22 @@ func setReadyCondition(status *fleet.BundleStatus, err error) {
 	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
 	if !equality.Semantic.DeepEqual(origStatus, status) {
 		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
+	}
+}
+
+func upper(op controllerutil.OperationResult) string {
+	switch op {
+	case controllerutil.OperationResultNone:
+		return "Unchanged"
+	case controllerutil.OperationResultCreated:
+		return "Created"
+	case controllerutil.OperationResultUpdated:
+		return "Updated"
+	case controllerutil.OperationResultUpdatedStatus:
+		return "Updated"
+	case controllerutil.OperationResultUpdatedStatusOnly:
+		return "Updated"
+	default:
+		return "Unknown"
 	}
 }
