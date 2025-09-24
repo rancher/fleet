@@ -37,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -447,6 +448,11 @@ func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 		return ctrl.Result{}, err
 	}
 
+	// pro-actively delete the bundle's secret. k8s owner garbage collection will handle remaining orphans.
+	if err := r.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: bundle.Name, Namespace: bundle.Namespace}}); err != nil && !apierrors.IsNotFound(err) {
+		logger.V(1).Info("Cannot delete bundle's values secret, owner garbage collection will remove it")
+	}
+
 	return ctrl.Result{}, r.maybeDeleteOCIArtifact(ctx, bundle)
 }
 
@@ -552,12 +558,19 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 			Namespace: bd.Namespace,
 		},
 	}
-
-	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
-		return err
+	owners := []metav1.OwnerReference{
+		{
+			APIVersion:         fleet.SchemeGroupVersion.String(),
+			Kind:               "BundleDeployment",
+			Name:               bd.GetName(),
+			UID:                bd.GetUID(),
+			BlockOwnerDeletion: ptr.To(true),
+			Controller:         ptr.To(true),
+		},
 	}
 
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.OwnerReferences = owners
 		secret.Data = map[string][]byte{
 			helmvalues.ValuesKey:       options,
 			helmvalues.StagedValuesKey: stagedOptions,
@@ -743,6 +756,10 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 		if err := c.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
 			errs = append(errs, err)
 		}
+
+		// k8s ownership garbage collection can take a long time, so we explicitly delete the secrets here.
+		// GC will delete any remaining orphaned secrets, no need to add an error.
+		_ = c.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace}})
 	}
 
 	return errors.Join(errs...)
