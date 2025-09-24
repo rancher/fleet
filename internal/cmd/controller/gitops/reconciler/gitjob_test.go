@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -522,16 +523,18 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
-			gitrepo.Name = gitRepo.Name
-			gitrepo.Namespace = gitRepo.Namespace
-			gitrepo.Spec.Repo = "repo"
-			controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
-			gitrepo.Status.Commit = "dd45c7ad68e10307765104fea4a1f5997643020f"
-			return nil
-		},
-	)
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
+		Times(2).
+		DoAndReturn(
+			func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+				gitrepo.Name = gitRepo.Name
+				gitrepo.Namespace = gitRepo.Namespace
+				gitrepo.Spec.Repo = "repo"
+				controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
+				gitrepo.Status.Commit = "dd45c7ad68e10307765104fea4a1f5997643020f"
+				return nil
+			},
+		)
 	mockFetcher := gitmocks.NewMockGitFetcher(mockCtrl)
 	commit := "1883fd54bc5dfd225acf02aecbb6cb8020458e33"
 	mockFetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(commit, nil)
@@ -539,6 +542,20 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
 			return fmt.Errorf("GITJOB ERROR")
+		},
+	)
+
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	mockClient.EXPECT().Status().Times(1).Return(statusClient)
+	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
+			c, found := getCondition(repo, fleetv1.GitRepoAcceptedCondition)
+			if !found {
+				t.Errorf("expecting to find the %s condition and could not find it.", fleetv1.GitRepoAcceptedCondition)
+			}
+			if !strings.Contains(c.Message, "GITJOB ERROR") {
+				t.Errorf("expecting message containing [GITJOB ERROR] in condition, got [%s]", c.Message)
+			}
 		},
 	)
 
@@ -606,11 +623,13 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	mockFetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(commit, nil)
 
 	// we need to return a NotFound error, so the code tries to create it.
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
-			return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
-		},
-	)
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&batchv1.Job{}), gomock.Any()).
+		Times(1).
+		DoAndReturn(
+			func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
+				return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
+			},
+		)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, job *corev1.Secret, opts ...interface{}) error {
@@ -640,7 +659,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 			if !found {
 				t.Errorf("expecting to find the %s condition and could not find it.", fleetv1.GitRepoAcceptedCondition)
 			}
-			if c.Message != "failed to look up HelmSecretNameForPaths, error: SECRET ERROR" {
+			if c.Message != "error validating external secrets: failed to look up HelmSecretNameForPaths, error: SECRET ERROR" {
 				t.Errorf("expecting message [failed to look up HelmSecretNameForPaths, error: SECRET ERROR] in condition, got [%s]", c.Message)
 			}
 		},
@@ -660,7 +679,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	if err == nil {
 		t.Errorf("expecting an error, got nil")
 	}
-	if err.Error() != "failed to look up HelmSecretNameForPaths, error: SECRET ERROR" {
+	if err.Error() != "error validating external secrets: failed to look up HelmSecretNameForPaths, error: SECRET ERROR" {
 		t.Errorf("unexpected error %v", err)
 	}
 }
