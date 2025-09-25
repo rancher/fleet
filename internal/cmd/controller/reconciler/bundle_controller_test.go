@@ -17,6 +17,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -215,7 +216,7 @@ func TestReconcile_ManifestStorageError(t *testing.T) {
 			if !found {
 				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
 			}
-			if !strings.Contains(cond.Message, expectedErrorMsg) {
+			if cond.Message != expectedErrorMsg {
 				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
 			}
 			if cond.Type != fleetv1.BundleConditionReady {
@@ -235,6 +236,243 @@ func TestReconcile_ManifestStorageError(t *testing.T) {
 
 	storeMock := mocks.NewMockStore(mockCtrl)
 	storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(errors.New("something went wrong"))
+
+	r := reconciler.BundleReconciler{
+		Client:   mockClient,
+		Scheme:   scheme,
+		Recorder: recorderMock,
+		Builder:  targetBuilderMock,
+		Store:    storeMock,
+	}
+
+	ctx := context.TODO()
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err == nil {
+		t.Fatalf("expecting an error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), expectedErrorMsg) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestReconcile_OptionsSecretCreationError(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	scheme := runtime.NewScheme()
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+
+	bundle := fleetv1.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-bundle",
+			Namespace: "default",
+		},
+		Spec: fleetv1.BundleSpec{
+			RolloutStrategy: nil,
+		},
+	}
+
+	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
+			b.Name = bundle.Name
+			b.Namespace = bundle.Namespace
+			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
+
+			b.Spec = bundle.Spec
+
+			return nil
+		},
+	)
+
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
+		Return(nil)
+	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).Return(nil)
+
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+		DoAndReturn(
+			func(ctx context.Context, req types.NamespacedName, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
+				bd.Spec.Options = fleetv1.BundleDeploymentOptions{
+					Helm: &fleetv1.HelmOptions{
+						Values: &fleetv1.GenericMap{
+							Data: map[string]interface{}{"foo": "bar"}, // non-empty
+						},
+					},
+				}
+
+				return nil
+			},
+		)
+
+	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+		DoAndReturn(
+			func(ctx context.Context, bd *fleetv1.BundleDeployment, opts ...interface{}) error {
+				bd.Spec.ValuesHash = "foo" // non-empty, to force secret create or update
+
+				return nil
+			},
+		)
+
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+		Return(nil)
+	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+		Return(errors.New("something went wrong"))
+
+	expectedErrorMsg := "failed to create options secret: something went wrong"
+
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	mockClient.EXPECT().Status().Return(statusClient).Times(1)
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
+		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
+			cond, found := getBundleReadyCondition(b)
+			if !found {
+				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
+			}
+			if cond.Message != expectedErrorMsg {
+				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
+			}
+			if cond.Type != fleetv1.BundleConditionReady {
+				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
+			}
+			if cond.Status != "False" {
+				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
+			}
+		},
+	).Times(1)
+
+	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
+	matchedTargets := []*target.Target{
+		{
+			Bundle: &bundle,
+			Cluster: &fleetv1.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "my-ns",
+					Name:      "my-cluster",
+				},
+			},
+			Deployment: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "my-bd", // non-empty
+				},
+			},
+			DeploymentID: "foo",
+		},
+	}
+	targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+	targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
+
+	storeMock := mocks.NewMockStore(mockCtrl)
+	storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
+
+	r := reconciler.BundleReconciler{
+		Client:   mockClient,
+		Scheme:   scheme,
+		Recorder: recorderMock,
+		Builder:  targetBuilderMock,
+		Store:    storeMock,
+	}
+
+	ctx := context.TODO()
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err == nil {
+		t.Fatalf("expecting an error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), expectedErrorMsg) {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	scheme := runtime.NewScheme()
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+
+	bundle := fleetv1.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-bundle",
+			Namespace: "default",
+		},
+		Spec: fleetv1.BundleSpec{
+			RolloutStrategy: nil,
+		},
+	}
+
+	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
+			b.Name = bundle.Name
+			b.Namespace = bundle.Namespace
+			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
+
+			b.Spec = bundle.Spec
+
+			return nil
+		},
+	)
+
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
+		Return(nil)
+	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).Return(nil)
+
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+		Return(nil)
+
+	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+		Return(errors.New("something went wrong"))
+
+	expectedErrorMsg := "failed to delete options secret: something went wrong"
+
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	mockClient.EXPECT().Status().Return(statusClient).Times(1)
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
+		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
+			cond, found := getBundleReadyCondition(b)
+			if !found {
+				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
+			}
+			if cond.Message != expectedErrorMsg {
+				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
+			}
+			if cond.Type != fleetv1.BundleConditionReady {
+				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
+			}
+			if cond.Status != "False" {
+				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
+			}
+		},
+	).Times(1)
+
+	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
+	matchedTargets := []*target.Target{
+		{
+			Bundle: &bundle,
+			Cluster: &fleetv1.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "my-ns",
+					Name:      "my-cluster",
+				},
+			},
+			Deployment: &fleetv1.BundleDeployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "my-bd", // non-empty
+				},
+			},
+			DeploymentID: "foo",
+		},
+	}
+	targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+	targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
+
+	storeMock := mocks.NewMockStore(mockCtrl)
+	storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
 
 	r := reconciler.BundleReconciler{
 		Client:   mockClient,

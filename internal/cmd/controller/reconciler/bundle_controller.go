@@ -346,7 +346,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		h, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
 		if err != nil {
-			return ctrl.Result{}, err
+			err := fmt.Errorf("failed to extract Helm options for secret creation: %w", err)
+
+			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 		}
 		// We need a checksum to trigger on value change, rely on later code in
 		// the reconciler to update the status
@@ -376,14 +378,18 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		if bd.Spec.ValuesHash != "" {
 			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to create options secret: %w", err)
+				err = fmt.Errorf("failed to create options secret: %w", err)
+
+				return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 			}
 		} else {
 			// No values to store, delete the secret if it exists
 			if err := r.Delete(ctx, &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
 			}); err != nil && !apierrors.IsNotFound(err) {
-				return ctrl.Result{}, fmt.Errorf("failed to delete options secret: %w", err)
+				err = fmt.Errorf("failed to delete options secret: %w", err)
+
+				return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 			}
 		}
 
