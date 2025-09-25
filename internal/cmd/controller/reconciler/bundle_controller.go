@@ -262,12 +262,14 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	matchedTargets, err := r.Builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
-		// When targeting fails, we don't want to continue and we make the error message visible in
-		// the UI. For that we use a status condition of type Ready.
-		setReadyCondition(&bundle.Status, fmt.Errorf("targeting error: %v", err))
-
-		err := r.updateStatus(ctx, bundleOrig, bundle)
-		return ctrl.Result{}, err
+		return ctrl.Result{},
+			r.updateErrorStatus(
+				ctx,
+				req.NamespacedName,
+				bundleOrig,
+				bundle,
+				fmt.Errorf("targeting error: %w", err),
+			)
 	}
 
 	if (!contentsInOCI && !contentsInHelmChart) && len(matchedTargets) > 0 {
@@ -619,6 +621,7 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 }
 
 // updateErrorStatus sets the Ready condition in the bundle status and tries to update the resource.
+// Setting that condition makes the error message visible in the Rancher UI.
 func (r *BundleReconciler) updateErrorStatus(
 	ctx context.Context,
 	req types.NamespacedName,
