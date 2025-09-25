@@ -298,12 +298,16 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger = logger.WithValues("manifestID", manifestID)
 
 	if err := resetStatus(&bundle.Status, matchedTargets); err != nil {
-		return ctrl.Result{}, err
+		err = fmt.Errorf("failed to reset bundle status from targets: %w", err)
+
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 	}
 
 	// this will add the defaults for a new bundledeployment. It propagates stagedOptions to options.
 	if err := target.UpdatePartitions(&bundle.Status, matchedTargets); err != nil {
-		return ctrl.Result{}, err
+		err = fmt.Errorf("failed to update partitions: %w", err)
+
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 	}
 
 	if contentsInOCI {
