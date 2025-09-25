@@ -405,7 +405,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to clone secrets downstream: %w", err)
+			err = fmt.Errorf("failed to clone secrets downstream: %w", err)
+
+			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 		}
 	}
 
