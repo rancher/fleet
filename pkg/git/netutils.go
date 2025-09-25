@@ -3,6 +3,7 @@ package git
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"net/http"
 	"time"
 
@@ -64,16 +65,15 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 		}
 		return auth, nil
 	default:
-		if auth, keysArePresent, err := fleetgithub.GetGithubAppAuthFromSecret(creds, GitHubAppGetter); keysArePresent {
-			if err != nil {
-				return nil, err
+		auth, err := fleetgithub.GetGithubAppAuthFromSecret(creds, GitHubAppGetter)
+		if err != nil {
+			if errors.Is(err, fleetgithub.ErrNotGithubAppSecret) {
+				return nil, nil
 			}
-			return auth, nil
-		} else if err != nil {
 			return nil, err
 		}
+		return auth, nil
 	}
-	return nil, nil
 }
 
 // GetHTTPClientFromSecret returns a HTTP client filled from the information in the given secret

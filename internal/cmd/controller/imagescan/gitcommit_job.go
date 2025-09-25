@@ -305,15 +305,12 @@ func readAuth(ctx context.Context, logger logr.Logger, c client.Client, gitrepo 
 		}
 		return publicKey, nil
 	default:
-		auth, keysArePresent, err := fleetgithub.GetGithubAppAuthFromSecret(secret, fleetgithub.DefaultAppAuthGetter{})
+		auth, err := fleetgithub.GetGithubAppAuthFromSecret(secret, fleetgithub.DefaultAppAuthGetter{})
 		if err != nil {
 			return nil, err
 		}
-		if keysArePresent {
-			return auth, nil
-		}
+		return auth, nil
 	}
-	return nil, errors.New("invalid secret type")
 }
 
 func setupKnownHosts(gitrepo *fleet.GitRepo, data []byte) error {
