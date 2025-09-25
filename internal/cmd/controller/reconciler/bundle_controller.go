@@ -219,13 +219,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// Delete the "v" prefix (if found) before checking for a valid semver.
 		versionToCheck := strings.TrimPrefix(bundle.Spec.Helm.Version, "v")
 		if _, err := semver.StrictNewVersion(versionToCheck); err != nil {
-			setReadyCondition(
-				&bundle.Status,
-				fmt.Errorf("chart version cannot be deployed; check HelmOp status for more details: %v", err),
-			)
+			err = fmt.Errorf("chart version cannot be deployed; check HelmOp status for more details: %w", err)
 
-			err := r.updateStatus(ctx, bundleOrig, bundle)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 		}
 	}
 
@@ -606,6 +602,23 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmOpOptions.SecretName, fleet.SecretTypeHelmOpsAccess, bd)
 	}
 	return nil
+}
+
+// updateErrorStatus sets the Ready condition in the bundle status and tries to update the resource.
+func (r *BundleReconciler) updateErrorStatus(
+	ctx context.Context,
+	req types.NamespacedName,
+	orig, bundle *fleet.Bundle,
+	orgErr error,
+) error {
+	setReadyCondition(&bundle.Status, orgErr)
+
+	if statusErr := r.updateStatus(ctx, orig, bundle); statusErr != nil {
+		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
+		return errutil.NewAggregate(merr)
+	}
+
+	return orgErr
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of
