@@ -179,11 +179,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.handleDelete(ctx, logger, req, bundle)
 	}
 
-	if err := r.ensureFinalizer(ctx, bundle); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	bundleOrig := bundle.DeepCopy()
+
+	if err := r.ensureFinalizer(ctx, bundle); err != nil {
+		err = fmt.Errorf("failed to add finalizer to bundle: %w", err)
+
+		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+	}
 
 	logger.V(1).Info(
 		"Reconciling bundle, checking targets, calculating changes, building objects",
