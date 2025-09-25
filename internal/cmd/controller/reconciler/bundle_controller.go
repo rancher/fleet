@@ -235,14 +235,28 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		manifestDigest, err := resourcesManifest.SHASum()
 		if err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{},
+				r.updateErrorStatus(
+					ctx,
+					req.NamespacedName,
+					bundleOrig,
+					bundle,
+					fmt.Errorf("failed to compute resources manifest SHA sum for OCI storage: %w", err),
+				)
 		}
 		bundle.Status.ResourcesSHA256Sum = manifestDigest
 
 		manifestID, err = resourcesManifest.ID()
 		if err != nil {
 			// this should never happen, since manifest.SHASum() cached the result and worked above.
-			return ctrl.Result{}, err
+			return ctrl.Result{},
+				r.updateErrorStatus(
+					ctx,
+					req.NamespacedName,
+					bundleOrig,
+					bundle,
+					fmt.Errorf("failed to compute resources manifest ID for OCI storage: %w", err),
+				)
 		}
 	}
 
