@@ -285,7 +285,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// agents have access to all resources and use their specific
 		// set of `BundleDeploymentOptions`.
 		if err := r.Store.Store(ctx, resourcesManifest); err != nil {
-			return ctrl.Result{}, err
+			err = fmt.Errorf("could not copy manifest into Content resource: %w", err)
+
+			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 		}
 	}
 	logger = logger.WithValues("manifestID", manifestID)
