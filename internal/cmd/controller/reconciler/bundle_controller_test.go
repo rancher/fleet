@@ -1,7 +1,9 @@
+//go:generate mockgen --build_flags=--mod=mod -destination=../../../mocks/target_builder_mock.go -package=mocks github.com/rancher/fleet/internal/cmd/controller/reconciler TargetBuilder
 package reconciler_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -23,7 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func TestReconcileError(t *testing.T) {
+func TestReconcile_HelmVersionResolutionError(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 	scheme := runtime.NewScheme()
@@ -88,6 +90,79 @@ func TestReconcileError(t *testing.T) {
 		Client:   mockClient,
 		Scheme:   scheme,
 		Recorder: recorderMock,
+	}
+
+	ctx := context.TODO()
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err == nil {
+		t.Fatalf("expecting an error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), expectedErrorMsg) {
+		t.Errorf("unexpected error %v", err)
+	}
+}
+
+func TestReconcile_TargetsBuildingError(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	scheme := runtime.NewScheme()
+	utilruntime.Must(batchv1.AddToScheme(scheme))
+
+	bundle := fleetv1.Bundle{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-bundle",
+			Namespace: "default",
+		},
+	}
+
+	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+
+	mockClient := mocks.NewMockK8sClient(mockCtrl)
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
+			b.Name = bundle.Name
+			b.Namespace = bundle.Namespace
+			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
+
+			b.Spec = bundle.Spec
+
+			return nil
+		},
+	)
+
+	expectedErrorMsg := "targeting error: something went wrong"
+
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	mockClient.EXPECT().Status().Return(statusClient).Times(1)
+	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
+		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
+			cond, found := getBundleReadyCondition(b)
+			if !found {
+				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
+			}
+			if !strings.Contains(cond.Message, expectedErrorMsg) {
+				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
+			}
+			if cond.Type != fleetv1.BundleConditionReady {
+				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
+			}
+			if cond.Status != "False" {
+				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
+			}
+		},
+	).Times(1)
+
+	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
+	targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+	targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("something went wrong"))
+
+	r := reconciler.BundleReconciler{
+		Client:   mockClient,
+		Scheme:   scheme,
+		Recorder: recorderMock,
+		Builder:  targetBuilderMock,
 	}
 
 	ctx := context.TODO()
