@@ -30,15 +30,6 @@ var (
 
 type Cloner struct{}
 
-// Can this be removed?
-type Options struct {
-	Repo            string
-	Branch          string
-	Auth            transport.AuthMethod
-	InsecureSkipTLS bool
-	CABundle        []byte
-}
-
 func New() *Cloner {
 	return &Cloner{}
 }
