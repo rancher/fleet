@@ -22,24 +22,22 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 	validAuth := &httpgit.BasicAuth{Username: "x-access-token", Password: "token"}
 
 	tests := []struct {
-		name        string
-		secret      *corev1.Secret
-		getter      AppAuthGetter
-		wantAuth    *httpgit.BasicAuth
-		wantHasKeys bool
-		wantErr     bool
+		name     string
+		secret   *corev1.Secret
+		getter   AppAuthGetter
+		wantAuth *httpgit.BasicAuth
+		wantErr  bool
 	}{
 		{
-			name: "missing some keys (should be skipped)",
+			name: "missing some keys",
 			secret: &corev1.Secret{
 				Data: map[string][]byte{
 					GitHubAppAuthIDKey: []byte("123"),
 				},
 			},
-			getter:      fakeGetter{},
-			wantAuth:    nil,
-			wantHasKeys: false,
-			wantErr:     false,
+			getter:   fakeGetter{err: fmt.Errorf("not a GitHub App secret")},
+			wantAuth: nil,
+			wantErr:  true,
 		},
 		{
 			name: "all keys present – success path",
@@ -50,10 +48,9 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 					GitHubAppAuthPrivateKeyKey:     []byte("my-pem"),
 				},
 			},
-			getter:      fakeGetter{auth: validAuth},
-			wantAuth:    validAuth,
-			wantHasKeys: true,
-			wantErr:     false,
+			getter:   fakeGetter{auth: validAuth},
+			wantAuth: validAuth,
+			wantErr:  false,
 		},
 		{
 			name: "all keys present – GetGitHubAppAuth returns error",
@@ -64,10 +61,9 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 					GitHubAppAuthPrivateKeyKey:     []byte("my-pem"),
 				},
 			},
-			getter:      fakeGetter{err: fmt.Errorf("token fetch failed")},
-			wantAuth:    nil,
-			wantHasKeys: true,
-			wantErr:     true,
+			getter:   fakeGetter{err: fmt.Errorf("token fetch failed")},
+			wantAuth: nil,
+			wantErr:  true,
 		},
 		{
 			name: "non‑numeric app id",
@@ -78,10 +74,9 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 					GitHubAppAuthPrivateKeyKey:     []byte("my-pem"),
 				},
 			},
-			getter:      fakeGetter{}, // never called
-			wantAuth:    nil,
-			wantHasKeys: true,
-			wantErr:     true,
+			getter:   fakeGetter{}, // never called
+			wantAuth: nil,
+			wantErr:  true,
 		},
 		{
 			name: "non‑numeric installation id",
@@ -92,22 +87,18 @@ func TestGetGithubAppAuthFromSecret(t *testing.T) {
 					GitHubAppAuthPrivateKeyKey:     []byte("my-pem"),
 				},
 			},
-			getter:      fakeGetter{}, // never called
-			wantAuth:    nil,
-			wantHasKeys: true,
-			wantErr:     true,
+			getter:   fakeGetter{}, // never called
+			wantAuth: nil,
+			wantErr:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotAuth, gotHasKeys, err := GetGithubAppAuthFromSecret(tt.secret, tt.getter)
+			gotAuth, err := GetGithubAppAuthFromSecret(tt.secret, tt.getter)
 
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("error mismatch: got %v, wantErr %v", err, tt.wantErr)
-			}
-			if gotHasKeys != tt.wantHasKeys {
-				t.Fatalf("hasKeys mismatch: got %v, want %v", gotHasKeys, tt.wantHasKeys)
 			}
 			if !reflect.DeepEqual(gotAuth, tt.wantAuth) {
 				t.Fatalf("auth mismatch: got %+v, want %+v", gotAuth, tt.wantAuth)
