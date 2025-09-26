@@ -1,11 +1,11 @@
 image:
   repository: rancher/fleet
-  tag: v0.14.0-alpha.3
+  tag: v0.14.0-experiment-98d0.5
   imagePullPolicy: IfNotPresent
 
 agentImage:
   repository: rancher/fleet-agent
-  tag: v0.14.0-alpha.3
+  tag: v0.14.0-experiment-98d0.5
   imagePullPolicy: IfNotPresent
 
 # For cluster registration the public URL of the Kubernetes API server must be set here
@@ -69,12 +69,8 @@ global:
 ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
 ##
 nodeSelector: {}
-
 ## List of node taints to tolerate (requires Kubernetes >= 1.6)
 tolerations: []
-
-## Pod affinity for the controllers.
-affinity: {}
 
 ## PriorityClassName assigned to deployment.
 priorityClassName: ""
