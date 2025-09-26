@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
-	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -20,6 +19,7 @@ import (
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
+	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/config"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/names"
@@ -53,7 +53,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -125,7 +124,7 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(
 				// do not trigger for GitRepo status changes (except for commit changes and cache sync)
 				predicate.Or(
-					TypedResourceVersionUnchangedPredicate[client.Object]{},
+					reconciler.TypedResourceVersionUnchangedPredicate[client.Object]{},
 					predicate.GenerationChangedPredicate{},
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
@@ -1405,44 +1404,6 @@ func (r *GitJobReconciler) result(gitrepo *v1alpha1.GitRepo) reconcile.Result {
 	}
 	requeueAfter = addJitter(requeueAfter)
 	return reconcile.Result{RequeueAfter: requeueAfter}
-}
-
-func webhookCommitChangedPredicate() predicate.Predicate {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			oldGitRepo, ok := e.ObjectOld.(*v1alpha1.GitRepo)
-			if !ok {
-				return true
-			}
-			newGitRepo, ok := e.ObjectNew.(*v1alpha1.GitRepo)
-			if !ok {
-				return true
-			}
-			return oldGitRepo.Status.WebhookCommit != newGitRepo.Status.WebhookCommit
-		},
-	}
-}
-
-func jobUpdatedPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return false
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			n, isJob := e.ObjectNew.(*batchv1.Job)
-			if !isJob {
-				return false
-			}
-			o := e.ObjectOld.(*batchv1.Job)
-			if n == nil || o == nil {
-				return false
-			}
-			return !reflect.DeepEqual(n.Status, o.Status)
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return false
-		},
-	}
 }
 
 // setStatusFromGitjob sets the status fields relative to the given job in the gitRepo
