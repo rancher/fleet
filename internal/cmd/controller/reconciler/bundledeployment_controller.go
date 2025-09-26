@@ -73,7 +73,7 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				err := r.Get(ctx, req.NamespacedName, bd)
 				if err != nil {
-					return err
+					return client.IgnoreNotFound(err)
 				}
 
 				controllerutil.RemoveFinalizer(bd, finalize.BundleDeploymentFinalizer)
