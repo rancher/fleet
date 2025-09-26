@@ -76,6 +76,14 @@ tolerations: []
 ## Pod affinity for the controllers.
 affinity: {}
 
+resources: {}
+  # limits:
+  #   cpu: 8000m
+  #   memory: 8Gi
+  # requests:
+  #   cpu: 250m
+  #   memory: 768Mi
+
 ## PriorityClassName assigned to deployment.
 priorityClassName: ""
 

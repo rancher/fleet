@@ -1,0 +1,34 @@
+suite: test resources
+templates:
+  - deployment.yaml
+  - deployment_gitjob.yaml
+  - deployment_helmops.yaml
+tests:
+  - it: should set resources
+    set:
+      resources:
+        limits:
+          cpu: 8000m
+          memory: 8Gi
+        requests:
+          cpu: 250m
+          memory: 768Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.resources.limits.cpu
+          value: 8000m
+      - equal:
+          path: spec.template.spec.resources.limits.memory
+          value: 8Gi
+      - equal:
+          path: spec.template.spec.resources.requests.cpu
+          value: 250m
+      - equal:
+          path: spec.template.spec.resources.requests.memory
+          value: 768Mi
+  - it: should work without resources
+    set:
+      resources: {}
+    asserts:
+      - notExists:
+          path: spec.template.spec.resources
