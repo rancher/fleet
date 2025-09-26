@@ -9,7 +9,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/kv"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -79,10 +78,7 @@ func PurgeContent(ctx context.Context, c client.Client, name, deplID string) err
 	if controllerutil.ContainsFinalizer(content, name) {
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			if err := c.Get(ctx, nn, content); err != nil {
-				if errors.IsNotFound(err) {
-					return nil
-				}
-				return err
+				return client.IgnoreNotFound(err)
 			}
 
 			controllerutil.RemoveFinalizer(content, name)
