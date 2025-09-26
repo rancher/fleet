@@ -20,11 +20,9 @@ COPY <<-"EOT" /root/.gitconfig
         denyNonFastforwards = false
 EOT
 
-# Configure git remote
-RUN mkdir -p /srv/git/repo
-WORKDIR /srv/git/repo
-RUN git init . --bare
-RUN git update-server-info
+# Configure dynamic backend; creates repos on first access.
+COPY git-http-backend-dynamic /usr/local/bin/git-http-backend-dynamic
+RUN chmod +x /usr/local/bin/git-http-backend-dynamic
 
 # Configure nginx
 COPY nginx_git.conf /etc/nginx/nginx.conf

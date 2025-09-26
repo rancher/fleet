@@ -1,0 +1,65 @@
+#!/bin/sh
+# git-http-backend-dynamic (stores repos without .git suffix)
+set -eu
+
+# --- Debug ---------------------------------------------------------------
+echo "=== Git HTTP Backend Dynamic ===" >&2
+echo "PATH_INFO: ${PATH_INFO:-}" >&2
+echo "REQUEST_URI: ${REQUEST_URI:-}" >&2
+echo "QUERY_STRING: ${QUERY_STRING:-}" >&2
+
+orig_pi="${PATH_INFO:-/}"
+trim="${orig_pi#/}" # strip leading /
+repo_part=""
+rest=""
+
+# Prefer URLs that include .git (common case)
+if printf '%s' "$trim" | grep -qE '\.git(/|$)'; then
+  repo_part="${trim%%.git*}"      # everything before ".git"
+  rest="${trim#${repo_part}.git}" # remainder (may be empty or start with /...)
+else
+  # Try to split before known service/endpoints (no .git in URL)
+  for marker in "/info/refs" "/git-upload-pack" "/git-receive-pack" "/HEAD" "/objects/"; do
+    case "$trim" in
+      *"$marker"*)
+        repo_part="${trim%%$marker*}"
+        rest="${trim#${repo_part}}"
+        break
+        ;;
+    esac
+  done
+  # Fallback: first path segment only
+  if [ -z "$repo_part" ]; then
+    repo_part="${trim%%/*}"
+    rest="${trim#${repo_part}}"
+  fi
+fi
+
+# Sanitize repo path (defend against ../ etc.; allow nested paths like team/project)
+safe_repo="$(printf '%s' "$repo_part" |
+  sed -E 's/\.\.//g; s#^/+##; s#//+#/#g; s#[^A-Za-z0-9._/\-]##g')"
+
+REPO_DIR="/srv/git/$safe_repo"
+echo "Repo (sanitized): $safe_repo" >&2
+echo "Full repo dir:    $REPO_DIR" >&2
+
+# Create repository if missing (bare, no .git suffix on disk)
+if [ ! -d "$REPO_DIR/objects" ]; then
+  echo "Creating new repository: $safe_repo" >&2
+  mkdir -p "$REPO_DIR"
+  git init --bare "$REPO_DIR" >&2
+  git -C "$REPO_DIR" config http.receivepack true
+  git -C "$REPO_DIR" config receive.denyNonFastforwards false
+  git -C "$REPO_DIR" update-server-info
+  echo "Repository created successfully: $safe_repo" >&2
+else
+  echo "Repository exists: $safe_repo" >&2
+fi
+
+# Normalize PATH_INFO so git-http-backend looks in /srv/git/<repo> (no .git)
+export PATH_INFO="/$safe_repo$rest"
+export GIT_PROJECT_ROOT="/srv/git"
+export GIT_HTTP_EXPORT_ALL=""
+
+echo "Calling real git-http-backend with PATH_INFO=$PATH_INFO ..." >&2
+exec /usr/libexec/git-core/git-http-backend
