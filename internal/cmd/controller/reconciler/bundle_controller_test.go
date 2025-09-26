@@ -66,23 +66,8 @@ func TestReconcile_FinalizerUpdateError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if !strings.Contains(cond.Message, expectedErrorMsg) {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -141,23 +126,8 @@ func TestReconcile_HelmValuesLoadError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if !strings.Contains(cond.Message, expectedErrorMsg) {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -219,23 +189,8 @@ func TestReconcile_HelmVersionResolutionError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if !strings.Contains(cond.Message, expectedErrorMsg) {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -288,23 +243,8 @@ func TestReconcile_TargetsBuildingError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if !strings.Contains(cond.Message, expectedErrorMsg) {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -366,23 +306,8 @@ func TestReconcile_StatusResetFromTargetsError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if !strings.Contains(cond.Message, expectedErrorMsg) {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -460,23 +385,8 @@ func TestReconcile_ManifestStorageError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if cond.Message != expectedErrorMsg {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -574,23 +484,8 @@ func TestReconcile_OptionsSecretCreationError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if cond.Message != expectedErrorMsg {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -681,23 +576,8 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if cond.Message != expectedErrorMsg {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -783,23 +663,8 @@ func TestReconcile_OCIStorageAccessSecretResolutionError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if cond.Message != expectedErrorMsg {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -899,23 +764,8 @@ func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
-		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
-			cond, found := getBundleReadyCondition(b)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
-			}
-			if cond.Message != expectedErrorMsg {
-				t.Errorf("expecting condition message containing [%s], got [%s]", expectedErrorMsg, cond.Message)
-			}
-			if cond.Type != fleetv1.BundleConditionReady {
-				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
+
+	expectStatusPatch(t, statusClient, expectedErrorMsg)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -955,6 +805,26 @@ func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 	if !strings.Contains(err.Error(), expectedErrorMsg) {
 		t.Errorf("unexpected error: %v", err)
 	}
+}
+
+func expectStatusPatch(t *testing.T, sClient *mocks.MockSubResourceWriter, errMsg string) {
+	sClient.EXPECT().Patch(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).Do(
+		func(ctx context.Context, b *fleetv1.Bundle, p client.Patch, opts ...interface{}) {
+			cond, found := getBundleReadyCondition(b)
+			if !found {
+				t.Errorf("expecting Condition %s to be found", fleetv1.BundleConditionReady)
+			}
+			if !strings.Contains(cond.Message, errMsg) {
+				t.Errorf("expecting condition message containing [%s], got [%s]", errMsg, cond.Message)
+			}
+			if cond.Type != fleetv1.BundleConditionReady {
+				t.Errorf("expecting condition type [%s], got [%s]", fleetv1.BundleConditionReady, cond.Type)
+			}
+			if cond.Status != "False" {
+				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
+			}
+		},
+	).Times(1)
 }
 
 func getBundleReadyCondition(b *fleetv1.Bundle) (genericcondition.GenericCondition, bool) {
