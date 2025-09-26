@@ -23,16 +23,10 @@ if [ -f packages/fleet/package.yaml ];  then
     # Use new auto bump scripting until the Github action CI works as expected
     # no parameters besides the target branch are needed in theory, but the pr
     # creation still needs the new Chart and Fleet version
-    make chart-bump package=fleet branch="$(git rev-parse --abbrev-ref HEAD)"
-
-    if [ "${REPLACE}" == "true" ] && [ -f "assets/fleet/fleet-${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}.tgz" ]; then
-        for i in fleet fleet-crd fleet-agent; do
-            CHART=$i VERSION=${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION} make remove
-        done
-        git add assets/fleet* charts/fleet* index.yaml
-        git commit -m "Remove Fleet ${PREV_CHART_VERSION}+up${PREV_FLEET_VERSION}"
-        git checkout release.yaml   # reset unwanted changes to release.yaml, relevant ones are already part of the previous commit
-    fi
+    make pull-scripts
+    ./bin/charts-build-scripts chart-bump --package="fleet" --branch="$(git rev-parse --abbrev-ref HEAD)" --override="auto" --multi-rc
+    # remove obsolete config/bump_version.json file
+    git checkout .
 else
     # For Rancher versions before 2.10 run the legacy implementation
     if [ ! -f bin/charts-build-scripts ]; then
