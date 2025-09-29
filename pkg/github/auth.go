@@ -40,7 +40,7 @@ func GetGithubAppAuthFromSecret(creds *corev1.Secret, getter AppAuthGetter) (*ht
 	idBytes, okID := creds.Data[GitHubAppAuthIDKey]
 	insBytes, okIns := creds.Data[GitHubAppAuthInstallationIDKey]
 	pemBytes, okPem := creds.Data[GitHubAppAuthPrivateKeyKey]
-	if !(okID && okIns && okPem) {
+	if !okID || !okIns || !okPem {
 		return nil, ErrNotGithubAppSecret
 	}
 
