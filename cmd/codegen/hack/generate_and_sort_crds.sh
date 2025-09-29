@@ -19,10 +19,10 @@ run_yq() {
     log "yq (from https://github.com/kislyuk/yq) is missing, building a helper docker image ($image)..."
 
     docker build -t $image - >&2 << EOF
-FROM bitnami/python:3.10
+FROM registry.suse.com/bci/python:3.11
 
-RUN install_packages jq
-RUN python -m pip install yq
+RUN zypper in -y jq
+RUN python3 -m pip install yq
 EOF
     docker run --rm -i -v ${PWD}:${PWD} -w ${PWD} ${image} yq $@
   else
