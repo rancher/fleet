@@ -3,6 +3,7 @@ package git
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"net/http"
 	"time"
 
@@ -14,7 +15,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	fleetssh "github.com/rancher/fleet/internal/ssh"
+	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
+
+var GitHubAppGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
 
 // GetAuthFromSecret returns the AuthMethod calculated from the given secret, setting known hosts if needed.
 // Known hosts are sourced from the creds, if provided there. Otherwise, they will be sourced from the provided
@@ -60,8 +64,16 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 		}
 		return auth, nil
+	default:
+		auth, err := fleetgithub.GetGithubAppAuthFromSecret(creds, GitHubAppGetter)
+		if err != nil {
+			if errors.Is(err, fleetgithub.ErrNotGithubAppSecret) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return auth, nil
 	}
-	return nil, nil
 }
 
 // GetHTTPClientFromSecret returns a HTTP client filled from the information in the given secret

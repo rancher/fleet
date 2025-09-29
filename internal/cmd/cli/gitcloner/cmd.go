@@ -9,15 +9,18 @@ type CloneGit interface {
 }
 
 type GitCloner struct {
-	Repo              string
-	Path              string
-	Branch            string
-	Revision          string
-	CABundleFile      string
-	Username          string
-	PasswordFile      string
-	SSHPrivateKeyFile string
-	InsecureSkipTLS   bool
+	Repo                  string
+	Path                  string
+	Branch                string
+	Revision              string
+	CABundleFile          string
+	Username              string
+	PasswordFile          string
+	SSHPrivateKeyFile     string
+	InsecureSkipTLS       bool
+	GitHubAppID           int64
+	GitHubAppInstallation int64
+	GitHubAppKeyFile      string
 }
 
 var opts *GitCloner
@@ -42,6 +45,9 @@ func NewCmd(gitCloner CloneGit) *cobra.Command {
 	cmd.Flags().StringVar(&opts.PasswordFile, "password-file", "", "password file for basic auth")
 	cmd.Flags().StringVar(&opts.SSHPrivateKeyFile, "ssh-private-key-file", "", "ssh private key file path")
 	cmd.Flags().BoolVar(&opts.InsecureSkipTLS, "insecure-skip-tls", false, "do not verify tls certificates")
+	cmd.Flags().Int64Var(&opts.GitHubAppID, "github-app-id", 0, "GitHub App ID")
+	cmd.Flags().Int64Var(&opts.GitHubAppInstallation, "github-app-installation-id", 0, "GitHub App installation ID")
+	cmd.Flags().StringVar(&opts.GitHubAppKeyFile, "github-app-key-file", "", "path to GitHub App private-key PEM")
 
 	return cmd
 }

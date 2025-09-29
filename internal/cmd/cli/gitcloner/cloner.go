@@ -11,30 +11,24 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	httpgit "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gossh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
-
-	giturls "github.com/rancher/fleet/pkg/git-urls"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	fleetssh "github.com/rancher/fleet/internal/ssh"
+	giturls "github.com/rancher/fleet/pkg/git-urls"
+	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 const defaultBranch = "master"
 
 var (
-	plainClone = git.PlainClone
-	readFile   = os.ReadFile
+	plainClone                              = git.PlainClone
+	readFile                                = os.ReadFile
+	fileStat                                = os.Stat
+	appAuthGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
 )
 
 type Cloner struct{}
-
-type Options struct {
-	Repo            string
-	Branch          string
-	Auth            transport.AuthMethod
-	InsecureSkipTLS bool
-	CABundle        []byte
-}
 
 func New() *Cloner {
 	return &Cloner{}
@@ -166,6 +160,23 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 			//nolint G106: Use of ssh InsecureIgnoreHostKey should be audited
 			//this will run in an init-container, so there is no persistence
 			auth.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+		}
+		return auth, nil
+	}
+
+	if opts.GitHubAppID != 0 && opts.GitHubAppInstallation != 0 && opts.GitHubAppKeyFile != "" {
+		if _, err := fileStat(opts.GitHubAppKeyFile); err != nil {
+			return nil, fmt.Errorf("failed to resolve GitHub app private key from path: %w", err)
+		}
+
+		key, err := readFile(opts.GitHubAppKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read GitHub app private key from file: %w", err)
+		}
+
+		auth, err := appAuthGetter.Get(int64(opts.GitHubAppID), int64(opts.GitHubAppInstallation), key)
+		if err != nil {
+			return nil, err
 		}
 		return auth, nil
 	}
