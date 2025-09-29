@@ -76,6 +76,7 @@ tolerations: []
 ## Pod affinity for the controllers.
 affinity: {}
 
+# Pod resource limits and requests for the controllers
 resources: {}
   # limits:
   #   cpu: 8000m
