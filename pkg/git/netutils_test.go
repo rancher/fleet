@@ -13,8 +13,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 
+	fleetgithub "github.com/rancher/fleet/internal/github"
 	"github.com/rancher/fleet/pkg/git"
-	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 type fakeGetter struct {

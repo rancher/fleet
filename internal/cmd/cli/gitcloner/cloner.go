@@ -14,9 +14,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
-	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 const defaultBranch = "master"
