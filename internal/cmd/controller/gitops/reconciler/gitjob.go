@@ -123,7 +123,8 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 			Name:      name,
 		},
 		Data: map[string][]byte{
-			fieldName: caBundle,
+			fieldName:            caBundle,
+			"insecureSkipVerify": fmt.Appendf([]byte{}, "%t", gitrepo.Spec.InsecureSkipTLSverify),
 		},
 	}
 	if err := controllerutil.SetControllerReference(gitrepo, secret, r.Scheme); err != nil {
@@ -346,6 +347,7 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 		)
 
 		certVolCreated = helmSecretOpts.HasCACerts
+		helmInsecure = helmSecretOpts.InsecureSkipTLS
 
 		volumes = append(volumes, vols...)
 		volumeMounts = append(volumeMounts, volMnts...)
@@ -383,12 +385,14 @@ func (r *GitJobReconciler) newJobSpec(ctx context.Context, gitrepo *v1alpha1.Git
 
 			// Override the volume name and mount path to prevent any conflict with an existing Helm secret
 			// providing username and password.
-			vols, volMnts, _ := volumesFromSecret(ctx, r.Client,
+			vols, volMnts, ho := volumesFromSecret(ctx, r.Client,
 				gitrepo.Namespace,
 				secretName,
 				"rancher-helm-secret",
 				CACertsDirOverride,
 			)
+
+			helmInsecure = ho.InsecureSkipTLS
 
 			volumes = append(volumes, vols...)
 			volumeMounts = append(volumeMounts, volMnts...)
@@ -674,6 +678,13 @@ func argsAndEnvs(
 			Name:  fleetapply.FleetApplyConflictRetriesEnv,
 			Value: strconv.Itoa(fleetApplyRetries),
 		},
+	}
+
+	if helmInsecureSkipTLS {
+		env = append(env, corev1.EnvVar{
+			Name:  "GIT_SSL_NO_VERIFY",
+			Value: "true",
+		})
 	}
 
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
