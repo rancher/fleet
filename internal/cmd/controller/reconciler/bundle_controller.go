@@ -38,6 +38,7 @@ import (
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -84,7 +85,17 @@ type BundleReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.Bundle{}).
+		For(&fleet.Bundle{},
+			builder.WithPredicates(
+				// do not trigger for bundle status changes (except for cache sync)
+				predicate.Or(
+					TypedResourceVersionUnchangedPredicate[client.Object]{},
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
+			),
+		).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
 		Watches(
 			// Fan out from bundledeployment to bundle, this is useful to update the
@@ -347,7 +358,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// and copy labels from Bundle as they might have changed.
 		// However, matchedTargets target.Deployment contains existing BundleDeployments.
 		bd := target.BundleDeployment()
-		logger = logger.WithValues("bundledeployment", bd.Name)
+		logger := logger.WithValues("bundledeployment", bd.Name)
 
 		// No need to check the deletion timestamp here before adding a finalizer, since the bundle has just
 		// been created.
@@ -460,6 +471,11 @@ func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 		return ctrl.Result{}, err
 	}
 
+	// pro-actively delete the bundle's secret. k8s owner garbage collection will handle remaining orphans.
+	if err := r.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: bundle.Name, Namespace: bundle.Namespace}}); err != nil && !apierrors.IsNotFound(err) {
+		logger.V(1).Info("Cannot delete bundle's values secret, owner garbage collection will remove it")
+	}
+
 	return ctrl.Result{}, r.maybeDeleteOCIArtifact(ctx, bundle)
 }
 
@@ -475,13 +491,13 @@ func (r *BundleReconciler) ensureFinalizer(ctx context.Context, bundle *fleet.Bu
 
 func (r *BundleReconciler) createBundleDeployment(
 	ctx context.Context,
-	logger logr.Logger,
+	l logr.Logger,
 	bd *fleet.BundleDeployment,
 	contentsInOCI bool,
 	contentsInHelmChart bool,
 	manifestID string,
 ) (*fleet.BundleDeployment, error) {
-	logger = logger.WithValues("deploymentID", bd.Spec.DeploymentID)
+	logger := l.WithValues("deploymentID", bd.Spec.DeploymentID)
 
 	// When content resources are stored in etcd, we need to add finalizers.
 	if !contentsInOCI && !contentsInHelmChart {
@@ -565,12 +581,19 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 			Namespace: bd.Namespace,
 		},
 	}
-
-	if err := controllerutil.SetControllerReference(bd, secret, r.Scheme); err != nil {
-		return err
+	owners := []metav1.OwnerReference{
+		{
+			APIVersion:         fleet.SchemeGroupVersion.String(),
+			Kind:               "BundleDeployment",
+			Name:               bd.GetName(),
+			UID:                bd.GetUID(),
+			BlockOwnerDeletion: ptr.To(true),
+			Controller:         ptr.To(true),
+		},
 	}
 
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.OwnerReferences = owners
 		secret.Data = map[string][]byte{
 			helmvalues.ValuesKey:       options,
 			helmvalues.StagedValuesKey: stagedOptions,
@@ -756,6 +779,10 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 		if err := c.Delete(ctx, &bd); client.IgnoreNotFound(err) != nil {
 			errs = append(errs, err)
 		}
+
+		// k8s ownership garbage collection can take a long time, so we explicitly delete the secrets here.
+		// GC will delete any remaining orphaned secrets, no need to add an error.
+		_ = c.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace}})
 	}
 
 	return errors.Join(errs...)

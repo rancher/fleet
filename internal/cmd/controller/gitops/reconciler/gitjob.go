@@ -19,6 +19,7 @@ import (
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/cert"
 	fleetevent "github.com/rancher/fleet/pkg/event"
+	fleetgithub "github.com/rancher/fleet/pkg/github"
 	"github.com/rancher/fleet/pkg/sharding"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -528,6 +529,20 @@ func (r *GitJobReconciler) newGitCloner(
 				MountPath: "/gitjob/ssh",
 			})
 			args = append(args, "--ssh-private-key-file", "/gitjob/ssh/"+corev1.SSHAuthPrivateKey)
+		default:
+			if fleetgithub.HasGitHubAppKeys(&secret) {
+				volumeMounts = append(volumeMounts, corev1.VolumeMount{
+					Name:      gitCredentialVolumeName,
+					MountPath: "/gitjob/githubapp",
+				})
+				args = append(args,
+					"--github-app-id", string(secret.Data[fleetgithub.GithubAppIDKey]),
+					"--github-app-installation-id", string(secret.Data[fleetgithub.GithubAppInstallationIDKey]),
+					"--github-app-key-file", "/gitjob/githubapp/"+fleetgithub.GithubAppPrivateKeyKey,
+				)
+			} else {
+				return corev1.Container{}, fmt.Errorf("missing Github App keys in secret %s/%s", secret.Namespace, secret.Name)
+			}
 		}
 	}
 
