@@ -94,7 +94,6 @@ var _ = Describe("Testing go-getter CA bundles", Label("infra-setup"), func() {
 			g.Expect(out).To(ContainSubstring("No resources found"))
 		}).Should(Succeed())
 
-		// _, err := k.Delete("ns", targetNamespace, "--wait=true")
 		_, _ = k.Delete("ns", targetNamespace)
 	})
 
