@@ -32,7 +32,7 @@ func (m *Manager) BundlesForCluster(ctx context.Context, cluster *fleet.Cluster)
 			return nil, nil, err
 		}
 
-		match := bm.Match(cluster.Name, clusterGroupsToLabelMap(cgs), cluster.Labels)
+		match := bm.Match(cluster.Name, ClusterGroupsToLabelMap(cgs), cluster.Labels)
 		if match != nil {
 			bundlesToRefresh = append(bundlesToRefresh, bundle)
 		} else {
@@ -88,10 +88,14 @@ func (m *Manager) getBundlesInScopeForCluster(ctx context.Context, cluster *flee
 	return bundleSet.bundles(), nil
 }
 
-// clusterGroupsForCluster returns all cluster groups that match the given cluster.
 func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cluster) (result []*fleet.ClusterGroup, _ error) {
+	return ClusterGroupsForCluster(ctx, m.client, cluster)
+}
+
+// ClusterGroupsForCluster returns all cluster groups that match the given cluster.
+func ClusterGroupsForCluster(ctx context.Context, c client.Client, cluster *fleet.Cluster) (result []*fleet.ClusterGroup, _ error) {
 	cgs := &fleet.ClusterGroupList{}
-	err := m.client.List(ctx, cgs, client.InNamespace(cluster.Namespace))
+	err := c.List(ctx, cgs, client.InNamespace(cluster.Namespace))
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +120,7 @@ func (m *Manager) clusterGroupsForCluster(ctx context.Context, cluster *fleet.Cl
 	return result, nil
 }
 
-func clusterGroupsToLabelMap(cgs []*fleet.ClusterGroup) map[string]map[string]string {
+func ClusterGroupsToLabelMap(cgs []*fleet.ClusterGroup) map[string]map[string]string {
 	result := map[string]map[string]string{}
 	for _, cg := range cgs {
 		result[cg.Name] = cg.Labels

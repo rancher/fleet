@@ -3,12 +3,14 @@ package testenv
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
 	"time"
 
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
+	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 )
 
 const (
@@ -59,6 +61,21 @@ func (e *Env) getShellEnv() {
 	if val := os.Getenv("FLEET_E2E_NS_DOWNSTREAM"); val != "" {
 		e.ClusterRegistrationNamespace = val
 	}
+}
+
+// GetCluster retrieves the cluster resource from the API server and unmarshals it.
+func (e *Env) GetCluster(name, namespace string) (*fleet.Cluster, error) {
+	out, err := e.Kubectl.Namespace(namespace).Get("cluster", name, "-o", "json")
+	if err != nil {
+		return nil, err
+	}
+	cluster := &fleet.Cluster{}
+	return cluster, e.Unmarshal(out, cluster)
+}
+
+// Unmarshal unmarshals the given JSON string into the provided object.
+func (e *Env) Unmarshal(out string, obj interface{}) error {
+	return json.Unmarshal([]byte(out), obj)
 }
 
 // NewNamespaceName returns a name for a namespace that is unique to the test

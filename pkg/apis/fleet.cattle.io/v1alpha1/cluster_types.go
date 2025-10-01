@@ -249,6 +249,16 @@ type ClusterStatus struct {
 	GarbageCollectionInterval *metav1.Duration `json:"garbageCollectionInterval,omitempty"`
 
 	AgentSchedulingCustomizationHash string `json:"agentSchedulingCustomizationHash,omitempty"`
+
+	// Scheduled specifies if the cluster has been added to any Schedule.
+	// When set to true ActiveSchedule is taken into account to check if the deployment
+	// can be deployed.
+	Scheduled bool `json:"scheduled,omitempty"`
+
+	// ActiveSchedule specifies if the cluster is in schedule, which means BundleDeployments can
+	// be updated and deployed. If ActiveSchedule is set to false and Scheduled is set to true
+	// BundleDeployments are not updated nor deployed.
+	ActiveSchedule bool `json:"activeSchedule,omitempty"`
 }
 
 type ClusterDisplay struct {

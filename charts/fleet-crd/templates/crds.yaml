@@ -179,6 +179,18 @@ spec:
                         a remote helm repository defined in a HelmOp resource'
                       type: string
                   type: object
+                notInSchedule:
+                  description: 'NotInSchedule specifies if the BundleDeployment can
+                    be updated.
+
+                    If set to true, will stop any BundleDeployments from being
+
+                    updated.
+
+                    If true, BundleDeployments will be marked as out of sync
+
+                    when changes are detected.'
+                  type: boolean
                 ociContents:
                   description: OCIContents is true when this deployment's contents
                     is stored in an oci registry
@@ -5692,6 +5704,15 @@ spec:
               type: object
             status:
               properties:
+                activeSchedule:
+                  description: 'ActiveSchedule specifies if the cluster is in schedule,
+                    which means BundleDeployments can
+
+                    be updated and deployed. If ActiveSchedule is set to false and
+                    Scheduled is set to true
+
+                    BundleDeployments are not updated nor deployed.'
+                  type: boolean
                 agent:
                   description: AgentStatus contains information about the agent.
                   properties:
@@ -5924,6 +5945,15 @@ spec:
                         waiting to be applied.
                       type: integer
                   type: object
+                scheduled:
+                  description: 'Scheduled specifies if the cluster has been added
+                    to any Schedule.
+
+                    When set to true ActiveSchedule is taken into account to check
+                    if the deployment
+
+                    can be deployed.'
+                  type: boolean
                 summary:
                   description: Summary is a summary of the bundledeployments.
                   properties:
@@ -9258,6 +9288,278 @@ spec:
                 observedGeneration:
                   format: int64
                   type: integer
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: schedules.fleet.cattle.io
+spec:
+  group: fleet.cattle.io
+  names:
+    kind: Schedule
+    listKind: ScheduleList
+    plural: schedules
+    singular: schedule
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.schedule
+          name: Schedule
+          type: string
+        - jsonPath: .spec.duration
+          name: Duration
+          type: string
+        - jsonPath: .status.active
+          name: Active
+          type: string
+        - jsonPath: .status.nextStartTime
+          name: NextStart
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: Schedule represents a schedule in which deployments are allower
+            or not, depending on its definition.
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+                of an object.
+
+                Servers should convert recognized schemas to the latest internal value,
+                and
+
+                may reject unrecognized values.
+
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource
+                this object represents.
+
+                Servers may infer this from the endpoint the client submits requests
+                to.
+
+                Cannot be updated.
+
+                In CamelCase.
+
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                duration:
+                  type: string
+                location:
+                  type: string
+                schedule:
+                  type: string
+                targets:
+                  description: Targets is a list of resources affected by this schedule
+                  properties:
+                    clusters:
+                      items:
+                        description: ScheduleTarget represent a resource (or group
+                          of resources affected by an Schedule)
+                        properties:
+                          clusterGroup:
+                            description: ClusterGroup is the name of a cluster group
+                              in the same namespace as the clusters.
+                            nullable: true
+                            type: string
+                          clusterGroupSelector:
+                            description: ClusterGroupSelector is a label selector
+                              to select cluster groups.
+                            nullable: true
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: 'A label selector requirement is a
+                                    selector that contains values, a key, and an operator
+                                    that
+
+                                    relates the key and values.'
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: 'operator represents a key''s relationship
+                                        to a set of values.
+
+                                        Valid operators are In, NotIn, Exists and
+                                        DoesNotExist.'
+                                      type: string
+                                    values:
+                                      description: 'values is an array of string values.
+                                        If the operator is In or NotIn,
+
+                                        the values array must be non-empty. If the
+                                        operator is Exists or DoesNotExist,
+
+                                        the values array must be empty. This array
+                                        is replaced during a strategic
+
+                                        merge patch.'
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                  required:
+                                    - key
+                                    - operator
+                                  type: object
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: 'matchLabels is a map of {key,value}
+                                  pairs. A single {key,value} in the matchLabels
+
+                                  map is equivalent to an element of matchExpressions,
+                                  whose key field is "key", the
+
+                                  operator is "In", and the values array contains
+                                  only "value". The requirements are ANDed.'
+                                type: object
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          clusterName:
+                            description: ClusterName is the name of a cluster.
+                            nullable: true
+                            type: string
+                          clusterSelector:
+                            description: ClusterSelector is a label selector to select
+                              clusters.
+                            nullable: true
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: 'A label selector requirement is a
+                                    selector that contains values, a key, and an operator
+                                    that
+
+                                    relates the key and values.'
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: 'operator represents a key''s relationship
+                                        to a set of values.
+
+                                        Valid operators are In, NotIn, Exists and
+                                        DoesNotExist.'
+                                      type: string
+                                    values:
+                                      description: 'values is an array of string values.
+                                        If the operator is In or NotIn,
+
+                                        the values array must be non-empty. If the
+                                        operator is Exists or DoesNotExist,
+
+                                        the values array must be empty. This array
+                                        is replaced during a strategic
+
+                                        merge patch.'
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                  required:
+                                    - key
+                                    - operator
+                                  type: object
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: 'matchLabels is a map of {key,value}
+                                  pairs. A single {key,value} in the matchLabels
+
+                                  map is equivalent to an element of matchExpressions,
+                                  whose key field is "key", the
+
+                                  operator is "In", and the values array contains
+                                  only "value". The requirements are ANDed.'
+                                type: object
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          name:
+                            description: Name is the name of this target.
+                            nullable: true
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+              type: object
+            status:
+              properties:
+                active:
+                  description: Active is set to true when the Schedule is actively
+                    running
+                  type: boolean
+                conditions:
+                  description: 'Conditions is a list of Wrangler conditions that describe
+                    the state
+
+                    of the resource.'
+                  items:
+                    properties:
+                      lastTransitionTime:
+                        description: Last time the condition transitioned from one
+                          status to another.
+                        type: string
+                      lastUpdateTime:
+                        description: The last time this condition was updated.
+                        type: string
+                      message:
+                        description: Human-readable message indicating details about
+                          last transition
+                        type: string
+                      reason:
+                        description: The reason for the condition's last transition.
+                        type: string
+                      status:
+                        description: Status of the condition, one of True, False,
+                          Unknown.
+                        type: string
+                      type:
+                        description: Type of cluster condition.
+                        type: string
+                    required:
+                      - status
+                      - type
+                    type: object
+                  type: array
+                matchingClusters:
+                  description: MatchingClusters is the list of clusters targeted by
+                    the Schedule
+                  items:
+                    type: string
+                  type: array
+                nextStartTime:
+                  description: NextStartTime stores the next time this Schedule will
+                    start
+                  format: date-time
+                  type: string
               type: object
           type: object
       served: true

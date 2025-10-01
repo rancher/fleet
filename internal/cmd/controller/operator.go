@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/experimental"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -166,6 +167,21 @@ func start(
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ImageScan")
 		return err
+	}
+
+	if experimental.SchedulesEnabled() {
+		if err = (&reconciler.ScheduleReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor(fmt.Sprintf("fleet-schedule-ctrl%s", shardIDSuffix)),
+			ShardID:  shardID,
+
+			Workers:   workersOpts.Bundle,
+			Scheduler: sched,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Schedule")
+			return err
+		}
 	}
 
 	//+kubebuilder:scaffold:builder

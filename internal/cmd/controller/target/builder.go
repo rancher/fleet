@@ -70,13 +70,13 @@ func (m *Manager) Targets(ctx context.Context, bundle *fleet.Bundle, manifestID 
 				return nil, err
 			}
 
-			target := bm.Match(cluster.Name, clusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			target := bm.Match(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
 			if target == nil {
 				continue
 			}
 			// check if there is any matching targetCustomization that should be applied
 			targetOpts := target.BundleDeploymentOptions
-			targetCustomized := bm.MatchTargetCustomizations(cluster.Name, clusterGroupsToLabelMap(clusterGroups), cluster.Labels)
+			targetCustomized := bm.MatchTargetCustomizations(cluster.Name, ClusterGroupsToLabelMap(clusterGroups), cluster.Labels)
 			if targetCustomized != nil {
 				if targetCustomized.DoNotDeploy {
 					logger.V(1).Info("BundleDeployment creation for Bundle was skipped because doNotDeploy is set to true.")

@@ -111,7 +111,7 @@ func (r *Remote) RevisionCommit(revision string) (string, error) {
 		return "", err
 	}
 
-	refLighweightTag := formatRefForTag(revision, false)
+	refLightweightTag := formatRefForTag(revision, false)
 	refAnnotatedTag := formatRefForTag(revision, true)
 	commit := ""
 	for _, ref := range refs {
@@ -121,7 +121,7 @@ func (r *Remote) RevisionCommit(revision string) (string, error) {
 		}
 		// if the lightweight form is found, we store and keep looking
 		// because we could have the annotated one
-		if ref.Name == refLighweightTag {
+		if ref.Name == refLightweightTag {
 			commit = ref.Hash
 		}
 	}

@@ -126,6 +126,12 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 		return ctrl.Result{}, err
 	}
+	if bd.Spec.NotInSchedule {
+		logger.V(1).Info("Bundle not in schedule, clearing drift detection")
+		err := r.DriftDetect.Clear(req.String())
+
+		return ctrl.Result{}, err
+	}
 
 	// load the bundledeployment options from the secret, if present
 	if bd.Spec.ValuesHash != "" {
