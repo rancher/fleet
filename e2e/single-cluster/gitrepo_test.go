@@ -31,6 +31,17 @@ const (
 	HTTPSPort = 4343
 )
 
+type gitRepoTestValues struct {
+	Name                  string
+	Repo                  string
+	Branch                string
+	PollingInterval       string
+	TargetNamespace       string
+	Path                  string
+	InsecureSkipTLSVerify bool
+	CABundle              string
+}
+
 var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"), func() {
 	var (
 		tmpDir           string
@@ -100,18 +111,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		})
 
 		JustBeforeEach(func() {
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-				Name            string
-				Repo            string
-				Branch          string
-				PollingInterval string
-				TargetNamespace string
-			}{
-				gitrepoName,
-				inClusterRepoURL,
-				gh.Branch,
-				"15s",           // default
-				targetNamespace, // to avoid conflicts with other tests
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+				Name:            gitrepoName,
+				Repo:            inClusterRepoURL,
+				Branch:          gh.Branch,
+				PollingInterval: "15s",           // default
+				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -157,18 +162,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 		})
 
 		JustBeforeEach(func() {
-			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-				Name            string
-				Repo            string
-				Branch          string
-				PollingInterval string
-				TargetNamespace string
-			}{
-				gitrepoName,
-				inClusterRepoURL,
-				gh.Branch,
-				"15s",           // default
-				targetNamespace, // to avoid conflicts with other tests
+			err := testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+				Name:            gitrepoName,
+				Repo:            inClusterRepoURL,
+				Branch:          gh.Branch,
+				PollingInterval: "15s",           // default
+				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -270,18 +269,12 @@ var _ = Describe("Monitoring Git repos via HTTP for change", Label("infra-setup"
 			clone, err = gh.Create(clonedir, testenv.AssetPath("gitrepo/sleeper-chart"), "examples")
 			Expect(err).ToNot(HaveOccurred())
 
-			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), struct {
-				Name            string
-				Repo            string
-				Branch          string
-				PollingInterval string
-				TargetNamespace string
-			}{
-				gitrepoName,
-				inClusterRepoURL,
-				gh.Branch,
-				"24h",           // prevent polling
-				targetNamespace, // to avoid conflicts with other tests
+			err = testenv.ApplyTemplate(k, testenv.AssetPath("gitrepo/gitrepo.yaml"), gitRepoTestValues{
+				Name:            gitrepoName,
+				Repo:            inClusterRepoURL,
+				Branch:          gh.Branch,
+				PollingInterval: "24h",           // prevent polling
+				TargetNamespace: targetNamespace, // to avoid conflicts with other tests
 			})
 			Expect(err).ToNot(HaveOccurred())
 		})
