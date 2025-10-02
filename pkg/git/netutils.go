@@ -14,8 +14,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 
+	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
-	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 var GitHubAppGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
