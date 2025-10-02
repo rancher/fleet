@@ -53,6 +53,8 @@ bootstrap:
   # The namespace where the fleet agent for the local cluster will be ran, if empty
   # this will default to cattle-fleet-system
   agentNamespace: ""
+  # Apply extra clusterLables to the local cluster bootstrapped by fleet-controller
+  clusterLabels: {}
   # A repo to add at install time that will deploy to the local cluster. This allows
   # one to fully bootstrap fleet, its configuration and all its downstream clusters
   # in one shot.
