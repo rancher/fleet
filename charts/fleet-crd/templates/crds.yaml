@@ -179,8 +179,12 @@ spec:
                         a remote helm repository defined in a HelmOp resource'
                       type: string
                   type: object
-                notInSchedule:
-                  description: 'NotInSchedule specifies if the BundleDeployment can
+                ociContents:
+                  description: OCIContents is true when this deployment's contents
+                    is stored in an oci registry
+                  type: boolean
+                offSchedule:
+                  description: 'OffSchedule specifies if the BundleDeployment can
                     be updated.
 
                     If set to true, will stop any BundleDeployments from being
@@ -190,10 +194,6 @@ spec:
                     If true, BundleDeployments will be marked as out of sync
 
                     when changes are detected.'
-                  type: boolean
-                ociContents:
-                  description: OCIContents is true when this deployment's contents
-                    is stored in an oci registry
                   type: boolean
                 options:
                   description: Options are the deployment options, that are currently
@@ -9326,7 +9326,7 @@ spec:
       name: v1alpha1
       schema:
         openAPIV3Schema:
-          description: Schedule represents a schedule in which deployments are allower
+          description: Schedule represents a schedule in which deployments are allowed
             or not, depending on its definition.
           properties:
             apiVersion:
@@ -9368,8 +9368,8 @@ spec:
                   properties:
                     clusters:
                       items:
-                        description: ScheduleTarget represent a resource (or group
-                          of resources affected by an Schedule)
+                        description: ScheduleTarget represents a resource (or group
+                          of resources) affected by a Schedule
                         properties:
                           clusterGroup:
                             description: ClusterGroup is the name of a cluster group

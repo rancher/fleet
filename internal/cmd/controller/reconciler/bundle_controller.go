@@ -754,8 +754,8 @@ func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context,
 	}
 	toDelete := slices.DeleteFunc(list, func(bd fleet.BundleDeployment) bool {
 		// don't delete BundleDeployments that are not in schedule as
-		// that uninstall the deployment in the agent
-		return uidsToKeep.Has(bd.UID) || bd.Spec.NotInSchedule
+		// that would uninstall the deployment in the agent
+		return uidsToKeep.Has(bd.UID) || bd.Spec.OffSchedule
 	})
 	return batchDeleteBundleDeployments(ctx, r.Client, toDelete)
 }

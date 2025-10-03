@@ -264,4 +264,89 @@ var _ = Describe("ScheduleReconciler", func() {
 			Expect(requests).To(BeEmpty())
 		})
 	})
+
+	Context("updateScheduledClusters", func() {
+		It("should update the clusters matching in the scheduled jobs and also the Status.Scheduled flag", func() {
+			cluster2 := &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-cluster2",
+					Namespace: "default",
+					Labels:    map[string]string{"env": "test"},
+				},
+			}
+
+			cluster3 := &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-cluster3",
+					Namespace: "default",
+					Labels:    map[string]string{"env": "test"},
+				},
+			}
+
+			cluster4 := &fleet.Cluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-cluster4",
+					Namespace: "default",
+					Labels:    map[string]string{"foo": "bar"},
+				},
+			}
+
+			k8sclient = fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(schedule, cluster, cluster2, cluster3, cluster4).
+				WithStatusSubresource(&fleet.Schedule{}, &fleet.Cluster{}).
+				Build()
+
+			reconciler.Client = k8sclient
+
+			// initial reconcile
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			// clusters 1, 2 and 3 should be scheduled in the quartz.Scheduler and also
+			// be flagged as Scheduled
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster", "default", true, true)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster2", "default", true, true)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster3", "default", true, true)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster4", "default", false, false)
+
+			// update the schedule, now it only looks for the label foo=bar
+			scheduleUpdated := &fleet.Schedule{}
+			Expect(k8sclient.Get(ctx, req.NamespacedName, scheduleUpdated)).To(Succeed())
+
+			scheduleUpdated.Spec.Targets.Clusters = []fleet.ScheduleTarget{
+				{
+					ClusterSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"foo": "bar"},
+					},
+				},
+			}
+			Expect(k8sclient.Update(ctx, scheduleUpdated)).To(Succeed())
+
+			_, err = reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			// now only 1 cluster should be flagged as scheduled and be in the scheduled jobs list
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster", "default", false, false)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster2", "default", false, false)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster3", "default", false, false)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster4", "default", true, true)
+		})
+	})
 })
+
+func checkClusterIsScheduled(
+	scheduler quartz.Scheduler,
+	k8sclient client.Client,
+	cluster, namespace string,
+	scheduledExpected, flaggedAsScheduledExpected bool) {
+	isScheduled, err := isClusterScheduled(scheduler, cluster, namespace)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(isScheduled).To(Equal(scheduledExpected))
+
+	key := client.ObjectKey{Name: cluster, Namespace: namespace}
+	clusterObj := &fleet.Cluster{}
+	err = k8sclient.Get(context.Background(), key, clusterObj)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(clusterObj.Status.Scheduled).To(Equal(flaggedAsScheduledExpected))
+}

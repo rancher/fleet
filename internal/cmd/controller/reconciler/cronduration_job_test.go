@@ -125,25 +125,25 @@ var _ = Describe("CronDurationJob", func() {
 		_ = scheduler.Clear()
 	})
 
-	Context("NewCronDurationJob", func() {
+	Context("newCronDurationJob", func() {
 		It("should create a new job successfully", func() {
-			job, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job).NotTo(BeNil())
-			Expect(job.MatchingClusters).To(ContainElement("test-cluster"))
+			Expect(job.MatchingClusters).To(ConsistOf("test-cluster"))
 			Expect(job.Description()).To(ContainSubstring("CronDurationJob-"))
 		})
 
 		It("should fail with an unknown time zone location", func() {
 			schedule.Spec.Location = "Invalid/Location"
-			_, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			_, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(Equal("unknown time zone Invalid/Location"))
 		})
 
 		It("should fail with invalid schedule (duration too long)", func() {
 			schedule.Spec.Duration = metav1.Duration{Duration: 61 * time.Second}
-			_, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			_, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("duration is too long"))
 		})
@@ -155,7 +155,7 @@ var _ = Describe("CronDurationJob", func() {
 				WithObjects(schedule, cluster).
 				Build()
 
-			job, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(job.MatchingClusters).To(BeEmpty())
 		})
@@ -187,7 +187,7 @@ var _ = Describe("CronDurationJob", func() {
 
 		BeforeEach(func() {
 			var err error
-			job, err = NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			job, err = newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -230,7 +230,7 @@ var _ = Describe("CronDurationJob", func() {
 
 		It("should handle cluster label changes between start executions", func() {
 			// Initial state: cluster matches
-			Expect(job.MatchingClusters).To(ContainElement("test-cluster"))
+			Expect(job.MatchingClusters).To(ConsistOf("test-cluster"))
 
 			// Manually trigger start
 			err := job.executeStart(ctx)
@@ -298,7 +298,11 @@ var _ = Describe("CronDurationJob", func() {
 
 	Context("scheduleJob", func() {
 		It("should schedule a job and update status", func() {
-			job, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			// wait a bit if we are too close to second 59...
+			// this is to ensure calculations based on minutes and seconds
+			waitIfTimeIsTooCloseTo59()
+
+			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 
 			timeBeforeSchedule := time.Now()
@@ -326,7 +330,11 @@ var _ = Describe("CronDurationJob", func() {
 
 	Context("updateJob", func() {
 		It("should update an existing job", func() {
-			job, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			// wait a bit if we are too close to second 59...
+			// this is to ensure calculations based on minutes and seconds
+			waitIfTimeIsTooCloseTo59()
+
+			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 
 			err = job.scheduleJob(ctx)
@@ -334,7 +342,7 @@ var _ = Describe("CronDurationJob", func() {
 
 			// Modify schedule to force an update
 			schedule.Spec.Schedule = "0 */2 * * * *"
-			updatedJob, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			updatedJob, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 
 			timeBeforeUpdate := time.Now()
@@ -371,7 +379,7 @@ var _ = Describe("CronDurationJob", func() {
 
 	Context("ClusterScheduledMatcher", func() {
 		It("should match a job if the cluster is in MatchingClusters", func() {
-			job, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 			err = job.scheduleJob(ctx)
 			Expect(err).NotTo(HaveOccurred())
@@ -384,7 +392,7 @@ var _ = Describe("CronDurationJob", func() {
 		})
 
 		It("should not match a job if the cluster is not in MatchingClusters", func() {
-			job, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 			err = job.scheduleJob(ctx)
 			Expect(err).NotTo(HaveOccurred())
@@ -396,7 +404,7 @@ var _ = Describe("CronDurationJob", func() {
 		})
 
 		It("should not match a job if the namespace is different", func() {
-			job, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 			err = job.scheduleJob(ctx)
 			Expect(err).NotTo(HaveOccurred())
@@ -410,7 +418,7 @@ var _ = Describe("CronDurationJob", func() {
 
 	Context("getClusterScheduleKeys", func() {
 		It("should return keys for scheduled jobs matching a cluster", func() {
-			job, err := NewCronDurationJob(ctx, schedule, scheduler, k8sclient)
+			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 			err = job.scheduleJob(ctx)
 			Expect(err).NotTo(HaveOccurred())
@@ -544,3 +552,14 @@ var _ = Describe("CronDurationJob", func() {
 		})
 	})
 })
+
+func waitIfTimeIsTooCloseTo59() {
+	for {
+		now := time.Now()
+		// if we are up to second 55... just break
+		if now.Second() < 55 {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}

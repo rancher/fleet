@@ -30,11 +30,11 @@ type CronDurationJob struct {
 	key              *quartz.JobKey
 }
 
-// NewCronDurationJob constructs a new CronDurationJob.
+// newCronDurationJob constructs a new CronDurationJob.
 // It also verifies the validity and correctness of the schedule and duration data.
 // Internally, it assigns Location = Local if no location was specified in the schedule,
 // and from that point onward, any time-related calculations are performed using this location.
-func NewCronDurationJob(ctx context.Context, schedule *fleet.Schedule, scheduler quartz.Scheduler, c client.Client) (*CronDurationJob, error) {
+func newCronDurationJob(ctx context.Context, schedule *fleet.Schedule, scheduler quartz.Scheduler, c client.Client) (*CronDurationJob, error) {
 	locationStr := schedule.Spec.Location
 	if locationStr == "" {
 		locationStr = "Local"
@@ -107,7 +107,7 @@ func getScheduleJobHash(sched *fleet.Schedule) (string, error) {
 	return hex.EncodeToString(hash[:]), nil
 }
 
-func (c *CronDurationJob) calculateNextTimeBasedOnCron() (time.Duration, error) {
+func (c *CronDurationJob) durationToNextStart() (time.Duration, error) {
 	cronTrigger, err := quartz.NewCronTriggerWithLoc(c.Schedule.Spec.Schedule, c.Location)
 	if err != nil {
 		return 0, err
@@ -172,7 +172,7 @@ func (c *CronDurationJob) updateJob(ctx context.Context) error {
 }
 
 func (c *CronDurationJob) rescheduleJob(ctx context.Context) error {
-	next, err := c.calculateNextTimeBasedOnCron()
+	next, err := c.durationToNextStart()
 	if err != nil {
 		return err
 	}
@@ -231,6 +231,12 @@ func (c *CronDurationJob) executeStart(ctx context.Context) error {
 		}
 	}
 
+	// Sets Scheduled to true to all the matching clusters
+	if err := setClustersScheduled(ctx, c.client, clusters, c.Schedule.Namespace, true); err != nil {
+		return err
+	}
+	c.MatchingClusters = clusters
+
 	// Update the status of the Schedule resource
 	if err := setScheduleActive(ctx, c.client, c.Schedule, true); err != nil {
 		return err
@@ -243,7 +249,7 @@ func (c *CronDurationJob) executeStart(ctx context.Context) error {
 func (c *CronDurationJob) executeStop(ctx context.Context) error {
 	c.Started = false
 
-	// Sets ActiveSchedule to true for all matching clusters.
+	// Sets ActiveSchedule to false for all matching clusters.
 	// This action disables the creation of BundleDeployments on the clusters.
 	for _, cluster := range c.MatchingClusters {
 		if err := setClusterActiveSchedule(context.Background(), c.client, cluster, c.Schedule.Namespace, false); err != nil {
@@ -271,7 +277,7 @@ func matchingClusters(ctx context.Context, matcher *matcher.ScheduleMatch, c cli
 		cluster := cluster
 		cgs, err := target.ClusterGroupsForCluster(ctx, c, &cluster)
 		if err != nil {
-			return nil, fmt.Errorf("%w, getting clusters from cluster groups: %w", fleetutil.ErrRetryable, err)
+			return nil, fmt.Errorf("%w, getting cluster groups from clusters: %w", fleetutil.ErrRetryable, err)
 		}
 
 		if matcher.MatchCluster(cluster.Name, target.ClusterGroupsToLabelMap(cgs), cluster.Labels) {

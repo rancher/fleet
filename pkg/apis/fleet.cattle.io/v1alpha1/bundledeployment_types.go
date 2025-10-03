@@ -352,12 +352,12 @@ type BundleDeploymentSpec struct {
 	// +nullable
 	ValuesHash string `json:"valuesHash,omitempty"`
 
-	// NotInSchedule specifies if the BundleDeployment can be updated.
+	// OffSchedule specifies if the BundleDeployment can be updated.
 	// If set to true, will stop any BundleDeployments from being
 	// updated.
 	// If true, BundleDeployments will be marked as out of sync
 	// when changes are detected.
-	NotInSchedule bool `json:"notInSchedule,omitempty"`
+	OffSchedule bool `json:"offSchedule,omitempty"`
 }
 
 // BundleDeploymentResource contains the metadata of a deployed resource.

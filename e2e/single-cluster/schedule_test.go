@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	. "github.com/onsi/ginkgo/v2"
@@ -69,6 +70,11 @@ var _ = Describe("Schedules", Label("infra-setup"), func() {
 		clonedir = path.Join(tmpDir, "test-repo")
 
 		gitrepoName = testenv.RandomFilename("gitjob-test", r)
+
+		// wait for the beginning of the next minute so we are sure
+		// that the cycle checked in the tests is correct.
+		// Note that the schedule starts at 0 seconds.
+		waitForBeginningOfNextMinute()
 	})
 
 	It("deploys and pauses based on the schedule", func() {
@@ -144,7 +150,7 @@ var _ = Describe("Schedules", Label("infra-setup"), func() {
 			g.Expect(bdList.Items).To(HaveLen(1))
 
 			bd = bdList.Items[0]
-			g.Expect(bd.Spec.NotInSchedule).To(BeFalse())
+			g.Expect(bd.Spec.OffSchedule).To(BeFalse())
 		}).Should(Succeed())
 
 		By("checking the pod exists")
@@ -164,7 +170,7 @@ var _ = Describe("Schedules", Label("infra-setup"), func() {
 			return !cluster.Status.ActiveSchedule
 		}).Should(BeTrue())
 
-		// When the schedule is inactive, the bundledeployment should be marked as NotInSchedule.
+		// When the schedule is inactive, the bundledeployment should be marked as OffSchedule.
 		By("checking the bundle deployment is paused")
 		Eventually(func(g Gomega) {
 			label := fmt.Sprintf("fleet.cattle.io/bundle-name=%s-examples", gitrepoName)
@@ -178,7 +184,7 @@ var _ = Describe("Schedules", Label("infra-setup"), func() {
 			g.Expect(bdList.Items).To(HaveLen(1))
 
 			bd = bdList.Items[0]
-			g.Expect(bd.Spec.NotInSchedule).To(BeTrue())
+			g.Expect(bd.Spec.OffSchedule).To(BeTrue())
 		}).Should(Succeed())
 
 		By("updating the git repository")
@@ -207,7 +213,7 @@ var _ = Describe("Schedules", Label("infra-setup"), func() {
 			g.Expect(bdList.Items).To(HaveLen(1))
 
 			bd = bdList.Items[0]
-			g.Expect(bd.Spec.NotInSchedule).To(BeTrue())
+			g.Expect(bd.Spec.OffSchedule).To(BeTrue())
 
 			cluster, err = env.GetCluster(cluster.Name, cluster.Namespace)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -231,7 +237,7 @@ var _ = Describe("Schedules", Label("infra-setup"), func() {
 			g.Expect(bdList.Items).To(HaveLen(1))
 
 			bd = bdList.Items[0]
-			g.Expect(bd.Spec.NotInSchedule).To(BeFalse())
+			g.Expect(bd.Spec.OffSchedule).To(BeFalse())
 
 			cluster, err = env.GetCluster(cluster.Name, cluster.Namespace)
 			g.Expect(err).ToNot(HaveOccurred())
@@ -264,4 +270,14 @@ func getGitRepoStatus(g Gomega, k kubectl.Command, name string) fleet.GitRepoSta
 	_ = json.Unmarshal([]byte(gr), &gitrepo)
 
 	return gitrepo.Status
+}
+
+func waitForBeginningOfNextMinute() {
+	for {
+		now := time.Now()
+		if now.Second() == 0 {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }

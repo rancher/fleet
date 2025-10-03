@@ -111,7 +111,7 @@ func (r *ScheduleReconciler) handleSchedule(ctx context.Context, s *fleet.Schedu
 	}
 
 	// the job already exists, check if an update is needed
-	newJob, err := NewCronDurationJob(ctx, s, r.Scheduler, r.Client)
+	newJob, err := newCronDurationJob(ctx, s, r.Scheduler, r.Client)
 	if err != nil {
 		return err
 	}
@@ -137,11 +137,6 @@ func (r *ScheduleReconciler) handleSchedule(ctx context.Context, s *fleet.Schedu
 	return nil
 }
 
-func jobNeedsUpdate(newJob, existingJob *CronDurationJob) bool {
-	return newJob.Description() != existingJob.Description() ||
-		!slices.Equal(newJob.MatchingClusters, existingJob.MatchingClusters)
-}
-
 func (r *ScheduleReconciler) handleDelete(ctx context.Context, schedule *fleet.Schedule) (ctrl.Result, error) {
 	if !controllerutil.ContainsFinalizer(schedule, scheduleFinalizer) {
 		return ctrl.Result{}, nil
@@ -159,8 +154,52 @@ func (r *ScheduleReconciler) handleDelete(ctx context.Context, schedule *fleet.S
 	return ctrl.Result{}, nil
 }
 
+func (r *ScheduleReconciler) ensureFinalizer(ctx context.Context, schedule *fleet.Schedule) error {
+	if controllerutil.ContainsFinalizer(schedule, scheduleFinalizer) {
+		return nil
+	}
+	controllerutil.AddFinalizer(schedule, scheduleFinalizer)
+	return r.Update(ctx, schedule)
+}
+
+// mapClustersToSchedules is a mapping function used to trigger a reconciliation of Schedules
+// when a targeted Cluster changes. It finds all schedules that target the cluster
+// and enqueues a reconcile request for each of them.
+func (r *ScheduleReconciler) mapClustersToSchedules(ctx context.Context, a client.Object) []ctrl.Request {
+	ns := a.GetNamespace()
+	logger := log.FromContext(ctx).WithName("cluster-scheduler-handler").WithValues("namespace", ns)
+	cluster := a.(*fleet.Cluster)
+
+	// check if the cluster is scheduled
+	schedules, err := getClusterSchedules(r.Scheduler, cluster.Name, cluster.Namespace)
+	if err != nil {
+		logger.Error(err, "Failed to get cluster schedules")
+		return nil
+	}
+	requests := []ctrl.Request{}
+	for _, schedule := range schedules {
+		requests = append(requests, ctrl.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: ns,
+				Name:      schedule.Name,
+			},
+		})
+	}
+
+	return requests
+}
+
+// jobNeedsUpdate returns true if there is a discrepancy between newJob and existingJob:
+// * either in their descriptions, indicating that the parent schedule for those jobs has been updated
+// * or in clusters matched by the jobs, which may result from updates to the clusters themselves,
+// or creation/deletion of clusters since the existingJob was created.
+func jobNeedsUpdate(newJob, existingJob *CronDurationJob) bool {
+	return newJob.Description() != existingJob.Description() ||
+		!slices.Equal(newJob.MatchingClusters, existingJob.MatchingClusters)
+}
+
 func scheduleNewCronDurationJob(ctx context.Context, s *fleet.Schedule, scheduler quartz.Scheduler, c client.Client) error {
-	job, err := NewCronDurationJob(ctx, s, scheduler, c)
+	job, err := newCronDurationJob(ctx, s, scheduler, c)
 	if err != nil {
 		return err
 	}
@@ -201,19 +240,16 @@ func deleteSchedule(ctx context.Context, s *fleet.Schedule, scheduler quartz.Sch
 	return setClustersScheduled(ctx, cronDurationJob.client, noLongerScheduled, s.Namespace, false)
 }
 
-func (r *ScheduleReconciler) ensureFinalizer(ctx context.Context, schedule *fleet.Schedule) error {
-	if controllerutil.ContainsFinalizer(schedule, scheduleFinalizer) {
-		return nil
-	}
-	controllerutil.AddFinalizer(schedule, scheduleFinalizer)
-	return r.Update(ctx, schedule)
-}
-
 func setClusterActiveSchedule(ctx context.Context, c client.Client, name, namespace string, active bool) error {
 	key := client.ObjectKey{Name: name, Namespace: namespace}
 	cluster := &fleet.Cluster{}
 	if err := c.Get(ctx, key, cluster); err != nil {
 		return fmt.Errorf("%w, getting cluster: %w", fleetutil.ErrRetryable, err)
+	}
+
+	// if the values are already the expected ones, avoid the update
+	if cluster.Status.Scheduled && cluster.Status.ActiveSchedule == active {
+		return nil
 	}
 	old := cluster.DeepCopy()
 	cluster.Status.ActiveSchedule = active
@@ -229,6 +265,11 @@ func setClusterScheduled(ctx context.Context, c client.Client, name, namespace s
 		return fmt.Errorf("%w, getting cluster: %w", fleetutil.ErrRetryable, err)
 	}
 
+	// if the value is already the expected one, avoid the update
+	if cluster.Status.Scheduled == scheduled {
+		return nil
+	}
+
 	old := cluster.DeepCopy()
 	cluster.Status.Scheduled = scheduled
 	if !scheduled {
@@ -239,6 +280,10 @@ func setClusterScheduled(ctx context.Context, c client.Client, name, namespace s
 }
 
 func setScheduleActive(ctx context.Context, c client.Client, schedule *fleet.Schedule, active bool) error {
+	// if the value is already the expected one, avoid the update
+	if schedule.Status.Active == active {
+		return nil
+	}
 	old := schedule.DeepCopy()
 	schedule.Status.Active = active
 
@@ -263,33 +308,6 @@ func setScheduleReadyCondition(status *fleet.ScheduleStatus, err error) {
 	if !equality.Semantic.DeepEqual(origStatus, status) {
 		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
 	}
-}
-
-// mapClustersToSchedules is a mapping function used to trigger a reconciliation of Schedules
-// when a targeted Cluster changes. It finds all schedules that target the cluster
-// and enqueues a reconcile request for each of them.
-func (r *ScheduleReconciler) mapClustersToSchedules(ctx context.Context, a client.Object) []ctrl.Request {
-	ns := a.GetNamespace()
-	logger := log.FromContext(ctx).WithName("cluster-scheduler-handler").WithValues("namespace", ns)
-	cluster := a.(*fleet.Cluster)
-
-	// check if the cluster is scheduled
-	schedules, err := getClusterSchedules(r.Scheduler, cluster.Name, cluster.Namespace)
-	if err != nil {
-		logger.Error(err, "Failed to get cluster schedules")
-		return nil
-	}
-	requests := []ctrl.Request{}
-	for _, schedule := range schedules {
-		requests = append(requests, ctrl.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: ns,
-				Name:      schedule.Name,
-			},
-		})
-	}
-
-	return requests
 }
 
 func updateClusterStatus(ctx context.Context, c client.Client, old *fleet.Cluster, new *fleet.Cluster) error {
@@ -406,11 +424,11 @@ func updateScheduledClusters(ctx context.Context, scheduler quartz.Scheduler, c 
 	// they are no longer targeted by any schedule
 	for _, cluster := range clustersOld {
 		if !slices.Contains(clustersNew, cluster) {
-			noLongerScheduled, err := isClusterScheduled(scheduler, cluster, namespace)
+			targeted, err := isClusterScheduled(scheduler, cluster, namespace)
 			if err != nil {
 				return err
 			}
-			if !noLongerScheduled {
+			if !targeted {
 				if err := setClusterScheduled(ctx, c, cluster, namespace, false); err != nil {
 					return err
 				}

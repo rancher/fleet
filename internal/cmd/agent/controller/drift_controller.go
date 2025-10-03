@@ -86,7 +86,7 @@ func (r *DriftReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 		return ctrl.Result{}, err
 	}
-	if bd.Spec.NotInSchedule {
+	if bd.Spec.OffSchedule {
 		logger.V(1).Info("Bundle not in schedule, clearing drift detection")
 		err := r.DriftDetect.Clear(req.String())
 

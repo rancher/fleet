@@ -7,10 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestGitOpsReconciler(t *testing.T) {
+func TestScheduler(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fleet Controller Suite")
+	RunSpecs(t, "Fleet Scheduler Controller Suite")
 }
-
-var _ = BeforeSuite(func() {
-})

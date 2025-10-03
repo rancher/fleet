@@ -18,7 +18,7 @@ func init() {
 // +kubebuilder:printcolumn:name="Active",type=string,JSONPath=`.status.active`
 // +kubebuilder:printcolumn:name="NextStart",type="string",JSONPath=`.status.nextStartTime`
 
-// Schedule represents a schedule in which deployments are allower or not, depending on its definition.
+// Schedule represents a schedule in which deployments are allowed or not, depending on its definition.
 type Schedule struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -60,7 +60,7 @@ type ScheduleTargets struct {
 	Clusters []ScheduleTarget `json:"clusters,omitempty"`
 }
 
-// ScheduleTarget represent a resource (or group of resources affected by an Schedule)
+// ScheduleTarget represents a resource (or group of resources) affected by a Schedule
 type ScheduleTarget struct {
 	// Name is the name of this target.
 	// +nullable
