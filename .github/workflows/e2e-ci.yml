@@ -232,6 +232,7 @@ jobs:
           GIT_REPO_HOST: "github.com"
           GIT_REPO_USER: "git"
           GIT_REPO_BRANCH: ${{ matrix.k3s.version }}
+          GITHUB_PAT_TOKEN: ${{ secrets.CI_PRIVATE_REPO_PAT }}
           CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
           CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
           GITHUB_APP_ID:  ${{ secrets.CI_GITHUB_APP_ID }}
