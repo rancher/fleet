@@ -1,0 +1,12 @@
+apiVersion: fleet.cattle.io/v1alpha1
+kind: Schedule
+metadata:
+  name: schedule1
+  namespace: fleet-local
+spec:
+  schedule: {{.Schedule}}
+  duration: {{.Duration}}
+  targets:
+    clusters:
+      - name: local
+        clusterName: local

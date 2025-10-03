@@ -62,3 +62,7 @@ shards:
   - id: shard2
     nodeSelector:
       kubernetes.io/hostname: k3d-upstream-server-2
+
+extraEnv:
+  - name: EXPERIMENTAL_SCHEDULES
+    value: "true"

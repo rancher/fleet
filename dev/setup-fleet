@@ -46,6 +46,8 @@ helm -n cattle-fleet-system upgrade --install --create-namespace --wait --reset-
   --set agent.leaderElection.renewDeadline=5s \
   --set garbageCollectionInterval=1s \
   --set insecureSkipHostKeyChecks=false \
+  --set-string extraEnv[0].name=EXPERIMENTAL_SCHEDULES \
+  --set-string extraEnv[0].value=true \
   --set debug=true --set debugLevel=1 fleet charts/fleet
 
 # wait for controller and agent rollout

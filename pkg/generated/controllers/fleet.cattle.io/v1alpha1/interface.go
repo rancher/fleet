@@ -43,6 +43,7 @@ type Interface interface {
 	GitRepoRestriction() GitRepoRestrictionController
 	HelmOp() HelmOpController
 	ImageScan() ImageScanController
+	Schedule() ScheduleController
 }
 
 func New(controllerFactory controller.SharedControllerFactory) Interface {
@@ -101,4 +102,8 @@ func (v *version) HelmOp() HelmOpController {
 
 func (v *version) ImageScan() ImageScanController {
 	return generic.NewController[*v1alpha1.ImageScan, *v1alpha1.ImageScanList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "ImageScan"}, "imagescans", true, v.controllerFactory)
+}
+
+func (v *version) Schedule() ScheduleController {
+	return generic.NewController[*v1alpha1.Schedule, *v1alpha1.ScheduleList](schema.GroupVersionKind{Group: "fleet.cattle.io", Version: "v1alpha1", Kind: "Schedule"}, "schedules", true, v.controllerFactory)
 }
