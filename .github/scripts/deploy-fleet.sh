@@ -72,6 +72,8 @@ eventually helm upgrade --install fleet charts/fleet \
 # wait for controller and agent rollout
 kubectl -n cattle-fleet-system rollout status deploy/fleet-controller
 { grep -E -q -m 1 "fleet-agent-local.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-local -w)
+
+kubectl wait --for=create ns/cattle-fleet-local-system --timeout=30s
 kubectl -n cattle-fleet-local-system rollout status deployment/fleet-agent
 
 # label local cluster
