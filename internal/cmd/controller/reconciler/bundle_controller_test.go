@@ -678,11 +678,11 @@ func TestReconcile_OCIStorageAccessSecretResolutionError(t *testing.T) {
 		},
 	)
 
-	// OCI storage access secret
+	// OCI contents secret
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		Return(errors.New("something went wrong"))
 
-	expectedErrorMsg := "failed to get OCI storage access secret: something went wrong"
+	expectedErrorMsg := "failed to build OCI reference: something went wrong"
 
 	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 	mockClient.EXPECT().Status().Return(statusClient).Times(1)
@@ -767,7 +767,7 @@ func TestReconcile_AccessSecretsHandlingError(t *testing.T) {
 	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		Return(nil)
 
-	// OCI storage access secret
+	// OCI contents secret
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		DoAndReturn(
 			func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
