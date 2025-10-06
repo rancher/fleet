@@ -50,6 +50,7 @@ controller:
       gitrepo: "1"
       bundle: "1"
       bundledeployment: "1"
+      schedule: "1"
 
 shards:
   - id: shard0

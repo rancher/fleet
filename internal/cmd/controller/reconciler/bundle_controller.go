@@ -183,6 +183,14 @@ func clusterChangedPredicate() predicate.Funcs {
 				return true
 			}
 
+			if n.Status.Scheduled != o.Status.Scheduled {
+				return true
+			}
+
+			if n.Status.ActiveSchedule != o.Status.ActiveSchedule {
+				return true
+			}
+
 			return false
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
@@ -745,7 +753,9 @@ func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context,
 		return err
 	}
 	toDelete := slices.DeleteFunc(list, func(bd fleet.BundleDeployment) bool {
-		return uidsToKeep.Has(bd.UID)
+		// don't delete BundleDeployments that are not in schedule as
+		// that would uninstall the deployment in the agent
+		return uidsToKeep.Has(bd.UID) || bd.Spec.OffSchedule
 	})
 	return batchDeleteBundleDeployments(ctx, r.Client, toDelete)
 }

@@ -61,6 +61,7 @@ func (t *Target) BundleDeployment() *fleet.BundleDeployment {
 		Spec: t.Deployment.Spec,
 	}
 	bd.Spec.Paused = t.IsPaused()
+	bd.Spec.OffSchedule = t.Cluster.Status.Scheduled && !t.Cluster.Status.ActiveSchedule
 
 	initialiseOptionsMaps(bd)
 
