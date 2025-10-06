@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -298,14 +299,13 @@ var _ = Describe("CronDurationJob", func() {
 
 	Context("scheduleJob", func() {
 		It("should schedule a job and update status", func() {
-			// wait a bit if we are too close to second 59...
-			// this is to ensure calculations based on minutes and seconds
-			waitIfTimeIsTooCloseTo59()
-
+			// set the schedule time to now plus 10 seconds so we can check
+			// later knowing the expected value.
+			scheduleTime := time.Now().Add(10 * time.Second)
+			schedule.Spec.Schedule = fmt.Sprintf("%d %d %d * * *", scheduleTime.Second(), scheduleTime.Minute(), scheduleTime.Hour())
 			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 
-			timeBeforeSchedule := time.Now()
 			err = job.scheduleJob(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -319,21 +319,20 @@ var _ = Describe("CronDurationJob", func() {
 			err = k8sclient.Get(ctx, types.NamespacedName{Name: "test-schedule", Namespace: "default"}, updatedSchedule)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(updatedSchedule.Status.Active).To(BeFalse())
-			// time should be the next minute and 0 seconds
-			Expect(updatedSchedule.Status.NextStartTime.Time.Second()).To(BeZero())
-			Expect(updatedSchedule.Status.NextStartTime.Time.Minute()).To(Equal(timeBeforeSchedule.Add(time.Minute).Minute()))
-			Expect(updatedSchedule.Status.NextStartTime.Time.Hour()).To(Equal(timeBeforeSchedule.Hour()))
-			// Expect(updatedSchedule.Status.NextStartTime.Time).To(BeTemporally("~", timeBeforeSchedule.Add(time.Minute), 2*time.Second))
+
+			Expect(updatedSchedule.Status.NextStartTime.Time.Second()).To(Equal(scheduleTime.Second()))
+			Expect(updatedSchedule.Status.NextStartTime.Time.Minute()).To(Equal(scheduleTime.Minute()))
+			Expect(updatedSchedule.Status.NextStartTime.Time.Hour()).To(Equal(scheduleTime.Hour()))
 			Expect(updatedSchedule.Status.MatchingClusters).To(Equal(job.MatchingClusters))
 		})
 	})
 
 	Context("updateJob", func() {
 		It("should update an existing job", func() {
-			// wait a bit if we are too close to second 59...
-			// this is to ensure calculations based on minutes and seconds
-			waitIfTimeIsTooCloseTo59()
-
+			// set the schedule time to now plus 10 seconds so we can check
+			// later knowing the expected value.
+			scheduleTime := time.Now().Add(10 * time.Second)
+			schedule.Spec.Schedule = fmt.Sprintf("%d %d %d * * *", scheduleTime.Second(), scheduleTime.Minute(), scheduleTime.Hour())
 			job, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -341,11 +340,11 @@ var _ = Describe("CronDurationJob", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Modify schedule to force an update
-			schedule.Spec.Schedule = "0 */2 * * * *"
+			newScheduleTime := time.Now().Add(30 * time.Second)
+			schedule.Spec.Schedule = fmt.Sprintf("%d %d %d * * *", newScheduleTime.Second(), newScheduleTime.Minute(), newScheduleTime.Hour())
 			updatedJob, err := newCronDurationJob(ctx, schedule, scheduler, k8sclient)
 			Expect(err).NotTo(HaveOccurred())
 
-			timeBeforeUpdate := time.Now()
 			err = updatedJob.updateJob(ctx)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -361,18 +360,9 @@ var _ = Describe("CronDurationJob", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(updatedSchedule.Status.Active).To(BeFalse())
 
-			// next fire time should be the next even minute and 0 seconds
-			Expect(updatedSchedule.Status.NextStartTime.Time.Second()).To(BeZero())
-			if timeBeforeUpdate.Minute()%2 == 0 {
-				Expect(updatedSchedule.Status.NextStartTime.Time.Minute()).To(Equal(timeBeforeUpdate.Add(2 * time.Minute).Minute()))
-			} else {
-				Expect(updatedSchedule.Status.NextStartTime.Time.Minute()).To(Equal(timeBeforeUpdate.Add(1 * time.Minute).Minute()))
-			}
-			if timeBeforeUpdate.Minute() < 59 {
-				Expect(updatedSchedule.Status.NextStartTime.Time.Hour()).To(Equal(timeBeforeUpdate.Hour()))
-			} else {
-				Expect(updatedSchedule.Status.NextStartTime.Time.Hour()).To(Equal(timeBeforeUpdate.Add(1 * time.Hour).Hour()))
-			}
+			Expect(updatedSchedule.Status.NextStartTime.Time.Second()).To(Equal(newScheduleTime.Second()))
+			Expect(updatedSchedule.Status.NextStartTime.Time.Minute()).To(Equal(newScheduleTime.Minute()))
+			Expect(updatedSchedule.Status.NextStartTime.Time.Hour()).To(Equal(newScheduleTime.Hour()))
 			Expect(updatedSchedule.Status.MatchingClusters).To(Equal(job.MatchingClusters))
 		})
 	})
@@ -552,14 +542,3 @@ var _ = Describe("CronDurationJob", func() {
 		})
 	})
 })
-
-func waitIfTimeIsTooCloseTo59() {
-	for {
-		now := time.Now()
-		// if we are up to second 55... just break
-		if now.Second() < 55 {
-			break
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-}

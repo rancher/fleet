@@ -214,13 +214,6 @@ func (c *CronDurationJob) executeStart(ctx context.Context) error {
 		return err
 	}
 
-	// Sets ActiveSchedule to true for all matching clusters.
-	for _, cluster := range clusters {
-		if err := setClusterActiveSchedule(context.Background(), c.client, cluster, c.Schedule.Namespace, true); err != nil {
-			return err
-		}
-	}
-
 	// Sets Scheduled to false for all clusters that previously matched but no longer do.
 	for _, cluster := range c.MatchingClusters {
 		if !slices.Contains(clusters, cluster) {
@@ -231,9 +224,11 @@ func (c *CronDurationJob) executeStart(ctx context.Context) error {
 		}
 	}
 
-	// Sets Scheduled to true to all the matching clusters
-	if err := setClustersScheduled(ctx, c.client, clusters, c.Schedule.Namespace, true); err != nil {
-		return err
+	// Sets ActiveSchedule to true for all matching clusters.
+	for _, cluster := range clusters {
+		if err := setClusterActiveSchedule(ctx, c.client, cluster, c.Schedule.Namespace, true); err != nil {
+			return err
+		}
 	}
 	c.MatchingClusters = clusters
 

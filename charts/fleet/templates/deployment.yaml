@@ -89,6 +89,10 @@ spec:
         - name: IMAGESCAN_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.imagescan }}
         {{- end }}
+        {{- if $.Values.controller.reconciler.workers.schedule }}
+        - name: SCHEDULE_RECONCILER_WORKERS
+          value: {{ quote $.Values.controller.reconciler.workers.schedule }}
+        {{- end }}
 {{- if $.Values.extraEnv }}
 {{ toYaml $.Values.extraEnv | indent 8}}
 {{- end }}
