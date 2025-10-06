@@ -292,6 +292,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err := r.Store.Store(ctx, resourcesManifest); err != nil {
 			err = fmt.Errorf("could not copy manifest into Content resource: %w", err)
 
+			if errors.Is(err, fleetutil.ErrRetryable) {
+				logger.Info(err.Error())
+				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+			}
+
 			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 		}
 	}

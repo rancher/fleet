@@ -4,9 +4,11 @@ package reconciler_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
@@ -351,65 +353,89 @@ func TestReconcile_StatusResetFromTargetsError(t *testing.T) {
 }
 
 func TestReconcile_ManifestStorageError(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	scheme := runtime.NewScheme()
-	utilruntime.Must(batchv1.AddToScheme(scheme))
-
-	bundle := fleetv1.Bundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-bundle",
-			Namespace: "default",
+	cases := []struct {
+		name               string
+		storeErr           error
+		expectStatusUpdate bool
+		expectedErrMsg     string
+	}{
+		{
+			name:               "non-retryable error",
+			storeErr:           errors.New("something went wrong"),
+			expectStatusUpdate: true,
+			expectedErrMsg:     "could not copy manifest into Content resource: something went wrong",
+		},
+		{
+			name:     "retryable error",
+			storeErr: fmt.Errorf("%w: %w", errorutil.ErrRetryable, errors.New("something went wrong")),
+			// no expected reconcile error (requeue set instead)
 		},
 	}
 
-	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+			scheme := runtime.NewScheme()
+			utilruntime.Must(batchv1.AddToScheme(scheme))
 
-	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-			b.Name = bundle.Name
-			b.Namespace = bundle.Namespace
-			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
+			bundle := fleetv1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-bundle",
+					Namespace: "default",
+				},
+			}
 
-			b.Spec = bundle.Spec
+			namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
 
-			return nil
-		},
-	)
+			mockClient := mocks.NewMockK8sClient(mockCtrl)
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
+					b.Name = bundle.Name
+					b.Namespace = bundle.Namespace
+					controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
 
-	expectedErrorMsg := "could not copy manifest into Content resource: something went wrong"
+					b.Spec = bundle.Spec
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	mockClient.EXPECT().Status().Return(statusClient).Times(1)
+					return nil
+				},
+			)
 
-	expectStatusPatch(t, statusClient, expectedErrorMsg)
+			if c.expectStatusUpdate {
+				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+				mockClient.EXPECT().Status().Return(statusClient).Times(1)
 
-	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+				expectStatusPatch(t, statusClient, c.expectedErrMsg)
+			}
 
-	matchedTargets := []*target.Target{{DeploymentID: "foo"}} // just needs to be non-empty
-	targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
-	targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
+			recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
-	storeMock := mocks.NewMockStore(mockCtrl)
-	storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(errors.New("something went wrong"))
+			matchedTargets := []*target.Target{{DeploymentID: "foo"}} // just needs to be non-empty
+			targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+			targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
 
-	r := reconciler.BundleReconciler{
-		Client:   mockClient,
-		Scheme:   scheme,
-		Recorder: recorderMock,
-		Builder:  targetBuilderMock,
-		Store:    storeMock,
-	}
+			storeMock := mocks.NewMockStore(mockCtrl)
+			storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(c.storeErr)
 
-	ctx := context.TODO()
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err == nil {
-		t.Fatalf("expecting an error, got nil")
-	}
+			r := reconciler.BundleReconciler{
+				Client:   mockClient,
+				Scheme:   scheme,
+				Recorder: recorderMock,
+				Builder:  targetBuilderMock,
+				Store:    storeMock,
+			}
 
-	if !strings.Contains(err.Error(), expectedErrorMsg) {
-		t.Errorf("unexpected error: %v", err)
+			ctx := context.TODO()
+			rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+
+			if c.expectedErrMsg != "" && !strings.Contains(err.Error(), c.expectedErrMsg) {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			if c.expectedErrMsg == "" && rs.RequeueAfter == 0 {
+				t.Errorf("expected non-zero RequeueAfter in result")
+			}
+		})
 	}
 }
 
