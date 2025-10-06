@@ -14,9 +14,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
 	giturls "github.com/rancher/fleet/pkg/git-urls"
-	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 const defaultBranch = "master"
@@ -181,10 +181,16 @@ func createAuthFromOpts(opts *GitCloner) (transport.AuthMethod, error) {
 		return auth, nil
 	}
 
-	if opts.Username != "" && opts.PasswordFile != "" {
+	if opts.PasswordFile != "" {
 		password, err := readFile(opts.PasswordFile)
 		if err != nil {
 			return nil, err
+		}
+
+		if len(opts.Username) == 0 {
+			return &httpgit.BasicAuth{
+				Username: string(password),
+			}, nil
 		}
 
 		return &httpgit.BasicAuth{

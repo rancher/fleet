@@ -26,9 +26,9 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan/update"
+	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
-	fleetgithub "github.com/rancher/fleet/pkg/github"
 
 	"github.com/rancher/wrangler/v3/pkg/condition"
 	"github.com/rancher/wrangler/v3/pkg/kstatus"

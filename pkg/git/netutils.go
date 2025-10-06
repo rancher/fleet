@@ -14,8 +14,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 
+	fleetgithub "github.com/rancher/fleet/internal/github"
 	fleetssh "github.com/rancher/fleet/internal/ssh"
-	fleetgithub "github.com/rancher/fleet/pkg/github"
 )
 
 var GitHubAppGetter fleetgithub.AppAuthGetter = fleetgithub.DefaultAppAuthGetter{}
@@ -33,8 +33,14 @@ func GetAuthFromSecret(url string, creds *corev1.Secret, knownHosts string) (tra
 	switch creds.Type {
 	case corev1.SecretTypeBasicAuth:
 		username, password := creds.Data[corev1.BasicAuthUsernameKey], creds.Data[corev1.BasicAuthPasswordKey]
-		if len(password) == 0 && len(username) == 0 {
-			return nil, nil
+		if len(username) == 0 {
+			if len(password) == 0 {
+				return nil, nil
+			}
+
+			return &httpgit.BasicAuth{
+				Username: string(password),
+			}, nil
 		}
 		return &httpgit.BasicAuth{
 			Username: string(username),

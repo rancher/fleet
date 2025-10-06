@@ -1,6 +1,9 @@
 package resourcestatus
 
 import (
+	"encoding/json"
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -245,6 +248,7 @@ func TestPerClusterState(t *testing.T) {
 			},
 		}
 	}
+
 	tests := []struct {
 		name              string
 		bundleDeployments []fleet.BundleDeployment
@@ -319,4 +323,89 @@ func TestPerClusterState(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestPerClusterStateTruncation(t *testing.T) {
+	percluster := func(b, c int) fleet.BundleDeployment {
+		workload := fmt.Sprintf("workload%02d", b)
+		bd := fleet.BundleDeployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("bundlename%d", b),
+				Namespace: fmt.Sprintf("ns-cluster%d", c),
+				Labels: map[string]string{
+					fleet.ClusterLabel:          fmt.Sprintf("d0-k3k-downstream%04d-downstream%04d", c, c),
+					fleet.ClusterNamespaceLabel: "fleet-default",
+				},
+			},
+			Spec: fleet.BundleDeploymentSpec{
+				DeploymentID: "fakeid",
+			},
+			Status: fleet.BundleDeploymentStatus{
+				AppliedDeploymentID: "fakeid",
+				Resources: []fleet.BundleDeploymentResource{
+					{Kind: "ConfigMap", APIVersion: "v1", Namespace: workload, Name: "cm-web"},
+					{Kind: "Deployment", APIVersion: "v1", Namespace: workload, Name: "web"},
+					{Kind: "Service", APIVersion: "v1", Namespace: workload, Name: "web-svc"},
+				},
+				ModifiedStatus: []fleet.ModifiedStatus{
+					{Kind: "Secret", APIVersion: "v1", Namespace: workload, Name: "cm-creds", Create: true},
+				},
+				NonReadyStatus: []fleet.NonReadyStatus{
+					{Kind: "Deployment", APIVersion: "v1", Namespace: workload, Name: "db", Summary: summary.Summary{State: "NotReady"}},
+				},
+			},
+		}
+		return bd
+	}
+	// we are not comparing the whole struct
+	sizeOf := func(res []fleet.Resource) int {
+		size := 0
+		for _, r := range res {
+			for _, s := range r.PerClusterState.Ready {
+				size = size + len(s)
+			}
+			for _, s := range r.PerClusterState.NotReady {
+				size = size + len(s)
+			}
+			for _, s := range r.PerClusterState.Missing {
+				size = size + len(s)
+			}
+		}
+		return size
+	}
+
+	n := 0
+	maxBundle := 50
+	maxCluster := 800
+	var items = make([]fleet.BundleDeployment, maxBundle*maxCluster)
+	for c := range maxCluster {
+		for b := range maxBundle {
+			items[n] = percluster(b, c)
+			n = n + 1
+		}
+	}
+
+	// different order should produce the same truncation
+	ritems := slices.Clone(items)
+	slices.Reverse(ritems)
+
+	var status fleet.GitRepoStatus
+	SetResources(items, &status.StatusBase)
+
+	assert.Less(t, sizeOf(status.Resources), 1024*1024, "resources should be truncated to be less than 1MB")
+
+	js, err := json.Marshal(status.Resources)
+	assert.NoError(t, err)
+
+	// and the truncation is stable
+	SetResources(items, &status.StatusBase)
+	js2, err := json.Marshal(status.Resources)
+	assert.NoError(t, err)
+	// avoid the long diff from assert.Equal
+	assert.True(t, string(js) == string(js2), "truncation should produce stable json for the same input")
+
+	SetResources(ritems, &status.StatusBase)
+	js2, err = json.Marshal(status.Resources)
+	assert.NoError(t, err)
+	assert.True(t, string(js) == string(js2), "truncation should produce stable json, when items are in a different order")
 }

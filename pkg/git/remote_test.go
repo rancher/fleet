@@ -75,7 +75,7 @@ var _ = Describe("git's RevisionCommit tests", func() {
 		})
 	})
 
-	When("the given revision is a lighweight tag", func() {
+	When("the given revision is a lightweight tag", func() {
 		var tagCommit = "b2f7eacdeda55833e299efdd6955abb68f581547"
 		BeforeEach(func() {
 			fakeLister = &FakeRemoteLister{
