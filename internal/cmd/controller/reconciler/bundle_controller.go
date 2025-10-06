@@ -318,7 +318,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if contentsInOCI {
 		url, err := r.getOCIReference(ctx, bundle)
 		if err != nil {
-			err = fmt.Errorf("failed to get OCI storage access secret: %w", err)
+			err = fmt.Errorf("failed to build OCI reference: %w", err)
 
 			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 		}
