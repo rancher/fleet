@@ -182,9 +182,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	bundleOrig := bundle.DeepCopy()
 
 	if err := r.ensureFinalizer(ctx, bundle); err != nil {
-		err = fmt.Errorf("failed to add finalizer to bundle: %w", err)
-
-		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+		// Retry without updating the status, as this should be a transient error about which users can't do
+		// anything.
+		return ctrl.Result{}, fmt.Errorf("%w, failed to add finalizer to bundle: %w", fleetutil.ErrRetryable, err)
 	}
 
 	logger.V(1).Info(

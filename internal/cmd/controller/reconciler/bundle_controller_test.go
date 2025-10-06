@@ -64,10 +64,7 @@ func TestReconcile_FinalizerUpdateError(t *testing.T) {
 
 	expectedErrorMsg := "failed to add finalizer to bundle: something went wrong"
 
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-
-	expectStatusPatch(t, statusClient, expectedErrorMsg)
+	// Not expecting any status update
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
