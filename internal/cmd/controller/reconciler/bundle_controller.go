@@ -679,7 +679,7 @@ func (r *BundleReconciler) updateErrorStatus(
 		return errutil.NewAggregate(merr)
 	}
 
-	return orgErr
+	return nil
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of
