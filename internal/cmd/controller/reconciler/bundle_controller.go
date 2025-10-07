@@ -420,6 +420,12 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
 			err = fmt.Errorf("failed to clone secrets downstream: %w", err)
 
+			if errors.Is(err, fleetutil.ErrRetryable) {
+				logger.Info(err.Error())
+
+				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+			}
+
 			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 		}
 	}
@@ -598,18 +604,18 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 // the secret available to agents when deploying bd to downstream clusters.
 func (r *BundleReconciler) cloneSecret(
 	ctx context.Context,
-	namespace string,
+	ns string,
 	secretName string,
 	secretType string,
 	bd *fleet.BundleDeployment,
 ) error {
 	namespacedName := types.NamespacedName{
-		Namespace: namespace,
+		Namespace: ns,
 		Name:      secretName,
 	}
 	var secret corev1.Secret
 	if err := r.Get(ctx, namespacedName, &secret); err != nil {
-		return fmt.Errorf("failed to load source secret, cannot clone into %q: %w", namespace, err)
+		return fmt.Errorf("%w: failed to load source secret, cannot clone into %q: %w", fleetutil.ErrRetryable, ns, err)
 	}
 	// clone the secret, and just change the namespace so it's in the target's namespace
 	targetSecret := &corev1.Secret{
@@ -626,11 +632,11 @@ func (r *BundleReconciler) cloneSecret(
 	}
 
 	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
 	}
 	if err := r.Create(ctx, targetSecret); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
-			return err
+			return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
 		}
 	}
 
