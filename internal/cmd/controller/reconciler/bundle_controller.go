@@ -396,6 +396,12 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
 				err = fmt.Errorf("failed to create options secret: %w", err)
 
+				if errors.Is(err, fleetutil.ErrRetryable) {
+					logger.Info(err.Error())
+
+					return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+				}
+
 				return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 			}
 		} else {
@@ -403,9 +409,10 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err := r.Delete(ctx, &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
 			}); err != nil && !apierrors.IsNotFound(err) {
-				err = fmt.Errorf("failed to delete options secret: %w", err)
+				err = fmt.Errorf("%w: failed to delete options secret: %w", fleetutil.ErrRetryable, err)
+				logger.Info(err.Error())
 
-				return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 			}
 		}
 
@@ -563,7 +570,7 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 		}
 		return nil
 	}); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
 	}
 
 	return nil
