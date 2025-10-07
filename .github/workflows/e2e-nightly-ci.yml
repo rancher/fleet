@@ -172,6 +172,7 @@ jobs:
           GIT_REPO_URL: "git@github.com:fleetrepoci/test.git"
           GIT_REPO_HOST: "github.com"
           GIT_REPO_USER: "git"
+          GITHUB_PAT_TOKEN: ${{ secrets.CI_PRIVATE_REPO_PAT }}
           GIT_REPO_BRANCH: ${{ matrix.k3s_version }}
           CI_OCI_USERNAME:  ${{ secrets.CI_OCI_USERNAME }}
           CI_OCI_PASSWORD:  ${{ secrets.CI_OCI_PASSWORD }}
