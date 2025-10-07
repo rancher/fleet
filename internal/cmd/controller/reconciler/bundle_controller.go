@@ -48,6 +48,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -679,7 +680,7 @@ func (r *BundleReconciler) updateErrorStatus(
 		return errutil.NewAggregate(merr)
 	}
 
-	return nil
+	return reconcile.TerminalError(orgErr)
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of
