@@ -320,6 +320,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err != nil {
 			err = fmt.Errorf("failed to build OCI reference: %w", err)
 
+			if errors.Is(err, fleetutil.ErrRetryable) {
+				logger.Info(err.Error())
+				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+			}
+
 			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 		}
 		bundle.Status.OCIReference = url
@@ -586,7 +591,7 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 	}
 	var ociSecret corev1.Secret
 	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
 	}
 	ref, ok := ociSecret.Data[ocistorage.OCISecretReference]
 	if !ok {

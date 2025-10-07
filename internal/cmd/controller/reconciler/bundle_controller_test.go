@@ -638,86 +638,115 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 	}
 }
 
-func TestReconcile_OCIStorageAccessSecretResolutionError(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	scheme := runtime.NewScheme()
-	utilruntime.Must(batchv1.AddToScheme(scheme))
-
-	bundle := fleetv1.Bundle{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "my-bundle",
-			Namespace: "default",
-		},
-		Spec: fleetv1.BundleSpec{
-			RolloutStrategy: nil,
-			ContentsID:      "foo", // non-empty, to force OCI storage secret lookup
-		},
-	}
-
-	namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
-
-	mockClient := mocks.NewMockK8sClient(mockCtrl)
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
-			b.Name = bundle.Name
-			b.Namespace = bundle.Namespace
-			controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
-
-			b.Spec = bundle.Spec
-
-			return nil
-		},
-	)
-
-	// OCI contents secret
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
-		Return(errors.New("something went wrong"))
-
-	expectedErrorMsg := "failed to build OCI reference: something went wrong"
-
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-
-	expectStatusPatch(t, statusClient, expectedErrorMsg)
-
-	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-
-	matchedTargets := []*target.Target{
+func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
+	cases := []struct {
+		name               string
+		secretGet          func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...interface{}) error
+		expectStatusUpdate bool
+		expectedErrMsg     string
+	}{
 		{
-			Bundle: &bundle,
-			Cluster: &fleetv1.Cluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "my-ns",
-					Name:      "my-cluster",
-				},
+			name: "non-retryable error",
+			secretGet: func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+				// Necessary reference field is missing → non-retryable
+				return nil
 			},
-			Deployment: &fleetv1.BundleDeployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "my-bd", // non-empty
-				},
+			expectStatusUpdate: true,
+			expectedErrMsg:     "failed to build OCI reference: expected data [reference] not found in secret",
+		},
+		{
+			name: "retryable error",
+			secretGet: func(ctx context.Context, req types.NamespacedName, s *corev1.Secret, opts ...interface{}) error {
+				return errors.New("something went wrong")
 			},
-			DeploymentID: "foo",
+			// no expected reconcile error (requeue set instead)
 		},
 	}
-	targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
-	targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
 
-	r := reconciler.BundleReconciler{
-		Client:   mockClient,
-		Scheme:   scheme,
-		Recorder: recorderMock,
-		Builder:  targetBuilderMock,
-	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+			scheme := runtime.NewScheme()
+			utilruntime.Must(batchv1.AddToScheme(scheme))
 
-	ctx := context.TODO()
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err == nil {
-		t.Fatalf("expecting an error, got nil")
-	}
+			bundle := fleetv1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-bundle",
+					Namespace: "default",
+				},
+				Spec: fleetv1.BundleSpec{
+					RolloutStrategy: nil,
+					ContentsID:      "foo", // non-empty, to force OCI storage secret lookup
+				},
+			}
 
-	if !strings.Contains(err.Error(), expectedErrorMsg) {
-		t.Errorf("unexpected error: %v", err)
+			namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+
+			mockClient := mocks.NewMockK8sClient(mockCtrl)
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
+					b.Name = bundle.Name
+					b.Namespace = bundle.Namespace
+					controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
+
+					b.Spec = bundle.Spec
+
+					return nil
+				},
+			)
+
+			// OCI reference secret
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+				DoAndReturn(c.secretGet)
+
+			if c.expectStatusUpdate {
+				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+				mockClient.EXPECT().Status().Return(statusClient).Times(1)
+
+				expectStatusPatch(t, statusClient, c.expectedErrMsg)
+			}
+
+			recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
+			matchedTargets := []*target.Target{
+				{
+					Bundle: &bundle,
+					Cluster: &fleetv1.Cluster{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "my-ns",
+							Name:      "my-cluster",
+						},
+					},
+					Deployment: &fleetv1.BundleDeployment{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "my-bd", // non-empty
+						},
+					},
+					DeploymentID: "foo",
+				},
+			}
+			targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+			targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
+
+			r := reconciler.BundleReconciler{
+				Client:   mockClient,
+				Scheme:   scheme,
+				Recorder: recorderMock,
+				Builder:  targetBuilderMock,
+			}
+
+			ctx := context.TODO()
+			rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+
+			if c.expectedErrMsg != "" && (err == nil || !strings.Contains(err.Error(), c.expectedErrMsg)) {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			if c.expectedErrMsg == "" && rs.RequeueAfter == 0 {
+				t.Errorf("expected non-zero RequeueAfter in result")
+			}
+		})
 	}
 }
 
