@@ -238,6 +238,28 @@ This is not a problem, unless k3d is running in a VM and not directly on the hos
 
 It is possible to override the loadbalancer IP by setting the `external_ip` environment variable.
 
+## Setting up a local Docker Registry Mirror
+
+A pull-through cache for Docker Hub speeds up image pulls during repeated k3d cluster creation:
+
+```bash
+docker run -d \
+  --restart=always \
+  --name registry-cache \
+  --network fleet \
+  -p 5000:5000 \
+  -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
+  registry:2
+```
+
+To use it, set `export docker_mirror=http://registry-cache:5000` in your `.envrc` or before running k3d scripts.
+
+> **__NOTE:__** The registry persists across reboots due to `--restart=always`. To remove it run:
+
+```bash
+docker rm -f registry-cache
+```
+
 ## Running Github Actions locally
 
 Sometimes, it may be beneficial to be able to run the Github Action tests using
