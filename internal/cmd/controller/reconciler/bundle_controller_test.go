@@ -137,13 +137,13 @@ func TestReconcile_HelmValuesLoadError(t *testing.T) {
 	}
 
 	ctx := context.TODO()
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err == nil {
-		t.Fatalf("expecting an error, got nil")
+	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), expectedErrorMsg) {
-		t.Errorf("unexpected error: %v", err)
+	if rs.RequeueAfter != 0 {
+		t.Errorf("expected no retries, with zero RequeueAfter in result")
 	}
 }
 
@@ -200,13 +200,13 @@ func TestReconcile_HelmVersionResolutionError(t *testing.T) {
 	}
 
 	ctx := context.TODO()
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err == nil {
-		t.Fatalf("expecting an error, got nil")
+	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), expectedErrorMsg) {
-		t.Errorf("unexpected error: %v", err)
+	if rs.RequeueAfter != 0 {
+		t.Errorf("expected no retries, with zero RequeueAfter in result")
 	}
 }
 
@@ -258,13 +258,13 @@ func TestReconcile_TargetsBuildingError(t *testing.T) {
 	}
 
 	ctx := context.TODO()
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err == nil {
-		t.Fatalf("expecting an error, got nil")
+	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), expectedErrorMsg) {
-		t.Errorf("unexpected error: %v", err)
+	if rs.RequeueAfter != 0 {
+		t.Errorf("expected no retries, with zero RequeueAfter in result")
 	}
 }
 
@@ -342,28 +342,26 @@ func TestReconcile_StatusResetFromTargetsError(t *testing.T) {
 	}
 
 	ctx := context.TODO()
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err == nil {
-		t.Fatalf("expecting an error, got nil")
+	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), expectedErrorMsg) {
-		t.Errorf("unexpected error: %v", err)
+	if rs.RequeueAfter != 0 {
+		t.Errorf("expected no retries, with zero RequeueAfter in result")
 	}
 }
 
 func TestReconcile_ManifestStorageError(t *testing.T) {
 	cases := []struct {
-		name               string
-		storeErr           error
-		expectStatusUpdate bool
-		expectedErrMsg     string
+		name                      string
+		storeErr                  error
+		expectedStatusPatchErrMsg string
 	}{
 		{
-			name:               "non-retryable error",
-			storeErr:           errors.New("something went wrong"),
-			expectStatusUpdate: true,
-			expectedErrMsg:     "could not copy manifest into Content resource: something went wrong",
+			name:                      "non-retryable error",
+			storeErr:                  errors.New("something went wrong"),
+			expectedStatusPatchErrMsg: "could not copy manifest into Content resource: something went wrong",
 		},
 		{
 			name:     "retryable error",
@@ -401,11 +399,11 @@ func TestReconcile_ManifestStorageError(t *testing.T) {
 				},
 			)
 
-			if c.expectStatusUpdate {
+			if c.expectedStatusPatchErrMsg != "" {
 				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
 				mockClient.EXPECT().Status().Return(statusClient).Times(1)
 
-				expectStatusPatch(t, statusClient, c.expectedErrMsg)
+				expectStatusPatch(t, statusClient, c.expectedStatusPatchErrMsg)
 			}
 
 			recorderMock := mocks.NewMockEventRecorder(mockCtrl)
@@ -428,11 +426,11 @@ func TestReconcile_ManifestStorageError(t *testing.T) {
 			ctx := context.TODO()
 			rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
 
-			if c.expectedErrMsg != "" && !strings.Contains(err.Error(), c.expectedErrMsg) {
+			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
 
-			if c.expectedErrMsg == "" && rs.RequeueAfter == 0 {
+			if c.expectedStatusPatchErrMsg == "" && rs.RequeueAfter == 0 {
 				t.Errorf("expected non-zero RequeueAfter in result")
 			}
 		})
@@ -739,7 +737,7 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 			ctx := context.TODO()
 			rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
 
-			if c.expectedErrMsg != "" && (err == nil || !strings.Contains(err.Error(), c.expectedErrMsg)) {
+			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
 
