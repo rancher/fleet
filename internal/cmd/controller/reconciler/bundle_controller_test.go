@@ -503,12 +503,7 @@ func TestReconcile_OptionsSecretCreationError(t *testing.T) {
 	mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		Return(errors.New("something went wrong"))
 
-	expectedErrorMsg := "failed to create options secret: something went wrong"
-
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-
-	expectStatusPatch(t, statusClient, expectedErrorMsg)
+	// No expected status update (retryable error)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -544,13 +539,14 @@ func TestReconcile_OptionsSecretCreationError(t *testing.T) {
 	}
 
 	ctx := context.TODO()
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err == nil {
-		t.Fatalf("expecting an error, got nil")
+	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), expectedErrorMsg) {
-		t.Errorf("unexpected error: %v", err)
+	if rs.RequeueAfter == 0 {
+		t.Errorf("expected non-zero RequeueAfter in result")
 	}
 }
 
@@ -595,12 +591,7 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 	mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
 		Return(errors.New("something went wrong"))
 
-	expectedErrorMsg := "failed to delete options secret: something went wrong"
-
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	mockClient.EXPECT().Status().Return(statusClient).Times(1)
-
-	expectStatusPatch(t, statusClient, expectedErrorMsg)
+	// No expected status update (retryable error)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
 
@@ -636,13 +627,14 @@ func TestReconcile_OptionsSecretDeletionError(t *testing.T) {
 	}
 
 	ctx := context.TODO()
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err == nil {
-		t.Fatalf("expecting an error, got nil")
+	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), expectedErrorMsg) {
-		t.Errorf("unexpected error: %v", err)
+	if rs.RequeueAfter == 0 {
+		t.Errorf("expected non-zero RequeueAfter in result")
 	}
 }
 
