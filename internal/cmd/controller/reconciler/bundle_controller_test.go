@@ -28,6 +28,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func TestReconcile_FinalizerUpdateError(t *testing.T) {
@@ -79,7 +80,11 @@ func TestReconcile_FinalizerUpdateError(t *testing.T) {
 	ctx := context.TODO()
 	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
 	if err == nil {
-		t.Fatalf("expecting an error, got nil")
+		t.Fatalf("expected an error, got nil")
+	}
+
+	if errors.Is(err, reconcile.TerminalError(nil)) {
+		t.Fatalf("expected non-terminal error, got %v", err)
 	}
 
 	if !strings.Contains(err.Error(), expectedErrorMsg) {
@@ -138,8 +143,8 @@ func TestReconcile_HelmValuesLoadError(t *testing.T) {
 
 	ctx := context.TODO()
 	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, reconcile.TerminalError(nil)) {
+		t.Errorf("expected terminal error, got: %v", err)
 	}
 
 	if rs.RequeueAfter != 0 {
@@ -201,8 +206,8 @@ func TestReconcile_HelmVersionResolutionError(t *testing.T) {
 
 	ctx := context.TODO()
 	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, reconcile.TerminalError(nil)) {
+		t.Errorf("expected terminal error, got: %v", err)
 	}
 
 	if rs.RequeueAfter != 0 {
@@ -259,8 +264,8 @@ func TestReconcile_TargetsBuildingError(t *testing.T) {
 
 	ctx := context.TODO()
 	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, reconcile.TerminalError(nil)) {
+		t.Errorf("expected terminal error, got: %v", err)
 	}
 
 	if rs.RequeueAfter != 0 {
@@ -343,8 +348,8 @@ func TestReconcile_StatusResetFromTargetsError(t *testing.T) {
 
 	ctx := context.TODO()
 	rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if !errors.Is(err, reconcile.TerminalError(nil)) {
+		t.Errorf("expected terminal error, got: %v", err)
 	}
 
 	if rs.RequeueAfter != 0 {
@@ -426,7 +431,9 @@ func TestReconcile_ManifestStorageError(t *testing.T) {
 			ctx := context.TODO()
 			rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
 
-			if err != nil {
+			if c.expectedStatusPatchErrMsg != "" && !errors.Is(err, reconcile.TerminalError(nil)) {
+				t.Errorf("expected terminal error, got: %v", err)
+			} else if c.expectedStatusPatchErrMsg == "" && err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
 
@@ -737,7 +744,9 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 			ctx := context.TODO()
 			rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
 
-			if err != nil {
+			if c.expectStatusUpdate && !errors.Is(err, reconcile.TerminalError(nil)) {
+				t.Errorf("expected terminal error, got: %v", err)
+			} else if !c.expectStatusUpdate && err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
 
