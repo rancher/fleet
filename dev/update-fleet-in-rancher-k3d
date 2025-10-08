@@ -7,11 +7,13 @@ if [ ! -d ./.github/scripts ]; then
   exit 1
 fi
 
+downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream1}"
+
 fleet_version="${1-0.7.0-rc.2}"
 if [ "$fleet_version" == "dev" ]; then
   echo "don't forget to run dev/build-fleet before running this script"
   dev/import-images-k3d
-  ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh
+  FLEET_E2E_CLUSTER_DOWNSTREAM="$downstream_ctx" ./.github/scripts/upgrade-rancher-fleet-to-dev-fleet.sh
   exit 0
 fi
 
