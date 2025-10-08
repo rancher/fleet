@@ -15,6 +15,8 @@ else
   agentTag="dev"
 fi
 
+downstream_ctx="${FLEET_E2E_CLUSTER_DOWNSTREAM-k3d-downstream}"
+
 kubectl config use-context k3d-upstream
 
 until helm -n cattle-fleet-system status fleet-crd  | grep -q "STATUS: deployed"; do echo waiting for original fleet-crd chart to be deployed; sleep 1; done
@@ -45,7 +47,7 @@ helm list -A
 sleep 5
 { grep -E -q -m 1 "fleet-agent-c.*1/1"; kill $!; } < <(kubectl get bundles -n fleet-default -w)
 
-kubectl config use-context k3d-downstream
+kubectl config use-context "$downstream_ctx"
 kubectl -n cattle-fleet-system rollout status deployment/fleet-agent
 
 helm list -A
