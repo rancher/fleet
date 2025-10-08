@@ -89,6 +89,10 @@ spec:
         - name: IMAGESCAN_RECONCILER_WORKERS
           value: {{ quote $.Values.controller.reconciler.workers.imagescan }}
         {{- end }}
+        {{- if $.Values.controller.reconciler.workers.schedule }}
+        - name: SCHEDULE_RECONCILER_WORKERS
+          value: {{ quote $.Values.controller.reconciler.workers.schedule }}
+        {{- end }}
 {{- if $.Values.extraEnv }}
 {{ toYaml $.Values.extraEnv | indent 8}}
 {{- end }}
@@ -251,6 +255,14 @@ spec:
 {{- if $.Values.tolerations }}
 {{ toYaml $.Values.tolerations | indent 8 }}
 {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.resources }}
+      resources:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if $.Values.priorityClassName }}
       priorityClassName: "{{$.Values.priorityClassName}}"
       {{- end }}
