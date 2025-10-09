@@ -200,14 +200,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// This sets the values on the bundle, which is safe as we don't update bundle, just its status
 	if bundle.Spec.ValuesHash != "" {
 		if err := loadBundleValues(ctx, r.Client, bundle); err != nil {
-			if errors.Is(err, fleetutil.ErrRetryable) {
-				logger.Info(err.Error())
-				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
-			}
-
-			err = fmt.Errorf("failed to load values secret for bundle: %w", err)
-
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+			return r.computeResult(ctx, logger, req, bundleOrig, bundle, "failed to load values secret for bundle", err)
 		}
 	}
 
@@ -291,14 +284,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// agents have access to all resources and use their specific
 		// set of `BundleDeploymentOptions`.
 		if err := r.Store.Store(ctx, resourcesManifest); err != nil {
-			err = fmt.Errorf("could not copy manifest into Content resource: %w", err)
-
-			if errors.Is(err, fleetutil.ErrRetryable) {
-				logger.Info(err.Error())
-				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
-			}
-
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+			return r.computeResult(ctx, logger, req, bundleOrig, bundle, "could not copy manifest into Content resource", err)
 		}
 	}
 	logger = logger.WithValues("manifestID", manifestID)
@@ -319,14 +305,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if contentsInOCI {
 		url, err := r.getOCIReference(ctx, bundle)
 		if err != nil {
-			err = fmt.Errorf("failed to build OCI reference: %w", err)
-
-			if errors.Is(err, fleetutil.ErrRetryable) {
-				logger.Info(err.Error())
-				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
-			}
-
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+			return r.computeResult(ctx, logger, req, bundleOrig, bundle, "failed to build OCI reference", err)
 		}
 		bundle.Status.OCIReference = url
 	}
@@ -400,15 +379,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		if bd.Spec.ValuesHash != "" {
 			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
-				err = fmt.Errorf("failed to create options secret: %w", err)
-
-				if errors.Is(err, fleetutil.ErrRetryable) {
-					logger.Info(err.Error())
-
-					return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
-				}
-
-				return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+				return r.computeResult(ctx, logger, req, bundleOrig, bundle, "failed to create options secret", err)
 			}
 		} else {
 			// No values to store, delete the secret if it exists
@@ -423,15 +394,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
-			err = fmt.Errorf("failed to clone secrets downstream: %w", err)
-
-			if errors.Is(err, fleetutil.ErrRetryable) {
-				logger.Info(err.Error())
-
-				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
-			}
-
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+			return r.computeResult(ctx, logger, req, bundleOrig, bundle, "failed to clone secrets downstream", err)
 		}
 	}
 
@@ -667,6 +630,7 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 
 // updateErrorStatus sets the Ready condition in the bundle status and tries to update the resource.
 // Setting that condition makes the error message visible in the Rancher UI.
+// Upon successful update of the status, updateErrorStatus returns a TerminalError, preventing requeues.
 func (r *BundleReconciler) updateErrorStatus(
 	ctx context.Context,
 	req types.NamespacedName,
@@ -749,6 +713,28 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 	// and since the registry is not a component of Fleet,
 	// we don't have full control over it.
 	return nil
+}
+
+// computeResult computes the controller result and error to return, depending on whether err is a retryable
+// error, which will be wrapped with the provided prefix.
+// If err is non-retryable, it will be propagated to the bundle status.
+func (r *BundleReconciler) computeResult(
+	ctx context.Context,
+	logger logr.Logger,
+	req ctrl.Request,
+	bundleOrig,
+	bundle *fleet.Bundle,
+	prefix string,
+	err error,
+) (ctrl.Result, error) {
+	if errors.Is(err, fleetutil.ErrRetryable) {
+		logger.Info(err.Error())
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+	}
+
+	err = fmt.Errorf("%s: %w", prefix, err)
+
+	return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
 }
 
 func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {
