@@ -416,9 +416,6 @@ func setClustersScheduled(ctx context.Context, c client.Client, clusters []strin
 func updateScheduledClusters(ctx context.Context, scheduler quartz.Scheduler, c client.Client, clustersNew []string, clustersOld []string, namespace string) error {
 	// first look for clusters that are not scheduled yet and flag them as scheduled
 	for _, cluster := range clustersNew {
-		// set schedule to true and also reset the activeSchedule property
-		// When we update a Schedule it begins from a offSchedule status until
-		// executeStart is called.
 		if err := setClusterScheduled(ctx, c, cluster, namespace, true); err != nil {
 			return err
 		}

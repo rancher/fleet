@@ -271,7 +271,7 @@ var _ = Describe("ScheduleReconciler", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster2",
 					Namespace: "default",
-					Labels:    map[string]string{"env": "test"},
+					Labels:    map[string]string{"env": "test", "foo": "bar"},
 				},
 			}
 
@@ -305,10 +305,28 @@ var _ = Describe("ScheduleReconciler", func() {
 
 			// clusters 1, 2 and 3 should be scheduled in the quartz.Scheduler and also
 			// be flagged as Scheduled
-			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster", "default", true, true)
-			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster2", "default", true, true)
-			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster3", "default", true, true)
-			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster4", "default", false, false)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster", "default", true, true, false)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster2", "default", true, true, false)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster3", "default", true, true, false)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster4", "default", false, false, false)
+
+			// force the start of the schedule (so it sets .Status.ActiveSchedule=true)
+			jobKey := scheduleKey(schedule)
+			job, err := scheduler.GetScheduledJob(jobKey)
+			Expect(err).NotTo(HaveOccurred())
+
+			cronDurationJob, ok := job.JobDetail().Job().(*CronDurationJob)
+			Expect(ok).To(BeTrue())
+
+			// Manually trigger start
+			err = cronDurationJob.executeStart(ctx)
+			Expect(err).NotTo(HaveOccurred())
+
+			// check now that the clusters have the expected values, specially Status.ActiveSchedule
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster", "default", true, true, true)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster2", "default", true, true, true)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster3", "default", true, true, true)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster4", "default", false, false, false)
 
 			// update the schedule, now it only looks for the label foo=bar
 			scheduleUpdated := &fleet.Schedule{}
@@ -326,11 +344,13 @@ var _ = Describe("ScheduleReconciler", func() {
 			_, err = reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 
-			// now only 1 cluster should be flagged as scheduled and be in the scheduled jobs list
-			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster", "default", false, false)
-			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster2", "default", false, false)
-			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster3", "default", false, false)
-			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster4", "default", true, true)
+			// cluster 2 and 4 should be still targeted.
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster", "default", false, false, false)
+			// cluster 2 had Status.ActiveSchedule set to true, but because we updated the Schedule
+			// it should be back to false.
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster2", "default", true, true, false)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster3", "default", false, false, false)
+			checkClusterIsScheduled(scheduler, k8sclient, "test-cluster4", "default", true, true, false)
 		})
 	})
 })
@@ -339,7 +359,7 @@ func checkClusterIsScheduled(
 	scheduler quartz.Scheduler,
 	k8sclient client.Client,
 	cluster, namespace string,
-	scheduledExpected, flaggedAsScheduledExpected bool) {
+	scheduledExpected, flaggedAsScheduledExpected, activeScheduleExpected bool) {
 	isScheduled, err := isClusterScheduled(scheduler, cluster, namespace)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(isScheduled).To(Equal(scheduledExpected))
@@ -349,4 +369,5 @@ func checkClusterIsScheduled(
 	err = k8sclient.Get(context.Background(), key, clusterObj)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(clusterObj.Status.Scheduled).To(Equal(flaggedAsScheduledExpected))
+	Expect(clusterObj.Status.ActiveSchedule).To(Equal(activeScheduleExpected))
 }
