@@ -161,6 +161,12 @@ type BundleResource struct {
 	Encoding string `json:"encoding,omitempty"`
 }
 
+type OverwrittenResource struct {
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+}
+
 // RolloutStrategy controls the rollout of the bundle across clusters.
 type RolloutStrategy struct {
 	// A number or percentage of clusters that can be unavailable during an update

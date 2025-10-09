@@ -113,6 +113,10 @@ type BundleDeploymentOptions struct {
 
 	// DeleteCRDResources deletes CRDs. Warning! this will also delete all your Custom Resources.
 	DeleteCRDResources bool `json:"deleteCRDResources,omitempty"`
+
+	// Overwrites indicates which resources, if any, come from this bundle and overwrite another existing bundle.
+	// This flag is set internally by Fleet, and should not be altered by users.
+	Overwrites []OverwrittenResource `json:"overwrites,omitempty"`
 }
 
 // GitOpsBundleDeploymentOptions contains options which only make sense for GitOps
