@@ -234,6 +234,12 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 						"namespace", ow.Namespace,
 					)
 
+					// Uninstall the release to allow a new reconcile loop to re-install it,
+					// resolving the missing resource(s) issue.
+					if err := r.Cleanup.CleanupReleases(ctx, key, nil); err != nil {
+						logger.V(1).Info("Failed to clean up releases before triggering new deployment", "error", err)
+					}
+
 					return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 				}
 			}
