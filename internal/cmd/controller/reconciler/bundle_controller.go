@@ -200,7 +200,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// This sets the values on the bundle, which is safe as we don't update bundle, just its status
 	if bundle.Spec.ValuesHash != "" {
 		if err := loadBundleValues(ctx, r.Client, bundle); err != nil {
-			return r.computeResult(ctx, logger, req, bundleOrig, bundle, "failed to load values secret for bundle", err)
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to load values secret for bundle", err)
 		}
 	}
 
@@ -220,7 +220,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if _, err := semver.StrictNewVersion(versionToCheck); err != nil {
 			err = fmt.Errorf("chart version cannot be deployed; check HelmOp status for more details: %w", err)
 
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+			return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 		}
 	}
 
@@ -237,7 +237,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{},
 				r.updateErrorStatus(
 					ctx,
-					req.NamespacedName,
 					bundleOrig,
 					bundle,
 					fmt.Errorf("failed to compute resources manifest SHA sum for OCI storage: %w", err),
@@ -251,7 +250,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{},
 				r.updateErrorStatus(
 					ctx,
-					req.NamespacedName,
 					bundleOrig,
 					bundle,
 					fmt.Errorf("failed to compute resources manifest ID for OCI storage: %w", err),
@@ -264,7 +262,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{},
 			r.updateErrorStatus(
 				ctx,
-				req.NamespacedName,
 				bundleOrig,
 				bundle,
 				fmt.Errorf("targeting error: %w", err),
@@ -284,7 +281,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// agents have access to all resources and use their specific
 		// set of `BundleDeploymentOptions`.
 		if err := r.Store.Store(ctx, resourcesManifest); err != nil {
-			return r.computeResult(ctx, logger, req, bundleOrig, bundle, "could not copy manifest into Content resource", err)
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "could not copy manifest into Content resource", err)
 		}
 	}
 	logger = logger.WithValues("manifestID", manifestID)
@@ -292,20 +289,20 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := resetStatus(&bundle.Status, matchedTargets); err != nil {
 		err = fmt.Errorf("failed to reset bundle status from targets: %w", err)
 
-		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 	}
 
 	// this will add the defaults for a new bundledeployment. It propagates stagedOptions to options.
 	if err := target.UpdatePartitions(&bundle.Status, matchedTargets); err != nil {
 		err = fmt.Errorf("failed to update partitions: %w", err)
 
-		return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 	}
 
 	if contentsInOCI {
 		url, err := r.getOCIReference(ctx, bundle)
 		if err != nil {
-			return r.computeResult(ctx, logger, req, bundleOrig, bundle, "failed to build OCI reference", err)
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to build OCI reference", err)
 		}
 		bundle.Status.OCIReference = url
 	}
@@ -349,7 +346,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err != nil {
 			err := fmt.Errorf("failed to extract Helm options for secret creation: %w", err)
 
-			return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+			return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 		}
 		// We need a checksum to trigger on value change, rely on later code in
 		// the reconciler to update the status
@@ -379,7 +376,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		if bd.Spec.ValuesHash != "" {
 			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
-				return r.computeResult(ctx, logger, req, bundleOrig, bundle, "failed to create options secret", err)
+				return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to create options secret", err)
 			}
 		} else {
 			// No values to store, delete the secret if it exists
@@ -394,7 +391,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
-			return r.computeResult(ctx, logger, req, bundleOrig, bundle, "failed to clone secrets downstream", err)
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to clone secrets downstream", err)
 		}
 	}
 
@@ -633,7 +630,6 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 // Upon successful update of the status, updateErrorStatus returns a TerminalError, preventing requeues.
 func (r *BundleReconciler) updateErrorStatus(
 	ctx context.Context,
-	req types.NamespacedName,
 	orig, bundle *fleet.Bundle,
 	orgErr error,
 ) error {
@@ -721,7 +717,6 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 func (r *BundleReconciler) computeResult(
 	ctx context.Context,
 	logger logr.Logger,
-	req ctrl.Request,
 	bundleOrig,
 	bundle *fleet.Bundle,
 	prefix string,
@@ -734,7 +729,7 @@ func (r *BundleReconciler) computeResult(
 
 	err = fmt.Errorf("%s: %w", prefix, err)
 
-	return ctrl.Result{}, r.updateErrorStatus(ctx, req.NamespacedName, bundleOrig, bundle, err)
+	return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 }
 
 func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {
