@@ -536,6 +536,22 @@ spec:
                         to the namespace created by Fleet.
                       nullable: true
                       type: object
+                    overwrites:
+                      description: 'Overwrites indicates which resources, if any,
+                        come from this bundle and overwrite another existing bundle.
+
+                        This flag is set internally by Fleet, and should not be altered
+                        by users.'
+                      items:
+                        properties:
+                          kind:
+                            type: string
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                        type: object
+                      type: array
                     serviceAccount:
                       description: ServiceAccount which will be used to perform this
                         deployment.
@@ -924,6 +940,22 @@ spec:
                         to the namespace created by Fleet.
                       nullable: true
                       type: object
+                    overwrites:
+                      description: 'Overwrites indicates which resources, if any,
+                        come from this bundle and overwrite another existing bundle.
+
+                        This flag is set internally by Fleet, and should not be altered
+                        by users.'
+                      items:
+                        properties:
+                          kind:
+                            type: string
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                        type: object
+                      type: array
                     serviceAccount:
                       description: ServiceAccount which will be used to perform this
                         deployment.
@@ -1862,6 +1894,22 @@ spec:
                     the namespace created by Fleet.
                   nullable: true
                   type: object
+                overwrites:
+                  description: 'Overwrites indicates which resources, if any, come
+                    from this bundle and overwrite another existing bundle.
+
+                    This flag is set internally by Fleet, and should not be altered
+                    by users.'
+                  items:
+                    properties:
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                    type: object
+                  type: array
                 paused:
                   description: Paused if set to true, will stop any BundleDeployments
                     from being updated. It will be marked as out of sync.
@@ -2759,6 +2807,22 @@ spec:
                           to the namespace created by Fleet.
                         nullable: true
                         type: object
+                      overwrites:
+                        description: 'Overwrites indicates which resources, if any,
+                          come from this bundle and overwrite another existing bundle.
+
+                          This flag is set internally by Fleet, and should not be
+                          altered by users.'
+                        items:
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                            namespace:
+                              type: string
+                          type: object
+                        type: array
                       serviceAccount:
                         description: ServiceAccount which will be used to perform
                           this deployment.
@@ -7811,6 +7875,22 @@ spec:
                     the namespace created by Fleet.
                   nullable: true
                   type: object
+                overwrites:
+                  description: 'Overwrites indicates which resources, if any, come
+                    from this bundle and overwrite another existing bundle.
+
+                    This flag is set internally by Fleet, and should not be altered
+                    by users.'
+                  items:
+                    properties:
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                    type: object
+                  type: array
                 paused:
                   description: Paused if set to true, will stop any BundleDeployments
                     from being updated. It will be marked as out of sync.
@@ -8713,6 +8793,22 @@ spec:
                           to the namespace created by Fleet.
                         nullable: true
                         type: object
+                      overwrites:
+                        description: 'Overwrites indicates which resources, if any,
+                          come from this bundle and overwrite another existing bundle.
+
+                          This flag is set internally by Fleet, and should not be
+                          altered by users.'
+                        items:
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                            namespace:
+                              type: string
+                          type: object
+                        type: array
                       serviceAccount:
                         description: ServiceAccount which will be used to perform
                           this deployment.

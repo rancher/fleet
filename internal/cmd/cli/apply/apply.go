@@ -10,11 +10,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/rancher/fleet/internal/bundlereader"
+	"github.com/rancher/fleet/internal/content"
 	"github.com/rancher/fleet/internal/fleetyaml"
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
@@ -26,6 +28,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	k8syaml "sigs.k8s.io/yaml"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -197,10 +200,10 @@ func CreateBundles(pctx context.Context, client client.Client, r record.EventRec
 		close(bundlesChan)
 	}()
 
-	gitRepoBundlesMap := make(map[string]bool)
+	gitRepoBundlesMap := make(map[string]*fleet.Bundle)
 	var bundlesToWrite []*bundleWithOpts
 	for b := range bundlesChan {
-		gitRepoBundlesMap[b.bundle.Name] = true
+		gitRepoBundlesMap[b.bundle.Name] = b.bundle
 		bundlesToWrite = append(bundlesToWrite, b)
 	}
 	// Recovers any error that could happen in the errgroup, won't actually wait
@@ -291,10 +294,10 @@ func CreateBundlesDriven(pctx context.Context, client client.Client, r record.Ev
 		close(bundlesChan)
 	}()
 
-	gitRepoBundlesMap := make(map[string]bool)
+	gitRepoBundlesMap := make(map[string]*fleet.Bundle)
 	var bundlesToWrite []*bundleWithOpts
 	for b := range bundlesChan {
-		gitRepoBundlesMap[b.bundle.Name] = true
+		gitRepoBundlesMap[b.bundle.Name] = b.bundle
 		bundlesToWrite = append(bundlesToWrite, b)
 	}
 	// Recovers any error that could happen in the errgroup, won't actually wait
@@ -341,14 +344,59 @@ func getPathAndFleetYaml(path, separator string) (string, string, error) {
 }
 
 // pruneBundlesNotFoundInRepo lists all bundles for this gitrepo and prunes those not found in the repo
-func pruneBundlesNotFoundInRepo(ctx context.Context, c client.Client, repoName, ns string, gitRepoBundlesMap map[string]bool) error {
+func pruneBundlesNotFoundInRepo(
+	ctx context.Context,
+	c client.Client,
+	repoName,
+	ns string,
+	gitRepoBundlesMap map[string]*fleet.Bundle,
+) error {
 	filter := labels.SelectorFromSet(labels.Set{fleet.RepoLabel: repoName})
 	bundleList := &fleet.BundleList{}
 	err := c.List(ctx, bundleList, &client.ListOptions{LabelSelector: filter, Namespace: ns})
 
 	for _, bundle := range bundleList.Items {
-		if ok := gitRepoBundlesMap[bundle.Name]; !ok {
+		if _, ok := gitRepoBundlesMap[bundle.Name]; !ok {
 			logrus.Debugf("Bundle to be deleted since it is not found in gitrepo %v anymore %v %v", repoName, bundle.Namespace, bundle.Name)
+
+			for _, inClusterRsc := range bundle.Spec.Resources {
+				for _, grb := range gitRepoBundlesMap {
+					logrus.Debugf("gitRepo bundle: %v", grb)
+					for _, grRsc := range grb.Spec.Resources { // FIXME nil pointer here: are resources not populated?
+						if inClusterRsc.Name != grRsc.Name {
+							continue
+						}
+
+						logrus.Debugf("resources: [in cluster] %v\n, [in gitrepo] %v", inClusterRsc, grRsc)
+
+						ow1, err := getKindNS(grRsc, grb.Name)
+						if err != nil {
+							// XXX: error
+							continue
+						}
+						if ow1.Kind == "" {
+							// Skipping non-manifest resources, e.g. Chart.yaml and values
+							// files.
+							continue
+						}
+
+						ow2, err := getKindNS(inClusterRsc, bundle.Name)
+						if err != nil {
+							// XXX: error
+							continue
+						}
+						if ow2.Kind == "" {
+							continue
+						}
+
+						if ow1.Kind == ow2.Kind && ow1.Name == ow2.Name && ow1.Namespace == ow2.Namespace {
+							// Warning: this will not work with bundlenamespacemappings
+
+							grb.Spec.Overwrites = append(grb.Spec.Overwrites, ow1)
+						}
+					}
+				}
+			}
 			err = c.Delete(ctx, &bundle)
 			if err != nil {
 				return err
@@ -875,4 +923,47 @@ func GetOnConflictRetries() (int, error) {
 
 func GetBundleCreationMaxConcurrency() (int, error) {
 	return getIntEnvVar(BundleCreationMaxConcurrencyEnv, defaultBundleCreationMaxConcurrency)
+}
+
+type k8sWithNS struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+}
+
+func getKindNS(br fleet.BundleResource, bundleName string) (fleet.OverwrittenResource, error) {
+	var contents []byte
+	var err error
+	if br.Encoding == "base64+gz" {
+		contents, err = content.GUnzip([]byte(br.Content))
+		if err != nil {
+			logrus.Debugf("could not uncompress contents of resource %s in bundle %s;"+
+				" skipping overlap detection for this resource", br.Name, bundleName)
+			return fleet.OverwrittenResource{}, nil
+		}
+	} else {
+		// encoding should be empty
+		contents = []byte(br.Content)
+	}
+
+	// Replace templating tags to prevent unmarshalling errors. We are not interested in the resource contents
+	// beyond its kind, name and namespace.
+	placeholder := "TEMPLATED"
+	templating := regexp.MustCompile("{{[^}]+}}")
+	c := templating.ReplaceAll(contents, []byte(placeholder))
+
+	var rsc k8sWithNS
+	err = k8syaml.Unmarshal(c, &rsc)
+	if err != nil {
+		return fleet.OverwrittenResource{}, fmt.Errorf("could not convert resource contents into object: %w", err)
+	}
+
+	logrus.Debugf("contents from bundle resource: %v", string(contents))
+
+	or := fleet.OverwrittenResource{
+		Kind:      rsc.Kind,
+		Name:      rsc.Name,
+		Namespace: rsc.Namespace,
+	}
+	logrus.Debugf("returning overwritten resource: %v", or)
+	return or, nil
 }
