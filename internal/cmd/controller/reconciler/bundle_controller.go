@@ -220,6 +220,10 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		)
 	}
 
+	if userID := bundle.Labels[fleet.CreatedByUserIDLabel]; userID != "" {
+		logger = logger.WithValues("userID", userID)
+	}
+
 	if !bundle.DeletionTimestamp.IsZero() {
 		return r.handleDelete(ctx, logger, req, bundle)
 	}

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"strings"
 
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -50,4 +51,15 @@ func CreateCluster(ctx context.Context, k8sClient client.Client, name, controlle
 	cluster.Status.Namespace = clusterNs
 	err = k8sClient.Status().Update(ctx, cluster)
 	return cluster, err
+}
+
+// ExtractResourceLogs extracts log lines related to a specific resource name
+func ExtractResourceLogs(allLogs, resourceName string) string {
+	var resourceLogs []string
+	for _, line := range strings.Split(allLogs, "\n") {
+		if strings.Contains(line, resourceName) {
+			resourceLogs = append(resourceLogs, line)
+		}
+	}
+	return strings.Join(resourceLogs, "\n")
 }
