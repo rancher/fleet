@@ -62,7 +62,6 @@ var _ = Describe("GitRepo UserID logging", func() {
 				ContainSubstring(`"userID": "`+userID+`"`),
 			))
 
-			// Verify the logs contain both gitrepo context and userID
 			logs := logsBuffer.String()
 			Expect(logs).To(ContainSubstring("gitjob"))
 			Expect(logs).To(ContainSubstring(gitrepo.Name))

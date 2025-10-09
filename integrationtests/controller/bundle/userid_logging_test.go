@@ -99,7 +99,6 @@ var _ = Describe("Bundle UserID logging", func() {
 				ContainSubstring(`"userID": "`+userID+`"`),
 			))
 
-			// Verify the logs contain both bundle context and userID
 			Expect(logs).To(ContainSubstring("bundle"))
 			Expect(logs).To(ContainSubstring(bundle.Name))
 		})
