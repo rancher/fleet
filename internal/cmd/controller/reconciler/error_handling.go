@@ -30,11 +30,13 @@ func CheckRetryable(err error, logger logr.Logger) (bool, ctrl.Result, error) {
 	return false, ctrl.Result{}, nil
 }
 
-// SetErrorInCondition sets the condition and updates the timestamp, if the condition changed
-func SetErrorInCondition[T any](cond string, s copyable[T], err error) {
+// SetCondition sets the condition and updates the timestamp, if the condition changed
+func SetCondition[T any](cond string, s copyable[T], err error) {
 	c := condition.Cond(cond)
 	origStatus := s.DeepCopy()
+
 	c.SetError(s, "", fleetutil.IgnoreConflict(err))
+
 	if !equality.Semantic.DeepEqual(origStatus, s) {
 		c.LastUpdated(s, time.Now().UTC().Format(time.RFC3339))
 	}

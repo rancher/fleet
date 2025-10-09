@@ -234,7 +234,7 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return res, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
-	setAcceptedCondition(&gitrepo.Status, nil)
+	reconciler.SetCondition(v1alpha1.GitRepoAcceptedCondition, &gitrepo.Status, nil)
 
 	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
 	if err != nil {
@@ -654,14 +654,10 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 	return nil
 }
 
-// setAcceptedCondition sets the condition and updates the timestamp, if the condition changed
-func setAcceptedCondition(status *v1alpha1.GitRepoStatus, err error) {
-	reconciler.SetErrorInCondition(v1alpha1.GitRepoAcceptedCondition, status, err)
-}
-
 // updateErrorStatus sets the condition in the status and tries to update the resource
 func updateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status v1alpha1.GitRepoStatus, orgErr error) error {
-	setAcceptedCondition(&status, orgErr)
+	reconciler.SetCondition(v1alpha1.GitRepoAcceptedCondition, &status, orgErr)
+
 	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)

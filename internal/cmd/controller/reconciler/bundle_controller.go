@@ -631,7 +631,7 @@ func (r *BundleReconciler) updateErrorStatus(
 	orig, bundle *fleet.Bundle,
 	orgErr error,
 ) error {
-	SetErrorInCondition(string(fleet.Ready), &bundle.Status, orgErr)
+	SetCondition(string(fleet.Ready), &bundle.Status, orgErr)
 
 	if statusErr := r.updateStatus(ctx, orig, bundle); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
@@ -726,7 +726,7 @@ func (r *BundleReconciler) computeResult(
 
 	err = fmt.Errorf("%s: %w", prefix, err)
 
-	SetErrorInCondition(string(fleet.Ready), &bundle.Status, err)
+	SetCondition(string(fleet.Ready), &bundle.Status, err)
 
 	return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 }
