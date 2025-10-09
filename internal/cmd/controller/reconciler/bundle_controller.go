@@ -26,11 +26,9 @@ import (
 	"github.com/rancher/fleet/pkg/durations"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
-	"github.com/rancher/wrangler/v3/pkg/condition"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -633,7 +631,7 @@ func (r *BundleReconciler) updateErrorStatus(
 	orig, bundle *fleet.Bundle,
 	orgErr error,
 ) error {
-	setReadyCondition(&bundle.Status, orgErr)
+	SetErrorInCondition(string(fleet.Ready), &bundle.Status, orgErr)
 
 	if statusErr := r.updateStatus(ctx, orig, bundle); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
@@ -722,12 +720,13 @@ func (r *BundleReconciler) computeResult(
 	prefix string,
 	err error,
 ) (ctrl.Result, error) {
-	if errors.Is(err, fleetutil.ErrRetryable) {
-		logger.Info(err.Error())
-		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+	if done, res, ctrlErr := CheckRetryable(err, logger); done {
+		return res, ctrlErr
 	}
 
 	err = fmt.Errorf("%s: %w", prefix, err)
+
+	SetErrorInCondition(string(fleet.Ready), &bundle.Status, err)
 
 	return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 }
@@ -851,16 +850,6 @@ func maybePurgeOCIReferenceSecret(ctx context.Context, c client.Client, old, new
 	}
 
 	return nil
-}
-
-// setCondition sets the condition and updates the timestamp, if the condition changed
-func setReadyCondition(status *fleet.BundleStatus, err error) {
-	cond := condition.Cond(fleet.Ready)
-	origStatus := status.DeepCopy()
-	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
-	if !equality.Semantic.DeepEqual(origStatus, status) {
-		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
-	}
 }
 
 func upper(op controllerutil.OperationResult) string {

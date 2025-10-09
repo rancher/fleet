@@ -12,7 +12,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/reugn/go-quartz/quartz"
 
-	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
@@ -28,7 +27,6 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -658,12 +656,7 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 
 // setAcceptedCondition sets the condition and updates the timestamp, if the condition changed
 func setAcceptedCondition(status *v1alpha1.GitRepoStatus, err error) {
-	cond := condition.Cond(v1alpha1.GitRepoAcceptedCondition)
-	origStatus := status.DeepCopy()
-	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
-	if !equality.Semantic.DeepEqual(origStatus, status) {
-		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
-	}
+	reconciler.SetErrorInCondition(v1alpha1.GitRepoAcceptedCondition, status, err)
 }
 
 // updateErrorStatus sets the condition in the status and tries to update the resource
