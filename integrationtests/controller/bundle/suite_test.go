@@ -1,6 +1,7 @@
 package bundle
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -19,16 +20,19 @@ import (
 
 	"k8s.io/client-go/rest"
 
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 var (
-	cancel    context.CancelFunc
-	cfg       *rest.Config
-	ctx       context.Context
-	k8sClient client.Client
-	testenv   *envtest.Environment
+	cancel     context.CancelFunc
+	cfg        *rest.Config
+	ctx        context.Context
+	k8sClient  client.Client
+	testenv    *envtest.Environment
+	logsBuffer bytes.Buffer
 
 	namespace string
 )
@@ -48,6 +52,10 @@ var _ = BeforeSuite(func() {
 	var err error
 	cfg, err = utils.StartTestEnv(testenv)
 	Expect(err).NotTo(HaveOccurred())
+
+	// Set up log capture
+	GinkgoWriter.TeeTo(&logsBuffer)
+	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	k8sClient, err = utils.NewClient(cfg)
 	Expect(err).NotTo(HaveOccurred())

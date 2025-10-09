@@ -200,6 +200,11 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	logger = logger.WithValues("generation", gitrepo.Generation, "commit", gitrepo.Status.Commit).WithValues("conditions", gitrepo.Status.Conditions)
+
+	if userID := gitrepo.Labels[v1alpha1.CreatedByUserIDLabel]; userID != "" {
+		logger = logger.WithValues("userID", userID)
+	}
+
 	ctx = log.IntoContext(ctx, logger)
 
 	logger.V(1).Info("Reconciling GitRepo")
