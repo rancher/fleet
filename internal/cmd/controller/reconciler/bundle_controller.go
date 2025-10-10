@@ -785,7 +785,11 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 		r.Recorder.Event(bundle, fleetevent.Warning, "FailedToDeleteOCIArtifact", fmt.Sprintf("deleting OCI artifact %q: %v", bundle.Spec.ContentsID, err.Error()))
 	}
 
-	return err
+	// In case there's an error deleting from the OCI registry,
+	// we return nil because otherwise the controller would retry the operation,
+	// and since the registry is not a component of Fleet,
+	// we don't have full control over it.
+	return nil
 }
 
 func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {
