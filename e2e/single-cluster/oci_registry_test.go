@@ -372,10 +372,12 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		if contentIDToPurge != "" {
 			k8sclient.ObjectShouldNotExist(clientUpstream, contentIDToPurge, "", &fleet.Content{}, true)
 		} else if contentsID != "" {
-			// check that the oci artifact was deleted
-			_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), ociOpts, contentsID)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("not found"))
+			Eventually(func(g Gomega) {
+				// check that the oci artifact was deleted
+				_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), ociOpts, contentsID)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("not found"))
+			}).Should(Succeed())
 		}
 
 		_, err = k.Delete("events", "-n", env.Namespace, "--all")
