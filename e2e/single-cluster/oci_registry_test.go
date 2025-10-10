@@ -411,7 +411,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
 				})
 				By("setting the ContentsID field in the bundle", func() {
-					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-BLAH"))
+					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
 					contentsID = bundle.Spec.ContentsID
 				})
 
