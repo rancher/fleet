@@ -332,6 +332,7 @@ func newBundle(ctx context.Context, name, baseDir string, opts Options) (*fleet.
 	} else {
 		var err error
 		bundle, scans, err = bundlereader.NewBundle(ctx, name, baseDir, opts.BundleFile, &bundlereader.Options{
+			BundleFile:       opts.BundleFile,
 			Compress:         opts.Compress,
 			Labels:           opts.Labels,
 			ServiceAccount:   opts.ServiceAccount,
