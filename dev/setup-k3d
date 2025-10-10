@@ -49,7 +49,7 @@ EOF
 fi
 
 k3d cluster create "$name" \
-  --servers 3 \
+  --servers 1 \
   --api-port "$unique_api_port" \
   -p "$(( 8080 + offs )):8080@server:0" \
   -p "$(( 8081 + offs )):8081@server:0" \

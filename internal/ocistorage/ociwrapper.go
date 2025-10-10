@@ -266,18 +266,25 @@ func (o *OCIWrapper) PullManifest(ctx context.Context, opts OCIOpts, id string) 
 
 // DeleteManifest deletes the OCI manifest identified by the given id and "latest" tag from a remote OCI registry.
 func (o *OCIWrapper) DeleteManifest(ctx context.Context, opts OCIOpts, id string) error {
+	fmt.Printf("***TEST*** deleting manifest for %s opts: %v\n", id, opts)
 	repo, err := newOCIRepository(id, opts)
 	if err != nil {
+		fmt.Printf("***TEST*** failed to create repository for %s: %v\n", id, err)
 		return fmt.Errorf("failed to create repository for %s: %w", id, err)
 	}
 
 	tag := "latest"
 	desc, err := repo.Resolve(ctx, tag)
 	if err != nil {
+		fmt.Printf("***TEST*** failed to resolve tag '%s' for artifact '%s': %v\n", tag, id, err)
 		return fmt.Errorf("failed to resolve tag '%s' for artifact '%s': %w", tag, id, err)
 	}
 
-	return repo.Delete(ctx, desc)
+	err = repo.Delete(ctx, desc)
+	if err != nil {
+		fmt.Printf("***TEST*** failed to delete manifest for artifact '%s': %v\n", id, err)
+	}
+	return err
 }
 
 // OCIIsEnabled returns true if the OCI_STORAGE env variable is not set or
