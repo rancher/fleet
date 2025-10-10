@@ -1,6 +1,9 @@
 package resourcestatus
 
 import (
+	"cmp"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -50,10 +53,10 @@ func clusterID(bd fleet.BundleDeployment) string {
 // fromResources inspects a list of BundleDeployments and returns a list of per-cluster states per resource keys.
 // It also returns a list of errors messages produced that may have occurred during processing
 func fromResources(items []fleet.BundleDeployment) resourceStatesByResourceKey {
+	// ensure cluster order is stable, so we do not trigger reconciles
 	sort.Slice(items, func(i, j int) bool {
 		return clusterID(items[i]) < clusterID(items[j])
 	})
-
 	resources := make(resourceStatesByResourceKey)
 	for _, bd := range items {
 		for key, entry := range bundleDeploymentResources(bd) {
@@ -155,8 +158,18 @@ func bundleDeploymentResources(bd fleet.BundleDeployment) map[fleet.ResourceKey]
 }
 
 func aggregateResourceStatesClustersMap(resourceKeyStates resourceStatesByResourceKey) []fleet.Resource {
+	// sort to make the result stable in case of truncation
+	keys := slices.SortedFunc(maps.Keys(resourceKeyStates), func(a, b fleet.ResourceKey) int {
+		return cmp.Compare(
+			(b.Kind + b.APIVersion + " " + b.Namespace + "/" + b.Name),
+			(a.Kind + a.APIVersion + " " + a.Namespace + "/" + a.Name),
+		)
+	})
+
+	size := 0
 	result := make([]fleet.Resource, 0, len(resourceKeyStates))
-	for resourceKey, entries := range resourceKeyStates {
+	for _, resourceKey := range keys {
+		entries := resourceKeyStates[resourceKey]
 		resource := &fleet.Resource{
 			Kind:       resourceKey.Kind,
 			APIVersion: resourceKey.APIVersion,
@@ -172,7 +185,10 @@ func aggregateResourceStatesClustersMap(resourceKeyStates resourceStatesByResour
 				resource.IncompleteState = true
 			}
 
-			appendToPerClusterState(&resource.PerClusterState, entry.state, entry.clusterID)
+			size += len(entry.clusterID)
+			if size < 1024*1024 { // 1mb
+				appendToPerClusterState(&resource.PerClusterState, entry.state, entry.clusterID)
+			}
 
 			// top-level state is set from first non "Ready" per-cluster state
 			if resource.State == "Ready" {
@@ -183,6 +199,7 @@ func aggregateResourceStatesClustersMap(resourceKeyStates resourceStatesByResour
 		result = append(result, *resource)
 	}
 
+	// sort to make result easier to read
 	sort.Slice(result, func(i, j int) bool {
 		return key(result[i]) < key(result[j])
 	})
