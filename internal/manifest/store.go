@@ -2,7 +2,9 @@ package manifest
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/content"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
@@ -31,7 +33,7 @@ func (c *ContentStore) Store(ctx context.Context, manifest *Manifest) error {
 	}
 
 	if err := c.Client.Get(ctx, types.NamespacedName{Name: id}, &fleet.Content{}); err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("%w: %w", errorutil.ErrRetryable, err)
 	} else if err == nil {
 		return nil
 	}
@@ -62,5 +64,10 @@ func (c *ContentStore) createContents(ctx context.Context, id string, manifest *
 		Content:   compressed,
 		SHA256Sum: digest,
 	})
-	return client.IgnoreAlreadyExists(err)
+	err = client.IgnoreAlreadyExists(err)
+	if err != nil {
+		err = fmt.Errorf("%w: %w", errorutil.ErrRetryable, err)
+	}
+
+	return err
 }

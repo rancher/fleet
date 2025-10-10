@@ -12,7 +12,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/reugn/go-quartz/quartz"
 
-	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
@@ -28,7 +27,6 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -233,10 +231,10 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled)
 	if err != nil || res.RequeueAfter > 0 {
-		return res, err
+		return res, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
-	setAcceptedCondition(&gitrepo.Status, nil)
+	reconciler.SetCondition(v1alpha1.GitRepoAcceptedCondition, &gitrepo.Status, nil)
 
 	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
 	if err != nil {
@@ -262,7 +260,6 @@ func monitorLatestCommit(obj metav1.Object, fetch func() (string, error)) (strin
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
 func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string, repoPolled bool) (reconcile.Result, error) {
-	name := types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}
 	var job batchv1.Job
 	err := r.Get(ctx, types.NamespacedName{
 		Namespace: gitrepo.Namespace,
@@ -296,7 +293,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
-				return r.result(gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+				return r.result(gitrepo), fmt.Errorf("error validating external secrets: %w", err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
 				gitjobsCreatedFailure.Inc(gitrepo)
@@ -319,7 +316,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
 	if err = setStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
-		return r.result(gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+		return r.result(gitrepo), fmt.Errorf("error setting GitRepo status from git job: %w", err)
 	}
 
 	return reconcile.Result{}, nil
@@ -657,19 +654,10 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 	return nil
 }
 
-// setAcceptedCondition sets the condition and updates the timestamp, if the condition changed
-func setAcceptedCondition(status *v1alpha1.GitRepoStatus, err error) {
-	cond := condition.Cond(v1alpha1.GitRepoAcceptedCondition)
-	origStatus := status.DeepCopy()
-	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
-	if !equality.Semantic.DeepEqual(origStatus, status) {
-		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
-	}
-}
-
 // updateErrorStatus sets the condition in the status and tries to update the resource
 func updateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status v1alpha1.GitRepoStatus, orgErr error) error {
-	setAcceptedCondition(&status, orgErr)
+	reconciler.SetCondition(v1alpha1.GitRepoAcceptedCondition, &status, orgErr)
+
 	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
