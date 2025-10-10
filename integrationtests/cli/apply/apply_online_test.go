@@ -2,6 +2,7 @@ package apply
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/mock/gomock"
 
@@ -144,5 +145,71 @@ data:
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("already exists"))
 		})
+	})
+
+	When("a bundle to be created already exists and is marked for deletion", func() {
+		BeforeEach(func() {
+			ts := metav1.NewTime(time.Now())
+			name = "labels_update"
+			dirs = []string{cli.AssetsPath + "labels_update"}
+			//bundle in the cluster
+			oldBundle = &fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         "foo",
+					Name:              "test_labels",
+					DeletionTimestamp: &ts, // as long as it's non-nil
+				},
+			}
+			// bundle in the cm.yaml file; some values are autofilled in the implementation (this is why there are not only the labels)
+			newBundle = &fleet.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"new": "fleet-label2",
+					},
+					Namespace: "foo",
+					Name:      "test_labels",
+				},
+				Spec: fleet.BundleSpec{
+					Resources: []fleet.BundleResource{
+						{
+							Name: "cm.yaml",
+							Content: `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm3
+data:
+  test: "value23"
+`,
+						},
+					},
+					Targets: []fleet.BundleTarget{
+						{
+							Name:         "default",
+							ClusterGroup: "default",
+						},
+					},
+				},
+			}
+		})
+
+		It("does not update the bundle", func() {
+			// no expected call to update nor updateStatus, as the existing bundle is being deleted
+			err := fleetApplyOnline(clientMock, name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("is being deleted"))
+		})
+
+		It("does not update an OCI bundle", func() {
+			// no expected call to update nor updateStatus, as the existing bundle is being deleted
+			bkp := options.OCIRegistry.Reference
+			options.OCIRegistry.Reference = "oci://foo" // non-empty
+
+			defer func() { options.OCIRegistry.Reference = bkp }()
+
+			err := fleetApplyOnline(clientMock, name, dirs, options)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("is being deleted"))
+		})
+
 	})
 })
