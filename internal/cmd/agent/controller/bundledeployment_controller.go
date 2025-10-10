@@ -11,6 +11,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/internal/helmvalues"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -203,6 +204,34 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if err := r.DriftDetect.Refresh(ctx, req.String(), bd, resources); err != nil {
 		logger.V(1).Info("Failed to refresh drift detection", "step", "drift", "error", err)
 		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
+	}
+
+	logger.V(1).Info("### ModifiedStatus", "orig", orig.Status.ModifiedStatus, "bd", bd.Status.ModifiedStatus)
+	// FIXME why would this run multiple times, e.g. every 5s?
+	if len(orig.Status.ModifiedStatus) > 0 && len(orig.Spec.Options.Overwrites) > 0 {
+		for _, ms := range orig.Status.ModifiedStatus {
+			if !ms.Create { // missing
+				continue
+			}
+			for _, ow := range orig.Spec.Options.Overwrites {
+				if ow.Kind == ms.Kind && ow.Name == ms.Name {
+					logger.V(1).Info(
+						"Triggering new deployment to overwrite missing resource",
+						"kind", ow.Kind,
+						"name", ow.Name,
+						"namespace", ow.Namespace,
+					)
+
+					// Uninstall the release to allow a new reconcile loop to re-install it,
+					// resolving the missing resource(s) issue.
+					if err := r.Cleanup.CleanupReleases(ctx, key, nil); err != nil {
+						logger.V(1).Info("Failed to clean up releases before triggering new deployment", "error", err)
+					}
+
+					return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+				}
+			}
+		}
 	}
 
 	if err := r.Cleanup.CleanupReleases(ctx, key, bd); err != nil {
