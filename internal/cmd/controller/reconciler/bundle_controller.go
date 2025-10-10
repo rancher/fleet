@@ -74,7 +74,17 @@ type BundleReconciler struct {
 // SetupWithManager sets up the controller with the Manager.
 func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&fleet.Bundle{}).
+		For(&fleet.Bundle{},
+			builder.WithPredicates(
+				// do not trigger for bundle status changes (except for cache sync)
+				predicate.Or(
+					TypedResourceVersionUnchangedPredicate[client.Object]{},
+					predicate.GenerationChangedPredicate{},
+					predicate.AnnotationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+				),
+			),
+		).
 		// Note: Maybe improve with WatchesMetadata, does it have access to labels?
 		Watches(
 			// Fan out from bundledeployment to bundle
