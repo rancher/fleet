@@ -373,9 +373,11 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 			k8sclient.ObjectShouldNotExist(clientUpstream, contentIDToPurge, "", &fleet.Content{}, true)
 		} else if contentsID != "" {
 			// check that the oci artifact was deleted
-			_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), ociOpts, contentsID)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("not found"))
+			Eventually(func(g Gomega) {
+				_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), ociOpts, contentsID)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("not found"))
+			}).Should(Succeed())
 		}
 
 		_, err = k.Delete("events", "-n", env.Namespace, "--all")
@@ -909,8 +911,10 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				// The bundle deployment secret is deleted because the oci artifact is no longer
 				// going to be deployed
 				By("checking that the previous oci bundle deployment key was deleted", func() {
-					var secret corev1.Secret
-					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, downstreamNamespace, &secret, false)
+					Eventually(func(g Gomega) {
+						err := clientUpstream.Get(context.TODO(), client.ObjectKey{Name: previousContentsID, Namespace: downstreamNamespace}, &corev1.Secret{})
+						g.Expect(errors.IsNotFound(err)).To(BeTrue())
+					}).Should(Succeed())
 				})
 				By("checking that the previous oci artifact was not deleted", func() {
 					secretKey := client.ObjectKey{Name: previousContentsID, Namespace: env.Namespace}
