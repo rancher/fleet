@@ -477,6 +477,10 @@ func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 		return ctrl.Result{RequeueAfter: requeueAfterBundleDeploymentCleanup}, batchDeleteBundleDeployments(ctx, r.Client, bds)
 	}
 
+	if err := r.maybeDeleteOCIArtifact(ctx, bundle); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	metrics.BundleCollector.Delete(req.Name, req.Namespace)
 	controllerutil.RemoveFinalizer(bundle, finalize.BundleFinalizer)
 	if err := r.Update(ctx, bundle); err != nil {
@@ -488,7 +492,7 @@ func (r *BundleReconciler) handleDelete(ctx context.Context, logger logr.Logger,
 		logger.V(1).Info("Cannot delete bundle's values secret, owner garbage collection will remove it")
 	}
 
-	return ctrl.Result{}, r.maybeDeleteOCIArtifact(ctx, bundle)
+	return ctrl.Result{}, err
 }
 
 // ensureFinalizer adds a finalizer to a recently created bundle.
