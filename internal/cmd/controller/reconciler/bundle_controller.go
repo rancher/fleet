@@ -765,6 +765,7 @@ func (r *BundleReconciler) cleanupOrphanedBundleDeployments(ctx context.Context,
 }
 
 func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *fleet.Bundle) error {
+	fmt.Printf("***TEST*** deleting OCI artifact %q\n", bundle.Spec.ContentsID)
 	if bundle.Spec.ContentsID == "" {
 		return nil
 	}
@@ -772,6 +773,7 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 	secretID := client.ObjectKey{Name: bundle.Spec.ContentsID, Namespace: bundle.Namespace}
 	opts, err := ocistorage.ReadOptsFromSecret(ctx, r.Client, secretID)
 	if err != nil {
+		fmt.Printf("***TEST*** Error reading OCI opts from secret: %v\n", err)
 		return err
 	}
 	err = ocistorage.NewOCIWrapper().DeleteManifest(ctx, opts, bundle.Spec.ContentsID)

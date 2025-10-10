@@ -266,6 +266,7 @@ func (o *OCIWrapper) PullManifest(ctx context.Context, opts OCIOpts, id string) 
 
 // DeleteManifest deletes the OCI manifest identified by the given id and "latest" tag from a remote OCI registry.
 func (o *OCIWrapper) DeleteManifest(ctx context.Context, opts OCIOpts, id string) error {
+	fmt.Printf("***TEST*** deleting manifest for %s\n", id)
 	repo, err := newOCIRepository(id, opts)
 	if err != nil {
 		fmt.Printf("***TEST*** failed to create repository for %s: %v\n", id, err)
