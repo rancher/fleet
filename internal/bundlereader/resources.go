@@ -23,7 +23,7 @@ var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
 
 // readResources reads and downloads all resources from the bundle. Resources
 // can be downloaded and are spread across multiple directories.
-func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth, helmRepoURLRegex string) ([]fleet.BundleResource, error) {
+func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, base string, auth Auth, helmRepoURLRegex, bundleFile string) ([]fleet.BundleResource, error) {
 	directories, err := addDirectory(base, ".", ".")
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func readResources(ctx context.Context, spec *fleet.BundleSpec, compress bool, b
 	loadOpts := loadOpts{
 		compress:           compress,
 		disableDepsUpdate:  disableDepsUpdate,
-		ignoreApplyConfigs: ignoreApplyConfigs(spec.Helm, spec.Targets...),
+		ignoreApplyConfigs: ignoreApplyConfigs(bundleFile, spec.Helm, spec.Targets...),
 	}
 	resources, err := loadDirectories(ctx, loadOpts, directories...)
 	if err != nil {
@@ -93,11 +93,11 @@ type loadOpts struct {
 // ignoreApplyConfigs returns a list of config files that should not be added to the
 // bundle's resources. Their contents are converted into deployment options.
 // This includes:
-// * fleet.yaml
+// * bundle file (typically named fleet.yaml, but may be arbitrarily named when user-driven bundle scan is used)
 // * spec.Helm.ValuesFiles
 // * spec.Targets[].Helm.ValuesFiles
-func ignoreApplyConfigs(spec *fleet.HelmOptions, targets ...fleet.BundleTarget) []string {
-	ignore := []string{"fleet.yaml"}
+func ignoreApplyConfigs(bundleFile string, spec *fleet.HelmOptions, targets ...fleet.BundleTarget) []string {
+	ignore := []string{"fleet.yaml", bundleFile}
 
 	// Values files may be referenced from `fleet.yaml` files either with their file name
 	// alone, or with a directory prefix, for instance for a chart directory.

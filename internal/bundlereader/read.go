@@ -24,6 +24,7 @@ import (
 
 // Options include the GitRepo overrides, which are passed via command line args
 type Options struct {
+	BundleFile       string
 	Compress         bool
 	Labels           map[string]string
 	ServiceAccount   string
@@ -189,7 +190,7 @@ func bundleFromDir(ctx context.Context, name, baseDir string, bundleData []byte,
 
 	propagateHelmChartProperties(&fy.BundleSpec)
 
-	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth, opts.HelmRepoURLRegex)
+	resources, err := readResources(ctx, &fy.BundleSpec, opts.Compress, baseDir, opts.Auth, opts.HelmRepoURLRegex, opts.BundleFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed reading resources for %q: %w", baseDir, err)
 	}
