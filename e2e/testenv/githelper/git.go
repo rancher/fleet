@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -171,7 +172,9 @@ func (g *Git) GetInClusterURL(host string, port int, repoName string) string {
 // g's URL.
 func (g *Git) Create(repodir string, from string, subdir string) (*git.Repository, error) {
 	s := osfs.New(path.Join(repodir, ".git"))
-	repo, err := git.Init(filesystem.NewStorage(s, cache.NewObjectLRUDefault()), osfs.New(repodir))
+	storer := filesystem.NewStorage(s, cache.NewObjectLRUDefault())
+	fs := osfs.New(repodir)
+	repo, err := git.Init(storer, fs)
 	if err != nil {
 		return nil, err
 	}
@@ -190,46 +193,40 @@ func (g *Git) Create(repodir string, from string, subdir string) (*git.Repositor
 		return nil, err
 	}
 
-	w, err := repo.Worktree()
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := w.Add("."); err != nil {
-		return nil, err
-	}
-
-	_, err = w.Commit("add chart", &git.CommitOptions{
-		Author: author(),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	po := git.PushOptions{
-		Progress: os.Stdout,
-		// Force push, so our initial state is deterministic
-		RefSpecs: []config.RefSpec{config.RefSpec("+refs/heads/master:refs/heads/" + g.Branch)},
-		// This prevents IP SANs from being needed on the git server cert; the TLS verification we are most
-		// interested in is the one happening in Fleet's controllers and jobs.
-		InsecureSkipTLS: true,
-	}
-	k, err := g.Auth.getKeys()
-	if err != nil {
-		return nil, fmt.Errorf("failed to getKeys: %w", err)
-	}
-
-	if k != nil {
-		po.Auth = k
-	}
-
-	err = repo.Push(&po)
+	_, err = g.Update(repo, UpdateForce)
 
 	return repo, err
 }
 
+// Add adds files to a repo, commits them and pushed the changes.
+func (g *Git) Add(repodir, from, subdir string) (string, error) {
+	s := osfs.New(path.Join(repodir, ".git"))
+	storer := filesystem.NewStorage(s, cache.NewObjectLRUDefault())
+	fs := osfs.New(repodir)
+	repo, err := git.Open(storer, fs)
+	if err != nil {
+		return "", err
+	}
+
+	cmd := exec.Command("cp", "-a", from, path.Join(repodir, subdir)) //nolint:gosec // test code should never receive user input
+	err = cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	hash, err := g.Update(repo)
+
+	return hash, err
+}
+
+type UpdateOption int
+
+const (
+	UpdateForce UpdateOption = iota
+)
+
 // Update commits and pushes the current state of the worktree to the remote.
-func (g *Git) Update(repo *git.Repository) (string, error) {
+func (g *Git) Update(repo *git.Repository, updateOptions ...UpdateOption) (string, error) {
 	w, err := repo.Worktree()
 	if err != nil {
 		return "", err
@@ -252,6 +249,7 @@ func (g *Git) Update(repo *git.Repository) (string, error) {
 		// This prevents IP SANs from being needed on the git server cert; the TLS verification we are most
 		// interested in is the one happening in Fleet's controllers and jobs.
 		InsecureSkipTLS: true,
+		Force:           slices.Contains(updateOptions, UpdateForce),
 	}
 	k, err := g.Auth.getKeys()
 	if err != nil {
@@ -265,7 +263,7 @@ func (g *Git) Update(repo *git.Repository) (string, error) {
 	return h.String(), repo.Push(&po)
 }
 
-// Checkouts the specified remote branch from the given repository
+// CheckoutRemote checks the specified remote branch from the given repository out
 func (g *Git) CheckoutRemote(repo *git.Repository, branch string) error {
 	w, err := repo.Worktree()
 	if err != nil {
