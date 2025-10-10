@@ -4,6 +4,7 @@ package singlecluster_test
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -81,4 +82,21 @@ func getChartMuseumExternalAddr() string {
 
 func getZotInternalRef() string {
 	return fmt.Sprintf("oci://zot-service.%s.svc.cluster.local:8082", cmd.InfraNamespace)
+}
+
+func getPodLogs(label string) {
+	// Using label selector `app=<label>`; update if your labels differ
+	cmd := exec.Command(
+		"kubectl", "logs",
+		"-l", fmt.Sprintf("app=%s", label),
+		"-n", "cattle-fleet-system",
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		GinkgoWriter.Printf("❌ Failed to get logs for %s: %v\n", label, err)
+		return
+	}
+
+	GinkgoWriter.Printf("📄 Logs for %s:\n%s\n", label, string(out))
 }

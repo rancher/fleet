@@ -382,6 +382,16 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		Expect(err).ToNot(HaveOccurred())
 	})
 
+	ReportAfterEach(func(report SpecReport) {
+		GinkgoWriter.Printf("____________________________________________________________________")
+		if report.Failed() {
+			GinkgoWriter.Println("🔍 Spec failed (including AfterEach). Gathering logs...")
+
+			getPodLogs("fleet-controller")
+			getPodLogs("gitjob")
+		}
+	})
+
 	When("applying a gitrepo with the default ociSecret also deployed", func() {
 		Context("containing a valid helm chart", func() {
 			BeforeEach(func() {
@@ -401,7 +411,7 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
 				})
 				By("setting the ContentsID field in the bundle", func() {
-					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-"))
+					Expect(bundle.Spec.ContentsID).To(ContainSubstring("s-BLAH"))
 					contentsID = bundle.Spec.ContentsID
 				})
 
