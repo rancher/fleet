@@ -860,8 +860,10 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				// The bundle deployment secret is deleted because the oci artifact is no longer
 				// going to be deployed
 				By("checking that the previous oci bundle deployment key was deleted", func() {
-					var secret corev1.Secret
-					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, downstreamNamespace, &secret, false)
+					Eventually(func(g Gomega) {
+						err := clientUpstream.Get(context.TODO(), client.ObjectKey{Name: previousContentsID, Namespace: downstreamNamespace}, &corev1.Secret{})
+						g.Expect(errors.IsNotFound(err)).To(BeTrue())
+					}).Should(Succeed())
 				})
 				By("checking that the previous oci artifact was not deleted", func() {
 					secretKey := client.ObjectKey{Name: previousContentsID, Namespace: env.Namespace}
