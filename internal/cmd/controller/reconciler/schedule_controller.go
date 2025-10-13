@@ -273,7 +273,7 @@ func setClusterScheduled(ctx context.Context, c client.Client, name, namespace s
 	old := cluster.DeepCopy()
 	cluster.Status.Scheduled = scheduled
 
-	// when this function is called is either because we're updating a
+	// This function is called either because we're updating a
 	// Schedule or because we're creating it.
 	// In both cases ActiveSchedule should be false as a Schedule
 	// always begins in OffSchedule mode until the first start call is executed.
@@ -414,7 +414,6 @@ func setClustersScheduled(ctx context.Context, c client.Client, clusters []strin
 }
 
 func updateScheduledClusters(ctx context.Context, scheduler quartz.Scheduler, c client.Client, clustersNew []string, clustersOld []string, namespace string) error {
-	// first look for clusters that are not scheduled yet and flag them as scheduled
 	for _, cluster := range clustersNew {
 		if err := setClusterScheduled(ctx, c, cluster, namespace, true); err != nil {
 			return err
