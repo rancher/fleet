@@ -388,6 +388,10 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
+		if err := r.handleDownstreamObjects(ctx, bundle, bd); err != nil {
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to clone config maps and secrets downstream", err)
+		}
+
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
 			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to clone secrets downstream", err)
 		}
@@ -566,6 +570,45 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 	return fmt.Sprintf("oci://%s/%s:latest", string(ref), bundle.Spec.ContentsID), nil
 }
 
+// cloneConfigMap clones a config map, identified by the provided name and
+// namespace, to the namespace of the provided bundle deployment bd. This makes
+// the config map available to agents when deploying bd to downstream clusters.
+func (r *BundleReconciler) cloneConfigMap(
+	ctx context.Context,
+	namespace string,
+	name string,
+	bd *fleet.BundleDeployment,
+) error {
+	namespacedName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
+	var cm corev1.ConfigMap
+	if err := r.Get(ctx, namespacedName, &cm); err != nil {
+		return fmt.Errorf("failed to load source config map, cannot clone into %q: %w", namespace, err)
+	}
+	// clone the config map, and just change the namespace so it's in the target's namespace
+	targetCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cm.Name,
+			Namespace: bd.Namespace,
+		},
+		Data:       cm.Data,
+		BinaryData: cm.BinaryData,
+	}
+
+	if err := controllerutil.SetControllerReference(bd, targetCM, r.Scheme); err != nil {
+		return err
+	}
+	if err := r.Create(ctx, targetCM); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // cloneSecret clones a secret, identified by the provided secretName and
 // namespace, to the namespace of the provided bundle deployment bd. This makes
 // the secret available to agents when deploying bd to downstream clusters.
@@ -582,7 +625,7 @@ func (r *BundleReconciler) cloneSecret(
 	}
 	var secret corev1.Secret
 	if err := r.Get(ctx, namespacedName, &secret); err != nil {
-		return fmt.Errorf("%w: failed to load source secret, cannot clone into %q: %w", fleetutil.ErrRetryable, ns, err)
+		return fmt.Errorf("failed to load source secret, cannot clone into %q: %w", ns, err)
 	}
 	// clone the secret, and just change the namespace so it's in the target's namespace
 	targetSecret := &corev1.Secret{
@@ -599,11 +642,11 @@ func (r *BundleReconciler) cloneSecret(
 	}
 
 	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
-		return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
+		return err
 	}
 	if err := r.Create(ctx, targetSecret); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
-			return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
+			return err
 		}
 	}
 
@@ -615,10 +658,38 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 	contentsInHelmChart := bundle.Spec.HelmOpOptions != nil
 
 	if contentsInOCI {
-		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.ContentsID, fleet.SecretTypeOCIStorage, bd)
+		if err := r.cloneSecret(
+			ctx,
+			bundle.Namespace,
+			bundle.Spec.ContentsID,
+			fleet.SecretTypeOCIStorage,
+			bd,
+		); err != nil {
+			return fmt.Errorf(
+				"%w: failed to clone secret %s/%s to downstream cluster namespace: %w",
+				fleetutil.ErrRetryable,
+				bundle.Namespace,
+				bundle.Spec.ContentsID,
+				err,
+			)
+		}
 	}
 	if contentsInHelmChart && bundle.Spec.HelmOpOptions.SecretName != "" {
-		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmOpOptions.SecretName, fleet.SecretTypeHelmOpsAccess, bd)
+		if err := r.cloneSecret(
+			ctx,
+			bundle.Namespace,
+			bundle.Spec.HelmOpOptions.SecretName,
+			fleet.SecretTypeHelmOpsAccess,
+			bd,
+		); err != nil {
+			return fmt.Errorf(
+				"%w: failed to clone secret %s/%s to downstream cluster namespace: %w",
+				fleetutil.ErrRetryable,
+				bundle.Namespace,
+				bundle.Spec.HelmOpOptions.SecretName,
+				err,
+			)
+		}
 	}
 	return nil
 }
@@ -639,6 +710,37 @@ func (r *BundleReconciler) updateErrorStatus(
 	}
 
 	return reconcile.TerminalError(orgErr)
+}
+
+func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
+	for _, dr := range bundle.Spec.DownstreamResources {
+		switch strings.ToLower(dr.Kind) {
+		case "secret":
+			if err := r.cloneSecret(ctx, bundle.Namespace, dr.Name, "", bd); err != nil {
+				return fmt.Errorf(
+					"%w: failed to copy secret %s/%s to downstream cluster namespace: %w",
+					fleetutil.ErrRetryable,
+					bundle.Namespace,
+					dr.Name,
+					err,
+				)
+			}
+		case "configmap":
+			if err := r.cloneConfigMap(ctx, bundle.Namespace, dr.Name, bd); err != nil {
+				return fmt.Errorf(
+					"%w: failed to copy config map %s/%s to downstream cluster namespace: %w",
+					fleetutil.ErrRetryable,
+					bundle.Namespace,
+					dr.Name,
+					err,
+				)
+			}
+		default:
+			return fmt.Errorf("unsupported kind for object to copy to downstream: %q", dr.Kind)
+		}
+	}
+
+	return nil
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of
