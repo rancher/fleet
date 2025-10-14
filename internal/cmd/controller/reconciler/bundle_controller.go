@@ -26,11 +26,9 @@ import (
 	"github.com/rancher/fleet/pkg/durations"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
-	"github.com/rancher/wrangler/v3/pkg/condition"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -48,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -150,55 +149,6 @@ func (r *BundleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// clusterChangedPredicate filters cluster events that relate to bundldeployment creation.
-func clusterChangedPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			return true
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			n := e.ObjectNew.(*fleet.Cluster)
-			o := e.ObjectOld.(*fleet.Cluster)
-			// cluster deletion will eventually trigger a delete event
-			if n == nil || !n.DeletionTimestamp.IsZero() {
-				return true
-			}
-			// labels and annotations are used for templating and targeting
-			if !maps.Equal(n.Labels, o.Labels) {
-				return true
-			}
-			if !maps.Equal(n.Annotations, o.Annotations) {
-				return true
-			}
-			// spec templateValues is used in templating
-			if !reflect.DeepEqual(n.Spec, o.Spec) {
-				return true
-			}
-			// this namespace contains the bundledeployments
-			if n.Status.Namespace != o.Status.Namespace {
-				return true
-			}
-			// this namespace indicates the agent is running
-			if n.Status.Agent.Namespace != o.Status.Agent.Namespace {
-				return true
-			}
-
-			if n.Status.Scheduled != o.Status.Scheduled {
-				return true
-			}
-
-			if n.Status.ActiveSchedule != o.Status.ActiveSchedule {
-				return true
-			}
-
-			return false
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return true
-		},
-	}
-}
-
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fleet.cattle.io,resources=bundles/finalizers,verbs=update
@@ -228,11 +178,13 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.handleDelete(ctx, logger, req, bundle)
 	}
 
-	if err := r.ensureFinalizer(ctx, bundle); err != nil {
-		return ctrl.Result{}, err
-	}
-
 	bundleOrig := bundle.DeepCopy()
+
+	if err := r.ensureFinalizer(ctx, bundle); err != nil {
+		// Retry without updating the status, as this should be a transient error about which users can't do
+		// anything.
+		return ctrl.Result{}, fmt.Errorf("%w, failed to add finalizer to bundle: %w", fleetutil.ErrRetryable, err)
+	}
 
 	logger.V(1).Info(
 		"Reconciling bundle, checking targets, calculating changes, building objects",
@@ -246,11 +198,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// This sets the values on the bundle, which is safe as we don't update bundle, just its status
 	if bundle.Spec.ValuesHash != "" {
 		if err := loadBundleValues(ctx, r.Client, bundle); err != nil {
-			if errors.Is(err, fleetutil.ErrRetryable) {
-				logger.Info(err.Error())
-				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
-			}
-			return ctrl.Result{}, err
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to load values secret for bundle", err)
 		}
 	}
 
@@ -268,13 +216,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// Delete the "v" prefix (if found) before checking for a valid semver.
 		versionToCheck := strings.TrimPrefix(bundle.Spec.Helm.Version, "v")
 		if _, err := semver.StrictNewVersion(versionToCheck); err != nil {
-			setReadyCondition(
-				&bundle.Status,
-				fmt.Errorf("chart version cannot be deployed; check HelmOp status for more details: %v", err),
-			)
+			err = fmt.Errorf("chart version cannot be deployed; check HelmOp status for more details: %w", err)
 
-			err := r.updateStatus(ctx, bundleOrig, bundle)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 		}
 	}
 
@@ -288,25 +232,38 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		manifestDigest, err := resourcesManifest.SHASum()
 		if err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{},
+				r.updateErrorStatus(
+					ctx,
+					bundleOrig,
+					bundle,
+					fmt.Errorf("failed to compute resources manifest SHA sum for OCI storage: %w", err),
+				)
 		}
 		bundle.Status.ResourcesSHA256Sum = manifestDigest
 
 		manifestID, err = resourcesManifest.ID()
 		if err != nil {
 			// this should never happen, since manifest.SHASum() cached the result and worked above.
-			return ctrl.Result{}, err
+			return ctrl.Result{},
+				r.updateErrorStatus(
+					ctx,
+					bundleOrig,
+					bundle,
+					fmt.Errorf("failed to compute resources manifest ID for OCI storage: %w", err),
+				)
 		}
 	}
 
 	matchedTargets, err := r.Builder.Targets(ctx, bundle, manifestID)
 	if err != nil {
-		// When targeting fails, we don't want to continue and we make the error message visible in
-		// the UI. For that we use a status condition of type Ready.
-		setReadyCondition(&bundle.Status, fmt.Errorf("targeting error: %v", err))
-
-		err := r.updateStatus(ctx, bundleOrig, bundle)
-		return ctrl.Result{}, err
+		return ctrl.Result{},
+			r.updateErrorStatus(
+				ctx,
+				bundleOrig,
+				bundle,
+				fmt.Errorf("targeting error: %w", err),
+			)
 	}
 
 	if (!contentsInOCI && !contentsInHelmChart) && len(matchedTargets) > 0 {
@@ -322,24 +279,28 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// agents have access to all resources and use their specific
 		// set of `BundleDeploymentOptions`.
 		if err := r.Store.Store(ctx, resourcesManifest); err != nil {
-			return ctrl.Result{}, err
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "could not copy manifest into Content resource", err)
 		}
 	}
 	logger = logger.WithValues("manifestID", manifestID)
 
 	if err := resetStatus(&bundle.Status, matchedTargets); err != nil {
-		return ctrl.Result{}, err
+		err = fmt.Errorf("failed to reset bundle status from targets: %w", err)
+
+		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 	}
 
 	// this will add the defaults for a new bundledeployment. It propagates stagedOptions to options.
 	if err := target.UpdatePartitions(&bundle.Status, matchedTargets); err != nil {
-		return ctrl.Result{}, err
+		err = fmt.Errorf("failed to update partitions: %w", err)
+
+		return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 	}
 
 	if contentsInOCI {
 		url, err := r.getOCIReference(ctx, bundle)
 		if err != nil {
-			return ctrl.Result{}, err
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to build OCI reference", err)
 		}
 		bundle.Status.OCIReference = url
 	}
@@ -381,7 +342,9 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		h, options, stagedOptions, err := helmvalues.ExtractOptions(bd)
 		if err != nil {
-			return ctrl.Result{}, err
+			err := fmt.Errorf("failed to extract Helm options for secret creation: %w", err)
+
+			return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
 		}
 		// We need a checksum to trigger on value change, rely on later code in
 		// the reconciler to update the status
@@ -411,19 +374,22 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		if bd.Spec.ValuesHash != "" {
 			if err := r.createOptionsSecret(ctx, bd, options, stagedOptions); err != nil {
-				return ctrl.Result{}, fmt.Errorf("failed to create options secret: %w", err)
+				return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to create options secret", err)
 			}
 		} else {
 			// No values to store, delete the secret if it exists
 			if err := r.Delete(ctx, &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: bd.Name, Namespace: bd.Namespace},
 			}); err != nil && !apierrors.IsNotFound(err) {
-				return ctrl.Result{}, fmt.Errorf("failed to delete options secret: %w", err)
+				err = fmt.Errorf("%w: failed to delete options secret: %w", fleetutil.ErrRetryable, err)
+				logger.Info(err.Error())
+
+				return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 			}
 		}
 
 		if err := r.handleContentAccessSecrets(ctx, bundle, bd); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to clone secrets downstream: %w", err)
+			return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to clone secrets downstream", err)
 		}
 	}
 
@@ -439,23 +405,6 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return ctrl.Result{}, errutil.NewAggregate(merr)
-}
-
-func upper(op controllerutil.OperationResult) string {
-	switch op {
-	case controllerutil.OperationResultNone:
-		return "Unchanged"
-	case controllerutil.OperationResultCreated:
-		return "Created"
-	case controllerutil.OperationResultUpdated:
-		return "Updated"
-	case controllerutil.OperationResultUpdatedStatus:
-		return "Updated"
-	case controllerutil.OperationResultUpdatedStatusOnly:
-		return "Updated"
-	default:
-		return "Unknown"
-	}
 }
 
 // handleDelete runs cleanup for resources associated to a Bundle, finally removing the finalizer to unblock the deletion of the object from kubernetes.
@@ -564,31 +513,6 @@ func (r *BundleReconciler) createBundleDeployment(
 	return bd, nil
 }
 
-// loadBundleValues loads the values from the secret and sets them in the bundle spec
-func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
-	secret := &corev1.Secret{}
-	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); apierrors.IsNotFound(err) {
-		return fmt.Errorf("%w, retrying to get values secret for bundle: %w", fleetutil.ErrRetryable, err)
-	} else if err != nil {
-		return fmt.Errorf("failed to get values secret for bundle: %w", err)
-	}
-
-	hash, err := helmvalues.HashValuesSecret(secret.Data)
-	if err != nil {
-		return fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
-	}
-
-	if bundle.Spec.ValuesHash != hash {
-		return fmt.Errorf("%w, retrying since bundle values secret has changed, expected hash %q, calculated %q", fleetutil.ErrRetryable, bundle.Spec.ValuesHash, hash)
-	}
-
-	if err := helmvalues.SetValues(bundle, secret.Data); err != nil {
-		return fmt.Errorf("failed to set values from secret %q: %w", secret.Name, err)
-	}
-
-	return nil
-}
-
 func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.BundleDeployment, options []byte, stagedOptions []byte) error {
 	secret := &corev1.Secret{
 		Type: fleet.SecretTypeBundleDeploymentOptions,
@@ -616,7 +540,7 @@ func (r *BundleReconciler) createOptionsSecret(ctx context.Context, bd *fleet.Bu
 		}
 		return nil
 	}); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
 	}
 
 	return nil
@@ -632,7 +556,7 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 	}
 	var ociSecret corev1.Secret
 	if err := r.Get(ctx, namespacedName, &ociSecret); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
 	}
 	ref, ok := ociSecret.Data[ocistorage.OCISecretReference]
 	if !ok {
@@ -647,18 +571,18 @@ func (r *BundleReconciler) getOCIReference(ctx context.Context, bundle *fleet.Bu
 // the secret available to agents when deploying bd to downstream clusters.
 func (r *BundleReconciler) cloneSecret(
 	ctx context.Context,
-	namespace string,
+	ns string,
 	secretName string,
 	secretType string,
 	bd *fleet.BundleDeployment,
 ) error {
 	namespacedName := types.NamespacedName{
-		Namespace: namespace,
+		Namespace: ns,
 		Name:      secretName,
 	}
 	var secret corev1.Secret
 	if err := r.Get(ctx, namespacedName, &secret); err != nil {
-		return fmt.Errorf("failed to load source secret, cannot clone into %q: %w", namespace, err)
+		return fmt.Errorf("%w: failed to load source secret, cannot clone into %q: %w", fleetutil.ErrRetryable, ns, err)
 	}
 	// clone the secret, and just change the namespace so it's in the target's namespace
 	targetSecret := &corev1.Secret{
@@ -675,34 +599,11 @@ func (r *BundleReconciler) cloneSecret(
 	}
 
 	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
 	}
 	if err := r.Create(ctx, targetSecret); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func maybePurgeOCIReferenceSecret(ctx context.Context, c client.Client, old, new *fleet.BundleDeployment) error {
-	if !old.Spec.OCIContents || old.Spec.DeploymentID == "" {
-		return nil
-	}
-
-	if !new.Spec.OCIContents || (old.Spec.DeploymentID != new.Spec.DeploymentID) {
-		id, _ := kv.Split(old.Spec.DeploymentID, ":")
-		var secret corev1.Secret
-		secretID := client.ObjectKey{Name: id, Namespace: old.Namespace}
-		if err := c.Get(ctx, secretID, &secret); err != nil {
-			if !apierrors.IsNotFound(err) {
-				return err
-			}
-		} else {
-			if err := c.Delete(ctx, &secret); err != nil {
-				return err
-			}
+			return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
 		}
 	}
 
@@ -720,6 +621,24 @@ func (r *BundleReconciler) handleContentAccessSecrets(ctx context.Context, bundl
 		return r.cloneSecret(ctx, bundle.Namespace, bundle.Spec.HelmOpOptions.SecretName, fleet.SecretTypeHelmOpsAccess, bd)
 	}
 	return nil
+}
+
+// updateErrorStatus sets the Ready condition in the bundle status and tries to update the resource.
+// Setting that condition makes the error message visible in the Rancher UI.
+// Upon successful update of the status, updateErrorStatus returns a TerminalError, preventing requeues.
+func (r *BundleReconciler) updateErrorStatus(
+	ctx context.Context,
+	orig, bundle *fleet.Bundle,
+	orgErr error,
+) error {
+	SetCondition(string(fleet.Ready), &bundle.Status, orgErr)
+
+	if statusErr := r.updateStatus(ctx, orig, bundle); statusErr != nil {
+		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
+		return errutil.NewAggregate(merr)
+	}
+
+	return reconcile.TerminalError(orgErr)
 }
 
 // updateStatus patches the status of the bundle and collects metrics upon a successful update of
@@ -790,6 +709,28 @@ func (r *BundleReconciler) maybeDeleteOCIArtifact(ctx context.Context, bundle *f
 	return nil
 }
 
+// computeResult computes the controller result and error to return, depending on whether err is a retryable
+// error, which will be wrapped with the provided prefix.
+// If err is non-retryable, it will be propagated to the bundle status.
+func (r *BundleReconciler) computeResult(
+	ctx context.Context,
+	logger logr.Logger,
+	bundleOrig,
+	bundle *fleet.Bundle,
+	prefix string,
+	err error,
+) (ctrl.Result, error) {
+	if done, res, ctrlErr := CheckRetryable(err, logger); done {
+		return res, ctrlErr
+	}
+
+	err = fmt.Errorf("%s: %w", prefix, err)
+
+	SetCondition(string(fleet.Ready), &bundle.Status, err)
+
+	return ctrl.Result{}, r.updateErrorStatus(ctx, bundleOrig, bundle, err)
+}
+
 func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []fleet.BundleDeployment) error {
 	var errs []error
 	for _, bd := range list {
@@ -810,12 +751,120 @@ func batchDeleteBundleDeployments(ctx context.Context, c client.Client, list []f
 	return errors.Join(errs...)
 }
 
-// setCondition sets the condition and updates the timestamp, if the condition changed
-func setReadyCondition(status *fleet.BundleStatus, err error) {
-	cond := condition.Cond(fleet.Ready)
-	origStatus := status.DeepCopy()
-	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
-	if !equality.Semantic.DeepEqual(origStatus, status) {
-		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
+// clusterChangedPredicate filters cluster events that relate to bundldeployment creation.
+func clusterChangedPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			n := e.ObjectNew.(*fleet.Cluster)
+			o := e.ObjectOld.(*fleet.Cluster)
+			// cluster deletion will eventually trigger a delete event
+			if n == nil || !n.DeletionTimestamp.IsZero() {
+				return true
+			}
+			// labels and annotations are used for templating and targeting
+			if !maps.Equal(n.Labels, o.Labels) {
+				return true
+			}
+			if !maps.Equal(n.Annotations, o.Annotations) {
+				return true
+			}
+			// spec templateValues is used in templating
+			if !reflect.DeepEqual(n.Spec, o.Spec) {
+				return true
+			}
+			// this namespace contains the bundledeployments
+			if n.Status.Namespace != o.Status.Namespace {
+				return true
+			}
+			// this namespace indicates the agent is running
+			if n.Status.Agent.Namespace != o.Status.Agent.Namespace {
+				return true
+			}
+
+			if n.Status.Scheduled != o.Status.Scheduled {
+				return true
+			}
+
+			if n.Status.ActiveSchedule != o.Status.ActiveSchedule {
+				return true
+			}
+
+			return false
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+	}
+}
+
+// loadBundleValues loads the values from the secret and sets them in the bundle spec
+func loadBundleValues(ctx context.Context, c client.Client, bundle *fleet.Bundle) error {
+	secret := &corev1.Secret{}
+	if err := c.Get(ctx, types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}, secret); apierrors.IsNotFound(err) {
+		return fmt.Errorf("%w, retrying to get values secret for bundle: %w", fleetutil.ErrRetryable, err)
+	} else if err != nil {
+		return fmt.Errorf("failed to get values secret for bundle: %w", err)
+	}
+
+	hash, err := helmvalues.HashValuesSecret(secret.Data)
+	if err != nil {
+		return fmt.Errorf("failed to hash values secret %q: %w", secret.Name, err)
+	}
+
+	if bundle.Spec.ValuesHash != hash {
+		return fmt.Errorf("%w, retrying since bundle values secret has changed, expected hash %q, calculated %q", fleetutil.ErrRetryable, bundle.Spec.ValuesHash, hash)
+	}
+
+	if err := helmvalues.SetValues(bundle, secret.Data); err != nil {
+		return fmt.Errorf("failed to set values from secret %q: %w", secret.Name, err)
+	}
+
+	return nil
+}
+
+// maybePurgeOCIReferenceSecret deletes an outdated OCI reference secret if necessary, i.e. if a bundle has been updated
+// and either of the following applies:
+// * the old bundle used OCI storage while the new one does not anymore
+// * both old and new bundles use OCI storage, but the deployment ID has changed between the old bundles and the new one.
+func maybePurgeOCIReferenceSecret(ctx context.Context, c client.Client, old, new *fleet.BundleDeployment) error {
+	if !old.Spec.OCIContents || old.Spec.DeploymentID == "" {
+		return nil
+	}
+
+	if !new.Spec.OCIContents || (old.Spec.DeploymentID != new.Spec.DeploymentID) {
+		id, _ := kv.Split(old.Spec.DeploymentID, ":")
+		var secret corev1.Secret
+		secretID := client.ObjectKey{Name: id, Namespace: old.Namespace}
+		if err := c.Get(ctx, secretID, &secret); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+		} else {
+			if err := c.Delete(ctx, &secret); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func upper(op controllerutil.OperationResult) string {
+	switch op {
+	case controllerutil.OperationResultNone:
+		return "Unchanged"
+	case controllerutil.OperationResultCreated:
+		return "Created"
+	case controllerutil.OperationResultUpdated:
+		return "Updated"
+	case controllerutil.OperationResultUpdatedStatus:
+		return "Updated"
+	case controllerutil.OperationResultUpdatedStatusOnly:
+		return "Updated"
+	default:
+		return "Unknown"
 	}
 }
