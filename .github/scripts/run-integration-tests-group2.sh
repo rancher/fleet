@@ -15,5 +15,5 @@ find ./integrationtests -type d -not -path '*/.git*' \
   -not -path './integrationtests/agent*' \
   -not -path './integrationtests/bundlereader*' \
   -not -path './integrationtests/cli*' \
-  -not -path './integrationtests/controller*' | \
-  xargs ginkgo --github-output --trace
+  -not -path './integrationtests/controller*' -print0 | \
+  xargs -0 ginkgo --github-output --trace
