@@ -11,10 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 
 	jsonpatch "github.com/evanphx/json-patch"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
@@ -423,6 +425,8 @@ func Normalize(un *unstructured.Unstructured, opts ...Option) {
 		normalizeRole(un, o)
 	} else if gvk.Group == "" && gvk.Kind == "Endpoints" {
 		normalizeEndpoint(un, o)
+	} else if gvk.Group == "discovery.k8s.io" && gvk.Kind == "EndpointSlice" {
+		normalizeEndpointSlice(un, o)
 	}
 
 	err := o.normalizer.Normalize(un)
@@ -477,7 +481,9 @@ func NormalizeSecret(un *unstructured.Unstructured, opts ...Option) {
 	}
 }
 
-// normalizeEndpoint normalizes endpoint meaning that EndpointSubsets are sorted lexicographically
+// normalizeEndpoint normalizes endpoint meaning that EndpointSubsets are sorted lexicographically.
+// Note: The Endpoints API (core/v1) is deprecated in favor of EndpointSlice (discovery.k8s.io/v1).
+// Endpoints are supported for backward compatibility as users may still deploy them.
 func normalizeEndpoint(un *unstructured.Unstructured, o options) {
 	if un == nil {
 		return
@@ -486,7 +492,7 @@ func normalizeEndpoint(un *unstructured.Unstructured, o options) {
 	if gvk.Group != "" || gvk.Kind != "Endpoints" {
 		return
 	}
-	// nolint: staticcheck // Endpoint is deprecated; see fleet#3760.
+	// nolint: staticcheck // Endpoints is deprecated but still supported; see fleet#3760.
 	var ep corev1.Endpoints
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &ep)
 	if err != nil {
@@ -513,6 +519,83 @@ func normalizeEndpoint(un *unstructured.Unstructured, o options) {
 		return
 	}
 	un.Object = newObj
+}
+
+// normalizeEndpointSlice normalizes EndpointSlice by sorting endpoints and ports lexicographically
+// and setting default protocols. EndpointSlice is the successor to the deprecated Endpoints API.
+func normalizeEndpointSlice(un *unstructured.Unstructured, o options) {
+	if un == nil {
+		return
+	}
+	gvk := un.GroupVersionKind()
+	if gvk.Group != "discovery.k8s.io" || gvk.Kind != "EndpointSlice" {
+		return
+	}
+
+	var eps discoveryv1.EndpointSlice
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &eps)
+	if err != nil {
+		o.log.Error(err, "Failed to convert from unstructured into EndpointSlice")
+		return
+	}
+
+	// add default protocol to ports if it is empty
+	for p := range eps.Ports {
+		port := eps.Ports[p]
+		if port.Protocol == nil {
+			tcp := corev1.ProtocolTCP
+			port.Protocol = &tcp
+			eps.Ports[p] = port
+		}
+	}
+
+	// Sort endpoints by their addresses for consistent comparison
+	sortEndpointSliceEndpoints(eps.Endpoints)
+	sortEndpointSlicePorts(eps.Ports)
+
+	newObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&eps)
+	if err != nil {
+		o.log.Info(fmt.Sprintf(couldNotMarshalErrMsg, gvk, err))
+		return
+	}
+	un.Object = newObj
+}
+
+// sortEndpointSliceEndpoints sorts EndpointSlice endpoints by their addresses
+func sortEndpointSliceEndpoints(endpoints []discoveryv1.Endpoint) {
+	sort.Slice(endpoints, func(i, j int) bool {
+		// Sort by first address if available
+		if len(endpoints[i].Addresses) > 0 && len(endpoints[j].Addresses) > 0 {
+			addrCmp := bytes.Compare([]byte(endpoints[i].Addresses[0]), []byte(endpoints[j].Addresses[0]))
+			if addrCmp != 0 {
+				return addrCmp < 0
+			}
+		}
+		// Sort by target ref if available
+		if endpoints[i].TargetRef != nil && endpoints[j].TargetRef != nil {
+			return endpoints[i].TargetRef.UID < endpoints[j].TargetRef.UID
+		}
+		return false
+	})
+}
+
+// sortEndpointSlicePorts sorts EndpointSlice ports by port number and protocol
+func sortEndpointSlicePorts(ports []discoveryv1.EndpointPort) {
+	sort.Slice(ports, func(i, j int) bool {
+		// Compare by port number first
+		if ports[i].Port != nil && ports[j].Port != nil && *ports[i].Port != *ports[j].Port {
+			return *ports[i].Port < *ports[j].Port
+		}
+		// Then by name
+		if ports[i].Name != nil && ports[j].Name != nil && *ports[i].Name != *ports[j].Name {
+			return *ports[i].Name < *ports[j].Name
+		}
+		// Then by protocol
+		if ports[i].Protocol != nil && ports[j].Protocol != nil {
+			return *ports[i].Protocol < *ports[j].Protocol
+		}
+		return false
+	})
 }
 
 // normalizeRole mutates the supplied Role/ClusterRole and sets rules to null if it is an empty list or an aggregated role
