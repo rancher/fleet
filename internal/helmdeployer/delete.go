@@ -12,6 +12,9 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	corev1 "k8s.io/api/core/v1"
+	errutil "k8s.io/apimachinery/pkg/util/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -85,8 +88,11 @@ func (h *Helm) deleteByRelease(ctx context.Context, bundleID, releaseName string
 	}
 
 	u := action.NewUninstall(&cfg)
-	_, err = u.Run(releaseName)
-	return err
+	if _, err := u.Run(releaseName); err != nil {
+		return fmt.Errorf("failed to delete release %s: %v", releaseName, err)
+	}
+
+	return deleteResourcesCopiedFromUpstream(ctx, h.client, bundleID)
 }
 
 func (h *Helm) delete(ctx context.Context, bundleID string, options fleet.BundleDeploymentOptions, dryRun bool) error {
@@ -151,4 +157,43 @@ func deleteHistory(cfg action.Configuration, logger logr.Logger, bundleID string
 		}
 	}
 	return nil
+}
+
+// deleteResourcesCopiedFromUpstream deletes resources referenced through a bundle's `DownstreamResources`
+// field, and copied from downstream.
+func deleteResourcesCopiedFromUpstream(ctx context.Context, c client.Client, bdName string) error {
+	var merr []error
+
+	// No information is available about a deleted bundle deployment beside its name and namespace;
+	// in particular, we do not know where its resources copied from the upstream cluster, if any, might live, so we
+	// cannot delete them by name and namespace; instead, we need to resort to labels.
+	opts := client.MatchingLabels{
+		"fleet.cattle.io/bundledeployment": bdName,
+	}
+
+	secrets := corev1.SecretList{}
+
+	// XXX: should we log instead of erroring?
+	if err := c.List(ctx, &secrets, opts); err != nil {
+		merr = append(merr, fmt.Errorf("failed to list copied secrets from upstream to delete from outdated bundle: %w", err))
+	}
+
+	for _, s := range secrets.Items {
+		if err := c.Delete(ctx, &s); err != nil {
+			merr = append(merr, fmt.Errorf("failed to delete outdated secrets copied from downstream: %w", err))
+		}
+	}
+
+	cms := corev1.ConfigMapList{}
+
+	if err := c.List(ctx, &cms, opts); err != nil {
+		return fmt.Errorf("failed to list copied configmaps from upstream to delete from outdated bundle: %w", err)
+	}
+	for _, cm := range cms.Items {
+		if err := c.Delete(ctx, &cm); err != nil {
+			merr = append(merr, fmt.Errorf("failed to delete outdated configmaps copied from downstream: %w", err))
+		}
+	}
+
+	return errutil.NewAggregate(merr)
 }

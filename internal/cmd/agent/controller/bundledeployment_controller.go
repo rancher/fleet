@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rancher/fleet/internal/cmd/agent/deployer"
@@ -10,16 +11,21 @@ import (
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/driftdetect"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/monitor"
 	"github.com/rancher/fleet/internal/helmvalues"
+	"github.com/rancher/fleet/internal/namespaces"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	errutil "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -110,10 +116,10 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if apierrors.IsNotFound(err) {
 		// This actually deletes the helm releases if a bundledeployment is deleted or orphaned
 		logger.V(1).Info("BundleDeployment deleted, cleaning up helm releases")
-		err := r.Cleanup.CleanupReleases(ctx, key, nil)
-		if err != nil {
+		if err := r.Cleanup.CleanupReleases(ctx, key, nil); err != nil {
 			logger.Error(err, "Failed to clean up missing bundledeployment", "key", key)
 		}
+
 		return ctrl.Result{}, nil
 	} else if err != nil {
 		return ctrl.Result{}, err
@@ -148,6 +154,10 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		if err := helmvalues.SetOptions(bd, secret.Data); err != nil {
 			return ctrl.Result{}, err
 		}
+	}
+
+	if err := r.copyResourcesFromUpstream(ctx, bd, logger); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	var merr []error
@@ -218,6 +228,79 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	return ctrl.Result{}, errutil.NewAggregate(merr)
+}
+
+// copyResourcesFromUpstream copies bd's DownstreamResources, from the downstream cluster's namespace on the management
+// cluster to the destination namespace on the downstream cluster, creating that namespace if needed.
+// If bd does not have any DownstreamResources, this method does not issue any API server calls.
+func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
+	ctx context.Context,
+	bd *fleetv1.BundleDeployment,
+	logger logr.Logger,
+) error {
+	if len(bd.Spec.Options.DownstreamResources) == 0 {
+		return nil
+	}
+
+	destNS := namespaces.GetDeploymentNS(r.DefaultNamespace, bd.Spec.Options)
+
+	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: destNS}}
+	if err := r.LocalClient.Get(ctx, types.NamespacedName{Name: ns.Name}, &ns); apierrors.IsNotFound(err) {
+		if err := r.LocalClient.Create(ctx, &ns); err != nil {
+			logger.Info(err.Error())
+			return err
+		}
+
+		logger.V(1).Info("Created namespace to copy resources from upstream", "namespace", ns.Name)
+	}
+
+	for _, rsc := range bd.Spec.Options.DownstreamResources {
+		switch strings.ToLower(rsc.Kind) {
+		case "secret":
+			var s corev1.Secret
+			if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: rsc.Name}, &s); err != nil {
+				// The bundle deployment is actually created by the bundle reconciler _before_
+				// these objects are copied to the cluster's namespace, hence retries should happen if
+				// they are not found.
+
+				return err
+			}
+
+			s.Namespace = destNS
+			s.ResourceVersion = ""
+			if s.Labels == nil {
+				s.Labels = map[string]string{}
+			}
+			s.Labels["fleet.cattle.io/bundledeployment"] = bd.Name
+
+			if _, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &s, func() error { return nil }); err != nil {
+				return fmt.Errorf("failed to create or update secret %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
+			}
+		case "configmap":
+			var cm corev1.ConfigMap
+			if err := r.Reader.Get(ctx, client.ObjectKey{Namespace: bd.Namespace, Name: rsc.Name}, &cm); err != nil {
+				// The bundle deployment is actually created by the bundle reconciler _before_
+				// these objects are copied to the cluster's namespace, hence retries should happen if
+				// they are not found.
+
+				return err
+			}
+			cm.Namespace = destNS
+			cm.ResourceVersion = ""
+			if cm.Labels == nil {
+				cm.Labels = map[string]string{}
+			}
+			cm.Labels["fleet.cattle.io/bundledeployment"] = bd.Name
+
+			if _, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &cm, func() error { return nil }); err != nil {
+				return fmt.Errorf("failed to create or update configmap %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
+			}
+		default:
+			return fmt.Errorf("unknown resource type for copy to downstream cluster: %q", rsc.Kind)
+		}
+	}
+
+	return nil
 }
 
 func (r *BundleDeploymentReconciler) updateStatus(ctx context.Context, orig *fleetv1.BundleDeployment, obj *fleetv1.BundleDeployment) error {

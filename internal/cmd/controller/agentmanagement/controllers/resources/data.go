@@ -35,6 +35,13 @@ func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string
 					Resources: []string{fleet.BundleDeploymentResourceNamePlural + "/status"},
 				},
 				{
+					// Needed for copying a bundle's `DownstreamResources`, of which config
+					// maps are a supported kind, from the agent.
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"configmaps"},
+				},
+				{
 					Verbs:     []string{"get"},
 					APIGroups: []string{""},
 					Resources: []string{"secrets"},
