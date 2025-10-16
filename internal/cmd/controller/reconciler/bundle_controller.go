@@ -492,6 +492,9 @@ func (r *BundleReconciler) createBundleDeployment(
 	logger := l.WithValues("deploymentID", bd.Spec.DeploymentID)
 
 	// When content resources are stored in etcd, we need to add finalizers.
+	// Note: With many resources sharing the same content resource, this
+	// gets really slow when removing the finalizers as Update will
+	// conflict often and exponentially back off.
 	if !contentsInOCI && !contentsInHelmChart {
 		content := &fleet.Content{}
 		if err := r.Get(ctx, types.NamespacedName{Name: manifestID}, content); err != nil {
