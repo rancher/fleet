@@ -540,8 +540,7 @@ func normalizeEndpointSlice(un *unstructured.Unstructured, o options) {
 	}
 
 	// add default protocol to ports if it is empty
-	for p := range eps.Ports {
-		port := eps.Ports[p]
+	for p, port := range eps.Ports {
 		if port.Protocol == nil {
 			tcp := corev1.ProtocolTCP
 			port.Protocol = &tcp
