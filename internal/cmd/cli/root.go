@@ -25,6 +25,7 @@ func App() *cobra.Command {
 		NewApply(),
 		NewTest(),
 		NewCleanUp(),
+		NewMonitor(),
 
 		NewTarget(),
 		NewDeploy(),
