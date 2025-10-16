@@ -600,7 +600,14 @@ func (r *BundleReconciler) cloneConfigMap(
 	if err := controllerutil.SetControllerReference(bd, targetCM, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.Create(ctx, targetCM); err != nil {
+
+	updated := targetCM.DeepCopy()
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, targetCM, func() error {
+		targetCM.Data = updated.Data
+		targetCM.BinaryData = updated.BinaryData
+
+		return nil
+	}); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return err
 		}
@@ -632,19 +639,27 @@ func (r *BundleReconciler) cloneSecret(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secret.Name,
 			Namespace: bd.Namespace,
-			Labels:    map[string]string{fleet.InternalSecretLabel: "true"},
 		},
-		Data: secret.Data,
+		Data:       secret.Data,
+		StringData: secret.StringData,
 	}
 
 	if secretType != "" {
+		targetSecret.Labels = map[string]string{fleet.InternalSecretLabel: "true"}
 		targetSecret.Type = corev1.SecretType(secretType)
 	}
 
 	if err := controllerutil.SetControllerReference(bd, targetSecret, r.Scheme); err != nil {
 		return err
 	}
-	if err := r.Create(ctx, targetSecret); err != nil {
+
+	updated := targetSecret.DeepCopy()
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, targetSecret, func() error {
+		targetSecret.Data = updated.Data
+		targetSecret.StringData = updated.StringData
+
+		return nil
+	}); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return err
 		}
