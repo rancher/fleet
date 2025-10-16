@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -760,6 +761,14 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 }
 
 func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
+	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
+	bkp := os.Getenv(envVar)
+	defer func() {
+		os.Setenv(envVar, bkp)
+	}()
+
+	os.Setenv(envVar, "true")
+
 	cases := []struct {
 		name                        string
 		downstreamResources         []fleetv1.DownstreamResource

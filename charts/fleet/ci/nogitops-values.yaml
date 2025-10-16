@@ -64,5 +64,7 @@ shards:
       kubernetes.io/hostname: k3d-upstream-server-2
 
 extraEnv:
+  - name: EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM
+    value: "true"
   - name: EXPERIMENTAL_SCHEDULES
     value: "true"

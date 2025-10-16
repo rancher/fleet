@@ -69,6 +69,8 @@ eventually helm upgrade --install fleet charts/fleet \
   --set insecureSkipHostKeyChecks=false \
   --set-string extraEnv[0].name=EXPERIMENTAL_SCHEDULES \
   --set-string extraEnv[0].value=true \
+  --set-string extraEnv[1].name=EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM \
+  --set-string extraEnv[1].value=true \
   --set debug=true --set debugLevel=1
 
 # wait for controller and agent rollout

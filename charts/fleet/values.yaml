@@ -156,6 +156,8 @@ agent:
 # extraEnv:
 # - name: OCI_STORAGE
 #   value: "false"
+# - name: EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM
+#   value: "false"
 
 # shards:
 #   - id: shard0

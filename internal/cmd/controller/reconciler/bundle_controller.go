@@ -18,6 +18,7 @@ import (
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/cmd/controller/target"
+	"github.com/rancher/fleet/internal/experimental"
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/manifest"
 	"github.com/rancher/fleet/internal/metrics"
@@ -728,6 +729,10 @@ func (r *BundleReconciler) updateErrorStatus(
 }
 
 func (r *BundleReconciler) handleDownstreamObjects(ctx context.Context, bundle *fleet.Bundle, bd *fleet.BundleDeployment) error {
+	if !experimental.CopyResourcesDownstreamEnabled() {
+		return nil
+	}
+
 	for _, dr := range bundle.Spec.DownstreamResources {
 		switch strings.ToLower(dr.Kind) {
 		case "secret":
