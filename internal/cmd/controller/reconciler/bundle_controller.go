@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/go-logr/logr"
 	"github.com/rancher/fleet/internal/cmd/agent/deployer/kv"
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
@@ -27,8 +28,6 @@ import (
 	"github.com/rancher/fleet/pkg/durations"
 	fleetevent "github.com/rancher/fleet/pkg/event"
 	"github.com/rancher/fleet/pkg/sharding"
-
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -509,7 +508,7 @@ func (r *BundleReconciler) createBundleDeployment(
 
 		return nil
 	})
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+	if err != nil {
 		logger.Error(err, "Reconcile failed to create or update bundledeployment", "operation", op)
 		return nil, err
 	}
@@ -609,9 +608,7 @@ func (r *BundleReconciler) cloneConfigMap(
 
 		return nil
 	}); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
-			return err
-		}
+		return fmt.Errorf("failed to create or update source config map %s/%s: %w", bd.Namespace, cm.Name, err)
 	}
 
 	return nil
@@ -661,9 +658,7 @@ func (r *BundleReconciler) cloneSecret(
 
 		return nil
 	}); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
-			return err
-		}
+		return fmt.Errorf("failed to create or update source secret %s/%s: %w", bd.Namespace, secret.Name, err)
 	}
 
 	return nil

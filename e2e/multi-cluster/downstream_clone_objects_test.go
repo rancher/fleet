@@ -28,6 +28,7 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		name          string
 		keepResources bool
 		valuesFrom    []fleet.ValuesFrom
+		cmName        = "test-simple-chart-config"
 	)
 
 	BeforeEach(func() {
@@ -108,8 +109,6 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 		})
 
 		It("deploys the HelmOp and clones resources downstream", func() {
-			cmName := "test-simple-chart-config"
-
 			By("copying resources downstream")
 			Eventually(func(g Gomega) {
 				s, err := kd.Get("secrets")
@@ -145,6 +144,61 @@ var _ = Describe("Downstream objects cloning", Ordered, func() {
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(cms).NotTo(ContainSubstring("config-values"))
 			}).Should(Succeed())
+		})
+	})
+
+	Context("updating a copied resource at its source", func() {
+		BeforeEach(func() {
+			asset = "multi-cluster/helmop_downstream_resources.yaml"
+			name = "helmop-downstream-copy-update"
+			keepResources = false
+			valuesFrom = []fleet.ValuesFrom{
+				{
+					ConfigMapKeyRef: &fleet.ConfigMapKeySelector{
+						Namespace:            env.ClusterRegistrationNamespace,
+						LocalObjectReference: fleet.LocalObjectReference{Name: "config-values"},
+						Key:                  "values.yaml",
+					},
+				},
+			}
+		})
+
+		It("updates the deployment when a copied resource is updated at its source and the bundle is next reconciled", func() {
+			By("deploying resources with templated values taken from cloned resources")
+			Eventually(func(g Gomega) {
+				cms, err := kd.Get("configmaps")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cms).To(ContainSubstring(cmName))
+
+				name, err := kd.Get("configmaps", cmName, "-o", "jsonpath={.data.name}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(name).To(Equal("name-from-downstream-cluster-configmap"))
+			}).Should(Succeed())
+
+			By("updating a copied resource upstream")
+			out, err := k.Namespace(env.ClusterRegistrationNamespace).Patch("configmap", "config-values", "--type=merge", "-p", `{"data":{"values.yaml":"name: new-name"}}`)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			By("reconciling the helmop")
+			// remove the secret as downstream resource; does not have any effect on the
+			// bundle deployment itself, but should trigger a new reconcile of the helmop, hence the bundle.
+			out, err = k.Namespace(env.ClusterRegistrationNamespace).Patch("helmop", name, "--type=json", "-p", `[{"op": "remove", "path": "/spec/downstreamResources/0"}]`)
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			By("propagating the update to the deployment once the helmop is reconciled")
+			Eventually(func(g Gomega) {
+				cms, err := kd.Get("configmaps")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(cms).To(ContainSubstring(cmName))
+
+				name, err := kd.Get("configmaps", cmName, "-o", "jsonpath={.data.name}")
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(name).To(Equal("new-name"))
+			}).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			_, _ = k.Namespace(env.ClusterRegistrationNamespace).Delete("helmop", name)
 		})
 	})
 

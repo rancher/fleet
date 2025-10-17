@@ -54,7 +54,13 @@ func (d *Deployer) RemoveExternalChanges(ctx context.Context, bd *fleet.BundleDe
 
 // DeployBundle deploys the bundle deployment with the helm SDK. It does not
 // mutate bd, instead it returns the modified status
-func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment) (fleet.BundleDeploymentStatus, error) {
+// If force is true, bd will be upgraded even if its contents have not changed; this is useful for
+// applying changes coming from external resources, such as those referenced through valuesFrom.
+func (d *Deployer) DeployBundle(
+	ctx context.Context,
+	bd *fleet.BundleDeployment,
+	force bool,
+) (fleet.BundleDeploymentStatus, error) {
 	status := bd.Status
 	logger := log.FromContext(ctx).WithName("deploy-bundle").WithValues("deploymentID", bd.Spec.DeploymentID, "appliedDeploymentID", status.AppliedDeploymentID)
 
@@ -63,7 +69,7 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 		return status, err
 	}
 
-	releaseID, err := d.helmdeploy(ctx, logger, bd)
+	releaseID, err := d.helmdeploy(ctx, logger, bd, force)
 
 	if err != nil {
 		// When an error from DeployBundle is returned it causes DeployBundle
@@ -99,8 +105,10 @@ func (d *Deployer) DeployBundle(ctx context.Context, bd *fleet.BundleDeployment)
 
 // Deploy the bundle deployment, i.e. with helmdeployer.
 // This loads the manifest and the contents from the upstream cluster.
-func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet.BundleDeployment) (string, error) {
-	if bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
+// If force is true, checks on whether the bundle deployment exists will be skipped, leading to the bundle deployment
+// being updated even if its deployment ID has not changed.
+func (d *Deployer) helmdeploy(ctx context.Context, logger logr.Logger, bd *fleet.BundleDeployment, force bool) (string, error) {
+	if !force && bd.Spec.DeploymentID == bd.Status.AppliedDeploymentID {
 		if ok, err := d.helm.EnsureInstalled(bd.Name, bd.Status.Release); err != nil {
 			return "", err
 		} else if ok {
