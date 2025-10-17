@@ -181,6 +181,12 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// Migration: Remove the obsolete created-by-display-name label if it exists
+	if err := r.removeDisplayNameLabel(ctx, req.NamespacedName); err != nil {
+		logger.V(1).Error(err, "Failed to remove display name label")
+		return ctrl.Result{}, err
+	}
+
 	logger = logger.WithValues("generation", gitrepo.Generation, "commit", gitrepo.Status.Commit).WithValues("conditions", gitrepo.Status.Conditions)
 
 	if userID := gitrepo.Labels[v1alpha1.CreatedByUserIDLabel]; userID != "" {
@@ -467,6 +473,28 @@ func (r *GitJobReconciler) createCABundleSecret(ctx context.Context, gitrepo *v1
 	})
 
 	return true, err
+}
+
+// removeDisplayNameLabel removes the obsolete created-by-display-name label from the gitrepo if it exists.
+func (r *GitJobReconciler) removeDisplayNameLabel(ctx context.Context, nsName types.NamespacedName) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gitrepo := &v1alpha1.GitRepo{}
+		if err := r.Get(ctx, nsName, gitrepo); err != nil {
+			return err
+		}
+
+		if gitrepo.Labels == nil {
+			return nil
+		}
+
+		const deprecatedLabel = "fleet.cattle.io/created-by-display-name"
+		if _, exists := gitrepo.Labels[deprecatedLabel]; !exists {
+			return nil
+		}
+
+		delete(gitrepo.Labels, deprecatedLabel)
+		return r.Update(ctx, gitrepo)
+	})
 }
 
 func (r *GitJobReconciler) validateExternalSecretExist(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {

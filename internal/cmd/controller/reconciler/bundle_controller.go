@@ -163,6 +163,11 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	bundleOrig := bundle.DeepCopy()
 
+	// Migration: Remove the obsolete created-by-display-name label if it exists
+	if err := r.removeDisplayNameLabel(ctx, bundle); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	logger.V(1).Info(
 		"Reconciling bundle, checking targets, calculating changes, building objects",
 		"generation",
@@ -397,6 +402,24 @@ func (r *BundleReconciler) ensureFinalizer(ctx context.Context, bundle *fleet.Bu
 
 	controllerutil.AddFinalizer(bundle, finalize.BundleFinalizer)
 	return r.Update(ctx, bundle)
+}
+
+// removeDisplayNameLabel removes the obsolete created-by-display-name label from the bundle if it exists.
+func (r *BundleReconciler) removeDisplayNameLabel(ctx context.Context, bundle *fleet.Bundle) error {
+	if bundle.Labels == nil {
+		return nil
+	}
+
+	const deprecatedLabel = "fleet.cattle.io/created-by-display-name"
+	if _, exists := bundle.Labels[deprecatedLabel]; !exists {
+		return nil
+	}
+
+	delete(bundle.Labels, deprecatedLabel)
+	if err := r.Update(ctx, bundle); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *BundleReconciler) createBundleDeployment(
