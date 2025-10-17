@@ -188,8 +188,7 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// Migration: Remove the obsolete created-by-display-name label if it exists
 	if err := r.removeDisplayNameLabel(ctx, bundle); err != nil {
-		logger.V(1).Error(err, "Failed to remove display name label")
-		return ctrl.Result{}, err
+		return r.computeResult(ctx, logger, bundleOrig, bundle, "failed to remove display name label", err)
 	}
 
 	logger.V(1).Info(
@@ -472,7 +471,10 @@ func (r *BundleReconciler) removeDisplayNameLabel(ctx context.Context, bundle *f
 	}
 
 	delete(bundle.Labels, deprecatedLabel)
-	return r.Update(ctx, bundle)
+	if err := r.Update(ctx, bundle); err != nil {
+		return fmt.Errorf("%w: %w", fleetutil.ErrRetryable, err)
+	}
+	return nil
 }
 
 func (r *BundleReconciler) createBundleDeployment(
