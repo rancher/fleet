@@ -25,6 +25,8 @@ const (
 
 	// SecretTypeBundleDeploymentOptions is the type of the secret that stores the deployment values options.
 	SecretTypeBundleDeploymentOptions = "fleet.cattle.io/bundle-deployment/v1alpha1"
+
+	BundleDeploymentOwnershipLabel = "fleet.cattle.io/bundledeployment"
 )
 
 const IgnoreOp = "ignore"

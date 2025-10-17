@@ -173,7 +173,7 @@ func deleteResourcesCopiedFromUpstream(ctx context.Context, c client.Client, bdN
 	// in particular, we do not know where its resources copied from the upstream cluster, if any, might live, so we
 	// cannot delete them by name and namespace; instead, we need to resort to labels.
 	opts := client.MatchingLabels{
-		"fleet.cattle.io/bundledeployment": bdName,
+		fleet.BundleDeploymentOwnershipLabel: bdName,
 	}
 
 	secrets := corev1.SecretList{}

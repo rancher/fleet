@@ -276,7 +276,7 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 			if s.Labels == nil {
 				s.Labels = map[string]string{}
 			}
-			s.Labels["fleet.cattle.io/bundledeployment"] = bd.Name
+			s.Labels[fleetv1.BundleDeploymentOwnershipLabel] = bd.Name
 
 			if _, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &s, func() error { return nil }); err != nil {
 				return fmt.Errorf("failed to create or update secret %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
@@ -295,7 +295,7 @@ func (r *BundleDeploymentReconciler) copyResourcesFromUpstream(
 			if cm.Labels == nil {
 				cm.Labels = map[string]string{}
 			}
-			cm.Labels["fleet.cattle.io/bundledeployment"] = bd.Name
+			cm.Labels[fleetv1.BundleDeploymentOwnershipLabel] = bd.Name
 
 			if _, err := controllerutil.CreateOrUpdate(ctx, r.LocalClient, &cm, func() error { return nil }); err != nil {
 				return fmt.Errorf("failed to create or update configmap %s/%s downstream: %v", bd.Namespace, rsc.Name, err)
