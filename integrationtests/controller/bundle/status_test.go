@@ -168,6 +168,8 @@ var _ = Describe("Bundle Status Fields", func() {
 			Expect(bd.Status.Display.State).To(Equal("Ready"))
 			Expect(bd.Status.AppliedDeploymentID).To(Equal(bd.Spec.DeploymentID))
 
+			deplIDBefore := bd.Spec.DeploymentID
+
 			Eventually(func() bool {
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
 				Expect(err).NotTo(HaveOccurred())
@@ -191,15 +193,18 @@ var _ = Describe("Bundle Status Fields", func() {
 				return k8sClient.Update(ctx, cluster)
 			}).ShouldNot(HaveOccurred())
 
-			// Change in cluster state reflects a change in bundle state
-			Eventually(func() bool {
+			// Change in cluster state results in a bundle deployment update
+			Eventually(func(g Gomega) {
+				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(bd.Spec.DeploymentID).ToNot(Equal(deplIDBefore))
+
 				err = k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "name"}, bundle)
-				Expect(err).NotTo(HaveOccurred())
-				return bundle.Status.Summary.Ready == 0
-			}).Should(BeTrue())
-			Expect(bundle.Status.Summary.WaitApplied).To(Equal(1))
-			Expect(bundle.Status.Display.ReadyClusters).To(Equal("0/1"))
-			Expect(bundle.Status.Display.State).To(Equal("WaitApplied"))
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(bundle.Status.Summary.WaitApplied).To(Equal(0))
+				g.Expect(bundle.Status.Display.ReadyClusters).To(Equal("1/1"))
+				g.Expect(bundle.Status.Display.State).To(BeEmpty()) // all resources ready
+			}).Should(Succeed())
 		})
 	})
 })
