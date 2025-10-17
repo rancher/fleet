@@ -22,6 +22,7 @@ const (
 	GitRepoFinalizer          = "fleet.cattle.io/gitrepo-finalizer"
 	BundleFinalizer           = "fleet.cattle.io/bundle-finalizer"
 	BundleDeploymentFinalizer = "fleet.cattle.io/bundle-deployment-finalizer"
+	ClusterFinalizer          = "fleet.cattle.io/cluster-finalizer"
 )
 
 // PurgeBundles deletes all bundles related to the given resource namespaced name

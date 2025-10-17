@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestScheduler(t *testing.T) {
+func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fleet Scheduler Controller Suite")
+	RunSpecs(t, "Fleet Controllers Suite")
 }

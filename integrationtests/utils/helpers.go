@@ -7,6 +7,8 @@ import (
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -48,8 +50,20 @@ func CreateCluster(ctx context.Context, k8sClient client.Client, name, controlle
 	if err != nil {
 		return nil, err
 	}
-	cluster.Status.Namespace = clusterNs
-	err = k8sClient.Status().Update(ctx, cluster)
+
+	ns := types.NamespacedName{
+		Namespace: controllerNs,
+		Name:      name,
+	}
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		c := &v1alpha1.Cluster{}
+		err := k8sClient.Get(ctx, ns, c)
+		if err != nil {
+			return err
+		}
+		c.Status.Namespace = clusterNs
+		return k8sClient.Status().Update(ctx, c)
+	})
 	return cluster, err
 }
 

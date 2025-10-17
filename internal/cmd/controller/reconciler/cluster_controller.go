@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/summary"
 	"github.com/rancher/fleet/internal/metrics"
 	"github.com/rancher/fleet/internal/resourcestatus"
@@ -33,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -124,11 +126,18 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	cluster := &fleet.Cluster{}
 	err := r.Get(ctx, req.NamespacedName, cluster)
-	if apierrors.IsNotFound(err) {
-		metrics.ClusterCollector.Delete(req.Name, req.Namespace)
-		return ctrl.Result{}, nil
-	} else if err != nil {
-		return ctrl.Result{}, err
+	if err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	if !cluster.DeletionTimestamp.IsZero() {
+		return r.handleDelete(ctx, cluster)
+	}
+
+	if err := r.ensureFinalizer(ctx, cluster); err != nil {
+		// Retry without updating the status, as this should be a transient error about which users can't do
+		// anything.
+		return ctrl.Result{}, fmt.Errorf("%w, failed to add finalizer to bundle: %w", fleetutil.ErrRetryable, err)
 	}
 
 	if cluster.Status.Namespace == "" {
@@ -336,4 +345,43 @@ func (r *ClusterReconciler) mapBundleDeploymentToCluster(ctx context.Context, a 
 			Name:      name,
 		},
 	}}
+}
+
+// ensureFinalizer adds a finalizer to a recently created cluster.
+func (r *ClusterReconciler) ensureFinalizer(ctx context.Context, cluster *fleet.Cluster) error {
+	if controllerutil.ContainsFinalizer(cluster, finalize.ClusterFinalizer) {
+
+		return nil
+	}
+
+	controllerutil.AddFinalizer(cluster, finalize.ClusterFinalizer)
+
+	return r.Update(ctx, cluster)
+}
+
+// handleDelete runs cleanup the namespace associated to a Cluster,
+// finally removing the finalizer to unblock the deletion of the object from kubernetes.
+func (r *ClusterReconciler) handleDelete(ctx context.Context, cluster *fleet.Cluster) (ctrl.Result, error) {
+	if !controllerutil.ContainsFinalizer(cluster, finalize.ClusterFinalizer) {
+
+		return ctrl.Result{}, nil
+	}
+
+	if cluster.Status.Namespace != "" {
+		// pro-actively delete the cluster's namespace.
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: cluster.Status.Namespace,
+			},
+		}
+		if err := r.Delete(ctx, ns); err != nil && !apierrors.IsNotFound(err) {
+
+			return ctrl.Result{}, err
+		}
+	}
+
+	metrics.ClusterCollector.Delete(cluster.Name, cluster.Namespace)
+	controllerutil.RemoveFinalizer(cluster, finalize.ClusterFinalizer)
+
+	return ctrl.Result{}, r.Update(ctx, cluster)
 }
