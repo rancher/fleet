@@ -524,7 +524,7 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
-		Times(2).
+		Times(3).
 		DoAndReturn(
 			func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
 				gitrepo.Name = gitRepo.Name
@@ -607,7 +607,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(2).DoAndReturn(
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(3).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
 			gitrepo.Name = gitRepo.Name
 			gitrepo.Namespace = gitRepo.Namespace
