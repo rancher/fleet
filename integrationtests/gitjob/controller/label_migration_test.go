@@ -43,7 +43,7 @@ var _ = Describe("GitRepo label migration", func() {
 	}
 
 	DescribeTable("should remove deprecated label after migration",
-		func(gitRepoName string, initialLabels map[string]string, shouldHaveDisplayLabel bool) {
+		func(gitRepoName string, initialLabels map[string]string) {
 			const deprecatedLabel = "fleet.cattle.io/created-by-display-name"
 
 			createGitRepo(gitRepoName, initialLabels)
@@ -71,14 +71,12 @@ var _ = Describe("GitRepo label migration", func() {
 				"fleet.cattle.io/created-by-display-name": "admin",
 				v1alpha1.CreatedByUserIDLabel:             "user-12345",
 			},
-			true,
 		),
 		Entry("without label present initially",
 			"gitrepo-without-label",
 			map[string]string{
 				v1alpha1.CreatedByUserIDLabel: "user-12345",
 			},
-			false,
 		),
 	)
 })

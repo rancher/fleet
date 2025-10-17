@@ -55,7 +55,7 @@ var _ = Describe("Bundle label migration", func() {
 	}
 
 	DescribeTable("should remove deprecated label after migration",
-		func(bundleName string, initialLabels map[string]string, shouldHaveDisplayLabel bool) {
+		func(bundleName string, initialLabels map[string]string) {
 			const deprecatedLabel = "fleet.cattle.io/created-by-display-name"
 
 			createBundle(bundleName, initialLabels)
@@ -83,14 +83,12 @@ var _ = Describe("Bundle label migration", func() {
 				"fleet.cattle.io/created-by-display-name": "admin",
 				v1alpha1.CreatedByUserIDLabel:             "user-12345",
 			},
-			true,
 		),
 		Entry("without label present initially",
 			"bundle-without-label",
 			map[string]string{
 				v1alpha1.CreatedByUserIDLabel: "user-12345",
 			},
-			false,
 		),
 	)
 })
