@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -20,6 +22,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -752,6 +755,198 @@ func TestReconcile_OCIReferenceSecretResolutionError(t *testing.T) {
 
 			if c.expectedErrMsg == "" && rs.RequeueAfter == 0 {
 				t.Errorf("expected non-zero RequeueAfter in result")
+			}
+		})
+	}
+}
+
+func TestReconcile_DownstreamObjectsHandlingError(t *testing.T) {
+	envVar := "EXPERIMENTAL_COPY_RESOURCES_DOWNSTREAM"
+	bkp := os.Getenv(envVar)
+	defer func() {
+		os.Setenv(envVar, bkp)
+	}()
+
+	os.Setenv(envVar, "true")
+
+	cases := []struct {
+		name                        string
+		downstreamResources         []fleetv1.DownstreamResource
+		downstreamResourcesGetCalls func(mc *mocks.MockK8sClient)
+		expectedErrorMsg            string
+		expectRetries               bool
+	}{
+		{
+			name: "secret not found",
+			downstreamResources: []fleetv1.DownstreamResource{
+				{
+					Kind: "Secret",
+					Name: "my-top-secret",
+				},
+				// will not be processed
+				{
+					Kind: "ConfigMap",
+					Name: "my-configmap",
+				},
+			},
+			downstreamResourcesGetCalls: func(mc *mocks.MockK8sClient) {
+				mc.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(errors.New("something went wrong"))
+
+			},
+			expectedErrorMsg: `failed to clone config maps and secrets downstream: failed to copy secret`,
+			expectRetries:    true,
+		},
+		{
+			name: "config map not found",
+			downstreamResources: []fleetv1.DownstreamResource{
+				{
+					Kind: "Secret",
+					Name: "my-top-secret",
+				},
+				{
+					Kind: "ConfigMap",
+					Name: "my-configmap",
+				},
+			},
+			downstreamResourcesGetCalls: func(mc *mocks.MockK8sClient) {
+				// Getting the source secret
+				mc.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(nil)
+
+				// Checking if the destination secret exists
+				mc.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+					Return(&k8serrors.StatusError{ErrStatus: metav1.Status{Code: http.StatusNotFound}})
+
+				mc.EXPECT().Create(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{})).Return(nil)
+
+				mc.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&corev1.ConfigMap{}), gomock.Any()).
+					Return(errors.New("something went wrong"))
+
+			},
+			expectedErrorMsg: `failed to clone config maps and secrets downstream: failed to copy config map`,
+			expectRetries:    true,
+		},
+		{
+			name: "unsupported resource",
+			downstreamResources: []fleetv1.DownstreamResource{
+				{
+					Kind: "SomethingElse",
+					Name: "what",
+				},
+			},
+			downstreamResourcesGetCalls: func(mc *mocks.MockK8sClient) {},
+			expectedErrorMsg:            `failed to clone config maps and secrets downstream: unsupported kind for object to copy to downstream`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+			scheme := runtime.NewScheme()
+			utilruntime.Must(batchv1.AddToScheme(scheme))
+			utilruntime.Must(fleetv1.AddToScheme(scheme))
+
+			bundle := fleetv1.Bundle{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-bundle",
+					Namespace: "default",
+				},
+				Spec: fleetv1.BundleSpec{
+					RolloutStrategy: nil,
+					BundleDeploymentOptions: fleetv1.BundleDeploymentOptions{
+						DownstreamResources: c.downstreamResources,
+					},
+				},
+			}
+
+			namespacedName := types.NamespacedName{Name: bundle.Name, Namespace: bundle.Namespace}
+
+			mockClient := mocks.NewMockK8sClient(mockCtrl)
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Bundle{}), gomock.Any()).DoAndReturn(
+				func(ctx context.Context, req types.NamespacedName, b *fleetv1.Bundle, opts ...interface{}) error {
+					b.Name = bundle.Name
+					b.Namespace = bundle.Namespace
+					controllerutil.AddFinalizer(b, finalize.BundleFinalizer)
+
+					b.Spec = bundle.Spec
+
+					return nil
+				},
+			)
+
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).
+				Return(nil)
+			mockClient.EXPECT().Update(gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.Content{}), gomock.Any()).Return(nil)
+
+			mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.BundleDeployment{}), gomock.Any()).
+				Return(nil)
+
+			// options secret
+			mockClient.EXPECT().Delete(gomock.Any(), gomock.AssignableToTypeOf(&corev1.Secret{}), gomock.Any()).
+				Return(nil)
+
+			c.downstreamResourcesGetCalls(mockClient)
+
+			if !c.expectRetries {
+				statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+				mockClient.EXPECT().Status().Return(statusClient).Times(1)
+
+				expectStatusPatch(t, statusClient, c.expectedErrorMsg)
+			}
+
+			recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
+			matchedTargets := []*target.Target{
+				{
+					Bundle: &bundle,
+					Cluster: &fleetv1.Cluster{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "my-ns",
+							Name:      "my-cluster",
+						},
+					},
+					Deployment: &fleetv1.BundleDeployment{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "my-bd", // non-empty
+						},
+					},
+					DeploymentID: "foo",
+				},
+			}
+			targetBuilderMock := mocks.NewMockTargetBuilder(mockCtrl)
+			targetBuilderMock.EXPECT().Targets(gomock.Any(), gomock.Any(), gomock.Any()).Return(matchedTargets, nil)
+
+			storeMock := mocks.NewMockStore(mockCtrl)
+			storeMock.EXPECT().Store(gomock.Any(), gomock.Any()).Return(nil)
+
+			r := reconciler.BundleReconciler{
+				Client:   mockClient,
+				Scheme:   scheme,
+				Recorder: recorderMock,
+				Builder:  targetBuilderMock,
+				Store:    storeMock,
+			}
+
+			ctx := context.TODO()
+			rs, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
+			if c.expectRetries {
+				if err != nil {
+					t.Errorf("expected nil error, got: %v", err)
+				}
+
+				if rs.RequeueAfter == 0 {
+					t.Errorf("expected non-zero RequeueAfter in result")
+				}
+			} else {
+				if !errors.Is(err, reconcile.TerminalError(nil)) {
+					t.Errorf("expected terminal error, got: %v", err)
+				}
+
+				if !strings.Contains(err.Error(), c.expectedErrorMsg) {
+					t.Errorf("unexpected error: %v", err)
+				}
 			}
 		})
 	}

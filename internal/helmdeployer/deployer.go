@@ -13,6 +13,7 @@ import (
 	"helm.sh/helm/v3/pkg/storage/driver"
 
 	"github.com/rancher/fleet/internal/names"
+	"github.com/rancher/fleet/internal/namespaces"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -102,14 +103,7 @@ func (h *Helm) getOpts(bundleID string, options fleet.BundleDeploymentOptions) (
 		timeout = time.Second * time.Duration(options.Helm.TimeoutSeconds)
 	}
 
-	ns := options.DefaultNamespace
-	if options.TargetNamespace != "" {
-		ns = options.TargetNamespace
-	}
-
-	if ns == "" {
-		ns = h.defaultNamespace
-	}
+	ns := namespaces.GetDeploymentNS(h.defaultNamespace, options)
 
 	if options.Helm != nil && options.Helm.ReleaseName != "" {
 		// JSON schema validation makes sure that the option is valid
