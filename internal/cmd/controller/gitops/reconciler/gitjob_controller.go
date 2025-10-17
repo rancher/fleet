@@ -15,6 +15,7 @@ import (
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
+	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/metrics"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
@@ -136,7 +137,7 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			builder.WithPredicates(
 				// do not trigger for GitRepo status changes (except for commit changes and cache sync)
 				predicate.Or(
-					TypedResourceVersionUnchangedPredicate[client.Object]{},
+					reconciler.TypedResourceVersionUnchangedPredicate[client.Object]{},
 					predicate.GenerationChangedPredicate{},
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
