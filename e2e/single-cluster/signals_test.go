@@ -28,8 +28,10 @@ var _ = Describe("Shuts down gracefully", func() {
 		})
 
 		JustBeforeEach(func() {
-			out, err := k.Run("exec", "deploy/fleet-agent", "--", "kill", "1")
-			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func(g Gomega) {
+				out, err := k.Run("exec", "deploy/fleet-agent", "--", "kill", "1")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+			}).Should(Succeed())
 		})
 
 		It("exits gracefully", func() {
@@ -59,11 +61,13 @@ var _ = Describe("Shuts down gracefully", func() {
 		})
 
 		JustBeforeEach(func() {
-			pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
-			Expect(err).ToNot(HaveOccurred(), pod)
+			Eventually(func(g Gomega) {
+				pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
+				g.Expect(err).ToNot(HaveOccurred(), pod)
 
-			out, err := k.Run("exec", pod, "--", "kill", "1")
-			Expect(err).ToNot(HaveOccurred(), out)
+				out, err := k.Run("exec", pod, "--", "kill", "1")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+			}).Should(Succeed())
 		})
 
 		It("exits gracefully", func() {
@@ -93,11 +97,13 @@ var _ = Describe("Shuts down gracefully", func() {
 		})
 
 		JustBeforeEach(func() {
-			pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
-			Expect(err).ToNot(HaveOccurred(), pod)
+			Eventually(func(g Gomega) {
+				pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
+				g.Expect(err).ToNot(HaveOccurred(), pod)
 
-			out, err := k.Run("exec", pod, "--", "kill", "1")
-			Expect(err).ToNot(HaveOccurred(), out)
+				out, err := k.Run("exec", pod, "--", "kill", "1")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+			}).Should(Succeed())
 		})
 
 		It("exits gracefully", func() {
@@ -127,11 +133,13 @@ var _ = Describe("Shuts down gracefully", func() {
 		})
 
 		JustBeforeEach(func() {
-			pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
-			Expect(err).ToNot(HaveOccurred(), pod)
+			Eventually(func(g Gomega) {
+				pod, err := k.Get("pod", "-l", labels, "-o", "jsonpath={.items[0].metadata.name}")
+				g.Expect(err).ToNot(HaveOccurred(), pod)
 
-			out, err := k.Run("exec", pod, "--", "kill", "1")
-			Expect(err).ToNot(HaveOccurred(), out)
+				out, err := k.Run("exec", pod, "--", "kill", "1")
+				g.Expect(err).ToNot(HaveOccurred(), out)
+			}).Should(Succeed())
 		})
 
 		It("exits gracefully", func() {
