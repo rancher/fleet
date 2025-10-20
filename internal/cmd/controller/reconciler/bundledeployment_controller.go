@@ -64,6 +64,12 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// Enrich logger with userID if present
+	if userID := bd.Labels[fleet.CreatedByUserIDLabel]; userID != "" {
+		logger = logger.WithValues("userID", userID)
+	}
+	logger.V(1).Info("Reconciling bundledeployment")
+
 	// The bundle reconciler takes care of adding the finalizer when creating a bundle deployment
 	if !bd.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(bd, finalize.BundleDeploymentFinalizer) {
