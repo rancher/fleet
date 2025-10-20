@@ -7,7 +7,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"go.uber.org/zap/zapcore"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/rancher/fleet/integrationtests/utils"
@@ -40,8 +39,7 @@ func TestFleet(t *testing.T) {
 var _ = BeforeSuite(func() {
 	// Configure log capture
 	GinkgoWriter.TeeTo(&logsBuffer)
-	zapLogger := zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true), zap.Level(zapcore.Level(-4)))
-	ctrl.SetLogger(zapLogger)
+	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	ctx, cancel = context.WithCancel(context.TODO())
 	testenv = utils.NewEnvTest("../../..")

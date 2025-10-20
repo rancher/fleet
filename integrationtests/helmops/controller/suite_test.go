@@ -10,7 +10,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/reugn/go-quartz/quartz"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/helmops/reconciler"
@@ -55,7 +54,7 @@ var _ = BeforeSuite(func() {
 	testEnv = utils.NewEnvTest("../../..")
 
 	GinkgoWriter.TeeTo(&logsBuffer)
-	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true), zap.Level(zapcore.Level(-4))))
+	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	var err error
 	cfg, err = utils.StartTestEnv(testEnv)
