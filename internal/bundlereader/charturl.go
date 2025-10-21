@@ -14,7 +14,6 @@ import (
 	"github.com/Masterminds/semver/v3"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	repov1 "helm.sh/helm/v4/pkg/repo/v1"
-	"sigs.k8s.io/yaml"
 
 	"oras.land/oras-go/v2/registry"
 	"oras.land/oras-go/v2/registry/remote"
@@ -40,16 +39,11 @@ func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (stri
 				err,
 			)
 		}
-
 		return tag, nil
 	}
 
 	if location.Repo == "" {
 		return location.Version, nil
-	}
-
-	if !strings.HasSuffix(location.Repo, "/") {
-		location.Repo += "/"
 	}
 
 	chart, err := getHelmChartVersion(ctx, location, a)
@@ -108,10 +102,6 @@ func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelm
 		return location.Chart, nil
 	}
 
-	if !strings.HasSuffix(location.Repo, "/") {
-		location.Repo += "/"
-	}
-
 	chart, err := getHelmChartVersion(ctx, location, auth)
 	if err != nil {
 		return "", err
@@ -141,7 +131,12 @@ func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelm
 // getHelmChartVersion returns the ChartVersion struct with the information to the given location
 // using the given authentication configuration
 func getHelmChartVersion(ctx context.Context, location fleet.HelmOptions, auth Auth) (*repov1.ChartVersion, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, location.Repo+"index.yaml", nil)
+	indexURL, err := url.JoinPath(location.Repo, "index.yaml")
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +149,7 @@ func getHelmChartVersion(ctx context.Context, location fleet.HelmOptions, auth A
 
 	resp, err := client.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch %q: %w", indexURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -164,7 +159,7 @@ func getHelmChartVersion(ctx context.Context, location fleet.HelmOptions, auth A
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to read helm repo from %s, error code: %v", location.Repo+"index.yaml", resp.StatusCode)
+		return nil, fmt.Errorf("failed to read helm repo from %s, error code: %v", indexURL, resp.StatusCode)
 	}
 
 	repo := &repov1.IndexFile{}
