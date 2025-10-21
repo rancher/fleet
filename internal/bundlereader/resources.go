@@ -208,11 +208,11 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
+			auth := auth
 			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo, chart.Chart)
 			if err != nil {
 				return nil, fmt.Errorf("failed to add auth to request for %s: %w", downloadChartError(*chart), err)
-			}
-			if !shouldAddAuthToRequest {
+			} else if !shouldAddAuthToRequest {
 				auth = Auth{}
 			}
 
