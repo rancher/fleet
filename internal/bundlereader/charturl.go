@@ -40,16 +40,11 @@ func ChartVersion(location fleet.HelmOptions, a Auth) (string, error) {
 				err,
 			)
 		}
-
 		return tag, nil
 	}
 
 	if location.Repo == "" {
 		return location.Version, nil
-	}
-
-	if !strings.HasSuffix(location.Repo, "/") {
-		location.Repo = location.Repo + "/"
 	}
 
 	chart, err := getHelmChartVersion(location, a)
@@ -108,10 +103,6 @@ func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, er
 		return location.Chart, nil
 	}
 
-	if !strings.HasSuffix(location.Repo, "/") {
-		location.Repo = location.Repo + "/"
-	}
-
 	chart, err := getHelmChartVersion(location, auth)
 	if err != nil {
 		return "", err
@@ -141,7 +132,12 @@ func chartURL(location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, er
 // getHelmChartVersion returns the ChartVersion struct with the information to the given location
 // using the given authentication configuration
 func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVersion, error) {
-	request, err := http.NewRequest("GET", location.Repo+"index.yaml", nil)
+	indexURL, err := url.JoinPath(location.Repo, "index.yaml")
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := http.NewRequest("GET", indexURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +150,7 @@ func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVers
 
 	resp, err := client.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch %q: %w", indexURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -164,7 +160,7 @@ func getHelmChartVersion(location fleet.HelmOptions, auth Auth) (*repo.ChartVers
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to read helm repo from %s, error code: %v", location.Repo+"index.yaml", resp.StatusCode)
+		return nil, fmt.Errorf("failed to read helm repo from %s, error code: %v", indexURL, resp.StatusCode)
 	}
 
 	repo := &repo.IndexFile{}
