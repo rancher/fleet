@@ -89,13 +89,8 @@ func getOCIRepoClient(repoURI string, a Auth) (*remote.Repository, error) {
 // chartURL returns the URL to the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
 func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelmOps bool) (string, error) {
-	OCIField := location.Chart
-	if isHelmOps {
-		OCIField = location.Repo
-	}
-
-	if strings.HasPrefix(OCIField, ociURLPrefix) {
-		return OCIField, nil
+	if uri, ok := isOCIChart(location, isHelmOps); ok {
+		return uri, nil
 	}
 
 	if location.Repo == "" {
@@ -240,6 +235,18 @@ func getHTTPClient(auth Auth) *http.Client {
 	client.Transport = transport
 
 	return client
+}
+
+func isOCIChart(location fleet.HelmOptions, isHelmOps bool) (string, bool) {
+	OCIField := location.Chart
+	if isHelmOps {
+		OCIField = location.Repo
+	}
+
+	if strings.HasPrefix(OCIField, ociURLPrefix) {
+		return OCIField, true
+	}
+	return "", false
 }
 
 func toAbsoluteURLIfNeeded(baseURL, chartURL string) (string, error) {
