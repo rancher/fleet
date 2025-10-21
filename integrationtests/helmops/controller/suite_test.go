@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -24,6 +25,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 const (
@@ -38,6 +40,7 @@ var (
 	k8sClient    client.Client
 	namespace    string
 	k8sClientSet *kubernetes.Clientset
+	logsBuffer   bytes.Buffer
 )
 
 func TestHelmOpsController(t *testing.T) {
@@ -49,6 +52,9 @@ var _ = BeforeSuite(func() {
 	SetDefaultEventuallyTimeout(timeout)
 	ctx, cancel = context.WithCancel(context.TODO())
 	testEnv = utils.NewEnvTest("../../..")
+
+	GinkgoWriter.TeeTo(&logsBuffer)
+	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	var err error
 	cfg, err = utils.StartTestEnv(testEnv)

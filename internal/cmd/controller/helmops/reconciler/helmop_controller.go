@@ -87,6 +87,12 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	if userID := helmop.Labels[fleet.CreatedByUserIDLabel]; userID != "" {
+		logger = logger.WithValues("userID", userID)
+	}
+
+	ctx = log.IntoContext(ctx, logger)
+
 	// Finalizer handling
 	purgeBundlesFn := func() error {
 		nsName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}

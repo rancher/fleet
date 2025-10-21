@@ -1,11 +1,13 @@
 package bundledeployment
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/rancher/fleet/integrationtests/utils"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
@@ -15,14 +17,16 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 var (
-	cancel    context.CancelFunc
-	cfg       *rest.Config
-	ctx       context.Context
-	testenv   *envtest.Environment
-	k8sClient client.Client
+	cancel     context.CancelFunc
+	cfg        *rest.Config
+	ctx        context.Context
+	testenv    *envtest.Environment
+	k8sClient  client.Client
+	logsBuffer bytes.Buffer
 
 	namespace string
 )
@@ -33,6 +37,10 @@ func TestFleet(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	// Configure log capture
+	GinkgoWriter.TeeTo(&logsBuffer)
+	ctrl.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+
 	ctx, cancel = context.WithCancel(context.TODO())
 	testenv = utils.NewEnvTest("../../..")
 
