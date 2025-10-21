@@ -13,13 +13,17 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"golang.org/x/sync/singleflight"
 	repov1 "helm.sh/helm/v4/pkg/repo/v1"
+	"sigs.k8s.io/yaml"
 
 	"oras.land/oras-go/v2/registry"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
 	"oras.land/oras-go/v2/registry/remote/errcode"
 )
+
+var concurrentIndexFetch singleflight.Group
 
 // ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
@@ -102,10 +106,14 @@ func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelm
 		return location.Chart, nil
 	}
 
-	repoIndex, err := getHelmRepoIndex(ctx, repoURL, auth)
+	// Aggregate any concurrent helm repo index retrieval for the same combination of repo URL and auth
+	i, err, _ := concurrentIndexFetch.Do(auth.Hash()+repoURL, func() (interface{}, error) {
+		return getHelmRepoIndex(ctx, repoURL, auth)
+	})
 	if err != nil {
 		return "", err
 	}
+	repoIndex := i.(helmRepoIndex)
 
 	chart, err := repoIndex.Get(location.Chart, location.Version)
 	if err != nil {
