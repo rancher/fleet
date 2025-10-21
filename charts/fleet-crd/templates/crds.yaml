@@ -302,6 +302,24 @@ spec:
                           nullable: true
                           type: array
                       type: object
+                    downstreamResources:
+                      description: 'DownstreamResources points to resources to be
+                        copied into downstream clusters, from the bundle''s
+
+                        namespace.'
+                      items:
+                        description: 'DownstreamResource contains identifiers for
+                          a resource to be copied from the parent bundle''s namespace
+                          to each
+
+                          downstream cluster.'
+                        properties:
+                          kind:
+                            type: string
+                          name:
+                            type: string
+                        type: object
+                      type: array
                     forceSyncGeneration:
                       description: ForceSyncGeneration is used to force a redeployment
                       format: int64
@@ -672,6 +690,24 @@ spec:
                           nullable: true
                           type: array
                       type: object
+                    downstreamResources:
+                      description: 'DownstreamResources points to resources to be
+                        copied into downstream clusters, from the bundle''s
+
+                        namespace.'
+                      items:
+                        description: 'DownstreamResource contains identifiers for
+                          a resource to be copied from the parent bundle''s namespace
+                          to each
+
+                          downstream cluster.'
+                        properties:
+                          kind:
+                            type: string
+                          name:
+                            type: string
+                        type: object
+                      type: array
                     forceSyncGeneration:
                       description: ForceSyncGeneration is used to force a redeployment
                       format: int64
@@ -1575,6 +1611,23 @@ spec:
                       nullable: true
                       type: array
                   type: object
+                downstreamResources:
+                  description: 'DownstreamResources points to resources to be copied
+                    into downstream clusters, from the bundle''s
+
+                    namespace.'
+                  items:
+                    description: 'DownstreamResource contains identifiers for a resource
+                      to be copied from the parent bundle''s namespace to each
+
+                      downstream cluster.'
+                    properties:
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                    type: object
+                  type: array
                 forceSyncGeneration:
                   description: ForceSyncGeneration is used to force a redeployment
                   format: int64
@@ -2464,6 +2517,24 @@ spec:
                         description: DoNotDeploy if set to true, will not deploy to
                           this target.
                         type: boolean
+                      downstreamResources:
+                        description: 'DownstreamResources points to resources to be
+                          copied into downstream clusters, from the bundle''s
+
+                          namespace.'
+                        items:
+                          description: 'DownstreamResource contains identifiers for
+                            a resource to be copied from the parent bundle''s namespace
+                            to each
+
+                            downstream cluster.'
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                          type: object
+                        type: array
                       forceSyncGeneration:
                         description: ForceSyncGeneration is used to force a redeployment
                         format: int64
@@ -7466,6 +7537,23 @@ spec:
                       nullable: true
                       type: array
                   type: object
+                downstreamResources:
+                  description: 'DownstreamResources points to resources to be copied
+                    into downstream clusters, from the bundle''s
+
+                    namespace.'
+                  items:
+                    description: 'DownstreamResource contains identifiers for a resource
+                      to be copied from the parent bundle''s namespace to each
+
+                      downstream cluster.'
+                    properties:
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                    type: object
+                  type: array
                 forceSyncGeneration:
                   description: ForceSyncGeneration is used to force a redeployment
                   format: int64
@@ -8379,6 +8467,24 @@ spec:
                         description: DoNotDeploy if set to true, will not deploy to
                           this target.
                         type: boolean
+                      downstreamResources:
+                        description: 'DownstreamResources points to resources to be
+                          copied into downstream clusters, from the bundle''s
+
+                          namespace.'
+                        items:
+                          description: 'DownstreamResource contains identifiers for
+                            a resource to be copied from the parent bundle''s namespace
+                            to each
+
+                            downstream cluster.'
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                          type: object
+                        type: array
                       forceSyncGeneration:
                         description: ForceSyncGeneration is used to force a redeployment
                         format: int64
