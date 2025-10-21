@@ -42,11 +42,16 @@ func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (stri
 		return tag, nil
 	}
 
-	if location.Repo == "" {
+	repoURL := location.Repo
+	if repoURL == "" {
 		return location.Version, nil
 	}
 
-	chart, err := getHelmChartVersion(ctx, location, a)
+	repoIndex, err := getHelmRepoIndex(ctx, repoURL, a)
+	if err != nil {
+		return "", err
+	}
+	chart, err := repoIndex.Get(location.Chart, location.Version)
 	if err != nil {
 		return "", err
 	}
@@ -92,26 +97,34 @@ func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelm
 	if uri, ok := isOCIChart(location, isHelmOps); ok {
 		return uri, nil
 	}
-
-	if location.Repo == "" {
+	repoURL := location.Repo
+	if repoURL == "" {
 		return location.Chart, nil
 	}
 
-	chart, err := getHelmChartVersion(ctx, location, auth)
+	repoIndex, err := getHelmRepoIndex(ctx, repoURL, auth)
+	if err != nil {
+		return "", err
+	}
+
+	chart, err := repoIndex.Get(location.Chart, location.Version)
 	if err != nil {
 		return "", err
 	}
 
 	if len(chart.URLs) == 0 {
-		return "", fmt.Errorf("no URLs found for chart %s %s at %s", chart.Name, chart.Version, location.Repo)
+		return "", fmt.Errorf("no URLs found for chart %s %s at %s", chart.Name, chart.Version, repoURL)
 	}
-	return toAbsoluteURLIfNeeded(location.Repo, chart.URLs[0])
+	return toAbsoluteURLIfNeeded(repoURL, chart.URLs[0])
 }
 
-// getHelmChartVersion returns the ChartVersion struct with the information to the given location
-// using the given authentication configuration
-func getHelmChartVersion(ctx context.Context, location fleet.HelmOptions, auth Auth) (*repov1.ChartVersion, error) {
-	indexURL, err := url.JoinPath(location.Repo, "index.yaml")
+type helmRepoIndex interface {
+	Get(chart, version string) (*repov1.ChartVersion, error)
+}
+
+// getHelmRepoIndex retrieves and parses the index.yaml from a base URL which can be used to find a specific chart and version
+func getHelmRepoIndex(ctx context.Context, repoURL string, auth Auth) (helmRepoIndex, error) {
+	indexURL, err := url.JoinPath(repoURL, "index.yaml")
 	if err != nil {
 		return nil, err
 	}
@@ -142,19 +155,12 @@ func getHelmChartVersion(ctx context.Context, location fleet.HelmOptions, auth A
 		return nil, fmt.Errorf("failed to read helm repo from %s, error code: %v", indexURL, resp.StatusCode)
 	}
 
-	repo := &repov1.IndexFile{}
-	if err := yaml.Unmarshal(bytes, repo); err != nil {
+	var index repov1.IndexFile
+	if err := yaml.Unmarshal(bytes, &index); err != nil {
 		return nil, err
 	}
-
-	repo.SortEntries()
-
-	chart, err := repo.Get(location.Chart, location.Version)
-	if err != nil {
-		return nil, err
-	}
-
-	return chart, nil
+	index.SortEntries()
+	return &index, nil
 }
 
 // GetOCITag fetches the highest available tag matching version v in repository r.
