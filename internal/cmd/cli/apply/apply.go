@@ -359,6 +359,13 @@ func pruneBundlesNotFoundInRepo(
 		if _, ok := gitRepoBundlesMap[bundle.Name]; !ok {
 			logrus.Debugf("Bundle to be deleted since it is not found in gitrepo %v anymore %v %v", repoName, bundle.Namespace, bundle.Name)
 
+			// Populate new bundles' `Overwrites` field with possible overlaps between the in-cluster bundle, to be deleted,
+			// and bundles which will be created in the cluster.
+			// Knowing about these overlaps, if any, the Fleet agent will then be able to:
+			// 1. match them against possible missing resources in a bundle deployment's status
+			// 2. trigger a new deployment, re-creating missing resources if those are overwritten by the
+			// bundle deployment
+			// See fleet#3770 for more context.
 			for _, inClusterRsc := range bundle.Spec.Resources {
 				for _, grb := range gitRepoBundlesMap {
 					logrus.Debugf("gitRepo bundle: %v", grb)

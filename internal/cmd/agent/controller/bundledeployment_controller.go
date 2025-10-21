@@ -218,8 +218,14 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
 	}
 
-	logger.V(1).Info("### ModifiedStatus", "orig", orig.Status.ModifiedStatus, "bd", bd.Status.ModifiedStatus)
-	// FIXME why would this run multiple times, e.g. every 5s?
+	// Check if this bundle deployment has overlapping resources with a previously deleted bundle (Overwrites
+	// field): if so, requeue to ensure the corresponding Helm release, and therefore its resources, are
+	// reinstalled.
+	// Overlaps are checked by namespace, kind and name. Resource contents do not matter in this context, as a
+	// resource would be deleted by Helm deleting its parent release based on its kind, name and namespace.
+	// This requires deleting the release beforehand, to force a new installation as the deployer would otherwise
+	// skip re-installing an existing release with no version change.
+	// See fleet#3770 for more context.
 	if len(orig.Status.ModifiedStatus) > 0 && len(orig.Spec.Options.Overwrites) > 0 {
 		for _, ms := range orig.Status.ModifiedStatus {
 			if !ms.Create { // missing
