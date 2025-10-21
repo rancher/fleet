@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-var hasOCIURL = regexp.MustCompile(`^oci:\/\/`)
+const ociURLPrefix = "oci://"
 
 // readResources reads and downloads all resources from the bundle. Resources
 // can be downloaded and are spread across multiple directories.
@@ -208,11 +208,11 @@ func mergeGenericMap(first, second *fleet.GenericMap) *fleet.GenericMap {
 func addRemoteCharts(directories []directory, base string, charts []*fleet.HelmOptions, auth Auth, helmRepoURLRegex string) ([]directory, error) {
 	for _, chart := range charts {
 		if _, err := os.Stat(filepath.Join(base, chart.Chart)); os.IsNotExist(err) || chart.Repo != "" {
+			auth := auth
 			shouldAddAuthToRequest, err := shouldAddAuthToRequest(helmRepoURLRegex, chart.Repo, chart.Chart)
 			if err != nil {
 				return nil, fmt.Errorf("failed to add auth to request for %s: %w", downloadChartError(*chart), err)
-			}
-			if !shouldAddAuthToRequest {
+			} else if !shouldAddAuthToRequest {
 				auth = Auth{}
 			}
 
