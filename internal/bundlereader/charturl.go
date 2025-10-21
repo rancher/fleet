@@ -25,10 +25,8 @@ import (
 // ChartVersion returns the version of the helm chart from a helm repo server, by
 // inspecting the repo's index.yaml
 func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (string, error) {
-	if hasOCIURL.MatchString(location.Repo) {
-		repo := strings.TrimPrefix(location.Repo, "oci://")
-
-		r, err := remote.NewRepository(repo)
+	if repoURI, ok := strings.CutPrefix(location.Repo, ociURLPrefix); ok {
+		r, err := remote.NewRepository(repoURI)
 		if err != nil {
 			return "", fmt.Errorf("failed to create OCI client: %w", err)
 		}
@@ -95,7 +93,7 @@ func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelm
 		OCIField = location.Repo
 	}
 
-	if hasOCIURL.MatchString(OCIField) {
+	if strings.HasPrefix(OCIField, ociURLPrefix) {
 		return OCIField, nil
 	}
 
