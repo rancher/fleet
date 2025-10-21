@@ -26,33 +26,12 @@ import (
 // inspecting the repo's index.yaml
 func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (string, error) {
 	if repoURI, ok := strings.CutPrefix(location.Repo, ociURLPrefix); ok {
-		r, err := remote.NewRepository(repoURI)
+		client, err := getOCIRepoClient(repoURI, a)
 		if err != nil {
-			return "", fmt.Errorf("failed to create OCI client: %w", err)
+			return "", err
 		}
 
-		authCli := &auth.Client{
-			Client: getHTTPClient(a),
-			Cache:  auth.NewCache(),
-		}
-		if a.Username != "" {
-			cred := auth.Credential{
-				Username: a.Username,
-				Password: a.Password,
-			}
-			authCli.Credential = func(ctx context.Context, s string) (auth.Credential, error) {
-				return cred, nil
-			}
-		}
-
-		r.Client = authCli
-
-		if a.BasicHTTP {
-			r.PlainHTTP = true
-		}
-
-		tag, err := GetOCITag(ctx, r, location.Version)
-
+		tag, err := GetOCITag(ctx, client, location.Version)
 		if len(tag) == 0 || err != nil {
 			return "", fmt.Errorf(
 				"could not find tag matching constraint %q in registry %s: %w",
@@ -83,6 +62,34 @@ func ChartVersion(ctx context.Context, location fleet.HelmOptions, a Auth) (stri
 	}
 
 	return chart.Version, nil
+}
+
+func getOCIRepoClient(repoURI string, a Auth) (*remote.Repository, error) {
+	r, err := remote.NewRepository(repoURI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OCI client: %w", err)
+	}
+
+	authCli := &auth.Client{
+		Client: getHTTPClient(a),
+		Cache:  auth.NewCache(),
+	}
+	if a.Username != "" {
+		cred := auth.Credential{
+			Username: a.Username,
+			Password: a.Password,
+		}
+		authCli.Credential = func(ctx context.Context, s string) (auth.Credential, error) {
+			return cred, nil
+		}
+	}
+	r.Client = authCli
+
+	if a.BasicHTTP {
+		r.PlainHTTP = true
+	}
+
+	return r, nil
 }
 
 // chartURL returns the URL to the helm chart from a helm repo server, by
