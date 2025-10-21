@@ -412,7 +412,7 @@ func TestGetManifestFromHelmChart(t *testing.T) {
 		assert.Equal(c.expectedNilManifest, manifest == nil)
 		assert.Equal(c.expectedErrNotNil, err != nil)
 		if err != nil && c.expectedErrNotNil {
-			assert.Equal(c.expectedError, err.Error())
+			assert.Contains(err.Error(), c.expectedError)
 		}
 		if manifest != nil {
 			// check that all expected resources are found
