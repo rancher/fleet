@@ -110,22 +110,7 @@ func chartURL(ctx context.Context, location fleet.HelmOptions, auth Auth, isHelm
 	if len(chart.URLs) == 0 {
 		return "", fmt.Errorf("no URLs found for chart %s %s at %s", chart.Name, chart.Version, location.Repo)
 	}
-
-	chartURL, err := url.Parse(chart.URLs[0])
-	if err != nil {
-		return "", err
-	}
-
-	if chartURL.IsAbs() {
-		return chart.URLs[0], nil
-	}
-
-	repoURL, err := url.Parse(location.Repo)
-	if err != nil {
-		return "", err
-	}
-
-	return repoURL.ResolveReference(chartURL).String(), nil
+	return toAbsoluteURLIfNeeded(location.Repo, chart.URLs[0])
 }
 
 // getHelmChartVersion returns the ChartVersion struct with the information to the given location
@@ -255,4 +240,19 @@ func getHTTPClient(auth Auth) *http.Client {
 	client.Transport = transport
 
 	return client
+}
+
+func toAbsoluteURLIfNeeded(baseURL, chartURL string) (string, error) {
+	// Check if already absolute
+	chartU, err := url.Parse(chartURL)
+	if err != nil || chartU.IsAbs() {
+		return chartURL, err
+	}
+
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+
+	return u.ResolveReference(chartU).String(), nil
 }
