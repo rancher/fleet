@@ -6,8 +6,18 @@ spec:
   repo: {{.Repo}}
   branch: {{.Branch}}
   pollingInterval: {{.PollingInterval}}
+  {{- if .InsecureSkipTLSVerify}}
+  insecureSkipTLSVerify: {{.InsecureSkipTLSVerify}}
+  {{- end }}
   {{- if .TargetNamespace }}
   targetNamespace: {{.TargetNamespace}}
   {{- end }}
   paths:
+  {{- if .Path }}
+  - {{.Path}}
+  {{- else }}
   - examples
+  {{- end }}
+  {{- if .CABundle}}
+  caBundle: {{.CABundle}}
+  {{- end}}
