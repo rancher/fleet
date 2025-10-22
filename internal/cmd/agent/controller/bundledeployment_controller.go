@@ -14,6 +14,7 @@ import (
 	"github.com/rancher/fleet/internal/helmvalues"
 	"github.com/rancher/fleet/internal/namespaces"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
+	"github.com/rancher/fleet/pkg/durations"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -215,6 +216,40 @@ func (r *BundleDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	if err := r.DriftDetect.Refresh(ctx, req.String(), bd, resources); err != nil {
 		logger.V(1).Info("Failed to refresh drift detection", "step", "drift", "error", err)
 		merr = append(merr, fmt.Errorf("failed refreshing drift detection: %w", err))
+	}
+
+	// Check if this bundle deployment has overlapping resources with a previously deleted bundle (Overwrites
+	// field): if so, requeue to ensure the corresponding Helm release, and therefore its resources, are
+	// reinstalled.
+	// Overlaps are checked by namespace, kind and name. Resource contents do not matter in this context, as a
+	// resource would be deleted by Helm deleting its parent release based on its kind, name and namespace.
+	// This requires deleting the release beforehand, to force a new installation as the deployer would otherwise
+	// skip re-installing an existing release with no version change.
+	// See fleet#3770 for more context.
+	if len(orig.Status.ModifiedStatus) > 0 && len(orig.Spec.Options.Overwrites) > 0 {
+		for _, ms := range orig.Status.ModifiedStatus {
+			if !ms.Create { // missing
+				continue
+			}
+			for _, ow := range orig.Spec.Options.Overwrites {
+				if ow.Kind == ms.Kind && ow.Name == ms.Name {
+					logger.V(1).Info(
+						"Triggering new deployment to overwrite missing resource",
+						"kind", ow.Kind,
+						"name", ow.Name,
+						"namespace", ow.Namespace,
+					)
+
+					// Uninstall the release to allow a new reconcile loop to re-install it,
+					// resolving the missing resource(s) issue.
+					if err := r.Cleanup.CleanupReleases(ctx, key, nil); err != nil {
+						logger.V(1).Info("Failed to clean up releases before triggering new deployment", "error", err)
+					}
+
+					return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+				}
+			}
+		}
 	}
 
 	if err := r.Cleanup.CleanupReleases(ctx, key, bd); err != nil {
