@@ -981,7 +981,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				job.EXPECT().JobDetail().Return(nil)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(job, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(errors.New("something happened!"))
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(helmop), gomock.Any()).Return(errors.New("something happened!"))
 			},
 			expectedError: "something happened!",
 		},
@@ -1009,7 +1009,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			},
 			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(nil, quartz.ErrJobNotFound)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(errors.New("something happened!"))
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(helmop), gomock.Any()).Return(errors.New("something happened!"))
 			},
 			expectedError: "something happened!",
 		},
@@ -1037,7 +1037,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			},
 			expectedSchedulerCalls: func(_ *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(nil, quartz.ErrJobNotFound)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(helmop), gomock.Any()).Return(nil)
 			},
 		},
 		{
@@ -1110,7 +1110,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				scheduled.EXPECT().JobDetail().Return(detail)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(helmop), gomock.Any()).Return(nil)
 			},
 		},
 		{
@@ -1149,7 +1149,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				scheduled.EXPECT().JobDetail().Return(detail)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(helmop), gomock.Any()).Return(nil)
 			},
 		},
 		{
@@ -1188,7 +1188,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				scheduled.EXPECT().JobDetail().Return(detail)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(helmop), gomock.Any()).Return(nil)
 			},
 		},
 		{
@@ -1224,7 +1224,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				scheduled.EXPECT().JobDetail().Return(detail)
 
 				scheduler.EXPECT().GetScheduledJob(gomock.Any()).Return(scheduled, nil)
-				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(true, helmop), gomock.Any()).Return(nil)
+				scheduler.EXPECT().ScheduleJob(matchesJobDetailReplace(helmop), gomock.Any()).Return(nil)
 			},
 		},
 	}
@@ -1344,8 +1344,8 @@ type scheduledJobMatcher struct {
 	key             *quartz.JobKey
 }
 
-func matchesJobDetailReplace(replace bool, helmop fleet.HelmOp) gomock.Matcher {
-	return &scheduledJobMatcher{replaceExisting: replace, key: quartz.NewJobKey(string(helmop.UID))}
+func matchesJobDetailReplace(helmop fleet.HelmOp) gomock.Matcher {
+	return &scheduledJobMatcher{replaceExisting: true, key: quartz.NewJobKey(string(helmop.UID))}
 }
 
 func (s *scheduledJobMatcher) Matches(x interface{}) bool {
