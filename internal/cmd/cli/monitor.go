@@ -326,6 +326,7 @@ type BundleInfo struct {
 	Commit              string   `json:"commit,omitempty"`
 	ForceSyncGeneration int64    `json:"forceSyncGeneration,omitempty"`
 	ResourcesSHA256Sum  string   `json:"resourcesSHA256Sum,omitempty"`
+	SizeBytes           *int64   `json:"sizeBytes,omitempty"`
 	DeletionTimestamp   *string  `json:"deletionTimestamp,omitempty"`
 	Finalizers          []string `json:"finalizers,omitempty"`
 	Ready               bool     `json:"ready"`
@@ -627,6 +628,13 @@ func (m *Monitor) convertBundles(bundles []fleet.Bundle) []BundleInfo {
 		if b.DeletionTimestamp != nil {
 			ts := b.DeletionTimestamp.UTC().Format(time.RFC3339)
 			info.DeletionTimestamp = &ts
+		}
+
+		// Compute bundle size by marshaling the entire Bundle resource to JSON
+		// This includes spec.resources (all manifests) and the status
+		if bundleJSON, err := json.Marshal(b); err == nil {
+			size := int64(len(bundleJSON))
+			info.SizeBytes = &size
 		}
 
 		// Extract ready status and errors

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -386,29 +387,12 @@ func (m *Monitor) detectLargeBundles(bundles []fleet.Bundle, contents []fleet.Co
 	var largeBundles []fleet.Bundle
 	const oneMB = 1024 * 1024
 
-	// Create map of content name to size
-	contentSizes := make(map[string]int64)
-	for _, content := range contents {
-		if content.Content != nil {
-			contentSizes[content.Name] = int64(len(content.Content))
-		}
-	}
-
 	for _, bundle := range bundles {
-		// Check if bundle has a corresponding content and if it's large
-		if bundle.Status.ResourcesSHA256Sum != "" {
-			// Content names are "s-<hash>" but truncated to 63 chars for Kubernetes
-			// So we need to find by prefix match
-			prefix := "s-" + bundle.Status.ResourcesSHA256Sum
-			if len(prefix) > 63 {
-				prefix = prefix[:63]
-			}
-
-			for contentName, size := range contentSizes {
-				if contentName == prefix && size > oneMB {
-					largeBundles = append(largeBundles, bundle)
-					break
-				}
+		// Compute bundle size by marshaling the entire Bundle resource to JSON
+		if bundleJSON, err := json.Marshal(bundle); err == nil {
+			size := int64(len(bundleJSON))
+			if size > oneMB {
+				largeBundles = append(largeBundles, bundle)
 			}
 		}
 	}
