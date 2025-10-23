@@ -127,7 +127,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
-	if err := validate(ctx, *helmop); err != nil {
+	if err := validate(*helmop); err != nil {
 		if delErr := r.deletePollingJob(logger, *helmop); delErr != nil {
 			err = errutil.NewAggregate([]error{err, delErr})
 		}
@@ -570,7 +570,7 @@ func jobKey(h fleet.HelmOp) *quartz.JobKey {
 // * tarball URL in Chart, empty Repo, empty Version
 // * OCI reference in the Repo field, empty Chart, optional Version
 // * non-empty Repo URL, non-empty Chart name, optional Version
-func validate(ctx context.Context, h fleet.HelmOp) error {
+func validate(h fleet.HelmOp) error {
 	if h.Spec.Helm == nil {
 		return fmt.Errorf("helm options are empty in the HelmOp's spec")
 	}
