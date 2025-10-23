@@ -21,6 +21,7 @@ var (
 		clusterGroupMetrics,
 		collectClusterGroupMetrics,
 	}
+	// nolint:dupl // Same pattern as in cluster metrics, but not the same definitions.
 	clusterGroupMetrics = map[string]prometheus.Collector{
 		"cluster_count": promauto.NewGaugeVec(
 			prometheus.GaugeOpts{
