@@ -23,7 +23,8 @@ func jobUpdatedPredicate() predicate.Funcs {
 			if n == nil || o == nil {
 				return false
 			}
-			return !reflect.DeepEqual(n.Status, o.Status)
+			return !reflect.DeepEqual(n.Status, o.Status) ||
+				(n.DeletionTimestamp != nil && o.DeletionTimestamp == nil)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			return false
@@ -31,7 +32,7 @@ func jobUpdatedPredicate() predicate.Funcs {
 	}
 }
 
-func webhookCommitChangedPredicate() predicate.Predicate {
+func commitChangedPredicate() predicate.Predicate {
 	return predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			oldGitRepo, ok := e.ObjectOld.(*v1alpha1.GitRepo)
@@ -42,7 +43,8 @@ func webhookCommitChangedPredicate() predicate.Predicate {
 			if !ok {
 				return true
 			}
-			return oldGitRepo.Status.WebhookCommit != newGitRepo.Status.WebhookCommit
+			return (oldGitRepo.Status.WebhookCommit != newGitRepo.Status.WebhookCommit) ||
+				(oldGitRepo.Status.PollingCommit != newGitRepo.Status.PollingCommit)
 		},
 	}
 }
