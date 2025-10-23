@@ -231,7 +231,7 @@ import (
 type Monitor struct {
 	FleetClient
 	Watch    bool   `usage:"Watch for changes and output continuously"`
-	Interval int    `usage:"Interval in seconds between checks when watching (default: 5)" default:"5"`
+	Interval int    `usage:"Interval in seconds between checks when watching (default: 60)" default:"60"`
 	System   string `usage:"Fleet system namespace (default: cattle-fleet-system)" default:"cattle-fleet-system"`
 }
 
