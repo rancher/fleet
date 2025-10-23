@@ -6940,6 +6940,10 @@ spec:
                   description: PerClusterResourceCounts contains the number of resources
                     in each state over all bundles, per cluster.
                   type: object
+                pollingCommit:
+                  description: PollingCommit is the latest Git commit hash received
+                    from polling
+                  type: string
                 readyClusters:
                   description: 'ReadyClusters is the lowest number of clusters that
                     are ready over
