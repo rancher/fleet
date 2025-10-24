@@ -18,6 +18,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
+	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
 	"github.com/rancher/fleet/internal/mocks"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
@@ -1062,7 +1063,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				},
 			},
 			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
-				trigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+				trigger := ctrlquartz.NewControllerTrigger(helmop.Spec.PollingInterval.Duration, 0)
 				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *helmop.Spec.Helm)
 
 				detail := quartz.NewJobDetail(job, nil)
@@ -1100,7 +1101,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				oldHelmSpec := helmop.Spec.Helm.DeepCopy()
 				oldHelmSpec.Version = "0.1.x"
 
-				trigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+				trigger := ctrlquartz.NewControllerTrigger(helmop.Spec.PollingInterval.Duration, 0)
 				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *oldHelmSpec)
 
 				detail := quartz.NewJobDetail(job, nil)
@@ -1139,7 +1140,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				oldHelmSpec := helmop.Spec.Helm.DeepCopy()
 				oldHelmSpec.Repo = svr2.URL
 
-				trigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+				trigger := ctrlquartz.NewControllerTrigger(helmop.Spec.PollingInterval.Duration, 0)
 				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *oldHelmSpec)
 
 				detail := quartz.NewJobDetail(job, nil)
@@ -1178,7 +1179,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				oldHelmSpec := helmop.Spec.Helm.DeepCopy()
 				oldHelmSpec.Chart = "alpine"
 
-				trigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+				trigger := ctrlquartz.NewControllerTrigger(helmop.Spec.PollingInterval.Duration, 0)
 				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *oldHelmSpec)
 
 				detail := quartz.NewJobDetail(job, nil)
@@ -1214,7 +1215,7 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 				},
 			},
 			expectedSchedulerCalls: func(ctrl *gomock.Controller, scheduler *mocks.MockScheduler, helmop fleet.HelmOp) {
-				trigger := newHelmOpTrigger(2 * helmop.Spec.PollingInterval.Duration)
+				trigger := ctrlquartz.NewControllerTrigger(2*helmop.Spec.PollingInterval.Duration, 0)
 				job := newHelmPollingJob(nil, nil, helmop.Namespace, helmop.Name, *helmop.Spec.Helm)
 
 				detail := quartz.NewJobDetail(job, nil)
@@ -1292,28 +1293,6 @@ func TestReconcile_ManagePollingJobs(t *testing.T) {
 			}
 
 		})
-	}
-}
-
-func TestHelmOpTrigger(t *testing.T) {
-	tr := newHelmOpTrigger(1 * time.Second)
-
-	if tr.isInitRunDone {
-		t.Errorf("unexpected %t value for isInitRunDone, expected %t", true, false)
-	}
-
-	now := time.Now().UnixNano()
-	ft, err := tr.NextFireTime(now)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-
-	if !tr.isInitRunDone {
-		t.Errorf("unexpected %t value for isInitRunDone, expected %t", false, true)
-	}
-
-	if ft != now {
-		t.Errorf("unexpected fire time value for trigger, expected %d, got %d", now, ft)
 	}
 }
 

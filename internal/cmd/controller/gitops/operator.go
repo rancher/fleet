@@ -197,6 +197,8 @@ func (g *GitOperator) Run(cmd *cobra.Command, args []string) error {
 		return mgr.Start(ctx)
 	})
 
+	gitJobReconciler.Scheduler.Start(ctx)
+
 	return group.Wait()
 }
 
