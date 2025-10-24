@@ -142,21 +142,21 @@ detailed_analysis() {
         "  Restarts: \(.controller.restarts) \(if .controller.restarts > 0 then "⚠ RESTARTED" else "" end)",
         "  Started: \(.controller.startTime)",
         "",
-        (if (.diagnostics.bundlesWithGenerationMismatch | length) > 0 then
+        (if ((.diagnostics.bundlesWithGenerationMismatch // []) | length) > 0 then
             "╔═══ BUNDLES WITH GENERATION MISMATCH ⚠ ═══╗",
-            (.diagnostics.bundlesWithGenerationMismatch[] |
+            ((.diagnostics.bundlesWithGenerationMismatch // [])[] |
                 "  Bundle: \(.namespace)/\(.name)",
                 "    Generation: \(.generation) / Observed: \(.observedGeneration)",
                 "    Deletion Timestamp: \(.deletionTimestamp // "none")",
-                "    Reasons: \(.reasons | join(", "))",
+                "    Reasons: \((.reasons // []) | join(", "))",
                 "    Ready Condition: \(.readyCondition.status // "N/A") - \(.readyCondition.message // "")",
                 ""
             ),
             ""
         else "" end),
-        (if (.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) > 0 then
+        (if ((.diagnostics.bundledeploymentsWithSyncGenerationMismatch // []) | length) > 0 then
             "╔═══ BUNDLEDEPLOYMENTS WITH SYNCGENERATION MISMATCH ⚠ ═══╗",
-            (.diagnostics.bundledeploymentsWithSyncGenerationMismatch[] |
+            ((.diagnostics.bundledeploymentsWithSyncGenerationMismatch // [])[] |
                 "  BundleDeployment: \(.namespace)/\(.name)",
                 "    ForceSyncGeneration: \(.forceSyncGeneration) / SyncGeneration: \(.syncGeneration // "nil")",
                 "    DeploymentID: \(.deploymentID)",
@@ -165,9 +165,9 @@ detailed_analysis() {
             ),
             ""
         else "" end),
-        (if (.diagnostics.stuckBundleDeployments | length) > 0 then
+        (if ((.diagnostics.stuckBundleDeployments // []) | length) > 0 then
             "╔═══ STUCK BUNDLEDEPLOYMENTS ⚠ ═══╗",
-            (.diagnostics.stuckBundleDeployments[] |
+            ((.diagnostics.stuckBundleDeployments // [])[] |
                 "  BundleDeployment: \(.namespace)/\(.name)",
                 "    Generation: \(.generation) / Observed: \(.observedGeneration // "N/A")",
                 "    DeploymentID: \(.deploymentID[0:50])...",
@@ -192,9 +192,9 @@ detailed_analysis() {
             ),
             ""
         else "" end),
-        (if .diagnostics.invalidSecretOwnersCount > 0 then
+        (if (.diagnostics.invalidSecretOwnersCount // 0) > 0 then
             "╔═══ INVALID SECRET OWNERS ⚠ ═══╗",
-            (.diagnostics.invalidSecretOwners[] |
+            ((.diagnostics.invalidSecretOwners // [])[] |
                 "  Secret: \(.namespace)/\(.name)",
                 "    Type: \(.type)",
                 "    Issue: \(.issue)",
@@ -205,26 +205,26 @@ detailed_analysis() {
             ),
             ""
         else "" end),
-        (if (.diagnostics.bundlesWithDeletionTimestamp + .diagnostics.bundleDeploymentsWithDeletionTimestamp) > 0 then
+        (if ((.diagnostics.bundlesWithDeletionTimestamp // 0) + (.diagnostics.bundleDeploymentsWithDeletionTimestamp // 0)) > 0 then
             "╔═══ RESOURCES WITH DELETION TIMESTAMPS ⚠ ═══╗",
-            (.bundles[] | select(.deletionTimestamp != null) |
+            ((.bundles // [])[] | select(.deletionTimestamp != null) |
                 "  Bundle: \(.namespace)/\(.name)",
                 "    Deletion Timestamp: \(.deletionTimestamp)",
-                "    Finalizers: \(.finalizers | join(", "))",
+                "    Finalizers: \((.finalizers // []) | join(", "))",
                 ""
             ),
-            (.bundledeployments[] | select(.deletionTimestamp != null) |
+            ((.bundledeployments // [])[] | select(.deletionTimestamp != null) |
                 "  BundleDeployment: \(.namespace)/\(.name)",
                 "    Deletion Timestamp: \(.deletionTimestamp)",
-                "    Finalizers: \(.finalizers | join(", "))",
+                "    Finalizers: \((.finalizers // []) | join(", "))",
                 ""
             ),
             ""
         else "" end),
-        (if .apiConsistency.consistent == false then
+        (if (.apiConsistency.consistent // true) == false then
             "╔═══ API CONSISTENCY ISSUES ⚠ ═══╗",
             "  API Server returned different resource versions!",
-            "  Versions: \(.apiConsistency.versions | join(", "))",
+            "  Versions: \((.apiConsistency.versions // []) | join(", "))",
             "  This indicates the API server may be returning stale data.",
             ""
         else "" end),
@@ -273,26 +273,26 @@ issues_only() {
             "  Current Start Time: \(.controller.startTime)",
             ""
         else "" end),
-        (if (.diagnostics.bundlesWithGenerationMismatch | length) > 0 then
-            "✗ BUNDLES WITH GENERATION MISMATCH (\(.diagnostics.bundlesWithGenerationMismatch | length)):",
-            (.diagnostics.bundlesWithGenerationMismatch[] |
+        (if ((.diagnostics.bundlesWithGenerationMismatch // []) | length) > 0 then
+            "✗ BUNDLES WITH GENERATION MISMATCH (\((.diagnostics.bundlesWithGenerationMismatch // []) | length)):",
+            ((.diagnostics.bundlesWithGenerationMismatch // [])[] |
                 "  • \(.namespace)/\(.name)",
                 "    Generation: \(.generation) / Observed: \(.observedGeneration)",
                 "    Deletion Timestamp: \(.deletionTimestamp // "none")",
                 ""
             )
         else "" end),
-        (if (.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) > 0 then
-            "✗ BUNDLEDEPLOYMENTS WITH SYNCGENERATION MISMATCH (\(.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length)):",
-            (.diagnostics.bundledeploymentsWithSyncGenerationMismatch[] |
+        (if ((.diagnostics.bundledeploymentsWithSyncGenerationMismatch // []) | length) > 0 then
+            "✗ BUNDLEDEPLOYMENTS WITH SYNCGENERATION MISMATCH (\((.diagnostics.bundledeploymentsWithSyncGenerationMismatch // []) | length)):",
+            ((.diagnostics.bundledeploymentsWithSyncGenerationMismatch // [])[] |
                 "  • \(.namespace)/\(.name)",
                 "    ForceSyncGeneration: \(.forceSyncGeneration) / SyncGeneration: \(.syncGeneration // "nil")",
                 ""
             )
         else "" end),
-        (if (.diagnostics.stuckBundleDeployments | length) > 0 then
-            "✗ STUCK BUNDLEDEPLOYMENTS (\(.diagnostics.stuckBundleDeployments | length)):",
-            (.diagnostics.stuckBundleDeployments[] |
+        (if ((.diagnostics.stuckBundleDeployments // []) | length) > 0 then
+            "✗ STUCK BUNDLEDEPLOYMENTS (\((.diagnostics.stuckBundleDeployments // []) | length)):",
+            ((.diagnostics.stuckBundleDeployments // [])[] |
                 "  • \(.namespace)/\(.name)",
                 "    Reasons: \((.reasons // ["agent not applying"]) | join(", "))",
                 "    Gen: \(.generation) | DepID Match: \(if .deploymentID == .appliedDeploymentID then "YES" else "NO" end)",
@@ -302,10 +302,11 @@ issues_only() {
         (if (.diagnostics.gitrepoBundleInconsistenciesCount // 0) > 0 then
             "✗ GITREPO/BUNDLE INCONSISTENCIES (\(.diagnostics.gitrepoBundleInconsistenciesCount)):",
             ((.diagnostics.gitrepoBundleInconsistencies // [])[] |
-                "  • Bundle: \(.namespace)/\(.name) (repo: \(.repoName))",
-                "    Bundle Commit: \(.bundleCommit[0:8]) | GitRepo Commit: \(.gitrepoCommit[0:8]) \(if .commitMismatch then "⚠ MISMATCH" else "" end)",
-                "    Bundle ForceSyncGen: \(.bundleForceSyncGen // "null") | GitRepo ForceSyncGen: \(.gitrepoForceSyncGen // "null") \(if .forceSyncGenMismatch then "⚠ MISMATCH" else "" end)",
-                "    Issues: \(.issues | join(", "))",
+                "  • Bundle: \(.namespace)/\(.name)",
+                "    Generation: \(.generation // "N/A") / Observed: \(.observedGeneration // "N/A")",
+                "    Commit: \((.commit // "N/A") | if . == "N/A" then . else .[0:8] end)",
+                "    ForceSyncGeneration: \(.forceSyncGeneration // 0)",
+                "    Ready: \(if .ready then "Yes" else "No - \(.readyMessage // "unknown")" end)",
                 ""
             )
         else "" end),
@@ -314,9 +315,9 @@ issues_only() {
             ((.diagnostics.contentIssues // [])[] |
                 "  • BundleDeployment: \(.namespace)/\(.name)",
                 "    Content: \(.contentName[0:30])...",
-                "    Issues: \(.issues | join(", "))",
+                "    Issues: \((.issues // []) | join(", "))",
                 "    Content Exists: \(.contentExists) | DeletionTimestamp: \(.contentDeletionTimestamp // "none")",
-                "    Finalizers: \(.contentFinalizers | join(", "))",
+                "    Finalizers: \((.contentFinalizers // []) | join(", "))",
                 ""
             )
         else "" end),
@@ -343,7 +344,7 @@ issues_only() {
             ((.bundles // [])[] | select(.deletionTimestamp != null) |
                 "  • \(.namespace)/\(.name)",
                 "    DelTime: \(.deletionTimestamp)",
-                "    Finalizers: \(.finalizers | join(", "))",
+                "    Finalizers: \((.finalizers // []) | join(", "))",
                 ""
             )
         else "" end),
@@ -352,7 +353,7 @@ issues_only() {
             ((.bundledeployments // [])[] | select(.deletionTimestamp != null) |
                 "  • \(.namespace)/\(.name)",
                 "    DelTime: \(.deletionTimestamp)",
-                "    Finalizers: \(.finalizers | join(", "))",
+                "    Finalizers: \((.finalizers // []) | join(", "))",
                 ""
             )
         else "" end),
@@ -361,26 +362,26 @@ issues_only() {
             ((.contents // [])[] | select(.deletionTimestamp != null) |
                 "  • \(.name[0:40])...",
                 "    DelTime: \(.deletionTimestamp)",
-                "    Finalizers: \(.finalizers | join(", "))",
+                "    Finalizers: \((.finalizers // []) | join(", "))",
                 ""
             )
         else "" end),
-        (if .apiConsistency.consistent == false then
+        (if (.apiConsistency.consistent // true) == false then
             "✗ API CONSISTENCY FAILURE:",
-            "  Different resource versions returned: \(.apiConsistency.versions | join(", "))",
+            "  Different resource versions returned: \((.apiConsistency.versions // []) | join(", "))",
             "  This indicates the API server is returning stale cached data!",
             ""
         else "" end),
-        (if ((.diagnostics.bundlesWithGenerationMismatch | length) == 0 and
-            (.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) == 0 and
-            (.diagnostics.stuckBundleDeployments | length) == 0 and
+        (if (((.diagnostics.bundlesWithGenerationMismatch // []) | length) == 0 and
+            ((.diagnostics.bundledeploymentsWithSyncGenerationMismatch // []) | length) == 0 and
+            ((.diagnostics.stuckBundleDeployments // []) | length) == 0 and
             ((.diagnostics.gitrepoBundleInconsistencies // []) | length) == 0 and
             ((.diagnostics.contentIssues // []) | length) == 0 and
             ((.diagnostics.orphanedSecrets // []) | length) == 0 and
             ((.diagnostics.invalidSecretOwners // []) | length) == 0 and
-            (([.bundles[]? | select(.deletionTimestamp != null)]) | length) == 0 and
-            (([.bundledeployments[]? | select(.deletionTimestamp != null)]) | length) == 0 and
-            (([.contents[]? | select(.deletionTimestamp != null)]) | length) == 0 and
+            ((.bundles // []) | map(select(.deletionTimestamp != null)) | length) == 0 and
+            ((.bundledeployments // []) | map(select(.deletionTimestamp != null)) | length) == 0 and
+            ((.contents // []) | map(select(.deletionTimestamp != null)) | length) == 0 and
             (.apiConsistency.consistent // true) == true and
             (.controller.restarts // 0) == 0) then
             "✓ NO ISSUES DETECTED - All systems healthy!",
