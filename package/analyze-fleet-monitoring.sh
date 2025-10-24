@@ -148,8 +148,7 @@ detailed_analysis() {
                 "  Bundle: \(.namespace)/\(.name)",
                 "    Generation: \(.generation) / Observed: \(.observedGeneration)",
                 "    Deletion Timestamp: \(.deletionTimestamp // "none")",
-                "    Reasons: \((.reasons // []) | join(", "))",
-                "    Ready Condition: \(.readyCondition.status // "N/A") - \(.readyCondition.message // "")",
+                "    Ready: \(if .ready then "Yes" else "No - \(.readyMessage // "unknown")" end)",
                 ""
             ),
             ""
@@ -169,13 +168,11 @@ detailed_analysis() {
             "╔═══ STUCK BUNDLEDEPLOYMENTS ⚠ ═══╗",
             ((.diagnostics.stuckBundleDeployments // [])[] |
                 "  BundleDeployment: \(.namespace)/\(.name)",
-                "    Generation: \(.generation) / Observed: \(.observedGeneration // "N/A")",
                 "    DeploymentID: \(.deploymentID[0:50])...",
                 "    AppliedID:    \(.appliedDeploymentID[0:50])...",
                 "    Match: \(if .deploymentID == .appliedDeploymentID then "YES" else "NO ⚠" end)",
                 "    Deletion Timestamp: \(.deletionTimestamp // "none")",
-                "    Reasons: \((.reasons // ["agent not applying"]) | join(", "))",
-                "    Ready Condition: \(.readyCondition.status // "N/A") - \(.readyCondition.message // "")",
+                "    Ready: \(if .ready then "Yes" else "No - \(.readyMessage // "unknown")" end)",
                 ""
             ),
             ""
@@ -294,8 +291,8 @@ issues_only() {
             "✗ STUCK BUNDLEDEPLOYMENTS (\((.diagnostics.stuckBundleDeployments // []) | length)):",
             ((.diagnostics.stuckBundleDeployments // [])[] |
                 "  • \(.namespace)/\(.name)",
-                "    Reasons: \((.reasons // ["agent not applying"]) | join(", "))",
-                "    Gen: \(.generation) | DepID Match: \(if .deploymentID == .appliedDeploymentID then "YES" else "NO" end)",
+                "    DeploymentID Match: \(if .deploymentID == .appliedDeploymentID then "YES" else "NO" end)",
+                "    Ready: \(if .ready then "Yes" else "No - \(.readyMessage // "unknown")" end)",
                 ""
             )
         else "" end),
