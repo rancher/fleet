@@ -339,7 +339,6 @@ type BundleDeploymentInfo struct {
 	Name                string   `json:"name"`
 	UID                 string   `json:"uid"`
 	Generation          int64    `json:"generation"`
-	ObservedGeneration  int64    `json:"observedGeneration,omitempty"`
 	Commit              string   `json:"commit,omitempty"`
 	ForceSyncGeneration int64    `json:"forceSyncGeneration,omitempty"`
 	SyncGeneration      *int64   `json:"syncGeneration,omitempty"`
@@ -402,7 +401,6 @@ type APIConsistency struct {
 }
 
 type Diagnostics struct {
-	StuckBundles                           []BundleInfo             `json:"stuckBundles,omitempty"`
 	StuckBundleDeployments                 []BundleDeploymentInfo   `json:"stuckBundleDeployments,omitempty"`
 	GitRepoBundleInconsistencies           []BundleInfo             `json:"gitrepoBundleInconsistencies,omitempty"`
 	InvalidSecretOwners                    []SecretInfo             `json:"invalidSecretOwners,omitempty"`
@@ -417,6 +415,7 @@ type Diagnostics struct {
 	BundleDeploymentsWithMissingBundle     []BundleDeploymentInfo   `json:"bundledeploymentsWithMissingBundle,omitempty"`
 	GitReposWithGenerationMismatch         []GitRepoInfo            `json:"gitreposWithGenerationMismatch,omitempty"`
 	BundlesWithGenerationMismatch          []BundleInfo             `json:"bundlesWithGenerationMismatch,omitempty"`
+	BundleDeploymentsWithSyncGenerationMismatch []BundleDeploymentInfo `json:"bundledeploymentsWithSyncGenerationMismatch,omitempty"`
 	OrphanedSecretsCount                   int                      `json:"orphanedSecretsCount,omitempty"`
 	InvalidSecretOwnersCount               int                      `json:"invalidSecretOwnersCount,omitempty"`
 	ContentIssuesCount                     int                      `json:"contentIssuesCount,omitempty"`
@@ -673,10 +672,6 @@ func (m *Monitor) convertBundleDeployments(bds []fleet.BundleDeployment) []Bundl
 			StagedDeploymentID:  bd.Spec.StagedDeploymentID,
 			AppliedDeploymentID: bd.Status.AppliedDeploymentID,
 			Finalizers:          bd.Finalizers,
-		}
-
-		if bd.Status.SyncGeneration != nil {
-			info.ObservedGeneration = *bd.Status.SyncGeneration
 		}
 
 		if bd.DeletionTimestamp != nil {

@@ -70,7 +70,7 @@ var _ = Describe("Fleet monitor", func() {
 			Expect(resources.GitRepos[0].Name).To(Equal(gitrepoName))
 		})
 
-		It("should identify stuck bundles", func() {
+		It("should identify bundles with generation mismatch", func() {
 			bundleName := "test-bundle"
 			bundle := &fleet.Bundle{
 				ObjectMeta: metav1.ObjectMeta{
@@ -87,7 +87,7 @@ var _ = Describe("Fleet monitor", func() {
 				_ = k8sClient.Delete(ctx, bundle)
 			})
 
-			// Update the bundle status to make it stuck
+			// Update the bundle status to create a generation mismatch
 			bundle.Status.ObservedGeneration = 0
 			Expect(k8sClient.Status().Update(ctx, bundle)).ToNot(HaveOccurred())
 
@@ -98,8 +98,8 @@ var _ = Describe("Fleet monitor", func() {
 			err = json.Unmarshal(buf.Contents(), &resources)
 			Expect(err).NotTo(HaveOccurred())
 
-			Expect(resources.Diagnostics.StuckBundles).To(HaveLen(1))
-			Expect(resources.Diagnostics.StuckBundles[0].Name).To(Equal(bundleName))
+			Expect(resources.Diagnostics.BundlesWithGenerationMismatch).To(HaveLen(1))
+			Expect(resources.Diagnostics.BundlesWithGenerationMismatch[0].Name).To(Equal(bundleName))
 		})
 
 		It("should identify invalid secret owners", func() {

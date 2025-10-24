@@ -24,7 +24,7 @@ fleet-util monitor --watch --interval 60 >> monitor.json
 The monitor command performs comprehensive diagnostics to detect:
 
 ### Resource Lifecycle Issues
-- **Stuck Bundles**: Bundles not progressing through their lifecycle (generation != observedGeneration, deletion timestamps)
+- **Bundles with Generation Mismatch**: Bundles not progressing through their lifecycle (generation != observedGeneration)
 - **Stuck BundleDeployments**: BundleDeployments where the agent isn't applying new deploymentIDs
 - **Multiple Finalizers**: Resources with more than one finalizer (indicates bugs - only Contents should have multiple finalizers for ref counting)
 - **Orphaned Resources**: Resources with deletion timestamps that can't be garbage collected
@@ -60,6 +60,7 @@ The monitor command performs comprehensive diagnostics to detect:
 ### Generation/Observation Mismatches
 - **GitRepo Generation Drift**: GitRepo generation != observedGeneration (controller not processing updates)
 - **Bundle Generation Drift**: Bundle generation != observedGeneration (controller not processing updates)
+- **BundleDeployment SyncGeneration Drift**: BundleDeployment syncGeneration != forceSyncGeneration (agent hasn't applied forced sync)
 - **Content Stale Generation**: Content resources with outdated generation values
 
 ## Output Format
@@ -119,7 +120,6 @@ fleet monitor | jq
       "namespace": "cluster-fleet-cluster1",
       "uid": "def-456-ghi",
       "generation": 2,
-      "observedGeneration": 2,
       "deploymentID": "s-ab12cd34:...",
       "appliedDeploymentID": "s-ab12cd34:...",
       "syncGeneration": 2,
@@ -159,7 +159,8 @@ fleet monitor | jq
     }
   ],
   "diagnostics": {
-    "stuckBundles": [...],
+    "bundlesWithGenerationMismatch": [...],
+    "bundledeploymentsWithSyncGenerationMismatch": [...],
     "stuckBundleDeployments": [...],
     "gitRepoBundleInconsistencies": [...],
     "contentIssues": [...],
@@ -232,7 +233,7 @@ fleet-util monitor --watch --interval 30 >> monitor.json
 ```bash
 # Check for stuck resources
 fleet-util monitor | jq '.diagnostics | {
-  stuckBundles: .stuckBundles | length,
+  bundlesWithGenerationMismatch: .bundlesWithGenerationMismatch | length,
   stuckBundleDeployments: .stuckBundleDeployments | length
 }'
 
@@ -332,16 +333,16 @@ RESOURCE COUNTS:
   ClusterGroups: 2
 
 DIAGNOSTICS SUMMARY:
-  Stuck Resources: 2 ⚠
-    - Stuck Bundles: 1
-    - Stuck BundleDeployments: 1
+  Stuck Resources:
+    - Stuck BundleDeployments: 1 ⚠
   Inconsistencies: 0 ✓
   Target Matching: 0 ✓
   Ownership Issues: 0 ✓
   Performance Issues: 1 ⚠
     - Large Bundles (>1MB): 1
   Agent Issues: 0 ✓
-  Generation Mismatches: 0 ✓
+  Generation Mismatches: 1 ⚠
+    - Bundles: 1
 ```
 
 #### Issues-Only Mode
@@ -350,10 +351,10 @@ DIAGNOSTICS SUMMARY:
 FLEET ISSUES REPORT - 2024-01-15T10:30:00Z
 ════════════════════════════════════════════════════════════════
 
-✗ STUCK BUNDLES (1):
+✗ BUNDLES WITH GENERATION MISMATCH (1):
   • fleet-default/my-repo-bundle
-    Reasons: observedGeneration mismatch
-    Gen: 5/4 | DelTime: none
+    Generation: 5 / Observed: 4
+    Deletion Timestamp: none
 
 ✗ LARGE BUNDLES (1):
   • fleet-default/huge-bundle
@@ -373,7 +374,7 @@ RESOURCE COUNT CHANGES:
   BundleDeployments: 36 → 39 ⚠
 
 DIAGNOSTIC CHANGES:
-  Stuck Bundles: 1 → 0 ✓ DECREASED
+  Bundles With Generation Mismatch: 1 → 0 ✓ DECREASED
   Stuck BundleDeployments: 1 → 0 ✓ DECREASED
   Large Bundles: 1 → 1
 
@@ -387,16 +388,16 @@ BUNDLE SIZE CHANGES:
 
 ```bash
 # Capture current state
-fleet-util monitor | jq > stuck-bundle.json
+fleet-util monitor | jq > bundle-status.json
 
-# Check for stuck bundles
-jq '.diagnostics.stuckBundles' stuck-bundle.json
+# Check for bundles with generation mismatch
+jq '.diagnostics.bundlesWithGenerationMismatch' bundle-status.json
 
 # Check if bundle matched any targets
-jq '.diagnostics.bundlesWithNoDeployments' stuck-bundle.json
+jq '.diagnostics.bundlesWithNoDeployments' bundle-status.json
 
 # Check bundle-to-gitrepo consistency
-jq '.diagnostics.gitRepoBundleInconsistencies' stuck-bundle.json
+jq '.diagnostics.gitRepoBundleInconsistencies' bundle-status.json
 ```
 
 ### Scenario 2: Agent Not Reporting Status
@@ -502,15 +503,18 @@ fleet monitor | jq -r '
 
 A resource is considered "stuck" when:
 
-**Bundle:**
+**Bundle (Generation Mismatch):**
 - `generation != observedGeneration` (controller hasn't processed latest spec)
-- Has a `deletionTimestamp` but still exists (finalizers blocking deletion)
-- `forceSyncGeneration` doesn't match GitRepo (should trigger sync but hasn't)
 
-**BundleDeployment:**
+**Note:** Bundles with deletion timestamps are tracked separately as a count in `diagnostics.bundlesWithDeletionTimestamp`.
+
+**BundleDeployment (Stuck):**
 - `spec.deploymentID != status.appliedDeploymentID` (agent hasn't applied latest deployment)
-- `syncGeneration` doesn't match Bundle's `forceSyncGeneration`
+- `syncGeneration` doesn't match `forceSyncGeneration` (forced sync not applied)
 - Has `deletionTimestamp` but still exists
+
+**BundleDeployment (SyncGeneration Mismatch):**
+- `syncGeneration` != `forceSyncGeneration` when `forceSyncGeneration > 0` (tracked separately from stuck BundleDeployments)
 
 ### API Consistency Check
 

@@ -99,9 +99,8 @@ summary_analysis() {
         "  ClusterGroups: \(.clusterGroups | length)",
         "",
         "DIAGNOSTICS SUMMARY:",
-        "  Stuck Resources: \(((.diagnostics.stuckBundles // []) | length) + ((.diagnostics.stuckBundleDeployments // []) | length)) \(if (((.diagnostics.stuckBundles // []) | length) + ((.diagnostics.stuckBundleDeployments // []) | length)) > 0 then "⚠" else "✓" end)",
-        "    - Stuck Bundles: \((.diagnostics.stuckBundles // []) | length)",
-        "    - Stuck BundleDeployments: \((.diagnostics.stuckBundleDeployments // []) | length)",
+        "  Stuck Resources:",
+        "    - Stuck BundleDeployments: \((.diagnostics.stuckBundleDeployments // []) | length) \(if ((.diagnostics.stuckBundleDeployments // []) | length) > 0 then "⚠" else "✓" end)",
         "  Inconsistencies: \(((.diagnostics.gitRepoBundleInconsistencies // []) | length) + ((.diagnostics.contentIssues // []) | length)) \(if (((.diagnostics.gitRepoBundleInconsistencies // []) | length) + ((.diagnostics.contentIssues // []) | length)) > 0 then "⚠" else "✓" end)",
         "    - GitRepo/Bundle Mismatches: \((.diagnostics.gitRepoBundleInconsistencies // []) | length)",
         "    - Content Issues: \((.diagnostics.contentIssues // []) | length)",
@@ -117,9 +116,10 @@ summary_analysis() {
         "    - Large Bundles (>1MB): \((.diagnostics.largeBundles // []) | length)",
         "    - Bundles with Missing Content: \((.diagnostics.bundlesWithMissingContent // []) | length)",
         "  Agent Issues: \((.diagnostics.clustersWithAgentIssues // []) | length) \(if ((.diagnostics.clustersWithAgentIssues // []) | length) > 0 then "⚠" else "✓" end)",
-        "  Generation Mismatches: \(((.diagnostics.gitReposWithGenerationMismatch // []) | length) + ((.diagnostics.bundlesWithGenerationMismatch // []) | length)) \(if (((.diagnostics.gitReposWithGenerationMismatch // []) | length) + ((.diagnostics.bundlesWithGenerationMismatch // []) | length)) > 0 then "⚠" else "✓" end)",
+        "  Generation Mismatches: \(((.diagnostics.gitReposWithGenerationMismatch // []) | length) + ((.diagnostics.bundlesWithGenerationMismatch // []) | length) + ((.diagnostics.bundledeploymentsWithSyncGenerationMismatch // []) | length)) \(if (((.diagnostics.gitReposWithGenerationMismatch // []) | length) + ((.diagnostics.bundlesWithGenerationMismatch // []) | length) + ((.diagnostics.bundledeploymentsWithSyncGenerationMismatch // []) | length)) > 0 then "⚠" else "✓" end)",
         "    - GitRepos: \((.diagnostics.gitReposWithGenerationMismatch // []) | length)",
         "    - Bundles: \((.diagnostics.bundlesWithGenerationMismatch // []) | length)",
+        "    - BundleDeployments (syncGeneration): \((.diagnostics.bundledeploymentsWithSyncGenerationMismatch // []) | length)",
         ""
     '
 }
@@ -142,14 +142,25 @@ detailed_analysis() {
         "  Restarts: \(.controller.restarts) \(if .controller.restarts > 0 then "⚠ RESTARTED" else "" end)",
         "  Started: \(.controller.startTime)",
         "",
-        (if (.diagnostics.stuckBundles | length) > 0 then
-            "╔═══ STUCK BUNDLES ⚠ ═══╗",
-            (.diagnostics.stuckBundles[] |
+        (if (.diagnostics.bundlesWithGenerationMismatch | length) > 0 then
+            "╔═══ BUNDLES WITH GENERATION MISMATCH ⚠ ═══╗",
+            (.diagnostics.bundlesWithGenerationMismatch[] |
                 "  Bundle: \(.namespace)/\(.name)",
                 "    Generation: \(.generation) / Observed: \(.observedGeneration)",
                 "    Deletion Timestamp: \(.deletionTimestamp // "none")",
                 "    Reasons: \(.reasons | join(", "))",
                 "    Ready Condition: \(.readyCondition.status // "N/A") - \(.readyCondition.message // "")",
+                ""
+            ),
+            ""
+        else "" end),
+        (if (.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) > 0 then
+            "╔═══ BUNDLEDEPLOYMENTS WITH SYNCGENERATION MISMATCH ⚠ ═══╗",
+            (.diagnostics.bundledeploymentsWithSyncGenerationMismatch[] |
+                "  BundleDeployment: \(.namespace)/\(.name)",
+                "    ForceSyncGeneration: \(.forceSyncGeneration) / SyncGeneration: \(.syncGeneration // "nil")",
+                "    DeploymentID: \(.deploymentID)",
+                "    AppliedDeploymentID: \(.appliedDeploymentID)",
                 ""
             ),
             ""
@@ -262,12 +273,20 @@ issues_only() {
             "  Current Start Time: \(.controller.startTime)",
             ""
         else "" end),
-        (if (.diagnostics.stuckBundles | length) > 0 then
-            "✗ STUCK BUNDLES (\(.diagnostics.stuckBundles | length)):",
-            (.diagnostics.stuckBundles[] |
+        (if (.diagnostics.bundlesWithGenerationMismatch | length) > 0 then
+            "✗ BUNDLES WITH GENERATION MISMATCH (\(.diagnostics.bundlesWithGenerationMismatch | length)):",
+            (.diagnostics.bundlesWithGenerationMismatch[] |
                 "  • \(.namespace)/\(.name)",
-                "    Reasons: \((.reasons // ["observedGeneration mismatch"]) | join(", "))",
-                "    Gen: \(.generation)/\(.observedGeneration) | DelTime: \(.deletionTimestamp // "none")",
+                "    Generation: \(.generation) / Observed: \(.observedGeneration)",
+                "    Deletion Timestamp: \(.deletionTimestamp // "none")",
+                ""
+            )
+        else "" end),
+        (if (.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) > 0 then
+            "✗ BUNDLEDEPLOYMENTS WITH SYNCGENERATION MISMATCH (\(.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length)):",
+            (.diagnostics.bundledeploymentsWithSyncGenerationMismatch[] |
+                "  • \(.namespace)/\(.name)",
+                "    ForceSyncGeneration: \(.forceSyncGeneration) / SyncGeneration: \(.syncGeneration // "nil")",
                 ""
             )
         else "" end),
@@ -276,7 +295,7 @@ issues_only() {
             (.diagnostics.stuckBundleDeployments[] |
                 "  • \(.namespace)/\(.name)",
                 "    Reasons: \((.reasons // ["agent not applying"]) | join(", "))",
-                "    Gen: \(.generation)/\(.observedGeneration // "N/A") | DepID Match: \(if .deploymentID == .appliedDeploymentID then "YES" else "NO" end)",
+                "    Gen: \(.generation) | DepID Match: \(if .deploymentID == .appliedDeploymentID then "YES" else "NO" end)",
                 ""
             )
         else "" end),
@@ -352,7 +371,8 @@ issues_only() {
             "  This indicates the API server is returning stale cached data!",
             ""
         else "" end),
-        (if ((.diagnostics.stuckBundles | length) == 0 and
+        (if ((.diagnostics.bundlesWithGenerationMismatch | length) == 0 and
+            (.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) == 0 and
             (.diagnostics.stuckBundleDeployments | length) == 0 and
             ((.diagnostics.gitrepoBundleInconsistencies // []) | length) == 0 and
             ((.diagnostics.contentIssues // []) | length) == 0 and
@@ -454,7 +474,8 @@ compare_snapshots() {
         ),
         "",
         "╔═══ DIAGNOSTICS CHANGES ═══╗",
-        "  Stuck Bundles: \($b.diagnostics.stuckBundles | length) → \($a.diagnostics.stuckBundles | length) \(if ($a.diagnostics.stuckBundles | length) > ($b.diagnostics.stuckBundles | length) then "⚠ INCREASED" else "" end)",
+        "  Bundles With Generation Mismatch: \($b.diagnostics.bundlesWithGenerationMismatch | length) → \($a.diagnostics.bundlesWithGenerationMismatch | length) \(if ($a.diagnostics.bundlesWithGenerationMismatch | length) > ($b.diagnostics.bundlesWithGenerationMismatch | length) then "⚠ INCREASED" else "" end)",
+        "  BundleDeployments With SyncGeneration Mismatch: \($b.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) → \($a.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) \(if ($a.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) > ($b.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) then "⚠ INCREASED" else "" end)",
         "  Stuck BundleDeployments: \($b.diagnostics.stuckBundleDeployments | length) → \($a.diagnostics.stuckBundleDeployments | length) \(if ($a.diagnostics.stuckBundleDeployments | length) > ($b.diagnostics.stuckBundleDeployments | length) then "⚠ INCREASED" else "" end)",
         "  Orphaned Secrets: \($b.diagnostics.orphanedSecretsCount) → \($a.diagnostics.orphanedSecretsCount) \(if $a.diagnostics.orphanedSecretsCount > $b.diagnostics.orphanedSecretsCount then "⚠ INCREASED" else "" end)",
         "  Invalid Secret Owners: \($b.diagnostics.invalidSecretOwnersCount) → \($a.diagnostics.invalidSecretOwnersCount) \(if $a.diagnostics.invalidSecretOwnersCount > $b.diagnostics.invalidSecretOwnersCount then "⚠ INCREASED" else "" end)",
@@ -472,13 +493,15 @@ json_output() {
             bundleCount: (.bundles | length),
             bundleDeploymentCount: (.bundledeployments | length),
             secretCount: (.bundleSecrets | length),
-            stuckBundlesCount: (.diagnostics.stuckBundles | length),
+            bundlesWithGenerationMismatchCount: (.diagnostics.bundlesWithGenerationMismatch | length),
+            bundleDeploymentsWithSyncGenerationMismatchCount: (.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length),
             stuckBundleDeploymentsCount: (.diagnostics.stuckBundleDeployments | length),
             orphanedSecretsCount: .diagnostics.orphanedSecretsCount,
             invalidSecretOwnersCount: .diagnostics.invalidSecretOwnersCount,
             apiConsistent: .apiConsistency.consistent,
             hasIssues: (
-                (.diagnostics.stuckBundles | length) > 0 or
+                (.diagnostics.bundlesWithGenerationMismatch | length) > 0 or
+                (.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) > 0 or
                 (.diagnostics.stuckBundleDeployments | length) > 0 or
                 .diagnostics.orphanedSecretsCount > 0 or
                 .diagnostics.invalidSecretOwnersCount > 0 or
@@ -488,7 +511,8 @@ json_output() {
             )
         },
         issues: {
-            stuckBundles: .diagnostics.stuckBundles,
+            bundlesWithGenerationMismatch: .diagnostics.bundlesWithGenerationMismatch,
+            bundleDeploymentsWithSyncGenerationMismatch: .diagnostics.bundledeploymentsWithSyncGenerationMismatch,
             stuckBundleDeployments: .diagnostics.stuckBundleDeployments,
             orphanedSecrets: .orphanedSecrets,
             invalidSecretOwners: .diagnostics.invalidSecretOwners
@@ -550,7 +574,8 @@ case "$MODE" in
                 "  Clusters: \($b.clusters | length) → \($a.clusters | length) \(if ($a.clusters | length) != ($b.clusters | length) then "⚠" else "" end)",
                 "",
                 "DIAGNOSTIC CHANGES:",
-                "  Stuck Bundles: \($b.diagnostics.stuckBundles | length) → \($a.diagnostics.stuckBundles | length) \(if ($a.diagnostics.stuckBundles | length) > ($b.diagnostics.stuckBundles | length) then "⚠ INCREASED" elif ($a.diagnostics.stuckBundles | length) < ($b.diagnostics.stuckBundles | length) then "✓ DECREASED" else "" end)",
+                "  Bundles With Generation Mismatch: \($b.diagnostics.bundlesWithGenerationMismatch | length) → \($a.diagnostics.bundlesWithGenerationMismatch | length) \(if ($a.diagnostics.bundlesWithGenerationMismatch | length) > ($b.diagnostics.bundlesWithGenerationMismatch | length) then "⚠ INCREASED" elif ($a.diagnostics.bundlesWithGenerationMismatch | length) < ($b.diagnostics.bundlesWithGenerationMismatch | length) then "✓ DECREASED" else "" end)",
+                "  BundleDeployments With SyncGeneration Mismatch: \($b.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) → \($a.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) \(if ($a.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) > ($b.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) then "⚠ INCREASED" elif ($a.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) < ($b.diagnostics.bundledeploymentsWithSyncGenerationMismatch | length) then "✓ DECREASED" else "" end)",
                 "  Stuck BundleDeployments: \($b.diagnostics.stuckBundleDeployments | length) → \($a.diagnostics.stuckBundleDeployments | length) \(if ($a.diagnostics.stuckBundleDeployments | length) > ($b.diagnostics.stuckBundleDeployments | length) then "⚠ INCREASED" elif ($a.diagnostics.stuckBundleDeployments | length) < ($b.diagnostics.stuckBundleDeployments | length) then "✓ DECREASED" else "" end)",
                 "  Large Bundles: \($b.diagnostics.largeBundles | length) → \($a.diagnostics.largeBundles | length) \(if ($a.diagnostics.largeBundles | length) > ($b.diagnostics.largeBundles | length) then "⚠ INCREASED" elif ($a.diagnostics.largeBundles | length) < ($b.diagnostics.largeBundles | length) then "✓ DECREASED" else "" end)",
                 "  Agent Issues: \($b.diagnostics.clustersWithAgentIssues | length) → \($a.diagnostics.clustersWithAgentIssues | length) \(if ($a.diagnostics.clustersWithAgentIssues | length) > ($b.diagnostics.clustersWithAgentIssues | length) then "⚠ INCREASED" elif ($a.diagnostics.clustersWithAgentIssues | length) < ($b.diagnostics.clustersWithAgentIssues | length) then "✓ DECREASED" else "" end)",
@@ -597,7 +622,7 @@ case "$MODE" in
                 jq -n --argjson before "$prev_snapshot" --argjson after "$line" '
                     $before as $b | $after as $a |
                     "Resources: GR:\($b.gitrepos|length)→\($a.gitrepos|length) B:\($b.bundles|length)→\($a.bundles|length) BD:\($b.bundledeployments|length)→\($a.bundledeployments|length)",
-                    "Stuck: B:\($b.diagnostics.stuckBundles|length)→\($a.diagnostics.stuckBundles|length) BD:\($b.diagnostics.stuckBundleDeployments|length)→\($a.diagnostics.stuckBundleDeployments|length)"
+                    "GenMismatch: B:\($b.diagnostics.bundlesWithGenerationMismatch|length)→\($a.diagnostics.bundlesWithGenerationMismatch|length) Stuck BD:\($b.diagnostics.stuckBundleDeployments|length)→\($a.diagnostics.stuckBundleDeployments|length)"
                 '
             fi
 
