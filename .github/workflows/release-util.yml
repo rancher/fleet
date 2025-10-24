@@ -87,8 +87,6 @@ jobs:
           
           # Create release notes
           cat > release-notes.md << EOF
-          # Fleet Utilities ${VERSION}
-          
           This release contains the \`fleet-util\` CLI tool with monitoring and diagnostic capabilities for Fleet.
           
           ## Installation
