@@ -324,6 +324,7 @@ type BundleInfo struct {
 	Generation          int64    `json:"generation"`
 	ObservedGeneration  int64    `json:"observedGeneration,omitempty"`
 	Commit              string   `json:"commit,omitempty"`
+	RepoName            string   `json:"repoName,omitempty"`
 	ForceSyncGeneration int64    `json:"forceSyncGeneration,omitempty"`
 	ResourcesSHA256Sum  string   `json:"resourcesSHA256Sum,omitempty"`
 	SizeBytes           *int64   `json:"sizeBytes,omitempty"`
@@ -619,6 +620,7 @@ func (m *Monitor) convertBundles(bundles []fleet.Bundle) []BundleInfo {
 			Generation:          b.Generation,
 			ObservedGeneration:  b.Status.ObservedGeneration,
 			Commit:              b.Labels["fleet.cattle.io/commit"],
+			RepoName:            b.Labels["fleet.cattle.io/repo-name"],
 			ForceSyncGeneration: b.Spec.ForceSyncGeneration,
 			ResourcesSHA256Sum:  b.Status.ResourcesSHA256Sum,
 			Finalizers:          b.Finalizers,
