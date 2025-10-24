@@ -15,6 +15,34 @@ env:
   CGO_ENABLED: 0
 
 jobs:
+  test-fleet-util:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 0
+      -
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+      -
+        name: unit-test
+        run: go test -shuffle=on $(go list ./... | grep -v -e /e2e -e /integrationtests -e /benchmarks)
+      -
+        name: Install Ginkgo CLI
+        run: go install github.com/onsi/ginkgo/v2/ginkgo
+      -
+        name: Setup test environment
+        run: |
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+          KUBEBUILDER_ASSETS=$(setup-envtest use 1.34 -p path)
+          echo "KUBEBUILDER_ASSETS=${KUBEBUILDER_ASSETS}" >> $GITHUB_ENV
+      -
+        name: Run monitor integration tests
+        run: ginkgo --github-output --trace ./integrationtests/cli/monitor
+
   release-fleet-util:
     runs-on: ubuntu-latest
 
