@@ -301,12 +301,28 @@ issues_only() {
         else "" end),
         (if (.diagnostics.gitrepoBundleInconsistenciesCount // 0) > 0 then
             "✗ GITREPO/BUNDLE INCONSISTENCIES (\(.diagnostics.gitrepoBundleInconsistenciesCount)):",
-            ((.diagnostics.gitrepoBundleInconsistencies // [])[] |
-                "  • Bundle: \(.namespace)/\(.name)",
-                "    Generation: \(.generation // "N/A") / Observed: \(.observedGeneration // "N/A")",
-                "    Commit: \((.commit // "N/A") | if . == "N/A" then . else .[0:8] end)",
-                "    ForceSyncGeneration: \(.forceSyncGeneration // 0)",
-                "    Ready: \(if .ready then "Yes" else "No - \(.readyMessage // "unknown")" end)",
+            ((.diagnostics.gitrepoBundleInconsistencies // [])[] as $bundle |
+                # Find the corresponding GitRepo using the repo-name label
+                ((.gitrepos // []) | map(select(.name == ($bundle.repoName // "") and .namespace == $bundle.namespace)) | first) as $gitrepo |
+                "  • Bundle: \($bundle.namespace)/\($bundle.name) (repo: \($bundle.repoName // "N/A"))",
+                (if $gitrepo then
+                    (if ($bundle.commit // "") != ($gitrepo.commit // "") then
+                        "    ⚠ Commit Mismatch: Bundle=\(($bundle.commit // "N/A") | if . == "N/A" then . else .[0:8] end) | GitRepo=\(($gitrepo.commit // "N/A") | if . == "N/A" then . else .[0:8] end)"
+                    else
+                        "    Commit: \(($bundle.commit // "N/A") | if . == "N/A" then . else .[0:8] end)"
+                    end),
+                    (if ($bundle.forceSyncGeneration // 0) != ($gitrepo.forceSyncGeneration // 0) then
+                        "    ⚠ ForceSyncGeneration Mismatch: Bundle=\($bundle.forceSyncGeneration // 0) | GitRepo=\($gitrepo.forceSyncGeneration // 0)"
+                    else
+                        "    ForceSyncGeneration: \($bundle.forceSyncGeneration // 0)"
+                    end)
+                else
+                    "    Generation: \($bundle.generation // "N/A") / Observed: \($bundle.observedGeneration // "N/A")",
+                    "    Commit: \(($bundle.commit // "N/A") | if . == "N/A" then . else .[0:8] end)",
+                    "    ForceSyncGeneration: \($bundle.forceSyncGeneration // 0)",
+                    "    (GitRepo not found)"
+                end),
+                "    Ready: \(if $bundle.ready then "Yes" else "No - \($bundle.readyMessage // "unknown")" end)",
                 ""
             )
         else "" end),
