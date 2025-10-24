@@ -12,11 +12,8 @@ The `fleet-util monitor` command provides deep insights into Fleet's GitOps life
 # Single snapshot with formatted output
 fleet-util monitor | jq
 
-# Continuous monitoring (snapshots every 10 seconds)
-while true; do
-  fleet-util monitor >> monitor.json
-  sleep 10
-done
+# Continuous monitoring with built-in watch mode (every 60 seconds)
+fleet-util monitor --watch --interval 60 >> monitor.json
 
 # Analyze collected snapshots
 ./analyze-fleet-monitoring.sh monitor.json
@@ -197,6 +194,8 @@ Flags:
   -n, --namespace string          Namespace to monitor (default: all namespaces)
       --system-namespace string   Fleet system namespace (default: cattle-fleet-system)
       --agent-staleness duration  Consider agent stale after this duration (default: 24h)
+      --watch                     Watch for changes and output continuously
+      --interval int              Interval in seconds between checks when watching (default: 60)
   -h, --help                      help for monitor
 ```
 
@@ -218,14 +217,14 @@ fleet-util monitor -n fleet-default | jq
 ### Continuous Monitoring
 
 ```bash
-# Collect snapshots every 10 seconds
-while true; do
-  fleet-util monitor >> monitor.json
-  sleep 10
-done
+# Collect snapshots every 60 seconds using watch mode
+fleet-util monitor --watch --interval 60 >> monitor.json
 
 # In another terminal, watch for changes
 ./analyze-fleet-monitoring.sh --live monitor.json
+
+# Or monitor with a shorter interval (every 30 seconds)
+fleet-util monitor --watch --interval 30 >> monitor.json
 ```
 
 ### Targeted Diagnostics
@@ -309,8 +308,8 @@ When your monitor.json file contains multiple snapshots (one JSON object per lin
 ### Live Monitoring
 
 ```bash
-# Terminal 1: Collect snapshots
-while true; do fleet-util monitor >> monitor.json; sleep 10; done
+# Terminal 1: Collect snapshots every 60 seconds
+fleet-util monitor --watch --interval 60 >> monitor.json
 
 # Terminal 2: Watch for changes in real-time
 ./analyze-fleet-monitoring.sh --live monitor.json
@@ -460,14 +459,11 @@ fleet-util monitor | jq '.diagnostics.bundlesWithMissingContent'
 For long-term monitoring and trend analysis:
 
 ```bash
-# 1. Start continuous collection (runs in background)
-while true; do
-  fleet-util monitor >> /var/log/fleet-monitor.json
-  sleep 30
-done &
+# 1. Start continuous collection with watch mode (runs in background)
+nohup fleet-util monitor --watch --interval 60 >> /var/log/fleet-monitor.json 2>&1 &
 
 # 2. Periodically analyze for issues
-watch -n 60 "./analyze-fleet-monitoring.sh --issues /var/log/fleet-monitor.json | tail -30"
+watch -n 300 "./analyze-fleet-monitoring.sh --issues /var/log/fleet-monitor.json | tail -30"
 
 # 3. Generate daily reports
 ./analyze-fleet-monitoring.sh --diff /var/log/fleet-monitor.json > fleet-report-$(date +%Y%m%d).txt
@@ -535,7 +531,7 @@ Mismatches indicate where the sync process is failing.
 - The monitor fetches all Fleet resources in the cluster
 - For large installations (1000+ bundles), consider:
   - Using `--namespace` to limit scope
-  - Running less frequently (e.g., every 30-60 seconds instead of 10)
+  - Running less frequently (e.g., every 120+ seconds instead of 60)
   - Monitoring resource usage of the monitor command itself
 
 ## Troubleshooting the Monitor Command
