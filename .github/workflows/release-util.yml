@@ -1,0 +1,99 @@
+# Fleet utilities release workflow
+name: Fleet Util Release
+
+on:
+  push:
+    tags:
+      - util-v**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GOARCH: amd64
+  CGO_ENABLED: 0
+
+jobs:
+  release-fleet-util:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out Fleet
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+
+      - name: Build fleet-util binaries
+        run: |
+          VERSION=${GITHUB_REF_NAME#util-v}
+          mkdir -p dist
+          
+          # Build for multiple platforms
+          GOOS=linux GOARCH=amd64 go build -o dist/fleet-util-linux-amd64 -ldflags="-s -w -X main.Version=${VERSION}" ./cmd/fleetcli
+          GOOS=linux GOARCH=arm64 go build -o dist/fleet-util-linux-arm64 -ldflags="-s -w -X main.Version=${VERSION}" ./cmd/fleetcli
+          GOOS=darwin GOARCH=amd64 go build -o dist/fleet-util-darwin-amd64 -ldflags="-s -w -X main.Version=${VERSION}" ./cmd/fleetcli
+          GOOS=darwin GOARCH=arm64 go build -o dist/fleet-util-darwin-arm64 -ldflags="-s -w -X main.Version=${VERSION}" ./cmd/fleetcli
+          GOOS=windows GOARCH=amd64 go build -o dist/fleet-util-windows-amd64.exe -ldflags="-s -w -X main.Version=${VERSION}" ./cmd/fleetcli
+          
+          # Copy analyze script
+          cp package/analyze-fleet-monitoring.sh dist/
+          chmod +x dist/analyze-fleet-monitoring.sh
+
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum fleet-util-* analyze-fleet-monitoring.sh > checksums.txt
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          
+          # Create release notes
+          cat > release-notes.md << EOF
+          # Fleet Utilities ${VERSION}
+          
+          This release contains the \`fleet-util\` CLI tool with monitoring and diagnostic capabilities for Fleet.
+          
+          ## Installation
+          
+          Download the appropriate binary for your platform and make it executable:
+          
+          \`\`\`bash
+          # Linux AMD64
+          wget https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/fleet-util-linux-amd64
+          chmod +x fleet-util-linux-amd64
+          sudo mv fleet-util-linux-amd64 /usr/local/bin/fleet-util
+          
+          # macOS ARM64 (Apple Silicon)
+          wget https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/fleet-util-darwin-arm64
+          chmod +x fleet-util-darwin-arm64
+          sudo mv fleet-util-darwin-arm64 /usr/local/bin/fleet-util
+          \`\`\`
+          
+          ## Usage
+          
+          See [README-MONITOR.md](https://github.com/${GITHUB_REPOSITORY}/blob/${VERSION}/README-MONITOR.md) for detailed documentation.
+          
+          ## Included Files
+          
+          - \`fleet-util-*\`: CLI binaries for various platforms
+          - \`analyze-fleet-monitoring.sh\`: Shell script for analyzing monitor output
+          - \`checksums.txt\`: SHA256 checksums for all files
+          EOF
+          
+          # Create release and upload assets
+          gh release create "${VERSION}" \
+            --title "Fleet Utilities ${VERSION}" \
+            --notes-file release-notes.md \
+            dist/fleet-util-* \
+            dist/analyze-fleet-monitoring.sh \
+            dist/checksums.txt
