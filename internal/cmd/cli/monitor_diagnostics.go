@@ -152,7 +152,6 @@ func (m *Monitor) collectDiagnostics(gitRepos []fleet.GitRepo, bundles []fleet.B
 	resourcesWithMultipleFinalizers := m.detectMultipleFinalizers(gitRepos, bundles, bundleDeployments)
 
 	return &Diagnostics{
-		StuckBundles:                           m.convertBundles(m.detectStuckBundles(bundles)),
 		StuckBundleDeployments:                 m.convertBundleDeployments(m.detectStuckBundleDeployments(bundleDeployments)),
 		GitRepoBundleInconsistencies:           m.convertBundles(gitRepoBundleInconsistencies),
 		InvalidSecretOwners:                    m.convertSecrets(invalidSecretOwners),
@@ -167,6 +166,7 @@ func (m *Monitor) collectDiagnostics(gitRepos []fleet.GitRepo, bundles []fleet.B
 		BundleDeploymentsWithMissingBundle:     m.convertBundleDeployments(m.detectBundleDeploymentsWithMissingBundle(bundleDeployments, bundles)),
 		GitReposWithGenerationMismatch:         m.convertGitRepos(m.detectGitReposWithGenerationMismatch(gitRepos)),
 		BundlesWithGenerationMismatch:          m.convertBundles(m.detectBundlesWithGenerationMismatch(bundles)),
+		BundleDeploymentsWithSyncGenerationMismatch: m.convertBundleDeployments(m.detectBundleDeploymentsWithSyncGenerationMismatch(bundleDeployments)),
 		OrphanedSecretsCount:                   len(orphanedSecrets),
 		InvalidSecretOwnersCount:               len(invalidSecretOwners),
 		ContentIssuesCount:                     len(contentIssues),
@@ -178,23 +178,7 @@ func (m *Monitor) collectDiagnostics(gitRepos []fleet.GitRepo, bundles []fleet.B
 	}
 }
 
-// detectStuckBundles identifies bundles that are stuck due to deletion timestamps or generation mismatches
-func (m *Monitor) detectStuckBundles(bundles []fleet.Bundle) []fleet.Bundle {
-	var stuckBundles []fleet.Bundle
-	for _, bundle := range bundles {
-		stuck := false
-		if bundle.DeletionTimestamp != nil {
-			stuck = true
-		}
-		if bundle.Generation != bundle.Status.ObservedGeneration {
-			stuck = true
-		}
-		if stuck {
-			stuckBundles = append(stuckBundles, bundle)
-		}
-	}
-	return stuckBundles
-}
+
 
 // detectStuckBundleDeployments identifies bundledeployments stuck due to various issues
 func (m *Monitor) detectStuckBundleDeployments(bundleDeployments []fleet.BundleDeployment) []fleet.BundleDeployment {
@@ -597,4 +581,19 @@ func (m *Monitor) detectBundlesWithGenerationMismatch(bundles []fleet.Bundle) []
 	}
 
 	return mismatchedBundles
+}
+
+// detectBundleDeploymentsWithSyncGenerationMismatch detects BundleDeployments with syncGeneration != forceSyncGeneration
+func (m *Monitor) detectBundleDeploymentsWithSyncGenerationMismatch(bundleDeployments []fleet.BundleDeployment) []fleet.BundleDeployment {
+	var mismatchedBundleDeployments []fleet.BundleDeployment
+
+	for _, bd := range bundleDeployments {
+		if bd.Spec.Options.ForceSyncGeneration > 0 {
+			if bd.Status.SyncGeneration == nil || *bd.Status.SyncGeneration != bd.Spec.Options.ForceSyncGeneration {
+				mismatchedBundleDeployments = append(mismatchedBundleDeployments, bd)
+			}
+		}
+	}
+
+	return mismatchedBundleDeployments
 }
