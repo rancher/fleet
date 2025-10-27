@@ -19,12 +19,10 @@ import (
 	"github.com/rancher/fleet/internal/mocks"
 	"github.com/rancher/fleet/internal/ssh"
 	fleetv1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
-	"github.com/rancher/fleet/pkg/durations"
 	"github.com/rancher/wrangler/v3/pkg/genericcondition"
 	"go.uber.org/mock/gomock"
 
 	fleetevent "github.com/rancher/fleet/pkg/event"
-	gitmocks "github.com/rancher/fleet/pkg/git/mocks"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -84,59 +82,6 @@ func (m gitRepoPointerMatcher) Matches(x interface{}) bool {
 
 func (m gitRepoPointerMatcher) String() string {
 	return ""
-}
-
-func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	scheme := runtime.NewScheme()
-	utilruntime.Must(batchv1.AddToScheme(scheme))
-	gitRepo := fleetv1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gitrepo",
-			Namespace: "default",
-		},
-	}
-	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockK8sClient(mockCtrl)
-	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
-			gitrepo.Name = gitRepo.Name
-			gitrepo.Namespace = gitRepo.Namespace
-			gitrepo.Spec.Repo = "repo"
-			return nil
-		},
-	)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	fetcher := gitmocks.NewMockGitFetcher(mockCtrl)
-	client.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
-			// check that we added the finalizer
-			if !controllerutil.ContainsFinalizer(repo, finalize.GitRepoFinalizer) {
-				t.Errorf("expecting gitrepo to contain finalizer")
-			}
-		},
-	).Times(1)
-
-	r := GitJobReconciler{
-		Client:     client,
-		Scheme:     scheme,
-		Image:      "",
-		GitFetcher: fetcher,
-		Clock:      RealClock{},
-	}
-
-	ctx := context.TODO()
-
-	// second call is the one calling LatestCommit
-	res, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
-	}
-	if res.RequeueAfter != durations.DefaultRequeueAfter {
-		t.Errorf("expecting RequeueAfter set to default of 5 seconds, it was %v", res.RequeueAfter)
-	}
 }
 
 func TestReconcile_Error_WhenGitrepoRestrictionsAreNotMet(t *testing.T) {

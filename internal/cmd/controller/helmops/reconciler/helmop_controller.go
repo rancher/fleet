@@ -120,12 +120,8 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	if !controllerutil.ContainsFinalizer(helmop, finalize.HelmOpFinalizer) {
-		if err := addFinalizer(ctx, r.Client, helmop, finalize.HelmOpFinalizer); err != nil {
-			return ctrl.Result{}, err
-		}
-
-		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+	if err := finalize.EnsureFinalizer(ctx, r.Client, helmop, finalize.HelmOpFinalizer); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	if err := validate(*helmop); err != nil {
@@ -380,25 +376,6 @@ func propagateHelmOpProperties(spec *fleet.BundleSpec) {
 			target.Helm.Version = spec.Helm.Version
 		}
 	}
-}
-
-func addFinalizer[T client.Object](ctx context.Context, c client.Client, obj T, finalizer string) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		nsName := types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
-		if err := c.Get(ctx, nsName, obj); err != nil {
-			return err
-		}
-
-		controllerutil.AddFinalizer(obj, finalizer)
-
-		return c.Update(ctx, obj)
-	})
-
-	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	return nil
 }
 
 func deleteFinalizer[T client.Object](ctx context.Context, c client.Client, obj T, finalizer string) error {

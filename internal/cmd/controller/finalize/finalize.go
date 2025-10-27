@@ -23,6 +23,7 @@ const (
 	BundleFinalizer           = "fleet.cattle.io/bundle-finalizer"
 	BundleDeploymentFinalizer = "fleet.cattle.io/bundle-deployment-finalizer"
 	ClusterFinalizer          = "fleet.cattle.io/cluster-finalizer"
+	ScheduleFinalizer         = "fleet.cattle.io/schedule-finalizer"
 )
 
 // PurgeBundles deletes all bundles related to the given resource namespaced name
@@ -156,4 +157,14 @@ func PurgeNamespace(ctx context.Context, c client.Client, deleteNamespace bool, 
 	}
 
 	return nil
+}
+
+// EnsureFinalizer adds a finalizer to the given object if it doesn't exist.
+func EnsureFinalizer(ctx context.Context, c client.Client, obj client.Object, finalizer string) error {
+	if controllerutil.ContainsFinalizer(obj, finalizer) {
+		return nil
+	}
+
+	controllerutil.AddFinalizer(obj, finalizer)
+	return c.Update(ctx, obj)
 }

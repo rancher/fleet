@@ -134,10 +134,8 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleDelete(ctx, cluster)
 	}
 
-	if err := r.ensureFinalizer(ctx, cluster); err != nil {
-		// Retry without updating the status, as this should be a transient error about which users can't do
-		// anything.
-		return ctrl.Result{}, fmt.Errorf("%w, failed to add finalizer to bundle: %w", fleetutil.ErrRetryable, err)
+	if err := finalize.EnsureFinalizer(ctx, r.Client, cluster, finalize.ClusterFinalizer); err != nil {
+		return ctrl.Result{}, fmt.Errorf("%w, failed to add finalizer to cluster: %w", fleetutil.ErrRetryable, err)
 	}
 
 	if cluster.Status.Namespace == "" {
@@ -345,18 +343,6 @@ func (r *ClusterReconciler) mapBundleDeploymentToCluster(ctx context.Context, a 
 			Name:      name,
 		},
 	}}
-}
-
-// ensureFinalizer adds a finalizer to a recently created cluster.
-func (r *ClusterReconciler) ensureFinalizer(ctx context.Context, cluster *fleet.Cluster) error {
-	if controllerutil.ContainsFinalizer(cluster, finalize.ClusterFinalizer) {
-
-		return nil
-	}
-
-	controllerutil.AddFinalizer(cluster, finalize.ClusterFinalizer)
-
-	return r.Update(ctx, cluster)
 }
 
 // handleDelete runs cleanup the namespace associated to a Cluster,
