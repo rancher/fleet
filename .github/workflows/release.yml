@@ -30,6 +30,29 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify Rancher is not in code freeze (alpha/beta only)
+        run: |
+          set -x
+          FLEET_VERSION="${GITHUB_REF_NAME#v}"
+
+          if [[ ! "${FLEET_VERSION}" =~ (alpha|beta) ]]; then
+            echo "Skipping code freeze check for non-alpha/beta release"
+            exit 0
+          fi
+
+          FLEET_MINOR=$(echo "${FLEET_VERSION}" | cut -d'.' -f2)
+          RANCHER_VERSION="2.$((FLEET_MINOR - 1))"
+
+          if ! CHART_DEFAULT_BRANCH=$(curl -sf "https://raw.githubusercontent.com/rancher/rancher/release/v${RANCHER_VERSION}/package/Dockerfile" | grep "ARG CHART_DEFAULT_BRANCH=" | cut -d'=' -f2); then
+            echo "Release branch release/v${RANCHER_VERSION} not found, assuming main branch which can not be in code freeze"
+            exit 0
+          fi
+
+          if [[ "${CHART_DEFAULT_BRANCH}" != "dev-v${RANCHER_VERSION}" ]]; then
+            echo "ERROR: CHART_DEFAULT_BRANCH does not match the expected dev branch!"
+            exit 1
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
