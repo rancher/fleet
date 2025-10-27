@@ -53,6 +53,17 @@ jobs:
             exit 1
           fi
 
+          LATEST_RANCHER_RELEASE=$(curl -sf "https://api.github.com/repos/rancher/rancher/releases" | jq -r "[.[] | select(.tag_name | startswith(\"v${RANCHER_VERSION}.\"))] | first | .tag_name")
+          if [ -z "${LATEST_RANCHER_RELEASE}" ]; then
+            echo "No Rancher ${RANCHER_VERSION}.x release found, assuming pre-release state"
+            exit 0
+          fi
+
+          if [[ "${LATEST_RANCHER_RELEASE}" =~ -rc ]]; then
+            echo "ERROR: Latest Rancher ${RANCHER_VERSION}.x release is an RC (${LATEST_RANCHER_RELEASE}), indicating code freeze!"
+            exit 1
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         with:
