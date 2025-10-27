@@ -24,8 +24,18 @@ if [ ! -e ~/.gitconfig ]; then
     git config --global user.email fleet@suse.de
 fi
 
-# Check if version is available online
 CHART_DEFAULT_BRANCH=$(grep "ARG CHART_DEFAULT_BRANCH=" package/Dockerfile | cut -d'=' -f2)
+
+# Prevent alpha and beta releases during the Rancher release window
+if [[ "${NEW_FLEET_VERSION}" =~ (alpha|beta) ]]; then
+    if [[ ! "${CHART_DEFAULT_BRANCH}" =~ ^dev- ]]; then
+        echo "ERROR: CHART_DEFAULT_BRANCH in package/Dockerfile must reference a dev chart branch for alpha/beta versions (e.g., dev-v2.12)"
+        echo "Current value: ${CHART_DEFAULT_BRANCH}"
+        exit 1
+    fi
+fi
+
+# Check if version is available online
 if ! curl -s --head --fail "https://github.com/rancher/charts/raw/${CHART_DEFAULT_BRANCH}/assets/fleet/fleet-${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION}.tgz" > /dev/null; then
     echo "Version ${NEW_CHART_VERSION}+up${NEW_FLEET_VERSION} does not exist in the branch ${CHART_DEFAULT_BRANCH} in rancher/charts"
     exit 1
