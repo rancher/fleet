@@ -373,6 +373,7 @@ var _ = Describe("ScheduleReconciler", func() {
 	})
 })
 
+// nolint:unparam // namespace is always default, for now. That may change.
 func checkState(
 	scheduler quartz.Scheduler,
 	k8sclient client.Client,

@@ -99,7 +99,7 @@ var _ = Describe("Bundle Status Fields", func() {
 			}).Should(BeTrue())
 			Expect(bundle.Status.Summary.DesiredReady).To(Equal(1))
 			Expect(bundle.Status.Display.ReadyClusters).To(Equal("1/1"))
-			Expect(bundle.Status.ResourceKey).To(HaveLen(0))
+			Expect(bundle.Status.ResourceKey).To(BeEmpty())
 		})
 	})
 

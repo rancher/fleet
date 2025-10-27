@@ -23,6 +23,7 @@ func PriorityClass(priorityClass *fleet.PriorityClassSpec) *schedulingv1.Priorit
 		ObjectMeta: metav1.ObjectMeta{
 			Name: FleetAgentPriorityClassName,
 		},
+		//nolint:gosec // TODO: PriorityClassSpec should use int32 as its Value type in a future minor release.
 		Value:            int32(priorityClass.Value),
 		Description:      "Priority class for Fleet Agent",
 		PreemptionPolicy: priorityClass.PreemptionPolicy,
