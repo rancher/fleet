@@ -54,7 +54,6 @@ func TestPollGitRepo(t *testing.T) {
 				})
 				gf.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Return("new-commit", nil)
 				c.EXPECT().Status().Return(sw)
-				// sw.EXPECT().Patch(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 			},
 			expectedEvents: []string{"Normal GotNewCommit new-commit"},
 			validateGitRepo: func(t *testing.T, gr *v1alpha1.GitRepo) {
@@ -186,7 +185,7 @@ func TestPollGitRepo(t *testing.T) {
 
 			if tc.expectedErr != "" {
 				if err == nil || err.Error() != tc.expectedErr {
-					t.Errorf("expected error '%s', got '%v'", tc.expectedErr, err)
+					t.Errorf("expected error '%q', got '%v'", tc.expectedErr, err)
 				}
 			} else if err != nil {
 				t.Errorf("unexpected error: %v", err)
@@ -199,7 +198,7 @@ func TestPollGitRepo(t *testing.T) {
 				}
 				for i, expectedEvent := range tc.expectedEvents {
 					if event, ok := <-recorder.Events; ok && event != expectedEvent {
-						t.Errorf("expected event %d to be '%s', got '%s'", i, expectedEvent, event)
+						t.Errorf("expected event %d to be '%q', got '%q'", i, expectedEvent, event)
 					}
 				}
 			}
@@ -224,7 +223,7 @@ func TestGitPollingJob_Description(t *testing.T) {
 
 	expected := "gitops-polling-test-ns-test-repo-http://a.b/c.git-develop"
 	if job.Description() != expected {
-		t.Errorf("expected description '%s', got '%s'", expected, job.Description())
+		t.Errorf("expected description '%q', got '%q'", expected, job.Description())
 	}
 }
 

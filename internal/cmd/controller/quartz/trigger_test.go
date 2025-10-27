@@ -10,8 +10,8 @@ func TestControllerTrigger(t *testing.T) {
 	jitterPercent := 10
 	tr := NewControllerTrigger(interval, jitterPercent)
 
-	if tr.IsInitRunDone {
-		t.Errorf("unexpected initial value for IsInitRunDone, expected false, got true")
+	if tr.isInitRunDone {
+		t.Errorf("unexpected initial value for isInitRunDone, expected false, got true")
 	}
 
 	// First fire time should be immediate
@@ -21,8 +21,8 @@ func TestControllerTrigger(t *testing.T) {
 		t.Errorf("unexpected error on first call to NextFireTime: %v", err)
 	}
 
-	if !tr.IsInitRunDone {
-		t.Errorf("IsInitRunDone should be true after first call, but it's false")
+	if !tr.isInitRunDone {
+		t.Errorf("isInitRunDone should be true after first call, but it's false")
 	}
 
 	if ft != now {

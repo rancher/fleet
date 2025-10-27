@@ -846,6 +846,8 @@ func getFleetCLIErrorsFromLine(l string) string {
 	return s
 }
 
+// getNextCommit returns a commit SHA coming either from the status' webhook
+// commit or, with lower precedence, from the polling commit.
 func getNextCommit(status v1alpha1.GitRepoStatus) string {
 	commit := status.Commit
 	if status.PollingCommit != "" && status.PollingCommit != commit {

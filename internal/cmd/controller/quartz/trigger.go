@@ -15,14 +15,14 @@ import (
 // It also adds the possibility to add a percentage of jitter to the duration of the trigger to avoid
 // situations in which we have many collisions.
 type ControllerTrigger struct {
-	IsInitRunDone bool
+	isInitRunDone bool
 	jitterPercent int
 	simpleTrigger *quartz.SimpleTrigger
 }
 
 func (t *ControllerTrigger) NextFireTime(prev int64) (int64, error) {
-	if !t.IsInitRunDone {
-		t.IsInitRunDone = true
+	if !t.isInitRunDone {
+		t.isInitRunDone = true
 
 		return prev, nil
 	}
@@ -47,10 +47,15 @@ func NewControllerTrigger(interval time.Duration, jitterPercent int) *Controller
 }
 
 // jitter returns a random jitter between 0% and +jitterPercent% of the original duration.
-// jitterPercent is an integer percentage (e.g., 10 for 10%).
+// jitterPercent is an integer percentage (e.g., 10 for 10%)
+// and it's limited to 100 in case a higher number is entered.
 func jitter(d time.Duration, jitterPercent int) time.Duration {
 	if jitterPercent <= 0 {
 		return 0
+	}
+
+	if jitterPercent > 100 {
+		jitterPercent = 100
 	}
 
 	// Convert jitter percent to a fraction
