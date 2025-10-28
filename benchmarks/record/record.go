@@ -235,7 +235,7 @@ func getMetrics(res map[string]float64, url string, controllers ...string) {
 	pod := addRandomSuffix("curl")
 	var (
 		mfs    map[string]*dto.MetricFamily
-		parser expfmt.TextParser = expfmt.NewTextParser(model.LegacyValidation)
+		parser = expfmt.NewTextParser(model.LegacyValidation)
 	)
 	Eventually(func() error {
 		GinkgoWriter.Print("Fetching metrics from " + url + "\n")
