@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"github.com/rancher/fleet/internal/experimental"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 
 	"github.com/rancher/wrangler/v3/pkg/apply"
@@ -17,29 +18,39 @@ const (
 
 // ApplyBootstrapResources creates the cluster roles, system namespace and system registration namespace
 func ApplyBootstrapResources(systemNamespace, systemRegistrationNamespace string, apply apply.Apply) error {
+	rules := []rbacv1.PolicyRule{
+		{
+			Verbs:     []string{"get", "list", "watch"},
+			APIGroups: []string{fleet.SchemeGroupVersion.Group},
+			Resources: []string{fleet.BundleDeploymentResourceNamePlural},
+		},
+		{
+			Verbs:     []string{"update", "patch"},
+			APIGroups: []string{fleet.SchemeGroupVersion.Group},
+			Resources: []string{fleet.BundleDeploymentResourceNamePlural + "/status"},
+		},
+		{
+			Verbs:     []string{"get"},
+			APIGroups: []string{""},
+			Resources: []string{"secrets"},
+		},
+	}
+
+	if experimental.CopyResourcesDownstreamEnabled() {
+		rules = append(rules, rbacv1.PolicyRule{
+			Verbs:     []string{"get"},
+			APIGroups: []string{""},
+			Resources: []string{"configmaps"},
+		})
+	}
+
 	return apply.ApplyObjects(
 		// used by request-* service accounts from agents
 		&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: BundleDeploymentClusterRole,
 			},
-			Rules: []rbacv1.PolicyRule{
-				{
-					Verbs:     []string{"get", "list", "watch"},
-					APIGroups: []string{fleet.SchemeGroupVersion.Group},
-					Resources: []string{fleet.BundleDeploymentResourceNamePlural},
-				},
-				{
-					Verbs:     []string{"update", "patch"},
-					APIGroups: []string{fleet.SchemeGroupVersion.Group},
-					Resources: []string{fleet.BundleDeploymentResourceNamePlural + "/status"},
-				},
-				{
-					Verbs:     []string{"get"},
-					APIGroups: []string{""},
-					Resources: []string{"secrets"},
-				},
-			},
+			Rules: rules,
 		},
 		// used by request-* service accounts from agents
 		&rbacv1.ClusterRole{

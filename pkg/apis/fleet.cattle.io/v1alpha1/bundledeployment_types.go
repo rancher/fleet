@@ -25,6 +25,8 @@ const (
 
 	// SecretTypeBundleDeploymentOptions is the type of the secret that stores the deployment values options.
 	SecretTypeBundleDeploymentOptions = "fleet.cattle.io/bundle-deployment/v1alpha1"
+
+	BundleDeploymentOwnershipLabel = "fleet.cattle.io/bundledeployment"
 )
 
 const IgnoreOp = "ignore"
@@ -113,6 +115,10 @@ type BundleDeploymentOptions struct {
 
 	// DeleteCRDResources deletes CRDs. Warning! this will also delete all your Custom Resources.
 	DeleteCRDResources bool `json:"deleteCRDResources,omitempty"`
+
+	// DownstreamResources points to resources to be copied into downstream clusters, from the bundle's
+	// namespace.
+	DownstreamResources []DownstreamResource `json:"downstreamResources,omitempty"`
 }
 
 // GitOpsBundleDeploymentOptions contains options which only make sense for GitOps
@@ -372,6 +378,13 @@ type BundleDeploymentResource struct {
 	Name string `json:"name,omitempty"`
 	// +nullable
 	CreatedAt metav1.Time `json:"createdAt,omitempty"`
+}
+
+// DownstreamResource contains identifiers for a resource to be copied from the parent bundle's namespace to each
+// downstream cluster.
+type DownstreamResource struct {
+	Kind string `json:"kind,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 type BundleDeploymentStatus struct {

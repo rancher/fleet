@@ -33,6 +33,7 @@ import (
 	"github.com/rancher/fleet/internal/bundlereader"
 	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
+	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
 	"github.com/rancher/fleet/internal/metrics"
 	fleet "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
 	"github.com/rancher/fleet/pkg/durations"
@@ -87,6 +88,12 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	if userID := helmop.Labels[fleet.CreatedByUserIDLabel]; userID != "" {
+		logger = logger.WithValues("userID", userID)
+	}
+
+	ctx = log.IntoContext(ctx, logger)
+
 	// Finalizer handling
 	purgeBundlesFn := func() error {
 		nsName := types.NamespacedName{Name: helmop.Name, Namespace: helmop.Namespace}
@@ -108,7 +115,7 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			}
 		}
 
-		err := r.deletePollingJob(logger, *helmop)
+		err := r.deletePollingJob(*helmop)
 
 		return ctrl.Result{}, err
 	}
@@ -121,8 +128,8 @@ func (r *HelmOpReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
-	if err := validate(ctx, *helmop); err != nil {
-		if delErr := r.deletePollingJob(logger, *helmop); delErr != nil {
+	if err := validate(*helmop); err != nil {
+		if delErr := r.deletePollingJob(*helmop); delErr != nil {
 			err = errutil.NewAggregate([]error{err, delErr})
 		}
 		return ctrl.Result{}, updateErrorStatusHelm(ctx, r.Client, req.NamespacedName, helmop, err)
@@ -277,7 +284,7 @@ func (r *HelmOpReconciler) handleVersion(ctx context.Context, oldBundle *fleet.B
 // deletePollingJob deletes the polling job scheduled for the provided helmop, if any, and returns any error that may
 // have happened in the process.
 // Returns a nil error if the job could be deleted or if none existed.
-func (r *HelmOpReconciler) deletePollingJob(logger logr.Logger, helmop fleet.HelmOp) error {
+func (r *HelmOpReconciler) deletePollingJob(helmop fleet.HelmOp) error {
 	jobKey := jobKey(helmop)
 	if _, err := r.Scheduler.GetScheduledJob(jobKey); err == nil {
 		if err = r.Scheduler.DeleteJob(jobKey); err != nil {
@@ -314,7 +321,7 @@ func (r *HelmOpReconciler) managePollingJob(logger logr.Logger, helmop fleet.Hel
 		}
 
 		newJob := newHelmPollingJob(r.Client, r.Recorder, helmop.Namespace, helmop.Name, *helmop.Spec.Helm)
-		currentTrigger := newHelmOpTrigger(helmop.Spec.PollingInterval.Duration)
+		currentTrigger := ctrlquartz.NewControllerTrigger(helmop.Spec.PollingInterval.Duration, 0)
 		// A changing trigger description would indicate the polling interval has changed.
 		// On the other hand, if the job description changes, this implies that one of the following fields has
 		// been updated:
@@ -564,7 +571,7 @@ func jobKey(h fleet.HelmOp) *quartz.JobKey {
 // * tarball URL in Chart, empty Repo, empty Version
 // * OCI reference in the Repo field, empty Chart, optional Version
 // * non-empty Repo URL, non-empty Chart name, optional Version
-func validate(ctx context.Context, h fleet.HelmOp) error {
+func validate(h fleet.HelmOp) error {
 	if h.Spec.Helm == nil {
 		return fmt.Errorf("helm options are empty in the HelmOp's spec")
 	}
@@ -596,31 +603,4 @@ func validate(ctx context.Context, h fleet.HelmOp) error {
 	}
 
 	return nil
-}
-
-// helmOpTrigger is a custom trigger, implementing the quartz.Trigger interface. This trigger is
-// used to schedule jobs to be run both:
-// * periodically, after the first polling interval, as would happen with Quartz's `simpleTrigger`
-// * right away, without waiting for that first polling interval to elapse.
-type helmOpTrigger struct {
-	isInitRunDone bool
-	simpleTrigger *quartz.SimpleTrigger
-}
-
-func (t *helmOpTrigger) NextFireTime(prev int64) (int64, error) {
-	if !t.isInitRunDone {
-		t.isInitRunDone = true
-
-		return prev, nil
-	}
-
-	return t.simpleTrigger.NextFireTime(prev)
-}
-
-func (t *helmOpTrigger) Description() string {
-	return t.simpleTrigger.Description()
-}
-
-func newHelmOpTrigger(interval time.Duration) *helmOpTrigger {
-	return &helmOpTrigger{simpleTrigger: quartz.NewSimpleTrigger(interval)}
 }

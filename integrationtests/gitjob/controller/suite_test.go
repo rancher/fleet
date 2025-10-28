@@ -155,6 +155,8 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 
+	sched.Start(ctx)
+
 	err = (&reconciler.StatusReconciler{
 		Client:  mgr.GetClient(),
 		Scheme:  mgr.GetScheme(),

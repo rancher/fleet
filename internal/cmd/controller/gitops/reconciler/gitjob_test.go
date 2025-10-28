@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,15 +86,6 @@ func (m gitRepoPointerMatcher) String() string {
 	return ""
 }
 
-func getGitPollingCondition(gitrepo *fleetv1.GitRepo) (genericcondition.GenericCondition, bool) {
-	for _, cond := range gitrepo.Status.Conditions {
-		if cond.Type == gitPollingCondition {
-			return cond, true
-		}
-	}
-	return genericcondition.GenericCondition{}, false
-}
-
 func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
@@ -144,297 +136,6 @@ func TestReconcile_ReturnsAndRequeuesAfterAddingFinalizer(t *testing.T) {
 	}
 	if res.RequeueAfter != durations.DefaultRequeueAfter {
 		t.Errorf("expecting RequeueAfter set to default of 5 seconds, it was %v", res.RequeueAfter)
-	}
-}
-
-func TestReconcile_LatestCommitErrorIsSetInConditions(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	scheme := runtime.NewScheme()
-	utilruntime.Must(batchv1.AddToScheme(scheme))
-	gitRepo := fleetv1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gitrepo",
-			Namespace: "default",
-		},
-	}
-	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockK8sClient(mockCtrl)
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
-			gitrepo.Name = gitRepo.Name
-			gitrepo.Namespace = gitRepo.Namespace
-			gitrepo.Spec.Repo = "repo"
-			controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
-			return nil
-		},
-	)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	client.EXPECT().Status().Return(statusClient).Times(1)
-	fetcher := gitmocks.NewMockGitFetcher(mockCtrl)
-	fetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return("", fmt.Errorf("TEST ERROR"))
-	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
-			cond, found := getGitPollingCondition(repo)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", gitPollingCondition)
-			}
-			if cond.Message != "TEST ERROR" {
-				t.Errorf("expecting condition message [TEST ERROR], got [%s]", cond.Message)
-			}
-			if cond.Type != gitPollingCondition {
-				t.Errorf("expecting condition type [%s], got [%s]", gitPollingCondition, cond.Type)
-			}
-			if cond.Status != "False" {
-				t.Errorf("expecting condition Status [False], got [%s]", cond.Type)
-			}
-		},
-	).Times(1)
-
-	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(
-		&gitRepoMatcher{gitRepo},
-		fleetevent.Warning,
-		"FailedToCheckCommit",
-		"TEST ERROR",
-	)
-	r := GitJobReconciler{
-		Client:     client,
-		Scheme:     scheme,
-		Image:      "",
-		GitFetcher: fetcher,
-		Clock:      RealClock{},
-		Recorder:   recorderMock,
-	}
-
-	ctx := context.TODO()
-
-	// second call is the one calling LatestCommit
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
-	}
-}
-
-func TestReconcile_LatestCommitIsOkay(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	scheme := runtime.NewScheme()
-	utilruntime.Must(batchv1.AddToScheme(scheme))
-	gitRepo := fleetv1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gitrepo",
-			Namespace: "default",
-		},
-	}
-	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockK8sClient(mockCtrl)
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
-			gitrepo.Name = gitRepo.Name
-			gitrepo.Namespace = gitRepo.Namespace
-			gitrepo.Spec.Repo = "repo"
-			controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
-			return nil
-		},
-	)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	client.EXPECT().Status().Return(statusClient).Times(1)
-
-	fetcher := gitmocks.NewMockGitFetcher(mockCtrl)
-	commit := "1883fd54bc5dfd225acf02aecbb6cb8020458e33"
-	fetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(commit, nil)
-	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
-			cond, found := getGitPollingCondition(repo)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", gitPollingCondition)
-			}
-			if cond.Message != "" {
-				t.Errorf("expecting condition message empty, got [%s]", cond.Message)
-			}
-			if cond.Type != gitPollingCondition {
-				t.Errorf("expecting condition type [%s], got [%s]", gitPollingCondition, cond.Type)
-			}
-			if cond.Status != "True" {
-				t.Errorf("expecting condition Status [True], got [%s]", cond.Type)
-			}
-			if repo.Status.Commit != commit {
-				t.Errorf("expecting commit %s, got %s", commit, repo.Status.Commit)
-			}
-		},
-	).Times(1)
-
-	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(
-		&gitRepoMatcher{gitRepo},
-		fleetevent.Normal,
-		"GotNewCommit",
-		"1883fd54bc5dfd225acf02aecbb6cb8020458e33",
-	)
-
-	r := GitJobReconciler{
-		Client:     client,
-		Scheme:     scheme,
-		Image:      "",
-		GitFetcher: fetcher,
-		Clock:      RealClock{},
-		Recorder:   recorderMock,
-	}
-
-	ctx := context.TODO()
-
-	// second call is the one calling LatestCommit
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
-	}
-}
-
-func TestReconcile_LatestCommitNotCalledYet(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	scheme := runtime.NewScheme()
-	utilruntime.Must(batchv1.AddToScheme(scheme))
-	gitRepo := fleetv1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gitrepo",
-			Namespace: "default",
-		},
-	}
-	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockK8sClient(mockCtrl)
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
-			gitrepo.Name = gitRepo.Name
-			gitrepo.Namespace = gitRepo.Namespace
-			gitrepo.Spec.Repo = "repo"
-			controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
-
-			// set last polling time to now...
-			// default gitrepo polling time is 15 seconds, so it won't call LatestCommit this time
-			gitrepo.Status.LastPollingTime.Time = time.Now()
-			return nil
-		},
-	)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	client.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
-			if repo.Status.Commit != "" {
-				t.Errorf("expecting gitrepo empty commit, got [%s]", repo.Status.Commit)
-			}
-			cond, found := getGitPollingCondition(repo)
-			if found {
-				t.Errorf("not expecting Condition %s to be found. Got [%s]", gitPollingCondition, cond)
-			}
-		},
-	).Times(1)
-
-	fetcher := gitmocks.NewMockGitFetcher(mockCtrl)
-	r := GitJobReconciler{
-		Client:     client,
-		Scheme:     scheme,
-		Image:      "",
-		GitFetcher: fetcher,
-		Clock:      RealClock{},
-	}
-
-	ctx := context.TODO()
-
-	// second call is the one calling LatestCommit
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
-	}
-}
-
-func TestReconcile_LatestCommitShouldBeCalled(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	scheme := runtime.NewScheme()
-	utilruntime.Must(batchv1.AddToScheme(scheme))
-	gitRepo := fleetv1.GitRepo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "gitrepo",
-			Namespace: "default",
-		},
-	}
-	namespacedName := types.NamespacedName{Name: gitRepo.Name, Namespace: gitRepo.Namespace}
-	client := mocks.NewMockK8sClient(mockCtrl)
-	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
-	client.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	fetcher := gitmocks.NewMockGitFetcher(mockCtrl)
-	commit := "1883fd54bc5dfd225acf02aecbb6cb8020458e33"
-	fetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(commit, nil)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
-			gitrepo.Name = gitRepo.Name
-			gitrepo.Namespace = gitRepo.Namespace
-			gitrepo.Spec.Repo = "repo"
-			controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
-
-			// set last polling time to now less 15 seconds (which is the default)
-			// that should trigger the polling job now
-			now := time.Now()
-			gitrepo.Status.LastPollingTime.Time = now.Add(time.Duration(-15) * time.Second)
-			// commit is something different to what we expect after this reconcile
-			gitrepo.Status.Commit = "dd45c7ad68e10307765104fea4a1f5997643020f"
-			return nil
-		},
-	)
-	client.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	client.EXPECT().Status().Return(statusClient).Times(1)
-	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
-			cond, found := getGitPollingCondition(repo)
-			if !found {
-				t.Errorf("expecting Condition %s to be found", gitPollingCondition)
-			}
-			if cond.Message != "" {
-				t.Errorf("expecting condition message empty, got [%s]", cond.Message)
-			}
-			if cond.Type != gitPollingCondition {
-				t.Errorf("expecting condition type [%s], got [%s]", gitPollingCondition, cond.Type)
-			}
-			if cond.Status != "True" {
-				t.Errorf("expecting condition Status [True], got [%s]", cond.Type)
-			}
-			if repo.Status.Commit != commit {
-				t.Errorf("expecting commit %s, got %s", commit, repo.Status.Commit)
-			}
-		},
-	).Times(1)
-
-	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(
-		&gitRepoMatcher{gitRepo},
-		fleetevent.Normal,
-		"GotNewCommit",
-		"1883fd54bc5dfd225acf02aecbb6cb8020458e33",
-	)
-
-	r := GitJobReconciler{
-		Client:     client,
-		Scheme:     scheme,
-		Image:      "",
-		GitFetcher: fetcher,
-		Clock:      RealClock{},
-		Recorder:   recorderMock,
-	}
-
-	ctx := context.TODO()
-
-	// second call is the one calling LatestCommit
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: namespacedName})
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
 	}
 }
 
@@ -522,19 +223,18 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
-			gitrepo.Name = gitRepo.Name
-			gitrepo.Namespace = gitRepo.Namespace
-			gitrepo.Spec.Repo = "repo"
-			controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
-			gitrepo.Status.Commit = "dd45c7ad68e10307765104fea4a1f5997643020f"
-			return nil
-		},
-	)
-	mockFetcher := gitmocks.NewMockGitFetcher(mockCtrl)
-	commit := "1883fd54bc5dfd225acf02aecbb6cb8020458e33"
-	mockFetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(commit, nil)
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fleetv1.GitRepo{}), gomock.Any()).
+		Times(3).
+		DoAndReturn(
+			func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
+				gitrepo.Name = gitRepo.Name
+				gitrepo.Namespace = gitRepo.Namespace
+				gitrepo.Spec.Repo = "repo"
+				controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
+				gitrepo.Status.Commit = "dd45c7ad68e10307765104fea4a1f5997643020f"
+				return nil
+			},
+		)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
@@ -542,13 +242,22 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 		},
 	)
 
-	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(
-		&gitRepoMatcher{gitRepo},
-		fleetevent.Normal,
-		"GotNewCommit",
-		"1883fd54bc5dfd225acf02aecbb6cb8020458e33",
+	statusClient := mocks.NewMockSubResourceWriter(mockCtrl)
+	mockClient.EXPECT().Status().Times(1).Return(statusClient)
+	statusClient.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(ctx context.Context, repo *fleetv1.GitRepo, opts ...interface{}) {
+			c, found := getCondition(repo, fleetv1.GitRepoAcceptedCondition)
+			if !found {
+				t.Errorf("expecting to find the %s condition and could not find it.", fleetv1.GitRepoAcceptedCondition)
+			}
+			if !strings.Contains(c.Message, "GITJOB ERROR") {
+				t.Errorf("expecting message containing [GITJOB ERROR] in condition, got [%s]", c.Message)
+			}
+		},
 	)
+
+	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
+
 	recorderMock.EXPECT().Event(
 		&gitRepoMatcher{gitRepo},
 		fleetevent.Warning,
@@ -557,12 +266,11 @@ func TestReconcile_Error_WhenGetGitJobErrors(t *testing.T) {
 	)
 
 	r := GitJobReconciler{
-		Client:     mockClient,
-		Scheme:     scheme,
-		Image:      "",
-		Clock:      RealClock{},
-		Recorder:   recorderMock,
-		GitFetcher: mockFetcher,
+		Client:   mockClient,
+		Scheme:   scheme,
+		Image:    "",
+		Clock:    RealClock{},
+		Recorder: recorderMock,
 	}
 
 	ctx := context.TODO()
@@ -590,7 +298,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	mockClient := mocks.NewMockK8sClient(mockCtrl)
 	mockClient.EXPECT().List(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(2).DoAndReturn(
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), &gitRepoPointerMatcher{}, gomock.Any()).Times(3).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, gitrepo *fleetv1.GitRepo, opts ...interface{}) error {
 			gitrepo.Name = gitRepo.Name
 			gitrepo.Namespace = gitRepo.Namespace
@@ -598,19 +306,20 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 			gitrepo.Spec.HelmSecretNameForPaths = "somevalue"
 			controllerutil.AddFinalizer(gitrepo, finalize.GitRepoFinalizer)
 			gitrepo.Status.Commit = "dd45c7ad68e10307765104fea4a1f5997643020f"
+			// use a different polling commit to force the creation of the gitjob
+			gitrepo.Status.PollingCommit = "1883fd54bc5dfd225acf02aecbb6cb8020458e33"
 			return nil
 		},
 	)
-	mockFetcher := gitmocks.NewMockGitFetcher(mockCtrl)
-	commit := "1883fd54bc5dfd225acf02aecbb6cb8020458e33"
-	mockFetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(commit, nil)
 
 	// we need to return a NotFound error, so the code tries to create it.
-	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
-			return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
-		},
-	)
+	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&batchv1.Job{}), gomock.Any()).
+		Times(1).
+		DoAndReturn(
+			func(ctx context.Context, req types.NamespacedName, job *batchv1.Job, opts ...interface{}) error {
+				return apierrors.NewNotFound(schema.GroupResource{}, "TEST ERROR")
+			},
+		).Times(2)
 
 	mockClient.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(ctx context.Context, req types.NamespacedName, job *corev1.Secret, opts ...interface{}) error {
@@ -619,12 +328,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	)
 
 	recorderMock := mocks.NewMockEventRecorder(mockCtrl)
-	recorderMock.EXPECT().Event(
-		&gitRepoMatcher{gitRepo},
-		fleetevent.Normal,
-		"GotNewCommit",
-		"1883fd54bc5dfd225acf02aecbb6cb8020458e33",
-	)
+
 	recorderMock.EXPECT().Event(
 		&gitRepoMatcher{gitRepo},
 		fleetevent.Warning,
@@ -640,19 +344,18 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 			if !found {
 				t.Errorf("expecting to find the %s condition and could not find it.", fleetv1.GitRepoAcceptedCondition)
 			}
-			if c.Message != "failed to look up HelmSecretNameForPaths, error: SECRET ERROR" {
+			if c.Message != "error validating external secrets: failed to look up HelmSecretNameForPaths, error: SECRET ERROR" {
 				t.Errorf("expecting message [failed to look up HelmSecretNameForPaths, error: SECRET ERROR] in condition, got [%s]", c.Message)
 			}
 		},
 	)
 
 	r := GitJobReconciler{
-		Client:     mockClient,
-		Scheme:     scheme,
-		Image:      "",
-		Clock:      RealClock{},
-		Recorder:   recorderMock,
-		GitFetcher: mockFetcher,
+		Client:   mockClient,
+		Scheme:   scheme,
+		Image:    "",
+		Clock:    RealClock{},
+		Recorder: recorderMock,
 	}
 
 	ctx := context.TODO()
@@ -660,7 +363,7 @@ func TestReconcile_Error_WhenSecretDoesNotExist(t *testing.T) {
 	if err == nil {
 		t.Errorf("expecting an error, got nil")
 	}
-	if err.Error() != "failed to look up HelmSecretNameForPaths, error: SECRET ERROR" {
+	if err.Error() != "error validating external secrets: failed to look up HelmSecretNameForPaths, error: SECRET ERROR" {
 		t.Errorf("unexpected error %v", err)
 	}
 }
@@ -2387,96 +2090,6 @@ func TestGenerateJob_EnvVars(t *testing.T) {
 				err := os.Unsetenv(k)
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
-				}
-			}
-		})
-	}
-}
-
-func TestCheckforPollingTask(t *testing.T) {
-	tests := map[string]struct {
-		gitrepo        *fleetv1.GitRepo
-		timeNow        time.Time
-		expectedResult bool
-	}{
-		"LastPollingTime is not set": {
-			gitrepo:        &fleetv1.GitRepo{},
-			timeNow:        time.Now(), // time here is irrelevant
-			expectedResult: true,
-		},
-		"LastPollingTime is set but should still not trigger (1s away)": {
-			gitrepo: &fleetv1.GitRepo{
-				Status: fleetv1.GitRepoStatus{
-					LastPollingTime: metav1.Time{Time: time.Date(2024, time.July, 16, 15, 59, 59, 0, time.UTC)},
-				},
-				Spec: fleetv1.GitRepoSpec{
-					PollingInterval: &metav1.Duration{Duration: 10 * time.Second},
-				},
-			},
-			timeNow:        time.Date(2024, time.July, 16, 16, 0, 0, 0, time.UTC),
-			expectedResult: false,
-		},
-		"LastPollingTime is set and should trigger (10s away)": {
-			gitrepo: &fleetv1.GitRepo{
-				Status: fleetv1.GitRepoStatus{
-					LastPollingTime: metav1.Time{Time: time.Date(2024, time.July, 16, 15, 59, 50, 0, time.UTC)},
-				},
-				Spec: fleetv1.GitRepoSpec{
-					PollingInterval: &metav1.Duration{Duration: 10 * time.Second},
-				},
-			},
-			timeNow:        time.Date(2024, time.July, 16, 16, 0, 0, 0, time.UTC),
-			expectedResult: true,
-		},
-		"LastPollingTime is set but should still not trigger (1s away with default value)": {
-			gitrepo: &fleetv1.GitRepo{
-				Status: fleetv1.GitRepoStatus{
-					LastPollingTime: metav1.Time{Time: time.Date(2024, time.July, 16, 15, 59, 59, 0, time.UTC)},
-				},
-			},
-			timeNow:        time.Date(2024, time.July, 16, 16, 0, 0, 0, time.UTC),
-			expectedResult: false,
-		},
-		"LastPollingTime is set and should trigger (15s away with default value)": {
-			gitrepo: &fleetv1.GitRepo{
-				Status: fleetv1.GitRepoStatus{
-					LastPollingTime: metav1.Time{Time: time.Date(2024, time.July, 16, 15, 59, 45, 0, time.UTC)},
-				},
-			},
-			timeNow:        time.Date(2024, time.July, 16, 16, 0, 0, 0, time.UTC),
-			expectedResult: true,
-		},
-	}
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
-			fetcher := gitmocks.NewMockGitFetcher(mockCtrl)
-			commit := "1883fd54bc5dfd225acf02aecbb6cb8020458e33"
-			if test.expectedResult {
-				fetcher.EXPECT().LatestCommit(gomock.Any(), gomock.Any(), gomock.Any()).Times(1).Return(commit, nil)
-			}
-			r := GitJobReconciler{
-				Client:     fake.NewFakeClient(),
-				Image:      "test",
-				Clock:      ClockMock{t: test.timeNow},
-				GitFetcher: fetcher,
-			}
-			res, err := r.repoPolled(context.TODO(), test.gitrepo)
-			if res != test.expectedResult {
-				t.Errorf("unexpected result. Expecting %t, got %t", test.expectedResult, res)
-			}
-			if err != nil {
-				t.Errorf("not expecting to get an error, got [%v]", err)
-			}
-			if res {
-				// if the task was called, commit will be applied
-				if test.gitrepo.Status.Commit != commit {
-					t.Errorf("expecting commit: %s, got: %s", commit, test.gitrepo.Status.Commit)
-				}
-				// also LastPollingTime should be set to now
-				if test.gitrepo.Status.LastPollingTime.Time != test.timeNow {
-					t.Errorf("expecting LastPollingTime to be: %s, got: %s", test.timeNow, test.gitrepo.Status.LastPollingTime.Time)
 				}
 			}
 		})

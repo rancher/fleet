@@ -213,6 +213,9 @@ spec:
         - name: FLEET_AGENT_ELECTION_RENEW_DEADLINE
           value: {{$.Values.agent.leaderElection.renewDeadline}}
         {{- end }}
+{{- if $.Values.extraEnv }}
+{{ toYaml $.Values.extraEnv | indent 8}}
+{{- end }}
         image: '{{ template "system_default_registry" $ }}{{ $.Values.image.repository }}:{{ $.Values.image.tag }}'
         name: fleet-agentmanagement
         imagePullPolicy: "{{ $.Values.image.imagePullPolicy }}"

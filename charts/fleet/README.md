@@ -1,6 +1,6 @@
 # Fleet Helm Chart
 
-Fleet is GitOps at scale. Fleet is designed to manage multiple clusters.
+Fleet is GitOps and HelmOps at scale. Fleet is designed to manage multiple clusters.
 
 ## What is Fleet?
 

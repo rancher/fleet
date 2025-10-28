@@ -477,7 +477,9 @@ func NormalizeSecret(un *unstructured.Unstructured, opts ...Option) {
 	}
 }
 
-// normalizeEndpoint normalizes endpoint meaning that EndpointSubsets are sorted lexicographically
+// normalizeEndpoint normalizes endpoint meaning that EndpointSubsets are sorted lexicographically.
+// Note: The Endpoints API (core/v1) is deprecated in favor of EndpointSlice (discovery.k8s.io/v1).
+// Endpoints are supported for backward compatibility as users may still deploy them.
 func normalizeEndpoint(un *unstructured.Unstructured, o options) {
 	if un == nil {
 		return
@@ -486,7 +488,7 @@ func normalizeEndpoint(un *unstructured.Unstructured, o options) {
 	if gvk.Group != "" || gvk.Kind != "Endpoints" {
 		return
 	}
-	// nolint: staticcheck // Endpoint is deprecated; see fleet#3760.
+	// nolint: staticcheck // Endpoints is deprecated but still supported; see fleet#3760.
 	var ep corev1.Endpoints
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(un.Object, &ep)
 	if err != nil {

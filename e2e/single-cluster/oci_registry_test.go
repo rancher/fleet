@@ -232,7 +232,7 @@ func getOCIRegistryExternalIP(k kubectl.Command) string {
 	return externalIP
 }
 
-var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-registry", "infra-setup"), func() {
+var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-registry", "infra-setup"), Ordered, func() {
 	const asset = "single-cluster/test-oci.yaml"
 	var (
 		k                   kubectl.Command
@@ -372,10 +372,12 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 		if contentIDToPurge != "" {
 			k8sclient.ObjectShouldNotExist(clientUpstream, contentIDToPurge, "", &fleet.Content{}, true)
 		} else if contentsID != "" {
-			// check that the oci artifact was deleted
-			_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), ociOpts, contentsID)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("not found"))
+			Eventually(func(g Gomega) {
+				// check that the oci artifact was deleted
+				_, err = ocistorage.NewOCIWrapper().PullManifest(context.TODO(), ociOpts, contentsID)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("not found"))
+			}).Should(Succeed())
 		}
 
 		_, err = k.Delete("events", "-n", env.Namespace, "--all")
@@ -474,57 +476,6 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				})
 				By("not creating a contents resource for this chart", func() {
 					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, "", &fleet.Content{}, false)
-				})
-				By("deploying the helm chart", func() {
-					var cm corev1.ConfigMap
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
-				})
-			})
-		})
-	})
-
-	When("applying a gitrepo with the default ociSecret also deployed with incorrect reference and OCI env var is not set", func() {
-		Context("containing a public oci based helm chart", func() {
-			BeforeEach(func() {
-				envVarValue = "false"
-				insecureSkipTLS = true
-				deployDefaultSecret = true
-				deploySpecificSecretName = ""
-				forceDefaultReference = "not-valid-oci-registry.com"
-				forceUserDefinedReference = ""
-				useReaderAsWriter = false
-				useNoDeleterUser = false
-			})
-
-			It("creates the bundle with no OCI storage", func() {
-				var bundle fleet.Bundle
-				By("creating the bundle", func() {
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
-				})
-				By("not setting the ContentsID field in the bundle", func() {
-					Expect(bundle.Spec.ContentsID).To(BeEmpty())
-				})
-				By("creating a bundle deployment", func() {
-					var bd fleet.BundleDeployment
-					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", downstreamNamespace, &bd)
-					Expect(bd.Spec.DeploymentID).ToNot(BeEmpty())
-					tokens := strings.Split(bd.Spec.DeploymentID, ":")
-					Expect(tokens).To(HaveLen(2))
-					contentsID = tokens[0]
-					// save the contents id to purge after the test
-					// this will prevent interference with the previous test
-					// as the resources sha256 is the same
-					contentIDToPurge = contentsID
-				})
-				By("creating a content resource with the expected ID", func() {
-					var content fleet.Content
-					k8sclient.GetObjectShouldSucceed(clientUpstream, contentsID, "", &content)
-				})
-				By("not creating a bundle secret", func() {
-					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, env.Namespace, &corev1.Secret{}, false)
-				})
-				By("not creating a bundle deployment secret", func() {
-					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, downstreamNamespace, &corev1.Secret{}, false)
 				})
 				By("deploying the helm chart", func() {
 					var cm corev1.ConfigMap
@@ -909,8 +860,10 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 				// The bundle deployment secret is deleted because the oci artifact is no longer
 				// going to be deployed
 				By("checking that the previous oci bundle deployment key was deleted", func() {
-					var secret corev1.Secret
-					k8sclient.ObjectShouldNotExist(clientUpstream, previousContentsID, downstreamNamespace, &secret, false)
+					Eventually(func(g Gomega) {
+						err := clientUpstream.Get(context.TODO(), client.ObjectKey{Name: previousContentsID, Namespace: downstreamNamespace}, &corev1.Secret{})
+						g.Expect(errors.IsNotFound(err)).To(BeTrue())
+					}).Should(Succeed())
 				})
 				By("checking that the previous oci artifact was not deleted", func() {
 					secretKey := client.ObjectKey{Name: previousContentsID, Namespace: env.Namespace}
@@ -947,6 +900,57 @@ var _ = Describe("Single Cluster Deployments using OCI registry", Label("oci-reg
 						}
 					}
 					Expect(ociEvents).To(HaveLen(1))
+				})
+			})
+		})
+	})
+
+	When("applying a gitrepo with the default ociSecret also deployed with incorrect reference and OCI env var is not set", func() {
+		Context("containing a public oci based helm chart", func() {
+			BeforeEach(func() {
+				envVarValue = "false"
+				insecureSkipTLS = true
+				deployDefaultSecret = true
+				deploySpecificSecretName = ""
+				forceDefaultReference = "not-valid-oci-registry.com"
+				forceUserDefinedReference = ""
+				useReaderAsWriter = false
+				useNoDeleterUser = false
+			})
+
+			It("creates the bundle with no OCI storage", func() {
+				var bundle fleet.Bundle
+				By("creating the bundle", func() {
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", env.Namespace, &bundle)
+				})
+				By("not setting the ContentsID field in the bundle", func() {
+					Expect(bundle.Spec.ContentsID).To(BeEmpty())
+				})
+				By("creating a bundle deployment", func() {
+					var bd fleet.BundleDeployment
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "sample-simple-chart-oci", downstreamNamespace, &bd)
+					Expect(bd.Spec.DeploymentID).ToNot(BeEmpty())
+					tokens := strings.Split(bd.Spec.DeploymentID, ":")
+					Expect(tokens).To(HaveLen(2))
+					contentsID = tokens[0]
+					// save the contents id to purge after the test
+					// this will prevent interference with the previous test
+					// as the resources sha256 is the same
+					contentIDToPurge = contentsID
+				})
+				By("creating a content resource with the expected ID", func() {
+					var content fleet.Content
+					k8sclient.GetObjectShouldSucceed(clientUpstream, contentsID, "", &content)
+				})
+				By("not creating a bundle secret", func() {
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, env.Namespace, &corev1.Secret{}, false)
+				})
+				By("not creating a bundle deployment secret", func() {
+					k8sclient.ObjectShouldNotExist(clientUpstream, contentsID, downstreamNamespace, &corev1.Secret{}, false)
+				})
+				By("deploying the helm chart", func() {
+					var cm corev1.ConfigMap
+					k8sclient.GetObjectShouldSucceed(clientUpstream, "test-simple-chart-config", "default", &cm)
 				})
 			})
 		})

@@ -355,13 +355,26 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 				cli.AssetsPath + "driven/kustomize/overlays/dev/secret.yaml",
 				cli.AssetsPath + "driven/kustomize/overlays/prod/kustomization.yaml",
 				cli.AssetsPath + "driven/kustomize/overlays/prod/secret.yaml",
-				cli.AssetsPath + "driven/kustomize/dev.yaml",
-				cli.AssetsPath + "driven/kustomize/prod.yaml",
 			}
-			Expect(kDevBundle.Spec.Resources).To(HaveLen(8))
-			Expect(kProdBundle.Spec.Resources).To(HaveLen(8))
-			for _, r := range kResources {
+
+			// Note: the presence of a .fleetignore file, at the same level as both `dev.yaml` and
+			// `prod.yaml`, excluding only `dev.yaml`, enables us to ensure that that file does not end up in
+			// any bundle, being excluded from the dev bundle, but _also_ from the prod bundle.
+			// We deliberately don't exclude both `dev.yaml` and `prod.yaml` from `.fleetignore`, simply to
+			// validate that `prod.yaml` is excluded from the prod bundle without needing to be excluded from
+			// `.fleetignore`.
+
+			kDevResources := append(slices.Clone(kResources), cli.AssetsPath+"driven/kustomize/prod.yaml")
+			kProdResources := slices.Clone(kResources)
+
+			Expect(kDevBundle.Spec.Resources).To(HaveLen(7))
+			Expect(kProdBundle.Spec.Resources).To(HaveLen(6))
+
+			for _, r := range kDevResources {
 				Expect(r).To(bePresentInBundleResources(kDevBundle.Spec.Resources))
+			}
+
+			for _, r := range kProdResources {
 				Expect(r).To(bePresentInBundleResources(kProdBundle.Spec.Resources))
 			}
 
@@ -403,13 +416,26 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 				cli.AssetsPath + "driven2/kustomize/overlays/dev/secret.yaml",
 				cli.AssetsPath + "driven2/kustomize/overlays/prod/kustomization.yaml",
 				cli.AssetsPath + "driven2/kustomize/overlays/prod/secret.yaml",
-				cli.AssetsPath + "driven2/kustomize/fleetDev.yaml",
-				cli.AssetsPath + "driven2/kustomize/fleetProd.yaml",
 			}
-			Expect(kDevBundle.Spec.Resources).To(HaveLen(8))
-			Expect(kProdBundle.Spec.Resources).To(HaveLen(8))
-			for _, r := range kResources {
+
+			// Note: the presence of a .fleetignore file, at the same level as both `fleetDev.yaml` and
+			// `fleetProd.yaml`, excluding only `fleetProd.yaml`, enables us to ensure that that file does
+			// not end up in any bundle, being excluded from the prod bundle, but _also_ from the dev bundle.
+			// We deliberately don't exclude both `fleetDev.yaml` and `fleetProd.yaml` from `.fleetignore`,
+			// simply to validate that `fleetDev.yaml` is excluded from the dev bundle without needing to be
+			// excluded from `.fleetignore`.
+
+			kDevResources := slices.Clone(kResources)
+			kProdResources := append(slices.Clone(kResources), cli.AssetsPath+"driven2/kustomize/fleetDev.yaml")
+
+			Expect(kDevBundle.Spec.Resources).To(HaveLen(6))
+			Expect(kProdBundle.Spec.Resources).To(HaveLen(7))
+
+			for _, r := range kDevResources {
 				Expect(r).To(bePresentInBundleResources(kDevBundle.Spec.Resources))
+			}
+
+			for _, r := range kProdResources {
 				Expect(r).To(bePresentInBundleResources(kProdBundle.Spec.Resources))
 			}
 
@@ -474,7 +500,7 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			// helm bundle
 			helmBundle := bundles[0]
 			Expect(helmBundle.Name).To(Equal("assets-driven-fleet-yaml-subfolder-helm-test-fl-b676f"))
-			Expect(helmBundle.Spec.Resources).To(HaveLen(4))
+			Expect(helmBundle.Spec.Resources).To(HaveLen(3))
 			// as files were unpacked from the downloaded chart we can't just
 			// list the files in the original folder and compare.
 			// Files are only located in the bundle resources
@@ -482,7 +508,7 @@ var _ = Describe("Fleet apply driven", Ordered, func() {
 			Expect("values.yaml").To(bePresentOnlyInBundleResources(helmBundle.Spec.Resources))
 			Expect("templates/configmap.yaml").To(bePresentOnlyInBundleResources(helmBundle.Spec.Resources))
 			resPath := cli.AssetsPath + "driven_fleet_yaml_subfolder/helm/test/fleet.yaml"
-			Expect(resPath).To(bePresentInBundleResources(helmBundle.Spec.Resources))
+			Expect(resPath).NotTo(bePresentInBundleResources(helmBundle.Spec.Resources))
 			// check for helm options defined in the fleet.yaml file
 			Expect(helmBundle.Spec.Helm).ToNot(BeNil())
 			Expect(helmBundle.Spec.Helm.ReleaseName).To(Equal("config-chart"))

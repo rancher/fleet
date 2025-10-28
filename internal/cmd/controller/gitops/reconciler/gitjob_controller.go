@@ -3,8 +3,8 @@ package reconciler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"math/rand/v2"
 	"sort"
 	"strings"
 	"time"
@@ -12,9 +12,9 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/reugn/go-quartz/quartz"
 
-	fleetutil "github.com/rancher/fleet/internal/cmd/controller/errorutil"
 	"github.com/rancher/fleet/internal/cmd/controller/finalize"
 	"github.com/rancher/fleet/internal/cmd/controller/imagescan"
+	ctrlquartz "github.com/rancher/fleet/internal/cmd/controller/quartz"
 	"github.com/rancher/fleet/internal/cmd/controller/reconciler"
 	"github.com/rancher/fleet/internal/metrics"
 	v1alpha1 "github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -28,7 +28,6 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -46,7 +45,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -56,7 +54,8 @@ const (
 	forceSyncGenerationLabel   = "fleet.cattle.io/force-sync-generation"
 	// The TTL is the grace period for short-lived metrics to be kept alive to
 	// make sure Prometheus scrapes them.
-	ShortLivedMetricsTTL = 120 * time.Second
+	ShortLivedMetricsTTL       = 120 * time.Second
+	gitJobPollingJitterPercent = 10
 )
 
 var (
@@ -139,7 +138,7 @@ func (r *GitJobReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					predicate.GenerationChangedPredicate{},
 					predicate.AnnotationChangedPredicate{},
 					predicate.LabelChangedPredicate{},
-					webhookCommitChangedPredicate(),
+					commitChangedPredicate(),
 				),
 			),
 		).
@@ -198,6 +197,12 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
+	// Migration: Remove the obsolete created-by-display-name label if it exists
+	if err := r.removeDisplayNameLabel(ctx, req.NamespacedName); err != nil {
+		logger.V(1).Error(err, "Failed to remove display name label")
+		return ctrl.Result{}, err
+	}
+
 	logger = logger.WithValues("generation", gitrepo.Generation, "commit", gitrepo.Status.Commit).WithValues("conditions", gitrepo.Status.Conditions)
 
 	if userID := gitrepo.Labels[v1alpha1.CreatedByUserIDLabel]; userID != "" {
@@ -209,43 +214,44 @@ func (r *GitJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger.V(1).Info("Reconciling GitRepo")
 
 	if gitrepo.Spec.Repo == "" {
+		if err := r.deletePollingJob(*gitrepo); err != nil {
+			return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
+		}
+		// TODO: return an error here, similar to what we already do for HelmOps
 		return ctrl.Result{}, nil
 	}
 
-	oldCommit := gitrepo.Status.Commit
-	repoPolled, err := r.repoPolled(ctx, gitrepo)
+	jobUpdatedOrCreated, err := r.managePollingJob(logger, *gitrepo)
 	if err != nil {
-		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToCheckCommit", err.Error())
-		logger.Info("Failed to check for latest commit", "error", err)
-	} else if repoPolled && oldCommit != gitrepo.Status.Commit {
-		r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
-		logger.Info("New commit from repository", "newCommit", gitrepo.Status.Commit)
+		return ctrl.Result{}, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
-	// check for webhook commit
-	if gitrepo.Status.WebhookCommit != "" && gitrepo.Status.WebhookCommit != gitrepo.Status.Commit {
-		gitrepo.Status.Commit = gitrepo.Status.WebhookCommit
+	if jobUpdatedOrCreated {
+		// Maybe an update from the polling job will come next
+		// Requeue and stop this reconcile now as moving on to gitJob creation would
+		// possibly lead to conflicts.
+		return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 	}
 
-	// From this point onwards we have to take into account if the poller
-	// task was executed.
-	// If so, we need to return a Result with EnqueueAfter set.
+	oldCommit := gitrepo.Status.Commit
+	// maybe update the commit from webhooks or polling
+	gitrepo.Status.Commit = getNextCommit(gitrepo.Status)
 
-	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit, repoPolled)
+	res, err := r.manageGitJob(ctx, logger, gitrepo, oldCommit)
 	if err != nil || res.RequeueAfter > 0 {
-		return res, err
+		return res, updateErrorStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status, err)
 	}
 
-	setAcceptedCondition(&gitrepo.Status, nil)
+	reconciler.SetCondition(v1alpha1.GitRepoAcceptedCondition, &gitrepo.Status, nil)
 
 	err = updateStatus(ctx, r.Client, req.NamespacedName, gitrepo.Status)
 	if err != nil {
 		logger.Error(err, "Reconcile failed final update to git repo status", "status", gitrepo.Status)
 
-		return r.result(gitrepo), err
+		return ctrl.Result{}, err
 	}
 
-	return r.result(gitrepo), nil
+	return ctrl.Result{}, nil
 }
 
 func monitorLatestCommit(obj metav1.Object, fetch func() (string, error)) (string, error) {
@@ -261,8 +267,11 @@ func monitorLatestCommit(obj metav1.Object, fetch func() (string, error)) (strin
 }
 
 // manageGitJob is responsible for creating, updating and deleting the GitJob and setting the GitRepo's status accordingly
-func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string, repoPolled bool) (reconcile.Result, error) {
-	name := types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Name}
+func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo, oldCommit string) (ctrl.Result, error) {
+	if err := r.deletePreviousJob(ctx, logger, *gitrepo, oldCommit); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	var job batchv1.Job
 	err := r.Get(ctx, types.NamespacedName{
 		Namespace: gitrepo.Namespace,
@@ -271,7 +280,8 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 	if err != nil && !apierrors.IsNotFound(err) {
 		err = fmt.Errorf("error retrieving git job: %w", err)
 		r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedToGetGitJob", err.Error())
-		return r.result(gitrepo), err
+
+		return ctrl.Result{}, err
 	}
 
 	if apierrors.IsNotFound(err) {
@@ -286,7 +296,7 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			if err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "Failed", err.Error())
 			} else {
-				if repoPolled && oldCommit != gitrepo.Status.Commit {
+				if oldCommit != gitrepo.Status.Commit {
 					r.Recorder.Event(gitrepo, fleetevent.Normal, "GotNewCommit", gitrepo.Status.Commit)
 				}
 			}
@@ -296,39 +306,68 @@ func (r *GitJobReconciler) manageGitJob(ctx context.Context, logger logr.Logger,
 			r.updateGenerationValuesIfNeeded(gitrepo)
 			if err := r.validateExternalSecretExist(ctx, gitrepo); err != nil {
 				r.Recorder.Event(gitrepo, fleetevent.Warning, "FailedValidatingSecret", err.Error())
-				return r.result(gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+				return ctrl.Result{}, fmt.Errorf("error validating external secrets: %w", err)
 			}
 			if err := r.createJobAndResources(ctx, gitrepo, logger); err != nil {
 				gitjobsCreatedFailure.Inc(gitrepo)
-				return r.result(gitrepo), err
+				return ctrl.Result{}, err
 			}
 			gitjobsCreatedSuccess.Inc(gitrepo)
 		}
 	} else if gitrepo.Status.Commit != "" && gitrepo.Status.Commit == oldCommit {
 		err, recreateGitJob := r.deleteJobIfNeeded(ctx, gitrepo, &job)
 		if err != nil {
-			return r.result(gitrepo), fmt.Errorf("error deleting git job: %w", err)
+			return ctrl.Result{}, fmt.Errorf("error deleting git job: %w", err)
 		}
 		// job was deleted and we need to recreate it
 		// Requeue so the reconciler creates the job again
 		if recreateGitJob {
-			return reconcile.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
+			return ctrl.Result{RequeueAfter: durations.DefaultRequeueAfter}, nil
 		}
 	}
 
 	gitrepo.Status.ObservedGeneration = gitrepo.Generation
 
 	if err = setStatusFromGitjob(ctx, r.Client, gitrepo, &job); err != nil {
-		return r.result(gitrepo), updateErrorStatus(ctx, r.Client, name, gitrepo.Status, err)
+		return ctrl.Result{}, fmt.Errorf("error setting GitRepo status from git job: %w", err)
 	}
 
-	return reconcile.Result{}, nil
+	return ctrl.Result{}, nil
+}
+
+func (r *GitJobReconciler) deletePreviousJob(ctx context.Context, logger logr.Logger, gitrepo v1alpha1.GitRepo, oldCommit string) error {
+	if oldCommit == "" || oldCommit == gitrepo.Status.Commit {
+		return nil
+	}
+
+	// the GitRepo is passed by value, just use the old commit
+	// to calculate the job Name
+	gitrepo.Status.Commit = oldCommit
+
+	var job batchv1.Job
+	err := r.Get(ctx, types.NamespacedName{
+		Namespace: gitrepo.Namespace,
+		Name:      jobName(&gitrepo),
+	}, &job)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+
+		return nil
+	}
+
+	// At this point we know the previous job still exists and the commit already changed.
+	// Delete the previous one so we don't incur in conflicts
+	logger.Info("Deleting previous job to avoid conflicts")
+	return r.Delete(ctx, &job)
 }
 
 func (r *GitJobReconciler) cleanupGitRepo(ctx context.Context, logger logr.Logger, gitrepo *v1alpha1.GitRepo) error {
 	logger.Info("Gitrepo deleted, deleting bundle, image scans")
 
 	metrics.GitRepoCollector.Delete(gitrepo.Name, gitrepo.Namespace)
+	_ = r.deletePollingJob(*gitrepo)
 
 	nsName := types.NamespacedName{Name: gitrepo.Name, Namespace: gitrepo.Namespace}
 	if err := finalize.PurgeBundles(ctx, r.Client, nsName, v1alpha1.RepoLabel); err != nil {
@@ -408,6 +447,28 @@ func (r *GitJobReconciler) addGitRepoFinalizer(ctx context.Context, nsName types
 	return nil
 }
 
+// removeDisplayNameLabel removes the obsolete created-by-display-name label from the gitrepo if it exists.
+func (r *GitJobReconciler) removeDisplayNameLabel(ctx context.Context, nsName types.NamespacedName) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		gitrepo := &v1alpha1.GitRepo{}
+		if err := r.Get(ctx, nsName, gitrepo); err != nil {
+			return err
+		}
+
+		if gitrepo.Labels == nil {
+			return nil
+		}
+
+		const deprecatedLabel = "fleet.cattle.io/created-by-display-name"
+		if _, exists := gitrepo.Labels[deprecatedLabel]; !exists {
+			return nil
+		}
+
+		delete(gitrepo.Labels, deprecatedLabel)
+		return r.Update(ctx, gitrepo)
+	})
+}
+
 func (r *GitJobReconciler) validateExternalSecretExist(ctx context.Context, gitrepo *v1alpha1.GitRepo) error {
 	if gitrepo.Spec.HelmSecretNameForPaths != "" {
 		if err := r.Get(ctx, types.NamespacedName{Namespace: gitrepo.Namespace, Name: gitrepo.Spec.HelmSecretNameForPaths}, &corev1.Secret{}); err != nil {
@@ -479,83 +540,88 @@ func (r *GitJobReconciler) deleteJobIfNeeded(ctx context.Context, gitRepo *v1alp
 	return nil, false
 }
 
-// repoPolled returns true if the git poller was executed and the repo should still be polled.
-func (r *GitJobReconciler) repoPolled(ctx context.Context, gitrepo *v1alpha1.GitRepo) (bool, error) {
-	if gitrepo.Spec.DisablePolling {
-		return false, nil
+func jobKey(g v1alpha1.GitRepo) *quartz.JobKey {
+	return quartz.NewJobKey(string(g.UID))
+}
+
+// deletePollingJob deletes the polling job scheduled for the provided gitrepo, if any, and returns any error that may
+// have happened in the process.
+// Returns a nil error if the job could be deleted or if none existed.
+func (r *GitJobReconciler) deletePollingJob(gitrepo v1alpha1.GitRepo) error {
+	if r.Scheduler == nil {
+		return nil
 	}
-	if r.shouldRunPollingTask(gitrepo) {
-		gitrepo.Status.LastPollingTime.Time = r.Clock.Now()
-		commit, err := monitorLatestCommit(gitrepo, func() (string, error) {
-			return r.GitFetcher.LatestCommit(ctx, gitrepo, r.Client)
-		})
-		condition.Cond(gitPollingCondition).SetError(&gitrepo.Status, "", err)
-		if err != nil {
-			return true, err
+	jobKey := jobKey(gitrepo)
+	if _, err := r.Scheduler.GetScheduledJob(jobKey); err == nil {
+		if err = r.Scheduler.DeleteJob(jobKey); err != nil {
+			return fmt.Errorf("failed to delete outdated polling job: %w", err)
 		}
-		gitrepo.Status.Commit = commit
-
-		return true, nil
+	} else if !errors.Is(err, quartz.ErrJobNotFound) {
+		return fmt.Errorf("failed to get outdated polling job for deletion: %w", err)
 	}
 
-	return false, nil
+	return nil
 }
 
-func (r *GitJobReconciler) shouldRunPollingTask(gitrepo *v1alpha1.GitRepo) bool {
-	if gitrepo.Spec.DisablePolling {
-		return false
+// managePollingJob creates, updates or deletes a polling job for the provided GitRepo.
+func (r *GitJobReconciler) managePollingJob(logger logr.Logger, gitrepo v1alpha1.GitRepo) (bool, error) {
+	jobUpdatedOrCreated := false
+	if r.Scheduler == nil {
+		logger.V(1).Info("Scheduler is not set; this should only happen in tests")
+		return jobUpdatedOrCreated, nil
 	}
 
-	t := gitrepo.Status.LastPollingTime
+	jobKey := jobKey(gitrepo)
+	scheduled, err := r.Scheduler.GetScheduledJob(jobKey)
 
-	if t.IsZero() || (r.Clock.Since(t.Time) >= getPollingIntervalDuration(gitrepo)) {
-		return true
-	}
-	if gitrepo.Status.ObservedGeneration != gitrepo.Generation {
-		return true
-	}
-	return false
-}
-
-func (r *GitJobReconciler) result(gitrepo *v1alpha1.GitRepo) reconcile.Result {
-	// We always return a reconcile Result with RequeueAfter set to the polling interval
-	// unless polling is disabled.
-	// This is done to ensure the polling cycle is never broken due to race conditions
-	// between regular events and RequeueAfter events.
-	// Requeuing more events when there is already an event in the queue is not a problem
-	// because controller-runtime ignores events with higher timestamp
-	// For example, if we have an event in the queue that should be executed at time X
-	// and we try to enqueue another event that should be executed at time X+10 it will be
-	// dropped.
-	// If we try to enqueue an event at time X-10, it will replace the one in the queue.
-	// The queue will always keep the event that should be triggered earlier.
-	if gitrepo.Spec.DisablePolling {
-		return reconcile.Result{}
+	if err != nil && !errors.Is(err, quartz.ErrJobNotFound) {
+		return jobUpdatedOrCreated, fmt.Errorf("an unknown error occurred when looking for a polling job: %w", err)
 	}
 
-	// Calculate next reconciliation schedule based on the elapsed time since the last polling
-	// so it matches the configured polling interval.
-	// A fixed value may lead to drifts due to out-of-schedule reconciliations.
-	requeueAfter := getPollingIntervalDuration(gitrepo) - r.Clock.Since(gitrepo.Status.LastPollingTime.Time)
-	if requeueAfter <= 0 {
-		// This is a protection for cases in which the calculation above is 0 or less.
-		// In those cases controller-runtime does not call AddAfter for this object and
-		// the RequeueAfter cycle is lost.
-		// To ensure that this cycle is not broken we force the object to be requeued.
-		return reconcile.Result{RequeueAfter: durations.DefaultRequeueAfter}
-	}
-	requeueAfter = addJitter(requeueAfter)
-	return reconcile.Result{RequeueAfter: requeueAfter}
-}
+	if !gitrepo.Spec.DisablePolling {
+		scheduledJobDescription := ""
 
-// addJitter to the requeue time to avoid thundering herd
-// generate a random number between -10% and +10% of the duration
-func addJitter(d time.Duration) time.Duration {
-	if d <= 0 {
-		return d
+		if err == nil {
+			if detail := scheduled.JobDetail(); detail != nil {
+				scheduledJobDescription = detail.Job().Description()
+			}
+		}
+
+		newJob := newGitPollingJob(r.Client, r.Recorder, gitrepo, r.GitFetcher)
+		currentTrigger := ctrlquartz.NewControllerTrigger(
+			getPollingIntervalDuration(&gitrepo),
+			gitJobPollingJitterPercent,
+		)
+
+		if errors.Is(err, quartz.ErrJobNotFound) ||
+			scheduled.Trigger().Description() != currentTrigger.Description() ||
+			scheduledJobDescription != newJob.Description() {
+			err = r.Scheduler.ScheduleJob(
+				quartz.NewJobDetailWithOptions(
+					newJob,
+					jobKey,
+					&quartz.JobDetailOptions{
+						Replace: true,
+					},
+				),
+				currentTrigger,
+			)
+
+			if err != nil {
+				return jobUpdatedOrCreated, fmt.Errorf("failed to schedule polling job: %w", err)
+			}
+
+			logger.V(1).Info("Scheduled new polling job")
+			jobUpdatedOrCreated = true
+		}
+	} else if err == nil {
+		// A job still exists, but is no longer needed; delete it.
+		if err = r.Scheduler.DeleteJob(jobKey); err != nil {
+			return jobUpdatedOrCreated, fmt.Errorf("failed to delete polling job: %w", err)
+		}
 	}
 
-	return d + time.Duration(rand.Int64N(int64(d)/10)) // nolint:gosec // gosec G404 false positive, not used for crypto
+	return jobUpdatedOrCreated, nil
 }
 
 func generationChanged(r *v1alpha1.GitRepo) bool {
@@ -657,19 +723,10 @@ func setStatusFromGitjob(ctx context.Context, c client.Client, gitRepo *v1alpha1
 	return nil
 }
 
-// setAcceptedCondition sets the condition and updates the timestamp, if the condition changed
-func setAcceptedCondition(status *v1alpha1.GitRepoStatus, err error) {
-	cond := condition.Cond(v1alpha1.GitRepoAcceptedCondition)
-	origStatus := status.DeepCopy()
-	cond.SetError(status, "", fleetutil.IgnoreConflict(err))
-	if !equality.Semantic.DeepEqual(origStatus, status) {
-		cond.LastUpdated(status, time.Now().UTC().Format(time.RFC3339))
-	}
-}
-
 // updateErrorStatus sets the condition in the status and tries to update the resource
 func updateErrorStatus(ctx context.Context, c client.Client, req types.NamespacedName, status v1alpha1.GitRepoStatus, orgErr error) error {
-	setAcceptedCondition(&status, orgErr)
+	reconciler.SetCondition(v1alpha1.GitRepoAcceptedCondition, &status, orgErr)
+
 	if statusErr := updateStatus(ctx, c, req, status); statusErr != nil {
 		merr := []error{orgErr, fmt.Errorf("failed to update the status: %w", statusErr)}
 		return errutil.NewAggregate(merr)
@@ -693,6 +750,7 @@ func updateStatus(ctx context.Context, c client.Client, req types.NamespacedName
 		// selectively update the status fields this reconciler is responsible for
 		t.Status.Commit = status.Commit
 		t.Status.GitJobStatus = status.GitJobStatus
+		t.Status.PollingCommit = status.PollingCommit
 		t.Status.LastPollingTime = status.LastPollingTime
 		t.Status.ObservedGeneration = status.ObservedGeneration
 		t.Status.UpdateGeneration = status.UpdateGeneration
@@ -786,4 +844,20 @@ func getFleetCLIErrorsFromLine(l string) string {
 	}
 
 	return s
+}
+
+// getNextCommit returns a commit SHA coming either from the status' webhook
+// commit or, with lower precedence, from the polling commit.
+func getNextCommit(status v1alpha1.GitRepoStatus) string {
+	commit := status.Commit
+	if status.PollingCommit != "" && status.PollingCommit != commit {
+		commit = status.PollingCommit
+	}
+	// We could be using polling but webhooks react immediately to updates.
+	// Give preference to the webhook commit.
+	if status.WebhookCommit != "" && status.WebhookCommit != commit {
+		commit = status.WebhookCommit
+	}
+
+	return commit
 }

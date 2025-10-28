@@ -9,7 +9,7 @@
 
 ![](./docs/arch.png)
 
-Fleet is GitOps at scale. Fleet is designed to manage multiple clusters. It's also lightweight
+Fleet is GitOps and HelmOps at scale. Fleet is designed to manage multiple clusters. It's also lightweight
 enough that it works great for a single cluster too, but it really shines
 when you get to a large scale. By large scale we mean either a lot of clusters, a lot of deployments, or a lot of
 teams in a single organization.
@@ -37,9 +37,9 @@ Install the Fleet Helm charts (there's two because we separate out CRDs for ulti
 
 ```shell
 helm -n cattle-fleet-system install --create-namespace --wait \
-    fleet-crd https://github.com/rancher/fleet/releases/download/v0.13.3/fleet-crd-0.13.3.tgz
+    fleet-crd https://github.com/rancher/fleet/releases/download/v0.13.4/fleet-crd-0.13.4.tgz
 helm -n cattle-fleet-system install --create-namespace --wait \
-    fleet https://github.com/rancher/fleet/releases/download/v0.13.3/fleet-0.13.3.tgz
+    fleet https://github.com/rancher/fleet/releases/download/v0.13.4/fleet-0.13.4.tgz
 ```
 
 ## Add a Git Repo to watch
