@@ -7,6 +7,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 type ExporterTest struct {
@@ -32,7 +33,7 @@ func (et *ExporterTest) Get() (map[string]*dto.MetricFamily, error) {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.LegacyValidation)
 	metrics, err := parser.TextToMetricFamilies(resp.Body)
 	if err != nil {
 		return nil, err
