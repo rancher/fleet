@@ -17,6 +17,7 @@ import (
 	gm "github.com/onsi/gomega/gmeasure"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
 	"github.com/rancher/fleet/e2e/testenv/kubectl"
 	"github.com/rancher/fleet/pkg/apis/fleet.cattle.io/v1alpha1"
@@ -234,7 +235,7 @@ func getMetrics(res map[string]float64, url string, controllers ...string) {
 	pod := addRandomSuffix("curl")
 	var (
 		mfs    map[string]*dto.MetricFamily
-		parser expfmt.TextParser
+		parser expfmt.TextParser = expfmt.NewTextParser(model.LegacyValidation)
 	)
 	Eventually(func() error {
 		GinkgoWriter.Print("Fetching metrics from " + url + "\n")
