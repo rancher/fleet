@@ -19,8 +19,12 @@ rancherpassword="${RANCHER_PASSWORD-rancherpassword}"
 
 public_hostname="${public_hostname:-}"
 if [ -z "${public_hostname}" ]; then
-  until kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'; do sleep 3; done
-  ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  ip=
+  while [ -z "$ip" ]; do
+    echo "Waiting for Traefik LoadBalancer IP..."
+    sleep 5
+    ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  done
   public_hostname="$ip.sslip.io"
 fi
 
