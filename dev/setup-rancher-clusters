@@ -22,7 +22,7 @@ if [ -z "${public_hostname}" ]; then
   ip=
   while [ -z "$ip" ]; do
     echo "Waiting for Traefik LoadBalancer IP..."
-    sleep 5
+    sleep 3
     ip=$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
   done
   public_hostname="$ip.sslip.io"
@@ -65,7 +65,7 @@ timeout 300 bash -c 'until kubectl get bundles -n fleet-local 2>/dev/null | grep
 
 export cluster_downstream="$downstream_ctx"
 export public_hostname="$public_hostname"
-./.github/scripts/register-downstream-clusters.sh
+timeout 300 bash -c 'until ./.github/scripts/register-downstream-clusters.sh; do sleep 3; done'
 
 # register-downstream-clusters.sh only supports fleet-default
 export FLEET_E2E_NS_DOWNSTREAM=fleet-default
