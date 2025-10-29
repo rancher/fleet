@@ -66,7 +66,7 @@ var runCmd = &cobra.Command{
 		if verbose {
 			os.Setenv("FLEET_BENCH_VERBOSE", "true")
 		}
-		testing.MainStart(
+		exitCode := testing.MainStart(
 			matchStringOnly(nil),
 			[]testing.InternalTest{
 				{"BenchmarkSuite", benchmarks.TestBenchmarkSuite},
@@ -86,6 +86,8 @@ var runCmd = &cobra.Command{
 
 		fmt.Println()
 		fmt.Printf("Move the report %q to the %q folder, if you want to compare future benchmark against it.\n", report, db)
+
+		os.Exit(exitCode)
 		return nil
 	},
 }
