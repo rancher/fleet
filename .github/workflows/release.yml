@@ -43,10 +43,11 @@ jobs:
           FLEET_MINOR=$(echo "${FLEET_VERSION}" | cut -d'.' -f2)
           RANCHER_VERSION="2.$((FLEET_MINOR - 1))"
 
-          if ! CHART_DEFAULT_BRANCH=$(curl -sf "https://raw.githubusercontent.com/rancher/rancher/release/v${RANCHER_VERSION}/package/Dockerfile" | grep "ARG CHART_DEFAULT_BRANCH=" | cut -d'=' -f2); then
+          if ! DOCKERFILE_CONTENT=$(curl -sf "https://raw.githubusercontent.com/rancher/rancher/release/v${RANCHER_VERSION}/package/Dockerfile"); then
             echo "Release branch release/v${RANCHER_VERSION} not found, assuming main branch which can not be in code freeze"
             exit 0
           fi
+          CHART_DEFAULT_BRANCH=$(echo "${DOCKERFILE_CONTENT}" | grep "ARG CHART_DEFAULT_BRANCH=" | cut -d'=' -f2)
 
           if [[ "${CHART_DEFAULT_BRANCH}" != "dev-v${RANCHER_VERSION}" ]]; then
             echo "ERROR: CHART_DEFAULT_BRANCH does not match the expected dev branch!"
