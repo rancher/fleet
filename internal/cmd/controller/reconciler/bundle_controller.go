@@ -358,6 +358,14 @@ func (r *BundleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		helmvalues.ClearOptions(bd)
 
+		// If there's already a bundledeployment for this target, track its UID
+		// before calling createBundleDeployment, which might fail. This prevents
+		// cleanupOrphanedBundleDeployments from incorrectly removing this bundledeployment
+		// as "orphaned". See https://github.com/rancher/fleet/issues/4144
+		if target.Deployment != nil && target.Deployment.UID != "" {
+			bundleDeploymentUIDs.Insert(target.Deployment.UID)
+		}
+
 		bd, err = r.createBundleDeployment(
 			ctx,
 			logger,
