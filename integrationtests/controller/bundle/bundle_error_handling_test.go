@@ -183,6 +183,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 		})
 
 		It("should not delete existing bundledeployments when content resource fails", func() {
+			By("capturing the original bundledeployment UIDs")
 			var uid1, uid2 types.UID
 			Eventually(func(g Gomega) {
 				bdList := getBundleDeployments(bundleName, bundleNS)
@@ -191,6 +192,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 				uid2 = bdList.Items[1].UID
 			}).Should(Succeed())
 
+			By("putting content resource in deleting state (causes createBundleDeployment to fail)")
 			addFinalizer(content, testFinalizer)
 			Expect(k8sClient.Delete(ctx, content)).To(Succeed())
 
@@ -200,8 +202,10 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 				g.Expect(c.DeletionTimestamp).NotTo(BeNil())
 			}).Should(Succeed())
 
+			By("triggering bundle reconcile which will fail to update bundledeployments")
 			updateBundleDefaultNamespace(bundle, "kube-system")
 
+			By("verifying bundledeployments keep their original UIDs despite the failure")
 			Consistently(func(g Gomega) {
 				bdList := getBundleDeployments(bundleName, bundleNS)
 				g.Expect(bdList.Items).To(HaveLen(2))
@@ -260,6 +264,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 		})
 
 		It("should continue processing second bundledeployment when first fails", func() {
+			By("capturing the original bundledeployment UIDs")
 			var bd1UID, bd2UID types.UID
 			Eventually(func(g Gomega) {
 				bdList := getBundleDeployments(bundleName, bundleNS)
@@ -276,6 +281,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 				g.Expect(bd2UID).NotTo(BeEmpty())
 			}).Should(Succeed())
 
+			By("putting cluster1 namespace in deleting state (causes bundledeployment update to fail)")
 			cluster1Namespace := &corev1.Namespace{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: cluster1NS}, cluster1Namespace)).To(Succeed())
 			addFinalizer(cluster1Namespace, testFinalizerNS)
@@ -286,8 +292,10 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 				g.Expect(cluster1Namespace.DeletionTimestamp).NotTo(BeNil())
 			}).Should(Succeed())
 
+			By("triggering bundle reconcile which will fail for cluster1 but should continue to cluster2")
 			updateBundleDefaultNamespace(bundle, "kube-system")
 
+			By("verifying cluster2 bundledeployment was updated successfully despite cluster1 failure")
 			Eventually(func(g Gomega) {
 				bdList := &v1alpha1.BundleDeploymentList{}
 				g.Expect(k8sClient.List(ctx, bdList, client.InNamespace(cluster2NS))).To(Succeed())
