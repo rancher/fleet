@@ -182,7 +182,7 @@ var _ = Describe("Bundle controller error handling", Ordered, func() {
 			cleanupResources(bundle, bundleName, testID, content, cluster1, cluster2)
 		})
 
-		It("should not delete existing bundledeployments when content resource fails", func() {
+		It("should not delete existing bundledeployments when bundle deployment creation fails", func() {
 			By("capturing the original bundledeployment UIDs")
 			var uid1, uid2 types.UID
 			Eventually(func(g Gomega) {
